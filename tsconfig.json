@@ -1,0 +1,84 @@
+{
+  "compilerOptions": {
+    // JavaScript + TypeScript coexistence
+    "allowJs": true,                    // Allow JavaScript files
+    "checkJs": false,                   // Don't type-check JS files yet (gradual migration)
+
+    // Module system
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+
+    // JSX support for React
+    "jsx": "react-jsx",
+
+    // Strict type checking (incrementally enable these)
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+
+    // Additional checks
+    "noUnusedLocals": false,            // Too noisy initially, enable later
+    "noUnusedParameters": false,        // Too noisy initially, enable later
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,  // Enable later for safer array access
+
+    // Path resolution (matches jsconfig.json)
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    // Output configuration
+    "noEmit": true,                     // No compilation, just type checking
+    "skipLibCheck": true,               // Skip checking node_modules types
+    "forceConsistentCasingInFileNames": true,
+
+    // Advanced options
+    "resolveJsonModule": true,          // Allow importing JSON files
+    "esModuleInterop": true,            // Better CommonJS/ESM interop
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,            // Each file must be independently transpilable
+
+    // Type acquisition
+    "types": ["node", "react", "react-dom"],
+
+    // Emit decorators metadata (if needed for future use)
+    "experimentalDecorators": false,
+    "emitDecoratorMetadata": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts",
+    "src/**/*.js",      // Include JS files for JSDoc type checking
+    "src/**/*.jsx"      // Include JSX files for type checking
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "wasm-core/target",  // Exclude Rust build artifacts
+    "scripts",
+    "**/*.spec.ts",
+    "**/*.spec.js",
+    "**/*.test.ts",
+    "**/*.test.js"
+  ],
+
+  // TypeScript-specific compiler notes
+  "$schema": "https://json.schemastore.org/tsconfig",
+
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  }
+}

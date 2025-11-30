@@ -1,0 +1,34 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "fs:default",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
+    "fs:allow-copy-file",
+    "fs:allow-remove",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "shell:default",
+    "shell:allow-open",
+    "clipboard-manager:default",
+    "clipboard-manager:allow-read-text",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$APPDATA" },
+        { "path": "$APPDATA/*" },
+        { "path": "$APPDATA/**" }
+      ]
+    }
+  ]
+}
