@@ -3365,14 +3365,26 @@ export class TranslationEngine {
     // Each segment adds O(n) complexity to position calculations during rendering.
     // At 75 segments: ~5-10ms position lookup overhead per highlight interaction.
     // At 35 segments: ~1-2ms overhead (negligible for real-time UI).
+    // OPTIMIZATION: Defer cleanup to idle time to avoid blocking translation
     if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
       const segmentsToKeep = MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP;
       const removedCount = this.translationSegments.length - segmentsToKeep;
-      this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
 
-      // Only log cleanup in debug mode to avoid performance impact
-      if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-        this.log(DEBUG_LEVELS.DEBUG, `🧹 Proactive cleanup: removed ${removedCount} old segments, kept ${segmentsToKeep}`);
+      // Use requestIdleCallback for non-blocking cleanup (or setTimeout fallback)
+      const cleanupFn = () => {
+        this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
+
+        // Only log cleanup in debug mode to avoid performance impact
+        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+          this.log(DEBUG_LEVELS.DEBUG, `🧹 Async proactive cleanup: removed ${removedCount} old segments, kept ${segmentsToKeep}`);
+        }
+      };
+
+      // Use requestIdleCallback if available, otherwise defer with setTimeout
+      if (typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(cleanupFn, { timeout: 1000 });
+      } else {
+        setTimeout(cleanupFn, 0);
       }
     }
 
@@ -4059,36 +4071,49 @@ export class TranslationEngine {
      */
     this.performMemoryCleanup = (level) => {
       performanceLogger.startTiming(`memory-cleanup-${level}`, `Memory cleanup - ${level}`, { level });
-      
+
       try {
         batchLog.warn(`🧹 Performing ${level} memory cleanup...`, {
           level,
           translationSegments: this.translationSegments?.length || 0,
           memoryPressure: this.memoryTracker.getCurrentMemoryRatio()
         });
-        
+
         if (level === 'automatic') {
-          // Gentle cleanup: Keep last 35 segments, clean older ones
-          if (this.translationSegments && this.translationSegments.length > 35) {
-            const segmentsToClean = this.translationSegments.slice(0, -35);
-            segmentsToClean.forEach(segment => {
-              // Nullify properties to break references
-              if (segment) {
-                segment.originalSegment = null;
-                segment.translatedSegment = null;
-                segment.metadata = null;
-              }
-            });
-            this.translationSegments = this.translationSegments.slice(-35);
-            batchLog.info(`🧹 Automatic cleanup: Removed ${segmentsToClean.length} old segments`);
+          // OPTIMIZATION: Defer automatic cleanup to idle time to avoid blocking translation
+          const automaticCleanupFn = () => {
+            // Gentle cleanup: Keep last 35 segments, clean older ones
+            if (this.translationSegments && this.translationSegments.length > 35) {
+              const segmentsToClean = this.translationSegments.slice(0, -35);
+              segmentsToClean.forEach(segment => {
+                // Nullify properties to break references
+                if (segment) {
+                  segment.originalSegment = null;
+                  segment.translatedSegment = null;
+                  segment.metadata = null;
+                }
+              });
+              this.translationSegments = this.translationSegments.slice(-35);
+              batchLog.info(`🧹 Async automatic cleanup: Removed ${segmentsToClean.length} old segments`);
+            }
+
+            // Clear performance history if too long
+            if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 10) {
+              this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-5);
+            }
+
+            performanceLogger.endTiming(`memory-cleanup-${level}`);
+          };
+
+          // Use requestIdleCallback if available, otherwise defer with setTimeout
+          if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(automaticCleanupFn, { timeout: 2000 });
+          } else {
+            setTimeout(automaticCleanupFn, 0);
           }
-          
-          // Clear performance history if too long
-          if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 10) {
-            this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-5);
-          }
-          
+
         } else if (level === 'critical') {
+          // CRITICAL cleanup must be synchronous - we're in trouble and need immediate action
           // Aggressive cleanup: Keep only last 5 segments
           if (this.translationSegments && this.translationSegments.length > 5) {
             const segmentsToClean = this.translationSegments.slice(0, -5);
@@ -4146,23 +4171,29 @@ export class TranslationEngine {
           }
         }
         
-        // Log cleanup results
-        const postCleanupRatio = this.memoryTracker.getCurrentMemoryRatio();
-        batchLog.info(`✅ Memory cleanup completed`, {
-          level,
-          memoryBefore: (this.memoryTracker.getCurrentMemoryRatio() * 100).toFixed(1) + '%',
-          memoryAfter: (postCleanupRatio * 100).toFixed(1) + '%',
-          remainingSegments: this.translationSegments?.length || 0
-        });
-        
+        // Log cleanup results (only for synchronous cleanups)
+        if (level !== 'automatic') {
+          const postCleanupRatio = this.memoryTracker.getCurrentMemoryRatio();
+          batchLog.info(`✅ Memory cleanup completed`, {
+            level,
+            memoryBefore: (this.memoryTracker.getCurrentMemoryRatio() * 100).toFixed(1) + '%',
+            memoryAfter: (postCleanupRatio * 100).toFixed(1) + '%',
+            remainingSegments: this.translationSegments?.length || 0
+          });
+        }
+
       } catch (error) {
         batchLog.error('❌ Memory cleanup failed:', error);
       } finally {
-        performanceLogger.endTiming(`memory-cleanup-${level}`, {
-          level,
-          success: true,
-          remainingSegments: this.translationSegments?.length || 0
-        });
+        // Only end timing for synchronous cleanups
+        // Async automatic cleanup handles its own timing
+        if (level !== 'automatic') {
+          performanceLogger.endTiming(`memory-cleanup-${level}`, {
+            level,
+            success: true,
+            remainingSegments: this.translationSegments?.length || 0
+          });
+        }
       }
     };
     

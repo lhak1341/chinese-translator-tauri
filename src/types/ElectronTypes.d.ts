@@ -141,10 +141,32 @@ export interface DirectorySelectResult {
 /**
  * Complete Electron API exposed via preload script
  */
+/**
+ * Batch dictionary loading result (for parallel operations)
+ */
+export interface BatchDictionaryResult {
+  dictionary_id: string;
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
+/**
+ * Batch dictionary loading response
+ */
+export interface BatchDictionaryResponse {
+  total: number;
+  successful: number;
+  failed: number;
+  results: BatchDictionaryResult[];
+}
+
 export interface ElectronAPI {
   // Dictionary operations
   /** Load a dictionary from file system */
   loadDictionary: (path: string) => Promise<DictionaryLoadResult>;
+  /** Load multiple dictionaries in parallel (Rust multi-core parallelization) */
+  loadDictionariesParallel: (dictionaryIds: string[]) => Promise<BatchDictionaryResponse>;
   /** Save dictionary data to file system */
   saveDictionary: (path: string, data: any) => Promise<SaveResult>;
   /** List all available proper nouns dictionaries */
