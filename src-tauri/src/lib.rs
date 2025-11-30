@@ -42,6 +42,9 @@ pub fn run() {
             dictionary_commands::save_configuration,
             dictionary_commands::load_appearance_settings,
             dictionary_commands::save_appearance_settings,
+            dictionary_commands::export_dictionaries,
+            dictionary_commands::import_dictionaries,
+            dictionary_commands::reset_dictionaries,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

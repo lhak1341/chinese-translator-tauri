@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Manager, State};
+use zip::write::SimpleFileOptions;
+use zip::{ZipArchive, ZipWriter};
 
 // Dictionary cache for preventing duplicate loads
 pub struct DictionaryCache {
@@ -356,5 +359,211 @@ pub async fn save_appearance_settings(
         error: None,
         dictionaries: None,
         message: None,
+    })
+}
+
+#[tauri::command]
+pub async fn export_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+    let dictionary_path = get_dictionary_path(&app_handle)?;
+
+    // Use dialog to get save location
+    use tauri_plugin_dialog::DialogExt;
+    let file_path = app_handle.dialog()
+        .file()
+        .set_title("Export Dictionaries")
+        .set_file_name("dictionaries.zip")
+        .add_filter("ZIP Archive", &["zip"])
+        .blocking_save_file();
+
+    let file_path = match file_path {
+        Some(path) => path.as_path().ok_or("Invalid file path")?.to_path_buf(),
+        None => return Ok(DictionaryResponse {
+            success: false,
+            data: None,
+            error: Some("Export cancelled".to_string()),
+            dictionaries: None,
+            message: None,
+        })
+    };
+
+    // Create ZIP file
+    let zip_file = fs::File::create(&file_path).map_err(|e| e.to_string())?;
+    let mut zip = ZipWriter::new(zip_file);
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    // Add all dictionary files to ZIP
+    let entries = fs::read_dir(&dictionary_path).map_err(|e| e.to_string())?;
+    let mut file_count = 0;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
+
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+            let file_name = path.file_name()
+                .and_then(|n| n.to_str())
+                .ok_or("Invalid filename")?;
+
+            let contents = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+
+            zip.start_file(file_name, options).map_err(|e| e.to_string())?;
+            zip.write_all(contents.as_bytes()).map_err(|e| e.to_string())?;
+            file_count += 1;
+        }
+    }
+
+    zip.finish().map_err(|e| e.to_string())?;
+
+    Ok(DictionaryResponse {
+        success: true,
+        data: None,
+        error: None,
+        dictionaries: None,
+        message: Some(format!("Exported {} dictionaries successfully", file_count)),
+    })
+}
+
+#[tauri::command]
+pub async fn import_dictionaries(
+    app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
+) -> Result<DictionaryResponse, String> {
+    let dictionary_path = get_dictionary_path(&app_handle)?;
+
+    // Use dialog to get file to import
+    use tauri_plugin_dialog::DialogExt;
+    let file_path = app_handle.dialog()
+        .file()
+        .set_title("Import Dictionaries")
+        .add_filter("ZIP Archive", &["zip"])
+        .blocking_pick_file();
+
+    let file_path = match file_path {
+        Some(path) => path.as_path().ok_or("Invalid file path")?.to_path_buf(),
+        None => return Ok(DictionaryResponse {
+            success: false,
+            data: None,
+            error: Some("Import cancelled".to_string()),
+            dictionaries: None,
+            message: None,
+        })
+    };
+
+    // Open ZIP file
+    let zip_file = fs::File::open(&file_path).map_err(|e| e.to_string())?;
+    let mut archive = ZipArchive::new(zip_file).map_err(|e| e.to_string())?;
+
+    let mut file_count = 0;
+    let mut errors = Vec::new();
+
+    // Extract each file
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let filename = file.name().to_string();
+
+        // Only process JSON files
+        if !filename.ends_with(".json") {
+            continue;
+        }
+
+        // Validate JSON before writing
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
+
+        match serde_json::from_str::<serde_json::Value>(&contents) {
+            Ok(_) => {
+                let output_path = dictionary_path.join(&filename);
+                fs::write(&output_path, &contents).map_err(|e| e.to_string())?;
+                file_count += 1;
+            }
+            Err(e) => {
+                errors.push(format!("{}: {}", filename, e));
+            }
+        }
+    }
+
+    // Clear cache since dictionaries changed
+    cache.invalidate(None);
+
+    let message = if errors.is_empty() {
+        format!("Imported {} dictionaries successfully", file_count)
+    } else {
+        format!("Imported {} dictionaries, {} errors: {}", file_count, errors.len(), errors.join(", "))
+    };
+
+    Ok(DictionaryResponse {
+        success: file_count > 0,
+        data: None,
+        error: if !errors.is_empty() { Some(errors.join(", ")) } else { None },
+        dictionaries: None,
+        message: Some(message),
+    })
+}
+
+#[tauri::command]
+pub async fn reset_dictionaries(
+    app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
+    options: Option<serde_json::Value>,
+) -> Result<DictionaryResponse, String> {
+    let dictionary_path = get_dictionary_path(&app_handle)?;
+
+    // Get backup option (default: true)
+    let create_backup = options
+        .as_ref()
+        .and_then(|o| o.get("backup"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+
+    // Create backup if requested
+    if create_backup {
+        let backup_dir = dictionary_path.parent()
+            .ok_or("Could not get parent directory")?
+            .join("dictionaries_backup");
+
+        fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+
+        // Copy all files to backup
+        if dictionary_path.exists() {
+            let entries = fs::read_dir(&dictionary_path).map_err(|e| e.to_string())?;
+
+            for entry in entries {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let path = entry.path();
+
+                if path.is_file() {
+                    let file_name = path.file_name()
+                        .ok_or("Invalid filename")?;
+                    let backup_path = backup_dir.join(file_name);
+                    fs::copy(&path, &backup_path).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+    }
+
+    // Remove all existing dictionary files
+    if dictionary_path.exists() {
+        fs::remove_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+    }
+
+    // Recreate dictionary directory
+    fs::create_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+
+    // Clear cache
+    cache.invalidate(None);
+
+    let message = if create_backup {
+        "Dictionaries reset successfully. Backup created in dictionaries_backup folder."
+    } else {
+        "Dictionaries reset successfully. No backup created."
+    };
+
+    Ok(DictionaryResponse {
+        success: true,
+        data: None,
+        error: None,
+        dictionaries: None,
+        message: Some(message.to_string()),
     })
 }

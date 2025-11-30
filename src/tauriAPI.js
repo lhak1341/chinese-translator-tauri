@@ -160,34 +160,44 @@ const tauriAPI = {
     }
   },
 
-  // Placeholder methods for features not yet implemented
-  // These will be implemented in later phases
-
   /**
    * Export all dictionaries to ZIP file
-   * Note: Not yet implemented in Tauri version
+   * @returns {Promise<{success: boolean, message?: string, error?: string}>}
    */
   exportDictionaries: async () => {
-    console.warn('exportDictionaries: Not yet implemented in Tauri version');
-    return { success: false, error: 'Not yet implemented' };
+    try {
+      return await invoke('export_dictionaries');
+    } catch (error) {
+      console.error('Error in exportDictionaries:', error);
+      return { success: false, error: error.toString() };
+    }
   },
 
   /**
    * Import dictionaries from ZIP file
-   * Note: Not yet implemented in Tauri version
+   * @returns {Promise<{success: boolean, message?: string, error?: string}>}
    */
   importDictionaries: async () => {
-    console.warn('importDictionaries: Not yet implemented in Tauri version');
-    return { success: false, error: 'Not yet implemented' };
+    try {
+      return await invoke('import_dictionaries');
+    } catch (error) {
+      console.error('Error in importDictionaries:', error);
+      return { success: false, error: error.toString() };
+    }
   },
 
   /**
    * Reset dictionaries (advanced users)
-   * Note: Not yet implemented in Tauri version
+   * @param {object} options - Reset options (e.g., {backup: true})
+   * @returns {Promise<{success: boolean, message?: string, error?: string}>}
    */
   resetDictionaries: async (options = {}) => {
-    console.warn('resetDictionaries: Not yet implemented in Tauri version');
-    return { success: false, error: 'Not yet implemented' };
+    try {
+      return await invoke('reset_dictionaries', { options });
+    } catch (error) {
+      console.error('Error in resetDictionaries:', error);
+      return { success: false, error: error.toString() };
+    }
   },
 
   /**
