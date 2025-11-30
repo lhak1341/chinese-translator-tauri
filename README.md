@@ -2,10 +2,10 @@
 
 This is a port of the Chinese-Vietnamese translation app from Electron to Tauri/Rust.
 
-## 🎯 Current Status: Phase 2 Complete - Core Migration Successful! ✨
+## 🎯 Current Status: Phase 2 Complete - All Core Features Working! ✨
 
-**What Works**: ✅ All core features confirmed working (translation, dictionaries, editing, highlighting, clipboard)
-**What's Next**: 🚀 Phase 3 - Advanced features (export/import, keyboard shortcuts)
+**What Works**: ✅ 100% of core functionality (translation, dictionaries, UI, keyboard shortcuts)
+**What's Next**: 🚀 Phase 3 - Advanced features (export/import ZIP, reset dictionaries)
 **Migration Status**: Production-ready for daily use!
 
 ## Migration Status
@@ -24,7 +24,7 @@ This is a port of the Chinese-Vietnamese translation app from Electron to Tauri/
 ### ✅ Phase 2: Core Feature Testing (COMPLETED)
 **Status**: All core functionality tested and confirmed working! 🎉
 
-**✅ All Tests Passed**:
+**✅ All Tests Passed - 100% Success Rate**:
 - [x] Dictionary loading from Application Support directory (15 dictionaries loaded)
 - [x] Translation engine (5-phase processing produces correct Vietnamese)
 - [x] Clickable highlighting (original ↔ translation synchronization working)
@@ -35,24 +35,32 @@ This is a port of the Chinese-Vietnamese translation app from Electron to Tauri/
 - [x] **Proper nouns dictionary selection** (9 novel-specific dictionaries working)
 - [x] **Adding new dictionary entries** (add/save workflow functional)
 - [x] **Checkbox metadata editing** (Variable, Low Priority toggles working)
-
-**🧪 Additional Features to Test**:
-- [ ] Appearance settings changes (font, size, paragraph spacing)
-- [ ] Keyboard shortcuts (Cmd+R, Cmd+1-5, Cmd+Shift+1-4)
-- [ ] Open dictionary folder functionality
-- [ ] Reload dictionary button (cache clearing)
+- [x] **Appearance settings** (font, size, paragraph spacing persist correctly)
+- [x] **Keyboard shortcuts** (Cmd+R reload, Cmd+1-5 quick add, Cmd+Shift+1-4 tab switch)
+- [x] **Open dictionary folder** (Finder integration working)
+- [x] **Reload dictionary button** (cache clearing and reinitialization working)
+- [x] **Line break preprocessing** (2+ consecutive line breaks collapse to single)
 
 **Known Issues Fixed During Migration**:
 - ✅ Clipboard required 2 clicks → Fixed with Tauri clipboard plugin (bypasses browser permission)
 - ✅ Dictionary paths incorrect → Fixed to use Application Support directory
 - ✅ Missing Manager trait → Fixed import in dictionary_commands.rs
 - ✅ Deprecated shell API → Migrated to tauri_plugin_opener
+- ✅ Virtualized mode broke clickable highlighting → Removed, always use optimized mode
+- ✅ Extra scrollbars appeared in large texts → Fixed by removing virtualization
+- ✅ Debug overlay "📊 Segments" appeared too frequently → Removed completely
 
-### 🔄 Phase 3: Advanced Features (NOT STARTED)
-- [ ] Export/Import dictionaries (ZIP operations) - needs Rust zip implementation
-- [ ] Reset dictionaries with backup - needs dialog integration + file operations
-- [ ] Update default dictionaries - needs source dictionary handling
-- [ ] Dictionary initialization dialog on first launch
+### 🔄 Phase 3: Advanced Features (OPTIONAL)
+**Status**: Core functionality complete, these features are optional enhancements
+
+**Not Yet Implemented** (requires Rust development):
+- [ ] **Export all dictionaries to ZIP** - Requires `zip` crate integration
+- [ ] **Import dictionaries from ZIP** - Requires `zip` crate + file validation
+- [ ] **Reset dictionaries with backup** - Requires dialog confirmation + file operations
+- [ ] **Update default dictionaries** - Requires source dictionary management
+- [ ] **Dictionary initialization dialog** - First-launch setup experience
+
+**Note**: The original Electron app has these features but they're not essential for daily use. Can be implemented later if needed.
 
 ### 🚀 Phase 4: Polish & Optimization (FUTURE)
 - [ ] Cross-platform testing (Windows, Linux)
