@@ -344,23 +344,6 @@ const ViewportOptimizedRenderer = ({
               onSegmentClick={onSegmentClick}
             />
           ))}
-          
-          {/* Performance stats in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <div style={{
-              position: 'fixed',
-              bottom: '10px',
-              right: '10px',
-              background: 'rgba(0,0,0,0.8)',
-              color: 'white',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '0.8em',
-              zIndex: 1000
-            }}>
-              📊 Segments: {visibleSegments.length}
-            </div>
-          )}
         </div>
       </div>
     </div>

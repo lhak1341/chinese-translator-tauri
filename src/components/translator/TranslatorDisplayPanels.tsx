@@ -2,7 +2,6 @@ import React from 'react';
 import ClickableOriginalSemantic from '../ClickableOriginalSemantic';
 import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
 import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
-import VirtualizedClickableTranslationViewport from '../VirtualizedClickableTranslationViewport';
 import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
 
@@ -26,11 +25,6 @@ interface PrebuiltSegment {
   text: string;
   unitIndex: number;
 }
-
-/**
- * Text size options for display
- */
-type TextSize = 'small' | 'medium' | 'large' | 'huge';
 
 /**
  * Throttled streaming state for UI updates
@@ -68,9 +62,6 @@ interface TranslatorDisplayPanelsProps {
 
   // Handlers
   handleSemanticSegmentClick: (index: number, direction: string) => void;
-
-  // Display configuration
-  textSize: TextSize;
 
   // Styles (memoized from parent)
   inputTextStyle: React.CSSProperties;
@@ -117,9 +108,6 @@ export default function TranslatorDisplayPanels({
 
   // Handlers
   handleSemanticSegmentClick,
-
-  // Display configuration
-  textSize,
 
   // Styles (memoized from parent)
   inputTextStyle,
@@ -208,28 +196,18 @@ export default function TranslatorDisplayPanels({
 
         {/* Translation display - shows when complete or as fallback */}
         {translatedText ? (
-          textSize === 'huge' ? (
-            <VirtualizedClickableTranslationViewport
+          <div style={{
+            opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
+            transition: 'opacity 0.3s ease'
+          }}>
+            <ClickableTranslationOptimized
               translatedText={translatedText}
               semanticArrays={semanticArrays}
+              prebuiltSegments={prebuiltSegments as any}
               onSegmentClick={handleSemanticSegmentClick}
               highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
-              forceVirtualization={true}
             />
-          ) : (
-            <div style={{
-              opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
-              transition: 'opacity 0.3s ease'
-            }}>
-              <ClickableTranslationOptimized
-                translatedText={translatedText}
-                semanticArrays={semanticArrays}
-                prebuiltSegments={prebuiltSegments as any}
-                onSegmentClick={handleSemanticSegmentClick}
-                highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
-              />
-            </div>
-          )
+          </div>
         ) : (
           <div style={{
             opacity: throttledStreamingState.isStreaming ? 0.3 : 1,

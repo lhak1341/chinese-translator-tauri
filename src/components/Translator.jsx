@@ -37,65 +37,6 @@ import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
  * } from '../types/TranslationEngineTypes'
  */
 
-// Calculate device-specific virtualization thresholds based on available memory and performance
-const calculateVirtualizationThresholds = () => {
-  // Default fallback thresholds for older browsers or when performance API unavailable
-  let segmentThresholds = {
-    huge: 200,    // Use virtualization (reduced from 400 for better long text performance)
-    large: 100,   // Optimized rendering (reduced from 200)
-    medium: 50    // Basic optimization (reduced from 100)
-  };
-  
-  try {
-    // Use performance memory API if available (Chrome/Edge)
-    if (performance.memory) {
-      const totalMemory = performance.memory.jsHeapSizeLimit;
-      const usedMemory = performance.memory.usedJSHeapSize;
-      const availableMemory = totalMemory - usedMemory;
-      
-      // Calculate thresholds based on available memory
-      // Each segment ~= 200 bytes for DOM + event handlers
-      const estimatedSegmentSize = 200;
-      const maxSegments = Math.floor(availableMemory / estimatedSegmentSize);
-      
-      if (maxSegments > 2000) {
-        // High-memory device - moderate thresholds (reduced for better UI performance)
-        segmentThresholds = { huge: 400, large: 200, medium: 100 };
-      } else if (maxSegments < 500) {
-        // Low-memory device - conservative thresholds
-        segmentThresholds = { huge: 150, large: 75, medium: 25 };
-      }
-    }
-    
-    // Test rendering performance with a small sample
-    const testStart = performance.now();
-    const testDiv = document.createElement('div');
-    testDiv.innerHTML = '<span>'.repeat(100) + 'test</span>'.repeat(100);
-    document.body.appendChild(testDiv);
-    document.body.removeChild(testDiv);
-    const renderTime = performance.now() - testStart;
-    
-    // Adjust thresholds based on rendering performance
-    if (renderTime > 50) {
-      // Slow rendering - reduce thresholds by 40%
-      Object.keys(segmentThresholds).forEach(key => {
-        segmentThresholds[key] = Math.floor(segmentThresholds[key] * 0.6);
-      });
-    } else if (renderTime < 10) {
-      // Fast rendering - increase thresholds by 30%
-      Object.keys(segmentThresholds).forEach(key => {
-        segmentThresholds[key] = Math.floor(segmentThresholds[key] * 1.3);
-      });
-    }
-    
-  } catch (_error) {
-    // Fallback to defaults if performance testing fails
-    console.warn('Device capability detection failed, using default thresholds:', _error);
-  }
-  
-  return segmentThresholds;
-};
-
 /**
  * Highlighting reducer for managing all highlighting-related state atomically
  * Handles: unitIndex, translationUnitIndex, characterOnlyUnitIndex, isCharacterOnlyClick
@@ -380,7 +321,6 @@ const Translator = () => {
   });
   const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
-  const [textSize, setTextSize] = useState('small'); // 'small', 'medium', 'large', 'huge'
 
   // Simplified performance monitoring state
   const [_showAdvancedStats, _setShowAdvancedStats] = useState(false);
@@ -413,8 +353,6 @@ const Translator = () => {
   });
   
   
-  // Dynamic thresholds based on device capabilities
-  const [thresholds, _setThresholds] = useState(() => calculateVirtualizationThresholds());
   
   // State for preserving scroll positions during dictionary reload
   const [isDictionaryReloading, setIsDictionaryReloading] = useState(false);
@@ -1144,22 +1082,6 @@ const Translator = () => {
           if (segmentResult && segmentResult.semanticArrays) {
             setSemanticArrays(segmentResult.semanticArrays);
             setPrebuiltSegments(segmentResult.prebuiltSegments || []);
-            
-            // Analyze text size for rendering optimization
-            const segmentCount = segmentResult.semanticArrays.original.length;
-            const textLength = segmentResult.translatedText.length;
-            let newTextSize = 'small';
-            
-            // Use device-specific thresholds for better performance adaptation
-            if (segmentCount > thresholds.huge || textLength > thresholds.huge * 10) {
-              newTextSize = 'huge';     // Use virtualization based on device capability
-            } else if (segmentCount > thresholds.large || textLength > thresholds.large * 10) {
-              newTextSize = 'large';    // Optimized rendering for device
-            } else if (segmentCount > thresholds.medium || textLength > thresholds.medium * 10) {
-              newTextSize = 'medium';   // Basic optimization for device
-            }
-            
-            setTextSize(newTextSize);
           }
           
           // Clear progress info when done
@@ -1229,7 +1151,7 @@ const Translator = () => {
         return newCount;
       });
     }
-  }, [isLoading, thresholds, isDictionaryReloading]);
+  }, [isLoading, isDictionaryReloading]);
 
   const _convertTraditionalToSimplified = _text => {
     const escapeRegExp = string => {
@@ -2547,7 +2469,6 @@ const Translator = () => {
         highlightedCharacterOnlyUnitIndex={highlightedCharacterOnlyUnitIndex}
         throttledStreamingState={throttledStreamingState}
         handleSemanticSegmentClick={handleSemanticSegmentClick}
-        textSize={textSize}
         inputTextStyle={inputTextStyle}
         outputTextStyle={outputTextStyle}
         characterOnlyTextStyle={characterOnlyTextStyle}
