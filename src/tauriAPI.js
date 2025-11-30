@@ -65,6 +65,30 @@ const tauriAPI = {
   },
 
   /**
+   * Load multiple dictionaries in parallel using Rust's multi-core parallelization
+   * @param {string[]} dictionaryIds - Array of dictionary identifiers to load
+   * @returns {Promise<{total: number, successful: number, failed: number, results: Array<{dictionary_id: string, success: boolean, data?: any, error?: string}>}>}
+   */
+  loadDictionariesParallel: async (dictionaryIds) => {
+    try {
+      const result = await invoke('load_dictionaries_parallel', { dictionaryIds });
+      return result;
+    } catch (error) {
+      console.error('Error in loadDictionariesParallel:', error);
+      return {
+        total: dictionaryIds.length,
+        successful: 0,
+        failed: dictionaryIds.length,
+        results: dictionaryIds.map(id => ({
+          dictionary_id: id,
+          success: false,
+          error: error.toString()
+        }))
+      };
+    }
+  },
+
+  /**
    * Open the dictionaries folder in the native file explorer
    * @returns {Promise<{success: boolean, error?: string}>}
    */

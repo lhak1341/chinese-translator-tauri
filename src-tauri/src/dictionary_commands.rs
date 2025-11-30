@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use tauri::{Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
+use rayon::prelude::*;
 
 // Dictionary cache for preventing duplicate loads
 pub struct DictionaryCache {
@@ -392,25 +393,33 @@ pub async fn export_dictionaries(app_handle: tauri::AppHandle) -> Result<Diction
     let options = SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
-    // Add all dictionary files to ZIP
-    let entries = fs::read_dir(&dictionary_path).map_err(|e| e.to_string())?;
+    // Read all dictionary files in parallel first
+    let entries: Vec<_> = fs::read_dir(&dictionary_path)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .collect();
+
+    // Parallel read all files into memory
+    let file_contents: Vec<_> = entries
+        .par_iter()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
+                let file_name = path.file_name()?.to_str()?.to_string();
+                let contents = fs::read_to_string(&path).ok()?;
+                Some((file_name, contents))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Write to ZIP sequentially (ZIP format requires sequential writes)
     let mut file_count = 0;
-
-    for entry in entries {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let file_name = path.file_name()
-                .and_then(|n| n.to_str())
-                .ok_or("Invalid filename")?;
-
-            let contents = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-
-            zip.start_file(file_name, options).map_err(|e| e.to_string())?;
-            zip.write_all(contents.as_bytes()).map_err(|e| e.to_string())?;
-            file_count += 1;
-        }
+    for (file_name, contents) in file_contents {
+        zip.start_file(&file_name, options).map_err(|e| e.to_string())?;
+        zip.write_all(contents.as_bytes()).map_err(|e| e.to_string())?;
+        file_count += 1;
     }
 
     zip.finish().map_err(|e| e.to_string())?;
@@ -565,5 +574,103 @@ pub async fn reset_dictionaries(
         error: None,
         dictionaries: None,
         message: Some(message.to_string()),
+    })
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BatchDictionaryRequest {
+    dictionary_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BatchDictionaryResult {
+    dictionary_id: String,
+    success: bool,
+    data: Option<serde_json::Value>,
+    error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BatchDictionaryResponse {
+    results: Vec<BatchDictionaryResult>,
+    total: usize,
+    successful: usize,
+    failed: usize,
+}
+
+#[tauri::command]
+pub async fn load_dictionaries_parallel(
+    app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
+    dictionary_ids: Vec<String>,
+) -> Result<BatchDictionaryResponse, String> {
+    let dictionary_path = get_dictionary_path(&app_handle)?;
+
+    // Use Rayon to load dictionaries in parallel across all CPU cores
+    let results: Vec<BatchDictionaryResult> = dictionary_ids
+        .par_iter()
+        .map(|dictionary_id| {
+            let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
+            let cache_key = get_cache_key(dictionary_id, &file_path);
+
+            // Check cache first (thread-safe)
+            if let Some(cached_data) = cache.get(&cache_key) {
+                return BatchDictionaryResult {
+                    dictionary_id: dictionary_id.clone(),
+                    success: true,
+                    data: Some(cached_data),
+                    error: None,
+                };
+            }
+
+            // Load from file
+            match fs::read_to_string(&file_path) {
+                Ok(contents) => {
+                    match serde_json::from_str::<serde_json::Value>(&contents) {
+                        Ok(data) => {
+                            // Cache the result (thread-safe)
+                            cache.set(cache_key, data.clone());
+
+                            BatchDictionaryResult {
+                                dictionary_id: dictionary_id.clone(),
+                                success: true,
+                                data: Some(data),
+                                error: None,
+                            }
+                        }
+                        Err(e) => BatchDictionaryResult {
+                            dictionary_id: dictionary_id.clone(),
+                            success: false,
+                            data: None,
+                            error: Some(format!("JSON parse error: {}", e)),
+                        },
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    BatchDictionaryResult {
+                        dictionary_id: dictionary_id.clone(),
+                        success: false,
+                        data: None,
+                        error: Some("File not found".to_string()),
+                    }
+                }
+                Err(e) => BatchDictionaryResult {
+                    dictionary_id: dictionary_id.clone(),
+                    success: false,
+                    data: None,
+                    error: Some(e.to_string()),
+                },
+            }
+        })
+        .collect();
+
+    let successful = results.iter().filter(|r| r.success).count();
+    let failed = results.len() - successful;
+
+    Ok(BatchDictionaryResponse {
+        total: results.len(),
+        successful,
+        failed,
+        results,
     })
 }

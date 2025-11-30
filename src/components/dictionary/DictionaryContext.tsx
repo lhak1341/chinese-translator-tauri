@@ -161,30 +161,33 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           }
         }
 
-        // Load all available dictionaries in parallel for faster startup
-        const dictionaryPromises = Object.keys(types).map(async (dictionaryId) => {
-          const result = await window.electronAPI.loadDictionary(dictionaryId);
+        // Use Rust's parallel batch loading for multi-core performance
+        // This distributes dictionary loading across all CPU cores via Rayon
+        const dictionaryIds = Object.keys(types);
+        const startTime = performance.now();
+
+        const batchResult = await window.electronAPI.loadDictionariesParallel(dictionaryIds);
+
+        const endTime = performance.now();
+        const loadTime = (endTime - startTime).toFixed(2);
+
+        console.log(`📚 Parallel dictionary loading: ${batchResult.successful}/${batchResult.total} dictionaries loaded in ${loadTime}ms`);
+        if (batchResult.failed > 0) {
+          console.warn(`⚠️ ${batchResult.failed} dictionaries failed to load`);
+        }
+
+        // Process results and sort dictionaries
+        batchResult.results.forEach((result: any) => {
           if (result.success && result.data) {
-            return {
-              dictionaryId,
-              data: sortDictionaryEntries(result.data, dictionaryId)
-            };
+            loadedDictionaries[result.dictionary_id] = sortDictionaryEntries(
+              result.data,
+              result.dictionary_id
+            );
           } else {
-            console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
+            console.error(`Failed to load dictionary ${result.dictionary_id}:`, result.error);
             // Initialize with empty dictionary if load fails
-            return {
-              dictionaryId,
-              data: {}
-            };
+            loadedDictionaries[result.dictionary_id] = {};
           }
-        });
-
-        // Wait for all dictionaries to load in parallel
-        const dictionaryResults = await Promise.all(dictionaryPromises);
-
-        // Populate loaded dictionaries from parallel results
-        dictionaryResults.forEach(({ dictionaryId, data }) => {
-          loadedDictionaries[dictionaryId] = data;
         });
 
         setDictionaries(loadedDictionaries);

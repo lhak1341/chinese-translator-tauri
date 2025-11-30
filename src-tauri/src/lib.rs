@@ -38,6 +38,7 @@ pub fn run() {
             dictionary_commands::create_proper_nouns_dictionary,
             dictionary_commands::save_dictionary,
             dictionary_commands::load_dictionary,
+            dictionary_commands::load_dictionaries_parallel,
             dictionary_commands::load_configuration,
             dictionary_commands::save_configuration,
             dictionary_commands::load_appearance_settings,
