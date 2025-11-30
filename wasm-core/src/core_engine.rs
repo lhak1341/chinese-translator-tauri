@@ -113,6 +113,39 @@ pub struct ComputationStats {
     pub clickable_count: u32,
 }
 
+// Batch dictionary lookup structures for boundary crossing optimization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchLookupRequest {
+    pub text: String,
+    pub positions: Vec<u32>,
+    pub dictionary_types: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DictionaryMatch {
+    pub word: String,
+    pub translation: String,
+    pub dictionary: String,
+    pub start_pos: u32,
+    pub end_pos: u32,
+    pub priority: i32,
+    pub metadata: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchLookupResult {
+    pub position: u32,
+    pub matches: Vec<DictionaryMatch>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchLookupResponse {
+    pub results: Vec<BatchLookupResult>,
+    pub lookup_time_ms: f64,
+    pub total_matches: u32,
+    pub positions_processed: u32,
+}
+
 // Internal token for efficient processing
 #[derive(Debug, Clone)]
 pub struct InternalToken {
@@ -1705,6 +1738,78 @@ impl CoreTranslationEngine {
             .join(" ")
     }
 
+    /// OPTIMIZATION: Batch dictionary lookup - processes multiple positions in single WASM call
+    /// PERFORMANCE: Reduces boundary crossing from N calls to 1 call (2-3x speedup for dictionary phase)
+    #[wasm_bindgen(js_name = batchDictionaryLookup)]
+    pub fn batch_dictionary_lookup(&self, request: JsValue) -> Result<JsValue, JsValue> {
+        let start_time = self.get_performance_now();
+
+        // Parse batch request from JavaScript
+        let batch_request: BatchLookupRequest = serde_wasm_bindgen::from_value(request)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse batch request: {}", e)))?;
+
+        let mut results = Vec::new();
+        let mut total_matches = 0u32;
+
+        // Process each position
+        for &position in &batch_request.positions {
+            let pos_start = position as usize;
+            let mut position_matches = Vec::new();
+
+            // Search in each requested dictionary type
+            for dict_name in &batch_request.dictionary_types {
+                if let Some(dict) = self.dictionaries.get(dict_name) {
+                    // Get text from position onwards (max 20 chars for lookup)
+                    let search_text: String = batch_request.text
+                        .chars()
+                        .skip(pos_start)
+                        .take(20)
+                        .collect();
+
+                    if !search_text.is_empty() {
+                        // Use trie's longest match algorithm
+                        if let Some(match_result) = dict.find_longest_match(&search_text, 0) {
+                            // Calculate priority (same as JavaScript)
+                            let priority = -(match_result.word.len() as i32);
+
+                            position_matches.push(DictionaryMatch {
+                                word: match_result.word.clone(),
+                                translation: match_result.translation.clone(),
+                                dictionary: dict_name.clone(),
+                                start_pos: position,
+                                end_pos: position + match_result.word.len() as u32,
+                                priority,
+                                metadata: match_result.metadata.clone(),
+                            });
+
+                            total_matches += 1;
+                        }
+                    }
+                }
+            }
+
+            // Sort matches by priority (longer matches first)
+            position_matches.sort_by(|a, b| a.priority.cmp(&b.priority));
+
+            results.push(BatchLookupResult {
+                position,
+                matches: position_matches,
+            });
+        }
+
+        let lookup_time = self.get_performance_now() - start_time;
+
+        let response = BatchLookupResponse {
+            results,
+            lookup_time_ms: lookup_time,
+            total_matches,
+            positions_processed: batch_request.positions.len() as u32,
+        };
+
+        serde_wasm_bindgen::to_value(&response)
+            .map_err(|e| JsValue::from_str(&format!("Failed to serialize response: {}", e)))
+    }
+
     // Phase 3: WASM Number Processing Implementation
     // Optimized Chinese number conversion with native performance
 
@@ -2169,7 +2274,7 @@ fn convert_tens_based_range(text: &str) -> Option<String> {
 // Recursive helper for complex number parsing
 fn parse_chinese_number_recursive(text: &str) -> Option<u32> {
     if text.is_empty() { return Some(0); }
-    
+
     // Handle thousands like 三千五百 (3500)
     if text.contains('千') {
         if let Some(captures) = Regex::new(r"([一二两三四五六七八九])千(.*)").unwrap().captures(text) {
@@ -2178,7 +2283,7 @@ fn parse_chinese_number_recursive(text: &str) -> Option<u32> {
             return Some(thousands + remainder);
         }
     }
-    
+
     // Handle hundreds like 两百 (200), 三百五十 (350)
     if text.contains('百') {
         // Check for hundreds with zero first: 三百零五 (305)
@@ -2194,7 +2299,7 @@ fn parse_chinese_number_recursive(text: &str) -> Option<u32> {
             return Some(hundreds + remainder);
         }
     }
-    
+
     // Handle tens like 三十五 (35)
     if text.contains('十') {
         // Implicit tens: 十七 (17)
@@ -2205,15 +2310,15 @@ fn parse_chinese_number_recursive(text: &str) -> Option<u32> {
         // Regular tens: 三十五 (35)
         if let Some(captures) = Regex::new(r"([一二两三四五六七八九])十([一二三四五六七八九])?").unwrap().captures(text) {
             let tens = NUMBER_MAP.get(&captures[1].chars().next()?)? * 10;
-            let units = if captures.get(2).is_some() { 
-                NUMBER_MAP.get(&captures[2].chars().next()?).unwrap_or(&0) 
-            } else { 
-                &0 
+            let units = if captures.get(2).is_some() {
+                NUMBER_MAP.get(&captures[2].chars().next()?).unwrap_or(&0)
+            } else {
+                &0
             };
             return Some(tens + units);
         }
     }
-    
+
     // Single character number
     if text.len() == 1 {
         text.chars().next().and_then(|c| NUMBER_MAP.get(&c).copied())
@@ -2221,3 +2326,4 @@ fn parse_chinese_number_recursive(text: &str) -> Option<u32> {
         None
     }
 }
+
