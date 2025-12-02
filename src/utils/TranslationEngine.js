@@ -16,6 +16,8 @@ import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
 import { PositionTracker } from './PositionTracker.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
+// WASM NumberProcessor added as focused feature (following migration guide advice)
+import { processNumbersWasm, isWasmNumberProcessorAvailable } from './WasmNumberProcessor.js';
 import {
   getLegacySystemStatus,
   checkRollbackTriggers,
@@ -1150,29 +1152,51 @@ export class TranslationEngine {
       let translatedText = '';
       
       // Tokenize the entire text directly (don't use chunking which removes whitespace/punctuation)
-      const tokens = this.tokenizer.tokenize(text);
-      
+      let tokens = this.tokenizer.tokenize(text);
+
       if (process.env.NODE_ENV === 'development') {
         batchLog.hotVerbose('tokenization', `Tokenization completed: ${tokens.length} tokens`);
       }
-      
+
+      // WASM Number Processing (Phase 0: Before character translation)
+      // Convert Chinese numbers to Arabic numerals (三十五 → 35, 一九四五年 → năm 1945)
+      if (isWasmNumberProcessorAvailable()) {
+        try {
+          tokens = await processNumbersWasm(tokens);
+          if (process.env.NODE_ENV === 'development') {
+            batchLog.hotVerbose('number-conversion', `WASM number processing completed`);
+          }
+        } catch (error) {
+          console.warn('⚠️ WASM number processing failed, continuing with character translation:', error);
+        }
+      }
+
       // Only apply Phase 5: Character-level translation to all tokens
       await this.processCharacterOnlyTokens(tokens, options, characterOnlySemanticBuilder);
       
       // Build result text and semantic arrays from tokens
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        const translatedValue = token.translated !== null ? token.translated : token.value;
-        
+
+        // Skip consumed tokens from number conversion (they were already included in the main number token)
+        if (token.translationSource === 'number_conversion_consumed') {
+          continue;
+        }
+
+        const translatedValue = token.translated != null ? token.translated : token.value;
+
         // Build semantic array entry for each token
-        if (token.type === 'chinese_char' && token.translated !== token.value) {
+        // Check for both null and undefined to avoid adding invalid entries
+        if (token.type === 'chinese_char' &&
+            token.translated != null &&  // != null checks for both null and undefined
+            token.translated !== token.value) {
           characterOnlySemanticBuilder.addUnit(
             token.value,
             token.translated,
             token.translationSource || 'characters'
           );
         }
-        
+
         // Add the translated value
         translatedText += translatedValue;
         
@@ -1289,9 +1313,9 @@ export class TranslationEngine {
     // Process each token individually
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
-      
-      // Skip already processed tokens
-      if (token.translated !== null) {
+
+      // Skip already processed tokens (including WASM number conversions)
+      if (token.translated != null || token.translationSource === 'number_conversion_consumed') {
         continue;
       }
       

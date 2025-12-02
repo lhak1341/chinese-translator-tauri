@@ -7,8 +7,14 @@
 // This WASM module is kept for potential future use but is not currently
 // used by the translation engine. The app uses pure JavaScript translation.
 // Tauri Rust backend (file I/O, parallel loading) remains active and working.
+//
+// UPDATE: NumberProcessor added as focused WASM feature (following migration guide advice)
+// - Stateless, deterministic number conversion
+// - Simple I/O boundaries
+// - Easy to test and validate
 
 mod trie;
+pub mod number_processor;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;
