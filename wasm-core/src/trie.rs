@@ -84,46 +84,6 @@ impl TrieNode {
         matches.into_iter().next() // Already sorted by length, take first
     }
 
-    /// Phase 6.2: Find all matches starting from all positions in text (optimized for pattern variable scanning)
-    pub fn find_all_matches(&self, text: &str, _start_pos: usize) -> Vec<MatchResult> {
-        let mut all_matches = Vec::new();
-        let chars: Vec<char> = text.chars().collect();
-        
-        // Scan all positions in the text for potential matches
-        for start_pos in 0..chars.len() {
-            let mut current = self;
-            let mut current_word = String::new();
-            
-            for (i, &ch) in chars[start_pos..].iter().enumerate() {
-                if let Some(child) = current.children.get(&ch) {
-                    current = child;
-                    current_word.push(ch);
-                    
-                    // If we found a complete word, add it to matches
-                    if current.is_end_of_word {
-                        if let Some(ref translation) = current.translation {
-                            all_matches.push(MatchResult {
-                                word: current_word.clone(),
-                                translation: translation.clone(),
-                                start_pos,
-                                end_pos: start_pos + i + 1,
-                                metadata: current.metadata.clone(),
-                            });
-                        }
-                    }
-                } else {
-                    // No more matches possible from this path
-                    break;
-                }
-            }
-        }
-        
-        // Sort by length (longest matches first) for better pattern variable resolution
-        all_matches.sort_by(|a, b| b.word.len().cmp(&a.word.len()));
-        
-        all_matches
-    }
-
     pub fn get_entry_count(&self) -> usize {
         let mut count = 0;
         
@@ -136,30 +96,6 @@ impl TrieNode {
         }
         
         count
-    }
-
-    /// Estimate memory usage of this trie (Phase 6.2 memory management)
-    pub fn get_memory_estimate(&self) -> usize {
-        let mut total = 0;
-        
-        // Base struct size
-        total += std::mem::size_of::<TrieNode>();
-        
-        // Translation and metadata strings
-        if let Some(ref translation) = self.translation {
-            total += translation.len();
-        }
-        if let Some(ref metadata) = self.metadata {
-            total += metadata.len();
-        }
-        
-        // Children HashMap overhead + recursive children
-        total += self.children.capacity() * std::mem::size_of::<(char, TrieNode)>();
-        for child in self.children.values() {
-            total += child.get_memory_estimate();
-        }
-        
-        total
     }
 }
 

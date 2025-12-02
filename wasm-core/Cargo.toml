@@ -2,6 +2,9 @@
 name = "translation-wasm-core"
 version = "0.2.0"
 edition = "2021"
+description = "WASM core module for Chinese-Vietnamese translation (deprecated)"
+repository = "https://github.com/lhak1341/chinese-translator-tauri"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib"]
