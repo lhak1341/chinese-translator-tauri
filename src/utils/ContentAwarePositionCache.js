@@ -30,11 +30,11 @@ export class ContentAwarePositionCache {
     // Main cache for exact content matches
     this.exactCache = new LRUCache(this.maxCacheSize);
 
+    // Similarity cache for detecting similar content (must be initialized before checkCacheVersion)
+    this.similarityCache = new Map(); // Map of content hashes to similarity signatures
+
     // Check and clear old cache versions
     this.checkCacheVersion();
-
-    // Similarity cache for detecting similar content
-    this.similarityCache = new Map(); // Map of content hashes to similarity signatures
 
     // Performance tracking
     this.stats = {
