@@ -129,6 +129,24 @@ const tauriAPI = {
   },
 
   /**
+   * Rename a proper nouns dictionary
+   * @param {string} oldDictionaryId - The current dictionary identifier
+   * @param {string} newDictionaryId - The new dictionary identifier
+   * @returns {Promise<{success: boolean, message?: string, error?: string}>}
+   */
+  renameProperNounsDictionary: async (oldDictionaryId, newDictionaryId) => {
+    try {
+      return await invoke('rename_proper_nouns_dictionary', {
+        oldDictionaryId,
+        newDictionaryId
+      });
+    } catch (error) {
+      console.error('Error in renameProperNounsDictionary:', error);
+      return { success: false, error: error.toString() };
+    }
+  },
+
+  /**
    * Load configuration file
    * @returns {Promise<{success: boolean, data?: any, error?: string}>}
    */

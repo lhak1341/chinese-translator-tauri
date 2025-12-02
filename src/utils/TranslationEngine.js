@@ -15,12 +15,12 @@ import { performanceProfiler } from './PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
 import { PositionTracker } from './PositionTracker.js';
 import { parallelConfig } from './ParallelConfig.js';
-import { WasmTranslationAccelerator } from './WasmTranslationAccelerator.js';
-import { 
-  getLegacySystemStatus, 
+// WasmTranslationAccelerator removed - using pure JavaScript translation
+import {
+  getLegacySystemStatus,
   checkRollbackTriggers,
   updatePerformanceBaselines,
-  initializePerformanceBaselines 
+  initializePerformanceBaselines
 } from './LegacySystemFlags.js';
 import { translationSegmentCache } from './TranslationSegmentCache.js';
 import { batchLog, performanceLogger } from './BatchLogger.js';
@@ -426,13 +426,16 @@ export class TranslationEngine {
     this.textChunker = new TextChunker();
     this.numberProcessor = new NumberProcessor();
     
-    // Phase 6: Core Translation Engine Rust Integration
-    // This provides 15-30x performance improvement while maintaining 100% compatibility
+    // WASM Core Engine REMOVED:
+    // Phase 6 & 7 WASM translation acceleration was disabled due to:
+    // - Dictionary lookups returning 0 matches
+    // - Pattern matching integration issues
+    // - Maintaining pure JavaScript for reliability and translation quality
+    // Tauri Rust backend (file I/O, parallel loading) remains active and working perfectly
     this.coreEngineRust = null;
-    this.initializeCoreEngine();
-    
+
     // Feature flag for optimized semantic array builder
-    this.useOptimizedSemanticBuilder = process.env.NODE_ENV === 'development' || 
+    this.useOptimizedSemanticBuilder = process.env.NODE_ENV === 'development' ||
       (typeof window !== 'undefined' && window.location?.search?.includes('optimized-semantics=true'));
     
     if (this.useOptimizedSemanticBuilder) {
@@ -444,7 +447,7 @@ export class TranslationEngine {
 
     this.isInitialized = false;
     // PERFORMANCE OPTIMIZATION: Reduce default logging to prevent console spam
-    this.debugLevel = process.env.NODE_ENV === 'production' ? DEBUG_LEVELS.ERROR : DEBUG_LEVELS.ERROR; // Only errors
+    this.debugLevel = process.env.NODE_ENV === 'production' ? DEBUG_LEVELS.ERROR : DEBUG_LEVELS.DEBUG; // Production: errors only, Development: debug messages
     this.punctuationDict = {}; // Store punctuation translation dictionary
     this.stats = {
       totalTranslations: 0,
@@ -551,40 +554,12 @@ export class TranslationEngine {
   }
 
   /**
-   * Initialize Phase 6 Core Translation Engine (Rust WASM)
-   * Provides 15-30x performance improvement while maintaining 100% compatibility
+   * Initialize Core Translation Engine (WASM removed)
+   * WASM translation was removed - using pure JavaScript for reliability
    */
   async initializeCoreEngine() {
-    try {
-      // Phase 6: Core Translation Engine Rust Integration
-      this.coreEngineRust = new WasmTranslationAccelerator(this);
-      
-      // Initialize in background to avoid blocking app startup
-      setTimeout(async () => {
-        try {
-          const initialized = await this.coreEngineRust.initialize();
-          if (initialized && this.coreEngineRust.isReady()) {
-            this.log(DEBUG_LEVELS.INFO, '🚀 Phase 6 Core Translation Engine (Rust) initialized successfully');
-            
-            // Load dictionaries into Rust engine when they become available
-            console.log(`🔍 Core Engine ready, checking if main engine initialized: ${this.isInitialized}`);
-            if (this.isInitialized) {
-              console.log('🔄 Calling syncDictionaries from Core Engine init...');
-              await this.syncDictionaries();
-            } else {
-              console.log('⏳ Main engine not ready yet, will sync later...');
-            }
-          } else {
-            this.log(DEBUG_LEVELS.INFO, '⚠️ Phase 6 Core Engine using JavaScript fallback');
-          }
-        } catch (error) {
-          this.log(DEBUG_LEVELS.ERROR, '❌ Phase 6 Core Engine initialization failed:', error.message);
-        }
-      }, 100); // Small delay to avoid blocking app startup
-    } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '❌ Failed to create Phase 6 Core Engine:', error.message);
-      this.coreEngineRust = null;
-    }
+    // WASM Core Engine removed - translation now uses pure JavaScript
+    this.coreEngineRust = null;
   }
 
   /**
@@ -1105,21 +1080,7 @@ export class TranslationEngine {
     
     try {
 
-    // Phase 6: Try Rust Core Engine first (15-30x faster)
-    if (this.coreEngineRust && this.coreEngineRust.isReady() && !options.forceJavaScript) {
-      try {
-        const result = await this.coreEngineRust.translateTextOptimized(text, options);
-        if (result && result.translatedText) {
-          this.log(DEBUG_LEVELS.VERBOSE, '🚀 Used Phase 6 Core Engine (Rust) for translation');
-          return result.translatedText;
-        }
-      } catch (error) {
-        this.log(DEBUG_LEVELS.WARN, '⚠️ Phase 6 Core Engine failed, using JavaScript fallback:', error.message);
-        // Continue to JavaScript fallback below
-      }
-    }
-
-    // JavaScript fallback (original implementation)
+    // Pure JavaScript translation implementation (WASM removed for reliability)
     // Check if chunk-based processing should be used
     const useChunking = options.useChunking !== false; // Default to true
     
@@ -1170,33 +1131,7 @@ export class TranslationEngine {
       };
     }
 
-    // Phase 6.3: Try Rust character-only translation first (8-15x faster)
-    if (this.coreEngineRust && this.coreEngineRust.isReady() && !options.forceJavaScript) {
-      try {
-        const result = await this.coreEngineRust.translateCharactersOnly(text, options);
-        if (result && result.translatedText) {
-          this.log(DEBUG_LEVELS.VERBOSE, '🚀 Used Phase 6.3 Core Engine (Rust) for character-only translation');
-          return result;
-        }
-      } catch (error) {
-        this.log(DEBUG_LEVELS.WARN, '⚠️ Phase 6.3 Rust character-only failed, falling back to JavaScript:', error.message);
-        // Continue to JavaScript implementation
-      }
-    }
-    
-    // CACHE OPTIMIZATION: Check cache first
-    const dictionaryFingerprint = translationSegmentCache.generateDictionaryFingerprint(this.dictionaryManager);
-    const charOnlyOptions = { ...options, translationMode: 'character-only' };
-    
-    if (!options.disableCache) {
-      const cached = translationSegmentCache.get(text, dictionaryFingerprint, charOnlyOptions);
-      if (cached) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`🎯 Character-only CACHE HIT: ${text.length} chars`);
-        }
-        return cached;
-      }
-    }
+    // Pure JavaScript character-only translation (WASM removed for reliability)
 
     const _operationId = `character_only_translation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -1287,16 +1222,7 @@ export class TranslationEngine {
         semanticArrays,
         prebuiltSegments: []
       };
-      
-      // CACHE OPTIMIZATION: Store result for future use
-      if (!options.disableCache) {
-        try {
-          translationSegmentCache.set(text, translatedText, semanticArrays, dictionaryFingerprint, charOnlyOptions);
-        } catch (cacheError) {
-          console.warn('⚠️ Character-only cache storage failed:', cacheError);
-        }
-      }
-      
+
       return result;
       
     } catch (error) {
@@ -2281,18 +2207,15 @@ export class TranslationEngine {
     const batchPromises = batches.map(async (batch) => {
       const batchMatches = [];
 
-      // OPTIMIZATION: Batch dictionary lookup - collect all positions first
+      // Batch dictionary lookup using JavaScript (WASM removed for reliability)
       const positions = batch.map(tokenIndex =>
         this.getTextPositionForTokenIndex(tokens, tokenIndex)
       );
 
-      // Single WASM batch lookup call replaces N sequential lookups (2-3x speedup)
-      const lookupResults = this.coreEngineRust
-        ? await this.coreEngineRust.batchDictionaryLookup(fullText, positions, ['phrases'])
-        : await Promise.all(positions.map(pos =>
-            this.dictionaryManager.findAllMatchesAsync(fullText, pos, ['phrases'])
-              .then(matches => ({ position: pos, matches }))
-          ));
+      const lookupResults = await Promise.all(positions.map(pos =>
+        this.dictionaryManager.findAllMatchesAsync(fullText, pos, ['phrases'])
+          .then(matches => ({ position: pos, matches }))
+      ));
 
       // Process all lookup results
       for (let i = 0; i < batch.length; i++) {

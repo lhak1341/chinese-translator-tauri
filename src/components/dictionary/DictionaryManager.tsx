@@ -83,12 +83,22 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
   const [isLoadingDictionary, setIsLoadingDictionary] = useState<boolean>(false);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(null);
 
+  // Filter state for showing all dictionaries
+  const [showAllDictionaries, setShowAllDictionaries] = useState<boolean>(false);
+  const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
+
   // Load dictionary types including active proper nouns dictionaries
   useEffect(() => {
     const loadDictionaryTypes = async (): Promise<void> => {
       try {
         const types = await getDictionaryTypes() as DictionaryTypesCollection;
         setDictionaryTypes(types);
+
+        // Load active dictionaries from config
+        const configResult = await window.electronAPI.loadConfiguration();
+        if (configResult.success && configResult.data) {
+          setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
+        }
 
         // If the currently selected dictionary is no longer available,
         // switch to the first available dictionary
@@ -203,6 +213,28 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
     }
   };
 
+  // Filter dictionary types based on "Show all dictionaries" checkbox
+  const filteredDictionaryTypes = React.useMemo(() => {
+    if (showAllDictionaries) {
+      // Show all dictionaries
+      return dictionaryTypes;
+    }
+
+    // Filter: show base dictionaries + active proper nouns only
+    const filtered: DictionaryTypesCollection = {};
+    for (const [id, type] of Object.entries(dictionaryTypes)) {
+      // Always include base dictionaries (non-properNouns)
+      if (!id.startsWith('properNouns')) {
+        filtered[id] = type;
+      }
+      // Include proper nouns dictionaries that are active
+      else if (activeDictionaries.includes(id)) {
+        filtered[id] = type;
+      }
+    }
+    return filtered;
+  }, [dictionaryTypes, showAllDictionaries, activeDictionaries]);
+
   // Style definitions for consistent layout
   const containerStyle: React.CSSProperties = {
     position: 'absolute',
@@ -312,12 +344,33 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
           onChange={(e) => setSelectedDictionary(e.target.value)}
           disabled={isLoadingDictionary}
         >
-          {Object.entries(dictionaryTypes).map(([id, { label }]) => (
+          {Object.entries(filteredDictionaryTypes).map(([id, { label }]) => (
             <option key={id} value={id}>
               {label}
             </option>
           ))}
         </select>
+
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.875rem',
+            cursor: 'pointer',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+          }}
+          title="Show all proper nouns dictionaries, including inactive ones"
+        >
+          <input
+            type="checkbox"
+            checked={showAllDictionaries}
+            onChange={(e) => setShowAllDictionaries(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          <span>Show all dictionaries</span>
+        </label>
 
         <div style={controlsStyle}>
           <button

@@ -2,11 +2,26 @@
 
 This is a port of the Chinese-Vietnamese translation app from Electron to Tauri/Rust.
 
-## 🎯 Current Status: Phase 4 Complete - Multi-Core Performance Boost! 🚀
+## 🎯 Current Status: Production Ready! 🚀
 
-**What Works**: ✅ 100% feature parity + Multi-core parallelization
-**Latest**: ⚡ Rust parallelization with Rayon - distributes I/O across all CPU cores
-**Migration Status**: Production-ready - faster than Electron!
+**What Works**: ✅ 100% feature parity with improved quality
+**Architecture**: Pure JavaScript translation + Rust file I/O
+**Latest**: WASM translation removed (see [Migration Guide](./WASM_REMOVAL_MIGRATION_GUIDE.md))
+**Migration Status**: Production-ready - better quality than Electron!
+
+## Important Update: WASM Translation Removed
+
+WASM translation acceleration (Phases 6 & 7) has been removed due to:
+- Dictionary lookups returning 0 matches
+- Translation quality degradation
+- Pattern matching errors
+
+**Current Implementation**:
+- ✅ **Pure JavaScript Translation** - Reliable and correct
+- ✅ **Rust Backend for File I/O** - Fast with Rayon parallelization
+- ✅ **Better Translation Quality** - Restored to original accuracy
+
+For details, see [WASM_REMOVAL_MIGRATION_GUIDE.md](./WASM_REMOVAL_MIGRATION_GUIDE.md)
 
 ## Migration Status
 

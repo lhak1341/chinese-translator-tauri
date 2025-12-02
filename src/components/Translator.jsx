@@ -465,7 +465,13 @@ const Translator = () => {
       const initializeEngine = async () => {
         try {
           engineRef.current = createTranslationEngine();
-          
+
+          // Phase 8: Expose engine to window for testing
+          if (process.env.NODE_ENV === 'development') {
+            window.translationEngine = engineRef.current;
+            console.log('🧪 TranslationEngine exposed to window.translationEngine for testing');
+          }
+
           // Filter dictionaries to only include active ones
           const filteredDictionaries = getFilteredDictionaries(dictionaries, activeProperNouns);
           
@@ -2110,15 +2116,29 @@ const Translator = () => {
       }
 
       // Semantic translation cache removed - no longer used
-      
+
       if (engineRef.current) {
         try {
+          // Clear JavaScript caches
           if (engineRef.current.dictionaryManager?.clearAllCaches) {
             engineRef.current.dictionaryManager.clearAllCaches();
+            console.log('✅ Dictionary manager caches cleared');
           }
           if (engineRef.current.semanticPatternProcessor?.variableCache) {
             engineRef.current.semanticPatternProcessor.variableCache.clear();
+            console.log('✅ Semantic pattern variable cache cleared');
           }
+
+          // Phase 7: Clear WASM Pattern Manager cache
+          if (engineRef.current.coreEngineRust && engineRef.current.coreEngineRust.isReady()) {
+            try {
+              engineRef.current.coreEngineRust.clearCache();
+              console.log('✅ Phase 7 WASM Pattern Manager cache cleared');
+            } catch (_wasmError) {
+              console.warn('⚠️  Could not clear WASM cache:', _wasmError.message);
+            }
+          }
+
           engineRef.current = null;
           console.log('✅ Engine cleared successfully');
         } catch (_engineError) {

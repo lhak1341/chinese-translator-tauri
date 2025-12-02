@@ -1,3 +1,8 @@
+// WASM Core Engine - NOT CURRENTLY USED
+// This module is not used by the translation engine.
+// The app uses pure JavaScript translation for reliability.
+// Kept for potential future use.
+
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -212,12 +217,15 @@ pub struct PatternStats {
 pub struct CoreTranslationEngine {
     // Dictionary storage
     dictionaries: HashMap<String, TrieNode>,
-    
+
+    // Phase 3: Basic pattern processing
+    pattern_processor: crate::pattern_processor::PatternProcessor,
+
     // Phase 6.2: Enhanced semantic pattern processing
     patterns: Vec<CompiledPattern>,
     pattern_regex_set: Option<RegexSet>,
     semantic_processor: SemanticPatternProcessor,
-    
+
     // Number processing
     number_patterns: FxHashMap<String, String>,
     
@@ -247,9 +255,13 @@ impl CoreTranslationEngine {
         
         CoreTranslationEngine {
             dictionaries: HashMap::new(),
+
+            // Phase 3: Initialize pattern processor
+            pattern_processor: crate::pattern_processor::PatternProcessor::new(),
+
             patterns: Vec::new(),
             pattern_regex_set: None,
-            
+
             // Phase 6.2: Initialize advanced semantic pattern processor
             semantic_processor: SemanticPatternProcessor {
                 patterns: Vec::new(),

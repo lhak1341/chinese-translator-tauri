@@ -4,19 +4,17 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run build-wasm-core-dev && vite",
-    "build": "npm run build-wasm-core && tsc && vite build",
+    "dev": "npm run build-wasm-dev && vite",
+    "build": "npm run build-wasm && tsc && vite build",
     "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm",
     "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm",
-    "build-wasm-core": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm-core",
-    "build-wasm-core-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm-core",
     "lint": "eslint . --quiet",
     "lint:full": "eslint .",
     "type-check": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "npm run build-wasm-core-dev && tauri dev",
-    "tauri:build": "npm run build-wasm-core && tauri build"
+    "tauri:dev": "npm run build-wasm-dev && tauri dev",
+    "tauri:build": "npm run build-wasm && tauri build"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.1",

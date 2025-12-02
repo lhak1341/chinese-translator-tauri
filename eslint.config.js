@@ -5,10 +5,14 @@ export default [
       'src/wasm/',
       'src/wasm-core/',
       'wasm-core/src/wasm-core/',
-      
+
       // Build artifacts
       'dist/',
       'build/',
+      'src-tauri/target/',
+
+      // Node modules
+      'node_modules/',
     ]
   }
 ];

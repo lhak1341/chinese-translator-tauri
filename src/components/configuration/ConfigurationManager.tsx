@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Loader, AlertCircle } from 'lucide-react';
+import { PlusCircle, Loader, AlertCircle, Pencil, Check, X } from 'lucide-react';
 
 /**
  * ConfigurationManager Component
@@ -22,6 +22,10 @@ const ConfigurationManager: React.FC = () => {
   // WASM Configuration State
   const [wasmEnabled, setWasmEnabled] = useState<boolean>(true);
   const [wasmMemoryLimit, setWasmMemoryLimit] = useState<number>(20);
+
+  // Rename state
+  const [renamingDictionaryId, setRenamingDictionaryId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
 
   // Load available dictionaries on mount
   useEffect(() => {
@@ -138,6 +142,58 @@ const ConfigurationManager: React.FC = () => {
       }
     } catch (err) {
       setError('Failed to update memory limit: ' + (err as Error).message);
+    }
+  };
+
+  // Handle rename dictionary
+  const handleStartRename = (dictionaryId: string): void => {
+    if (dictionaryId === 'properNouns') return; // Cannot rename default
+
+    // Extract the name part (remove "properNouns-" prefix)
+    const name = dictionaryId.replace('properNouns-', '');
+    setRenamingDictionaryId(dictionaryId);
+    setRenameValue(name);
+  };
+
+  const handleCancelRename = (): void => {
+    setRenamingDictionaryId(null);
+    setRenameValue('');
+  };
+
+  const handleConfirmRename = async (): Promise<void> => {
+    if (!renamingDictionaryId || !renameValue.trim()) return;
+
+    try {
+      const newDictionaryId = `properNouns-${renameValue.trim().replace(/\s+/g, '')}`;
+
+      // Don't rename if the name hasn't changed
+      if (newDictionaryId === renamingDictionaryId) {
+        handleCancelRename();
+        return;
+      }
+
+      const result = await window.electronAPI.renameProperNounsDictionary(
+        renamingDictionaryId,
+        newDictionaryId
+      );
+
+      if (result.success) {
+        // Update the available dictionaries list
+        setAvailableDictionaries(prev =>
+          prev.map(id => (id === renamingDictionaryId ? newDictionaryId : id))
+        );
+
+        // Update active dictionaries if the renamed one was active
+        setActiveDictionaries(prev =>
+          prev.map(id => (id === renamingDictionaryId ? newDictionaryId : id))
+        );
+
+        handleCancelRename();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err) {
+      setError('Failed to rename dictionary: ' + (err as Error).message);
     }
   };
 
@@ -301,6 +357,9 @@ const ConfigurationManager: React.FC = () => {
       }}>
         {availableDictionaries.map(dictionaryId => {
           const isChecked = activeDictionaries.includes(dictionaryId);
+          const isRenaming = renamingDictionaryId === dictionaryId;
+          const canRename = dictionaryId !== 'properNouns';
+
           return (
             <div
               key={dictionaryId}
@@ -314,27 +373,105 @@ const ConfigurationManager: React.FC = () => {
                 transition: 'all 0.2s ease'
               }}
             >
-              <label
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                  cursor: 'pointer',
-                  color: isChecked ? '#065f46' : 'inherit',
-                  fontWeight: isChecked ? 500 : 'normal'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => handleToggleDictionary(dictionaryId)}
-                  style={{ accentColor: '#10b981' }}
-                />
-                {dictionaryId === 'properNouns'
-                  ? 'General Purpose Dictionary'
-                  : dictionaryId.replace('properNouns-', '')}
-              </label>
+              {isRenaming ? (
+                // Rename mode
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmRename();
+                      if (e.key === 'Escape') handleCancelRename();
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                  <button
+                    onClick={handleConfirmRename}
+                    style={{
+                      padding: '0.5rem',
+                      background: '#10b981',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'white'
+                    }}
+                    title="Confirm rename"
+                  >
+                    <Check size={16} />
+                  </button>
+                  <button
+                    onClick={handleCancelRename}
+                    style={{
+                      padding: '0.5rem',
+                      background: '#ef4444',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: 'white'
+                    }}
+                    title="Cancel rename"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                // Normal mode
+                <>
+                  <label
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      cursor: 'pointer',
+                      color: isChecked ? '#065f46' : 'inherit',
+                      fontWeight: isChecked ? 500 : 'normal'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleDictionary(dictionaryId)}
+                      style={{ accentColor: '#10b981' }}
+                    />
+                    {dictionaryId === 'properNouns'
+                      ? 'General Purpose Dictionary'
+                      : dictionaryId.replace('properNouns-', '')}
+                  </label>
+                  {canRename && (
+                    <button
+                      onClick={() => handleStartRename(dictionaryId)}
+                      style={{
+                        padding: '0.5rem',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: '#6b7280',
+                        transition: 'color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#10b981'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+                      title="Rename dictionary"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           );
         })}

@@ -1,12 +1,18 @@
+// WASM Translation DISABLED
+// Phase 6 & 7 WASM translation acceleration removed due to:
+// - Dictionary lookups returning 0 matches
+// - Pattern matching integration issues
+// - Better reliability with pure JavaScript implementation
+//
+// This WASM module is kept for potential future use but is not currently
+// used by the translation engine. The app uses pure JavaScript translation.
+// Tauri Rust backend (file I/O, parallel loading) remains active and working.
+
 mod trie;
-mod core_engine;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;
 use std::collections::HashMap;
-
-// Re-export the core translation engine
-pub use core_engine::CoreTranslationEngine;
 use serde::{Deserialize, Serialize};
 
 // Enable better error messages in debug mode
@@ -348,3 +354,8 @@ impl DictionaryEngine {
         serde_wasm_bindgen::to_value(&health_info).unwrap_or(JsValue::NULL)
     }
 }
+
+// Enhanced Dictionary Manager removed - used deleted dictionary module
+
+// EnhancedDictionaryManager and PatternManager removed - depended on deleted modules
+// (cache.rs, dictionary.rs, pattern_*.rs, etc.)

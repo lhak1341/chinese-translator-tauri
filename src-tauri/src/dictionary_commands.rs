@@ -674,3 +674,114 @@ pub async fn load_dictionaries_parallel(
         results,
     })
 }
+
+#[tauri::command]
+pub async fn rename_proper_nouns_dictionary(
+    app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
+    old_dictionary_id: String,
+    new_dictionary_id: String,
+) -> Result<DictionaryResponse, String> {
+    let dictionary_path = get_dictionary_path(&app_handle)?;
+
+    // Validate dictionary IDs
+    if old_dictionary_id == "properNouns" {
+        return Ok(DictionaryResponse {
+            success: false,
+            data: None,
+            error: Some("Cannot rename the default 'properNouns' dictionary".to_string()),
+            dictionaries: None,
+            message: None,
+        });
+    }
+
+    if !old_dictionary_id.starts_with("properNouns-") || !new_dictionary_id.starts_with("properNouns-") {
+        return Ok(DictionaryResponse {
+            success: false,
+            data: None,
+            error: Some("Both dictionary IDs must start with 'properNouns-'".to_string()),
+            dictionaries: None,
+            message: None,
+        });
+    }
+
+    let old_file_path = dictionary_path.join(format!("{}.json", old_dictionary_id));
+    let new_file_path = dictionary_path.join(format!("{}.json", new_dictionary_id));
+
+    // Check old file exists
+    if !old_file_path.exists() {
+        return Ok(DictionaryResponse {
+            success: false,
+            data: None,
+            error: Some(format!("Dictionary '{}' not found", old_dictionary_id)),
+            dictionaries: None,
+            message: None,
+        });
+    }
+
+    // Check new file doesn't exist
+    if new_file_path.exists() {
+        return Ok(DictionaryResponse {
+            success: false,
+            data: None,
+            error: Some(format!("Dictionary '{}' already exists", new_dictionary_id)),
+            dictionaries: None,
+            message: None,
+        });
+    }
+
+    // Rename the file
+    fs::rename(&old_file_path, &new_file_path).map_err(|e| e.to_string())?;
+
+    // Invalidate cache for old dictionary
+    cache.invalidate(Some(&old_dictionary_id));
+
+    // Update config.json to replace old name with new name
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let config_path = app_data_dir.join("config.json");
+
+    if config_path.exists() {
+        match fs::read_to_string(&config_path) {
+            Ok(contents) => {
+                if let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) {
+                    // Update activeProperNouns array
+                    if let Some(active) = config.get_mut("activeProperNouns") {
+                        if let Some(active_array) = active.as_array_mut() {
+                            for item in active_array.iter_mut() {
+                                if let Some(dict_name) = item.as_str() {
+                                    if dict_name == old_dictionary_id {
+                                        *item = serde_json::Value::String(new_dictionary_id.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Update lastSelectedDictionary if it matches
+                    if let Some(last_selected) = config.get_mut("lastSelectedDictionary") {
+                        if let Some(dict_name) = last_selected.as_str() {
+                            if dict_name == old_dictionary_id {
+                                *last_selected = serde_json::Value::String(new_dictionary_id.clone());
+                            }
+                        }
+                    }
+
+                    // Save updated config
+                    let json_string = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+                    fs::write(&config_path, json_string).map_err(|e| e.to_string())?;
+                }
+            }
+            Err(_) => {
+                // If config doesn't exist or can't be read, continue anyway
+            }
+        }
+    }
+
+    Ok(DictionaryResponse {
+        success: true,
+        data: None,
+        error: None,
+        dictionaries: None,
+        message: Some(format!("Renamed '{}' to '{}'", old_dictionary_id, new_dictionary_id)),
+    })
+}

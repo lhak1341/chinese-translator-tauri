@@ -36,6 +36,7 @@ pub fn run() {
             dictionary_commands::open_dictionary_folder,
             dictionary_commands::list_proper_nouns_dictionaries,
             dictionary_commands::create_proper_nouns_dictionary,
+            dictionary_commands::rename_proper_nouns_dictionary,
             dictionary_commands::save_dictionary,
             dictionary_commands::load_dictionary,
             dictionary_commands::load_dictionaries_parallel,
