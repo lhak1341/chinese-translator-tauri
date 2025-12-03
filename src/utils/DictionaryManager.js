@@ -1257,8 +1257,26 @@ export class DictionaryManager {
   getIndexedMatches(lookupIndex, position, category) {
     const positionMatches = lookupIndex.get(position);
     if (!positionMatches) return [];
-    
-    return positionMatches[category] || [];
+
+    // Handle both camelCase (JavaScript) and snake_case (Rust) field names
+    // Rust uses: proper_nouns, JavaScript uses: properNouns
+    const categoryMap = {
+      'properNouns': 'proper_nouns',  // Map JavaScript name to Rust name
+      'phrases': 'phrases',
+      'characters': 'characters',
+      'patterns': 'patterns',
+      'numbers': 'numbers',
+    };
+
+    // Try the category directly first (for JavaScript-built indexes)
+    let matches = positionMatches[category];
+
+    // If not found and category is camelCase, try snake_case (for Rust-built indexes)
+    if (!matches && categoryMap[category]) {
+      matches = positionMatches[categoryMap[category]];
+    }
+
+    return matches || [];
   }
 
   /**

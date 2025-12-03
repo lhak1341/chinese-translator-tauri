@@ -3,11 +3,18 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
+use std::time::Instant;
+
+// Import lookup index engine
+use crate::lookup_index_engine::{
+    build_comprehensive_lookup_index, Dictionary, DictionaryType, IndexBuildOptions, TrieNode,
+    CategorizedMatches,
+};
 
 // Dictionary cache for preventing duplicate loads
 pub struct DictionaryCache {
@@ -783,5 +790,159 @@ pub async fn rename_proper_nouns_dictionary(
         error: None,
         dictionaries: None,
         message: Some(format!("Renamed '{}' to '{}'", old_dictionary_id, new_dictionary_id)),
+    })
+}
+
+// ============================================================================
+// Lookup Index Builder - High-Performance Dictionary Index
+// ============================================================================
+
+/// Dictionary entry from JavaScript
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct DictionaryEntry {
+    pub chinese: String,
+    pub vietnamese: String,
+    pub metadata: Option<String>,
+}
+
+/// Dictionary data from JavaScript
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DictionaryData {
+    pub name: String,
+    pub entries: Vec<DictionaryEntry>,
+    pub priority: Option<u32>,
+}
+
+/// Options for building lookup index
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LookupIndexOptions {
+    pub min_text_length: Option<usize>,
+    pub enable_indexing: Option<bool>,
+    pub use_parallel: Option<bool>,
+}
+
+/// Response from lookup index builder
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct LookupIndexResponse {
+    pub success: bool,
+    pub index: HashMap<u32, CategorizedMatches>,
+    pub build_time_ms: u128,
+    pub positions_indexed: usize,
+    pub index_size: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Build a trie from dictionary entries
+fn build_trie_from_entries(entries: &[DictionaryEntry]) -> TrieNode {
+    let mut trie = TrieNode::new();
+
+    for entry in entries {
+        let mut current = &mut trie;
+
+        // Navigate/create path for this word
+        for ch in entry.chinese.chars() {
+            current = current
+                .children
+                .entry(ch)
+                .or_insert_with(TrieNode::new);
+        }
+
+        // Mark end of word and store translation
+        current.is_end_of_word = true;
+        current.translation = Some(entry.vietnamese.clone());
+        current.metadata = entry.metadata.clone();
+    }
+
+    trie
+}
+
+/// Build comprehensive lookup index for text using Rust + Rayon
+///
+/// This is a high-performance replacement for the JavaScript buildComprehensiveLookupIndex
+/// Expected speedup: 6-50x (200-800ms vs 5-10 seconds for 10KB text)
+#[tauri::command]
+pub async fn build_lookup_index(
+    text: String,
+    dictionaries: Vec<DictionaryData>,
+    dictionary_order: Vec<String>,
+    options: Option<LookupIndexOptions>,
+) -> Result<LookupIndexResponse, String> {
+    let start_time = Instant::now();
+
+    // Parse options with defaults
+    let opts = options.unwrap_or(LookupIndexOptions {
+        min_text_length: Some(50),
+        enable_indexing: Some(true),
+        use_parallel: Some(true),
+    });
+
+    let build_options = IndexBuildOptions {
+        min_text_length: opts.min_text_length.unwrap_or(50),
+        enable_indexing: opts.enable_indexing.unwrap_or(true),
+        use_parallel: opts.use_parallel.unwrap_or(true),
+    };
+
+    // Check if indexing should be skipped (use character count, not byte length)
+    let text_char_count = text.chars().count();
+    if text_char_count < build_options.min_text_length || !build_options.enable_indexing {
+        return Ok(LookupIndexResponse {
+            success: false,  // Indicate that indexing was skipped
+            index: HashMap::new(),
+            build_time_ms: start_time.elapsed().as_millis(),
+            positions_indexed: 0,
+            index_size: 0,
+            error: Some(format!(
+                "Text too short ({} chars < {} min) or indexing disabled",
+                text_char_count, build_options.min_text_length
+            )),
+        });
+    }
+
+    // Convert JavaScript dictionaries to Rust Dictionary format
+    let rust_dictionaries: Vec<Dictionary> = dictionaries
+        .iter()
+        .enumerate()
+        .map(|(idx, dict_data)| {
+            let trie = build_trie_from_entries(&dict_data.entries);
+            let dict_type = DictionaryType::from_name(&dict_data.name);
+            let priority = dict_data.priority.unwrap_or(idx as u32);
+
+            Dictionary {
+                name: dict_data.name.clone(),
+                trie: Arc::new(trie),
+                priority,
+                dict_type,
+            }
+        })
+        .collect();
+
+    // Build the index (returns hashbrown::HashMap)
+    let hashbrown_index = build_comprehensive_lookup_index(
+        &text,
+        &rust_dictionaries,
+        &dictionary_order,
+        &build_options,
+    );
+
+    let build_time = start_time.elapsed().as_millis();
+    let positions_indexed = hashbrown_index.len();
+    let index_size = hashbrown_index.values().map(|cat| {
+        cat.patterns.len() + cat.proper_nouns.len() + cat.phrases.len() +
+        cat.characters.len() + cat.numbers.len()
+    }).sum();
+
+    // Convert hashbrown::HashMap to std::collections::HashMap for serde compatibility
+    let index: HashMap<u32, CategorizedMatches> = hashbrown_index.into_iter().collect();
+
+    Ok(LookupIndexResponse {
+        success: true,
+        index,
+        build_time_ms: build_time,
+        positions_indexed,
+        index_size,
+        error: None,
     })
 }

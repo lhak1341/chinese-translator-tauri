@@ -1,5 +1,6 @@
 // Dictionary commands module
 mod dictionary_commands;
+mod lookup_index_engine;
 
 use dictionary_commands::DictionaryCache;
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -47,6 +48,7 @@ pub fn run() {
             dictionary_commands::export_dictionaries,
             dictionary_commands::import_dictionaries,
             dictionary_commands::reset_dictionaries,
+            dictionary_commands::build_lookup_index,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

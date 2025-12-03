@@ -1136,21 +1136,65 @@ export class TranslationEngine {
     // Pure JavaScript character-only translation (WASM removed for reliability)
 
     const _operationId = `character_only_translation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     if (process.env.NODE_ENV === 'development') {
       batchLog.hotInfo('char-engine', `Starting character-only translation: ${text.length} chars`);
     }
-    
+
+    // OPTIMIZATION: Build Rust-powered lookup index for character-only translations (HUGE speedup)
+    // Character-only mode benefits even more from pre-computed lookups!
+    if (!options.lookupIndex && text.length >= 50 && options.useSharedLookupIndex !== false) {
+      try {
+        const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
+
+        if (rustLookupIndexManager.isAvailable()) {
+          const indexStartTime = performance.now();
+
+          // Get dictionary search order (fallback to default if not available)
+          const dictionaryOrder = this.dictionaryOrder ||
+                                 this.dictionaryManager.getDefaultSearchOrder() ||
+                                 [];
+
+          // Build lookup index using Rust + Rayon
+          const indexResult = await rustLookupIndexManager.buildLookupIndex(
+            text,
+            this.dictionaryManager.dictionaries,  // Map of dictionary name -> trie
+            dictionaryOrder,  // Dictionary search order
+            {
+              minTextLength: 50,
+              enableIndexing: true,
+              useParallel: true,
+            }
+          );
+
+          if (indexResult.success && indexResult.index) {
+            // Convert to Map for faster lookups
+            // IMPORTANT: Convert string keys from JSON back to numbers
+            options.lookupIndex = new Map(
+              Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
+            );
+            options.useSharedLookupIndex = true;
+
+            const indexTime = performance.now() - indexStartTime;
+            console.log(`🦀 Rust lookup index built for character-only: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Rust lookup index build failed, using traditional lookup:', error.message);
+        // Continue without lookup index (traditional dictionary lookup will be used)
+      }
+    }
+
     // Create isolated semantic array builder to prevent conflicts with concurrent main translations
-    const characterOnlySemanticBuilder = this.useOptimizedSemanticBuilder ? 
+    const characterOnlySemanticBuilder = this.useOptimizedSemanticBuilder ?
       new OptimizedSemanticArrayBuilder(Math.max(50, Math.floor(text.length / 5))) :
       new SemanticArrayBuilder();
-    
+
     try {
       // For character-only translation, process the text directly without chunking
       // to preserve all whitespace and punctuation
       let translatedText = '';
-      
+
       // Tokenize the entire text directly (don't use chunking which removes whitespace/punctuation)
       let tokens = this.tokenizer.tokenize(text);
 
@@ -1331,12 +1375,12 @@ export class TranslationEngine {
         if (options.useSharedLookupIndex && options.lookupIndex) {
           const textPosition = this.getTextPositionForTokenIndex(tokens, i);
           const indexedMatches = this.dictionaryManager.getIndexedMatches(options.lookupIndex, textPosition, 'characters');
-          
+
           // Take the first (longest) match for characters
           if (indexedMatches.length > 0) {
             match = indexedMatches[0];
           }
-          
+
           if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && match) {
             this.log(DEBUG_LEVELS.VERBOSE, `📊 Character index: found "${match.word}" → "${match.translation}" at position ${textPosition}`);
           }
@@ -4954,7 +4998,51 @@ export class TranslationEngine {
         // Reset semantic array builder for new translation
         this.semanticArrayBuilder.reset();
       }
-      
+
+      // OPTIMIZATION: Build Rust-powered lookup index for large texts (6-50x faster)
+      // Only build if not already provided and text is large enough
+      if (!options.lookupIndex && text.length >= 50 && options.useSharedLookupIndex !== false) {
+        try {
+          const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
+
+          if (rustLookupIndexManager.isAvailable()) {
+            const indexStartTime = performance.now();
+
+            // Get dictionary search order (fallback to default if not available)
+            const dictionaryOrder = this.dictionaryOrder ||
+                                   this.dictionaryManager.getDefaultSearchOrder() ||
+                                   [];
+
+            // Build lookup index using Rust + Rayon
+            const indexResult = await rustLookupIndexManager.buildLookupIndex(
+              text,
+              this.dictionaryManager.dictionaries,  // Map of dictionary name -> trie
+              dictionaryOrder,  // Dictionary search order
+              {
+                minTextLength: 50,
+                enableIndexing: true,
+                useParallel: true,
+              }
+            );
+
+            if (indexResult.success && indexResult.index) {
+              // Convert to Map for faster lookups
+              // IMPORTANT: Convert string keys from JSON back to numbers
+              options.lookupIndex = new Map(
+                Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
+              );
+              options.useSharedLookupIndex = true;
+
+              const indexTime = performance.now() - indexStartTime;
+              this.log(DEBUG_LEVELS.DEBUG, `🦀 Rust lookup index built: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`);
+            }
+          }
+        } catch (error) {
+          this.log(DEBUG_LEVELS.WARN, '⚠️ Rust lookup index build failed, using traditional lookup:', error.message);
+          // Continue without lookup index (traditional dictionary lookup will be used)
+        }
+      }
+
       // Phase 1: Tokenization with memory-based processing limits
       const tokens = this.tokenizer.tokenize(text);
       

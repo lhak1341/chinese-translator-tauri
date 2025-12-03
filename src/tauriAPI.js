@@ -250,6 +250,47 @@ const tauriAPI = {
     console.warn('updateDefaultDictionaries: Not yet implemented in Tauri version');
     return { success: false, error: 'Not yet implemented' };
   },
+
+  /**
+   * Build comprehensive lookup index using Rust + Rayon for high performance
+   * Expected speedup: 6-50x (200-800ms vs 5-10 seconds for 10KB text)
+   *
+   * @param {string} text - The input text to index
+   * @param {Array<{name: string, entries: Array<{chinese: string, vietnamese: string, metadata?: string}>, priority?: number}>} dictionaries - Dictionary data
+   * @param {string[]} dictionaryOrder - Order to search dictionaries
+   * @param {{minTextLength?: number, enableIndexing?: boolean, useParallel?: boolean}} options - Build options
+   * @returns {Promise<{success: boolean, index: Object, buildTimeMs: number, positionsIndexed: number, indexSize: number, error?: string}>}
+   */
+  buildLookupIndex: async (text, dictionaries, dictionaryOrder, options = {}) => {
+    try {
+      const result = await invoke('build_lookup_index', {
+        text,
+        dictionaries,
+        dictionaryOrder,
+        options: {
+          minTextLength: options.minTextLength,
+          enableIndexing: options.enableIndexing,
+          useParallel: options.useParallel,
+        },
+      });
+
+      if (result.success && result.buildTimeMs) {
+        console.log(`🦀 Lookup index built in ${result.buildTimeMs}ms (${result.positionsIndexed} positions, ${result.indexSize} matches)`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error in buildLookupIndex:', error);
+      return {
+        success: false,
+        index: {},
+        buildTimeMs: 0,
+        positionsIndexed: 0,
+        indexSize: 0,
+        error: error.toString(),
+      };
+    }
+  },
 };
 
 // Expose the API globally to mimic Electron's window.electronAPI
