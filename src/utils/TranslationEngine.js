@@ -960,18 +960,8 @@ export class TranslationEngine {
           activeProperNouns = configResult.data.activeProperNouns;
         }
       } catch (_error) {
-        // Fallback: try to read config file directly (for Node.js testing)
-        try {
-          const fs = await import('fs');
-          const configPath = '/Users/lhak/Library/Application Support/translation-app/config.json';
-          const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          if (configData.activeProperNouns) {
-            activeProperNouns = configData.activeProperNouns;
-            this.log(DEBUG_LEVELS.DEBUG, '📂 Loaded config from file:', configData.activeProperNouns);
-          }
-        } catch (_fileError) {
-          this.log(DEBUG_LEVELS.ERROR, 'Could not load configuration from file either, using default:', _fileError.message);
-        }
+        // Config loading failed, use default
+        this.log(DEBUG_LEVELS.DEBUG, 'Could not load configuration, using default proper nouns');
       }
 
 
@@ -1202,18 +1192,8 @@ export class TranslationEngine {
         batchLog.hotVerbose('tokenization', `Tokenization completed: ${tokens.length} tokens`);
       }
 
-      // WASM Number Processing (Phase 0: Before character translation)
-      // Convert Chinese numbers to Arabic numerals (三十五 → 35, 一九四五年 → năm 1945)
-      if (isWasmNumberProcessorAvailable()) {
-        try {
-          tokens = await processNumbersWasm(tokens);
-          if (process.env.NODE_ENV === 'development') {
-            batchLog.hotVerbose('number-conversion', `WASM number processing completed`);
-          }
-        } catch (error) {
-          console.warn('⚠️ WASM number processing failed, continuing with character translation:', error);
-        }
-      }
+      // Skip number processing in character-only mode - translate each character individually
+      // Character-only mode should only apply Phase 5 (character-level translation)
 
       // Only apply Phase 5: Character-level translation to all tokens
       await this.processCharacterOnlyTokens(tokens, options, characterOnlySemanticBuilder);
@@ -1221,11 +1201,6 @@ export class TranslationEngine {
       // Build result text and semantic arrays from tokens
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-
-        // Skip consumed tokens from number conversion (they were already included in the main number token)
-        if (token.translationSource === 'number_conversion_consumed') {
-          continue;
-        }
 
         const translatedValue = token.translated != null ? token.translated : token.value;
 

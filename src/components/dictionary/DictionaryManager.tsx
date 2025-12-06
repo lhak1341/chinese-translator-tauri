@@ -59,7 +59,8 @@ interface DictionaryManagerProps {
  */
 const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
   // Feature flag for enhanced virtualized table
-  const useEnhancedVirtualization = process.env.NODE_ENV === 'development' || window?.location?.search?.includes('enhanced=true');
+  // Always use enhanced virtualization for better UX (direct editing)
+  const useEnhancedVirtualization = true;
 
   // Get dictionary operations and state from context
   const {

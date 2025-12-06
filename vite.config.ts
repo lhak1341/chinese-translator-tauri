@@ -1,9 +1,27 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Plugin to remove crossorigin attribute for Tauri compatibility
+function removeCrossOriginPlugin() {
+  return {
+    name: 'remove-crossorigin',
+    transformIndexHtml(html: string) {
+      return html.replace(/\s*crossorigin\s*/g, ' ')
+    }
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), removeCrossOriginPlugin()],
+
+  // Use relative paths for Tauri production builds
+  base: './',
+
+  // Define process.env.NODE_ENV for compatibility with existing code
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+  },
 
   // Tauri expects a specific dev server configuration
   server: {
@@ -19,37 +37,18 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     // Tauri injects its API, so we need to ensure compatibility
-    target: ['es2021', 'chrome100', 'safari13'],
+    // Using es2022 for top-level await support
+    target: ['es2022', 'chrome100', 'safari15'],
     // Don't minify for easier debugging during development
     minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
-    // Generate sourcemaps for better debugging
-    sourcemap: !!process.env.TAURI_DEBUG,
-    // Code splitting for better performance
+    // Always generate sourcemaps for debugging
+    sourcemap: true,
+    // Disable crossorigin attribute for Tauri compatibility
+    cssCodeSplit: true,
+    // Disable manual chunk splitting to avoid circular dependency issues
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Translation engine core - largest components
-          'translation-core': [
-            './src/utils/TranslationEngine.js',
-            './src/utils/DictionaryManager.js',
-            './src/utils/TextTokenizer.js',
-            './src/utils/SemanticPatternProcessor.js'
-          ],
-          // UI components
-          'ui-components': [
-            './src/components/Translator.jsx',
-            './src/components/dictionary/DictionaryManager.jsx',
-            './src/components/ClickableOriginalSemantic.jsx',
-            './src/components/VirtualizedClickableTranslation.jsx'
-          ],
-          // Utilities and performance tools
-          'utilities': [
-            './src/utils/PerformanceProfiler.js',
-            './src/utils/LRUCache.js',
-            './src/utils/SegmentPrecomputer.js',
-            './src/utils/NumberProcessor.js'
-          ]
-        }
+        // Let Vite handle chunking automatically
       }
     }
   },

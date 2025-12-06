@@ -173,6 +173,8 @@ export interface ElectronAPI {
   listProperNounsDictionaries: () => Promise<DictionaryListResult>;
   /** Create a new proper nouns dictionary */
   createProperNounsDictionary: (id: string) => Promise<SaveResult>;
+  /** Rename a proper nouns dictionary */
+  renameProperNounsDictionary: (oldDictionaryId: string, newDictionaryId: string) => Promise<DictionaryOperationResult>;
 
   // Configuration operations
   /** Load application configuration */
