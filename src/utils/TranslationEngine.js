@@ -3091,7 +3091,7 @@ export class TranslationEngine {
       properNounTranslations,
       segments,
     });
-    
+
     this.log(DEBUG_LEVELS.VERBOSE, '🔧 Final result:', cleaned.substring(0, 100) + (cleaned.length > 100 ? '...' : ''));
     return cleaned;
   }
@@ -3426,7 +3426,7 @@ export class TranslationEngine {
     // Apply punctuation translations FIRST using the actual punctuation dictionary
     // Get punctuation mappings by checking common punctuation marks from the dictionary
     const punctuationChars = ['。', '，', '、', '？', '！', '：', '；', '……', '…', '．', '（', '）', '《', '》', '「', '」', '﹁', '﹂', '『', '』', '【', '】', '〖', '〗', '～', '˙'];
-    
+
     for (const char of punctuationChars) {
       const result_lookup = this.dictionaryManager.translate(char, ['punctuation']);
       if (result_lookup && result_lookup.translation) {

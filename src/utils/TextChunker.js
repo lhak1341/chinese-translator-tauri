@@ -259,17 +259,16 @@ export class TextChunker {
   reconstructTextWithSegments(chunks, semanticArrays = null) {
     const segments = [];
     let currentPosition = 0;
-    
-    
+
     const textParts = chunks.map((chunk, index) => {
       const content = chunk.translated || chunk.translatedContent || chunk.content;
       const punctuation = chunk.translatedPunctuation || chunk.punctuation;
       const lineBreaks = chunk.lineBreaks || '';
-      
+
       // Handle spacing using unified punctuation processor
       let prefixSpacing = '';
       let processedPunctuation = '';
-      
+
       // Check if this chunk has opening punctuation that should appear before content
       let openingPunctuation = chunk.openingPunctuation || '';
       // Add space before opening punctuation if there's previous content and no existing space
@@ -283,21 +282,23 @@ export class TextChunker {
         // Only add space after punctuation if there's a next chunk with content
         const hasNextChunk = index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
         processedPunctuation = this.punctuationProcessor.processSequence(remainingPunctuation, hasNextChunk);
-        
+
         // Add space before opening punctuation when there's content before it
         // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
+        // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
         // BUT DO add space for opening quotes (they need space before them)
         const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-        
-        if (content && this.punctuationProcessor.hasOpeningElements(remainingPunctuation) && 
-            !processedPunctuation.startsWith(' ') && !startsWithSentencePunct) {
+        const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
+
+        if (content && this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
+            !processedPunctuation.startsWith(' ') && !startsWithSentencePunct && !startsWithClosingElement) {
           // Add space for opening elements including opening quotes
           processedPunctuation = ' ' + processedPunctuation;
         }
       }
-      
+
       const fullChunkText = prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
-      
+
       // Build segments if semantic arrays are provided
       if (segments !== null) {
         // Add opening punctuation segment if it exists
@@ -374,9 +375,9 @@ export class TextChunker {
       
       return fullChunkText;
     });
-    
+
     const text = textParts.join('');
-    
+
     return { text, segments };
   }
 
@@ -416,13 +417,15 @@ export class TextChunker {
         
         // Add space before opening punctuation when there's content before it
         // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
+        // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
         // BUT DO add space for opening quotes (they need space before them)
         const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-        const _containsOnlyOpeningQuotes = remainingPunctuation.length > 0 && 
+        const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
+        const _containsOnlyOpeningQuotes = remainingPunctuation.length > 0 &&
           Array.from(remainingPunctuation).every(char => QuoteProcessor.isOpeningQuote(char));
-        
-        if (content && this.punctuationProcessor.hasOpeningElements(remainingPunctuation) && 
-            !processedPunctuation.startsWith(' ') && !startsWithSentencePunct) {
+
+        if (content && this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
+            !processedPunctuation.startsWith(' ') && !startsWithSentencePunct && !startsWithClosingElement) {
           // Add space for opening elements including opening quotes
           processedPunctuation = ' ' + processedPunctuation;
         }
