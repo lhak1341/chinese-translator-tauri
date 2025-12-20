@@ -10,7 +10,19 @@
       "Bash(npm run build-wasm:*)",
       "Bash(npm run build-wasm-dev:*)",
       "Bash(git -C /Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri-original log --oneline -5)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(npm run tauri:build:*)",
+      "Bash(npm run build:*)",
+      "Bash(cargo tauri build:*)",
+      "Bash(npx tauri build:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(git log:*)",
+      "Skill(technical-docs-skill)",
+      "Bash(/usr/bin/find:*)"
     ],
     "deny": [],
     "ask": []

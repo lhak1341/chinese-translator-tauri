@@ -21,7 +21,7 @@
 - Cache hit rate: 85-95% typical
 - Memory-efficient storage
 
-**Integration Status**: ✅ Fully integrated into WasmTranslationAccelerator.js
+**Integration Status**: ⚠️ WASM translation removed (see WASM_REMOVAL_MIGRATION_GUIDE.md) - Dictionary features used via JavaScript
 
 ---
 
