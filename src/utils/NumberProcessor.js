@@ -28,15 +28,21 @@ export class NumberProcessor {
       },
       {
         name: 'thousands',
-        regex: /([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|[一二三四五六七八九])?/,
+        regex: /([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?/,
         converter: this.convertThousands.bind(this),
-        description: 'Thousands like 三千 (3000), 三千七百 (3700), 二千五百三十 (2530), 一千两百 (1,200), 一千零二十四 (1,024). Handles zero + tens patterns.'
+        description: 'Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015). Handles implicit tens patterns.'
+      },
+      {
+        name: 'percentageRange',
+        regex: /百分之([一二两三四五六七八九])([一二两三四五六七八九])十/,
+        converter: this.convertPercentageRange.bind(this),
+        description: 'Percentage ranges like 百分之五六十 (50-60%)'
       },
       {
         name: 'percentage',
-        regex: /百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|[一二两三四五六七八九]|\d+)/,
+        regex: /百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)/,
         converter: this.convertPercentage.bind(this),
-        description: 'Percentages like 百分之三十 (30%), 百分之两百 (200%)'
+        description: 'Percentages like 百分之三十 (30%), 百分之十五 (15%), 百分之两百 (200%)'
       },
       {
         name: 'tenThousandRange',
@@ -433,13 +439,28 @@ export class NumberProcessor {
   }
 
   /**
+   * Convert percentage ranges (e.g., 百分之五六十 -> 50-60%)
+   */
+  convertPercentageRange(match, firstDigit, secondDigit) {
+    const firstValue = this.NUMBER_MAP[firstDigit];
+    const secondValue = this.NUMBER_MAP[secondDigit];
+
+    // Validate that it's a logical consecutive range
+    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
+      return null;
+    }
+
+    return `${firstValue * 10}-${secondValue * 10}%`;
+  }
+
+  /**
    * Convert percentages with unified number parsing (e.g., 百分之三十 -> 30%)
    */
   convertPercentage(match, number) {
     // Extract the number part after "百分之"
     const after_prefix = match.replace('百分之', '');
     let value = 0;
-    
+
     // Handle already converted numbers (digits)
     if (/^\d+$/.test(after_prefix)) {
       value = parseInt(after_prefix);
@@ -447,7 +468,7 @@ export class NumberProcessor {
       // Parse Chinese number
       value = this.parseChineseNumber(after_prefix);
     }
-    
+
     return `${value}%`;
   }
 
@@ -490,9 +511,9 @@ export class NumberProcessor {
     
     // Handle zero + tens patterns like 零二十四 (24) first (longest pattern)
     if (chineseNumber.includes('零') && chineseNumber.includes('十')) {
-      const zeroTensMatch = chineseNumber.match(/^零([一二两三四五六七八九])十([一二三四五六七八九])?$/);
+      const zeroTensMatch = chineseNumber.match(/^零([一二两三四五六七八九])?十([一二三四五六七八九])?$/);
       if (zeroTensMatch) {
-        const tensValue = this.NUMBER_MAP[zeroTensMatch[1]] * 10;
+        const tensValue = zeroTensMatch[1] ? this.NUMBER_MAP[zeroTensMatch[1]] * 10 : 10;
         const unitsValue = zeroTensMatch[2] ? this.NUMBER_MAP[zeroTensMatch[2]] : 0;
         return tensValue + unitsValue;
       }

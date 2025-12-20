@@ -71,17 +71,25 @@ lazy_static! {
         // Thousands: 三千七百 → 3,700
         ConversionPattern {
             name: "thousands",
-            regex: Regex::new(r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|[一二三四五六七八九])?$").unwrap(),
+            regex: Regex::new(r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$").unwrap(),
             converter: NumberProcessor::convert_thousands,
-            description: "Thousands like 三千 (3000), 三千七百 (3700)",
+            description: "Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015)",
         },
 
-        // Percentage: 百分之三十 → 30%
+        // Percentage range: 百分之五六十 → 50-60%
+        ConversionPattern {
+            name: "percentageRange",
+            regex: Regex::new(r"^百分之([一二两三四五六七八九])([一二两三四五六七八九])十$").unwrap(),
+            converter: NumberProcessor::convert_percentage_range,
+            description: "Percentage ranges like 百分之五六十 (50-60%)",
+        },
+
+        // Percentage: 百分之三十 → 30%, 百分之十五 → 15%
         ConversionPattern {
             name: "percentage",
-            regex: Regex::new(r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|[一二两三四五六七八九]|\d+)$").unwrap(),
+            regex: Regex::new(r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)$").unwrap(),
             converter: NumberProcessor::convert_percentage,
-            description: "Percentages like 百分之三十 (30%)",
+            description: "Percentages like 百分之三十 (30%), 百分之十五 (15%)",
         },
 
         // Ten thousand range: 七八万 → 7-8 vạn
@@ -371,6 +379,23 @@ impl NumberProcessor {
             }
         }
 
+        // Handle zero + tens patterns (e.g., 零十五 = 15, 零二十四 = 24)
+        if text.contains('零') && text.contains('十') {
+            let re = Regex::new(r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$").unwrap();
+            if let Some(caps) = re.captures(text) {
+                let tens_value = caps.get(1)
+                    .and_then(|m| m.as_str().chars().next())
+                    .and_then(|ch| self.get_number(ch))
+                    .map(|n| n * 10)
+                    .unwrap_or(10); // Default to 10 if no digit after 零
+                let units_value = caps.get(2)
+                    .and_then(|m| m.as_str().chars().next())
+                    .and_then(|ch| self.get_number(ch))
+                    .unwrap_or(0);
+                return Some(tens_value + units_value);
+            }
+        }
+
         // Handle tens (e.g., 三十五 = 35)
         if text.contains('十') {
             // Pattern: X十Y
@@ -436,6 +461,19 @@ impl NumberProcessor {
         };
         let value = thousands * 1000 + remainder;
         Some(Self::format_with_commas(value))
+    }
+
+    fn convert_percentage_range(&self, groups: &[&str]) -> Option<String> {
+        if groups.len() < 2 { return None; }
+        let first = self.get_number(groups[0].chars().next()?)?;
+        let second = self.get_number(groups[1].chars().next()?)?;
+
+        // Validate that it's a logical consecutive range
+        if second != first + 1 && second <= first {
+            return None;
+        }
+
+        Some(format!("{}-{}%", first * 10, second * 10))
     }
 
     fn convert_percentage(&self, groups: &[&str]) -> Option<String> {
