@@ -874,7 +874,8 @@ npm run type-check  # 0 errors expected for clean builds
 npm test            # Some WASM test failures are expected (pre-existing, not regressions)
 
 # Code quality
-npm run lint        # Check code style and formatting
+npm run lint        # Check code style and formatting + detect unused imports
+npm run lint:full   # Show all warnings (including unused variables)
 
 # Build (Tauri)
 npm run tauri:build  # Compile for production (verifies types compile)
@@ -882,6 +883,8 @@ npm run build        # Build web assets only
 ```
 
 **Type Check Failures**: If `npm run type-check` shows errors in `.ts` files, fix before committing. Errors in `.js` files are expected (not checked by TypeScript).
+
+**Lint Warnings**: ESLint detects unused imports and variables. Variables prefixed with `_` (e.g., `_unused`) are allowed as intentionally unused.
 
 ## System Requirements
 
@@ -893,6 +896,288 @@ npm run build        # Build web assets only
   - macOS: Xcode Command Line Tools
   - Linux: webkit2gtk, libssl-dev, build-essential
   - Windows: Visual Studio Build Tools, WebView2
+
+## Production Build Requirements
+
+### Critical Configuration for WASM + Tauri
+
+**Problem**: WASM works in dev (`npm run tauri:dev`) but fails in production (`npm run tauri:build`) with "Load failed" errors.
+
+**Root Cause**: Tauri's Content Security Policy (CSP) blocks WASM loading from embedded `asset:` protocol by default.
+
+**Required Configuration** (`src-tauri/tauri.conf.json`):
+
+```json
+{
+  "app": {
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost"
+    }
+  }
+}
+```
+
+**Critical CSP Directives**:
+- `default-src` - Include `asset: http://asset.localhost` for WASM as default resource
+- `connect-src` - Include `asset: http://asset.localhost` for fetch() calls to load WASM
+- `script-src` - Include `'wasm-unsafe-eval'` to execute WASM modules
+
+**Vite Asset Configuration** (`vite.config.ts`):
+
+```typescript
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        // Preserve WASM filenames (no content hashing)
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
+            return 'assets/[name][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        }
+      }
+    }
+  }
+});
+```
+
+**Why**: wasm-pack generates imports with hardcoded filenames like `translation_wasm_core_bg.wasm`. Vite's default content hashing breaks these imports in production.
+
+### Production Build Testing Checklist
+
+**ALWAYS test production builds before releasing:**
+
+```bash
+# 1. Build production app
+npm run tauri:build
+
+# 2. Open production app
+open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
+
+# 3. Test critical features
+# - WASM number processing: Test "三千万" → Should show "3,000 vạn" (not "Ba ngàn vạn")
+# - Dictionary loading: Check console for "✅ WASM NumberProcessor initialized successfully"
+# - Translation quality: Verify proper noun matching, pattern processing
+
+# 4. Check console logs (if DevTools enabled)
+# Look for WASM initialization errors, CSP violations
+```
+
+**Common Production-Only Issues**:
+- WASM fails to load → Check CSP configuration
+- Numbers translate character-by-character → WASM not initializing
+- Module import errors → Check Vite asset filename configuration
+- Different behavior than dev → Embedded assets use different URLs than dev server
+
+**Dev vs Production Differences**:
+| Aspect | Dev (`tauri:dev`) | Production (`tauri:build`) |
+|--------|-------------------|----------------------------|
+| Asset loading | HTTP from Vite server | Embedded via `asset:` protocol |
+| CSP enforcement | Relaxed | Strict |
+| WASM paths | `http://localhost:5174/...` | `asset://localhost/...` |
+| Debugging | DevTools always available | Requires `devtools: true` config |
+
+## Token Processing Contracts (WASM-JavaScript Boundaries)
+
+### Type Serialization Rules
+
+**Problem**: Rust's `Option<String>` serializes to JavaScript `undefined` (not `null`), causing "undefined" to appear as literal text in translations.
+
+**Rust Token Structure**:
+```rust
+#[derive(Serialize, Deserialize)]
+pub struct Token {
+    pub value: String,
+    pub translated: Option<String>,  // None → undefined in JS!
+    pub translation_source: Option<String>,
+}
+```
+
+**JavaScript Handling**:
+```javascript
+// ❌ WRONG: Copies undefined, displays "undefined"
+tokens[i].translated = processedTokens[i].translated;
+
+// ✅ CORRECT: Explicit null conversion
+if (processed.translationSource?.includes('consumed')) {
+  tokens[i].translated = null;  // Explicit null, not undefined
+} else if (processed.translated !== undefined) {
+  tokens[i].translated = processed.translated;
+}
+```
+
+### Token Modification Pattern
+
+**All token processors (WASM or JavaScript) MUST**:
+1. **Maintain original token array length** - No insert/delete operations
+2. **Set consumed tokens to `{ translated: null, translationSource: "X_consumed" }`**
+3. **Use explicit `null` (not `undefined`) for all optional fields**
+4. **Modify tokens in-place** - Don't replace the entire array
+
+**Example** (Rust side):
+```rust
+// Mark consumed tokens
+for j in (i + 1)..=number_match.end_index {
+    tokens[j].translated = None;  // Will become undefined in JS
+    tokens[j].translation_source = Some("number_conversion_consumed".to_string());
+}
+```
+
+**Example** (JavaScript side):
+```javascript
+// Copy WASM results back to original tokens
+for (let i = 0; i < tokens.length; i++) {
+  const processed = processedTokens[i];
+
+  if (processed.translationSource?.includes('consumed')) {
+    tokens[i].translated = null;  // Force null, not undefined
+    tokens[i].translationSource = processed.translationSource;
+  } else if (processed.translated !== undefined) {
+    tokens[i].translated = processed.translated;
+    tokens[i].translationSource = processed.translationSource;
+  }
+}
+```
+
+### Post-Processing Logic
+
+**The `postProcess()` function relies on this exact pattern**:
+```javascript
+// TranslationEngine.js:2946-2965
+for (let i = 0; i < tokens.length; i++) {
+  const token = tokens[i];
+
+  if (token.translated !== null) {
+    output = token.translated;  // Use translated value
+  } else if (token.translationSource) {
+    continue;  // Skip consumed tokens (null + source = consumed)
+  } else {
+    // Fallback character translation
+  }
+}
+```
+
+**Critical**: Consumed tokens MUST have `translated: null` (not `undefined` or `""`), otherwise they'll be processed instead of skipped.
+
+## Development Process Lessons
+
+### Lesson 1: Integration Before Implementation
+
+**What Went Wrong**: Modified Rust conversion logic, rebuilt WASM multiple times, cleared caches repeatedly - but the function was never being called.
+
+**Prevention**:
+1. ✅ **Verify execution path FIRST**: `grep "functionName(" src/` - Is it actually called?
+2. ✅ **Check for expected logs**: Missing `🔢 Number converted` = code not running
+3. ✅ **Add entry point log**: `console.log('🔍 Function called')` - Confirm execution
+4. ✅ **THEN fix logic**: Only modify implementation after verifying it's reachable
+
+**Quick Verification Template**:
+```javascript
+// Step 1: Verify import
+grep "processNumbersWasm" src/utils/TranslationEngine.js
+
+// Step 2: Verify invocation
+grep "processNumbersWasm(" src/utils/TranslationEngine.js  // Look for actual call
+
+// Step 3: Check console logs
+// Missing expected logs = execution path problem (fix this first!)
+// Seeing expected logs = logic problem (fix implementation)
+```
+
+### Lesson 2: Test Production Builds Early
+
+**What Went Wrong**: Dev build worked perfectly, production build completely failed. Spent hours debugging only to discover CSP was blocking WASM in production.
+
+**Prevention**:
+- ✅ **Test production builds during development**, not just before release
+- ✅ **Different bundling** = different issues (Vite transforms code differently)
+- ✅ **Different protocols** = different loading (`http://` vs `asset://`)
+- ✅ **Different CSP** = different restrictions (relaxed in dev, strict in prod)
+
+**Weekly Production Build Check**:
+```bash
+# Every Friday (or before major features)
+npm run tauri:build
+open "src-tauri/target/release/bundle/macos/App.app"
+# Quick smoke test of critical features
+```
+
+### Lesson 3: Type Boundaries Need Explicit Contracts
+
+**What Went Wrong**: Rust `Option::None` became JavaScript `undefined`, which displayed as literal "undefined" text because no explicit null handling.
+
+**Prevention**:
+- ✅ **Document type conversions at boundaries** (Rust ↔ JS, WASM ↔ JS)
+- ✅ **Add runtime validation** for WASM responses
+- ✅ **Use TypeScript interfaces** for WASM-returned types
+- ✅ **Explicit null handling** at all boundary crossings
+
+**TypeScript Contract** (Add to `types/WasmTypes.d.ts`):
+```typescript
+interface WasmToken {
+  type: string;
+  value: string;
+  translated: string | null;  // Explicit: null allowed, undefined NOT allowed
+  translationSource: string | null;
+}
+
+// Runtime validation
+function validateWasmToken(token: unknown): WasmToken {
+  if (token.translated === undefined) {
+    throw new Error('WASM returned undefined instead of null');
+  }
+  return token as WasmToken;
+}
+```
+
+### Lesson 4: Follow Existing Patterns
+
+**What Went Wrong**: First attempt replaced entire tokens array (`tokens = processedTokens`), breaking object references. Should have checked how JavaScript `numberProcessor.processTokens()` works first.
+
+**Prevention**:
+- ✅ **Check existing implementations** before adding new ones
+- ✅ **Match modification patterns** (in-place vs replacement)
+- ✅ **Grep for similar code**: `grep "processTokens(" src/` - How do others do it?
+
+**Pattern Discovery**:
+```bash
+# Find existing token processors
+grep -r "processTokens" src/utils/
+
+# Check their implementation
+# Do they modify in-place or return new array?
+# Copy the successful pattern
+```
+
+### Debugging Checklist: Is My Code Even Running?
+
+**Before spending time fixing logic:**
+
+**1. Check console for expected logs**
+   - Missing `🔢 Number converted` = number processor not called
+   - Missing `✅ WASM NumberProcessor initialized` = WASM not loaded
+
+**2. Verify execution path**
+   ```bash
+   # Is function imported?
+   grep "processNumbersWasm" src/utils/TranslationEngine.js
+
+   # Is function called? (Look for actual invocation with parentheses)
+   grep "processNumbersWasm(" src/utils/TranslationEngine.js
+   ```
+
+**3. Test incrementally**
+   - Add `console.log` at function entry
+   - Confirm log appears in console
+   - Then fix logic
+
+**4. Check for dead code**
+   ```bash
+   # Search for removed system references
+   grep -r "coreEngineRust" src/  # Should return 0 results if removed
+   grep -r "WasmTranslationAccelerator" src/  # Verify removal
+   ```
 
 ## Tauri-Specific Notes
 

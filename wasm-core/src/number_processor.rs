@@ -60,12 +60,12 @@ lazy_static! {
             description: "Four-digit years like 一九四五年 (năm 1945)",
         },
 
-        // Thousand ten-thousand: 五千万 → 50,000,000
+        // Thousand ten-thousand: 五千万 → 5,000 vạn
         ConversionPattern {
             name: "thousandTenThousand",
             regex: Regex::new(r"^([一二两三四五六七八九])千万$").unwrap(),
             converter: NumberProcessor::convert_thousand_ten_thousand,
-            description: "Large numbers like 五千万 (50 million)",
+            description: "Large numbers like 五千万 (5,000 vạn)",
         },
 
         // Thousands: 三千七百 → 3,700
@@ -238,7 +238,7 @@ impl NumberProcessor {
                 tokens[i].translated = Some(number_match.result);
                 tokens[i].translation_source = Some("number_conversion".to_string());
 
-                // Mark consumed tokens
+                // Mark consumed tokens (null translated + translationSource for skipping in postProcess)
                 for j in (i + 1)..=number_match.end_index {
                     tokens[j].translated = None;
                     tokens[j].translation_source = Some("number_conversion_consumed".to_string());
@@ -447,8 +447,8 @@ impl NumberProcessor {
     fn convert_thousand_ten_thousand(&self, groups: &[&str]) -> Option<String> {
         if groups.is_empty() { return None; }
         let digit = self.get_number(groups[0].chars().next()?)?;
-        let value = digit * 1000 * 10000;
-        Some(Self::format_with_commas(value))
+        let value = digit * 1000;
+        Some(format!("{} vạn", Self::format_with_commas(value)))
     }
 
     fn convert_thousands(&self, groups: &[&str]) -> Option<String> {

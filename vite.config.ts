@@ -49,6 +49,13 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Let Vite handle chunking automatically
+        // Preserve WASM file names (no hashing) to match wasm-pack generated code
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
+            return 'assets/[name][extname]';
+          }
+          return 'assets/[name]-[hash][extname]';
+        }
       }
     }
   },

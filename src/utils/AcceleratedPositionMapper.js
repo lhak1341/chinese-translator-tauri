@@ -69,19 +69,9 @@ export class AcceleratedPositionMapper {
    */
   async getWasmEngine() {
     try {
-      // Try to access the global translation engine
-      // This is a bit of a workaround, but we need to access the existing WASM engine
-      if (window.translationEngineInstance && 
-          window.translationEngineInstance.coreEngineRust && 
-          window.translationEngineInstance.coreEngineRust.rustEngine) {
-        return window.translationEngineInstance.coreEngineRust.rustEngine;
-      }
-      
-      // Alternative: look for it in the React context or other global access points
-      // For now, return null to trigger fallback
+      // WASM Core Engine removed - return null to use JavaScript fallback
       return null;
     } catch (error) {
-      console.warn('⚠️ Could not access WASM engine:', error.message);
       return null;
     }
   }

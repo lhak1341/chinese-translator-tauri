@@ -2129,15 +2129,7 @@ const Translator = () => {
             console.log('✅ Semantic pattern variable cache cleared');
           }
 
-          // Phase 7: Clear WASM Pattern Manager cache
-          if (engineRef.current.coreEngineRust && engineRef.current.coreEngineRust.isReady()) {
-            try {
-              engineRef.current.coreEngineRust.clearCache();
-              console.log('✅ Phase 7 WASM Pattern Manager cache cleared');
-            } catch (_wasmError) {
-              console.warn('⚠️  Could not clear WASM cache:', _wasmError.message);
-            }
-          }
+          // WASM Core Engine removed - cache clearing no longer needed
 
           engineRef.current = null;
           console.log('✅ Engine cleared successfully');

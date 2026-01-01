@@ -17,20 +17,21 @@ import { PositionTracker } from './PositionTracker.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
-import { processNumbersWasm, isWasmNumberProcessorAvailable } from './WasmNumberProcessor.js';
+import { processNumbersWasm } from './WasmNumberProcessor.js';
+import { copyWasmTokens } from '../../types/WasmTypes.js';
 import {
   getLegacySystemStatus,
   checkRollbackTriggers,
   updatePerformanceBaselines,
   initializePerformanceBaselines
 } from './LegacySystemFlags.js';
-import { translationSegmentCache } from './TranslationSegmentCache.js';
+// TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './AdaptiveChunker.js';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import { SmartMemoryPressureDetector, BackgroundCleanupManager, ComponentMemoryProfiler } from './MemoryManagementRefinements.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
-import { MEMORY_THRESHOLDS, ACCELERATION_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
+import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 
 /**
  * @import {
@@ -434,7 +435,6 @@ export class TranslationEngine {
     // - Pattern matching integration issues
     // - Maintaining pure JavaScript for reliability and translation quality
     // Tauri Rust backend (file I/O, parallel loading) remains active and working perfectly
-    this.coreEngineRust = null;
 
     // Feature flag for optimized semantic array builder
     this.useOptimizedSemanticBuilder = process.env.NODE_ENV === 'development' ||
@@ -561,7 +561,7 @@ export class TranslationEngine {
    */
   async initializeCoreEngine() {
     // WASM Core Engine removed - translation now uses pure JavaScript
-    this.coreEngineRust = null;
+    // This method kept for backward compatibility (called during initialization)
   }
 
   /**
@@ -611,70 +611,8 @@ export class TranslationEngine {
    * Instead of extracting from trie structures, use the original dictionary data stored in the engine
    */
   async syncDictionaries() {
-    if (!this.coreEngineRust || !this.coreEngineRust.isReady()) {
-      return;
-    }
-
-    try {
-      console.log('📋 Syncing dictionaries to Core Engine using stored dictionary data...');
-      
-      // Use the original dictionaries that were passed to initialize() 
-      // Filter for dictionaries that the Core Engine needs (proper nouns for pattern variables)
-      const relevantDictionaries = {};
-      
-      if (this.lastLoadedDictionaries) {
-        // Extract only proper noun dictionaries needed for pattern variable resolution
-        const _relevantNames = ['properNouns'];
-        
-        // Add all properNouns-* dictionaries 
-        for (const [name, data] of Object.entries(this.lastLoadedDictionaries)) {
-          console.log(`🔍 Checking dictionary: "${name}", starts with properNouns: ${name.startsWith('properNouns')}, is array: ${Array.isArray(data)}, type: ${typeof data}`);
-          
-          if (name.startsWith('properNouns') && data) {
-            // Convert dictionary data to array format expected by Core Engine
-            let entries = [];
-            if (Array.isArray(data)) {
-              entries = data;
-            } else if (typeof data === 'object' && data !== null) {
-              // Assume it's an object with entry data, convert to array
-              if (data.entries && Array.isArray(data.entries)) {
-                entries = data.entries;
-              } else {
-                // If it's a flat object, convert key-value pairs
-                entries = Object.entries(data).map(([key, value]) => ({
-                  chinese: key,
-                  vietnamese: value,
-                  metadata: null
-                }));
-              }
-            }
-            
-            if (entries.length > 0) {
-              relevantDictionaries[name] = entries;
-              console.log(`📚 Prepared ${name}: ${entries.length} entries for Core Engine`);
-            } else {
-              console.warn(`⚠️ Dictionary ${name} has no valid entries`);
-            }
-          }
-        }
-        
-        console.log(`📦 Final dictionary count for Core Engine: ${Object.keys(relevantDictionaries).length} dictionaries`);
-        
-        // Load dictionaries into Rust engine using optimized batch loading
-        await this.coreEngineRust.loadDictionariesOptimized(relevantDictionaries);
-      } else {
-        console.warn('⚠️ No stored dictionary data available for Core Engine sync');
-      }
-      
-      // Load patterns
-      if (this.semanticPatternProcessor.patterns) {
-        await this.coreEngineRust.loadPatterns(this.semanticPatternProcessor.patterns);
-      }
-      
-      this.log(DEBUG_LEVELS.INFO, '📚 Dictionaries synced to Phase 6 Core Engine');
-    } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '❌ Failed to sync dictionaries to Phase 6 Core Engine:', error.message);
-    }
+    // WASM Core Engine removed - this method is a no-op
+    // Kept for backward compatibility (may be called during initialization)
   }
 
   /**
@@ -1030,19 +968,8 @@ export class TranslationEngine {
 
       this.log(DEBUG_LEVELS.INFO, `✅ Translation Engine initialized in ${initTime.toFixed(2)}ms`);
       this.log(DEBUG_LEVELS.DEBUG, '📊 Engine stats:', this.getEngineStats());
-      
-      // Sync dictionaries to Phase 6 Core Engine (immediate + background)
-      // Try immediate sync first
-      if (this.coreEngineRust && this.coreEngineRust.isReady()) {
-        console.log('🔄 Attempting immediate syncDictionaries after engine init...');
-        await this.syncDictionaries();
-      }
-      
-      // Also set up background sync as fallback
-      setTimeout(async () => {
-        console.log('🔄 Calling syncDictionaries from background timeout...');
-        await this.syncDictionaries();
-      }, 200);
+
+      // WASM Core Engine removed - dictionary sync no longer needed
     } catch (_error) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Failed to initialize Translation Engine:', _error);
@@ -1098,7 +1025,7 @@ export class TranslationEngine {
       this.completeMemoryProfiling(memoryProfileId, {
         textLength: text.length,
         useChunking: options.useChunking !== false,
-        useRustEngine: this.coreEngineRust && this.coreEngineRust.isReady() && !options.forceJavaScript
+        useRustEngine: false  // WASM Core Engine removed
       });
     }
   }
@@ -5079,27 +5006,14 @@ export class TranslationEngine {
     // Numbers should be processed before phrases to preserve number sequences like "六十五"
     // This prevents phrase-level matches from breaking up number tokens
 
-
-
-    // Try WASM number processing first (5-10x faster)
-    if (this.coreEngineRust && this.coreEngineRust.isReady() && !options.forceJavaScript) {
-      try {
-        await this.coreEngineRust.processNumbers(tokens, {
-          debugLevel: this.debugLevel,
-          semanticArrayBuilder: this.semanticArrayBuilder,
-          ...options
-        });
-      } catch (error) {
-        this.log(DEBUG_LEVELS.WARN, '⚠️ WASM number processing failed, falling back to JavaScript:', error.message);
-        // Fallback to JavaScript number processing
-        this.numberProcessor.processTokens(tokens, {
-          debugLevel: this.debugLevel,
-          semanticArrayBuilder: this.semanticArrayBuilder,
-          ...options
-        });
-      }
-    } else {
-      // Use JavaScript number processing
+    // Use WASM number processing (5-10x faster for Chinese number conversion)
+    try {
+      const processedTokens = await processNumbersWasm(tokens);
+      // Copy WASM results with proper undefined → null conversion
+      copyWasmTokens(processedTokens, tokens);
+    } catch (error) {
+      this.log(DEBUG_LEVELS.WARN, '⚠️ WASM number processing failed, falling back to JavaScript:', error.message);
+      // Fallback to JavaScript number processing
       this.numberProcessor.processTokens(tokens, {
         debugLevel: this.debugLevel,
         semanticArrayBuilder: this.semanticArrayBuilder,
@@ -6694,16 +6608,15 @@ export class TranslationEngine {
    * Get Phase 6 Core Translation Engine (Rust)
    */
   get coreEngine() {
-    return this.coreEngineRust;
+    // WASM Core Engine removed
+    return null;
   }
 
   /**
    * Get Phase 6 Core Engine performance statistics
    */
   getCoreEngineStats() {
-    if (this.coreEngineRust) {
-      return this.coreEngineRust.getPerformanceStats();
-    }
+    // WASM Core Engine removed
     return null;
   }
 
@@ -6711,7 +6624,8 @@ export class TranslationEngine {
    * Check if Phase 6 Core Engine is ready for translation
    */
   isCoreEngineReady() {
-    return this.coreEngineRust && this.coreEngineRust.isReady();
+    // WASM Core Engine removed
+    return false;
   }
 
   /**

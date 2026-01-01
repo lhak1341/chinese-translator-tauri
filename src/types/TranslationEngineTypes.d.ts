@@ -685,8 +685,7 @@ export interface TranslationEngine {
   settings: PatternProcessingSettings;
   activeProperNouns: string[];
 
-  // WASM Integration
-  coreEngineRust: any;
+  // WASM Integration (number processing only)
   wasmManager: any;
 
   // Internal State
