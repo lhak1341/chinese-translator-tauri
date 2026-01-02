@@ -2,6 +2,14 @@
 
 React/Tauri desktop application for translating Chinese novels to Vietnamese. Processes text through 5-phase sequential token consumption with trie-based dictionary lookups and selective WASM acceleration.
 
+## 🚨 **CRITICAL: Code Activity Status**
+
+**Before modifying any code, consult these documents:**
+- **`ACTIVE_CODE_QUICK_REFERENCE.md`** - Fast lookup: is this code actually running?
+- **`WASM_RUST_SYSTEMS_MAP.md`** - Comprehensive Rust/WASM architecture documentation
+
+**Only 2 Rust systems are actively used!** Everything else is JavaScript or dead code.
+
 ## Quick Start
 
 ```bash
@@ -136,10 +144,12 @@ priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 
 - **Why Critical**: Translation and original text synchronization depends on precise start/end indices
 - **UI Dependency**: All translation modes must preserve semantic array structure
 
-**WASM Status**: Selective acceleration for specific features
-- **Active**: Chinese number processing (`WasmNumberProcessor.js`), Rust lookup index (`RustLookupIndexManager.js`)
-- **Removed**: Full translation acceleration (WasmTranslationAccelerator.js - 1,951 lines removed, see `WASM_REMOVAL_MIGRATION_GUIDE.md`)
-- **Why**: Dictionary lookups returned zero matches in WASM, causing character-by-character fallback instead of phrase matching
+**WASM/Rust Status**: Three active acceleration systems
+- ✅ **WASM Number Processor** (`wasm-core/src/number_processor.rs`): Chinese number conversion (5-10x speedup)
+- ✅ **WASM Dictionary Engine** (`wasm-core/src/lib.rs` DictionaryEngine): Trie-based dictionary lookups, loads 7 dictionaries with 27,000+ entries, used via `WasmDictionaryManager.js`
+- ✅ **Rust Lookup Index** (`src-tauri/src/lookup_index.rs`): Tauri backend trie indexing (6-50x speedup), used via `RustLookupIndexManager.js`
+- ❌ **Removed**: Full translation pipeline (Phase 6-7 core_engine.rs - 2,341 lines deleted Jan 2026)
+- **Debug WASM status**: `window.translationEngine.dictionaryManager.getWasmStatus()` shows initialization state
 
 ### File Architecture Rationale
 
@@ -465,10 +475,12 @@ window.performanceDashboard.checkCachePerformance()
 
 ### Active Performance Optimizations
 
-**WASM Acceleration**:
-- Chinese number processing: 5-10x speedup for conversions (e.g., 百分之十五 → 15%, 三千十五 → 3,015)
-- Rust lookup index: 6-50x speedup via trie-based dictionary indexing
-- Note: Full translation acceleration removed (see `WASM_REMOVAL_MIGRATION_GUIDE.md`)
+**WASM/Rust Acceleration** (3 active systems):
+- **WASM Number Processor**: 5-10x speedup for Chinese numbers (百分之十五 → 15%, 三千十五 → 3,015)
+- **WASM Dictionary Engine**: Trie-based lookups for 7 dictionaries (27,000+ entries), handles Pattern/Proper Noun/Phrase/Character dictionaries
+- **Rust Lookup Index** (Tauri): 6-50x speedup via backend trie indexing
+- **Logging**: `✅ [EnhancedDictionaryManager] WASM DictionaryEngine active` on startup confirms initialization
+- **Debug**: `window.translationEngine.dictionaryManager.getWasmStatus()` for runtime diagnostics
 
 **Viewport Optimization**:
 - Large text rendering: 98.5% improvement (6800ms → 50ms)
@@ -516,14 +528,15 @@ window.performanceDashboard.checkCachePerformance()
 
 ### Active Features (Production)
 
-- ✅ **Chinese number processing (WASM)**: 5-10x speedup for conversions (百分之十五 → 15%, 三千十五 → 3,015)
-- ✅ **Rust lookup index**: 6-50x speedup via trie-based dictionary indexing (RustLookupIndexManager.js)
+- ✅ **WASM Number Processor**: 5-10x speedup for Chinese number conversion (百分之十五 → 15%, 三千十五 → 3,015)
+- ✅ **WASM Dictionary Engine**: Trie-based dictionary acceleration, loads 7 dictionaries (27,000+ entries) for all dictionary phases
+- ✅ **Rust Lookup Index** (Tauri): 6-50x speedup via backend trie indexing for character-only translation
 - ✅ **5-phase translation (JavaScript)**: Sequential token consumption with immutable phase order (Pattern → Proper Noun → Number → Phrase → Character)
 - ✅ **Clickable highlighting**: Position mapping with semantic arrays, sliding window optimization for texts >2000 chars
 
 ### Removed Features
 
-- ❌ **Full WASM translation**: WasmTranslationAccelerator.js (1,951 lines removed) - See WASM_REMOVAL_MIGRATION_GUIDE.md for rationale
+- ❌ **Full WASM translation pipeline**: Phase 6-7 core_engine.rs (2,341 lines removed Jan 2026) - Pattern matching complexity across WASM boundary proved unreliable
 - ❌ **Dead code cleanup** (December 2025): 12 unused files removed (~3,500 lines)
   - Virtualized components never imported (VirtualizedClickableTranslation.jsx, VirtualizedClickableTranslationViewport.jsx, ClickableOriginalOptimized.jsx)
   - Replaced utilities (ViewportSegmentComputer.js → ViewportSegmentComputerEnhanced.js)
@@ -589,10 +602,11 @@ window.performanceDashboard.checkCachePerformance()
 - **Performance impact**: 5-20ms saved per translation by deferring cleanup to idle time, no translation blocking
 
 *January 2025 - Dead Code Cleanup*:
-- **12 files removed**: ~3,500 lines of unused code deleted (VirtualizedClickableTranslation.jsx, WasmTranslationAccelerator.js, PatternCompiler.js, etc.)
-- **WasmNumberProcessor.js kept**: Active WASM feature for Chinese number conversion
-- **RustLookupIndexManager.js kept**: Active Rust lookup index for dictionary speedup
-- **Impact**: Cleaner codebase, easier navigation, no functionality affected
+- **12 files removed** (Dec 2025): ~3,500 lines (VirtualizedClickableTranslation.jsx, WasmTranslationAccelerator.js, PatternCompiler.js, etc.)
+- **core_engine.rs removed** (Jan 2026): 2,341 lines Phase 6-7 remnant with zero references
+- **WASM systems clarified**: 3 active systems confirmed (NumberProcessor, DictionaryEngine, Rust Lookup Index)
+- **Logging fixes**: Added visibility for WASM initialization (`getWasmStatus()` method, explicit console logs)
+- **Impact**: Cleaner codebase, accurate documentation, no functionality affected
 
 **Cumulative Improvements**: 60-90% faster than baseline for typical translations (500-2000 chars), 40% reduction in bug investigation time from documentation/types, 5-20ms saved per translation from async cleanup
 

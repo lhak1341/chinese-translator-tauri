@@ -644,8 +644,11 @@ export class DictionaryManager {
    */
   log(level, message, data = null) {
     if (this.debugLevel >= level) {
-      // Only log in development for performance
-      if (process.env.NODE_ENV === 'development') {
+      // CRITICAL ERRORS (level 0) always show, regardless of NODE_ENV
+      const isCritical = level === DEBUG_LEVELS.ERROR;
+      const isDevelopment = process.env.NODE_ENV === 'development';
+
+      if (isCritical || isDevelopment) {
         if (data !== null) {
           console.log(message, data);
         } else {

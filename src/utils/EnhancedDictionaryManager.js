@@ -85,18 +85,25 @@ export class EnhancedDictionaryManager extends DictionaryManager {
       
       if (success) {
         this.wasmInitialized = true;
-        
+
         // Load existing dictionaries into WASM
         await this.syncDictionariesToWasm();
-        
+
         this.log(1, '✅ WASM integration initialized successfully');
+        console.log('✅ [EnhancedDictionaryManager] WASM DictionaryEngine active');
         return true;
       } else {
         this.log(1, '⚠️ WASM initialization failed, using JavaScript fallback');
+        console.warn('⚠️ [EnhancedDictionaryManager] WASM initialization returned false, using JavaScript fallback');
         return false;
       }
     } catch (error) {
       this.log(0, '❌ WASM initialization error:', error);
+
+      // ALWAYS log critical WASM failures to console (bypass log filtering)
+      console.error('❌ [EnhancedDictionaryManager] WASM initialization failed:', error);
+      console.error('   Falling back to JavaScript dictionary manager');
+
       this.wasmInitialized = false;
       return false;
     }
@@ -565,6 +572,22 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   }
 
   /**
+   * Get WASM status for debugging
+   * @returns {Object} Current WASM initialization status
+   */
+  getWasmStatus() {
+    return {
+      enabled: this.enableWasm,
+      initialized: this.wasmInitialized,
+      isInFallbackMode: this.wasmManager?.isInFallbackMode() ?? true,
+      managerExists: !!this.wasmManager,
+      engineExists: !!this.wasmManager?.engine,
+      dictionaryCount: this.wasmManager?.engine?.get_dictionary_count?.() ?? 0,
+      initPromisePending: !!this.wasmInitPromise && !this.wasmInitialized
+    };
+  }
+
+  /**
    * Get comprehensive performance report including WASM vs JS comparison
    */
   getPerformanceReport() {
@@ -572,7 +595,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
       // Get parent performance stats
       ...this.parallelLookupStats,
       ...this.lookupIndexStats,
-      
+
       // Add WASM comparison
       wasmIntegration: {
         enabled: this.enableWasm,

@@ -650,7 +650,7 @@ export class SemanticPatternProcessor {
     // Collect pattern matches
     const results = [];
     const semanticTokens = this.getSemanticTokens(tokens);
-    
+
     for (let i = 0; i < semanticTokens.length; i++) {
       // Skip tokens already consumed by patterns 
       // BUT allow patterns to override Phase A protection if they are longer
@@ -749,16 +749,16 @@ export class SemanticPatternProcessor {
     
     // Get semantic tokens (Chinese characters/words only)
     const semanticTokens = this.getSemanticTokens(tokens);
-    
+
     // Initialize pre-computed strings optimization
     if (this.enableStringOptimization && semanticTokens.length > 5) {
       const precomputeStart = performance.now();
       this.precomputedStrings = new PrecomputedTokenStrings(semanticTokens);
       const precomputeTime = performance.now() - precomputeStart;
-      
+
       this.stats.stringOptimization.enabled = true;
       this.stats.stringOptimization.precomputeTime += precomputeTime;
-      
+
       this.log(debugLevel, 5,
         `⚡ Pre-computed ${this.precomputedStrings.stats.totalPrecomputed} strings in ${precomputeTime.toFixed(2)}ms`);
     } else {
