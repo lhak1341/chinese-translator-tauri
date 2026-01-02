@@ -13,7 +13,6 @@ import { SemanticArrayBuilder } from './SemanticArrayBuilder.js';
 import { OptimizedSemanticArrayBuilder } from './OptimizedSemanticArrayBuilder.js';
 import { performanceProfiler } from './PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
-import { PositionTracker } from './PositionTracker.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
@@ -425,7 +424,6 @@ export class TranslationEngine {
       debugLevel: 1 // INFO level for WASM logs
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
-    this.positionTracker = new PositionTracker();
     this.textChunker = new TextChunker();
     this.numberProcessor = new NumberProcessor();
     
@@ -6172,49 +6170,6 @@ export class TranslationEngine {
     }
 
     return segments;
-  }
-
-  /**
-   * Translate a chunk while tracking positions for segment building
-   * @param {Object} chunk - Chunk to translate  
-   * @param {Object} options - Translation options
-   * @param {number} chunkIndex - Index of chunk for debugging
-   * @returns {string} Translated text
-   */
-  async translateChunkWithPositionTracking(chunk, options, _chunkIndex) {
-    // Translate the chunk normally
-    const translatedText = await this.translateDirectly(chunk.content, options);
-    
-    // Get the semantic arrays that were built during translation
-    const semanticArrays = this.semanticArrayBuilder.getArrays();
-    const currentSemanticCount = semanticArrays.original.length;
-    
-    // console.log(`📍 Chunk ${chunkIndex}: "${chunk.content}" → "${translatedText}"`);
-    // console.log(`📊 Semantic arrays now have ${currentSemanticCount} entries`);
-    
-    // Add segments to position tracker based on what was created
-    // Note: We need to determine which semantic array entries belong to this chunk
-    if (this.lastSemanticCount === undefined) {
-      this.lastSemanticCount = 0;
-    }
-    
-    // The new semantic entries from this chunk
-    const _newEntries = currentSemanticCount - this.lastSemanticCount;
-    // Debug logging disabled for performance
-    // console.log(`🔍 This chunk added ${newEntries} semantic entries (from ${this.lastSemanticCount} to ${currentSemanticCount})`);
-    
-    // Add segments for the new entries  
-    for (let i = this.lastSemanticCount; i < currentSemanticCount; i++) {
-      const originalText = semanticArrays.original[i];
-      const translatedWord = semanticArrays.translated[i];
-      const metadata = semanticArrays.metadata[i];
-      
-      this.positionTracker.addSegment(originalText, translatedWord, metadata, i);
-    }
-    
-    this.lastSemanticCount = currentSemanticCount;
-    
-    return translatedText;
   }
 
   /**
