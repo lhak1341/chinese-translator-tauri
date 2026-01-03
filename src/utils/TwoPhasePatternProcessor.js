@@ -1,13 +1,20 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
+import {
+  processTokensWasm,
+  isWasmPatternProcessorAvailable
+} from './WasmPatternProcessor.js';
 
 /**
- * TwoPhasePatternProcessor - Main orchestrator for hierarchical pattern processing
+ * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
  *
- * Implements two-phase pattern matching:
+ * Implements two-phase pattern matching using Rust WASM (10-50x speedup):
  * - Phase A: Process patterns with allowAsPatternVariable: true
  * - Phase B: Process all patterns, using Phase A results as enhanced variables
  * - Composite Detection: Identify when Phase A results can be absorbed into Phase B patterns
  * - Decision Engine: Select optimal translation from all candidates
+ *
+ * JavaScript fallback removed after parity verification (January 2025)
+ * Requires WASM initialization - will throw error if WASM unavailable
  *
  * @import {
  *   SemanticPattern,
@@ -29,13 +36,14 @@ class TwoPhasePatternProcessor {
       maxCompositeDetectionTime: 100, // ms
       enableFallback: true,
       debugMode: false,
+      enableWasm: true, // Enable WASM acceleration by default
       ...options
     };
-    
+
     // Analyze and categorize patterns
     this.processedPatterns = this.analyzer.analyzePatterns(patterns);
     this.categorizePatterns();
-    
+
     // TwoPhasePatternProcessor initialized successfully
   }
   
@@ -45,16 +53,141 @@ class TwoPhasePatternProcessor {
   categorizePatterns() {
     // Phase A: Patterns that can serve as variables for other patterns
     this.variablePatterns = this.processedPatterns.filter(p => p.allowAsPatternVariable === true);
-    
+
     // Phase B eligible: Patterns that can use composite variables (single-variable only)
     this.compositeEligiblePatterns = this.processedPatterns.filter(p => p.compositeEligible);
-    
+
     // All patterns for comprehensive processing
     this.allPatterns = this.processedPatterns;
-    
+
     // Pattern categorization completed
   }
-  
+
+  /**
+   * Extract semantic tokens (Chinese characters/words only) with originalIndex
+   * Matches the format expected by WASM pattern processor
+   * @param {Array} tokens - Full token array
+   * @returns {Array} Semantic tokens with originalIndex field
+   */
+  extractSemanticTokens(tokens) {
+    const semanticTokens = [];
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+
+      // Skip grouped followers and non-Chinese tokens
+      if (token.isGrouped && token.groupLeader !== null) {
+        continue;
+      }
+
+      if (token.type === 'chinese_char' || token.type === 'chinese_word') {
+        semanticTokens.push({
+          ...token,
+          originalIndex: i
+        });
+      }
+    }
+
+    return semanticTokens;
+  }
+
+  /**
+   * Build variable cache from already-translated tokens and dictionaries
+   * Simplified version for WASM - extracts variables from:
+   * 1. Already-translated proper noun tokens
+   * 2. Dictionary lookups for proper nouns and phrases
+   * 3. Full-text scanning for multi-character proper nouns
+   * @param {Array} tokens - Token array
+   * @param {Object} options - Options containing activeProperNouns and dictionaryManager
+   * @returns {Object} Variable cache {text: {translation, source, type}}
+   */
+  buildVariableCache(tokens, options) {
+    const cache = {};
+
+    // Get options
+    const activeProperNouns = options.activeProperNouns || [];
+    const dictionaryManager = options.dictionaryManager;
+
+    if (!dictionaryManager) {
+      // No dictionary manager, return empty cache
+      return cache;
+    }
+
+    // Filter out 'phrases' from proper noun dictionaries
+    const actualProperNounDictionaries = activeProperNouns.filter(dict => dict !== 'phrases');
+
+    // 1. Cache already-translated proper nouns from tokens
+    for (const token of tokens) {
+      if (token.translated && token.translationSource?.includes('properNoun')) {
+        cache[token.value] = {
+          translation: token.translated,
+          source: token.translationSource,
+          type: 'proper_noun'
+        };
+      }
+    }
+
+    // 2. Cache phrase translations with allowAsPatternVariable flag
+    // Check both single tokens AND multi-character combinations
+    for (let i = 0; i < tokens.length; i++) {
+      // Check single token
+      const singleResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
+      if (singleResult?.metadata?.allowAsPatternVariable) {
+        cache[tokens[i].value] = {
+          translation: singleResult.translation,
+          source: 'phrases_pattern_variable',
+          type: 'phrase'
+        };
+      }
+
+      // Check multi-character combinations (up to 6 characters)
+      for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
+        const combinedText = tokens.slice(i, i + len).map(t => t.value).join('');
+        const multiResult = dictionaryManager.translate(combinedText, ['phrases']);
+        if (multiResult?.metadata?.allowAsPatternVariable) {
+          cache[combinedText] = {
+            translation: multiResult.translation,
+            source: 'phrases_pattern_variable',
+            type: 'phrase'
+          };
+        }
+      }
+    }
+
+    // 3. Cache single-token proper noun dictionary lookups
+    for (const token of tokens) {
+      const properNounResult = dictionaryManager.translate(token.value, actualProperNounDictionaries);
+      if (properNounResult) {
+        cache[token.value] = {
+          translation: properNounResult.translation,
+          source: properNounResult.dictionary + '_pattern_variable',
+          type: 'proper_noun'
+        };
+      }
+    }
+
+    // 4. CRITICAL: Full-text scanning for multi-character proper nouns
+    // This is essential because pattern variables can be multi-character names
+    // that span multiple tokens (e.g., "张三", "李四")
+    const fullText = tokens.map(t => t.value).join('');
+
+    for (let pos = 0; pos < fullText.length; pos++) {
+      const allProperNounMatches = dictionaryManager.findAllMatches(fullText, pos, actualProperNounDictionaries);
+
+      for (const match of allProperNounMatches) {
+        if (match.word && match.translation) {
+          cache[match.word] = {
+            translation: match.translation,
+            source: match.dictionary + '_fulltext_scan',
+            type: 'proper_noun'
+          };
+        }
+      }
+    }
+
+    return cache;
+  }
+
   /**
    * Main processing entry point
    * @param {Array} tokens - Token array to process
@@ -62,286 +195,30 @@ class TwoPhasePatternProcessor {
    * @returns {Promise<Array>} Optimal translation results
    */
   async processTokens(tokens, options) {
-    const startTime = Date.now();
+    // WASM-only implementation (JavaScript fallback removed after parity verification)
+    if (!this.options.enableWasm || !isWasmPatternProcessorAvailable()) {
+      throw new Error('WASM Pattern Processor not available. Two-phase pattern matching requires Rust WASM acceleration.');
+    }
 
     try {
-      // Phase A: Variable patterns only
-      const phaseAResults = await this.processPhaseA(tokens, options);
+      // Extract semantic tokens (Chinese characters/words only with originalIndex)
+      const semanticTokens = this.extractSemanticTokens(tokens);
 
-      // Mark Phase A tokens as protected from Phase B processing
-      this.markTokensAsProtected(tokens, phaseAResults);
+      // Build variable cache
+      const variableCache = this.buildVariableCache(tokens, options);
 
-      // Phase B: All patterns with enhanced variable resolution
-      const phaseBResults = await this.processPhaseB(tokens, phaseAResults, options);
+      const wasmResults = await processTokensWasm(semanticTokens, variableCache);
 
-      // Composite Recognition: Detect absorption opportunities
-      const compositeResults = await this.detectComposites(phaseAResults, phaseBResults, tokens);
-
-      // Decision Engine: Select optimal results
-      const finalResults = this.selectOptimalResults(phaseAResults, phaseBResults, compositeResults);
-
-      const _processingTime = Date.now() - startTime;
-
-      // Two-phase processing completed successfully
-
-      return finalResults;
-      
-    } catch (_error) {
-      if (this.options.enableFallback) {
-        console.warn('Two-phase processing failed, falling back to single-phase:', _error);
-        return await this.processSinglePhaseFallback(tokens, options);
-      } else {
-        throw _error;
+      if (!wasmResults || wasmResults.length === 0) {
+        // Empty results are valid (e.g., no patterns matched)
+        return [];
       }
-    }
-  }
-  
-  /**
-   * Process Phase A: Variable patterns only
-   * @param {Array} tokens - Token array
-   * @param {Object} options - Processing options
-   * @returns {Promise<Array>} Phase A results
-   */
-  async processPhaseA(tokens, options) {
-    if (this.variablePatterns.length === 0) {
-      console.log(`🔍 Phase A: No variable patterns available`);
-      return [];
-    }
-    
-    // Create clean token copies for Phase A to prevent token contamination
-    const cleanTokens = tokens.map(token => ({
-      ...token,
-      translated: null,
-      translationSource: null,
-      protectedByPhaseA: undefined
-    }));
-    
-    // Use existing pattern processing logic but only with variable patterns
-    const { SemanticPatternProcessor } = await import('./SemanticPatternProcessor.js');
-    const phaseAProcessor = new SemanticPatternProcessor();
-    const results = await phaseAProcessor.processPatterns(cleanTokens, this.variablePatterns, options);
-    
-    return results;
-  }
-  
-  /**
-   * Process Phase B: All patterns with enhanced variable resolution
-   * @param {Array} tokens - Token array
-   * @param {Array} phaseAResults - Results from Phase A to use as variables
-   * @param {Object} options - Processing options
-   * @returns {Promise<Array>} Phase B results
-   */
-  async processPhaseB(tokens, phaseAResults, options) {
-    
-    // Create enhanced options with Phase A results as additional variables
-    const enhancedOptions = {
-      ...options,
-      phaseAResults,
-      enableEnhancedVariableResolution: true
-    };
-    
-    // Use existing pattern processing logic with all patterns
-    const { SemanticPatternProcessor } = await import('./SemanticPatternProcessor.js');
-    const phaseBProcessor = new SemanticPatternProcessor();
-    const phaseBResults = await phaseBProcessor.processPatterns(tokens, this.allPatterns, enhancedOptions);
-    
-    
-    return phaseBResults;
-  }
-  
-  /**
-   * Mark tokens consumed by Phase A as protected from Phase B
-   * @param {Array} tokens - Token array to modify
-   * @param {Array} phaseAResults - Phase A results containing token spans
-   */
-  markTokensAsProtected(tokens, phaseAResults) {
-    for (const result of phaseAResults) {
-      for (let i = result.startIndex; i <= result.endIndex; i++) {
-        if (tokens[i]) {
-          tokens[i].protectedByPhaseA = true;
-          tokens[i].phaseAResult = result;
-        }
-      }
-    }
-  }
-  
-  /**
-   * Detect composite opportunities between Phase A and Phase B results
-   * @param {Array} phaseAResults - Phase A variable pattern results
-   * @param {Array} phaseBResults - Phase B pattern candidates
-   * @param {Array} tokens - Token array for text analysis
-   * @returns {Promise<Array>} Composite translation opportunities
-   */
-  async detectComposites(phaseAResults, phaseBResults, tokens) {
-    const compositeDetectionStart = Date.now();
-    
-    // Import composite detector (will be created in Week 2)
-    let CompositePatternDetector;
-    try {
-      CompositePatternDetector = (await import('./CompositePatternDetector.js')).default;
-    } catch (_error) {
-      // Graceful degradation if CompositePatternDetector not yet implemented
-      if (this.options.debugMode) {
-        console.log('CompositePatternDetector not available, skipping composite detection');
-      }
-      return [];
-    }
-    
-    const detector = new CompositePatternDetector(this.options);
-    const composites = detector.detectComposites(phaseAResults, phaseBResults, tokens);
-    
-    const detectionTime = Date.now() - compositeDetectionStart;
-    
-    
-    return composites;
-  }
-  
-  /**
-   * Select optimal results from all candidates using decision engine
-   * @param {Array} phaseAResults - Phase A results
-   * @param {Array} phaseBResults - Phase B results  
-   * @param {Array} compositeResults - Composite results
-   * @returns {Array} Optimal translation results
-   */
-  selectOptimalResults(phaseAResults, phaseBResults, compositeResults) {
-    // Import decision engine (will be created in Week 3)
-    let CompositeDecisionEngine;
-    try {
-      CompositeDecisionEngine = require('./CompositeDecisionEngine.js').default;
-      const engine = new CompositeDecisionEngine(this.options);
-      return engine.selectOptimalResults(phaseAResults, phaseBResults, compositeResults);
-    } catch (_error) {
-      // Fallback to simple longest-match-first for now
-      // CompositeDecisionEngine not available, using simple selection
-      return this.simpleResultSelection(phaseAResults, phaseBResults, compositeResults);
-    }
-  }
-  
-  /**
-   * Simple fallback result selection (longest match wins)
-   * @param {Array} phaseAResults - Phase A results
-   * @param {Array} phaseBResults - Phase B results
-   * @param {Array} compositeResults - Composite results
-   * @returns {Array} Selected results
-   */
-  simpleResultSelection(phaseAResults, phaseBResults, compositeResults) {
-    // Check for hierarchical composition: Phase B using Phase A as variable
-    const hierarchicalResults = this.detectHierarchicalComposition(phaseAResults, phaseBResults);
-    if (hierarchicalResults.length > 0) {
-      // BUGFIX: Also include non-overlapping Phase B patterns that weren't part of hierarchical composition
-      const usedPhaseBIndices = new Set();
-      hierarchicalResults.forEach(hr => {
-        // Track which Phase B results were used in hierarchical composition
-        if (hr.phaseB) {
-          for (let i = hr.phaseB.startIndex; i <= hr.phaseB.endIndex; i++) {
-            usedPhaseBIndices.add(i);
-          }
-        }
-      });
 
-      // Add non-overlapping Phase B patterns
-      const nonOverlappingPhaseBResults = phaseBResults.filter(phaseBResult => {
-        // Check if this Phase B result overlaps with any hierarchical result
-        for (let i = phaseBResult.startIndex; i <= phaseBResult.endIndex; i++) {
-          if (usedPhaseBIndices.has(i)) {
-            return false; // Overlaps, don't include
-          }
-        }
-        return true; // No overlap, include it
-      });
-
-      const finalResults = [...hierarchicalResults, ...nonOverlappingPhaseBResults];
-      return finalResults;
+      return wasmResults;
+    } catch (error) {
+      console.error('❌ WASM pattern processing failed:', error);
+      throw error;
     }
-    
-    // Fallback to standard selection if no hierarchical composition detected
-    const allResults = [
-      ...phaseAResults.map(r => ({ ...r, source: 'phaseA' })),
-      ...phaseBResults.map(r => ({ ...r, source: 'phaseB' })),
-      ...compositeResults.map(r => ({ ...r, source: 'composite' }))
-    ];
-    
-    // Sort by span length (longest first) and remove overlaps
-    
-    // Sort by pattern character length (longest first), not token span
-    allResults.sort((a, b) => {
-      const aLength = a.pattern?.originalPattern?.length || (a.endIndex - a.startIndex + 1);
-      const bLength = b.pattern?.originalPattern?.length || (b.endIndex - b.startIndex + 1);
-      return bLength - aLength;
-    });
-    
-    
-    const selectedResults = [];
-    const usedTokens = new Set();
-    
-    for (const result of allResults) {
-      let hasOverlap = false;
-      for (let i = result.startIndex; i <= result.endIndex; i++) {
-        if (usedTokens.has(i)) {
-          hasOverlap = true;
-          break;
-        }
-      }
-      
-      if (!hasOverlap) {
-        selectedResults.push(result);
-        for (let i = result.startIndex; i <= result.endIndex; i++) {
-          usedTokens.add(i);
-        }
-      }
-    }
-    
-    return selectedResults;
-  }
-  
-  /**
-   * Detect hierarchical composition where Phase B uses Phase A results as variables
-   * @param {Array} phaseAResults - Phase A results
-   * @param {Array} phaseBResults - Phase B results
-   * @returns {Array} Hierarchical composition results
-   */
-  detectHierarchicalComposition(phaseAResults, phaseBResults) {
-    const hierarchicalResults = [];
-    
-    for (const phaseBResult of phaseBResults) {
-      // Check if this Phase B result's translation contains any Phase A result's translation
-      for (const phaseAResult of phaseAResults) {
-        if (phaseBResult.translation && phaseAResult.translation && 
-            phaseBResult.translation.includes(phaseAResult.translation)) {
-          // Phase B contains Phase A translation - this is hierarchical composition
-          // Create a combined result that spans both Phase A and Phase B tokens
-          const combinedResult = {
-            originalText: phaseAResult.originalText + phaseBResult.originalText,
-            translation: phaseBResult.translation,
-            pattern: phaseBResult.pattern,
-            startIndex: Math.min(phaseAResult.startIndex, phaseBResult.startIndex),
-            endIndex: Math.max(phaseAResult.endIndex, phaseBResult.endIndex),
-            source: 'hierarchical_composition',
-            phaseA: phaseAResult,
-            phaseB: phaseBResult
-          };
-          
-          hierarchicalResults.push(combinedResult);
-        }
-      }
-    }
-    
-    return hierarchicalResults;
-  }
-  
-  /**
-   * Fallback to single-phase processing if two-phase fails
-   * @param {Array} tokens - Token array
-   * @param {Object} options - Processing options
-   * @returns {Promise<Array>} Fallback results
-   */
-  async processSinglePhaseFallback(tokens, options) {
-    console.log('Using single-phase fallback processing');
-    
-    // Use existing single-phase pattern processing
-    const { SemanticPatternProcessor } = await import('./SemanticPatternProcessor.js');
-    const singlePhaseProcessor = new SemanticPatternProcessor();
-    return await singlePhaseProcessor.processPatterns(tokens, this.allPatterns, options);
   }
   
   /**

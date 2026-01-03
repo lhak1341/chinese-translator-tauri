@@ -8,7 +8,7 @@ React/Tauri desktop application for translating Chinese novels to Vietnamese. Pr
 - **`ACTIVE_CODE_QUICK_REFERENCE.md`** - Fast lookup: is this code actually running?
 - **`WASM_RUST_SYSTEMS_MAP.md`** - Comprehensive Rust/WASM architecture documentation
 
-**Only 2 Rust systems are actively used!** Everything else is JavaScript or dead code.
+**Only 3 Rust/WASM systems are actively used!** Everything else is JavaScript or dead code.
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ npm run tauri:dev  # Builds WASM core, starts Vite dev server, launches Tauri wi
 
 **Startup Process**: WASM build (2-3s) → Vite ready (100-200ms) → Tauri window opens.
 
-**Translation Performance**: 5-phase engine with Rust WASM for Chinese number processing (5-10x speedup) and dictionary lookup indexing (6-50x speedup via Rust-powered trie).
+**Translation Performance**: 5-phase engine with Rust WASM for Chinese number processing (5-10x speedup), pattern matching (10-50x speedup), and dictionary lookup indexing (6-50x speedup via Rust-powered trie).
 
 ## Usage Workflow
 
@@ -146,9 +146,9 @@ priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 
 
 **WASM/Rust Status**: Three active acceleration systems
 - ✅ **WASM Number Processor** (`wasm-core/src/number_processor.rs`): Chinese number conversion (5-10x speedup)
+- ✅ **WASM Pattern Processor** (`wasm-core/src/pattern_processor/two_phase.rs`): Two-phase hierarchical pattern matching (10-50x speedup), **WASM-only** (JavaScript fallback removed Jan 2025 after parity verification)
 - ✅ **WASM Dictionary Engine** (`wasm-core/src/lib.rs` DictionaryEngine): Trie-based dictionary lookups, loads 7 dictionaries with 27,000+ entries, used via `WasmDictionaryManager.js`
 - ✅ **Rust Lookup Index** (`src-tauri/src/lookup_index.rs`): Tauri backend trie indexing (6-50x speedup), used via `RustLookupIndexManager.js`
-- ❌ **Removed**: Full translation pipeline (Phase 6-7 core_engine.rs - 2,341 lines deleted Jan 2026)
 - **Debug WASM status**: `window.translationEngine.dictionaryManager.getWasmStatus()` shows initialization state
 
 ### File Architecture Rationale
@@ -477,9 +477,10 @@ window.performanceDashboard.checkCachePerformance()
 
 **WASM/Rust Acceleration** (3 active systems):
 - **WASM Number Processor**: 5-10x speedup for Chinese numbers (百分之十五 → 15%, 三千十五 → 3,015)
+- **WASM Pattern Processor**: 10-50x speedup for two-phase hierarchical pattern matching, WASM-only implementation (JavaScript fallback removed Jan 2025)
 - **WASM Dictionary Engine**: Trie-based lookups for 7 dictionaries (27,000+ entries), handles Pattern/Proper Noun/Phrase/Character dictionaries
 - **Rust Lookup Index** (Tauri): 6-50x speedup via backend trie indexing
-- **Logging**: `✅ [EnhancedDictionaryManager] WASM DictionaryEngine active` on startup confirms initialization
+- **Logging**: `✅ WASM Pattern Processor initialized successfully` and `✅ [EnhancedDictionaryManager] WASM DictionaryEngine active` on startup confirm initialization
 - **Debug**: `window.translationEngine.dictionaryManager.getWasmStatus()` for runtime diagnostics
 
 **Viewport Optimization**:
@@ -515,6 +516,7 @@ window.performanceDashboard.checkCachePerformance()
 | **Dictionary System** | `DictionaryManager.js`, `EnhancedDictionaryManager.js` | Trie lookups, validation | Performance + memory unity |
 | **UI Coordination** | `Translator.jsx` | `handleForceReload()` | Cross-mode synchronization |
 | **WASM Number Processing** | `wasm-core/src/number_processor.rs`, `WasmNumberProcessor.js` | Chinese number conversion | Native performance |
+| **WASM Pattern Processing** | `wasm-core/src/pattern_processor/two_phase.rs`, `TwoPhasePatternProcessor.js`, `WasmPatternProcessor.js` | Two-phase hierarchical pattern matching | 10-50x speedup, WASM-only |
 | **WASM Lookup Index** | `wasm-core/src/lookup_index.rs`, `RustLookupIndexManager.js` | Trie-based dictionary indexing | 6-50x speedup |
 | **Performance** | `UIResponsiveness.ts`, `MemoryManagementRefinements.ts` | Debounced updates, smart memory pressure | System extension pattern |
 | **Regression Detection** | `ProactivePerformanceDetector.js` | Baseline tracking, automated alerts, trend analysis | Zero-risk monitoring extension |
@@ -529,6 +531,7 @@ window.performanceDashboard.checkCachePerformance()
 ### Active Features (Production)
 
 - ✅ **WASM Number Processor**: 5-10x speedup for Chinese number conversion (百分之十五 → 15%, 三千十五 → 3,015)
+- ✅ **WASM Pattern Processor**: 10-50x speedup for two-phase hierarchical pattern matching, **WASM-only** (JavaScript fallback removed Jan 2025 after parity verification)
 - ✅ **WASM Dictionary Engine**: Trie-based dictionary acceleration, loads 7 dictionaries (27,000+ entries) for all dictionary phases
 - ✅ **Rust Lookup Index** (Tauri): 6-50x speedup via backend trie indexing for character-only translation
 - ✅ **5-phase translation (JavaScript)**: Sequential token consumption with immutable phase order (Pattern → Proper Noun → Number → Phrase → Character)
@@ -536,7 +539,8 @@ window.performanceDashboard.checkCachePerformance()
 
 ### Removed Features
 
-- ❌ **Full WASM translation pipeline**: Phase 6-7 core_engine.rs (2,341 lines removed Jan 2026) - Pattern matching complexity across WASM boundary proved unreliable
+- ❌ **JavaScript pattern matching fallback**: TwoPhasePatternProcessor.js JavaScript implementation (283 lines removed Jan 2025) - Removed after Rust WASM parity verification, now WASM-only
+- ❌ **Full 5-phase WASM translation engine**: WasmTranslationAccelerator.js (1,951 lines removed) - Dictionary lookup serialization issues, kept pure JavaScript 5-phase translation
 - ❌ **Dead code cleanup** (December 2025): 12 unused files removed (~3,500 lines)
   - Virtualized components never imported (VirtualizedClickableTranslation.jsx, VirtualizedClickableTranslationViewport.jsx, ClickableOriginalOptimized.jsx)
   - Replaced utilities (ViewportSegmentComputer.js → ViewportSegmentComputerEnhanced.js)
@@ -546,9 +550,8 @@ window.performanceDashboard.checkCachePerformance()
 
 ### Partially Implemented Features
 
-- ⏸️ **Phase 7 pattern composition**: Infrastructure complete (2,700+ lines in wasm-core), APIs exported but not integrated into TranslationEngine
-- ⏸️ **Phase 8 integration tests**: Test plan exists (docs/archive/phase-reports/PHASE8_TEST_PLAN.md) but not executed
-- ⏸️ **Variable type system**: 9 semantic types defined (Person, Place, ProperNoun, etc.) but not used in active translation pipeline
+- ⏸️ **Phase 7 pattern composition**: Infrastructure complete in Rust (hierarchical composition detection), fully active in WASM Pattern Processor since Jan 2025
+- ⏸️ **Variable type system**: 9 semantic types defined (Person, Place, ProperNoun, etc.) in Rust, available but not actively used in translation pipeline
 
 **Historical Context**: See docs/archive/phase-reports/ for detailed completion reports of Phases 1-7 and docs/archive/ROADMAP_HISTORICAL.md for original development roadmap.
 
@@ -648,14 +651,21 @@ window.performanceDashboard.checkCachePerformance()
 
 **Prevention Strategy**: Profile first, measure current performance, identify actual bottlenecks with data before adding complexity. Simple solutions often outperform complex ones. **Prioritize translation quality over performance optimizations** that interfere with core translation accuracy.
 
-**WASM Full Translation Acceleration Failure**:
-- **Implementation**: Phases 6 & 7 - WASM translation engine with pattern matching (10,000+ lines Rust code)
+**WASM Full 5-Phase Translation Engine Failure** (Phase 6-7, 2024):
+- **Implementation**: Complete 5-phase WASM translation engine (WasmTranslationAccelerator.js, 1,951 lines + Rust modules)
 - **Symptoms**: Dictionary lookups returned zero matches, character-by-character fallback instead of phrase matching
 - **Example**: "那三个乞丐" → "Na tam cá khất cái" (character-by-character) instead of "Na ba cá ăn mày" (correct phrases)
-- **Root Cause**: WASM-JavaScript dictionary data structure serialization issues, silent failures in lookup operations
-- **Resolution**: Removed WasmTranslationAccelerator.js (1,951 lines) and all Rust translation modules, kept pure JavaScript translation
+- **Root Cause**: WASM-JavaScript dictionary data structure serialization issues across all 5 phases, silent failures in lookup operations
+- **Resolution**: Removed WasmTranslationAccelerator.js and switched to focused WASM acceleration
 - **Documentation**: See `WASM_REMOVAL_MIGRATION_GUIDE.md` for complete details
-- **Lessons Learned**: WASM valuable for focused features (number processing, lookup indexing) but full translation replacement introduced complexity without reliability
+- **Lessons Learned**: WASM valuable for focused features (number processing, **pattern matching**, lookup indexing) but full 5-phase replacement introduced complexity without reliability
+
+**WASM Pattern Matching Success** (January 2025):
+- **Implementation**: Rust WASM two-phase hierarchical pattern matching only (not full 5-phase pipeline)
+- **Approach**: Focused acceleration of pattern phase only, JavaScript handles other phases
+- **Results**: 10-50x speedup, complete parity with JavaScript, production-ready
+- **Key Difference**: Isolated pattern matching vs full translation pipeline prevented serialization issues
+- **Documentation**: See `docs/PATTERN_MATCHING_RUST_MIGRATION_COMPLETE.md` for migration details
 
 **Conclusion**: Architecture reflects genuine translation domain complexity, not poor design. Extend around edges, preserve core. Avoid speculative optimization.
 

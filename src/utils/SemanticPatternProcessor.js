@@ -19,6 +19,14 @@
  * } from '../types/PatternProcessingTypes'
  */
 
+import {
+  initializeWasmPatternProcessor,
+  processTokensWasm,
+  isWasmPatternProcessorAvailable,
+  hasWasmPatternProcessorFailed,
+  getWasmPatternProcessorStats
+} from './WasmPatternProcessor.js';
+
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
  * 
@@ -107,7 +115,11 @@ export class SemanticPatternProcessor {
     this.patternIndex = new Map(); // First token -> patterns for O(1) lookup
     this.variableCache = new Map(); // Pre-computed variable translations
     this.isInitialized = false;
-    
+
+    // WASM pattern processor state
+    this.wasmAvailable = false;
+    this.wasmInitialized = false;
+
     // Pre-computed string optimization
     this.precomputedStrings = null;
     this.enableStringOptimization = true; // Toggle for A/B testing
@@ -140,10 +152,10 @@ export class SemanticPatternProcessor {
    * @param {Object} patternsDict - Pattern dictionary from patterns.json
    * @param {Object} options - Initialization options
    */
-  initializePatterns(patternsDict, options = {}) {
+  async initializePatterns(patternsDict, options = {}) {
     this.patterns = [];
     this.patternIndex.clear();
-    
+
     // Convert patterns to semantic pattern objects with metadata
     for (const [patternText, templateOrObject] of Object.entries(patternsDict)) {
       // Handle both string templates and object with metadata
@@ -160,14 +172,14 @@ export class SemanticPatternProcessor {
         lowPriority = templateOrObject.lowPriority || false;
 
       }
-      
+
       const semanticPattern = this.parsePattern(patternText, template, allowedVariableTypes, allowAsPatternVariable, lowPriority);
       if (semanticPattern) {
         this.patterns.push(semanticPattern);
         this.indexPattern(semanticPattern);
       }
     }
-    
+
     // Sort patterns by priority (metadata-driven instead of complex algorithm)
     this.patterns.sort((a, b) => {
       // Patterns with more variables take priority
@@ -177,11 +189,30 @@ export class SemanticPatternProcessor {
       // Then by pattern length
       return b.tokens.length - a.tokens.length;
     });
-    
+
     // Patterns are now ready for matching
     this.isInitialized = true;
-    
-    
+
+    // Try to initialize WASM pattern processor alongside JavaScript version
+    try {
+      // Import reinitializeWasmPatternProcessor for dictionary reload support
+      const { reinitializeWasmPatternProcessor } = await import('./WasmPatternProcessor.js');
+
+      // Always reinitialize to pick up new patterns (fixes reload bug)
+      this.wasmAvailable = await reinitializeWasmPatternProcessor(patternsDict);
+      this.wasmInitialized = this.wasmAvailable;
+
+      if (this.wasmAvailable) {
+        this.log(options.debugLevel, 5, '✅ WASM pattern matching enabled (10-50x speedup)');
+      } else {
+        this.log(options.debugLevel, 5, '⚠️ WASM pattern matching unavailable, using JavaScript');
+      }
+    } catch (error) {
+      console.warn('Failed to initialize WASM pattern processor:', error);
+      this.wasmAvailable = false;
+      this.wasmInitialized = false;
+    }
+
     this.log(options.debugLevel, 5,
       `🔧 SemanticPatternProcessor initialized with ${this.patterns.length} patterns`);
   }

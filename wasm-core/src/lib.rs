@@ -23,6 +23,10 @@
 
 mod trie;
 pub mod number_processor;
+pub mod pattern_processor;
+
+// Re-export WASM wrappers for JavaScript
+pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;

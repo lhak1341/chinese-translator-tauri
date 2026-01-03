@@ -15,6 +15,7 @@ import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/UIRespo
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
+import { runAllParityTests } from '../utils/PatternParityTest.js';
 
 /**
  * @import {
@@ -491,8 +492,19 @@ const Translator = () => {
           // DEBUG: Expose translation engine for memory debugging
           if (process.env.NODE_ENV === 'development') {
             window.translationEngine = engineRef.current;
+
+            // Expose parity test for Rust vs JavaScript verification
+            window.runPatternParityTests = async () => {
+              const processor = engineRef.current?.twoPhasePatternProcessor;
+              if (!processor) {
+                console.error('❌ TwoPhasePatternProcessor not available');
+                return;
+              }
+              return await runAllParityTests(processor);
+            };
+            console.log('🧪 Run window.runPatternParityTests() to verify Rust WASM parity');
           }
-          
+
           setEngineStats(engineRef.current.getEngineStats());
           setEngineInitialized(true);
           
