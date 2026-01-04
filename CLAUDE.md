@@ -143,6 +143,11 @@ priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 
 **Semantic Array Precision**: Position mapping must align exactly with clickable highlighting
 - **Why Critical**: Translation and original text synchronization depends on precise start/end indices
 - **UI Dependency**: All translation modes must preserve semantic array structure
+- **Direct Position Tracking** (January 2025): Positions stored during `postProcess()` text assembly instead of searching
+  - Eliminates search-based position mapping (O(n*m) → O(1) lookup)
+  - Stores `translatedStart`/`translatedEnd` in metadata during text concatenation
+  - Handles spacing, punctuation, and whitespace correctly
+  - Implementation: `SemanticArrayBuilder.setPositionByMatch()`, `OptimizedSemanticArrayBuilder.setPositionByMatch()`
 
 **WASM/Rust Status**: Three active acceleration systems
 - ✅ **WASM Number Processor** (`wasm-core/src/number_processor.rs`): Chinese number conversion (5-10x speedup)

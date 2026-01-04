@@ -98,14 +98,48 @@ export class OptimizedSemanticArrayBuilder {
     this.metadata[index] = {
       index,
       source,
-      tokenIndex
+      tokenIndex,
+      translatedStart: -1,  // Will be set during postProcess text assembly
+      translatedEnd: -1      // Will be set during postProcess text assembly
       // originalText and translatedText removed - accessible via arrays
     };
-    
+
     this.length++;
     this.stats.totalUnits++;
-    
+
     batchLog.hotVerbose('semantic-add-unit', `Added unit ${index}: "${originalText}" → "${translatedText}" (${source})`);
+  }
+
+  /**
+   * Update position for a semantic unit that matches the given criteria
+   * @param {number} tokenIndex - Token index to match
+   * @param {string} translatedText - Translated text to match (case-insensitive)
+   * @param {number} startPos - Start position in final translated text
+   * @param {number} endPos - End position in final translated text
+   * @returns {boolean} True if a matching unit was found and updated
+   */
+  setPositionByMatch(tokenIndex, translatedText, startPos, endPos) {
+    // Find semantic unit that matches both tokenIndex and translatedText
+    // This handles cases where multiple semantic units share the same tokenIndex
+    // (e.g., pattern match + character fallbacks for the same token)
+
+    for (let i = 0; i < this.length; i++) {
+      const meta = this.metadata[i];
+
+      // Match by tokenIndex and translatedText (case-insensitive)
+      if (meta.tokenIndex === tokenIndex &&
+          this.translated[i].toLowerCase() === translatedText.toLowerCase() &&
+          meta.translatedStart === -1) {  // Only update if not already set
+
+        meta.translatedStart = startPos;
+        meta.translatedEnd = endPos;
+
+        return true;
+      }
+    }
+
+    // No match found - this is expected for punctuation and whitespace added during postProcess
+    return false;
   }
 
   /**

@@ -31,6 +31,7 @@ import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import { SmartMemoryPressureDetector, BackgroundCleanupManager, ComponentMemoryProfiler } from './MemoryManagementRefinements.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
+import { TranslationProfiler } from './TranslationProfiler.js';
 
 /**
  * @import {
@@ -472,6 +473,9 @@ export class TranslationEngine {
     // Initialize legacy system monitoring for Phase 3 removal
     this.legacySystemStatus = getLegacySystemStatus();
     initializePerformanceBaselines();
+
+    // Initialize translation profiler for performance analysis
+    this.profiler = new TranslationProfiler();
   }
 
   /**
@@ -934,7 +938,7 @@ export class TranslationEngine {
       if (dictionaries.patterns) {
         const patternCount = Object.keys(dictionaries.patterns).length;
         this.log(DEBUG_LEVELS.INFO, `🎯 Initializing pattern processor with ${patternCount} patterns`);
-        this.semanticPatternProcessor.initializePatterns(
+        await this.semanticPatternProcessor.initializePatterns(
           dictionaries.patterns,
           { debugLevel: this.debugLevel }
         );
@@ -2923,20 +2927,34 @@ export class TranslationEngine {
 
     this.log(DEBUG_LEVELS.VERBOSE, '🔧 Segments:', segments.map(s => `"${s.text}" (${s.tokenType})${s.isProperNoun ? ' [proper noun]' : ''}`));
 
-    // Step 2: Join segments with appropriate spacing AND track positions for translation segments
+    // Step 2: Join segments with appropriate spacing AND track positions for semantic array
     let result = '';
-    // let currentPosition = 0; // Position tracking disabled
-    
+    let currentPosition = 0;
+
     for (let i = 0; i < segments.length; i++) {
       const current = segments[i];
       const next = i < segments.length - 1 ? segments[i + 1] : null;
 
-      // Track position for translation segments that match this token
-      // DISABLED: This was causing infinite loops in pattern matching
-      // this.updateSegmentPositions(current, currentPosition);
+      // Track start position BEFORE adding text
+      const startPos = currentPosition;
 
+      // Add segment text to result
       result += current.text;
-      // currentPosition += current.text.length; // Position tracking disabled
+
+      // Track end position AFTER adding text
+      currentPosition += current.text.length;
+      const endPos = currentPosition;
+
+      // Store position in semantic array builder
+      // Match by tokenIndex and translated text to handle duplicate tokens
+      if (current.tokenIndex >= 0) {
+        this.semanticArrayBuilder.setPositionByMatch(
+          current.tokenIndex,
+          current.text,
+          startPos,
+          endPos
+        );
+      }
 
       // Add space between Chinese segments that both produce visible output
       if (
@@ -2947,7 +2965,7 @@ export class TranslationEngine {
           next.tokenType === TokenType.CHINESE_WORD)
       ) {
         result += ' ';
-        // currentPosition += 1; // Position tracking not needed here
+        currentPosition += 1;
       }
 
       // Add space between Chinese segments and opening punctuation (brackets, parentheses)
@@ -2959,7 +2977,7 @@ export class TranslationEngine {
         (next.text.includes('[') || next.text.includes('('))
       ) {
         result += ' ';
-        // currentPosition += 1; // Position tracking not needed here
+        currentPosition += 1;
       }
 
       // Add space between Chinese segments and numbers/alphanumeric punctuation
@@ -2971,7 +2989,7 @@ export class TranslationEngine {
         /^\d/.test(next.text) // Starts with a digit
       ) {
         result += ' ';
-        // currentPosition += 1; // Position tracking not needed here
+        currentPosition += 1;
       }
 
       // Add space between punctuation and Chinese segments (but not opening quotes)
@@ -2985,7 +3003,7 @@ export class TranslationEngine {
         !current.text.includes('[') && !current.text.includes('(') // Exclude opening brackets and parentheses
       ) {
         result += ' ';
-        // currentPosition += 1; // Position tracking not needed here
+        currentPosition += 1;
       }
 
       // Add space between Chinese segments and latin_word tokens
@@ -2996,7 +3014,7 @@ export class TranslationEngine {
         next.tokenType === TokenType.LATIN_WORD
       ) {
         result += ' ';
-        // currentPosition += 1; // Position tracking not needed here
+        currentPosition += 1;
       }
 
       // Add space between latin_word tokens and Chinese segments
@@ -3007,7 +3025,7 @@ export class TranslationEngine {
           next.tokenType === TokenType.CHINESE_WORD)
       ) {
         result += ' ';
-        // currentPosition += 1; // Position tracking not needed here
+        currentPosition += 1;
       }
     }
 
@@ -3526,6 +3544,44 @@ export class TranslationEngine {
    */
   getDashboardMetrics() {
     return performanceProfiler.getDashboardMetrics();
+  }
+
+  /**
+   * Enable translation profiling to measure phase-by-phase performance
+   * Usage: window.translationEngine.enableProfiling()
+   * Then translate text and call getProfilingReport() to see breakdown
+   */
+  enableProfiling() {
+    this.profiler.enable();
+  }
+
+  /**
+   * Disable translation profiling
+   */
+  disableProfiling() {
+    this.profiler.disable();
+  }
+
+  /**
+   * Get profiling report showing time breakdown by translation phase
+   * @returns {Object} Profiling report with phase breakdown and recommendations
+   */
+  getProfilingReport() {
+    return this.profiler.getReport();
+  }
+
+  /**
+   * Print formatted profiling report to console
+   */
+  printProfilingReport() {
+    this.profiler.printReport();
+  }
+
+  /**
+   * Reset profiling data
+   */
+  resetProfiling() {
+    this.profiler.reset();
   }
 
   /**
@@ -4989,55 +5045,69 @@ export class TranslationEngine {
   async translateSinglePass(tokens, options = {}) {
     const startTime = performance.now();
     this.log(DEBUG_LEVELS.VERBOSE, `🚀 Single-pass translation: ${tokens.length} tokens`);
-    
-    // Phase 1: Apply patterns first (they need full context)  
-    await this.applyPatterns(tokens, { ...options, debug: true });
-    
-    // Phase 2: Apply proper nouns globally (highest priority after patterns)
-    await this.applyDictionaryTranslation(tokens, {
-      ...options,
-      dictionaryOrder: [...this.activeProperNouns],
-      phase: 'properNouns',
-    });
-    
-    // Phase 3: Apply number conversion globally (before phrases to prevent fragmentation)
-    // Numbers should be processed before phrases to preserve number sequences like "六十五"
-    // This prevents phrase-level matches from breaking up number tokens
 
-    // Use WASM number processing (5-10x faster for Chinese number conversion)
-    try {
-      const processedTokens = await processNumbersWasm(tokens);
-      // Copy WASM results with proper undefined → null conversion
-      copyWasmTokens(processedTokens, tokens);
-    } catch (error) {
-      this.log(DEBUG_LEVELS.WARN, '⚠️ WASM number processing failed, falling back to JavaScript:', error.message);
-      // Fallback to JavaScript number processing
-      this.numberProcessor.processTokens(tokens, {
-        debugLevel: this.debugLevel,
-        semanticArrayBuilder: this.semanticArrayBuilder,
-        ...options
+    // Record total translation time for profiling
+    await this.profiler.profile('total', async () => {
+      // Phase 1: Apply patterns first (they need full context)
+      await this.profiler.profile('patterns', async () => {
+        await this.applyPatterns(tokens, { ...options, debug: true });
       });
-    }
-    
-    // Phase 4: Apply phrases with global longest-match optimization
-    await this.createOptimalPhraseGroups(tokens, options);
-    
-    // Track which tokens have been processed to avoid re-processing
-    const processedTokens = new Set();
-    
-    // Mark tokens that were already processed by patterns and proper nouns
-    for (let i = 0; i < tokens.length; i++) {
-      if (tokens[i].translated !== null || tokens[i].translationSource || tokens[i].isGrouped) {
-        processedTokens.add(i);
-      }
-    }
 
-    // Phase 5: Process remaining tokens for character-level translation (fallback)
-    await this.processRemainingTokensInBatches(tokens, processedTokens, options);
-    
-    // Apply final fixes that need to run after all processing
-    this.fixNumberPlusLiangTranslations(tokens);
-    
+      // Phase 2: Apply proper nouns globally (highest priority after patterns)
+      await this.profiler.profile('properNouns', async () => {
+        await this.applyDictionaryTranslation(tokens, {
+          ...options,
+          dictionaryOrder: [...this.activeProperNouns],
+          phase: 'properNouns',
+        });
+      });
+
+      // Phase 3: Apply number conversion globally (before phrases to prevent fragmentation)
+      // Numbers should be processed before phrases to preserve number sequences like "六十五"
+      // This prevents phrase-level matches from breaking up number tokens
+      await this.profiler.profile('numbers', async () => {
+        // Use WASM number processing (5-10x faster for Chinese number conversion)
+        try {
+          const processedTokens = await processNumbersWasm(tokens);
+          // Copy WASM results with proper undefined → null conversion
+          copyWasmTokens(processedTokens, tokens);
+        } catch (error) {
+          this.log(DEBUG_LEVELS.WARN, '⚠️ WASM number processing failed, falling back to JavaScript:', error.message);
+          // Fallback to JavaScript number processing
+          this.numberProcessor.processTokens(tokens, {
+            debugLevel: this.debugLevel,
+            semanticArrayBuilder: this.semanticArrayBuilder,
+            ...options
+          });
+        }
+      });
+
+      // Phase 4: Apply phrases with global longest-match optimization
+      await this.profiler.profile('phrases', async () => {
+        await this.createOptimalPhraseGroups(tokens, options);
+      });
+
+      // Track which tokens have been processed to avoid re-processing
+      const processedTokens = new Set();
+
+      // Mark tokens that were already processed by patterns and proper nouns
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].translated !== null || tokens[i].translationSource || tokens[i].isGrouped) {
+          processedTokens.add(i);
+        }
+      }
+
+      // Phase 5: Process remaining tokens for character-level translation (fallback)
+      await this.profiler.profile('characters', async () => {
+        await this.processRemainingTokensInBatches(tokens, processedTokens, options);
+      });
+
+      // Apply final fixes that need to run after all processing
+      this.profiler.profileSync('postProcess', () => {
+        this.fixNumberPlusLiangTranslations(tokens);
+      });
+    });
+
     const translationTime = performance.now() - startTime;
     this.log(DEBUG_LEVELS.VERBOSE, `✅ Single-pass completed: ${tokens.length} tokens in ${translationTime.toFixed(1)}ms`);
   }
