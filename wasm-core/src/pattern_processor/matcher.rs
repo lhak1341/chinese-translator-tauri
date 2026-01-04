@@ -489,6 +489,7 @@ pub fn find_best_pattern_match(
     let matcher = PatternMatcher::new(variable_cache.clone());
     let mut best_match: Option<PatternMatchResult> = None;
     let mut best_priority: i32 = -1;
+    let mut best_length: usize = 0;
 
     // Test each candidate pattern
     for pattern in patterns {
@@ -496,10 +497,17 @@ pub fn find_best_pattern_match(
 
         if match_result.success {
             let priority = pattern.metadata.priority;
+            let match_length = match_result.end_position.unwrap_or(position) -
+                             match_result.start_position.unwrap_or(position) + 1;
 
-            if priority > best_priority {
+            // Prefer longer matches first, then higher priority
+            let is_better = match_length > best_length ||
+                           (match_length == best_length && priority > best_priority);
+
+            if is_better {
                 best_match = Some(match_result);
                 best_priority = priority;
+                best_length = match_length;
             }
         }
     }

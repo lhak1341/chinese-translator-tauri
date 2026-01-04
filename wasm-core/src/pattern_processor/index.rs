@@ -56,15 +56,17 @@ impl PatternIndex {
 
     /// Get index key for a pattern
     ///
-    /// Returns the first token's value if literal, or VARIABLE_KEY if variable
+    /// Returns the first character of the first token if literal, or VARIABLE_KEY if variable
     fn get_index_key(pattern: &SemanticPattern) -> String {
         match &pattern.first_token.token_type {
             TokenType::Literal => {
-                // Use literal value as key
+                // Use first character of literal value as key (for multi-char literal support)
                 pattern
                     .first_token
                     .value
-                    .clone()
+                    .as_ref()
+                    .and_then(|v| v.chars().next())
+                    .map(|c| c.to_string())
                     .unwrap_or_else(|| "".to_string())
             }
             TokenType::Variable => {

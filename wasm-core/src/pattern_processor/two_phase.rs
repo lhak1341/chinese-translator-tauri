@@ -304,12 +304,14 @@ impl TwoPhasePatternProcessor {
 
             // Get candidate patterns using index (O(1) lookup)
             let first_token = &semantic_tokens[position].value;
-            let mut candidate_patterns = self.phase_b_index.get_patterns_by_first_token(first_token);
+            let literal_patterns = self.phase_b_index.get_patterns_by_first_token(first_token);
+            let variable_patterns = self.phase_b_index.get_variable_patterns();
 
-            // Also check variable-starting patterns
-            if candidate_patterns.is_empty() {
-                candidate_patterns = self.phase_b_index.get_variable_patterns();
-            }
+            // Combine both literal-starting and variable-starting patterns
+            // This allows hierarchical composition where X matches Phase A results
+            let mut candidate_patterns = Vec::new();
+            candidate_patterns.extend_from_slice(literal_patterns);
+            candidate_patterns.extend_from_slice(variable_patterns);
 
             // Find best pattern match among candidates with enhanced cache
             let match_result = if !candidate_patterns.is_empty() {
