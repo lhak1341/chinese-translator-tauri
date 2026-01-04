@@ -308,13 +308,17 @@ impl PatternMatcher {
         // Build result using template
         let result = build_result(&pattern.template, &variables);
 
+        // Map semantic token indices back to original token indices
+        let start_index = semantic_tokens[position].original_index;
+        let end_index = semantic_tokens[current_position - 1].original_index;
+
         PatternMatchResult::success(
             pattern.clone(),
             variables,
             result,
             matched_tokens,
-            position,
-            current_position - 1,
+            start_index,
+            end_index,
         )
     }
 
