@@ -137,14 +137,14 @@ impl PatternMatchResult {
 }
 
 /// Pattern matcher - core matching algorithm
-pub struct PatternMatcher {
+pub struct PatternMatcher<'a> {
     /// Variable cache (populated from JavaScript)
-    variable_cache: HashMap<String, VariableCacheEntry>,
+    variable_cache: &'a HashMap<String, VariableCacheEntry>,
 }
 
-impl PatternMatcher {
-    /// Create a new pattern matcher with variable cache
-    pub fn new(variable_cache: HashMap<String, VariableCacheEntry>) -> Self {
+impl<'a> PatternMatcher<'a> {
+    /// Create a new pattern matcher with variable cache reference
+    pub fn new(variable_cache: &'a HashMap<String, VariableCacheEntry>) -> Self {
         Self { variable_cache }
     }
 
@@ -171,7 +171,7 @@ impl PatternMatcher {
         position: usize,
     ) -> PatternMatchResult {
         let mut variables: HashMap<String, String> = HashMap::new();
-        let mut matched_tokens: Vec<SemanticToken> = Vec::new();
+        let match_start = position;
         let mut current_position = position;
 
         // Test each pattern token against semantic tokens
@@ -205,10 +205,7 @@ impl PatternMatcher {
 
                     // Compare the sequences
                     if &semantic_sequence == literal_value {
-                        // Match success - add all matched semantic tokens
-                        for j in 0..literal_chars.len() {
-                            matched_tokens.push(semantic_tokens[current_position + j].clone());
-                        }
+                        // Match success - just advance position, don't clone tokens yet
                         current_position += literal_chars.len();
                     } else {
                         return PatternMatchResult::failure(Some(format!(
@@ -252,17 +249,7 @@ impl PatternMatcher {
                             }
 
                             variables.insert(var_name.clone(), translation);
-
-                            // Add all matched tokens to the result
-                            if token_span > 0 {
-                                for j in 0..token_span {
-                                    if current_position + j < semantic_tokens.len() {
-                                        matched_tokens
-                                            .push(semantic_tokens[current_position + j].clone());
-                                    }
-                                }
-                                current_position += token_span;
-                            }
+                            current_position += token_span;
                         }
                         None => {
                             return PatternMatchResult::failure(Some(format!(
@@ -275,8 +262,14 @@ impl PatternMatcher {
             }
         }
 
+        // Build matched_tokens only on success (clone once instead of incrementally)
+        let matched_tokens: Vec<SemanticToken> = semantic_tokens[match_start..current_position]
+            .iter()
+            .cloned()
+            .collect();
+
         // Check for Phase A override
-        if self.has_phase_a_protection(&matched_tokens, position, current_position) {
+        if self.has_phase_a_protection(&matched_tokens, match_start, current_position) {
             let current_matched_text: String =
                 matched_tokens.iter().map(|t| t.value.as_str()).collect();
             let max_phase_a_length = self.get_max_phase_a_length(&matched_tokens);
@@ -292,7 +285,7 @@ impl PatternMatcher {
         let result = build_result(&pattern.template, &variables);
 
         // Map semantic token indices back to original token indices
-        let start_index = semantic_tokens[position].original_index;
+        let start_index = semantic_tokens[match_start].original_index;
         let end_index = semantic_tokens[current_position - 1].original_index;
 
         PatternMatchResult::success(
@@ -320,82 +313,79 @@ impl PatternMatcher {
         pattern_index: usize,
     ) -> Option<(String, usize, String)> {
         let max_span = std::cmp::min(semantic_tokens.len() - current_position, 10);
-        let mut candidate_spans = Vec::new();
 
-        // Collect all possible variable resolutions
+        // Pre-allocate string buffer with estimated capacity
+        let mut buffer = String::with_capacity(max_span * 2);  // Estimate 2 bytes per char
+
+        // Try spans from longest to shortest (greedy matching)
         for span in (1..=max_span).rev() {
-            // longest first
-            let multi_token_value: String = semantic_tokens[current_position..current_position + span]
-                .iter()
-                .map(|t| t.value.as_str())
-                .collect();
-
-            if let Some(cache_entry) = self.variable_cache.get(&multi_token_value) {
-                candidate_spans.push((cache_entry.translation.clone(), span, multi_token_value.clone()));
+            // Build multi-token value by appending to buffer
+            buffer.clear();
+            for i in 0..span {
+                buffer.push_str(&semantic_tokens[current_position + i].value);
             }
-        }
 
-        if candidate_spans.is_empty() {
-            return None;
-        }
+            // Check cache - only proceed if there's a match
+            if let Some(cache_entry) = self.variable_cache.get(&buffer) {
+                let translation = cache_entry.translation.clone();
+                let text = buffer.clone();  // Only clone on cache hit
 
-        // Try candidate spans with look-ahead verification
-        for (translation, span, text) in candidate_spans {
-            // Check if there are more pattern tokens after this variable
-            let has_more_pattern_tokens = pattern_index + 1 < pattern.tokens.len();
+                // Check if there are more pattern tokens after this variable
+                let has_more_pattern_tokens = pattern_index + 1 < pattern.tokens.len();
 
-            if has_more_pattern_tokens {
-                // Look ahead: verify that the next pattern token can match after consuming this variable span
-                let next_pattern_token = &pattern.tokens[pattern_index + 1];
-                let next_position = current_position + span;
+                if has_more_pattern_tokens {
+                    // Look ahead: verify that the next pattern token can match after consuming this variable span
+                    let next_pattern_token = &pattern.tokens[pattern_index + 1];
+                    let next_position = current_position + span;
 
-                if next_position >= semantic_tokens.len() {
-                    continue;
-                }
+                    if next_position >= semantic_tokens.len() {
+                        continue;
+                    }
 
-                let next_semantic_token = &semantic_tokens[next_position];
+                    let next_semantic_token = &semantic_tokens[next_position];
 
-                // Verify next literal token match (only check if it's a literal)
-                if next_pattern_token.token_type == TokenType::Literal {
-                    let next_literal = next_pattern_token.value.as_ref().unwrap();
+                    // Verify next literal token match (only check if it's a literal)
+                    if next_pattern_token.token_type == TokenType::Literal {
+                        let next_literal = next_pattern_token.value.as_ref().unwrap();
 
-                    // For multi-character literals, check if semantic tokens starting at next_position
-                    // form the literal sequence
-                    if next_literal.len() == 1 {
-                        // Single character literal - direct comparison
-                        if &next_semantic_token.value == next_literal {
-                            return Some((translation, span, text));
+                        // For multi-character literals, check if semantic tokens starting at next_position
+                        // form the literal sequence
+                        if next_literal.len() == 1 {
+                            // Single character literal - direct comparison
+                            if &next_semantic_token.value == next_literal {
+                                return Some((translation, span, text));
+                            } else {
+                                continue;
+                            }
                         } else {
-                            continue;
+                            // Multi-character literal - build sequence and compare
+                            let literal_chars: Vec<char> = next_literal.chars().collect();
+
+                            // Check if we have enough tokens remaining
+                            if next_position + literal_chars.len() > semantic_tokens.len() {
+                                continue;
+                            }
+
+                            // Build sequence from semantic tokens
+                            let semantic_sequence: String = semantic_tokens[next_position..next_position + literal_chars.len()]
+                                .iter()
+                                .map(|t| t.value.as_str())
+                                .collect();
+
+                            if &semantic_sequence == next_literal {
+                                return Some((translation, span, text));
+                            } else {
+                                continue;
+                            }
                         }
                     } else {
-                        // Multi-character literal - build sequence and compare
-                        let literal_chars: Vec<char> = next_literal.chars().collect();
-
-                        // Check if we have enough tokens remaining
-                        if next_position + literal_chars.len() > semantic_tokens.len() {
-                            continue;
-                        }
-
-                        // Build sequence from semantic tokens
-                        let semantic_sequence: String = semantic_tokens[next_position..next_position + literal_chars.len()]
-                            .iter()
-                            .map(|t| t.value.as_str())
-                            .collect();
-
-                        if &semantic_sequence == next_literal {
-                            return Some((translation, span, text));
-                        } else {
-                            continue;
-                        }
+                        // Next token is another variable - accept this span (will be validated in next iteration)
+                        return Some((translation, span, text));
                     }
                 } else {
-                    // Next token is another variable - accept this span (will be validated in next iteration)
+                    // No more pattern tokens - use longest available span
                     return Some((translation, span, text));
                 }
-            } else {
-                // No more pattern tokens - use longest available span
-                return Some((translation, span, text));
             }
         }
 
@@ -486,7 +476,7 @@ pub fn find_best_pattern_match(
     position: usize,
     variable_cache: &HashMap<String, VariableCacheEntry>,
 ) -> Option<PatternMatchResult> {
-    let matcher = PatternMatcher::new(variable_cache.clone());
+    let matcher = PatternMatcher::new(variable_cache);  // ✅ Pass reference, no clone
     let mut best_match: Option<PatternMatchResult> = None;
     let mut best_priority: i32 = -1;
     let mut best_length: usize = 0;

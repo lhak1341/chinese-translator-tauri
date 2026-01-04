@@ -476,6 +476,9 @@ export class TranslationEngine {
 
     // Initialize translation profiler for performance analysis
     this.profiler = new TranslationProfiler();
+
+    // Store reference to TwoPhasePatternProcessor for internal profiling
+    this.twoPhaseProcessor = null;
   }
 
   /**
@@ -1900,14 +1903,17 @@ export class TranslationEngine {
       this.log(DEBUG_LEVELS.INFO, `🎯 Using hierarchical pattern processing in Phase 1 (${this.semanticPatternProcessor.patterns.length} patterns available)`);
 
       // Apply hierarchical pattern processing here in Phase 1 (before phrases)
-      const twoPhaseProcessor = new TwoPhasePatternProcessor(
-        this.semanticPatternProcessor.patterns,
-        {
-          debugMode: true,  // Enable debug mode
-          maxCompositeDetectionTime: this.settings.maxCompositeDetectionTime,
-          enableFallback: this.settings.fallbackToSinglePhase
-        }
-      );
+      // Create or reuse TwoPhasePatternProcessor instance
+      if (!this.twoPhaseProcessor) {
+        this.twoPhaseProcessor = new TwoPhasePatternProcessor(
+          this.semanticPatternProcessor.patterns,
+          {
+            debugMode: true,  // Enable debug mode
+            maxCompositeDetectionTime: this.settings.maxCompositeDetectionTime,
+            enableFallback: this.settings.fallbackToSinglePhase
+          }
+        );
+      }
 
       const enhancedOptions = {
         ...options,
@@ -1916,7 +1922,7 @@ export class TranslationEngine {
         debugLevel: this.debugLevel
       };
 
-      const hierarchicalResults = await twoPhaseProcessor.processTokens(tokens, enhancedOptions);
+      const hierarchicalResults = await this.twoPhaseProcessor.processTokens(tokens, enhancedOptions);
 
       this.applyHierarchicalResults(tokens, hierarchicalResults, options);
 
@@ -3582,6 +3588,61 @@ export class TranslationEngine {
    */
   resetProfiling() {
     this.profiler.reset();
+  }
+
+  /**
+   * Enable pattern matching internal profiling
+   * Provides detailed breakdown of TwoPhasePatternProcessor operations
+   */
+  enablePatternProfiling() {
+    if (this.twoPhaseProcessor) {
+      this.twoPhaseProcessor.enableInternalProfiling();
+    } else {
+      console.warn('⚠️ TwoPhasePatternProcessor not initialized. Translate some text first, then enable profiling.');
+    }
+  }
+
+  /**
+   * Disable pattern matching internal profiling
+   */
+  disablePatternProfiling() {
+    if (this.twoPhaseProcessor) {
+      this.twoPhaseProcessor.disableInternalProfiling();
+    }
+  }
+
+  /**
+   * Get pattern matching internal profiling report
+   * @returns {Object} Internal profiling data
+   */
+  getPatternProfilingReport() {
+    if (this.twoPhaseProcessor) {
+      return this.twoPhaseProcessor.getInternalProfilingReport();
+    }
+    return {
+      enabled: false,
+      message: 'TwoPhasePatternProcessor not initialized. Translate some text first.'
+    };
+  }
+
+  /**
+   * Print pattern matching internal profiling report to console
+   */
+  printPatternProfilingReport() {
+    if (this.twoPhaseProcessor) {
+      this.twoPhaseProcessor.printInternalProfilingReport();
+    } else {
+      console.log('TwoPhasePatternProcessor not initialized. Translate some text first.');
+    }
+  }
+
+  /**
+   * Reset pattern matching profiling data
+   */
+  resetPatternProfiling() {
+    if (this.twoPhaseProcessor) {
+      this.twoPhaseProcessor.resetInternalProfiling();
+    }
   }
 
   /**

@@ -44,6 +44,18 @@ class TwoPhasePatternProcessor {
     this.processedPatterns = this.analyzer.analyzePatterns(patterns);
     this.categorizePatterns();
 
+    // Internal performance profiling
+    this.internalProfiling = {
+      enabled: false,
+      extractSemanticTokens: { time: 0, calls: 0 },
+      buildVariableCache: { time: 0, calls: 0 },
+      buildVariableCache_alreadyTranslated: { time: 0, calls: 0 },
+      buildVariableCache_phraseLookups: { time: 0, calls: 0 },
+      buildVariableCache_properNounLookups: { time: 0, calls: 0 },
+      buildVariableCache_fullTextScan: { time: 0, calls: 0 },
+      processTokensWasm: { time: 0, calls: 0 }
+    };
+
     // TwoPhasePatternProcessor initialized successfully
   }
   
@@ -102,6 +114,7 @@ class TwoPhasePatternProcessor {
    * @returns {Object} Variable cache {text: {translation, source, type}}
    */
   buildVariableCache(tokens, options) {
+    const startTotal = performance.now();
     const cache = {};
 
     // Get options
@@ -117,6 +130,7 @@ class TwoPhasePatternProcessor {
     const actualProperNounDictionaries = activeProperNouns.filter(dict => dict !== 'phrases');
 
     // 1. Cache already-translated proper nouns from tokens
+    const start1 = performance.now();
     for (const token of tokens) {
       if (token.translated && token.translationSource?.includes('properNoun')) {
         cache[token.value] = {
@@ -126,9 +140,14 @@ class TwoPhasePatternProcessor {
         };
       }
     }
+    if (this.internalProfiling.enabled) {
+      this.internalProfiling.buildVariableCache_alreadyTranslated.time += performance.now() - start1;
+      this.internalProfiling.buildVariableCache_alreadyTranslated.calls++;
+    }
 
     // 2. Cache phrase translations with allowAsPatternVariable flag
     // Check both single tokens AND multi-character combinations
+    const start2 = performance.now();
     for (let i = 0; i < tokens.length; i++) {
       // Check single token
       const singleResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
@@ -153,8 +172,13 @@ class TwoPhasePatternProcessor {
         }
       }
     }
+    if (this.internalProfiling.enabled) {
+      this.internalProfiling.buildVariableCache_phraseLookups.time += performance.now() - start2;
+      this.internalProfiling.buildVariableCache_phraseLookups.calls++;
+    }
 
     // 3. Cache single-token proper noun dictionary lookups
+    const start3 = performance.now();
     for (const token of tokens) {
       const properNounResult = dictionaryManager.translate(token.value, actualProperNounDictionaries);
       if (properNounResult) {
@@ -165,10 +189,15 @@ class TwoPhasePatternProcessor {
         };
       }
     }
+    if (this.internalProfiling.enabled) {
+      this.internalProfiling.buildVariableCache_properNounLookups.time += performance.now() - start3;
+      this.internalProfiling.buildVariableCache_properNounLookups.calls++;
+    }
 
     // 4. CRITICAL: Full-text scanning for multi-character proper nouns
     // This is essential because pattern variables can be multi-character names
     // that span multiple tokens (e.g., "张三", "李四")
+    const start4 = performance.now();
     const fullText = tokens.map(t => t.value).join('');
 
     for (let pos = 0; pos < fullText.length; pos++) {
@@ -183,6 +212,15 @@ class TwoPhasePatternProcessor {
           };
         }
       }
+    }
+    if (this.internalProfiling.enabled) {
+      this.internalProfiling.buildVariableCache_fullTextScan.time += performance.now() - start4;
+      this.internalProfiling.buildVariableCache_fullTextScan.calls++;
+    }
+
+    if (this.internalProfiling.enabled) {
+      this.internalProfiling.buildVariableCache.time += performance.now() - startTotal;
+      this.internalProfiling.buildVariableCache.calls++;
     }
 
     return cache;
@@ -202,12 +240,23 @@ class TwoPhasePatternProcessor {
 
     try {
       // Extract semantic tokens (Chinese characters/words only with originalIndex)
+      const start1 = performance.now();
       const semanticTokens = this.extractSemanticTokens(tokens);
+      if (this.internalProfiling.enabled) {
+        this.internalProfiling.extractSemanticTokens.time += performance.now() - start1;
+        this.internalProfiling.extractSemanticTokens.calls++;
+      }
 
-      // Build variable cache
+      // Build variable cache (this calls buildVariableCache which has its own internal profiling)
       const variableCache = this.buildVariableCache(tokens, options);
 
+      // Call WASM pattern processor
+      const start3 = performance.now();
       const wasmResults = await processTokensWasm(semanticTokens, variableCache);
+      if (this.internalProfiling.enabled) {
+        this.internalProfiling.processTokensWasm.time += performance.now() - start3;
+        this.internalProfiling.processTokensWasm.calls++;
+      }
 
       if (!wasmResults || wasmResults.length === 0) {
         // Empty results are valid (e.g., no patterns matched)
@@ -221,6 +270,145 @@ class TwoPhasePatternProcessor {
     }
   }
   
+  /**
+   * Enable internal profiling
+   */
+  enableInternalProfiling() {
+    this.internalProfiling.enabled = true;
+    console.log('🔬 TwoPhasePatternProcessor internal profiling enabled');
+  }
+
+  /**
+   * Disable internal profiling
+   */
+  disableInternalProfiling() {
+    this.internalProfiling.enabled = false;
+    console.log('🔬 TwoPhasePatternProcessor internal profiling disabled');
+  }
+
+  /**
+   * Reset internal profiling data
+   */
+  resetInternalProfiling() {
+    for (const key in this.internalProfiling) {
+      if (key !== 'enabled' && this.internalProfiling[key].time !== undefined) {
+        this.internalProfiling[key].time = 0;
+        this.internalProfiling[key].calls = 0;
+      }
+    }
+    console.log('🔬 TwoPhasePatternProcessor profiling data reset');
+  }
+
+  /**
+   * Get internal profiling report
+   * @returns {Object} Profiling report
+   */
+  getInternalProfilingReport() {
+    if (!this.internalProfiling.enabled) {
+      return {
+        enabled: false,
+        message: 'Internal profiling not enabled. Call enableInternalProfiling() first.'
+      };
+    }
+
+    const report = [];
+    const totalTime = this.internalProfiling.buildVariableCache.time +
+                     this.internalProfiling.extractSemanticTokens.time +
+                     this.internalProfiling.processTokensWasm.time;
+
+    // Top-level breakdown
+    report.push({
+      phase: 'Extract Semantic Tokens',
+      timeMs: this.internalProfiling.extractSemanticTokens.time.toFixed(2),
+      calls: this.internalProfiling.extractSemanticTokens.calls,
+      avgMs: (this.internalProfiling.extractSemanticTokens.time / Math.max(1, this.internalProfiling.extractSemanticTokens.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.extractSemanticTokens.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    report.push({
+      phase: 'Build Variable Cache (TOTAL)',
+      timeMs: this.internalProfiling.buildVariableCache.time.toFixed(2),
+      calls: this.internalProfiling.buildVariableCache.calls,
+      avgMs: (this.internalProfiling.buildVariableCache.time / Math.max(1, this.internalProfiling.buildVariableCache.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.buildVariableCache.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    // Variable cache sub-steps
+    report.push({
+      phase: '  ↳ Already Translated Tokens',
+      timeMs: this.internalProfiling.buildVariableCache_alreadyTranslated.time.toFixed(2),
+      calls: this.internalProfiling.buildVariableCache_alreadyTranslated.calls,
+      avgMs: (this.internalProfiling.buildVariableCache_alreadyTranslated.time / Math.max(1, this.internalProfiling.buildVariableCache_alreadyTranslated.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.buildVariableCache_alreadyTranslated.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    report.push({
+      phase: '  ↳ Phrase Lookups',
+      timeMs: this.internalProfiling.buildVariableCache_phraseLookups.time.toFixed(2),
+      calls: this.internalProfiling.buildVariableCache_phraseLookups.calls,
+      avgMs: (this.internalProfiling.buildVariableCache_phraseLookups.time / Math.max(1, this.internalProfiling.buildVariableCache_phraseLookups.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.buildVariableCache_phraseLookups.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    report.push({
+      phase: '  ↳ Proper Noun Lookups',
+      timeMs: this.internalProfiling.buildVariableCache_properNounLookups.time.toFixed(2),
+      calls: this.internalProfiling.buildVariableCache_properNounLookups.calls,
+      avgMs: (this.internalProfiling.buildVariableCache_properNounLookups.time / Math.max(1, this.internalProfiling.buildVariableCache_properNounLookups.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.buildVariableCache_properNounLookups.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    report.push({
+      phase: '  ↳ Full-Text Scan',
+      timeMs: this.internalProfiling.buildVariableCache_fullTextScan.time.toFixed(2),
+      calls: this.internalProfiling.buildVariableCache_fullTextScan.calls,
+      avgMs: (this.internalProfiling.buildVariableCache_fullTextScan.time / Math.max(1, this.internalProfiling.buildVariableCache_fullTextScan.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.buildVariableCache_fullTextScan.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    report.push({
+      phase: 'Process Tokens (WASM)',
+      timeMs: this.internalProfiling.processTokensWasm.time.toFixed(2),
+      calls: this.internalProfiling.processTokensWasm.calls,
+      avgMs: (this.internalProfiling.processTokensWasm.time / Math.max(1, this.internalProfiling.processTokensWasm.calls)).toFixed(2),
+      percentage: ((this.internalProfiling.processTokensWasm.time / totalTime) * 100).toFixed(1) + '%'
+    });
+
+    return {
+      enabled: true,
+      totalTimeMs: totalTime.toFixed(2),
+      totalCalls: this.internalProfiling.buildVariableCache.calls,
+      breakdown: report
+    };
+  }
+
+  /**
+   * Print internal profiling report to console
+   */
+  printInternalProfilingReport() {
+    const report = this.getInternalProfilingReport();
+
+    if (!report.enabled) {
+      console.log(report.message);
+      return;
+    }
+
+    console.log('\n' + '='.repeat(80));
+    console.log('📊 TWO-PHASE PATTERN PROCESSOR - INTERNAL PROFILING');
+    console.log('='.repeat(80));
+    console.log(`Total Time: ${report.totalTimeMs}ms over ${report.totalCalls} call(s)\n`);
+
+    console.log('Internal Breakdown:');
+    console.log('-'.repeat(80));
+    console.table(report.breakdown);
+
+    console.log('\n' + '='.repeat(80));
+    console.log('Next Steps:');
+    console.log('- Review breakdown above to identify bottlenecks');
+    console.log('- Reset profiling: twoPhaseProcessor.resetInternalProfiling()');
+    console.log('='.repeat(80) + '\n');
+  }
+
   /**
    * Get processing statistics and performance metrics
    * @returns {Object} Statistics object
