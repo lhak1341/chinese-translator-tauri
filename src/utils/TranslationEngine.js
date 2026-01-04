@@ -1977,13 +1977,13 @@ export class TranslationEngine {
       // Apply translation to the first token of the span
       tokens[result.startIndex].translated = result.translation;
       tokens[result.startIndex].translationSource = result.translationSource || 'hierarchical_pattern';
-      
+
       // Mark the result type for debugging and analysis
       if (result.type === 'composite') {
         tokens[result.startIndex].compositePattern = true;
         tokens[result.startIndex].compositeComponents = result.components;
       }
-      
+
       // Store pattern information for debugging
       if (result.pattern) {
         tokens[result.startIndex].patternUsed = result.pattern.originalPattern;

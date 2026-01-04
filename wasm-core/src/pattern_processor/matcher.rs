@@ -183,55 +183,38 @@ impl PatternMatcher {
                 return PatternMatchResult::failure(Some("Not enough tokens".to_string()));
             }
 
-            let semantic_token = &semantic_tokens[current_position];
-
             match &pattern_token.token_type {
                 TokenType::Literal => {
-                    // Literal match - handle both single character and multi-character grouped tokens
+                    // Literal match - handle multi-character pattern tokens by collecting semantic tokens
                     let literal_value = pattern_token.value.as_ref().unwrap();
+                    let literal_chars: Vec<char> = literal_value.chars().collect();
 
-                    // First try exact match (single character case)
-                    if &semantic_token.value == literal_value {
-                        matched_tokens.push(semantic_token.clone());
-                        current_position += 1;
+                    // Check if we have enough semantic tokens remaining
+                    if current_position + literal_chars.len() > semantic_tokens.len() {
+                        return PatternMatchResult::failure(Some(format!(
+                            "Not enough tokens for literal '{}' ({} chars needed, {} available)",
+                            literal_value, literal_chars.len(), semantic_tokens.len() - current_position
+                        )));
+                    }
+
+                    // Collect semantic tokens to match the literal length
+                    let semantic_sequence: String = semantic_tokens[current_position..current_position + literal_chars.len()]
+                        .iter()
+                        .map(|t| t.value.as_str())
+                        .collect();
+
+                    // Compare the sequences
+                    if &semantic_sequence == literal_value {
+                        // Match success - add all matched semantic tokens
+                        for j in 0..literal_chars.len() {
+                            matched_tokens.push(semantic_tokens[current_position + j].clone());
+                        }
+                        current_position += literal_chars.len();
                     } else {
-                        // Try multi-character literal sequence matching
-                        // Look ahead to see if consecutive literal tokens can match this semantic token
-                        let mut literal_sequence = literal_value.clone();
-                        let mut lookahead_pos = i + 1;
-
-                        // Collect consecutive literal tokens
-                        while lookahead_pos < pattern.tokens.len() {
-                            if let Some(next_token) = pattern.tokens.get(lookahead_pos) {
-                                if next_token.token_type == TokenType::Literal {
-                                    if let Some(next_value) = &next_token.value {
-                                        literal_sequence.push_str(next_value);
-                                        lookahead_pos += 1;
-                                    } else {
-                                        break;
-                                    }
-                                } else {
-                                    break;
-                                }
-                            } else {
-                                break;
-                            }
-                        }
-
-                        // Check if the semantic token matches the literal sequence
-                        if &semantic_token.value == &literal_sequence {
-                            matched_tokens.push(semantic_token.clone());
-                            current_position += 1;
-                            // Skip ahead in pattern tokens since we consumed multiple literals
-                            // Note: This is tricky - we need to adjust i but the loop will increment it
-                            // We'll handle this by using a different approach in the loop
-                            // For now, this is a limitation we'll address
-                        } else {
-                            return PatternMatchResult::failure(Some(format!(
-                                "Literal mismatch: expected '{}', got '{}'",
-                                literal_sequence, semantic_token.value
-                            )));
-                        }
+                        return PatternMatchResult::failure(Some(format!(
+                            "Literal mismatch: expected '{}', got '{}'",
+                            literal_value, semantic_sequence
+                        )));
                     }
                 }
                 TokenType::Variable => {
@@ -348,7 +331,7 @@ impl PatternMatcher {
                 .collect();
 
             if let Some(cache_entry) = self.variable_cache.get(&multi_token_value) {
-                candidate_spans.push((cache_entry.translation.clone(), span, multi_token_value));
+                candidate_spans.push((cache_entry.translation.clone(), span, multi_token_value.clone()));
             }
         }
 
@@ -367,7 +350,6 @@ impl PatternMatcher {
                 let next_position = current_position + span;
 
                 if next_position >= semantic_tokens.len() {
-                    // Not enough tokens remaining - try shorter span
                     continue;
                 }
 
@@ -377,12 +359,35 @@ impl PatternMatcher {
                 if next_pattern_token.token_type == TokenType::Literal {
                     let next_literal = next_pattern_token.value.as_ref().unwrap();
 
-                    if &next_semantic_token.value == next_literal {
-                        return Some((translation, span, text));
+                    // For multi-character literals, check if semantic tokens starting at next_position
+                    // form the literal sequence
+                    if next_literal.len() == 1 {
+                        // Single character literal - direct comparison
+                        if &next_semantic_token.value == next_literal {
+                            return Some((translation, span, text));
+                        } else {
+                            continue;
+                        }
                     } else {
-                        // Try building literal sequence for multi-character matching
-                        // (simplified version - full implementation would build complete sequence)
-                        continue;
+                        // Multi-character literal - build sequence and compare
+                        let literal_chars: Vec<char> = next_literal.chars().collect();
+
+                        // Check if we have enough tokens remaining
+                        if next_position + literal_chars.len() > semantic_tokens.len() {
+                            continue;
+                        }
+
+                        // Build sequence from semantic tokens
+                        let semantic_sequence: String = semantic_tokens[next_position..next_position + literal_chars.len()]
+                            .iter()
+                            .map(|t| t.value.as_str())
+                            .collect();
+
+                        if &semantic_sequence == next_literal {
+                            return Some((translation, span, text));
+                        } else {
+                            continue;
+                        }
                     }
                 } else {
                     // Next token is another variable - accept this span (will be validated in next iteration)

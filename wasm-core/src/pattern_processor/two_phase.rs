@@ -29,6 +29,10 @@ pub struct PatternProcessingResult {
     /// Pattern that produced this result
     pub pattern: Option<SemanticPattern>,
 
+    /// Variable resolutions {varName: translation}
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub variables: Option<HashMap<String, String>>,
+
     /// Start index in token array
     #[serde(rename = "startIndex")]
     pub start_index: usize,
@@ -39,6 +43,10 @@ pub struct PatternProcessingResult {
 
     /// Source of this result ("phaseA", "phaseB", "hierarchical_composition")
     pub source: String,
+
+    /// Translation source for semantic array tracking
+    #[serde(rename = "translationSource", skip_serializing_if = "Option::is_none")]
+    pub translation_source: Option<String>,
 
     /// Phase A result (if hierarchical composition)
     #[serde(rename = "phaseA", skip_serializing_if = "Option::is_none")]
@@ -64,13 +72,24 @@ impl PatternProcessingResult {
 
         let original_text: String = matched_tokens.iter().map(|t| t.value.as_str()).collect();
 
+        // Determine translation source based on the source type
+        let translation_source = if source.starts_with("phaseA") {
+            Some("hierarchical_patterns_phaseA".to_string())
+        } else if source.starts_with("phaseB") {
+            Some("hierarchical_patterns_phaseB".to_string())
+        } else {
+            Some("hierarchical_patterns".to_string())
+        };
+
         Some(Self {
             original_text,
             translation: result_text,
             pattern: Some(pattern),
+            variables: match_result.variables,
             start_index,
             end_index,
             source,
+            translation_source,
             phase_a: None,
             phase_b: None,
         })
@@ -452,9 +471,11 @@ impl TwoPhasePatternProcessor {
                         original_text: format!("{}{}", phase_a_result.original_text, phase_b_result.original_text),
                         translation: phase_b_result.translation.clone(),
                         pattern: phase_b_result.pattern.clone(),
+                        variables: phase_b_result.variables.clone(),
                         start_index: phase_a_result.start_index.min(phase_b_result.start_index),
                         end_index: phase_a_result.end_index.max(phase_b_result.end_index),
                         source: "hierarchical_composition".to_string(),
+                        translation_source: Some("hierarchical_patterns_composite".to_string()),
                         phase_a: Some(Box::new(phase_a_result.clone())),
                         phase_b: Some(Box::new(phase_b_result.clone())),
                     };

@@ -45,20 +45,38 @@ pub fn parse_pattern(
     let mut variables = Vec::new();
 
     // Parse pattern into literal and variable tokens
-    // Note: We need to handle Unicode characters correctly, so we iterate by chars, not bytes
-    for (i, ch) in pattern_text.chars().enumerate() {
+    // Group consecutive non-variable characters into multi-character literal tokens
+    let chars: Vec<char> = pattern_text.chars().collect();
+    let mut i = 0;
+    let mut position = 0;
+
+    while i < chars.len() {
+        let ch = chars[i];
+
         if ch.is_ascii_uppercase() {
             // Variable token (A-Z uppercase characters)
             let var_name = ch.to_string();
-            tokens.push(PatternToken::variable(var_name.clone(), i));
+            tokens.push(PatternToken::variable(var_name.clone(), position));
 
             // Track unique variables
             if !variables.contains(&var_name) {
                 variables.push(var_name);
             }
+
+            i += 1;
+            position += 1;
         } else {
-            // Literal token (everything else)
-            tokens.push(PatternToken::literal(ch.to_string(), i));
+            // Literal token - group consecutive non-variable characters
+            let mut literal = String::new();
+            let literal_start = position;
+
+            while i < chars.len() && !chars[i].is_ascii_uppercase() {
+                literal.push(chars[i]);
+                i += 1;
+            }
+
+            tokens.push(PatternToken::literal(literal, literal_start));
+            position += 1; // Increment position once for the entire multi-char literal
         }
     }
 
