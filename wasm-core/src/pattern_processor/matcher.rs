@@ -174,6 +174,30 @@ impl<'a> PatternMatcher<'a> {
         let match_start = position;
         let mut current_position = position;
 
+        // Early Pattern Rejection: Fast-path check for first token
+        // If the first pattern token is a literal and doesn't match the first semantic token,
+        // we can reject immediately without building strings
+        if !pattern.tokens.is_empty() && position < semantic_tokens.len() {
+            if let Some(first_pattern_token) = pattern.tokens.first() {
+                if first_pattern_token.token_type == TokenType::Literal {
+                    if let Some(literal_value) = &first_pattern_token.value {
+                        // Get first character of pattern literal
+                        if let Some(first_pattern_char) = literal_value.chars().next() {
+                            // Get first character of semantic token
+                            if let Some(first_semantic_char) = semantic_tokens[position].value.chars().next() {
+                                // Quick rejection: if first chars don't match, pattern can't match
+                                if first_pattern_char != first_semantic_char {
+                                    return PatternMatchResult::failure(Some(
+                                        "Early rejection: first token mismatch".to_string()
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Test each pattern token against semantic tokens
         for i in 0..pattern.tokens.len() {
             let pattern_token = &pattern.tokens[i];
