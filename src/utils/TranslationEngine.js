@@ -5071,6 +5071,38 @@ export class TranslationEngine {
           const processedTokens = await processNumbersWasm(tokens);
           // Copy WASM results with proper undefined → null conversion
           copyWasmTokens(processedTokens, tokens);
+
+          // Add number conversions to semantic array for clickable highlighting
+          // WASM doesn't have access to semanticArrayBuilder, so we add entries here
+          for (let i = 0; i < tokens.length; i++) {
+            const token = tokens[i];
+
+            // Find number conversion results (main token, not consumed tokens)
+            if (token.translationSource === 'number_conversion' && token.translated) {
+              // Collect original text from this token and any consumed tokens following it
+              let originalText = token.value;
+              let endIndex = i;
+
+              // Look ahead for consumed tokens that are part of this number
+              for (let j = i + 1; j < tokens.length; j++) {
+                if (tokens[j].translationSource === 'number_conversion_consumed') {
+                  originalText += tokens[j].value;
+                  endIndex = j;
+                } else {
+                  break;  // Stop when we hit a non-consumed token
+                }
+              }
+
+              // Add to semantic array
+              const globalTokenIndex = i + (options.chunkOffset || 0);
+              this.semanticArrayBuilder.addUnit(
+                originalText,
+                token.translated,
+                'numbers',
+                globalTokenIndex
+              );
+            }
+          }
         } catch (error) {
           this.log(DEBUG_LEVELS.WARN, '⚠️ WASM number processing failed, falling back to JavaScript:', error.message);
           // Fallback to JavaScript number processing
