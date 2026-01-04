@@ -64,7 +64,8 @@ impl PatternProcessingResult {
             return None;
         }
 
-        let pattern = match_result.pattern?;
+        // Reconstruct minimal pattern from metadata (avoids expensive clone)
+        let pattern = match_result.get_pattern_minimal()?;
         let result_text = match_result.result?;
         let matched_tokens = match_result.matched_tokens?;
         let start_index = match_result.start_position?;

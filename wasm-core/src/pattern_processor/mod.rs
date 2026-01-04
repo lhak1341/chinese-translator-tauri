@@ -27,8 +27,10 @@ pub mod wasm_wrapper;
 // Re-exports for convenience
 pub use index::{PatternIndex, VARIABLE_KEY};
 pub use matcher::{
-    build_result, find_best_pattern_match, PatternMatchResult, PatternMatcher, PhaseAPattern,
-    PhaseAResult, SemanticToken, VariableCacheEntry,
+    build_result, enable_matcher_profiling, disable_matcher_profiling,
+    find_best_pattern_match, PatternMatchResult, PatternMatcher, PhaseAPattern,
+    PhaseAResult, print_matcher_profiling_report, reset_matcher_profiling,
+    SemanticToken, VariableCacheEntry,
 };
 pub use parser::{parse_pattern, parse_patterns_dict};
 pub use pattern::{

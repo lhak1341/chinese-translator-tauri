@@ -146,3 +146,78 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
   // Re-initialize
   return initializeWasmPatternProcessor(patternsDict);
 }
+
+/**
+ * Enable Rust-side pattern matching profiling
+ */
+export function enableMatcherProfiling() {
+  if (!wasmModule) {
+    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    return;
+  }
+
+  try {
+    wasmModule.enable_matcher_profiling();
+    console.log('🦀 Rust-side pattern matching profiling enabled');
+  } catch (error) {
+    console.error('❌ Error enabling matcher profiling:', error);
+  }
+}
+
+/**
+ * Disable Rust-side pattern matching profiling
+ */
+export function disableMatcherProfiling() {
+  if (!wasmModule) {
+    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    return;
+  }
+
+  try {
+    wasmModule.disable_matcher_profiling();
+    console.log('🦀 Rust-side pattern matching profiling disabled');
+  } catch (error) {
+    console.error('❌ Error disabling matcher profiling:', error);
+  }
+}
+
+/**
+ * Reset Rust-side pattern matching profiling data
+ */
+export function resetMatcherProfiling() {
+  if (!wasmModule) {
+    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    return;
+  }
+
+  try {
+    wasmModule.reset_matcher_profiling();
+    console.log('🦀 Rust-side pattern matching profiling data reset');
+  } catch (error) {
+    console.error('❌ Error resetting matcher profiling:', error);
+  }
+}
+
+/**
+ * Print Rust-side pattern matching profiling report to console
+ */
+export function printMatcherProfilingReport() {
+  if (!wasmModule) {
+    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    return;
+  }
+
+  try {
+    wasmModule.print_matcher_profiling_report();
+  } catch (error) {
+    console.error('❌ Error printing matcher profiling report:', error);
+  }
+}
+
+// Expose profiling functions on window for easy console access
+if (typeof window !== 'undefined') {
+  window.enableMatcherProfiling = enableMatcherProfiling;
+  window.disableMatcherProfiling = disableMatcherProfiling;
+  window.resetMatcherProfiling = resetMatcherProfiling;
+  window.printMatcherProfilingReport = printMatcherProfilingReport;
+}
