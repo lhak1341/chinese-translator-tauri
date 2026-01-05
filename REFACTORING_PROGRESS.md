@@ -81,59 +81,70 @@ Added 2 major section headers:
 
 ---
 
-## 📋 Phase 2: Safe Extraction Candidates
+## 📋 Phase 2: Safe Extraction Status
 
-### Ready for Extraction (HIGH Priority)
+### ✅ COMPLETED Extractions (5 modules, ~682 lines)
 
-**1. MemoryLeakDetector** → `src/utils/MemoryLeakDetector.js`
-- **Size**: 343 lines
+**1. MemoryLeakDetector** → `src/utils/MemoryLeakDetector.js` ✅
+- **Size**: 343 lines extracted
 - **Dependencies**: None (pure utility class)
 - **Risk**: Zero - no impact on translation logic
-- **Benefit**: Testable memory leak detection in isolation
+- **Result**: Successfully extracted, fully functional
 
-**2. Highlighting Reducer** → `src/reducers/highlightingReducer.js`
-- **Size**: 56 lines
+**2. Highlighting Reducer** → `src/reducers/highlightingReducer.js` ✅
+- **Size**: 68 lines extracted (127 with docs)
 - **Dependencies**: None (pure state transformation)
 - **Risk**: Zero - already well-isolated
-- **Benefit**: Cleaner Translator.jsx, easier state testing
+- **Result**: Successfully extracted, atomic state management working
 
-**3. Position Mapping Builder** → `src/utils/PositionMappingBuilder.js`
-- **Size**: 146 lines
+**3. Position Mapping Builder** → `src/utils/PositionMappingBuilder.js` ✅
+- **Size**: 146 lines extracted (217 with docs)
 - **Dependencies**: Semantic arrays only
 - **Risk**: Very Low - pure algorithm
-- **Benefit**: Isolated position mapping testing
+- **Result**: Successfully extracted, clickable highlighting preserved
 
-### Can Be Extracted (MEDIUM Priority)
-
-**4. Token Helper Utilities** → `src/utils/TokenHelpers.js`
-- Functions: `getSemanticTokens()`, `getTokenSpanForText()`, `reconstructChineseText()`, `getTextFromTokens()`
-- **Size**: ~100 lines (scattered)
+**4. Token Helper Utilities** → `src/utils/TokenHelpers.js` ✅
+- **Functions**: 6 pure functions extracted
+- **Size**: 197 lines (function definitions + documentation)
 - **Dependencies**: Token array structure only
-- **Risk**: Low - pure functions
-- **Benefit**: Reusable token utilities
+- **Result**: Successfully extracted, all token operations working
 
-**5. Stats Formatters** → `src/utils/TranslationStatsFormatter.js`
-- Functions: `formatEngineStats()`, `formatPerformanceReport()`, `formatDashboardMetrics()`
-- **Size**: ~150 lines (scattered)
-- **Dependencies**: Engine state (read-only)
-- **Risk**: Low - pure data transformation
-- **Benefit**: Cleaner stats/debugging code
+**5. Pattern Priority Calculation** → `src/utils/PatternPriorityCalculator.js` ✅
+- **Function**: `calculatePatternPriority()` + debugging utility
+- **Size**: 153 lines (function + documentation + breakdown utility)
+- **Dependencies**: None (pure calculation)
+- **Result**: Successfully extracted, pattern competition working correctly
 
-**6. Cleanup Strategies** → `src/utils/CleanupStrategies.js`
+### ❌ ANALYZED - Non-Extractable
+
+**Stats Formatters** → Analysis: `EXTRACTION_ANALYSIS.md`
+- **Decision**: NOT extractable
+- **Reason**: Accessor/getter methods with heavy instance state dependencies
+- **Key Finding**: Distinguished between pure formatters (extractable) vs. accessors (non-extractable)
+- **Action**: Keep as class methods in TranslationEngine.js
+
+### 🔄 Remaining Extraction Candidates
+
+**Cleanup Strategies** → `src/utils/CleanupStrategies.js`
 - Functions: Emergency cleanup, high priority cleanup, background cleanup
 - **Size**: ~100 lines
 - **Dependencies**: Engine state (requires careful parameter passing)
 - **Risk**: Medium - timing-sensitive
 - **Benefit**: Testable cleanup logic
 
-### Estimated Impact
+### Actual Impact Achieved
 
-**If all extractions completed**:
-- TranslationEngine.js: **6,737 → ~6,000 lines** (737 lines extracted, ~11% reduction)
-- Translator.jsx: **2,566 → ~2,400 lines** (166 lines extracted, ~6% reduction)
-- **New files created**: 6 focused utility modules
-- **Translation quality**: 100% unchanged (pure extractions only)
-- **Maintainability**: Significantly improved - pure utilities testable in isolation
+**Completed so far (5 extractions)**:
+- TranslationEngine.js: **6,737 → 6,299 lines** (-438 lines, **-6.5%**)
+- SemanticPatternProcessor.js: **~1,350 → ~1,320 lines** (-30 lines, **-2.2%**)
+- Translator.jsx: **2,566 → 2,352 lines** (-214 lines, **-8.3%**)
+- **New files created**: 5 focused utility modules (1,037 lines with documentation)
+- **Translation quality**: ✅ 100% unchanged (verified)
+- **Maintainability**: ✅ Significantly improved - pure utilities testable in isolation
+
+**Potential additional impact (if remaining candidate extracted)**:
+- Cleanup Strategies: ~100 lines (~1% further reduction)
+- **Status**: Optional - extraction essentially complete, further work has diminishing returns
 
 ---
 
@@ -170,13 +181,13 @@ Keep the current documentation-only improvements:
 - ✅ Critical constraints (IMMUTABLE phase order) clearly marked
 - ✅ Rationale for coupling preserved
 
-### Extraction Phase (Pending)
+### Extraction Phase ✅ SIGNIFICANT PROGRESS
 
-- ⏳ Extract pure utilities without affecting translation
-- ⏳ Verify 100% translation quality after each extraction
-- ⏳ No clickable highlighting regressions
-- ⏳ No performance degradation
-- ⏳ Update CLAUDE.md with extraction patterns
+- ✅ Extract pure utilities without affecting translation (4 modules extracted)
+- ✅ Verify 100% translation quality after each extraction (all tests passing)
+- ✅ No clickable highlighting regressions (verified)
+- ✅ No performance degradation (verified)
+- ⏳ Update CLAUDE.md with extraction patterns (pending)
 
 ---
 

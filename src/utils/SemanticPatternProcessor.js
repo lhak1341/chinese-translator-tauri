@@ -27,6 +27,8 @@ import {
   getWasmPatternProcessorStats
 } from './WasmPatternProcessor.js';
 
+import { calculatePatternPriority } from './PatternPriorityCalculator.js';
+
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
  * 
@@ -262,9 +264,9 @@ export class SemanticPatternProcessor {
       firstToken: tokens[0],
       allowAsPatternVariable: allowAsPatternVariable,
       lowPriority: lowPriority,
-      priority: this.calculatePriority(tokens, variables, lowPriority),
+      priority: calculatePatternPriority(tokens, variables, lowPriority),
       metadata: {
-        priority: this.calculatePriority(tokens, variables, lowPriority),
+        priority: calculatePatternPriority(tokens, variables, lowPriority),
         complexity: variables.length,
         length: tokens.length,
         allowedVariableTypes: allowedVariableTypes,
@@ -306,36 +308,6 @@ export class SemanticPatternProcessor {
       }
       this.patternIndex.get(key).push(pattern);
     }
-  }
-
-
-  /**
-   * Calculate pattern priority based on complexity and usefulness
-   * @param {Array} tokens - Pattern tokens
-   * @param {Array} variables - Pattern variables
-   * @param {boolean} lowPriority - Whether this is a low priority pattern
-   * @returns {number} Priority score (higher = more important)
-   */
-  calculatePriority(tokens, variables, lowPriority = false) {
-    let priority = 0;
-
-    // More variables = higher priority (more specific patterns)
-    priority += variables.length * 10;
-
-    // Longer patterns = higher priority (more context)
-    priority += tokens.length;
-
-    // Literal-starting patterns = higher priority (more efficient)
-    if (tokens[0]?.type === 'literal') {
-      priority += 5;
-    }
-
-    // Low priority flag only affects tiebreakers (same length patterns)
-    if (lowPriority) {
-      priority -= 12; // Significant penalty to allow same-length patterns to compete
-    }
-
-    return priority;
   }
 
   /**
