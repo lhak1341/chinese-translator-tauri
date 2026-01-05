@@ -239,6 +239,20 @@ pub struct MatcherProfilingData {
     pub template_building_time: f64,
     /// Number of calls
     pub call_count: u32,
+
+    // ===== DETAILED VARIABLE RESOLUTION PROFILING =====
+    /// Time spent building string buffers (buffer.clear() + buffer.push_str())
+    pub var_string_building_time: f64,
+    /// Time spent on HashMap lookups (variable_cache.get())
+    pub var_cache_lookup_time: f64,
+    /// Time spent on lookahead verification
+    pub var_lookahead_time: f64,
+    /// Number of variable resolution attempts
+    pub var_resolution_attempts: u32,
+    /// Number of cache hits
+    pub var_cache_hits: u32,
+    /// Number of cache misses
+    pub var_cache_misses: u32,
 }
 
 /// Pattern matcher - core matching algorithm
@@ -520,21 +534,42 @@ impl<'a> PatternMatcher<'a> {
         pattern: &SemanticPattern,
         pattern_index: usize,
     ) -> Option<(String, usize, String)> {
+        // Check profiling state
+        let profiling_enabled = *PROFILING_ENABLED.lock().unwrap();
+        let perf = if profiling_enabled {
+            web_sys::window().and_then(|w| w.performance())
+        } else {
+            None
+        };
+
         let max_span = std::cmp::min(semantic_tokens.len() - current_position, 10);
 
         // Pre-allocate string buffer with estimated capacity
         let mut buffer = String::with_capacity(max_span * 2);  // Estimate 2 bytes per char
 
+        // Profiling accumulators
+        let mut total_string_building_time = 0.0;
+        let mut total_cache_lookup_time = 0.0;
+        let mut total_lookahead_time = 0.0;
+
         // Try spans from longest to shortest (greedy matching)
         for span in (1..=max_span).rev() {
             // Build multi-token value by appending to buffer
+            let start_string_build = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
             buffer.clear();
             for i in 0..span {
                 buffer.push_str(&semantic_tokens[current_position + i].value);
             }
+            let end_string_build = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+            total_string_building_time += end_string_build - start_string_build;
 
             // Check cache - only proceed if there's a match
-            if let Some(cache_entry) = self.variable_cache.get(&buffer) {
+            let start_cache_lookup = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+            let cache_result = self.variable_cache.get(&buffer);
+            let end_cache_lookup = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+            total_cache_lookup_time += end_cache_lookup - start_cache_lookup;
+
+            if let Some(cache_entry) = cache_result {
                 let translation = cache_entry.translation.clone();
                 let text = buffer.clone();  // Only clone on cache hit
 
@@ -542,11 +577,16 @@ impl<'a> PatternMatcher<'a> {
                 let has_more_pattern_tokens = pattern_index + 1 < pattern.tokens.len();
 
                 if has_more_pattern_tokens {
+                    // Lookahead verification
+                    let start_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+
                     // Look ahead: verify that the next pattern token can match after consuming this variable span
                     let next_pattern_token = &pattern.tokens[pattern_index + 1];
                     let next_position = current_position + span;
 
                     if next_position >= semantic_tokens.len() {
+                        let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                        total_lookahead_time += end_lookahead - start_lookahead;
                         continue;
                     }
 
@@ -561,8 +601,22 @@ impl<'a> PatternMatcher<'a> {
                         if next_literal.len() == 1 {
                             // Single character literal - direct comparison
                             if &next_semantic_token.value == next_literal {
+                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                total_lookahead_time += end_lookahead - start_lookahead;
+
+                                // Update profiling data before return
+                                if profiling_enabled {
+                                    let mut data = PROFILING_DATA.lock().unwrap();
+                                    data.var_resolution_attempts += 1;
+                                    data.var_cache_hits += 1;
+                                    data.var_string_building_time += total_string_building_time;
+                                    data.var_cache_lookup_time += total_cache_lookup_time;
+                                    data.var_lookahead_time += total_lookahead_time;
+                                }
                                 return Some((translation, span, text));
                             } else {
+                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                total_lookahead_time += end_lookahead - start_lookahead;
                                 continue;
                             }
                         } else {
@@ -571,6 +625,8 @@ impl<'a> PatternMatcher<'a> {
 
                             // Check if we have enough tokens remaining
                             if next_position + literal_chars.len() > semantic_tokens.len() {
+                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                total_lookahead_time += end_lookahead - start_lookahead;
                                 continue;
                             }
 
@@ -581,20 +637,70 @@ impl<'a> PatternMatcher<'a> {
                                 .collect();
 
                             if &semantic_sequence == next_literal {
+                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                total_lookahead_time += end_lookahead - start_lookahead;
+
+                                // Update profiling data before return
+                                if profiling_enabled {
+                                    let mut data = PROFILING_DATA.lock().unwrap();
+                                    data.var_resolution_attempts += 1;
+                                    data.var_cache_hits += 1;
+                                    data.var_string_building_time += total_string_building_time;
+                                    data.var_cache_lookup_time += total_cache_lookup_time;
+                                    data.var_lookahead_time += total_lookahead_time;
+                                }
                                 return Some((translation, span, text));
                             } else {
+                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                total_lookahead_time += end_lookahead - start_lookahead;
                                 continue;
                             }
                         }
                     } else {
                         // Next token is another variable - accept this span (will be validated in next iteration)
+                        let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                        total_lookahead_time += end_lookahead - start_lookahead;
+
+                        // Update profiling data before return
+                        if profiling_enabled {
+                            let mut data = PROFILING_DATA.lock().unwrap();
+                            data.var_resolution_attempts += 1;
+                            data.var_cache_hits += 1;
+                            data.var_string_building_time += total_string_building_time;
+                            data.var_cache_lookup_time += total_cache_lookup_time;
+                            data.var_lookahead_time += total_lookahead_time;
+                        }
                         return Some((translation, span, text));
                     }
                 } else {
                     // No more pattern tokens - use longest available span
+                    // Update profiling data before return
+                    if profiling_enabled {
+                        let mut data = PROFILING_DATA.lock().unwrap();
+                        data.var_resolution_attempts += 1;
+                        data.var_cache_hits += 1;
+                        data.var_string_building_time += total_string_building_time;
+                        data.var_cache_lookup_time += total_cache_lookup_time;
+                        data.var_lookahead_time += total_lookahead_time;
+                    }
                     return Some((translation, span, text));
                 }
+            } else {
+                // Cache miss - count it
+                if profiling_enabled {
+                    let mut data = PROFILING_DATA.lock().unwrap();
+                    data.var_cache_misses += 1;
+                }
             }
+        }
+
+        // No match found - update profiling data
+        if profiling_enabled {
+            let mut data = PROFILING_DATA.lock().unwrap();
+            data.var_resolution_attempts += 1;
+            data.var_string_building_time += total_string_building_time;
+            data.var_cache_lookup_time += total_cache_lookup_time;
+            data.var_lookahead_time += total_lookahead_time;
         }
 
         None
@@ -810,6 +916,47 @@ pub fn print_matcher_profiling_report() {
     console::log_1(&format!("Template Building:    {:.4}ms ({:.1}%)", avg_template, (avg_template / avg_total) * 100.0).into());
     console::log_1(&format!("⚠️  Other/Unmeasured:   {:.4}ms ({:.1}%)", avg_unmeasured, (avg_unmeasured / avg_total) * 100.0).into());
     console::log_1(&"".into());
+
+    // Detailed Variable Resolution Breakdown
+    if data.var_resolution_attempts > 0 {
+        console::log_1(&"Variable Resolution Detailed Breakdown:".into());
+        console::log_1(&"--------------------------------------------------------------------------------".into());
+
+        let cache_hit_rate = (data.var_cache_hits as f64 / data.var_resolution_attempts as f64) * 100.0;
+        let cache_miss_total = data.var_cache_misses;
+
+        console::log_1(&format!("Resolution Attempts:  {}", data.var_resolution_attempts).into());
+        console::log_1(&format!("Cache Hits:           {} ({:.1}% hit rate)", data.var_cache_hits, cache_hit_rate).into());
+        console::log_1(&format!("Cache Misses:         {} (per span iteration)", cache_miss_total).into());
+        console::log_1(&"".into());
+
+        // Average times within variable resolution
+        let avg_var_string_build = data.var_string_building_time / data.var_resolution_attempts as f64;
+        let avg_var_cache_lookup = data.var_cache_lookup_time / data.var_resolution_attempts as f64;
+        let avg_var_lookahead = data.var_lookahead_time / data.var_resolution_attempts as f64;
+
+        // Percentages relative to total variable resolution time
+        let var_total = data.var_string_building_time + data.var_cache_lookup_time + data.var_lookahead_time;
+        let pct_string = if var_total > 0.0 { (data.var_string_building_time / var_total) * 100.0 } else { 0.0 };
+        let pct_lookup = if var_total > 0.0 { (data.var_cache_lookup_time / var_total) * 100.0 } else { 0.0 };
+        let pct_lookahead = if var_total > 0.0 { (data.var_lookahead_time / var_total) * 100.0 } else { 0.0 };
+
+        console::log_1(&format!("  String Building:    {:.4}ms ({:.1}% of var resolution)", avg_var_string_build, pct_string).into());
+        console::log_1(&format!("  Cache Lookups:      {:.4}ms ({:.1}% of var resolution)", avg_var_cache_lookup, pct_lookup).into());
+        console::log_1(&format!("  Lookahead Verify:   {:.4}ms ({:.1}% of var resolution)", avg_var_lookahead, pct_lookahead).into());
+        console::log_1(&"".into());
+
+        console::log_1(&format!("Total Measured in Var Resolution: {:.2}ms", var_total).into());
+        console::log_1(&format!("Variable Resolution Time (outer): {:.2}ms", data.variable_resolution_time).into());
+
+        if data.variable_resolution_time > var_total {
+            let var_unmeasured = data.variable_resolution_time - var_total;
+            let pct_var_unmeasured = (var_unmeasured / data.variable_resolution_time) * 100.0;
+            console::log_1(&format!("⚠️  Unmeasured in Var Res: {:.2}ms ({:.1}%)", var_unmeasured, pct_var_unmeasured).into());
+        }
+        console::log_1(&"".into());
+    }
+
     console::log_1(&"Note: 'Other/Unmeasured' includes loop overhead, Phase A protection checks,".into());
     console::log_1(&"      token cloning, and other operations not explicitly measured.".into());
     console::log_1(&"================================================================================".into());
