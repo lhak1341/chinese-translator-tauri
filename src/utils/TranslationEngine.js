@@ -5,6 +5,14 @@
 
 import { TextTokenizer, TokenType } from './TextTokenizer.js';
 import { EnhancedDictionaryManager } from './EnhancedDictionaryManager.js';
+import {
+  getSemanticTokens,
+  getTokenSpanForText,
+  reconstructChineseText,
+  reconstructTextFromIndex,
+  getTextFromTokens,
+  getTextPositionForTokenIndex
+} from './TokenHelpers.js';
 import { SemanticPatternProcessor } from './SemanticPatternProcessor.js';
 import { TextChunker } from './TextChunker.js';
 import { NumberProcessor } from './NumberProcessor.js';
@@ -1002,7 +1010,7 @@ export class TranslationEngine {
         // OPTIMIZATION: Use shared lookup index for character dictionary when available
         let match = null;
         if (options.useSharedLookupIndex && options.lookupIndex) {
-          const textPosition = this.getTextPositionForTokenIndex(tokens, i);
+          const textPosition = getTextPositionForTokenIndex(tokens, i);
           const indexedMatches = this.dictionaryManager.getIndexedMatches(options.lookupIndex, textPosition, 'characters');
 
           // Take the first (longest) match for characters
@@ -1191,8 +1199,8 @@ export class TranslationEngine {
       }
 
       // Look for phrase matches starting from this position
-      const fullText = this.getTextFromTokens(tokens);
-      const textPosition = this.getTextPositionForTokenIndex(tokens, i);
+      const fullText = getTextFromTokens(tokens);
+      const textPosition = getTextPositionForTokenIndex(tokens, i);
       const _searchText = fullText.substring(textPosition, textPosition + 10); // Show next 10 chars
       
       const phraseMatches = await this.findAllMatchesWithSemanticCache(
@@ -1204,7 +1212,7 @@ export class TranslationEngine {
       if (phraseMatches.length > 0) {
         const bestMatch = phraseMatches[0]; // Already sorted by length
         
-        const tokenSpan = this.getTokenSpanForText(tokens, i, bestMatch.word);
+        const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
         
         // Check if any token in the phrase span is already processed
         let hasProcessedTokens = false;
@@ -1243,7 +1251,7 @@ export class TranslationEngine {
         this.dictionaryManager
       );
       
-      const semanticTokens = this.getSemanticTokens(tokens);
+      const semanticTokens = getSemanticTokens(tokens);
       // Hot path optimization: Only log if debug level is sufficient
       if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
         this.log(DEBUG_LEVELS.DEBUG, `🔍 Pattern conflict detection: ${semanticTokens.length} semantic tokens:`, semanticTokens.map(t => t.value));
@@ -1369,9 +1377,9 @@ export class TranslationEngine {
               phraseMatch.match.metadata?.allowAsPatternVariable === true) {
             // Check if the pattern is consuming part of a compound word
             // This happens when a pattern matches characters that are part of a compound
-            const phraseWordInTokens = this.getTextFromTokens(tokens).substring(
-              this.getTextPositionForTokenIndex(tokens, phraseStart),
-              this.getTextPositionForTokenIndex(tokens, phraseEnd + 1)
+            const phraseWordInTokens = getTextFromTokens(tokens).substring(
+              getTextPositionForTokenIndex(tokens, phraseStart),
+              getTextPositionForTokenIndex(tokens, phraseEnd + 1)
             );
             
             if (phraseWordInTokens === phraseMatch.match.word) {
@@ -1772,7 +1780,7 @@ export class TranslationEngine {
    * @param {Object} options - Processing options
    */
   async processRemainingPhrases(tokens, options) {
-    const fullText = this.getTextFromTokens(tokens);
+    const fullText = getTextFromTokens(tokens);
     
     // Check if phase-level parallelization is enabled
     const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
@@ -1807,7 +1815,7 @@ export class TranslationEngine {
         continue;
       }
       
-      const textPosition = this.getTextPositionForTokenIndex(tokens, i);
+      const textPosition = getTextPositionForTokenIndex(tokens, i);
       const phraseMatches = await this.findAllMatchesWithSemanticCache(
         fullText,
         textPosition,
@@ -1816,7 +1824,7 @@ export class TranslationEngine {
       
       // Add matches for remaining phrases
       for (const match of phraseMatches) {
-        const tokenSpan = this.getTokenSpanForText(tokens, i, match.word);
+        const tokenSpan = getTokenSpanForText(tokens, i, match.word);
         
         if (tokenSpan >= 1) {
           // Check if any token in the span is already processed
@@ -1929,7 +1937,7 @@ export class TranslationEngine {
 
       // Batch dictionary lookup using JavaScript (WASM removed for reliability)
       const positions = batch.map(tokenIndex =>
-        this.getTextPositionForTokenIndex(tokens, tokenIndex)
+        getTextPositionForTokenIndex(tokens, tokenIndex)
       );
 
       const lookupResults = await Promise.all(positions.map(pos =>
@@ -1944,7 +1952,7 @@ export class TranslationEngine {
 
         // Add matches for this token
         for (const match of phraseMatches) {
-          const tokenSpan = this.getTokenSpanForText(tokens, tokenIndex, match.word);
+          const tokenSpan = getTokenSpanForText(tokens, tokenIndex, match.word);
           
           if (tokenSpan >= 1) {
             // Check if any token in the span is already processed
@@ -2078,7 +2086,7 @@ export class TranslationEngine {
     };
 
     // Get semantic tokens (filtering out grouped followers)
-    const semanticTokens = this.getSemanticTokens(tokens);
+    const semanticTokens = getSemanticTokens(tokens);
     
     this.log(DEBUG_LEVELS.VERBOSE, `🔍 Semantic tokens for pattern matching:`, semanticTokens.map(t => `"${t.value}"`).join(' '));
 
@@ -2139,32 +2147,6 @@ export class TranslationEngine {
         }
       }
     }
-  }
-
-  /**
-   * Get semantic tokens by filtering out grouped followers
-   * @param {Token[]} tokens - Array of tokens
-   * @returns {Array} Array of semantic tokens with original indices
-   */
-  getSemanticTokens(tokens) {
-    const semanticTokens = [];
-    
-    for (let i = 0; i < tokens.length; i++) {
-      // Skip tokens that are grouped followers
-      if (tokens[i].isGrouped && tokens[i].groupLeader !== null) {
-        continue;
-      }
-      
-      // Only include Chinese tokens
-      if (tokens[i].type === TokenType.CHINESE_WORD || tokens[i].type === TokenType.CHINESE_CHAR) {
-        semanticTokens.push({
-          ...tokens[i],
-          originalIndex: i
-        });
-      }
-    }
-    
-    return semanticTokens;
   }
 
   /**
@@ -2471,7 +2453,7 @@ export class TranslationEngine {
           this.log(DEBUG_LEVELS.DEBUG, `🔍 Checking phrase match "${token.phraseMatch.word}" at token ${i}`);
         }
         // Check if any tokens in the phrase span were already consumed by patterns
-        const tokenSpan = this.getTokenSpanForText(tokens, i, token.phraseMatch.word);
+        const tokenSpan = getTokenSpanForText(tokens, i, token.phraseMatch.word);
         let hasConsumedTokens = false;
         
         for (let j = 0; j < tokenSpan; j++) {
@@ -2523,7 +2505,7 @@ export class TranslationEngine {
       let matches;
       if (useSharedLookupIndex) {
         // Get text position for this token to look up in the index
-        const textPosition = this.getTextPositionForTokenIndex(tokens, i);
+        const textPosition = getTextPositionForTokenIndex(tokens, i);
         
         // Map phase to dictionary category for lookup index
         const categoryMap = {
@@ -2546,7 +2528,7 @@ export class TranslationEngine {
         }
       } else {
         // Fallback: Traditional dictionary lookup
-        const remainingText = this.reconstructTextFromIndex(tokens, i);
+        const remainingText = reconstructTextFromIndex(tokens, i);
         matches = await this.findAllMatchesWithSemanticCache(
           remainingText,
           0,
@@ -2569,14 +2551,14 @@ export class TranslationEngine {
 
         // Check for conflicts with existing results using position-based detection
         let hasConflict = false;
-        const matchStart = this.getTextPositionForTokenIndex(tokens, i);
+        const matchStart = getTextPositionForTokenIndex(tokens, i);
         const matchEnd = matchStart + bestMatch.word.length;
         
         // Check if this match would overlap with any already-processed tokens
         for (let j = 0; j < tokens.length; j++) {
           const token = tokens[j];
           if (token.translationSource) {
-            const tokenStart = this.getTextPositionForTokenIndex(tokens, j);
+            const tokenStart = getTextPositionForTokenIndex(tokens, j);
             const tokenEnd = tokenStart + token.value.length;
             
             // Check for overlap: match overlaps with token if they share any position
@@ -2597,7 +2579,7 @@ export class TranslationEngine {
           phaseMatches++;
 
           // Calculate token span for skipping ahead
-          const tokenSpan = this.getTokenSpanForText(tokens, i, bestMatch.word);
+          const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
           
           // Skip ahead past the matched tokens
           // BUG FIX: Ensure we never go backwards or stay in same place
@@ -2822,29 +2804,6 @@ export class TranslationEngine {
       .join('');
   }
 
-  /**
-   * Reconstruct text starting from a specific token index
-   * @param {Token[]} tokens - Array of tokens
-   * @param {number} startIndex - Starting index
-   * @returns {string} Reconstructed text
-   */
-  reconstructTextFromIndex(tokens, startIndex) {
-    const result = [];
-    for (let i = startIndex; i < tokens.length; i++) {
-      const token = tokens[i];
-      
-      // Stop at punctuation boundaries to prevent cross-punctuation matching
-      if (token.type === TokenType.PUNCTUATION) {
-        break;
-      }
-      
-      // Only include Chinese characters and words
-      if (token.type === TokenType.CHINESE_WORD || token.type === TokenType.CHINESE_CHAR) {
-        result.push(token.value);
-      }
-    }
-    return result.join('');
-  }
 
   /**
    * Update tokens based on pattern matching results
@@ -2885,7 +2844,7 @@ export class TranslationEngine {
       return;
     }
 
-    const tokenSpan = this.getTokenSpanForText(tokens, startIndex, match.word);
+    const tokenSpan = getTokenSpanForText(tokens, startIndex, match.word);
 
     // Debug logging for segment tracking
     this.log(DEBUG_LEVELS.DEBUG, `🔍 Segment tracking: "${match.word}" -> "${match.translation}" (${match.dictionary}), tokenSpan: ${tokenSpan}`);
@@ -5027,7 +4986,7 @@ export class TranslationEngine {
     
     // Use the standard dictionary lookup approach with combined proper noun dictionaries
     // This automatically handles longest-match-first by using findAllMatches with length sorting
-    const remainingText = this.reconstructTextFromIndex(tokens, position);
+    const remainingText = reconstructTextFromIndex(tokens, position);
     
     const matches = await this.findAllMatchesWithSemanticCache(
       remainingText,
@@ -5040,7 +4999,7 @@ export class TranslationEngine {
       const bestMatch = matches[0];
       
       // Calculate consumed count BEFORE modifying tokens
-      const consumed = bestMatch.tokenLength || this.getTokenSpanForText(tokens, position, bestMatch.word);
+      const consumed = bestMatch.tokenLength || getTokenSpanForText(tokens, position, bestMatch.word);
       
       this.applyMatchToTokens(tokens, position, bestMatch, options);
       
@@ -5938,37 +5897,6 @@ export class TranslationEngine {
     sortedPositions.splice(left, 0, position);
   }
 
-  /**
-   * Get concatenated text from tokens for phrase matching
-   * @param {Token[]} tokens - Array of tokens
-   * @returns {string} Concatenated text
-   */
-  getTextFromTokens(tokens) {
-    return tokens
-      .filter(token => token.groupLeader === null || token.groupLeader === undefined) // Skip tokens that are part of another token group
-      .map(token => token.value)
-      .join('');
-  }
-
-  /**
-   * Get text position for a specific token index for dictionary matching
-   * @param {Token[]} tokens - Array of tokens  
-   * @param {number} tokenIndex - Index of the token
-   * @returns {number} Character position in the full text
-   */
-  getTextPositionForTokenIndex(tokens, tokenIndex) {
-    // Use cached position from tokenizer instead of recalculating
-    if (tokenIndex >= 0 && tokenIndex < tokens.length && tokens[tokenIndex].start !== undefined) {
-      return tokens[tokenIndex].start;
-    }
-    
-    // Fallback to calculation for edge cases (should rarely be needed)
-    let position = 0;
-    for (let i = 0; i < tokenIndex && i < tokens.length; i++) {
-      position += tokens[i].value.length;
-    }
-    return position;
-  }
 
   /**
    * Fix number + 两 (tael unit) translations
