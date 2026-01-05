@@ -542,7 +542,11 @@ impl<'a> PatternMatcher<'a> {
             None
         };
 
-        let max_span = std::cmp::min(semantic_tokens.len() - current_position, 10);
+        // OPTIMIZATION: Limit max_span to 6 based on dictionary analysis
+        // Longest variable in patterns.json is 5 chars ("X的脖子上")
+        // Most variables are 2-3 chars (30/38 entries)
+        // Using 6 for safety margin while eliminating impossible spans 7-10
+        let max_span = std::cmp::min(semantic_tokens.len() - current_position, 6);
 
         // Pre-allocate string buffer with estimated capacity
         let mut buffer = String::with_capacity(max_span * 2);  // Estimate 2 bytes per char
