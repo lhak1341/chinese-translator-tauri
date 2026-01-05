@@ -22,7 +22,11 @@
       "Bash(node:*)",
       "Bash(git log:*)",
       "Skill(technical-docs-skill)",
-      "Bash(/usr/bin/find:*)"
+      "Bash(/usr/bin/find:*)",
+      "Bash(git show:*)",
+      "Bash(find:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(cargo bench:*)"
     ],
     "deny": [],
     "ask": []

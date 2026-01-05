@@ -16,6 +16,8 @@ import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
 import { runAllParityTests } from '../utils/PatternParityTest.js';
+import { highlightingReducer, INITIAL_HIGHLIGHTING_STATE } from '../reducers/highlightingReducer.js';
+import { buildPositionMappings } from '../utils/PositionMappingBuilder.js';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -57,227 +59,17 @@ import { runAllParityTests } from '../utils/PatternParityTest.js';
 // SECTION 1: STATE MANAGEMENT UTILITIES
 // ============================================================================
 // Purpose: Reducers and pure state transformation functions
-// Extraction Potential: HIGH - Can be moved to separate files
+// Extraction Status: ✅ ALL EXTRACTED
+// - highlightingReducer → src/reducers/highlightingReducer.js (68 lines)
+// - buildPositionMappings → src/utils/PositionMappingBuilder.js (146 lines)
 // ============================================================================
-
-/**
- * Highlighting reducer for managing all highlighting-related state atomically
- * Handles: unitIndex, translationUnitIndex, characterOnlyUnitIndex, isCharacterOnlyClick
- *
- * EXTRACTION CANDIDATE: Can be moved to src/reducers/highlightingReducer.js
- */
-function highlightingReducer(state, action) {
-  switch (action.type) {
-    case 'HIGHLIGHT_ORIGINAL':
-      // User clicked on original text segment
-      return {
-        unitIndex: action.unitIndex,
-        translationUnitIndex: -1,
-        characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
-      };
-
-    case 'HIGHLIGHT_TRANSLATION':
-      // User clicked on translation text segment
-      return {
-        unitIndex: -1,
-        translationUnitIndex: action.unitIndex,
-        characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
-      };
-
-    case 'HIGHLIGHT_FROM_CHARACTER_ONLY':
-      // User clicked on character-only translation - highlight both original and main translation
-      return {
-        unitIndex: action.unitIndex,
-        translationUnitIndex: action.unitIndex,
-        characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: true
-      };
-
-    case 'HIGHLIGHT_BOTH':
-      // Highlight same unit in both original and translation (e.g., search result)
-      return {
-        unitIndex: action.unitIndex,
-        translationUnitIndex: action.unitIndex,
-        characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
-      };
-
-    case 'SET_CHARACTER_ONLY_INDEX':
-      // Set only the character-only index (for bridge useEffect)
-      return {
-        ...state,
-        characterOnlyUnitIndex: action.unitIndex
-      };
-
-    case 'CLEAR_ALL':
-      // Clear all highlighting
-      return {
-        unitIndex: -1,
-        translationUnitIndex: -1,
-        characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
-      };
-
-    default:
-      return state;
-  }
-}
-
-/**
- * Build position mappings for clickable highlighting
- * Maps segments between original and translated text
- *
- * EXTRACTION CANDIDATE: Can be moved to src/utils/PositionMappingBuilder.js
- */
-const _buildPositionMappings = (semanticArrays, originalText, translatedText) => {
-  // Create segments for both texts using the same algorithm
-  const originalSegments = [];
-  const translatedSegments = [];
-  
-  // Build original text segments
-  const usedOriginalIndices = new Set();
-  let currentPos = 0;
-  let segmentId = 0;
-  
-  while (currentPos < originalText.length) {
-    let bestMatch = null;
-    let bestLength = 0;
-    
-    // Find longest unused semantic unit at current position
-    for (let i = 0; i < semanticArrays.original.length; i++) {
-      if (usedOriginalIndices.has(i)) continue;
-      
-      const unit = semanticArrays.original[i];
-      const remainingText = originalText.substring(currentPos);
-      
-      if (remainingText.startsWith(unit) && unit.length > bestLength) {
-        bestMatch = { semanticIndex: i, unit, length: unit.length };
-        bestLength = unit.length;
-      }
-    }
-    
-    if (bestMatch) {
-      originalSegments.push({
-        segmentId: segmentId++,
-        start: currentPos,
-        end: currentPos + bestMatch.length,
-        text: originalText.substring(currentPos, currentPos + bestMatch.length),
-        semanticIndex: bestMatch.semanticIndex,
-        isClickable: true
-      });
-      usedOriginalIndices.add(bestMatch.semanticIndex);
-      currentPos += bestMatch.length;
-    } else {
-      // Non-semantic character
-      originalSegments.push({
-        segmentId: segmentId++,
-        start: currentPos,
-        end: currentPos + 1,
-        text: originalText[currentPos],
-        semanticIndex: -1,
-        isClickable: false
-      });
-      currentPos++;
-    }
-  }
-  
-  // Build translated text segments
-  const usedTranslatedIndices = new Set();
-  currentPos = 0;
-  segmentId = 0;
-  
-  while (currentPos < translatedText.length) {
-    let bestMatch = null;
-    let bestLength = 0;
-    
-    // Find longest unused semantic unit at current position (case-insensitive)
-    for (let i = 0; i < semanticArrays.translated.length; i++) {
-      if (usedTranslatedIndices.has(i)) continue;
-      
-      const unit = semanticArrays.translated[i];
-      const remainingText = translatedText.substring(currentPos);
-      
-      if (remainingText.toLowerCase().startsWith(unit.toLowerCase()) && unit.length > bestLength) {
-        bestMatch = { semanticIndex: i, unit, length: unit.length };
-        bestLength = unit.length;
-      }
-    }
-    
-    if (bestMatch) {
-      translatedSegments.push({
-        segmentId: segmentId++,
-        start: currentPos,
-        end: currentPos + bestMatch.length,
-        text: translatedText.substring(currentPos, currentPos + bestMatch.length),
-        semanticIndex: bestMatch.semanticIndex,
-        isClickable: true
-      });
-      usedTranslatedIndices.add(bestMatch.semanticIndex);
-      currentPos += bestMatch.length;
-    } else {
-      // Non-semantic character
-      translatedSegments.push({
-        segmentId: segmentId++,
-        start: currentPos,
-        end: currentPos + 1,
-        text: translatedText[currentPos],
-        semanticIndex: -1,
-        isClickable: false
-      });
-      currentPos++;
-    }
-  }
-  
-  // Build correspondence mappings
-  const originalToTranslated = new Map(); // original segment ID -> translated segment ID
-  const translatedToOriginal = new Map(); // translated segment ID -> original segment ID
-  
-  // Match segments by semantic index
-  const originalBySemanticIndex = new Map();
-  const translatedBySemanticIndex = new Map();
-  
-  originalSegments.forEach(segment => {
-    if (segment.isClickable) {
-      if (!originalBySemanticIndex.has(segment.semanticIndex)) {
-        originalBySemanticIndex.set(segment.semanticIndex, []);
-      }
-      originalBySemanticIndex.get(segment.semanticIndex).push(segment);
-    }
-  });
-  
-  translatedSegments.forEach(segment => {
-    if (segment.isClickable) {
-      if (!translatedBySemanticIndex.has(segment.semanticIndex)) {
-        translatedBySemanticIndex.set(segment.semanticIndex, []);
-      }
-      translatedBySemanticIndex.get(segment.semanticIndex).push(segment);
-    }
-  });
-  
-  // Create 1:1 mappings by position order within each semantic index group
-  for (const [semanticIndex, originalSegs] of originalBySemanticIndex) {
-    const translatedSegs = translatedBySemanticIndex.get(semanticIndex) || [];
-    
-    for (let i = 0; i < Math.max(originalSegs.length, translatedSegs.length); i++) {
-      const origSeg = originalSegs[i];
-      const transSeg = translatedSegs[i];
-      
-      if (origSeg && transSeg) {
-        originalToTranslated.set(origSeg.segmentId, transSeg.segmentId);
-        translatedToOriginal.set(transSeg.segmentId, origSeg.segmentId);
-      }
-    }
-  }
-  
-  return {
-    originalSegments,
-    translatedSegments,
-    originalToTranslated,
-    translatedToOriginal
-  };
-};
+// Total extracted: 214 lines, ~8% file size reduction
+// Benefits:
+// - Better testability (pure functions, easy to unit test)
+// - Reusability across components
+// - Cleaner separation of concerns
+// - Reduced Translator.jsx complexity
+// ============================================================================
 
 // ============================================================================
 // SECTION 2: MAIN TRANSLATOR COMPONENT
@@ -340,12 +132,7 @@ const Translator = () => {
   const [prebuiltSegments, setPrebuiltSegments] = useState([]);
 
   // Highlighting state managed by reducer for atomic updates
-  const [highlighting, dispatchHighlighting] = useReducer(highlightingReducer, {
-    unitIndex: -1,
-    translationUnitIndex: -1,
-    characterOnlyUnitIndex: -1,
-    isCharacterOnlyClick: false
-  });
+  const [highlighting, dispatchHighlighting] = useReducer(highlightingReducer, INITIAL_HIGHLIGHTING_STATE);
 
   // Destructure for easier access (maintains backward compatibility with existing code)
   const {
