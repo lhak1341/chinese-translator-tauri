@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useMemo,
 } from 'react';
+import toast from 'react-hot-toast';
 import {
   validateDictionaryEntry,
   getDictionaryTypes,
@@ -275,6 +276,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         translation
       );
       if (validationError) {
+        toast.error(validationError);
         throw new Error(validationError);
       }
 
@@ -306,11 +308,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
+        toast.success('Entry added successfully');
       } else {
         setDictionaries(prev => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
+        toast.error('Failed to save dictionary changes');
         throw new Error('Failed to save dictionary changes');
       }
     },
@@ -326,6 +330,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         translation
       );
       if (validationError) {
+        toast.error(validationError);
         throw new Error(validationError);
       }
 
@@ -362,11 +367,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
+        toast.success('Entry updated successfully');
       } else {
         setDictionaries(prev => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
+        toast.error('Failed to save dictionary changes');
         throw new Error('Failed to save dictionary changes');
       }
     },
@@ -393,11 +400,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
+        toast.success('Entry deleted successfully');
       } else {
         setDictionaries(prev => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
+        toast.error('Failed to delete dictionary entry');
         throw new Error('Failed to delete dictionary entry');
       }
     },

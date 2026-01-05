@@ -142,7 +142,12 @@ export default function TranslatorControls({
       <button
         onClick={handleQuickAddProperNoun}
         className="secondary"
-        title="Quick Add Entry (Cmd/Ctrl + Shift + N)"
+        title="Quick Add Entry - Keyboard shortcuts:
+Cmd/Ctrl+1: Character
+Cmd/Ctrl+2: Phrase
+Cmd/Ctrl+3: Proper Noun
+Cmd/Ctrl+4: Pattern
+Cmd/Ctrl+5: Custom Proper Noun"
         style={{
           display: 'inline-flex',
           alignItems: 'center',

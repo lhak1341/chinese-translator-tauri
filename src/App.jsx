@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Toaster } from 'react-hot-toast';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
@@ -20,6 +21,9 @@ function App() {
           root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
           root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
           root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
+          if (appearance.uiFont?.fontFamily) {
+            root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
+          }
         }
       } catch (error) {
         console.error('Failed to load appearance settings:', error);
@@ -210,6 +214,33 @@ function App() {
 
   return (
     <DictionaryProvider>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: 'var(--background-color)',
+            color: 'var(--text-color)',
+            border: '1px solid var(--border-color)',
+            fontFamily: 'var(--ui-font)',
+            fontSize: '0.875rem',
+            fontWeight: 500,
+          },
+          success: {
+            iconTheme: {
+              primary: 'var(--success-bg)',
+              secondary: 'white',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: 'var(--error-bg)',
+              secondary: 'white',
+            },
+            duration: 5000,
+          },
+        }}
+      />
       <div style={{ height: '100vh', width: '100vw' }}>
         <TabbedInterface />
       </div>

@@ -133,21 +133,49 @@ export default function TranslatorDisplayPanels({
       >
         {/* Original Chinese text area (upper half) */}
         <div
-          style={{ ...inputTextStyle, flex: '1 0 50%', minHeight: 0 }}
+          style={{
+            ...inputTextStyle,
+            flex: '1 0 50%',
+            minHeight: 0,
+            overflowY: inputText ? 'auto' : 'hidden'
+          }}
           ref={originalTextRef}
         >
-          <ClickableOriginalSemantic
-            originalText={inputText}
-            semanticArrays={semanticArrays}
-            highlightedUnitIndex={highlightedUnitIndex ?? undefined}
-            highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
-            onSegmentClick={handleSemanticSegmentClick}
-          />
+          {inputText ? (
+            <ClickableOriginalSemantic
+              originalText={inputText}
+              semanticArrays={semanticArrays}
+              highlightedUnitIndex={highlightedUnitIndex ?? undefined}
+              highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
+              onSegmentClick={handleSemanticSegmentClick}
+            />
+          ) : (
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                color: 'var(--text-color)',
+                opacity: 0.4,
+                textAlign: 'center',
+                fontSize: '1rem',
+                lineHeight: '1.6',
+                padding: '0 2rem'
+              }}>
+                Paste Chinese text or click<br />"Translate from Clipboard"
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Character-only translation area (lower half) */}
         <div
-          style={characterOnlyTextStyle}
+          style={{
+            ...characterOnlyTextStyle,
+            overflowY: characterOnlyText ? 'auto' : 'hidden'
+          }}
           ref={characterOnlyTextRef}
         >
           {characterOnlyText ? (
@@ -161,14 +189,36 @@ export default function TranslatorDisplayPanels({
               direction="character-only-to-original"
             />
           ) : (
-            <div>Character-only translation</div>
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                color: 'var(--text-color)',
+                opacity: 0.4,
+                textAlign: 'center',
+                fontSize: '1rem',
+                lineHeight: '1.6',
+                padding: '0 2rem'
+              }}>
+                Character-by-character<br />translation will appear here
+              </div>
+            </div>
           )}
         </div>
       </div>
 
       {/* Translation output area with streaming support */}
       <div
-        style={{ ...outputTextStyle, flex: '2 0 66.67%', minWidth: 0, position: 'relative' }}
+        style={{
+          ...outputTextStyle,
+          flex: '2 0 66.67%',
+          minWidth: 0,
+          position: 'relative',
+          overflowY: translatedText ? 'auto' : 'hidden'
+        }}
         ref={translationTextRef}
       >
         {/* Streaming display overlay - shows during translation */}
@@ -210,10 +260,23 @@ export default function TranslatorDisplayPanels({
           </div>
         ) : (
           <div style={{
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
             transition: 'opacity 0.3s ease'
           }}>
-            Translation
+            <div style={{
+              color: 'var(--text-color)',
+              opacity: 0.4,
+              textAlign: 'center',
+              fontSize: '1rem',
+              lineHeight: '1.6',
+              padding: '0 2rem'
+            }}>
+              Translation will appear here
+            </div>
           </div>
         )}
       </div>

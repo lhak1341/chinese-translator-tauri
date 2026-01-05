@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useReducer, startTransition } from 'react';
+import toast from 'react-hot-toast';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
@@ -2125,33 +2126,38 @@ const Translator = () => {
               }
               
               console.log('✅ Retranslation completed successfully');
+              toast.success('Dictionary reloaded and text retranslated');
             } catch (_retranslateError) {
               console.error('❌ Retranslation failed:', _retranslateError);
               const errorMessage = '❌ Retranslation failed!\n\nError: ' + _retranslateError.message;
               setTranslatedText(errorMessage);
+              toast.error(`Retranslation failed: ${_retranslateError.message}`);
             }
           } else {
             const completedMessage = '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.';
             setTranslatedText(completedMessage);
-            
+            toast.success('Dictionary reloaded successfully');
           }
         } catch (_engineError) {
           console.error('❌ Error reinitializing engine:', _engineError);
           const engineErrorMessage = '❌ Reload Dictionary failed!\n\nError reinitializing engine: ' + _engineError.message;
           setTranslatedText(engineErrorMessage);
+          toast.error(`Failed to reinitialize engine: ${_engineError.message}`);
         }
       } else {
         console.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
         const warningMessage = '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.';
         setTranslatedText(warningMessage);
+        toast.error('Dictionaries not ready - please try again');
       }
-      
+
       console.log('✅ Reload Dictionary sequence completed');
-      
+
     } catch (_error) {
       console.error('❌ Reload Dictionary failed:', _error);
       const unexpectedErrorMessage = '❌ Reload Dictionary failed!\n\nUnexpected error: ' + _error.message;
       setTranslatedText(unexpectedErrorMessage);
+      toast.error(`Dictionary reload failed: ${_error.message}`);
     } finally {
       // Always reset the reloading flag (positions cleared in setTimeout)
       setIsDictionaryReloading(false);

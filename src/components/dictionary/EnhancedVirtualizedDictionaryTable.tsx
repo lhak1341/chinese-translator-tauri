@@ -1051,20 +1051,59 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         </div>
       )}
 
-      {/* Enhanced virtualized table container */}
-      <div 
-        ref={tableContainerRef}
-        style={{ flex: 1, overflow: 'hidden', position: 'relative' }}
-      >
-        {/* Fixed table header */}
+      {/* Empty state when no entries */}
+      {filteredEntries.length === 0 ? (
         <div style={{
+          flex: 1,
           display: 'flex',
-          borderBottom: '1px solid var(--border-color)',
-          backgroundColor: 'var(--background-color)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '3rem'
         }}>
+          <div style={{
+            color: 'var(--text-color)',
+            opacity: 0.4,
+            textAlign: 'center',
+            fontSize: '1rem',
+            lineHeight: '1.8'
+          }}>
+            {searchTerm ? (
+              <>
+                <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
+                  No entries matching "{searchTerm}"
+                </div>
+                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
+                  Try a different search term
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
+                  Dictionary is empty
+                </div>
+                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
+                  Add entries using Quick Add<br />shortcuts (Cmd/Ctrl+1-5)
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Enhanced virtualized table container */}
+          <div
+            ref={tableContainerRef}
+            style={{ flex: 1, overflow: 'hidden', position: 'relative' }}
+          >
+            {/* Fixed table header */}
+            <div style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--background-color)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
+            }}>
           {selectedDictionary === 'patterns' ? (
             <>
               <div style={{ width: '40px', minWidth: '40px', maxWidth: '40px', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>
@@ -1157,6 +1196,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* Entry editing modal */}
       {editingEntry && (
