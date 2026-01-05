@@ -17,6 +17,21 @@ import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
 import { runAllParityTests } from '../utils/PatternParityTest.js';
 
+// ============================================================================
+// TRANSLATOR COMPONENT - MAIN UI COORDINATOR
+// ============================================================================
+// Purpose: Coordinates translation engine, UI state, and user interactions
+// Dependencies: TranslationEngine, DictionaryContext, custom hooks
+// Complexity: 2,566 lines - intentionally coupled for timing guarantees
+//
+// Structure:
+//   - State Management (highlightingReducer, position mapping)
+//   - Translation Operations (main translate, character-only translate)
+//   - Highlighting & Interaction (click handlers, mode bridges)
+//   - Dictionary Operations (quick add, reload, configuration)
+//   - UI Rendering (controls, display panels - already extracted)
+// ============================================================================
+
 /**
  * @import {
  *   TranslationOptions,
@@ -38,9 +53,18 @@ import { runAllParityTests } from '../utils/PatternParityTest.js';
  * } from '../types/TranslationEngineTypes'
  */
 
+// ============================================================================
+// SECTION 1: STATE MANAGEMENT UTILITIES
+// ============================================================================
+// Purpose: Reducers and pure state transformation functions
+// Extraction Potential: HIGH - Can be moved to separate files
+// ============================================================================
+
 /**
  * Highlighting reducer for managing all highlighting-related state atomically
  * Handles: unitIndex, translationUnitIndex, characterOnlyUnitIndex, isCharacterOnlyClick
+ *
+ * EXTRACTION CANDIDATE: Can be moved to src/reducers/highlightingReducer.js
  */
 function highlightingReducer(state, action) {
   switch (action.type) {
@@ -101,6 +125,12 @@ function highlightingReducer(state, action) {
   }
 }
 
+/**
+ * Build position mappings for clickable highlighting
+ * Maps segments between original and translated text
+ *
+ * EXTRACTION CANDIDATE: Can be moved to src/utils/PositionMappingBuilder.js
+ */
 const _buildPositionMappings = (semanticArrays, originalText, translatedText) => {
   // Create segments for both texts using the same algorithm
   const originalSegments = [];
@@ -248,6 +278,21 @@ const _buildPositionMappings = (semanticArrays, originalText, translatedText) =>
     translatedToOriginal
   };
 };
+
+// ============================================================================
+// SECTION 2: MAIN TRANSLATOR COMPONENT
+// ============================================================================
+// Purpose: Central UI coordinator for translation operations
+// Dependencies: TranslationEngine, DictionaryContext, all hooks
+// Extraction Potential: NONE - Cross-mode coordination requires coupling
+// Critical: State timing, configuration loading, UI synchronization
+//
+// Why Coupled:
+//   - Configuration loading must coordinate with translation operations
+//   - Highlighting state spans multiple translation modes
+//   - Dictionary reload affects engine state and UI state atomically
+//   - Scroll position management requires DOM ref coordination
+// ============================================================================
 
 const Translator = () => {
   const { dictionaries, isLoading, loadDictionary: _loadDictionary } = useDictionary();

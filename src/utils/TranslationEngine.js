@@ -53,6 +53,15 @@ import { TranslationProfiler } from './TranslationProfiler.js';
  * } from '../types/TranslationEngineTypes'
  */
 
+// ============================================================================
+// SECTION 1: MEMORY MANAGEMENT UTILITIES
+// ============================================================================
+// Purpose: Memory leak detection, tracking, and trend analysis
+// Dependencies: None (pure utility class)
+// Extraction Potential: HIGH - Can be moved to separate file
+// Lines: ~350 lines
+// ============================================================================
+
 /**
  * Memory Leak Detection Utility
  * Tracks memory usage patterns during translation to identify accumulation
@@ -400,6 +409,15 @@ export const DEBUG_LEVELS = {
   VERBOSE: 3  // Ultra-detailed token-by-token logging
 };
 
+// ============================================================================
+// SECTION 2: CORE ENGINE CLASS - CONSTRUCTOR & INITIALIZATION
+// ============================================================================
+// Purpose: Main engine class, configuration, and system setup
+// Dependencies: All translation subsystems
+// Extraction Potential: NONE - Central coordinator, must remain coupled
+// Critical: Manages shared state across all 5 phases
+// ============================================================================
+
 export class TranslationEngine {
   constructor() {
     this.tokenizer = new TextTokenizer();
@@ -569,6 +587,15 @@ export class TranslationEngine {
     // This method kept for backward compatibility (called during initialization)
   }
 
+  // ============================================================================
+  // SECTION 3: DICTIONARY OPERATIONS
+  // ============================================================================
+  // Purpose: Dictionary lookups, caching, synchronization
+  // Dependencies: DictionaryManager, caching system
+  // Extraction Potential: NONE - Timing-sensitive, phase-critical
+  // Critical: Cache invalidation must coordinate with phase processing
+  // ============================================================================
+
   /**
    * Semantic Dictionary Lookup with Cache
    * OPTIMIZATION: Checks semantic translation cache before dictionary lookup
@@ -619,6 +646,15 @@ export class TranslationEngine {
     // WASM Core Engine removed - this method is a no-op
     // Kept for backward compatibility (may be called during initialization)
   }
+
+  // ============================================================================
+  // SECTION 4: SMART MEMORY MANAGEMENT
+  // ============================================================================
+  // Purpose: Memory pressure detection, cleanup scheduling, profiling
+  // Dependencies: Memory detection systems, background cleanup
+  // Extraction Potential: MEDIUM - Cleanup strategies can be extracted
+  // Critical: Cleanup timing must not interfere with translation
+  // ============================================================================
 
   /**
    * Initialize Smart Memory Management Refinements
@@ -879,6 +915,15 @@ export class TranslationEngine {
     }
   }
 
+  // ============================================================================
+  // SECTION 5: ENGINE INITIALIZATION
+  // ============================================================================
+  // Purpose: Load dictionaries, configure subsystems, prepare engine
+  // Dependencies: All subsystems (DictionaryManager, PatternProcessor, etc.)
+  // Extraction Potential: NONE - System-wide coordination required
+  // Critical: Initialization order affects pattern compilation and caching
+  // ============================================================================
+
   /**
    * Initialize the engine with dictionaries
    * @param {Object} dictionaries - Dictionary data
@@ -982,6 +1027,15 @@ export class TranslationEngine {
       throw _error;
     }
   }
+
+  // ============================================================================
+  // SECTION 6: MAIN TRANSLATION ENTRY POINTS
+  // ============================================================================
+  // Purpose: Public API for translation operations
+  // Dependencies: All 5 phases, chunking, batching
+  // Extraction Potential: NONE - Phase orchestration coordinator
+  // Critical: Controls sequential phase execution and state management
+  // ============================================================================
 
   /**
    * Translate text using optimized single-pass algorithm
@@ -1887,6 +1941,16 @@ export class TranslationEngine {
     return selectedMatches;
   }
 
+  // ============================================================================
+  // SECTION 8: PHASE 1 - PATTERN PROCESSING
+  // ============================================================================
+  // Purpose: Apply semantic patterns (legacy + two-phase hierarchical)
+  // Dependencies: SemanticPatternProcessor OR TwoPhasePatternProcessor
+  // Extraction Potential: NONE - First phase, sets token state for all others
+  // Critical: Pattern-consumed tokens block all subsequent phases
+  // Note: Supports both legacy patterns and hierarchical two-phase system
+  // ============================================================================
+
   /**
    * Apply pattern-based translations to tokens using SemanticPatternProcessor
    * @param {Token[]} tokens - Array of tokens
@@ -2023,6 +2087,16 @@ export class TranslationEngine {
         `🎯 Applied ${result.type || 'pattern'} result: "${result.originalText}" -> "${result.translation}"`);
     }
   }
+
+  // ============================================================================
+  // SECTION 11: PHASE 4 - PHRASE PROCESSING
+  // ============================================================================
+  // Purpose: Common phrase dictionary matching for remaining tokens
+  // Dependencies: Previous phase results (patterns, proper nouns, numbers)
+  // Extraction Potential: NONE - Sequential token consumption required
+  // Critical: Only processes tokens not consumed by earlier phases
+  // Note: Supports both sequential and parallel processing modes
+  // ============================================================================
 
   /**
    * Process remaining phrases that weren't handled by hierarchical patterns
@@ -2685,6 +2759,16 @@ export class TranslationEngine {
 
 
 
+  // ============================================================================
+  // SECTION 9: PHASE 5 - CHARACTER PROCESSING
+  // ============================================================================
+  // Purpose: Character dictionary fallback for untranslated tokens
+  // Dependencies: All previous phases (patterns, proper nouns, numbers, phrases)
+  // Extraction Potential: NONE - Final phase, depends on all prior results
+  // Critical: Last resort translation, must handle any remaining tokens
+  // Note: Only processes tokens with translated === null
+  // ============================================================================
+
   /**
    * Apply dictionary-based translation to tokens
    * @param {Token[]} tokens - Array of tokens
@@ -2864,6 +2948,16 @@ export class TranslationEngine {
     const phaseTime = performance.now() - startTime;
     this.log(DEBUG_LEVELS.DEBUG, `📊 ${phase} phase completed: ${phaseMatches} matches in ${phaseTime.toFixed(1)}ms`);
   }
+
+  // ============================================================================
+  // SECTION 10: POST-PROCESSING
+  // ============================================================================
+  // Purpose: Assemble final translation from token results
+  // Dependencies: Complete token state from all 5 phases
+  // Extraction Potential: NONE - Requires full phase completion
+  // Critical: Capitalization, punctuation, spacing, position tracking
+  // Note: This is where translation text is actually constructed
+  // ============================================================================
 
   /**
    * Post-process tokens and reconstruct final text
@@ -5097,6 +5191,25 @@ export class TranslationEngine {
       throw _error;
     }
   }
+
+  // ============================================================================
+  // SECTION 11: CORE 5-PHASE TRANSLATION PIPELINE
+  // ============================================================================
+  // Purpose: Execute all 5 phases in sequence
+  // Dependencies: ALL PHASES (this is the main pipeline)
+  // Extraction Potential: NONE - Heart of the translation system
+  // Critical: Phase order is IMMUTABLE
+  //
+  // Phase Execution Order (NEVER CHANGE):
+  //   1. Pattern Processing    (applyPatterns)
+  //   2. Proper Noun Processing (createOptimalPhraseGroups)
+  //   3. Number Processing     (processNumbersWasm)
+  //   4. Phrase Processing     (processRemainingPhrases)
+  //   5. Character Processing  (applyDictionaryTranslation)
+  //
+  // Why Sequential: Each phase consumes tokens, preventing double-processing
+  // Why Coupled: Shared token state requires synchronous coordination
+  // ============================================================================
 
   /**
    * OPTIMIZED: Single-pass token processing with priority-based translation
