@@ -145,21 +145,32 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     };
   }, [searchTerm]);
 
-  // Update container height on resize with ResizeObserver for better performance
-  useEffect(() => {
-    if (!tableContainerRef.current) return;
+  // Track ResizeObserver instance for cleanup
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        setContainerHeight(entry.contentRect.height);
-      }
-    });
+  // Callback ref to set up ResizeObserver when scroll element is ready
+  const scrollRefCallback = useCallback((node: HTMLDivElement | null) => {
+    // Cleanup previous observer
+    if (resizeObserverRef.current) {
+      resizeObserverRef.current.disconnect();
+      resizeObserverRef.current = null;
+    }
 
-    resizeObserver.observe(tableContainerRef.current);
+    // Store ref for other code that uses scrollRef.current
+    scrollRef.current = node;
 
-    return () => {
-      resizeObserver.disconnect();
-    };
+    if (node) {
+      // Set up ResizeObserver to measure viewport height
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (let entry of entries) {
+          const height = entry.contentRect.height;
+          setContainerHeight(height);
+        }
+      });
+
+      resizeObserver.observe(node);
+      resizeObserverRef.current = resizeObserver;
+    }
   }, []);
 
   // Optimized filtered entries with early termination for large datasets
@@ -1093,15 +1104,14 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           {/* Enhanced virtualized table container */}
           <div
             ref={tableContainerRef}
-            style={{ flex: 1, overflow: 'hidden', position: 'relative' }}
+            style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}
           >
             {/* Fixed table header */}
             <div style={{
               display: 'flex',
               borderBottom: '1px solid var(--border-color)',
               backgroundColor: 'var(--background-color)',
-              position: 'sticky',
-              top: 0,
+              flexShrink: 0,
               zIndex: 1,
             }}>
           {selectedDictionary === 'patterns' ? (
@@ -1154,15 +1164,14 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
         {/* Scrollable content with enhanced performance */}
         <div
-          ref={scrollRef}
+          ref={scrollRefCallback}
           onScroll={handleScroll}
           style={{
-            height: containerHeight - 100,
+            flex: 1,
+            minHeight: 0,
+            maxHeight: '100%',
             overflow: 'auto',
             position: 'relative',
-            // Performance optimizations
-            containIntrinsicSize: '0 auto',
-            contentVisibility: 'auto',
           }}
         >
           {/* Virtual spacer for total height */}
