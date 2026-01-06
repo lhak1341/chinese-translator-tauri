@@ -73,6 +73,105 @@ const SEARCH_DEBOUNCE_MS = 150; // Debounce search input
 const LARGE_LIST_THRESHOLD = 1000; // When to apply additional optimizations
 
 /**
+ * Helper function to highlight pattern variables (X, Y, Z, etc.) in source text
+ * Each variable gets a different color for clarity
+ */
+const highlightPatternVariables = (text: string): React.ReactNode => {
+  // Pattern variables are single uppercase letters (X, Y, Z, A, B, C, etc.)
+  const parts = text.split(/([A-Z])/);
+
+  // Color palette for different variables
+  const variableColors: Record<string, string> = {
+    'X': '#dc2626', // red-600
+    'Y': '#16a34a', // green-600
+    'Z': '#0891b2', // cyan-600
+    'A': '#ea580c', // orange-600
+    'B': '#7c3aed', // violet-600
+    'C': '#0d9488', // teal-600
+    'D': '#db2777', // pink-600
+    'E': '#2563eb', // blue-600
+  };
+
+  return parts.map((part, index) => {
+    // Check if this is a single uppercase letter
+    if (part.length === 1 && /[A-Z]/.test(part)) {
+      const color = variableColors[part] || '#059669'; // Default to green if not in palette
+      return (
+        <span
+          key={index}
+          style={{
+            color: color,
+            fontWeight: 700,
+          }}
+        >
+          {part}
+        </span>
+      );
+    }
+    return <React.Fragment key={index}>{part}</React.Fragment>;
+  });
+};
+
+/**
+ * Clickable badge component for metadata (Variable, Low Priority)
+ */
+interface BadgeProps {
+  type: 'variable' | 'lowPriority';
+  active: boolean;
+  onClick: () => void;
+}
+
+const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
+  const config = type === 'variable'
+    ? {
+        label: 'VAR',
+        title: active ? 'Click to disallow as variable' : 'Click to allow as variable',
+        activeColor: '#059669',
+        inactiveColor: '#6b7280',
+      }
+    : {
+        label: 'LP',
+        title: active ? 'Click to remove low priority' : 'Click to set low priority',
+        activeColor: '#dc2626',
+        inactiveColor: '#6b7280',
+      };
+
+  return (
+    <span
+      onClick={(e) => {
+        e.stopPropagation(); // Prevent triggering translation edit
+        onClick();
+      }}
+      title={config.title}
+      style={{
+        display: 'inline-block',
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        padding: '2px 6px',
+        borderRadius: '3px',
+        fontSize: '0.65rem',
+        fontWeight: 600,
+        userSelect: 'none',
+        background: active ? config.activeColor : 'transparent',
+        color: active ? 'white' : config.inactiveColor,
+        border: active ? 'none' : `1px solid ${config.inactiveColor}`,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'scale(1.05)';
+        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'scale(1)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      {active && (type === 'variable' ? '✓ ' : '⬇ ')}
+      {config.label}
+    </span>
+  );
+};
+
+/**
  * Enhanced Virtualized Dictionary Table
  * Optimized for handling 10,000+ dictionary entries with smooth performance
  *
@@ -570,9 +669,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               />
             </div>
 
-            {/* Source Text - calc(40% - 20px) */}
+            {/* Source Text - calc(35% - 20px) with variable highlighting */}
             <div style={{
-              width: 'calc(40% - 20px)',
+              width: 'calc(35% - 20px)',
               padding: '0.25rem 0.75rem',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -609,18 +708,19 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   }}
                   title="Click to edit"
                 >
-                  {source}
+                  {highlightPatternVariables(source)}
                 </span>
               )}
             </div>
 
-            {/* Translation - calc(40% - 20px) */}
+            {/* Translation - calc(65% - 20px) with metadata badges */}
             <div style={{
-              width: 'calc(40% - 20px)',
+              width: 'calc(65% - 20px)',
               padding: '0.25rem 0.75rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              overflow: 'hidden'
             }}>
               {editingTranslation ? (
                 <input
@@ -631,7 +731,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   onKeyDown={(e) => handleKeyDown(e, 'translation')}
                   autoFocus
                   style={{
-                    width: '100%',
+                    flex: 1,
                     border: '1px solid var(--accent-color)',
                     borderRadius: '2px',
                     padding: '2px 4px',
@@ -642,60 +742,40 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   }}
                 />
               ) : (
-                <span
-                  onClick={() => setEditingTranslation(true)}
-                  style={{
-                    cursor: 'pointer',
-                    display: 'block',
-                    width: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}
-                  title="Click to edit"
-                >
-                  {translationText}
-                </span>
+                <>
+                  <span
+                    onClick={() => setEditingTranslation(true)}
+                    style={{
+                      cursor: 'pointer',
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Click to edit"
+                  >
+                    {highlightPatternVariables(translationText)}
+                  </span>
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <MetadataBadge
+                      type="variable"
+                      active={allowAsPatternVariable}
+                      onClick={() => handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)}
+                    />
+                    <MetadataBadge
+                      type="lowPriority"
+                      active={lowPriority}
+                      onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
+                    />
+                  </div>
+                </>
               )}
-            </div>
-
-            {/* Variable Checkbox - 10% */}
-            <div style={{
-              width: '10%',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={allowAsPatternVariable}
-                onChange={(e) => handleCheckboxChange('allowAsPatternVariable', e.target.checked)}
-                style={{ cursor: 'pointer' }}
-                title="Allow as pattern variable"
-              />
-            </div>
-
-            {/* Low Priority Checkbox - 10% */}
-            <div style={{
-              width: '10%',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={lowPriority}
-                onChange={(e) => handleCheckboxChange('lowPriority', e.target.checked)}
-                style={{ cursor: 'pointer' }}
-                title="Low priority"
-              />
             </div>
           </div>
         );
       }
 
-      // 4-column layout for phrases (with selection + Variable checkbox)
+      // 3-column layout for phrases (with selection + Variable badge)
       if (selectedDictionary === 'phrases') {
         return (
           <div
@@ -727,9 +807,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               />
             </div>
 
-            {/* Source Text - calc(45% - 20px) */}
+            {/* Source Text - calc(35% - 20px) */}
             <div style={{
-              width: 'calc(45% - 20px)',
+              width: 'calc(35% - 20px)',
               padding: '0.25rem 0.75rem',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -771,13 +851,14 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               )}
             </div>
 
-            {/* Translation - calc(45% - 20px) */}
+            {/* Translation - calc(65% - 20px) with metadata badge */}
             <div style={{
-              width: 'calc(45% - 20px)',
+              width: 'calc(65% - 20px)',
               padding: '0.25rem 0.75rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              overflow: 'hidden'
             }}>
               {editingTranslation ? (
                 <input
@@ -788,7 +869,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   onKeyDown={(e) => handleKeyDown(e, 'translation')}
                   autoFocus
                   style={{
-                    width: '100%',
+                    flex: 1,
                     border: '1px solid var(--accent-color)',
                     borderRadius: '2px',
                     padding: '2px 4px',
@@ -799,37 +880,29 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   }}
                 />
               ) : (
-                <span
-                  onClick={() => setEditingTranslation(true)}
-                  style={{
-                    cursor: 'pointer',
-                    display: 'block',
-                    width: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}
-                  title="Click to edit"
-                >
-                  {translationText}
-                </span>
+                <>
+                  <span
+                    onClick={() => setEditingTranslation(true)}
+                    style={{
+                      cursor: 'pointer',
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="Click to edit"
+                  >
+                    {highlightPatternVariables(translationText)}
+                  </span>
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <MetadataBadge
+                      type="variable"
+                      active={allowAsPatternVariable}
+                      onClick={() => handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)}
+                    />
+                  </div>
+                </>
               )}
-            </div>
-
-            {/* Variable Checkbox - 10% */}
-            <div style={{
-              width: '10%',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={allowAsPatternVariable}
-                onChange={(e) => handleCheckboxChange('allowAsPatternVariable', e.target.checked)}
-                style={{ cursor: 'pointer' }}
-                title="Allow as pattern variable"
-              />
             </div>
           </div>
         );
@@ -866,9 +939,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             />
           </div>
 
-          {/* Source Text - calc(50% - 20px) */}
+          {/* Source Text - calc(35% - 20px) */}
           <div style={{
-            width: 'calc(50% - 20px)',
+            width: 'calc(35% - 20px)',
             padding: '0.25rem 0.75rem',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -910,9 +983,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             )}
           </div>
 
-          {/* Translation - calc(50% - 20px) */}
+          {/* Translation - calc(65% - 20px) */}
           <div style={{
-            width: 'calc(50% - 20px)',
+            width: 'calc(65% - 20px)',
             padding: '0.25rem 0.75rem',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -1125,10 +1198,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   title="Select all"
                 />
               </div>
-              <div style={{ width: 'calc(40% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
-              <div style={{ width: 'calc(40% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Translation</div>
-              <div style={{ width: '10%', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>Variable</div>
-              <div style={{ width: '10%', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>Low</div>
+              <div style={{ width: 'calc(35% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }} title="Pattern with highlighted variables">
+                Source Text
+              </div>
+              <div style={{ width: 'calc(65% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }} title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)">
+                Translation
+              </div>
             </>
           ) : selectedDictionary === 'phrases' ? (
             <>
@@ -1141,9 +1216,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   title="Select all"
                 />
               </div>
-              <div style={{ width: 'calc(45% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
-              <div style={{ width: 'calc(45% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Translation</div>
-              <div style={{ width: '10%', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>Variable</div>
+              <div style={{ width: 'calc(35% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
+              <div style={{ width: 'calc(65% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }} title="Translation with metadata badge (VAR = Allow as variable)">
+                Translation
+              </div>
             </>
           ) : (
             <>
@@ -1156,8 +1232,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   title="Select all"
                 />
               </div>
-              <div style={{ width: 'calc(50% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
-              <div style={{ width: 'calc(50% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Translation</div>
+              <div style={{ width: 'calc(35% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
+              <div style={{ width: 'calc(65% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Translation</div>
             </>
           )}
         </div>
