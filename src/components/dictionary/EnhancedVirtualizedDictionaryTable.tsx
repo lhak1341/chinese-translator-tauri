@@ -892,7 +892,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     }}
                     title="Click to edit"
                   >
-                    {highlightPatternVariables(translationText)}
+                    {translationText}
                   </span>
                   <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                     <MetadataBadge
