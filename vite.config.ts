@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
 
 // Plugin to remove crossorigin attribute for Tauri compatibility
 function removeCrossOriginPlugin() {
@@ -14,7 +16,7 @@ function removeCrossOriginPlugin() {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), removeCrossOriginPlugin()],
+  plugins: [wasm(), topLevelAwait(), react(), removeCrossOriginPlugin()],
 
   // Use relative paths for Tauri production builds
   base: './',
@@ -24,11 +26,6 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
-  },
-
-  // Optimize dependencies configuration
-  optimizeDeps: {
-    exclude: ['translation_wasm.js', 'translation_wasm_core.js'],
   },
 
   // Define process.env.NODE_ENV for compatibility with existing code
@@ -58,10 +55,6 @@ export default defineConfig({
     sourcemap: true,
     // Disable crossorigin attribute for Tauri compatibility
     cssCodeSplit: true,
-    // Ensure CommonJS is allowed for WASM glue code
-    commonjsOptions: {
-      include: [/node_modules/, /src\/wasm/],
-    },
     // Disable manual chunk splitting to avoid circular dependency issues
     rollupOptions: {
       output: {
