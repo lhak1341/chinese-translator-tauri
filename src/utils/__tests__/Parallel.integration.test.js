@@ -40,7 +40,7 @@ describe('Parallel Processing Integration', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('End-to-End Parallel Pipeline', () => {
@@ -196,7 +196,7 @@ describe('Parallel Processing Integration', () => {
     test('should respect device memory limits in parallel processing', () => {
       // Test low memory device scenario
       const originalCalculateMax = engine.calculateMaxTokensForDevice;
-      engine.calculateMaxTokensForDevice = jest.fn(() => 5000); // Low memory device
+      engine.calculateMaxTokensForDevice = vi.fn(() => 5000); // Low memory device
 
       engine.initializeParallelProcessing();
 
@@ -205,7 +205,7 @@ describe('Parallel Processing Integration', () => {
       expect(engine.parallelConfig.maxParallelChunks).toBe(1);
 
       // Test high memory device scenario
-      engine.calculateMaxTokensForDevice = jest.fn(() => 50000); // High memory device
+      engine.calculateMaxTokensForDevice = vi.fn(() => 50000); // High memory device
 
       engine.initializeParallelProcessing();
 

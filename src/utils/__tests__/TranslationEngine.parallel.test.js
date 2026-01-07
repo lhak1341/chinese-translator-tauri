@@ -43,7 +43,7 @@ describe('TranslationEngine Parallel Processing', () => {
     test('should disable parallel processing for low memory devices', () => {
       // Mock low memory device
       const originalCalculateMax = engine.calculateMaxTokensForDevice;
-      engine.calculateMaxTokensForDevice = jest.fn(() => 10000); // Low memory device
+      engine.calculateMaxTokensForDevice = vi.fn(() => 10000); // Low memory device
 
       engine.initializeParallelProcessing();
 
@@ -277,7 +277,7 @@ describe('TranslationEngine Parallel Processing', () => {
     test('should respect device memory limits', () => {
       // Mock low memory device
       const originalCalculateMax = engine.calculateMaxTokensForDevice;
-      engine.calculateMaxTokensForDevice = jest.fn(() => 5000); // Very low memory
+      engine.calculateMaxTokensForDevice = vi.fn(() => 5000); // Very low memory
 
       engine.initializeParallelProcessing();
 

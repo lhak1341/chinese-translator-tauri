@@ -9,7 +9,7 @@
  * - Complex text scenarios (mixed content, special characters)
  */
 
-import { describe, test, expect, beforeEach, afterEach, jest } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
 import { EnhancedDictionaryManager } from '../EnhancedDictionaryManager.js';
 // import { WasmDictionaryManager } from '../WasmDictionaryManager.js';
 
@@ -39,7 +39,7 @@ describe('WASM Edge Case Hardening Tests', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Unicode and Encoding Edge Cases', () => {

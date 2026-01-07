@@ -40,13 +40,13 @@ describe('Hierarchical Pattern Implementation', () => {
   ].map((token, index) => ({ ...token, originalIndex: index }));
 
   const mockDictionaryManager = {
-    translate: jest.fn((text, _dictionaries) => {
+    translate: vi.fn((text, _dictionaries) => {
       const translations = {
         部长: { translation: 'bộ trưởng', dictionary: 'properNouns' },
       };
       return translations[text] || null;
     }),
-    findAllMatches: jest.fn(() => []),
+    findAllMatches: vi.fn(() => []),
   };
 
   describe('PatternAnalyzer', () => {
@@ -421,8 +421,8 @@ describe('Hierarchical Pattern Implementation', () => {
       };
 
       // Replace import with mock
-      jest.doMock('../SemanticPatternProcessor.js', () => ({
-        default: jest.fn(() => mockSemanticPatternProcessor),
+      vi.doMock('../SemanticPatternProcessor.js', () => ({
+        default: vi.fn(() => mockSemanticPatternProcessor),
       }));
 
       const results = await processor.processTokens(mockTokens, options);
@@ -474,8 +474,8 @@ describe('Hierarchical Pattern Implementation', () => {
         processPatterns: vi.fn().mockRejectedValue(new Error('Test error')),
       };
 
-      jest.doMock('../SemanticPatternProcessor.js', () => ({
-        default: jest.fn(() => mockSemanticPatternProcessor),
+      vi.doMock('../SemanticPatternProcessor.js', () => ({
+        default: vi.fn(() => mockSemanticPatternProcessor),
       }));
 
       const options = {

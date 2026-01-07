@@ -3,14 +3,13 @@
  * Tests the core functionality of the WASM dictionary engine
  */
 
-import { jest } from 'vitest';
 import { WasmDictionaryManager } from '../WasmDictionaryManager.js';
 
 // Mock fallback manager for testing
 const mockFallbackManager = {
-  loadDictionary: jest.fn(() => Promise.resolve(true)),
-  findMatches: jest.fn(() => []),
-  findLongestMatch: jest.fn(() => null),
+  loadDictionary: vi.fn(() => Promise.resolve(true)),
+  findMatches: vi.fn(() => []),
+  findLongestMatch: vi.fn(() => null),
 };
 
 describe('WASM Basic Integration', () => {
@@ -18,7 +17,7 @@ describe('WASM Basic Integration', () => {
 
   beforeEach(async () => {
     wasmManager = new WasmDictionaryManager();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Initialization', () => {

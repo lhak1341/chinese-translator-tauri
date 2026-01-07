@@ -88,7 +88,7 @@ describe('DictionaryManager Parallel Processing', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Thread Safety', () => {
@@ -151,7 +151,7 @@ describe('DictionaryManager Parallel Processing', () => {
 
       // Mock one dictionary to fail
       const originalGet = manager.dictionaries.get;
-      manager.dictionaries.get = jest.fn((name) => {
+      manager.dictionaries.get = vi.fn((name) => {
         if (name === 'phrases') {
           throw new Error('Simulated dictionary failure');
         }
@@ -196,7 +196,7 @@ describe('DictionaryManager Parallel Processing', () => {
 
       // Mock Promise.all to fail
       const originalPromiseAll = Promise.all;
-      Promise.all = jest.fn(() => Promise.reject(new Error('Parallel processing failed')));
+      Promise.all = vi.fn(() => Promise.reject(new Error('Parallel processing failed')));
 
       const fallbackSpy = vi.spyOn(manager, 'findAllMatchesSequential');
 
@@ -264,7 +264,7 @@ describe('DictionaryManager Parallel Processing', () => {
       // Mock single dictionary scenario
       manager.dictionaryParallelThreshold = 2;
       const originalGetDefaultSearchOrder = manager.getDefaultSearchOrder;
-      manager.getDefaultSearchOrder = jest.fn(() => ['phrases']); // Only one dictionary
+      manager.getDefaultSearchOrder = vi.fn(() => ['phrases']); // Only one dictionary
 
       const parallelSpy = vi.spyOn(manager, 'findAllMatchesParallel');
       const sequentialSpy = vi.spyOn(manager, 'findAllMatchesSequential');

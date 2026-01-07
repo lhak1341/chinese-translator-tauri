@@ -70,7 +70,7 @@ describe('WASM Dictionary Reload Integration Tests', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Manual Reload System (Cmd/Ctrl-R)', () => {
