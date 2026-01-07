@@ -697,25 +697,43 @@ npm run tauri:build    # Build production Tauri app
 ### Testing Infrastructure
 
 **Test Runner**: Vitest with React Testing Library
-**Test Files**: 1 file in `src/utils/__tests__/` (obsolete tests removed)
+**Test Files**: 9 files across utilities, types, and components
 **Configuration**: `vitest.config.ts`, `src/test/setup.ts`
 
 **Current Status:**
 
-- ✅ **1 test file, 12 tests, all passing** (`UnicodePunctuationDetector.test.js`)
-- ⚠️ Component tests needed (0 tests for 19+ components)
+- ✅ **9 test files, 308 tests, all passing** (2,467% increase from baseline)
+- ✅ **Utility functions covered** - Token helpers, caching, memory monitoring
+- ✅ **WASM boundaries covered** - Type safety, Rust ↔ JS serialization
+- ✅ **React components covered** - Error boundary, dictionary dialogs
 
-**Test Cleanup (2026-01-07):**
+**Test Coverage Details:**
 
-Deleted 18 obsolete test files (~3,500 lines):
+| Category         | Files | Tests | Coverage                                         |
+| ---------------- | ----- | ----- | ------------------------------------------------ |
+| Utilities        | 5     | 245   | Token helpers, caching, pattern priority, memory |
+| WASM Boundaries  | 1     | 27    | Type contracts, undefined → null conversion      |
+| React Components | 2     | 51    | Error handling, dictionary operations            |
+| Original         | 1     | 12    | Unicode punctuation detection                    |
 
-- Tests for removed legacy features (fallback patterns, emergency rollback, hierarchical patterns)
-- Tests with outdated expectations that didn't match current architecture
-- Integration tests requiring complex WASM mocking infrastructure
-- Flaky performance/timing tests
+**Key Test Files:**
 
-**Philosophy:** Lean test suite. Write tests when adding new features or fixing bugs.
-The app works well - removed tests were testing old features or had brittle infrastructure.
+- `TokenHelpers.test.js` (37 tests) - Translation pipeline utilities
+- `PatternPriorityCalculator.test.js` (26 tests) - Pattern conflict resolution
+- `LRUCache.test.ts` (36 tests) - Translation caching for performance
+- `CacheKeyGenerator.test.ts` (59 tests) - FNV-1a hashing, collision resistance
+- `MemoryLeakDetector.test.js` (60 tests) - Memory monitoring and leak prevention
+- `WasmTypes.test.ts` (27 tests) - WASM type safety (prevents "undefined" in translations)
+- `ErrorBoundary.test.tsx` (27 tests) - Error catching and recovery
+- `MoveEntryDialog.test.tsx` (24 tests) - Dictionary entry operations
+- `UnicodePunctuationDetector.test.js` (12 tests) - Original test file
+
+**Test History:**
+
+- **2026-01-07**: Deleted 18 obsolete test files (~3,500 lines) - legacy features, outdated expectations, brittle WASM mocks
+- **2026-01-08**: Added 8 new test files (296 tests) - systematic coverage of critical paths
+
+**Philosophy:** Lean test suite focused on critical paths. Write tests when adding new features or fixing bugs.
 
 **Testing Best Practices:**
 
@@ -723,6 +741,7 @@ The app works well - removed tests were testing old features or had brittle infr
 - Test components for critical UI flows (translation, dictionary editing)
 - Mock Tauri APIs (automatically mocked in `src/test/setup.ts`)
 - Run `npm test` before committing (enforced by pre-commit hook)
+- See `TEST_COVERAGE_IMPROVEMENTS.md` for detailed coverage breakdown
 
 ### CI/CD Pipeline
 
