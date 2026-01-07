@@ -609,14 +609,33 @@ getEngineStats() {
 }
 ```
 
-**Vite asset configuration** (preserve WASM filenames):
+**Vite WASM configuration** (module resolution and asset handling):
 
 ```typescript
 // vite.config.ts
+import path from 'path';
+
 export default defineConfig({
+  // Module resolution for WASM imports
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+
+  // Exclude WASM glue code from dependency optimization
+  optimizeDeps: {
+    exclude: ['translation_wasm.js', 'translation_wasm_core.js'],
+  },
+
   build: {
+    // Allow CommonJS for WASM glue code
+    commonjsOptions: {
+      include: [/node_modules/, /src\/wasm/],
+    },
     rollupOptions: {
       output: {
+        // Preserve WASM file names (no content hashing)
         assetFileNames: (assetInfo) => {
           if (assetInfo.name && assetInfo.name.endsWith('.wasm')) {
             return 'assets/[name][extname]'; // No content hashing
@@ -629,7 +648,11 @@ export default defineConfig({
 });
 ```
 
-**Why**: wasm-pack generates imports with hardcoded filenames. Vite's default content hashing breaks WASM loading in production.
+**Why**:
+
+- wasm-pack generates imports with hardcoded filenames - content hashing breaks WASM loading
+- WASM glue code must be excluded from Vite's dependency pre-bundling to avoid resolution errors
+- CommonJS support needed for wasm-pack generated code compatibility
 
 **Test production builds before releasing:**
 
