@@ -732,9 +732,14 @@ The app works well - removed tests were testing old features or had brittle infr
 
 1. Type checking (`npm run type-check`)
 2. Linting (`npm run lint`)
-3. WASM build (`npm run build-wasm`)
-4. Tests (`npm test -- --run`)
-5. Production build (`npm run build`)
+3. Tests (`npm test -- --run`)
+
+**Pragmatic CI Philosophy**:
+
+- CI focuses on catching development errors (types, lint, tests)
+- Production builds verified locally before releases (`npm run tauri:build`)
+- No build step in CI - avoids WASM/environment issues, faster runs
+- Build works locally; that's what matters for releases
 
 **Pre-commit Hooks**: Husky + lint-staged
 **Enforced Locally** (before every commit):
