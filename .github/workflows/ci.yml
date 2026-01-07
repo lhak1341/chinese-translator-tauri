@@ -38,9 +38,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Build WASM
-        run: npm run build-wasm
-
       - name: Run tests
         run: npm test -- --run
 

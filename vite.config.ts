@@ -1,14 +1,15 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // Plugin to remove crossorigin attribute for Tauri compatibility
 function removeCrossOriginPlugin() {
   return {
     name: 'remove-crossorigin',
     transformIndexHtml(html: string) {
-      return html.replace(/\s*crossorigin\s*/g, ' ')
-    }
-  }
+      return html.replace(/\s*crossorigin\s*/g, ' ');
+    },
+  };
 }
 
 // https://vite.dev/config/
@@ -17,6 +18,18 @@ export default defineConfig({
 
   // Use relative paths for Tauri production builds
   base: './',
+
+  // Resolve configuration for module imports
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+
+  // Optimize dependencies configuration
+  optimizeDeps: {
+    exclude: ['translation_wasm.js', 'translation_wasm_core.js'],
+  },
 
   // Define process.env.NODE_ENV for compatibility with existing code
   define: {
@@ -45,6 +58,10 @@ export default defineConfig({
     sourcemap: true,
     // Disable crossorigin attribute for Tauri compatibility
     cssCodeSplit: true,
+    // Ensure CommonJS is allowed for WASM glue code
+    commonjsOptions: {
+      include: [/node_modules/, /src\/wasm/],
+    },
     // Disable manual chunk splitting to avoid circular dependency issues
     rollupOptions: {
       output: {
@@ -55,9 +72,9 @@ export default defineConfig({
             return 'assets/[name][extname]';
           }
           return 'assets/[name]-[hash][extname]';
-        }
-      }
-    }
+        },
+      },
+    },
   },
 
   // Prevent Vite from obscuring Rust errors
@@ -65,4 +82,4 @@ export default defineConfig({
 
   // Environment prefix for client-side environment variables
   envPrefix: ['VITE_', 'TAURI_'],
-})
+});
