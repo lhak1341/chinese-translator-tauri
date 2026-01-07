@@ -609,30 +609,18 @@ getEngineStats() {
 }
 ```
 
-**Vite WASM configuration** (module resolution and asset handling):
+**Vite WASM configuration** (required plugins and asset handling):
 
 ```typescript
 // vite.config.ts
-import path from 'path';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default defineConfig({
-  // Module resolution for WASM imports
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
-
-  // Exclude WASM glue code from dependency optimization
-  optimizeDeps: {
-    exclude: ['translation_wasm.js', 'translation_wasm_core.js'],
-  },
+  // CRITICAL: WASM plugins must come before React plugin
+  plugins: [wasm(), topLevelAwait(), react(), ...otherPlugins],
 
   build: {
-    // Allow CommonJS for WASM glue code
-    commonjsOptions: {
-      include: [/node_modules/, /src\/wasm/],
-    },
     rollupOptions: {
       output: {
         // Preserve WASM file names (no content hashing)
@@ -648,11 +636,18 @@ export default defineConfig({
 });
 ```
 
+**Required packages**:
+
+```bash
+npm install --save-dev vite-plugin-wasm vite-plugin-top-level-await
+```
+
 **Why**:
 
-- wasm-pack generates imports with hardcoded filenames - content hashing breaks WASM loading
-- WASM glue code must be excluded from Vite's dependency pre-bundling to avoid resolution errors
-- CommonJS support needed for wasm-pack generated code compatibility
+- `vite-plugin-wasm`: Adds WebAssembly ESM integration for wasm-pack generated modules, handles module resolution and dependency optimization
+- `vite-plugin-top-level-await`: Supports top-level await in WASM glue code (wasm-pack requirement)
+- Asset filename preservation: wasm-pack generates imports with hardcoded filenames - content hashing breaks WASM loading
+- Plugin order matters: WASM plugins must process modules before React transformation
 
 **Test production builds before releasing:**
 
