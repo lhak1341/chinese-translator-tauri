@@ -30,6 +30,8 @@ describe('Parallel Processing Integration', () => {
     // Mock successful initialization
     engine.isInitialized = true;
     engine.dictionaryManager.ready = true;
+    engine.activeProperNouns = ['properNouns']; // Initialize required array
+    engine.translationSegments = []; // Initialize segments array
 
     // Mock basic dictionaries for testing
     engine.dictionaryManager.dictionaries = new Map();

@@ -43,6 +43,8 @@ describe('Production Readiness Validation', () => {
     // Mock successful initialization
     engine.isInitialized = true;
     engine.dictionaryManager.ready = true;
+    engine.activeProperNouns = ['properNouns']; // Initialize required array
+    engine.translationSegments = []; // Initialize segments array
   });
 
   describe('Browser Compatibility', () => {
