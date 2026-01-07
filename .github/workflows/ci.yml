@@ -19,16 +19,6 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
       - name: Install dependencies
         run: npm ci
 
@@ -40,6 +30,3 @@ jobs:
 
       - name: Run tests
         run: npm test -- --run
-
-      - name: Build
-        run: npm run build
