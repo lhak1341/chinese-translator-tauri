@@ -15,7 +15,7 @@ npm run tauri:dev  # WASM build (2-3s) → Vite (100-200ms) → Tauri window
 
 **Usage**: Paste Chinese text → Select proper noun dictionary → Translate → Add unknown terms (Cmd/Ctrl-1-5) → Reload (Cmd/Ctrl-R) → Re-translate.
 
-**Code Activity Status**: Check `ACTIVE_CODE_QUICK_REFERENCE.md` and `WASM_RUST_SYSTEMS_MAP.md` before modifying - only 3 WASM systems are active, everything else is JavaScript or dead code.
+**Code Activity Status**: See "WASM Acceleration (Active Systems)" and "Key Files" sections below - 4 WASM systems are active, core engine is JavaScript with targeted WASM acceleration.
 
 ---
 
@@ -415,6 +415,45 @@ class TranslationEngine {
 
 **Archive**: See `docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md` for 5 successful extractions (~680 lines) with zero risk.
 
+### Active vs Dead Code
+
+**How to verify if code is active:**
+```bash
+# Check for actual usage (function calls with parentheses)
+grep "functionName(" src/ -r
+
+# Check for imports
+grep "import.*functionName" src/ -r
+
+# Check execution (add at entry point)
+console.log('🔍 Function called:', { args });  # If logs missing = dead code
+```
+
+**✅ Active Systems:**
+- **Core Engine**: `TranslationEngine.js` (6,541 lines), `Translator.jsx` (2,354 lines)
+- **WASM Acceleration**: 4 systems (number processor, pattern processor, dictionary engine, lookup index)
+- **JavaScript Processors**: Pattern, proper noun, phrase, character processors
+- **Semantic Arrays**: `SemanticArrayBuilder.js`, `OptimizedSemanticArrayBuilder.js`
+- **Performance**: All monitoring, caching, and threshold systems
+- **UI Components**: All dictionary, control, and display components
+
+**❌ Dead Code (Archived):**
+- **Full WASM Translation Engine** (`WasmTranslationAccelerator.js`, 1,951 lines) - Removed 2024
+  - Dictionary lookups returned zero matches across all phases
+  - See: `docs/archive/migrations/WASM_REMOVAL_MIGRATION_GUIDE.md`
+- **JavaScript Pattern Fallback** - Removed Jan 2025
+  - WASM pattern processor achieved 100% parity, fallback no longer needed
+- **Two-phase translation experiments** - Failed 2026
+  - Broke clickable highlighting (63% vs 100% coverage)
+  - See: `docs/archive/refactoring-2026/`
+
+**Quick WASM Status Check:**
+```javascript
+// Browser console in development
+window.translationEngine.dictionaryManager.getWasmStatus()
+// Shows which WASM systems are active and their performance
+```
+
 ### Extraction Criteria
 
 **Can be extracted (pure utilities):**
@@ -551,13 +590,62 @@ open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
 ### Development Commands
 
 ```bash
-npm run type-check  # 0 errors expected for clean builds
-npm test            # Some WASM failures expected (pre-existing)
-npm run lint        # Code style + unused imports
-npm run lint:full   # All warnings including unused variables
-npm run tauri:build # Production compile (verifies types)
-npm run build       # Web assets only
+# Development
+npm run tauri:dev   # Start dev server with WASM hot reload
+npm run dev         # Vite-only dev (without Tauri)
+
+# Testing
+npm test            # Run tests in watch mode (Vitest)
+npm test -- --run   # Run tests once (for CI)
+npm run test:ui     # Visual test UI
+npm run test:coverage # Generate coverage report
+
+# Code Quality
+npm run type-check  # TypeScript type checking (0 errors expected)
+npm run lint        # ESLint (quiet mode, errors only)
+npm run lint:full   # ESLint (all warnings)
+
+# Building
+npm run build-wasm     # Build Rust WASM modules (production)
+npm run build-wasm-dev # Build Rust WASM modules (development)
+npm run build          # Build web assets
+npm run tauri:build    # Build production Tauri app
 ```
+
+### Testing Infrastructure
+
+**Test Runner**: Vitest with React Testing Library
+**Test Files**: 19 files in `src/utils/__tests__/` (~366 test cases)
+**Configuration**: `vitest.config.ts`, `src/test/setup.ts`
+
+**Current Coverage:**
+- ✅ Utility functions well-tested
+- ⚠️ Component tests needed (0 tests for 19+ components)
+- ⚠️ Integration tests exist but need maintenance
+
+**Testing Best Practices:**
+- Write tests for new utilities before implementing
+- Test components for critical UI flows (translation, dictionary editing)
+- Mock Tauri APIs (automatically mocked in `src/test/setup.ts`)
+- Run `npm test` before committing (enforced by pre-commit hook)
+
+### CI/CD Pipeline
+
+**GitHub Actions**: `.github/workflows/ci.yml`
+
+**Automated Checks** (runs on push and PR):
+1. Type checking (`npm run type-check`)
+2. Linting (`npm run lint`)
+3. WASM build (`npm run build-wasm`)
+4. Tests (`npm test -- --run`)
+5. Production build (`npm run build`)
+
+**Pre-commit Hooks**: Husky + lint-staged
+**Enforced Locally** (before every commit):
+- ESLint auto-fix on staged files
+- TypeScript type checking on staged `.ts`/`.tsx` files
+
+**Setup**: Hooks install automatically via `npm install` (runs `prepare` script)
 
 ### Development Debugging Tools
 
