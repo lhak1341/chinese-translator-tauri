@@ -1,0 +1,41 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+build
+.next
+out
+
+# Tauri
+src-tauri/target
+src-tauri/WixTools
+
+# WASM
+src/wasm
+wasm-core/target
+wasm-core/pkg
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+
+# Generated files
+coverage
+.nyc_output
+*.tsbuildinfo
+
+# Lock files (don't format)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Config files that should stay formatted manually
+.github/workflows/*.yml

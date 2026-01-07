@@ -1,4 +1,5 @@
 import unusedImports from 'eslint-plugin-unused-imports';
+import prettierConfig from 'eslint-config-prettier';
 
 export default [
   {
@@ -15,11 +16,11 @@ export default [
 
       // Node modules
       'node_modules/',
-    ]
+    ],
   },
   {
     plugins: {
-      'unused-imports': unusedImports
+      'unused-imports': unusedImports,
     },
     rules: {
       // Warn on unused variables
@@ -33,9 +34,11 @@ export default [
           vars: 'all',
           varsIgnorePattern: '^_',
           args: 'after-used',
-          argsIgnorePattern: '^_'
-        }
-      ]
-    }
-  }
+          argsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  // Prettier config (disables conflicting ESLint rules)
+  prettierConfig,
 ];
