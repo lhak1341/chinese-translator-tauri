@@ -24,7 +24,7 @@ export function usePerformanceMonitoring() {
   const [performanceStats, setPerformanceStats] = useState({
     operations: 0,
     avgTime: 0,
-    cacheHitRate: 0
+    cacheHitRate: 0,
   });
 
   // Regression detection health state
@@ -32,7 +32,7 @@ export function usePerformanceMonitoring() {
     status: 'healthy', // 'healthy', 'warning', 'critical'
     criticalAlerts: 0,
     warningAlerts: 0,
-    baselines: 0
+    baselines: 0,
   });
 
   /**
@@ -49,7 +49,7 @@ export function usePerformanceMonitoring() {
     setPerformanceStats({
       operations: metrics.totalOperations,
       avgTime: metrics.avgTime || 0,
-      cacheHitRate: 0 // Will be updated separately
+      cacheHitRate: 0, // Will be updated separately
     });
   }, []);
 
@@ -59,9 +59,9 @@ export function usePerformanceMonitoring() {
    */
   const updateCacheHitRate = useCallback((translationSegmentCache) => {
     const cacheStats = translationSegmentCache.getStats();
-    setPerformanceStats(prev => ({
+    setPerformanceStats((prev) => ({
       ...prev,
-      cacheHitRate: cacheStats.hitRate
+      cacheHitRate: cacheStats.hitRate,
     }));
   }, []);
 
@@ -74,7 +74,7 @@ export function usePerformanceMonitoring() {
           status: healthReport.status,
           criticalAlerts: healthReport.criticalAlerts,
           warningAlerts: healthReport.warningAlerts,
-          baselines: healthReport.totalBaselines
+          baselines: healthReport.totalBaselines,
         });
       } catch (error) {
         console.warn('Failed to update regression health:', error);
@@ -94,6 +94,6 @@ export function usePerformanceMonitoring() {
     performanceStats,
     regressionHealth,
     updatePerformanceStats,
-    updateCacheHitRate
+    updateCacheHitRate,
   };
 }

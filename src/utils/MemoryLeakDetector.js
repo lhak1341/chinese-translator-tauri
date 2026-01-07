@@ -27,13 +27,13 @@ export class MemoryLeakDetector {
     this.startMemory = this.getCurrentMemory();
     this.trends = {
       shortTerm: [], // Last 10 measurements
-      longTerm: [],  // Last 100 measurements (downsampled)
-      alerts: []     // Memory warnings
+      longTerm: [], // Last 100 measurements (downsampled)
+      alerts: [], // Memory warnings
     };
     this.cleanupThresholds = {
-      warning: 0.75,  // 75% of heap
+      warning: 0.75, // 75% of heap
       critical: 0.85, // 85% of heap
-      emergency: 0.95 // 95% of heap
+      emergency: 0.95, // 95% of heap
     };
     this.onCleanupNeeded = null; // Callback for cleanup requests
   }
@@ -44,7 +44,7 @@ export class MemoryLeakDetector {
         used: performance.memory.usedJSHeapSize,
         total: performance.memory.totalJSHeapSize,
         limit: performance.memory.jsHeapSizeLimit,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
     return null;
@@ -61,7 +61,7 @@ export class MemoryLeakDetector {
       memoryGrowth: memory.used - this.startMemory.used,
       memoryGrowthMB: (memory.used - this.startMemory.used) / (1024 * 1024),
       trend: this.calculateTrend(),
-      timestamp: memory.timestamp
+      timestamp: memory.timestamp,
     };
 
     this.snapshots.push(snapshot);
@@ -96,7 +96,7 @@ export class MemoryLeakDetector {
       timestamp: snapshot.timestamp,
       used: snapshot.memory.used,
       trend: snapshot.trend,
-      operation: snapshot.operation
+      operation: snapshot.operation,
     });
 
     // Keep last 10 for short term
@@ -110,7 +110,7 @@ export class MemoryLeakDetector {
         timestamp: snapshot.timestamp,
         used: snapshot.memory.used,
         trend: snapshot.trend,
-        operation: snapshot.operation
+        operation: snapshot.operation,
       });
 
       if (this.trends.longTerm.length > 100) {
@@ -139,7 +139,7 @@ export class MemoryLeakDetector {
       usage: snapshot.memory.used,
       limit: snapshot.memory.limit,
       ratio: snapshot.memory.used / snapshot.memory.limit,
-      recommendation: 'Consider manual cleanup or reduce batch size'
+      recommendation: 'Consider manual cleanup or reduce batch size',
     };
 
     this.trends.alerts.push(alert);
@@ -151,7 +151,7 @@ export class MemoryLeakDetector {
 
     batchLog.warn(`⚠️ Memory usage at ${(alert.ratio * 100).toFixed(1)}%`, {
       usedMB: (alert.usage / (1024 * 1024)).toFixed(1),
-      limitMB: (alert.limit / (1024 * 1024)).toFixed(1)
+      limitMB: (alert.limit / (1024 * 1024)).toFixed(1),
     });
   }
 
@@ -162,7 +162,7 @@ export class MemoryLeakDetector {
       usage: snapshot.memory.used,
       limit: snapshot.memory.limit,
       ratio: snapshot.memory.used / snapshot.memory.limit,
-      recommendation: 'Automatic cleanup triggered'
+      recommendation: 'Automatic cleanup triggered',
     };
 
     this.trends.alerts.push(alert);
@@ -173,7 +173,7 @@ export class MemoryLeakDetector {
 
     batchLog.error(`🚨 Critical memory usage at ${(alert.ratio * 100).toFixed(1)}%`, {
       usedMB: (alert.usage / (1024 * 1024)).toFixed(1),
-      limitMB: (alert.limit / (1024 * 1024)).toFixed(1)
+      limitMB: (alert.limit / (1024 * 1024)).toFixed(1),
     });
 
     // Trigger automatic cleanup
@@ -187,7 +187,7 @@ export class MemoryLeakDetector {
       usage: snapshot.memory.used,
       limit: snapshot.memory.limit,
       ratio: snapshot.memory.used / snapshot.memory.limit,
-      recommendation: 'Emergency cleanup and GC triggered'
+      recommendation: 'Emergency cleanup and GC triggered',
     };
 
     this.trends.alerts.push(alert);
@@ -198,7 +198,7 @@ export class MemoryLeakDetector {
 
     batchLog.error(`🆘 Emergency memory cleanup at ${(alert.ratio * 100).toFixed(1)}%`, {
       usedMB: (alert.usage / (1024 * 1024)).toFixed(1),
-      limitMB: (alert.limit / (1024 * 1024)).toFixed(1)
+      limitMB: (alert.limit / (1024 * 1024)).toFixed(1),
     });
 
     // Emergency cleanup
@@ -240,7 +240,7 @@ export class MemoryLeakDetector {
       isHighUsage: memoryGrowthMB > 8, // >8MB per batch (semantic arrays for long texts)
       isExcessive: totalGrowthMB > 200, // >200MB total (very long texts or actual leaks)
       currentRatio: currentSnapshot.memory.used / currentSnapshot.memory.limit,
-      trendAnalysis: this.analyzeTrends()
+      trendAnalysis: this.analyzeTrends(),
     };
 
     return analysis;
@@ -251,7 +251,7 @@ export class MemoryLeakDetector {
 
     const shortTerm = this.trends.shortTerm;
     const avgTrend = shortTerm.reduce((sum, t) => sum + t.trend, 0) / shortTerm.length;
-    const recentUsage = shortTerm.map(t => t.used);
+    const recentUsage = shortTerm.map((t) => t.used);
     const minUsage = Math.min(...recentUsage);
     const maxUsage = Math.max(...recentUsage);
 
@@ -260,7 +260,7 @@ export class MemoryLeakDetector {
       memoryVariance: (maxUsage - minUsage) / (1024 * 1024), // MB
       isStable: Math.abs(avgTrend) < 1024 * 1024, // <1MB change
       isIncreasing: avgTrend > 2 * 1024 * 1024, // >2MB increase trend
-      recentAlerts: this.trends.alerts.filter(a => (Date.now() - a.timestamp) < 300000).length // Last 5 minutes
+      recentAlerts: this.trends.alerts.filter((a) => Date.now() - a.timestamp < 300000).length, // Last 5 minutes
     };
   }
 
@@ -273,14 +273,14 @@ export class MemoryLeakDetector {
         usedMB: (current.memory.used / (1024 * 1024)).toFixed(1),
         totalMB: (current.memory.total / (1024 * 1024)).toFixed(1),
         limitMB: (current.memory.limit / (1024 * 1024)).toFixed(1),
-        ratio: (current.memory.used / current.memory.limit * 100).toFixed(1) + '%'
+        ratio: ((current.memory.used / current.memory.limit) * 100).toFixed(1) + '%',
       },
       trends: {
         shortTerm: this.analyzeShortTrend(),
-        longTerm: this.analyzeLongTrend()
+        longTerm: this.analyzeLongTrend(),
       },
       alerts: this.trends.alerts.slice(-5),
-      recommendations: this.generateRecommendations()
+      recommendations: this.generateRecommendations(),
     };
   }
 
@@ -296,7 +296,7 @@ export class MemoryLeakDetector {
     return {
       changeMB: change.toFixed(1),
       timespanMs: timespan,
-      ratePerMinute: ((change / (timespan / 60000)) || 0).toFixed(2)
+      ratePerMinute: (change / (timespan / 60000) || 0).toFixed(2),
     };
   }
 
@@ -312,7 +312,7 @@ export class MemoryLeakDetector {
     return {
       changeMB: change.toFixed(1),
       timespanMs: timespan,
-      ratePerHour: ((change / (timespan / 3600000)) || 0).toFixed(2)
+      ratePerHour: (change / (timespan / 3600000) || 0).toFixed(2),
     };
   }
 
@@ -323,7 +323,9 @@ export class MemoryLeakDetector {
     if (!analysis) return recommendations;
 
     if (analysis.isIncreasing) {
-      recommendations.push('Memory usage is consistently increasing - consider reducing batch sizes');
+      recommendations.push(
+        'Memory usage is consistently increasing - consider reducing batch sizes'
+      );
     }
 
     if (analysis.recentAlerts > 3) {
@@ -346,12 +348,12 @@ export class MemoryLeakDetector {
       memoryGrowthMB: latest.memoryGrowthMB,
       currentUsedMB: latest.memory.used / (1024 * 1024),
       analysis: this.getAnalysis(),
-      snapshots: this.snapshots.map(s => ({
+      snapshots: this.snapshots.map((s) => ({
         operation: s.operation,
         growthMB: s.memoryGrowthMB.toFixed(1),
         usedMB: (s.memory.used / (1024 * 1024)).toFixed(1),
-        timestamp: s.timestamp
-      }))
+        timestamp: s.timestamp,
+      })),
     };
   }
 }

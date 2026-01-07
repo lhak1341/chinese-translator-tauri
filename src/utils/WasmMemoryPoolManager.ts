@@ -196,21 +196,21 @@ export class WasmMemoryPool {
   constructor(options: WasmMemoryPoolOptions = {}) {
     this.options = {
       // Pool sizing
-      initialPoolSize: options.initialPoolSize || 4,     // Start with 4 buffers (reduced to prevent memory growth)
-      maxPoolSize: options.maxPoolSize || 32,            // Maximum 32 buffers
+      initialPoolSize: options.initialPoolSize || 4, // Start with 4 buffers (reduced to prevent memory growth)
+      maxPoolSize: options.maxPoolSize || 32, // Maximum 32 buffers
       bufferSizeBytes: options.bufferSizeBytes || 64 * 1024, // 64KB per buffer
 
       // Growth strategy
-      growthFactor: options.growthFactor || 1.5,         // Grow by 50% when needed
-      shrinkThreshold: options.shrinkThreshold || 0.3,   // Shrink when <30% utilization
+      growthFactor: options.growthFactor || 1.5, // Grow by 50% when needed
+      shrinkThreshold: options.shrinkThreshold || 0.3, // Shrink when <30% utilization
 
       // Memory pressure integration
       enablePressureDetection: options.enablePressureDetection !== false,
       pressureThresholds: options.pressureThresholds || {
-        low: 0.6,      // 60% - normal operation
-        medium: 0.75,  // 75% - reduce pool size
-        high: 0.85,    // 85% - aggressive recycling
-        critical: 0.95 // 95% - emergency cleanup
+        low: 0.6, // 60% - normal operation
+        medium: 0.75, // 75% - reduce pool size
+        high: 0.85, // 85% - aggressive recycling
+        critical: 0.95, // 95% - emergency cleanup
       },
 
       // Performance tracking
@@ -219,24 +219,27 @@ export class WasmMemoryPool {
 
     // Memory pools by size category
     this.pools = {
-      small: {    // 0-16KB operations (dictionary lookups)
+      small: {
+        // 0-16KB operations (dictionary lookups)
         available: [],
         inUse: new Set(),
         bufferSize: 16 * 1024,
-        maxCount: 8  // Reduced from 16 to prevent memory growth
+        maxCount: 8, // Reduced from 16 to prevent memory growth
       },
-      medium: {   // 16-64KB operations (batch processing)
+      medium: {
+        // 16-64KB operations (batch processing)
         available: [],
         inUse: new Set(),
         bufferSize: 64 * 1024,
-        maxCount: 4  // Reduced from 8 to prevent memory growth
+        maxCount: 4, // Reduced from 8 to prevent memory growth
       },
-      large: {    // 64KB+ operations (full text processing)
+      large: {
+        // 64KB+ operations (full text processing)
         available: [],
         inUse: new Set(),
         bufferSize: 256 * 1024,
-        maxCount: 2  // Reduced from 4 to prevent memory growth
-      }
+        maxCount: 2, // Reduced from 4 to prevent memory growth
+      },
     };
 
     // Performance tracking
@@ -249,14 +252,14 @@ export class WasmMemoryPool {
       totalMemoryAllocated: 0,
       peakMemoryUsage: 0,
       averageAllocationTime: 0,
-      recyclingEfficiency: 0
+      recyclingEfficiency: 0,
     };
 
     // Memory pressure integration
     if (this.options.enablePressureDetection) {
       this.memoryPressureDetector = new SmartMemoryPressureDetector({
         samplingInterval: 3000, // 3 seconds for responsive WASM management
-        growthThreshold: 5      // 5MB/minute growth triggers optimization
+        growthThreshold: 5, // 5MB/minute growth triggers optimization
       });
 
       this.memoryPressureDetector.onMemoryEvent('pressure', (event: any) => {
@@ -283,7 +286,9 @@ export class WasmMemoryPool {
         poolConfig.available.push(buffer);
       }
 
-      console.log(`🔧 Initialized ${poolName} pool with ${initialCount} buffers (${poolConfig.bufferSize} bytes each)`);
+      console.log(
+        `🔧 Initialized ${poolName} pool with ${initialCount} buffers (${poolConfig.bufferSize} bytes each)`
+      );
     }
   }
 
@@ -297,7 +302,7 @@ export class WasmMemoryPool {
       created: Date.now(),
       allocations: 0,
       lastUsed: Date.now(),
-      id: Math.random().toString(36).substr(2, 9)
+      id: Math.random().toString(36).substr(2, 9),
     };
 
     // Use WeakMap to associate metadata without affecting buffer performance
@@ -382,9 +387,10 @@ export class WasmMemoryPool {
 
       // Check if pool is getting too large during low memory pressure
       const currentPressure = this.getCurrentMemoryPressure();
-      const shouldRecycle = targetPool.available.length < (targetPool.maxCount / 2) ||
-                          currentPressure.level === 'low' ||
-                          currentPressure.level === 'unknown';
+      const shouldRecycle =
+        targetPool.available.length < targetPool.maxCount / 2 ||
+        currentPressure.level === 'low' ||
+        currentPressure.level === 'unknown';
 
       if (shouldRecycle) {
         // Reset buffer and return to pool
@@ -403,7 +409,9 @@ export class WasmMemoryPool {
     // Performance tracking (lightweight logging)
     if (this.options.enablePerformanceTracking && deallocationTime > 5.0) {
       // Only log slow deallocations (>5ms) to avoid spam
-      console.log(`🧠 Slow WASM memory deallocation: ${deallocationTime.toFixed(2)}ms for ${poolName} pool (${buffer.byteLength} bytes)`);
+      console.log(
+        `🧠 Slow WASM memory deallocation: ${deallocationTime.toFixed(2)}ms for ${poolName} pool (${buffer.byteLength} bytes)`
+      );
     }
   }
 
@@ -514,11 +522,13 @@ export class WasmMemoryPool {
    */
   private updateAllocationStats(allocationTime: number): void {
     this.stats.averageAllocationTime =
-      (this.stats.averageAllocationTime * (this.stats.allocations - 1) + allocationTime) / this.stats.allocations;
+      (this.stats.averageAllocationTime * (this.stats.allocations - 1) + allocationTime) /
+      this.stats.allocations;
 
     // Calculate recycling efficiency
     const totalOperations = this.stats.poolHits + this.stats.poolMisses;
-    this.stats.recyclingEfficiency = totalOperations > 0 ? (this.stats.poolHits / totalOperations) * 100 : 0;
+    this.stats.recyclingEfficiency =
+      totalOperations > 0 ? (this.stats.poolHits / totalOperations) * 100 : 0;
   }
 
   /**
@@ -548,7 +558,9 @@ export class WasmMemoryPool {
           }
         }
 
-        console.log(`🔧 Pool optimization: Reduced ${poolName} pool by ${toRemove} buffers (low utilization: ${(utilizationRatio * 100).toFixed(1)}%)`);
+        console.log(
+          `🔧 Pool optimization: Reduced ${poolName} pool by ${toRemove} buffers (low utilization: ${(utilizationRatio * 100).toFixed(1)}%)`
+        );
       }
     }
   }
@@ -566,7 +578,7 @@ export class WasmMemoryPool {
         bufferSize: pool.bufferSize,
         maxCount: pool.maxCount,
         utilization: (pool.inUse.size / (pool.available.length + pool.inUse.size)) * 100 || 0,
-        memoryUsed: (pool.available.length + pool.inUse.size) * pool.bufferSize
+        memoryUsed: (pool.available.length + pool.inUse.size) * pool.bufferSize,
       };
     }
 
@@ -575,7 +587,7 @@ export class WasmMemoryPool {
       pools: poolStats,
       totalMemoryUsage: this.getCurrentMemoryUsage(),
       memoryPressure: this.getCurrentMemoryPressure(),
-      recommendations: this.generateOptimizationRecommendations()
+      recommendations: this.generateOptimizationRecommendations(),
     };
   }
 
@@ -591,7 +603,7 @@ export class WasmMemoryPool {
       recommendations.push({
         type: 'efficiency',
         message: `Low recycling efficiency (${this.stats.recyclingEfficiency.toFixed(1)}%). Consider increasing pool sizes or optimizing allocation patterns.`,
-        priority: 'medium'
+        priority: 'medium',
       });
     }
 
@@ -600,16 +612,17 @@ export class WasmMemoryPool {
       recommendations.push({
         type: 'memory',
         message: `High memory pressure detected (${(memoryPressure.ratio * 100).toFixed(1)}%). Pool sizes will be automatically reduced.`,
-        priority: 'high'
+        priority: 'high',
       });
     }
 
     // Check allocation performance
-    if (this.stats.averageAllocationTime > 1.0) { // >1ms is slow for memory allocation
+    if (this.stats.averageAllocationTime > 1.0) {
+      // >1ms is slow for memory allocation
       recommendations.push({
         type: 'performance',
         message: `Slow allocation times (${this.stats.averageAllocationTime.toFixed(2)}ms avg). Consider pre-warming pools or increasing buffer sizes.`,
-        priority: 'low'
+        priority: 'low',
       });
     }
 
@@ -683,7 +696,7 @@ export class WasmDictionaryOperationHelper {
       batchOperations: 0,
       singleOperations: 0,
       totalDataTransferred: 0,
-      averageOperationTime: 0
+      averageOperationTime: 0,
     };
   }
 
@@ -708,7 +721,6 @@ export class WasmDictionaryOperationHelper {
       this.operationStats.totalDataTransferred += buffer.byteLength;
 
       return results;
-
     } finally {
       // Always return buffer to pool
       this.memoryPool.returnBuffer(buffer);
@@ -738,7 +750,9 @@ export class WasmDictionaryOperationHelper {
     const encodedData = encoder.encode(serialized);
 
     if (encodedData.length > buffer.byteLength) {
-      throw new Error(`Serialized data (${encodedData.length} bytes) exceeds buffer capacity (${buffer.byteLength} bytes)`);
+      throw new Error(
+        `Serialized data (${encodedData.length} bytes) exceeds buffer capacity (${buffer.byteLength} bytes)`
+      );
     }
 
     const view = new Uint8Array(buffer);
@@ -762,7 +776,7 @@ export class WasmDictionaryOperationHelper {
   getStats(): CombinedStats {
     return {
       ...this.operationStats,
-      memoryPoolStats: this.memoryPool.getStats()
+      memoryPoolStats: this.memoryPool.getStats(),
     };
   }
 }
@@ -770,5 +784,5 @@ export class WasmDictionaryOperationHelper {
 // Export singleton instance
 export const wasmMemoryPoolManager = new WasmMemoryPool({
   enablePerformanceTracking: true,
-  enablePressureDetection: true
+  enablePressureDetection: true,
 });

@@ -8,11 +8,7 @@ import React, { useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
 // Memoized segment component to prevent unnecessary re-renders
-const SegmentComponent = React.memo(({ 
-  segment, 
-  onClick, 
-  isHighlighted 
-}) => {
+const SegmentComponent = React.memo(({ segment, onClick, isHighlighted }) => {
   const handleClick = useCallback(() => {
     if (segment.isClickable) {
       onClick({
@@ -21,7 +17,7 @@ const SegmentComponent = React.memo(({
         translatedText: segment.translatedText,
         source: segment.source,
         metadata: segment.metadata,
-        direction: 'translation-to-original'
+        direction: 'translation-to-original',
       });
     }
   }, [segment, onClick]);
@@ -29,13 +25,13 @@ const SegmentComponent = React.memo(({
   const styles = useMemo(() => {
     const baseStyles = {
       display: 'inline',
-      transition: 'all 0.1s ease-out'
+      transition: 'all 0.1s ease-out',
     };
 
     if (segment.isClickable) {
       baseStyles.cursor = 'pointer';
       baseStyles.borderRadius = '2px';
-      
+
       if (isHighlighted) {
         baseStyles.backgroundColor = 'var(--highlight-bg)';
         baseStyles.color = 'var(--highlight-text)';
@@ -61,7 +57,11 @@ const SegmentComponent = React.memo(({
           e.target.style.backgroundColor = 'transparent';
         }
       }}
-      title={segment.isClickable ? `"${segment.text}" ← translation (${segment.source || 'unknown'})` : undefined}
+      title={
+        segment.isClickable
+          ? `"${segment.text}" ← translation (${segment.source || 'unknown'})`
+          : undefined
+      }
     >
       {segment.text}
     </span>
@@ -79,28 +79,28 @@ SegmentComponent.propTypes = {
     source: PropTypes.string,
     metadata: PropTypes.object,
     key: PropTypes.string,
-    text: PropTypes.string
+    text: PropTypes.string,
   }).isRequired,
   onClick: PropTypes.func.isRequired,
-  isHighlighted: PropTypes.bool.isRequired
+  isHighlighted: PropTypes.bool.isRequired,
 };
 
 /**
  * @param {ClickableTranslationOptimizedProps} props
  */
-const ClickableTranslationOptimized = ({ 
-  translatedText, 
-  semanticArrays, 
+const ClickableTranslationOptimized = ({
+  translatedText,
+  semanticArrays,
   prebuiltSegments = [],
   onSegmentClick,
-  highlightedTranslationUnitIndex = -1
+  highlightedTranslationUnitIndex = -1,
 }) => {
   // Use prebuilt segments for instant clickable highlighting (no computation needed!)
   const precomputedSegments = useMemo(() => {
     if (prebuiltSegments && prebuiltSegments.length > 0) {
       return prebuiltSegments;
     }
-    
+
     // Fallback to empty if no prebuilt segments available
     return [];
   }, [prebuiltSegments]);
@@ -111,7 +111,7 @@ const ClickableTranslationOptimized = ({
       ...segment,
       key: `segment-${index}-${segment.unitIndex || 'na'}`,
       text: segment.translatedText || segment.text,
-      isHighlighted: highlightedTranslationUnitIndex === segment.unitIndex
+      isHighlighted: highlightedTranslationUnitIndex === segment.unitIndex,
     }));
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 
@@ -160,11 +160,14 @@ const ClickableTranslationOptimized = ({
   }, [renderSegments]);
 
   // Memoize click handler to prevent re-renders
-  const handleSegmentClick = useCallback((segmentData) => {
-    if (onSegmentClick) {
-      onSegmentClick(segmentData);
-    }
-  }, [onSegmentClick]);
+  const handleSegmentClick = useCallback(
+    (segmentData) => {
+      if (onSegmentClick) {
+        onSegmentClick(segmentData);
+      }
+    },
+    [onSegmentClick]
+  );
 
   // No loading state needed - segments are prebuilt!
 
@@ -180,10 +183,11 @@ const ClickableTranslationOptimized = ({
         <div
           key={`paragraph-${paragraphIndex}`}
           style={{
-            marginBottom: paragraphIndex < paragraphs.length - 1
-              ? 'var(--full-translation-paragraph-spacing, 1rem)'
-              : '0',
-            whiteSpace: 'pre-wrap'
+            marginBottom:
+              paragraphIndex < paragraphs.length - 1
+                ? 'var(--full-translation-paragraph-spacing, 1rem)'
+                : '0',
+            whiteSpace: 'pre-wrap',
           }}
         >
           {paragraphSegments.map((segment) => (
@@ -205,11 +209,11 @@ ClickableTranslationOptimized.propTypes = {
   semanticArrays: PropTypes.shape({
     original: PropTypes.array,
     translated: PropTypes.array,
-    metadata: PropTypes.array
+    metadata: PropTypes.array,
   }),
   prebuiltSegments: PropTypes.array,
   onSegmentClick: PropTypes.func,
-  highlightedTranslationUnitIndex: PropTypes.number
+  highlightedTranslationUnitIndex: PropTypes.number,
 };
 
 // Memoize the entire component to prevent unnecessary re-renders

@@ -11,12 +11,12 @@ import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 /**
  * @param {ClickableOriginalSemanticProps} props
  */
-const ClickableOriginalSemantic = ({ 
-  originalText, 
-  semanticArrays, 
+const ClickableOriginalSemantic = ({
+  originalText,
+  semanticArrays,
   highlightedUnitIndex = -1,
   highlightedTranslationUnitIndex = -1,
-  onSegmentClick 
+  onSegmentClick,
 }) => {
   // Handle click on a semantic unit in original text
   const handleUnitClick = (unitIndex) => {
@@ -26,16 +26,20 @@ const ClickableOriginalSemantic = ({
       }
       return;
     }
-    
+
     const originalText = semanticArrays.original[unitIndex];
     const translatedText = semanticArrays.translated[unitIndex];
     const metadata = semanticArrays.metadata[unitIndex];
-    
+
     // Debug: Log which component is handling the click
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🎯 ClickableOriginalSemantic (original-to-translation) handling click:`, { unitIndex, originalText, translatedText });
+      console.log(`🎯 ClickableOriginalSemantic (original-to-translation) handling click:`, {
+        unitIndex,
+        originalText,
+        translatedText,
+      });
     }
-    
+
     // Call the callback to highlight the corresponding translation
     if (onSegmentClick) {
       onSegmentClick({
@@ -44,7 +48,7 @@ const ClickableOriginalSemantic = ({
         translatedText,
         source: metadata.source,
         metadata,
-        direction: 'original-to-translation'
+        direction: 'original-to-translation',
       });
     }
   };
@@ -105,8 +109,9 @@ const ClickableOriginalSemantic = ({
   // Render a single segment with highlighting
   const renderSegment = (segment, index) => {
     if (segment.isClickable) {
-      const isHighlighted = highlightedUnitIndex === segment.unitIndex ||
-                           highlightedTranslationUnitIndex === segment.unitIndex;
+      const isHighlighted =
+        highlightedUnitIndex === segment.unitIndex ||
+        highlightedTranslationUnitIndex === segment.unitIndex;
 
       return (
         <span
@@ -120,7 +125,7 @@ const ClickableOriginalSemantic = ({
             backgroundColor: isHighlighted ? 'var(--highlight-bg)' : 'transparent',
             color: isHighlighted ? 'var(--highlight-text)' : 'inherit',
             fontWeight: isHighlighted ? 'bold' : 'normal',
-            display: 'inline'
+            display: 'inline',
           }}
           onMouseEnter={(e) => {
             if (!isHighlighted) {
@@ -140,10 +145,7 @@ const ClickableOriginalSemantic = ({
     } else {
       // Non-clickable text (characters, punctuation, etc.)
       return (
-        <span
-          key={`text-${index}-${segment.start}`}
-          style={{ color: 'var(--muted-text)' }}
-        >
+        <span key={`text-${index}-${segment.start}`} style={{ color: 'var(--muted-text)' }}>
           {segment.text}
         </span>
       );
@@ -165,10 +167,11 @@ const ClickableOriginalSemantic = ({
       <div
         key={`paragraph-${paragraphIndex}`}
         style={{
-          marginBottom: paragraphIndex < paragraphs.length - 1
-            ? 'var(--chinese-text-paragraph-spacing, 1rem)'
-            : '0',
-          whiteSpace: 'pre-wrap'
+          marginBottom:
+            paragraphIndex < paragraphs.length - 1
+              ? 'var(--chinese-text-paragraph-spacing, 1rem)'
+              : '0',
+          whiteSpace: 'pre-wrap',
         }}
       >
         {paragraphSegments.map((segment, segmentIndex) => renderSegment(segment, segmentIndex))}
@@ -176,11 +179,7 @@ const ClickableOriginalSemantic = ({
     ));
   };
 
-  return (
-    <div style={{ lineHeight: '1.6' }}>
-      {renderSegments()}
-    </div>
-  );
+  return <div style={{ lineHeight: '1.6' }}>{renderSegments()}</div>;
 };
 
 ClickableOriginalSemantic.propTypes = {
@@ -188,11 +187,11 @@ ClickableOriginalSemantic.propTypes = {
   semanticArrays: PropTypes.shape({
     original: PropTypes.array,
     translated: PropTypes.array,
-    metadata: PropTypes.array
+    metadata: PropTypes.array,
   }),
   highlightedUnitIndex: PropTypes.number,
   highlightedTranslationUnitIndex: PropTypes.number,
-  onSegmentClick: PropTypes.func
+  onSegmentClick: PropTypes.func,
 };
 
 export default ClickableOriginalSemantic;

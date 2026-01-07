@@ -26,7 +26,7 @@ export class TranslationSegmentCache {
     this.maxCacheAge = options.maxCacheAge || 7 * 24 * 60 * 60 * 1000; // 7 days in ms
     this.cacheKeyPrefix = 'translation-cache-';
     this.metadataKey = 'translation-cache-metadata';
-    
+
     // Performance tracking
     this.stats = {
       hits: 0,
@@ -35,12 +35,12 @@ export class TranslationSegmentCache {
       evictions: 0,
       totalLookups: 0,
       hitRate: 0,
-      averageLookupTime: 0
+      averageLookupTime: 0,
     };
-    
+
     // Initialize or load existing metadata
     this.metadata = this.loadMetadata();
-    
+
     // Periodic cleanup (every 5 minutes when active)
     this.setupPeriodicCleanup();
   }
@@ -51,13 +51,14 @@ export class TranslationSegmentCache {
    */
   generateCacheKey(originalText, dictionaryFingerprint, options = {}) {
     const startTime = performance.now();
-    
+
     // Simple but effective hash for cache key generation
     const hashContent = originalText + '|' + dictionaryFingerprint + '|' + JSON.stringify(options);
     const hash = this.simpleHash(hashContent);
-    
-    this.stats.averageLookupTime = (this.stats.averageLookupTime + (performance.now() - startTime)) / 2;
-    
+
+    this.stats.averageLookupTime =
+      (this.stats.averageLookupTime + (performance.now() - startTime)) / 2;
+
     return `${this.cacheKeyPrefix}${hash}`;
   }
 
@@ -69,7 +70,7 @@ export class TranslationSegmentCache {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32bit integer
     }
     return Math.abs(hash).toString(36);
@@ -87,10 +88,12 @@ export class TranslationSegmentCache {
     try {
       // Get active dictionary names and their metadata
       const activeDictionaries = dictionaryManager.getActiveDictionaryNames?.() || [];
-      const dictionaryVersions = activeDictionaries.map(name => {
-        const dict = dictionaryManager.getDictionary?.(name);
-        return `${name}:${dict?.version || dict?.size || 0}`;
-      }).join(',');
+      const dictionaryVersions = activeDictionaries
+        .map((name) => {
+          const dict = dictionaryManager.getDictionary?.(name);
+          return `${name}:${dict?.version || dict?.size || 0}`;
+        })
+        .join(',');
 
       return this.simpleHash(dictionaryVersions);
     } catch (error) {
@@ -141,15 +144,17 @@ export class TranslationSegmentCache {
       if (process.env.NODE_ENV === 'development') {
         // Use batched logging to reduce console overhead for frequent cache hits
         import('./BatchLogger.js').then(({ batchLog }) => {
-          batchLog.hotVerbose('cache-hits', `Cache HIT: ${originalText.substring(0, 30)}... (${(performance.now() - startTime).toFixed(1)}ms)`);
+          batchLog.hotVerbose(
+            'cache-hits',
+            `Cache HIT: ${originalText.substring(0, 30)}... (${(performance.now() - startTime).toFixed(1)}ms)`
+          );
         });
       }
 
       return {
         translatedText: cachedData.translatedText,
-        semanticArrays: cachedData.semanticArrays
+        semanticArrays: cachedData.semanticArrays,
       };
-
     } catch (error) {
       console.warn('Cache get error:', error);
       this.stats.misses++;
@@ -168,17 +173,17 @@ export class TranslationSegmentCache {
     const now = Date.now();
 
     const cacheEntry = {
-      originalText: originalText.length > 100 ? originalText.substring(0, 100) + '...' : originalText, // Store partial for debugging
+      originalText:
+        originalText.length > 100 ? originalText.substring(0, 100) + '...' : originalText, // Store partial for debugging
       translatedText,
       semanticArrays,
       timestamp: now,
       lastAccess: now,
       hitCount: 0,
-      dictFingerprint: dictionaryFingerprint
+      dictFingerprint: dictionaryFingerprint,
     };
 
     try {
-
       // Check if we need to evict old entries before storing
       this.ensureCacheSpace();
 
@@ -190,10 +195,12 @@ export class TranslationSegmentCache {
       if (process.env.NODE_ENV === 'development') {
         // Use batched logging to reduce console overhead for frequent cache stores
         import('./BatchLogger.js').then(({ batchLog }) => {
-          batchLog.hotVerbose('cache-stores', `Cache STORE: ${originalText.substring(0, 30)}... (${(performance.now() - startTime).toFixed(1)}ms)`);
+          batchLog.hotVerbose(
+            'cache-stores',
+            `Cache STORE: ${originalText.substring(0, 30)}... (${(performance.now() - startTime).toFixed(1)}ms)`
+          );
         });
       }
-
     } catch (error) {
       // Handle localStorage quota exceeded
       if (error.name === 'QuotaExceededError') {
@@ -219,16 +226,16 @@ export class TranslationSegmentCache {
    */
   ensureCacheSpace() {
     const cacheKeys = this.metadata.keys || [];
-    
+
     if (cacheKeys.length >= this.maxCacheSize) {
       // Sort by last access time (ascending) to find LRU entries
-      const keyStats = cacheKeys.map(key => {
+      const keyStats = cacheKeys.map((key) => {
         try {
           const data = JSON.parse(localStorage.getItem(key) || '{}');
           return {
             key,
             lastAccess: data.lastAccess || 0,
-            hitCount: data.hitCount || 0
+            hitCount: data.hitCount || 0,
           };
         } catch (_error) {
           return { key, lastAccess: 0, hitCount: 0 };
@@ -245,7 +252,7 @@ export class TranslationSegmentCache {
 
       // Remove oldest 20% of entries to make room
       const entriesToRemove = Math.max(1, Math.floor(this.maxCacheSize * 0.2));
-      
+
       for (let i = 0; i < entriesToRemove; i++) {
         if (keyStats[i]) {
           localStorage.removeItem(keyStats[i].key);
@@ -272,10 +279,11 @@ export class TranslationSegmentCache {
     let removedCount = 0;
 
     // Remove all entries older than 1 day
-    cacheKeys.forEach(key => {
+    cacheKeys.forEach((key) => {
       try {
         const data = JSON.parse(localStorage.getItem(key) || '{}');
-        if (now - (data.timestamp || 0) > 24 * 60 * 60 * 1000) { // 1 day
+        if (now - (data.timestamp || 0) > 24 * 60 * 60 * 1000) {
+          // 1 day
           localStorage.removeItem(key);
           this.removeFromMetadata(key);
           removedCount++;
@@ -303,11 +311,11 @@ export class TranslationSegmentCache {
     } catch (error) {
       console.warn('Failed to load cache metadata:', error);
     }
-    
+
     return {
       keys: [],
       created: Date.now(),
-      lastCleanup: Date.now()
+      lastCleanup: Date.now(),
     };
   }
 
@@ -336,7 +344,7 @@ export class TranslationSegmentCache {
    * Remove key from metadata tracking
    */
   removeFromMetadata(key) {
-    this.metadata.keys = this.metadata.keys.filter(k => k !== key);
+    this.metadata.keys = this.metadata.keys.filter((k) => k !== key);
     this.saveMetadata();
   }
 
@@ -344,9 +352,8 @@ export class TranslationSegmentCache {
    * Update hit rate statistics
    */
   updateHitRate() {
-    this.stats.hitRate = this.stats.totalLookups > 0 
-      ? (this.stats.hits / this.stats.totalLookups * 100) 
-      : 0;
+    this.stats.hitRate =
+      this.stats.totalLookups > 0 ? (this.stats.hits / this.stats.totalLookups) * 100 : 0;
   }
 
   /**
@@ -358,7 +365,7 @@ export class TranslationSegmentCache {
       cacheSize: this.metadata.keys.length,
       maxCacheSize: this.maxCacheSize,
       hitRate: Math.round(this.stats.hitRate * 10) / 10, // Round to 1 decimal
-      averageLookupTime: Math.round(this.stats.averageLookupTime * 100) / 100 // Round to 2 decimals
+      averageLookupTime: Math.round(this.stats.averageLookupTime * 100) / 100, // Round to 2 decimals
     };
   }
 
@@ -367,14 +374,14 @@ export class TranslationSegmentCache {
    */
   clear() {
     const keys = this.metadata.keys || [];
-    keys.forEach(key => localStorage.removeItem(key));
-    
+    keys.forEach((key) => localStorage.removeItem(key));
+
     localStorage.removeItem(this.metadataKey);
-    
+
     this.metadata = {
       keys: [],
       created: Date.now(),
-      lastCleanup: Date.now()
+      lastCleanup: Date.now(),
     };
 
     this.stats = {
@@ -384,7 +391,7 @@ export class TranslationSegmentCache {
       evictions: 0,
       totalLookups: 0,
       hitRate: 0,
-      averageLookupTime: 0
+      averageLookupTime: 0,
     };
 
     console.log('🧹 Translation cache cleared');
@@ -395,9 +402,12 @@ export class TranslationSegmentCache {
    */
   setupPeriodicCleanup() {
     // Run cleanup every 5 minutes when active
-    setInterval(() => {
-      this.cleanupExpiredEntries();
-    }, 5 * 60 * 1000);
+    setInterval(
+      () => {
+        this.cleanupExpiredEntries();
+      },
+      5 * 60 * 1000
+    );
   }
 
   /**
@@ -405,7 +415,7 @@ export class TranslationSegmentCache {
    */
   cleanupExpiredEntries() {
     const now = Date.now();
-    
+
     // Skip cleanup if done recently
     if (now - this.metadata.lastCleanup < 5 * 60 * 1000) {
       return;
@@ -414,7 +424,7 @@ export class TranslationSegmentCache {
     const cacheKeys = this.metadata.keys || [];
     let cleanedCount = 0;
 
-    cacheKeys.forEach(key => {
+    cacheKeys.forEach((key) => {
       try {
         const data = localStorage.getItem(key);
         if (data) {
@@ -442,7 +452,10 @@ export class TranslationSegmentCache {
     if (cleanedCount > 0 && process.env.NODE_ENV === 'development') {
       // Use immediate logging for periodic cleanup (infrequent but informative)
       import('./BatchLogger.js').then(({ batchLog }) => {
-        batchLog.immediate('INFO', `Periodic cleanup removed ${cleanedCount} expired cache entries`);
+        batchLog.immediate(
+          'INFO',
+          `Periodic cleanup removed ${cleanedCount} expired cache entries`
+        );
       });
     }
   }
@@ -450,8 +463,8 @@ export class TranslationSegmentCache {
 
 // Export a singleton instance for easy usage
 export const translationSegmentCache = new TranslationSegmentCache({
-  maxCacheSize: 1000,  // Store up to 1000 translation segments
-  maxCacheAge: 7 * 24 * 60 * 60 * 1000  // Keep for 7 days
+  maxCacheSize: 1000, // Store up to 1000 translation segments
+  maxCacheAge: 7 * 24 * 60 * 60 * 1000, // Keep for 7 days
 });
 
 export default TranslationSegmentCache;

@@ -17,18 +17,18 @@ import { LRUCache } from './LRUCache.js';
 export class TranslationCache {
   constructor(options = {}) {
     // Configure cache sizes based on usage patterns
-    this.characterCacheSize = options.characterCacheSize || 500;  // Most frequently used
-    this.phraseCacheSize = options.phraseCacheSize || 1000;      // Moderate frequency
-    this.patternCacheSize = options.patternCacheSize || 200;     // Less frequent but expensive
-    
+    this.characterCacheSize = options.characterCacheSize || 500; // Most frequently used
+    this.phraseCacheSize = options.phraseCacheSize || 1000; // Moderate frequency
+    this.patternCacheSize = options.patternCacheSize || 200; // Less frequent but expensive
+
     // Initialize separate caches for different types
     this.characterCache = new LRUCache(this.characterCacheSize);
     this.phraseCache = new LRUCache(this.phraseCacheSize);
     this.patternCache = new LRUCache(this.patternCacheSize);
-    
+
     // Combined lookup cache for multi-dictionary searches
     this.lookupCache = new LRUCache(options.lookupCacheSize || 800);
-    
+
     this.isEnabled = options.enabled !== false; // Default to enabled
   }
 
@@ -146,21 +146,23 @@ export class TranslationCache {
    */
   invalidateDictionary(dictionaryName) {
     // Character cache invalidation
-    const characterKeys = this.characterCache.keys().filter(key => 
-      key.startsWith(dictionaryName + ':'));
-    characterKeys.forEach(key => this.characterCache.delete(key));
+    const characterKeys = this.characterCache
+      .keys()
+      .filter((key) => key.startsWith(dictionaryName + ':'));
+    characterKeys.forEach((key) => this.characterCache.delete(key));
 
     // Phrase cache invalidation
-    const phraseKeys = this.phraseCache.keys().filter(key => 
-      key.startsWith(dictionaryName + ':'));
-    phraseKeys.forEach(key => this.phraseCache.delete(key));
+    const phraseKeys = this.phraseCache
+      .keys()
+      .filter((key) => key.startsWith(dictionaryName + ':'));
+    phraseKeys.forEach((key) => this.phraseCache.delete(key));
 
     // Lookup cache invalidation (contains dictionary name in comma-separated list)
-    const lookupKeys = this.lookupCache.keys().filter(key => {
+    const lookupKeys = this.lookupCache.keys().filter((key) => {
       const dictPart = key.split(':')[0];
       return dictPart.split(',').includes(dictionaryName);
     });
-    lookupKeys.forEach(key => this.lookupCache.delete(key));
+    lookupKeys.forEach((key) => this.lookupCache.delete(key));
   }
 
   /**
@@ -194,11 +196,13 @@ export class TranslationCache {
     const patternStats = this.patternCache.getStats();
     const lookupStats = this.lookupCache.getStats();
 
-    const totalQueries = characterStats.totalQueries + phraseStats.totalQueries + 
-                        patternStats.totalQueries + lookupStats.totalQueries;
-    const totalHits = characterStats.hits + phraseStats.hits + 
-                     patternStats.hits + lookupStats.hits;
-    const overallHitRate = totalQueries > 0 ? (totalHits / totalQueries * 100).toFixed(1) : 0;
+    const totalQueries =
+      characterStats.totalQueries +
+      phraseStats.totalQueries +
+      patternStats.totalQueries +
+      lookupStats.totalQueries;
+    const totalHits = characterStats.hits + phraseStats.hits + patternStats.hits + lookupStats.hits;
+    const overallHitRate = totalQueries > 0 ? ((totalHits / totalQueries) * 100).toFixed(1) : 0;
 
     return {
       enabled: this.isEnabled,
@@ -206,12 +210,12 @@ export class TranslationCache {
         hitRate: `${overallHitRate}%`,
         totalQueries,
         totalHits,
-        totalMisses: totalQueries - totalHits
+        totalMisses: totalQueries - totalHits,
       },
       character: characterStats,
       phrase: phraseStats,
       pattern: patternStats,
-      lookup: lookupStats
+      lookup: lookupStats,
     };
   }
 
@@ -235,16 +239,106 @@ export class TranslationCache {
 
     // Most common Chinese characters (top 100 by frequency)
     const commonCharacters = [
-      '的', '一', '是', '在', '不', '了', '有', '和', '人', '这',
-      '中', '大', '为', '上', '个', '国', '我', '以', '要', '他',
-      '时', '来', '用', '们', '生', '到', '作', '地', '于', '出',
-      '就', '分', '对', '成', '会', '可', '主', '发', '年', '动',
-      '同', '工', '也', '能', '下', '过', '子', '说', '产', '种',
-      '面', '而', '方', '后', '多', '定', '行', '学', '法', '所',
-      '民', '得', '经', '十', '三', '之', '进', '着', '等', '部',
-      '度', '家', '电', '力', '里', '如', '水', '化', '高', '自',
-      '二', '理', '起', '小', '物', '现', '实', '加', '量', '都',
-      '两', '体', '制', '机', '当', '使', '点', '从', '业', '本'
+      '的',
+      '一',
+      '是',
+      '在',
+      '不',
+      '了',
+      '有',
+      '和',
+      '人',
+      '这',
+      '中',
+      '大',
+      '为',
+      '上',
+      '个',
+      '国',
+      '我',
+      '以',
+      '要',
+      '他',
+      '时',
+      '来',
+      '用',
+      '们',
+      '生',
+      '到',
+      '作',
+      '地',
+      '于',
+      '出',
+      '就',
+      '分',
+      '对',
+      '成',
+      '会',
+      '可',
+      '主',
+      '发',
+      '年',
+      '动',
+      '同',
+      '工',
+      '也',
+      '能',
+      '下',
+      '过',
+      '子',
+      '说',
+      '产',
+      '种',
+      '面',
+      '而',
+      '方',
+      '后',
+      '多',
+      '定',
+      '行',
+      '学',
+      '法',
+      '所',
+      '民',
+      '得',
+      '经',
+      '十',
+      '三',
+      '之',
+      '进',
+      '着',
+      '等',
+      '部',
+      '度',
+      '家',
+      '电',
+      '力',
+      '里',
+      '如',
+      '水',
+      '化',
+      '高',
+      '自',
+      '二',
+      '理',
+      '起',
+      '小',
+      '物',
+      '现',
+      '实',
+      '加',
+      '量',
+      '都',
+      '两',
+      '体',
+      '制',
+      '机',
+      '当',
+      '使',
+      '点',
+      '从',
+      '业',
+      '本',
     ];
 
     // Pre-warm character cache
@@ -258,12 +352,54 @@ export class TranslationCache {
 
     // Common Chinese phrases (frequently used in translation)
     const commonPhrases = [
-      '中国', '发展', '社会', '经济', '问题', '建设', '政府', '人民',
-      '企业', '市场', '科技', '教育', '文化', '环境', '服务', '管理',
-      '系统', '技术', '产业', '网络', '信息', '数据', '研究', '创新',
-      '改革', '开放', '合作', '交流', '活动', '项目', '计划', '措施',
-      '政策', '法律', '标准', '质量', '效果', '影响', '变化', '发生',
-      '完成', '实现', '提高', '增加', '减少', '保护', '维护', '促进'
+      '中国',
+      '发展',
+      '社会',
+      '经济',
+      '问题',
+      '建设',
+      '政府',
+      '人民',
+      '企业',
+      '市场',
+      '科技',
+      '教育',
+      '文化',
+      '环境',
+      '服务',
+      '管理',
+      '系统',
+      '技术',
+      '产业',
+      '网络',
+      '信息',
+      '数据',
+      '研究',
+      '创新',
+      '改革',
+      '开放',
+      '合作',
+      '交流',
+      '活动',
+      '项目',
+      '计划',
+      '措施',
+      '政策',
+      '法律',
+      '标准',
+      '质量',
+      '效果',
+      '影响',
+      '变化',
+      '发生',
+      '完成',
+      '实现',
+      '提高',
+      '增加',
+      '减少',
+      '保护',
+      '维护',
+      '促进',
     ];
 
     // Pre-warm phrase cache
@@ -276,22 +412,26 @@ export class TranslationCache {
     }
 
     // Novel-specific pre-warming based on active proper noun dictionaries
-    if (options.novelSpecific && options.activeProperNouns && options.activeProperNouns.length > 0) {
+    if (
+      options.novelSpecific &&
+      options.activeProperNouns &&
+      options.activeProperNouns.length > 0
+    ) {
       properNounsWarmed = await this.preWarmNovelSpecificVocabulary(
-        dictionaryManager, 
+        dictionaryManager,
         options.activeProperNouns
       );
     }
 
     const preWarmTime = performance.now() - startTime;
-    
+
     return {
       charactersWarmed,
       phrasesWarmed,
       properNounsWarmed,
       timeMs: Math.round(preWarmTime * 100) / 100,
       success: true,
-      novelSpecific: options.novelSpecific || false
+      novelSpecific: options.novelSpecific || false,
     };
   }
 
@@ -303,16 +443,16 @@ export class TranslationCache {
    */
   async preWarmNovelSpecificVocabulary(dictionaryManager, activeProperNouns) {
     let properNounsWarmed = 0;
-    
+
     for (const dictionaryName of activeProperNouns) {
       try {
         // Get the dictionary trie for this proper noun dictionary
         const dictionary = dictionaryManager.getDictionary(dictionaryName);
         if (!dictionary) continue;
-        
+
         // Extract high-frequency vocabulary from the dictionary
         const vocabularyEntries = this.extractHighFrequencyVocabulary(dictionary, dictionaryName);
-        
+
         // Pre-warm cache with proper noun translations
         for (const entry of vocabularyEntries) {
           const result = dictionaryManager.translate(entry.word, [dictionaryName]);
@@ -321,7 +461,7 @@ export class TranslationCache {
             properNounsWarmed++;
           }
         }
-        
+
         // Pre-warm common character combinations that appear with proper nouns
         const characterCombos = this.generateCharacterCombinations(vocabularyEntries);
         for (const combo of characterCombos) {
@@ -331,12 +471,11 @@ export class TranslationCache {
             properNounsWarmed++;
           }
         }
-        
       } catch (error) {
         console.warn(`Failed to pre-warm vocabulary from ${dictionaryName}:`, error.message);
       }
     }
-    
+
     return properNounsWarmed;
   }
 
@@ -349,23 +488,23 @@ export class TranslationCache {
   extractHighFrequencyVocabulary(dictionary, dictionaryName) {
     const entries = [];
     const maxEntries = 50; // Limit to top 50 entries per dictionary
-    
+
     // Traverse the trie to collect all entries
     const collectEntries = (node, currentWord = '') => {
       if (entries.length >= maxEntries) return;
-      
+
       if (node.isEndOfWord && node.translation) {
         // Prioritize shorter proper nouns (characters, names) over longer phrases
         const priority = currentWord.length <= 3 ? 1 : currentWord.length <= 5 ? 2 : 3;
-        
+
         entries.push({
           word: currentWord,
           translation: node.translation,
           priority: priority,
-          dictionary: dictionaryName
+          dictionary: dictionaryName,
         });
       }
-      
+
       // Continue traversing children
       for (const [char, childNode] of node.children.entries()) {
         if (entries.length < maxEntries) {
@@ -373,9 +512,9 @@ export class TranslationCache {
         }
       }
     };
-    
+
     collectEntries(dictionary.root);
-    
+
     // Sort by priority (shorter entries first) and limit results
     return entries
       .sort((a, b) => a.priority - b.priority || a.word.localeCompare(b.word))
@@ -389,28 +528,30 @@ export class TranslationCache {
    */
   generateCharacterCombinations(vocabularyEntries) {
     const combinations = new Set();
-    
+
     // Extract individual characters from proper nouns for combination generation
     const characters = new Set();
-    vocabularyEntries.forEach(entry => {
-      if (entry.word.length <= 3) { // Focus on shorter proper nouns
-        Array.from(entry.word).forEach(char => characters.add(char));
+    vocabularyEntries.forEach((entry) => {
+      if (entry.word.length <= 3) {
+        // Focus on shorter proper nouns
+        Array.from(entry.word).forEach((char) => characters.add(char));
       }
     });
-    
+
     // Generate combinations with common function words used with proper nouns
     const functionWords = ['的', '了', '在', '说', '看', '到', '从', '对', '和', '与'];
     const charArray = Array.from(characters).slice(0, 20); // Limit characters used
-    
+
     for (const char of charArray) {
-      for (const functionWord of functionWords.slice(0, 5)) { // Top 5 function words
+      for (const functionWord of functionWords.slice(0, 5)) {
+        // Top 5 function words
         combinations.add(char + functionWord);
         combinations.add(functionWord + char);
         if (combinations.size >= 30) break; // Limit total combinations
       }
       if (combinations.size >= 30) break;
     }
-    
+
     return Array.from(combinations);
   }
 
@@ -424,10 +565,16 @@ export class TranslationCache {
       phraseCache: this.phraseCache.size(),
       patternCache: this.patternCache.size(),
       lookupCache: this.lookupCache.size(),
-      totalEntries: this.characterCache.size() + this.phraseCache.size() + 
-                   this.patternCache.size() + this.lookupCache.size(),
-      maxCapacity: this.characterCacheSize + this.phraseCacheSize + 
-                  this.patternCacheSize + this.lookupCache.maxSize
+      totalEntries:
+        this.characterCache.size() +
+        this.phraseCache.size() +
+        this.patternCache.size() +
+        this.lookupCache.size(),
+      maxCapacity:
+        this.characterCacheSize +
+        this.phraseCacheSize +
+        this.patternCacheSize +
+        this.lookupCache.maxSize,
     };
   }
 }

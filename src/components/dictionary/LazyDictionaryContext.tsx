@@ -1,15 +1,5 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-} from 'react';
-import {
-  validateDictionaryEntry,
-  getDictionaryTypes,
-} from './DictionaryTypes';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 
@@ -71,9 +61,20 @@ interface LazyDictionaryContextValue {
   /** Whether initial loading is in progress */
   isLoading: boolean;
   /** Add a new entry to dictionary */
-  addEntry: (dictionaryId: string, source: string, translation: string, metadata?: DictionaryEntryMetadata) => Promise<void>;
+  addEntry: (
+    dictionaryId: string,
+    source: string,
+    translation: string,
+    metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
   /** Update an existing entry */
-  updateEntry: (dictionaryId: string, oldSource: string, newSource: string, translation: string, metadata?: DictionaryEntryMetadata) => Promise<void>;
+  updateEntry: (
+    dictionaryId: string,
+    oldSource: string,
+    newSource: string,
+    translation: string,
+    metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
   /** Undo last operation */
@@ -116,7 +117,12 @@ const sortDictionaryEntries = (
   changedKey: string | null = null,
   oldKey: string | null = null
 ): DictionaryData => {
-  return dictionarySorter.sortDictionary(dictionary, dictionaryId, changedKey ?? undefined, oldKey ?? undefined) as DictionaryData;
+  return dictionarySorter.sortDictionary(
+    dictionary,
+    dictionaryId,
+    changedKey ?? undefined,
+    oldKey ?? undefined
+  ) as DictionaryData;
 };
 
 /**
@@ -131,7 +137,9 @@ const sortDictionaryEntries = (
  * @param props - Component props
  * @returns Dictionary context provider
  */
-export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps): React.ReactElement {
+export function LazyDictionaryProvider({
+  children,
+}: LazyDictionaryProviderProps): React.ReactElement {
   const [dictionaries, setDictionaries] = useState<{ [key: string]: DictionaryData }>({});
   const [loadedDictionaries, setLoadedDictionaries] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -143,58 +151,64 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
   const preloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load a dictionary immediately
-  const loadDictionaryImmediate = useCallback(async (dictionaryId: string): Promise<void> => {
-    if (loadedDictionaries.has(dictionaryId)) {
-      return; // Already loaded
-    }
-
-    try {
-      const result = await window.electronAPI.loadDictionary(dictionaryId);
-      if (result.success && result.data) {
-        const sortedDict = sortDictionaryEntries(result.data, dictionaryId);
-
-        setDictionaries(prev => ({
-          ...prev,
-          [dictionaryId]: sortedDict,
-        }));
-
-        setLoadedDictionaries(prev => new Set([...prev, dictionaryId]));
-      } else {
-        console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
-        setDictionaries(prev => ({
-          ...prev,
-          [dictionaryId]: {},
-        }));
-        setLoadedDictionaries(prev => new Set([...prev, dictionaryId]));
+  const loadDictionaryImmediate = useCallback(
+    async (dictionaryId: string): Promise<void> => {
+      if (loadedDictionaries.has(dictionaryId)) {
+        return; // Already loaded
       }
-    } catch (error) {
-      console.error(`Error loading dictionary ${dictionaryId}:`, error);
-    }
-  }, [loadedDictionaries]);
+
+      try {
+        const result = await window.electronAPI.loadDictionary(dictionaryId);
+        if (result.success && result.data) {
+          const sortedDict = sortDictionaryEntries(result.data, dictionaryId);
+
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: sortedDict,
+          }));
+
+          setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+        } else {
+          console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: {},
+          }));
+          setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+        }
+      } catch (error) {
+        console.error(`Error loading dictionary ${dictionaryId}:`, error);
+      }
+    },
+    [loadedDictionaries]
+  );
 
   // Schedule preloading of remaining dictionaries
-  const schedulePreload = useCallback((currentDict: string, allDictionaries: string[]): void => {
-    if (preloadTimeoutRef.current) {
-      clearTimeout(preloadTimeoutRef.current);
-    }
-
-    preloadTimeoutRef.current = setTimeout(async () => {
-      const remainingDicts = allDictionaries.filter(id =>
-        id !== currentDict && !loadedDictionaries.has(id)
-      );
-
-      // Load dictionaries one at a time to avoid blocking
-      for (const dictId of remainingDicts) {
-        try {
-          await loadDictionaryImmediate(dictId);
-          // Small delay between loads to keep UI responsive
-          await new Promise<void>(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-          console.error(`Failed to preload dictionary ${dictId}:`, error);
-        }
+  const schedulePreload = useCallback(
+    (currentDict: string, allDictionaries: string[]): void => {
+      if (preloadTimeoutRef.current) {
+        clearTimeout(preloadTimeoutRef.current);
       }
-    }, PRELOAD_DELAY);
-  }, [loadedDictionaries, loadDictionaryImmediate]);
+
+      preloadTimeoutRef.current = setTimeout(async () => {
+        const remainingDicts = allDictionaries.filter(
+          (id) => id !== currentDict && !loadedDictionaries.has(id)
+        );
+
+        // Load dictionaries one at a time to avoid blocking
+        for (const dictId of remainingDicts) {
+          try {
+            await loadDictionaryImmediate(dictId);
+            // Small delay between loads to keep UI responsive
+            await new Promise<void>((resolve) => setTimeout(resolve, 100));
+          } catch (error) {
+            console.error(`Failed to preload dictionary ${dictId}:`, error);
+          }
+        }
+      }, PRELOAD_DELAY);
+    },
+    [loadedDictionaries, loadDictionaryImmediate]
+  );
 
   // Load dictionary types and configuration on mount
   useEffect(() => {
@@ -202,7 +216,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       setIsLoading(true);
       try {
         // Load dictionary types first
-        const types = await getDictionaryTypes() as DictionaryTypesCollection;
+        const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
         setDictionaryTypes(types);
 
         // Load saved configuration
@@ -214,15 +228,15 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
         }
 
         // Load only the selected dictionary initially
-        const initialDictionary = configResult.success && configResult.data && configResult.data.lastSelectedDictionary
-          ? configResult.data.lastSelectedDictionary
-          : 'properNouns';
+        const initialDictionary =
+          configResult.success && configResult.data && configResult.data.lastSelectedDictionary
+            ? configResult.data.lastSelectedDictionary
+            : 'properNouns';
 
         await loadDictionaryImmediate(initialDictionary);
 
         // Schedule preloading of other dictionaries
         schedulePreload(initialDictionary, Object.keys(types));
-
       } catch (error) {
         console.error('Failed to load initial state:', error);
       } finally {
@@ -234,25 +248,31 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
   }, [loadDictionaryImmediate, schedulePreload]);
 
   // Public load dictionary function (triggers immediate load if not loaded)
-  const loadDictionary = useCallback(async (dictionaryId: string): Promise<void> => {
-    if (!loadedDictionaries.has(dictionaryId)) {
-      await loadDictionaryImmediate(dictionaryId);
-    }
-  }, [loadDictionaryImmediate, loadedDictionaries]);
+  const loadDictionary = useCallback(
+    async (dictionaryId: string): Promise<void> => {
+      if (!loadedDictionaries.has(dictionaryId)) {
+        await loadDictionaryImmediate(dictionaryId);
+      }
+    },
+    [loadDictionaryImmediate, loadedDictionaries]
+  );
 
   // Handle dictionary selection change
-  const handleDictionaryChange = useCallback(async (newDictionaryId: string): Promise<void> => {
-    setSelectedDictionary(newDictionaryId);
+  const handleDictionaryChange = useCallback(
+    async (newDictionaryId: string): Promise<void> => {
+      setSelectedDictionary(newDictionaryId);
 
-    // Load the selected dictionary immediately if not loaded
-    if (!loadedDictionaries.has(newDictionaryId)) {
-      await loadDictionaryImmediate(newDictionaryId);
-    }
+      // Load the selected dictionary immediately if not loaded
+      if (!loadedDictionaries.has(newDictionaryId)) {
+        await loadDictionaryImmediate(newDictionaryId);
+      }
 
-    // Reschedule preloading for remaining dictionaries
-    const allDictionaries = Object.keys(dictionaryTypes);
-    schedulePreload(newDictionaryId, allDictionaries);
-  }, [loadedDictionaries, loadDictionaryImmediate, schedulePreload, dictionaryTypes]);
+      // Reschedule preloading for remaining dictionaries
+      const allDictionaries = Object.keys(dictionaryTypes);
+      schedulePreload(newDictionaryId, allDictionaries);
+    },
+    [loadedDictionaries, loadDictionaryImmediate, schedulePreload, dictionaryTypes]
+  );
 
   // Persist selected dictionary
   useEffect(() => {
@@ -282,7 +302,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
   // Helper function to add operations to history
   const addToHistory = useCallback(
     (dictionaryId: string, oldData: DictionaryData, newData: DictionaryData): void => {
-      setHistory(prevHistory => {
+      setHistory((prevHistory) => {
         const newHistory = prevHistory.slice(0, currentHistoryIndex + 1);
         newHistory.push({
           dictionaryId,
@@ -295,14 +315,19 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
         }
         return newHistory;
       });
-      setCurrentHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+      setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
     },
     [currentHistoryIndex]
   );
 
   // Dictionary operations (same as before but with lazy loading check)
   const addEntry = useCallback(
-    async (dictionaryId: string, source: string, translation: string, metadata: DictionaryEntryMetadata = {}): Promise<void> => {
+    async (
+      dictionaryId: string,
+      source: string,
+      translation: string,
+      metadata: DictionaryEntryMetadata = {}
+    ): Promise<void> => {
       const validationError = validateDictionaryEntry(dictionaryId, source, translation);
       if (validationError) {
         throw new Error(validationError);
@@ -311,17 +336,17 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       const oldData = { ...dictionaries[dictionaryId] };
 
       let targetValue: string | DictionaryEntryValue = translation;
-      if (dictionaryId === 'phrases' && (metadata.allowAsPatternVariable !== undefined)) {
+      if (dictionaryId === 'phrases' && metadata.allowAsPatternVariable !== undefined) {
         targetValue = {
           translation: translation,
-          allowAsPatternVariable: metadata.allowAsPatternVariable
+          allowAsPatternVariable: metadata.allowAsPatternVariable,
         };
       }
 
       const updatedDictionary = { ...oldData, [source]: targetValue };
       const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-      setDictionaries(prev => ({
+      setDictionaries((prev) => ({
         ...prev,
         [dictionaryId]: sortedDictionary,
       }));
@@ -331,7 +356,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
       } else {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
@@ -342,7 +367,13 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
   );
 
   const updateEntry = useCallback(
-    async (dictionaryId: string, oldSource: string, newSource: string, translation: string, metadata: DictionaryEntryMetadata = {}): Promise<void> => {
+    async (
+      dictionaryId: string,
+      oldSource: string,
+      newSource: string,
+      translation: string,
+      metadata: DictionaryEntryMetadata = {}
+    ): Promise<void> => {
       const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
       if (validationError) {
         throw new Error(validationError);
@@ -356,19 +387,26 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       }
 
       let targetValue: string | DictionaryEntryValue = translation;
-      if ((dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)) {
+      if (
+        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
+        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+      ) {
         targetValue = {
           translation: translation,
           allowAsPatternVariable: metadata.allowAsPatternVariable,
-          lowPriority: metadata.lowPriority
+          lowPriority: metadata.lowPriority,
         };
       }
 
       updatedDictionary[newSource] = targetValue;
 
-      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, newSource, oldSource);
-      setDictionaries(prev => ({
+      const sortedDictionary = sortDictionaryEntries(
+        updatedDictionary,
+        dictionaryId,
+        newSource,
+        oldSource
+      );
+      setDictionaries((prev) => ({
         ...prev,
         [dictionaryId]: sortedDictionary,
       }));
@@ -378,7 +416,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
       } else {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
@@ -395,7 +433,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       delete updatedDictionary[source];
       const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-      setDictionaries(prev => ({
+      setDictionaries((prev) => ({
         ...prev,
         [dictionaryId]: sortedDictionary,
       }));
@@ -405,7 +443,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
       } else {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
@@ -424,11 +462,11 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       );
 
       if (result.success) {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [operation.dictionaryId]: operation.oldData,
         }));
-        setCurrentHistoryIndex(prev => prev - 1);
+        setCurrentHistoryIndex((prev) => prev - 1);
         return true;
       }
     }
@@ -444,11 +482,11 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
       );
 
       if (result.success) {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [operation.dictionaryId]: operation.newData,
         }));
-        setCurrentHistoryIndex(prev => prev + 1);
+        setCurrentHistoryIndex((prev) => prev + 1);
         return true;
       }
     }
@@ -490,11 +528,7 @@ export function LazyDictionaryProvider({ children }: LazyDictionaryProviderProps
     loadedDictionaries, // Expose for debugging
   };
 
-  return (
-    <LazyDictionaryContext.Provider value={value}>
-      {children}
-    </LazyDictionaryContext.Provider>
-  );
+  return <LazyDictionaryContext.Provider value={value}>{children}</LazyDictionaryContext.Provider>;
 }
 
 /**

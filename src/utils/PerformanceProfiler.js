@@ -31,7 +31,7 @@
 
 import {
   getPerformanceMetric,
-  releasePerformanceMetric
+  releasePerformanceMetric,
   // getMemorySnapshot,
   // releaseMemorySnapshot,
   // getTimestamp,
@@ -52,39 +52,39 @@ export class PerformanceProfiler {
           small: { count: 0, totalTime: 0, avgTime: 0 }, // <500 chars
           medium: { count: 0, totalTime: 0, avgTime: 0 }, // 500-2000 chars
           large: { count: 0, totalTime: 0, avgTime: 0 }, // 2000-8000 chars
-          huge: { count: 0, totalTime: 0, avgTime: 0 }   // >8000 chars
-        }
+          huge: { count: 0, totalTime: 0, avgTime: 0 }, // >8000 chars
+        },
       },
       dictionary: {
         cacheHitRate: 0,
         lookupTimes: [],
-        sortingStats: null // Will be populated from DictionaryManager
+        sortingStats: null, // Will be populated from DictionaryManager
       },
       rendering: {
         segmentComputeTime: 0,
         clickableRenderTime: 0,
         virtualizedRenderCount: 0,
-        segmentPrecomputeTime: 0
+        segmentPrecomputeTime: 0,
       },
       memory: {
         initialMemory: 0,
         currentMemory: 0,
         peakMemory: 0,
-        cacheMemoryUsage: 0
+        cacheMemoryUsage: 0,
       },
       parallel: {
         chunkProcessingTime: 0,
         dictionaryLookupTime: 0,
         parallelEfficiency: 0, // Time saved vs sequential
-        concurrencyLevel: 0,   // Average parallel operations
-        fallbackRate: 0,       // Rate of fallback to sequential
+        concurrencyLevel: 0, // Average parallel operations
+        fallbackRate: 0, // Rate of fallback to sequential
         totalParallelOperations: 0,
         totalSequentialFallbacks: 0,
-        avgParallelSpeedup: 0  // Speedup factor vs sequential
+        avgParallelSpeedup: 0, // Speedup factor vs sequential
       },
-      bottlenecks: [] // Array of detected performance issues
+      bottlenecks: [], // Array of detected performance issues
     };
-    
+
     this.profilerStartTime = performance.now();
     this.activeProfiles = new Map(); // Track ongoing operations
     this.performanceHistory = []; // Historical data points
@@ -92,7 +92,7 @@ export class PerformanceProfiler {
       slowTranslation: 5000, // ms
       lowThroughput: 50, // chars/sec
       highMemoryUsage: 100 * 1024 * 1024, // 100MB
-      lowCacheHitRate: 0.3 // 30%
+      lowCacheHitRate: 0.3, // 30%
     };
   }
 
@@ -110,7 +110,7 @@ export class PerformanceProfiler {
     perfMetric.textLength = inputText.length;
     perfMetric.type = 'translation';
     perfMetric.metadata = options || {};
-    
+
     this.activeProfiles.set(operationId, {
       type: 'translation',
       startTime: perfMetric.startTime,
@@ -118,7 +118,7 @@ export class PerformanceProfiler {
       inputLength: inputText.length,
       options,
       phases: {},
-      perfMetric // Store reference to pooled object
+      perfMetric, // Store reference to pooled object
     });
   }
 
@@ -135,7 +135,7 @@ export class PerformanceProfiler {
     if (profile) {
       profile.phases[phaseName] = {
         duration: endTime - startTime,
-        metadata
+        metadata,
       };
     }
   }
@@ -157,10 +157,11 @@ export class PerformanceProfiler {
     // Update translation metrics
     this.metrics.translation.totalTranslations++;
     this.metrics.translation.totalTime += totalTime;
-    this.metrics.translation.averageTime = 
+    this.metrics.translation.averageTime =
       this.metrics.translation.totalTime / this.metrics.translation.totalTranslations;
-    this.metrics.translation.throughput = 
-      (this.metrics.translation.throughput * (this.metrics.translation.totalTranslations - 1) + throughput) / 
+    this.metrics.translation.throughput =
+      (this.metrics.translation.throughput * (this.metrics.translation.totalTranslations - 1) +
+        throughput) /
       this.metrics.translation.totalTranslations;
 
     // Track extremes
@@ -168,14 +169,14 @@ export class PerformanceProfiler {
       this.metrics.translation.slowestTranslation = {
         time: totalTime,
         text: profile.inputText.substring(0, 100),
-        length: profile.inputLength
+        length: profile.inputLength,
       };
     }
     if (totalTime < this.metrics.translation.fastestTranslation.time) {
       this.metrics.translation.fastestTranslation = {
         time: totalTime,
         text: profile.inputText.substring(0, 100),
-        length: profile.inputLength
+        length: profile.inputLength,
       };
     }
 
@@ -199,14 +200,14 @@ export class PerformanceProfiler {
       outputLength: outputText.length,
       throughput,
       phases: profile.phases,
-      memoryUsage: this.getCurrentMemoryUsage()
+      memoryUsage: this.getCurrentMemoryUsage(),
     });
 
     // Release pooled performance metric object back to pool
     if (profile && profile.perfMetric) {
       releasePerformanceMetric(profile.perfMetric);
     }
-    
+
     // Cleanup
     this.activeProfiles.delete(operationId);
 
@@ -224,12 +225,12 @@ export class PerformanceProfiler {
   updateDictionaryMetrics(cacheStats, sortingStats) {
     this.metrics.dictionary.cacheHitRate = cacheStats.hitRate || 0;
     this.metrics.dictionary.sortingStats = sortingStats;
-    
+
     // Detect low cache hit rate
     if (this.metrics.dictionary.cacheHitRate < this.detectionThresholds.lowCacheHitRate) {
       this.addBottleneck('dictionary', 'Low cache hit rate', {
         hitRate: this.metrics.dictionary.cacheHitRate,
-        threshold: this.detectionThresholds.lowCacheHitRate
+        threshold: this.detectionThresholds.lowCacheHitRate,
       });
     }
   }
@@ -243,7 +244,7 @@ export class PerformanceProfiler {
    */
   recordRenderingMetrics(renderType, segmentCount, renderTime, metadata = {}) {
     this.metrics.rendering.clickableRenderTime += renderTime;
-    
+
     if (renderType === 'virtualized') {
       this.metrics.rendering.virtualizedRenderCount++;
     }
@@ -259,7 +260,7 @@ export class PerformanceProfiler {
   updateMemoryMetrics() {
     const currentMemory = this.getCurrentMemoryUsage();
     this.metrics.memory.currentMemory = currentMemory;
-    
+
     if (currentMemory > this.metrics.memory.peakMemory) {
       this.metrics.memory.peakMemory = currentMemory;
     }
@@ -268,7 +269,7 @@ export class PerformanceProfiler {
     if (currentMemory > this.detectionThresholds.highMemoryUsage) {
       this.addBottleneck('memory', 'High memory usage', {
         currentMemory: this.formatBytes(currentMemory),
-        threshold: this.formatBytes(this.detectionThresholds.highMemoryUsage)
+        threshold: this.formatBytes(this.detectionThresholds.highMemoryUsage),
       });
     }
   }
@@ -279,9 +280,9 @@ export class PerformanceProfiler {
    */
   getPerformanceReport() {
     this.updateMemoryMetrics();
-    
+
     const uptimeSeconds = (performance.now() - this.profilerStartTime) / 1000;
-    
+
     return {
       summary: {
         uptime: `${Math.floor(uptimeSeconds / 60)}m ${Math.floor(uptimeSeconds % 60)}s`,
@@ -290,19 +291,21 @@ export class PerformanceProfiler {
         throughput: `${this.metrics.translation.throughput.toFixed(1)} chars/sec`,
         cacheHitRate: `${(this.metrics.dictionary.cacheHitRate * 100).toFixed(1)}%`,
         memoryUsage: this.formatBytes(this.metrics.memory.currentMemory),
-        peakMemory: this.formatBytes(this.metrics.memory.peakMemory)
+        peakMemory: this.formatBytes(this.metrics.memory.peakMemory),
       },
       translation: {
         ...this.metrics.translation,
         slowestTranslation: {
           ...this.metrics.translation.slowestTranslation,
-          time: `${this.metrics.translation.slowestTranslation.time.toFixed(1)}ms`
+          time: `${this.metrics.translation.slowestTranslation.time.toFixed(1)}ms`,
         },
         fastestTranslation: {
           ...this.metrics.translation.fastestTranslation,
-          time: this.metrics.translation.fastestTranslation.time === Infinity ? 
-            'N/A' : `${this.metrics.translation.fastestTranslation.time.toFixed(1)}ms`
-        }
+          time:
+            this.metrics.translation.fastestTranslation.time === Infinity
+              ? 'N/A'
+              : `${this.metrics.translation.fastestTranslation.time.toFixed(1)}ms`,
+        },
       },
       dictionary: this.metrics.dictionary,
       rendering: this.metrics.rendering,
@@ -310,10 +313,10 @@ export class PerformanceProfiler {
         ...this.metrics.memory,
         currentMemory: this.formatBytes(this.metrics.memory.currentMemory),
         peakMemory: this.formatBytes(this.metrics.memory.peakMemory),
-        initialMemory: this.formatBytes(this.metrics.memory.initialMemory)
+        initialMemory: this.formatBytes(this.metrics.memory.initialMemory),
       },
       bottlenecks: this.metrics.bottlenecks,
-      trends: this.getPerformanceTrends()
+      trends: this.getPerformanceTrends(),
     };
   }
 
@@ -323,28 +326,37 @@ export class PerformanceProfiler {
    */
   getPerformanceTrends() {
     if (this.performanceHistory.length < 10) {
-      return { status: 'insufficient_data', message: 'Need at least 10 operations for trend analysis' };
+      return {
+        status: 'insufficient_data',
+        message: 'Need at least 10 operations for trend analysis',
+      };
     }
 
     const recent = this.performanceHistory.slice(-50); // Last 50 operations
     const older = this.performanceHistory.slice(-100, -50); // Previous 50 operations
 
     const recentAvgTime = recent.reduce((sum, op) => sum + op.duration, 0) / recent.length;
-    const olderAvgTime = older.length > 0 ? 
-      older.reduce((sum, op) => sum + op.duration, 0) / older.length : recentAvgTime;
+    const olderAvgTime =
+      older.length > 0
+        ? older.reduce((sum, op) => sum + op.duration, 0) / older.length
+        : recentAvgTime;
 
-    const trendDirection = recentAvgTime > olderAvgTime * 1.1 ? 'degrading' : 
-                          recentAvgTime < olderAvgTime * 0.9 ? 'improving' : 'stable';
+    const trendDirection =
+      recentAvgTime > olderAvgTime * 1.1
+        ? 'degrading'
+        : recentAvgTime < olderAvgTime * 0.9
+          ? 'improving'
+          : 'stable';
 
     return {
       averageTime: {
         recent: `${recentAvgTime.toFixed(1)}ms`,
         older: `${olderAvgTime.toFixed(1)}ms`,
         trend: trendDirection,
-        change: `${(((recentAvgTime - olderAvgTime) / olderAvgTime) * 100).toFixed(1)}%`
+        change: `${(((recentAvgTime - olderAvgTime) / olderAvgTime) * 100).toFixed(1)}%`,
       },
       memoryTrend: this.analyzeMemoryTrend(recent),
-      throughputTrend: this.analyzeThroughputTrend(recent, older)
+      throughputTrend: this.analyzeThroughputTrend(recent, older),
     };
   }
 
@@ -359,7 +371,7 @@ export class PerformanceProfiler {
       memoryUsage: this.formatBytes(this.getCurrentMemoryUsage()),
       cacheEfficiency: `${(this.metrics.dictionary.cacheHitRate * 100).toFixed(1)}%`,
       avgResponseTime: `${this.metrics.translation.averageTime.toFixed(1)}ms`,
-      activeBottlenecks: this.metrics.bottlenecks.length
+      activeBottlenecks: this.metrics.bottlenecks.length,
     };
   }
 
@@ -379,7 +391,7 @@ export class PerformanceProfiler {
         operationId,
         duration: `${totalTime.toFixed(1)}ms`,
         textLength: profile.inputLength,
-        threshold: `${this.detectionThresholds.slowTranslation}ms`
+        threshold: `${this.detectionThresholds.slowTranslation}ms`,
       });
     }
 
@@ -388,7 +400,7 @@ export class PerformanceProfiler {
       this.addBottleneck('translation', 'Low throughput detected', {
         operationId,
         throughput: `${throughput.toFixed(1)} chars/sec`,
-        threshold: `${this.detectionThresholds.lowThroughput} chars/sec`
+        threshold: `${this.detectionThresholds.lowThroughput} chars/sec`,
       });
     }
   }
@@ -398,7 +410,7 @@ export class PerformanceProfiler {
       timestamp: Date.now(),
       category,
       issue,
-      metadata
+      metadata,
     });
 
     // Keep bottlenecks list manageable
@@ -425,36 +437,36 @@ export class PerformanceProfiler {
   getRecentThroughput() {
     const recent = this.performanceHistory.slice(-10);
     if (recent.length === 0) return 0;
-    
+
     const avgThroughput = recent.reduce((sum, op) => sum + op.throughput, 0) / recent.length;
     return `${avgThroughput.toFixed(1)} chars/sec`;
   }
 
   analyzeMemoryTrend(recentOperations) {
     if (recentOperations.length < 5) return 'insufficient_data';
-    
+
     const firstMemory = recentOperations[0].memoryUsage;
     const lastMemory = recentOperations[recentOperations.length - 1].memoryUsage;
-    
+
     const changePercent = ((lastMemory - firstMemory) / firstMemory) * 100;
-    
+
     return {
       trend: changePercent > 10 ? 'increasing' : changePercent < -10 ? 'decreasing' : 'stable',
-      change: `${changePercent.toFixed(1)}%`
+      change: `${changePercent.toFixed(1)}%`,
     };
   }
 
   analyzeThroughputTrend(recent, older) {
     if (recent.length < 5 || older.length < 5) return 'insufficient_data';
-    
+
     const recentThroughput = recent.reduce((sum, op) => sum + op.throughput, 0) / recent.length;
     const olderThroughput = older.reduce((sum, op) => sum + op.throughput, 0) / older.length;
-    
+
     const changePercent = ((recentThroughput - olderThroughput) / olderThroughput) * 100;
-    
+
     return {
       trend: changePercent > 5 ? 'improving' : changePercent < -5 ? 'degrading' : 'stable',
-      change: `${changePercent.toFixed(1)}%`
+      change: `${changePercent.toFixed(1)}%`,
     };
   }
 
@@ -474,25 +486,25 @@ export class PerformanceProfiler {
           small: { count: 0, totalTime: 0, avgTime: 0 },
           medium: { count: 0, totalTime: 0, avgTime: 0 },
           large: { count: 0, totalTime: 0, avgTime: 0 },
-          huge: { count: 0, totalTime: 0, avgTime: 0 }
-        }
+          huge: { count: 0, totalTime: 0, avgTime: 0 },
+        },
       },
       dictionary: {
         cacheHitRate: 0,
         lookupTimes: [],
-        sortingStats: null
+        sortingStats: null,
       },
       rendering: {
         segmentComputeTime: 0,
         clickableRenderTime: 0,
         virtualizedRenderCount: 0,
-        segmentPrecomputeTime: 0
+        segmentPrecomputeTime: 0,
       },
       memory: {
         initialMemory: this.getCurrentMemoryUsage(),
         currentMemory: 0,
         peakMemory: 0,
-        cacheMemoryUsage: 0
+        cacheMemoryUsage: 0,
       },
       parallel: {
         chunkProcessingTime: 0,
@@ -502,11 +514,11 @@ export class PerformanceProfiler {
         fallbackRate: 0,
         totalParallelOperations: 0,
         totalSequentialFallbacks: 0,
-        avgParallelSpeedup: 0
+        avgParallelSpeedup: 0,
       },
-      bottlenecks: []
+      bottlenecks: [],
     };
-    
+
     this.profilerStartTime = performance.now();
     this.activeProfiles.clear();
     this.performanceHistory = [];
@@ -520,38 +532,48 @@ export class PerformanceProfiler {
    * @param {number} concurrencyLevel - Number of parallel operations
    * @param {Object} metadata - Additional operation data
    */
-  recordParallelPerformance(operationType, parallelTime, sequentialTime, concurrencyLevel, _metadata = {}) {
+  recordParallelPerformance(
+    operationType,
+    parallelTime,
+    sequentialTime,
+    concurrencyLevel,
+    _metadata = {}
+  ) {
     if (operationType === 'chunk') {
       this.metrics.parallel.chunkProcessingTime += parallelTime;
     } else if (operationType === 'dictionary') {
       this.metrics.parallel.dictionaryLookupTime += parallelTime;
     }
-    
+
     // Calculate efficiency (time saved)
     const timeSaved = sequentialTime - parallelTime;
     const efficiency = sequentialTime > 0 ? timeSaved / sequentialTime : 0;
-    
+
     // Update parallel metrics
-    this.metrics.parallel.parallelEfficiency = 
+    this.metrics.parallel.parallelEfficiency =
       (this.metrics.parallel.parallelEfficiency + efficiency) / 2;
-    
-    this.metrics.parallel.concurrencyLevel = 
+
+    this.metrics.parallel.concurrencyLevel =
       (this.metrics.parallel.concurrencyLevel + concurrencyLevel) / 2;
-    
+
     this.metrics.parallel.totalParallelOperations++;
-    
+
     // Calculate speedup factor
     const speedup = sequentialTime > 0 ? sequentialTime / parallelTime : 1;
-    this.metrics.parallel.avgParallelSpeedup = 
+    this.metrics.parallel.avgParallelSpeedup =
       (this.metrics.parallel.avgParallelSpeedup + speedup) / 2;
-    
+
     // Detect performance issues
     if (efficiency < 0) {
-      this.addBottleneck('parallel', `${operationType} parallel processing slower than sequential`, {
-        parallelTime,
-        sequentialTime,
-        efficiency
-      });
+      this.addBottleneck(
+        'parallel',
+        `${operationType} parallel processing slower than sequential`,
+        {
+          parallelTime,
+          sequentialTime,
+          efficiency,
+        }
+      );
     }
   }
 
@@ -562,18 +584,20 @@ export class PerformanceProfiler {
    */
   recordParallelFallback(operationType, error) {
     this.metrics.parallel.totalSequentialFallbacks++;
-    
+
     // Calculate fallback rate
-    const totalOperations = this.metrics.parallel.totalParallelOperations + 
-                           this.metrics.parallel.totalSequentialFallbacks;
-    this.metrics.parallel.fallbackRate = 
+    const totalOperations =
+      this.metrics.parallel.totalParallelOperations +
+      this.metrics.parallel.totalSequentialFallbacks;
+    this.metrics.parallel.fallbackRate =
       this.metrics.parallel.totalSequentialFallbacks / totalOperations;
-    
+
     // Record as bottleneck if fallback rate is high
-    if (this.metrics.parallel.fallbackRate > 0.1) { // >10% fallback rate
+    if (this.metrics.parallel.fallbackRate > 0.1) {
+      // >10% fallback rate
       this.addBottleneck('parallel', `High ${operationType} parallel processing fallback rate`, {
         fallbackRate: this.metrics.parallel.fallbackRate,
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -589,8 +613,8 @@ export class PerformanceProfiler {
       efficiency: {
         overall: this.metrics.parallel.parallelEfficiency,
         speedup: this.metrics.parallel.avgParallelSpeedup,
-        reliability: 1 - this.metrics.parallel.fallbackRate
-      }
+        reliability: 1 - this.metrics.parallel.fallbackRate,
+      },
     };
   }
 
@@ -600,34 +624,34 @@ export class PerformanceProfiler {
    */
   generateParallelRecommendations() {
     const recommendations = [];
-    
+
     if (this.metrics.parallel.parallelEfficiency < 0.2) {
       recommendations.push({
         type: 'efficiency',
         priority: 'high',
         message: 'Parallel processing shows low efficiency gains',
-        suggestion: 'Consider increasing batch sizes or reducing parallel overhead'
+        suggestion: 'Consider increasing batch sizes or reducing parallel overhead',
       });
     }
-    
+
     if (this.metrics.parallel.fallbackRate > 0.15) {
       recommendations.push({
         type: 'reliability',
         priority: 'medium',
         message: 'High fallback rate detected in parallel processing',
-        suggestion: 'Investigate and fix common parallel processing failures'
+        suggestion: 'Investigate and fix common parallel processing failures',
       });
     }
-    
+
     if (this.metrics.parallel.concurrencyLevel < 2) {
       recommendations.push({
         type: 'concurrency',
         priority: 'low',
         message: 'Low concurrency level in parallel operations',
-        suggestion: 'Check device capabilities and parallel processing thresholds'
+        suggestion: 'Check device capabilities and parallel processing thresholds',
       });
     }
-    
+
     return recommendations;
   }
 }

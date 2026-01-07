@@ -38,7 +38,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     this.state = {
       hasError: false,
       error: null,
-      errorInfo: null
+      errorInfo: null,
     };
   }
 
@@ -50,7 +50,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return {
       hasError: true,
-      error: error
+      error: error,
     };
   }
 
@@ -66,7 +66,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
     // Store error info in state for display
     this.setState({
-      errorInfo: errorInfo
+      errorInfo: errorInfo,
     });
 
     // In production, you might want to log to an error reporting service
@@ -80,7 +80,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     this.setState({
       hasError: false,
       error: null,
-      errorInfo: null
+      errorInfo: null,
     });
   };
 
@@ -95,85 +95,106 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       // Fallback UI when error occurs
       return (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '100vh',
-          padding: '2rem',
-          backgroundColor: 'var(--background, #f5f5f5)',
-          color: 'var(--text, #333)',
-          fontFamily: 'system-ui, -apple-system, sans-serif'
-        }}>
-          <div style={{
-            maxWidth: '600px',
-            backgroundColor: 'white',
-            borderRadius: '8px',
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '100vh',
             padding: '2rem',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h1 style={{
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              marginBottom: '1rem',
-              color: '#dc2626'
-            }}>
+            backgroundColor: 'var(--background, #f5f5f5)',
+            color: 'var(--text, #333)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: '600px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '2rem',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            }}
+          >
+            <h1
+              style={{
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                marginBottom: '1rem',
+                color: '#dc2626',
+              }}
+            >
               ⚠️ Something went wrong
             </h1>
 
             <p style={{ marginBottom: '1rem', lineHeight: '1.6' }}>
-              The application encountered an unexpected error. This is likely a bug that needs to be fixed.
+              The application encountered an unexpected error. This is likely a bug that needs to be
+              fixed.
             </p>
 
             {/* Error details */}
             {this.state.error && (
-              <details style={{
-                marginBottom: '1.5rem',
-                padding: '1rem',
-                backgroundColor: '#fef2f2',
-                borderRadius: '4px',
-                border: '1px solid #fecaca'
-              }}>
-                <summary style={{
-                  cursor: 'pointer',
-                  fontWeight: '500',
-                  marginBottom: '0.5rem'
-                }}>
+              <details
+                style={{
+                  marginBottom: '1.5rem',
+                  padding: '1rem',
+                  backgroundColor: '#fef2f2',
+                  borderRadius: '4px',
+                  border: '1px solid #fecaca',
+                }}
+              >
+                <summary
+                  style={{
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    marginBottom: '0.5rem',
+                  }}
+                >
                   Error Details
                 </summary>
-                <div style={{
-                  marginTop: '0.5rem',
-                  fontSize: '0.875rem',
-                  fontFamily: 'monospace',
-                  whiteSpace: 'pre-wrap',
-                  color: '#991b1b'
-                }}>
-                  <strong>Message:</strong> {this.state.error.message || this.state.error.toString()}
+                <div
+                  style={{
+                    marginTop: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap',
+                    color: '#991b1b',
+                  }}
+                >
+                  <strong>Message:</strong>{' '}
+                  {this.state.error.message || this.state.error.toString()}
                   {this.state.error.stack && (
                     <>
-                      <br /><br />
-                      <strong>Stack:</strong><br />
+                      <br />
+                      <br />
+                      <strong>Stack:</strong>
+                      <br />
                       {this.state.error.stack}
                     </>
                   )}
-                  {this.state.errorInfo?.componentStack && process.env.NODE_ENV === 'development' && (
-                    <>
-                      <br /><br />
-                      <strong>Component Stack:</strong><br />
-                      {this.state.errorInfo.componentStack}
-                    </>
-                  )}
+                  {this.state.errorInfo?.componentStack &&
+                    process.env.NODE_ENV === 'development' && (
+                      <>
+                        <br />
+                        <br />
+                        <strong>Component Stack:</strong>
+                        <br />
+                        {this.state.errorInfo.componentStack}
+                      </>
+                    )}
                 </div>
               </details>
             )}
 
             {/* Recovery options */}
-            <div style={{
-              display: 'flex',
-              gap: '1rem',
-              flexWrap: 'wrap'
-            }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: '1rem',
+                flexWrap: 'wrap',
+              }}
+            >
               <button
                 onClick={this.handleReset}
                 style={{
@@ -184,7 +205,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                   borderRadius: '6px',
                   fontSize: '0.875rem',
                   fontWeight: '500',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 Try Again
@@ -200,7 +221,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
                   borderRadius: '6px',
                   fontSize: '0.875rem',
                   fontWeight: '500',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
                 }}
               >
                 Reload Application
@@ -208,14 +229,16 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             </div>
 
             {/* Additional help */}
-            <div style={{
-              marginTop: '1.5rem',
-              padding: '1rem',
-              backgroundColor: '#f0f9ff',
-              borderRadius: '4px',
-              fontSize: '0.875rem',
-              lineHeight: '1.6'
-            }}>
+            <div
+              style={{
+                marginTop: '1.5rem',
+                padding: '1rem',
+                backgroundColor: '#f0f9ff',
+                borderRadius: '4px',
+                fontSize: '0.875rem',
+                lineHeight: '1.6',
+              }}
+            >
               <strong>💡 Troubleshooting tips:</strong>
               <ul style={{ marginTop: '0.5rem', marginLeft: '1.5rem' }}>
                 <li>Try clicking "Reload Dictionary" button (Cmd/Ctrl+R) to clear caches</li>

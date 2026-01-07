@@ -15,11 +15,13 @@ import MoveEntryDialog from './MoveEntryDialog';
 /**
  * Dictionary entry value type (can be string or object with metadata)
  */
-type DictionaryEntryValue = string | {
-  translation: string;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-};
+type DictionaryEntryValue =
+  | string
+  | {
+      translation: string;
+      allowAsPatternVariable?: boolean;
+      lowPriority?: boolean;
+    };
 
 /**
  * Dictionary entry data structure for editing
@@ -94,13 +96,14 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
     if (!searchTerm) return entries;
 
     // Case-insensitive search in both source and translation
-    return entries.filter(
-      ([source, translation]: [string, DictionaryEntryValue]) => {
-        const translationText = typeof translation === 'string' ? translation : translation.translation;
-        return source.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               translationText.toLowerCase().includes(searchTerm.toLowerCase());
-      }
-    );
+    return entries.filter(([source, translation]: [string, DictionaryEntryValue]) => {
+      const translationText =
+        typeof translation === 'string' ? translation : translation.translation;
+      return (
+        source.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        translationText.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
   }, [dictionaries, selectedDictionary, searchTerm]);
 
   // Scroll handling functions
@@ -269,17 +272,24 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
               >
                 Translation
               </th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                Actions
-              </th>
+              <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredEntries.map(([source, translation]: [string, DictionaryEntryValue]) => {
               // Handle both old format (string) and new format (object with metadata)
-              const translationText = typeof translation === 'string' ? translation : translation.translation;
-              const allowAsPatternVariable = typeof translation === 'object' && translation !== null && 'allowAsPatternVariable' in translation && translation.allowAsPatternVariable === true;
-              const lowPriority = typeof translation === 'object' && translation !== null && 'lowPriority' in translation && translation.lowPriority === true;
+              const translationText =
+                typeof translation === 'string' ? translation : translation.translation;
+              const allowAsPatternVariable =
+                typeof translation === 'object' &&
+                translation !== null &&
+                'allowAsPatternVariable' in translation &&
+                translation.allowAsPatternVariable === true;
+              const lowPriority =
+                typeof translation === 'object' &&
+                translation !== null &&
+                'lowPriority' in translation &&
+                translation.lowPriority === true;
 
               return (
                 <tr key={source}>
@@ -287,58 +297,70 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
                   <td style={{ padding: '0.5rem 1rem' }}>
                     {translationText}
                     {allowAsPatternVariable && (
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.8em', color: 'var(--accent-color)', fontWeight: 'bold' }}>
+                      <span
+                        style={{
+                          marginLeft: '0.5rem',
+                          fontSize: '0.8em',
+                          color: 'var(--accent-color)',
+                          fontWeight: 'bold',
+                        }}
+                      >
                         [X]
                       </span>
                     )}
                     {lowPriority && (
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.8em', color: '#ff8c00', fontWeight: 'bold' }}>
+                      <span
+                        style={{
+                          marginLeft: '0.5rem',
+                          fontSize: '0.8em',
+                          color: '#ff8c00',
+                          fontWeight: 'bold',
+                        }}
+                      >
                         [LP]
                       </span>
                     )}
                   </td>
                   <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>
                     <button
-                      onClick={() => setEditingEntry({
-                        source,
-                        translation: translationText,
-                        allowAsPatternVariable,
-                        lowPriority
-                      })}
+                      onClick={() =>
+                        setEditingEntry({
+                          source,
+                          translation: translationText,
+                          allowAsPatternVariable,
+                          lowPriority,
+                        })
+                      }
                       className="icon"
                       disabled={isDeleting}
                       title="Edit entry"
                     >
-                    <Edit2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => setMoveEntry({ source, translation: translationText })}
-                    className="icon"
-                    disabled={isDeleting}
-                    title="Move to another dictionary"
-                  >
-                    <MoveIcon size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(source)}
-                    className={`icon ${
-                      showConfirmDelete === source ? 'danger' : ''
-                    }`}
-                    disabled={isDeleting}
-                    title={
-                      showConfirmDelete === source
-                        ? 'Click to confirm deletion'
-                        : 'Delete entry'
-                    }
-                  >
-                    {isDeleting && showConfirmDelete === source ? (
-                      <Loader size={16} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={16} />
-                    )}
-                  </button>
-                </td>
-              </tr>
+                      <Edit2 size={16} />
+                    </button>
+                    <button
+                      onClick={() => setMoveEntry({ source, translation: translationText })}
+                      className="icon"
+                      disabled={isDeleting}
+                      title="Move to another dictionary"
+                    >
+                      <MoveIcon size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(source)}
+                      className={`icon ${showConfirmDelete === source ? 'danger' : ''}`}
+                      disabled={isDeleting}
+                      title={
+                        showConfirmDelete === source ? 'Click to confirm deletion' : 'Delete entry'
+                      }
+                    >
+                      {isDeleting && showConfirmDelete === source ? (
+                        <Loader size={16} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                    </button>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
@@ -346,17 +368,19 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
       </div>
 
       {/* Modal dialogs */}
-      {editingEntry && React.createElement(DictionaryEntry as any, {
-        entry: editingEntry,
-        onClose: () => setEditingEntry(null),
-        selectedDictionary: selectedDictionary
-      })}
+      {editingEntry &&
+        React.createElement(DictionaryEntry as any, {
+          entry: editingEntry,
+          onClose: () => setEditingEntry(null),
+          selectedDictionary: selectedDictionary,
+        })}
 
-      {moveEntry && React.createElement(MoveEntryDialog as any, {
-        entry: moveEntry,
-        currentDictionary: selectedDictionary,
-        onClose: () => setMoveEntry(null)
-      })}
+      {moveEntry &&
+        React.createElement(MoveEntryDialog as any, {
+          entry: moveEntry,
+          currentDictionary: selectedDictionary,
+          onClose: () => setMoveEntry(null),
+        })}
     </div>
   );
 };

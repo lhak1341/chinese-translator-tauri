@@ -76,10 +76,7 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
     const handleKeyDown = async (event: KeyboardEvent): Promise<void> => {
       // Skip if user is typing in an input field
       const target = event.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA'
-      ) {
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return;
       }
 

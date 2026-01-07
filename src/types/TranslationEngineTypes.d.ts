@@ -27,7 +27,7 @@ export const DEBUG_LEVELS: {
   VERBOSE: 3;
 };
 
-export type DebugLevel = typeof DEBUG_LEVELS[keyof typeof DEBUG_LEVELS];
+export type DebugLevel = (typeof DEBUG_LEVELS)[keyof typeof DEBUG_LEVELS];
 
 // ============================================================================
 // Dictionary Configuration
@@ -217,10 +217,10 @@ export interface TranslationEngineInitOptions {
  * Translation mode types
  */
 export type TranslationMode =
-  | 'full'                // All 5 phases
-  | 'character-only'      // Phase 5 only
-  | 'patterns-only'       // Phase 1 only
-  | 'proper-nouns-only';  // Phase 2 only
+  | 'full' // All 5 phases
+  | 'character-only' // Phase 5 only
+  | 'patterns-only' // Phase 1 only
+  | 'proper-nouns-only'; // Phase 2 only
 
 /**
  * Progress callback data structure
@@ -659,13 +659,22 @@ export interface ProgressInfo {
 export interface TranslationEngine {
   // Initialization
   isInitialized: boolean;
-  initialize(dictionaries: Record<string, any>, options?: TranslationEngineInitOptions): Promise<void>;
+  initialize(
+    dictionaries: Record<string, any>,
+    options?: TranslationEngineInitOptions
+  ): Promise<void>;
 
   // Core Translation Methods
   translate(text: string, options?: TranslationOptions): Promise<string>;
   translateWithSegments(text: string, options?: TranslationOptions): Promise<TranslationResult>;
-  translateWithCharactersOnly(text: string, options?: TranslationOptions): Promise<CharacterOnlyResult>;
-  translateWithProgressiveBatches(text: string, options: TranslationOptions): Promise<TranslationResult>;
+  translateWithCharactersOnly(
+    text: string,
+    options?: TranslationOptions
+  ): Promise<CharacterOnlyResult>;
+  translateWithProgressiveBatches(
+    text: string,
+    options: TranslationOptions
+  ): Promise<TranslationResult>;
 
   // Dictionary Management
   syncDictionaries(): Promise<void>;

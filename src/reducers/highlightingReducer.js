@@ -65,7 +65,7 @@ export function highlightingReducer(state, action) {
         unitIndex: action.unitIndex,
         translationUnitIndex: -1,
         characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
+        isCharacterOnlyClick: false,
       };
 
     case 'HIGHLIGHT_TRANSLATION':
@@ -74,7 +74,7 @@ export function highlightingReducer(state, action) {
         unitIndex: -1,
         translationUnitIndex: action.unitIndex,
         characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
+        isCharacterOnlyClick: false,
       };
 
     case 'HIGHLIGHT_FROM_CHARACTER_ONLY':
@@ -83,7 +83,7 @@ export function highlightingReducer(state, action) {
         unitIndex: action.unitIndex,
         translationUnitIndex: action.unitIndex,
         characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: true
+        isCharacterOnlyClick: true,
       };
 
     case 'HIGHLIGHT_BOTH':
@@ -92,14 +92,14 @@ export function highlightingReducer(state, action) {
         unitIndex: action.unitIndex,
         translationUnitIndex: action.unitIndex,
         characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
+        isCharacterOnlyClick: false,
       };
 
     case 'SET_CHARACTER_ONLY_INDEX':
       // Set only the character-only index (for bridge useEffect)
       return {
         ...state,
-        characterOnlyUnitIndex: action.unitIndex
+        characterOnlyUnitIndex: action.unitIndex,
       };
 
     case 'CLEAR_ALL':
@@ -108,7 +108,7 @@ export function highlightingReducer(state, action) {
         unitIndex: -1,
         translationUnitIndex: -1,
         characterOnlyUnitIndex: -1,
-        isCharacterOnlyClick: false
+        isCharacterOnlyClick: false,
       };
 
     default:
@@ -124,5 +124,5 @@ export const INITIAL_HIGHLIGHTING_STATE = {
   unitIndex: -1,
   translationUnitIndex: -1,
   characterOnlyUnitIndex: -1,
-  isCharacterOnlyClick: false
+  isCharacterOnlyClick: false,
 };

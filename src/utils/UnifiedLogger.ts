@@ -20,17 +20,17 @@
  * Log levels in ascending order of severity
  */
 export const LogLevel = {
-  DEBUG: 0,    // Detailed debugging info (development only)
-  INFO: 1,     // General information (startup, completion)
-  WARN: 2,     // Warnings (fallbacks, recoverable errors)
-  ERROR: 3,    // Errors (failures that don't crash)
-  SILENT: 4,   // No logging
+  DEBUG: 0, // Detailed debugging info (development only)
+  INFO: 1, // General information (startup, completion)
+  WARN: 2, // Warnings (fallbacks, recoverable errors)
+  ERROR: 3, // Errors (failures that don't crash)
+  SILENT: 4, // No logging
 } as const;
 
 /**
  * Type for log level values
  */
-export type LogLevelValue = typeof LogLevel[keyof typeof LogLevel];
+export type LogLevelValue = (typeof LogLevel)[keyof typeof LogLevel];
 
 /**
  * Log categories for filtering
@@ -51,7 +51,7 @@ export const LogCategory = {
 /**
  * Type for log category values
  */
-export type LogCategoryValue = typeof LogCategory[keyof typeof LogCategory];
+export type LogCategoryValue = (typeof LogCategory)[keyof typeof LogCategory];
 
 /**
  * Emoji prefixes for visual clarity
@@ -178,7 +178,12 @@ export class UnifiedLogger {
   /**
    * Format log message with context
    */
-  private formatMessage(level: LogLevelValue, category: LogCategoryValue, message: string, context?: LogContext): string {
+  private formatMessage(
+    level: LogLevelValue,
+    category: LogCategoryValue,
+    message: string,
+    context?: LogContext
+  ): string {
     const emoji = EMOJI_MAP[category] || '📝';
     const timestamp = new Date().toISOString().substring(11, 23); // HH:MM:SS.mmm
 
@@ -192,14 +197,13 @@ export class UnifiedLogger {
     // Format context if provided
     let contextStr = '';
     if (context && Object.keys(context).length > 0) {
-      const parts = Object.entries(context)
-        .map(([key, value]) => {
-          // Truncate long strings
-          if (typeof value === 'string' && value.length > 50) {
-            return `${key}=${value.substring(0, 50)}...`;
-          }
-          return `${key}=${value}`;
-        });
+      const parts = Object.entries(context).map(([key, value]) => {
+        // Truncate long strings
+        if (typeof value === 'string' && value.length > 50) {
+          return `${key}=${value.substring(0, 50)}...`;
+        }
+        return `${key}=${value}`;
+      });
       contextStr = ` (${parts.join(', ')})`;
     }
 
@@ -239,7 +243,12 @@ export class UnifiedLogger {
   /**
    * Log at ERROR level
    */
-  error(category: LogCategoryValue, message: string, context: LogContext = {}, error: Error | null = null): void {
+  error(
+    category: LogCategoryValue,
+    message: string,
+    context: LogContext = {},
+    error: Error | null = null
+  ): void {
     if (!this.shouldLog(LogLevel.ERROR, category)) return;
 
     this.stats.error++;
@@ -373,8 +382,12 @@ export const log = {
     globalLogger.info(category, message, context),
   warn: (category: LogCategoryValue, message: string, context?: LogContext) =>
     globalLogger.warn(category, message, context),
-  error: (category: LogCategoryValue, message: string, context?: LogContext, error?: Error | null) =>
-    globalLogger.error(category, message, context, error),
+  error: (
+    category: LogCategoryValue,
+    message: string,
+    context?: LogContext,
+    error?: Error | null
+  ) => globalLogger.error(category, message, context, error),
 };
 
 // Export for debugging

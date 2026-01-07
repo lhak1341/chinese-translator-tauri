@@ -347,10 +347,10 @@ export type TextSize = 'small' | 'medium' | 'large' | 'huge';
  * Text size mapping to CSS values
  */
 export interface TextSizeMapping {
-  small: string;    // e.g., '0.875rem'
-  medium: string;   // e.g., '1rem'
-  large: string;    // e.g., '1.25rem'
-  huge: string;     // e.g., '1.5rem'
+  small: string; // e.g., '0.875rem'
+  medium: string; // e.g., '1rem'
+  large: string; // e.g., '1.25rem'
+  huge: string; // e.g., '1.5rem'
 }
 
 /**

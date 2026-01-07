@@ -279,10 +279,10 @@ export interface TranslationMetrics {
 
   /** Metrics by text size category */
   byTextSize: {
-    small: TextSizeMetrics;   // <500 chars
-    medium: TextSizeMetrics;  // 500-2000 chars
-    large: TextSizeMetrics;   // 2000-8000 chars
-    huge: TextSizeMetrics;    // >8000 chars
+    small: TextSizeMetrics; // <500 chars
+    medium: TextSizeMetrics; // 500-2000 chars
+    large: TextSizeMetrics; // 2000-8000 chars
+    huge: TextSizeMetrics; // >8000 chars
   };
 }
 
@@ -915,14 +915,38 @@ export interface PerformanceProfilerInterface {
   performanceHistory: PerformanceHistoryEntry[];
   detectionThresholds: DetectionThresholds;
 
-  startTranslationProfile(operationId: string, inputText: string, options?: Record<string, any>): void;
-  markTranslationPhase(operationId: string, phaseName: string, startTime: number, endTime: number, metadata?: Record<string, any>): void;
-  endTranslationProfile(operationId: string, outputText: string, result?: Record<string, any>): void;
+  startTranslationProfile(
+    operationId: string,
+    inputText: string,
+    options?: Record<string, any>
+  ): void;
+  markTranslationPhase(
+    operationId: string,
+    phaseName: string,
+    startTime: number,
+    endTime: number,
+    metadata?: Record<string, any>
+  ): void;
+  endTranslationProfile(
+    operationId: string,
+    outputText: string,
+    result?: Record<string, any>
+  ): void;
   updateDictionaryMetrics(cacheStats: any, sortingStats: any): void;
-  recordRenderingMetrics(renderType: string, segmentCount: number, renderTime: number, metadata?: Record<string, any>): void;
+  recordRenderingMetrics(
+    renderType: string,
+    segmentCount: number,
+    renderTime: number,
+    metadata?: Record<string, any>
+  ): void;
   updateMemoryMetrics(): void;
   getPerformanceReport(): PerformanceReport;
-  detectBottlenecks(operationId: string, profile: TranslationProfile, totalTime: number, throughput: number): void;
+  detectBottlenecks(
+    operationId: string,
+    profile: TranslationProfile,
+    totalTime: number,
+    throughput: number
+  ): void;
   addBottleneck(category: string, description: string, data?: Record<string, any>): void;
   getCurrentMemoryUsage(): number;
   formatBytes(bytes: number): string;
@@ -963,8 +987,14 @@ export interface WasmPerformanceBenchmarkInterface {
   currentSession: BenchmarkSession;
 
   establishBaseline(dictionaryManager: any): Promise<Map<string, BaselineMetrics>>;
-  measureJavaScriptPerformance(dictionaryManager: any, scenario: BenchmarkScenario): Promise<PerformanceMeasurement>;
-  measureWasmPerformance(dictionaryManager: any, scenario: BenchmarkScenario): Promise<PerformanceMeasurement>;
+  measureJavaScriptPerformance(
+    dictionaryManager: any,
+    scenario: BenchmarkScenario
+  ): Promise<PerformanceMeasurement>;
+  measureWasmPerformance(
+    dictionaryManager: any,
+    scenario: BenchmarkScenario
+  ): Promise<PerformanceMeasurement>;
   performJSDictionaryLookup(dictionaryManager: any, text: string): Promise<any>;
   performWASMDictionaryLookup(dictionaryManager: any, text: string): Promise<any>;
   runCompleteBenchmarkSuite(dictionaryManager: any): Promise<BenchmarkResults>;

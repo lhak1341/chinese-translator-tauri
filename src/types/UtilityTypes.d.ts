@@ -98,9 +98,7 @@ export type AsyncFunction<TArgs extends any[] = any[], TReturn = any> = (
 /**
  * Generic callback function type
  */
-export type Callback<TArgs extends any[] = any[], TReturn = void> = (
-  ...args: TArgs
-) => TReturn;
+export type Callback<TArgs extends any[] = any[], TReturn = void> = (...args: TArgs) => TReturn;
 
 /**
  * Generic async callback function type
@@ -328,10 +326,7 @@ export type Timestamp = Brand<'Timestamp', number>;
  * const valid: SearchParams = { name: 'Alice' }; // OK
  * const invalid: SearchParams = {}; // Type error!
  */
-export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
-  T,
-  Exclude<keyof T, Keys>
-> &
+export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> &
   {
     [K in Keys]-?: Required<Pick<T, K>> & Partial<Pick<T, Exclude<Keys, K>>>;
   }[Keys];
@@ -349,13 +344,9 @@ export type RequireAtLeastOne<T, Keys extends keyof T = keyof T> = Pick<
  * const valid: ID = { email: 'test@example.com' }; // OK
  * const invalid: ID = { userId: '123', email: 'test@example.com' }; // Type error!
  */
-export type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<
-  T,
-  Exclude<keyof T, Keys>
-> &
+export type RequireOnlyOne<T, Keys extends keyof T = keyof T> = Pick<T, Exclude<keyof T, Keys>> &
   {
-    [K in Keys]-?: Required<Pick<T, K>> &
-      Partial<Record<Exclude<Keys, K>, undefined>>;
+    [K in Keys]-?: Required<Pick<T, K>> & Partial<Record<Exclude<Keys, K>, undefined>>;
   }[Keys];
 
 /**
@@ -417,10 +408,10 @@ export type Paths<T> = T extends object
 export type PathValue<T, P extends string> = P extends keyof T
   ? T[P]
   : P extends `${infer K}.${infer R}`
-  ? K extends keyof T
-    ? PathValue<T[K], R>
-    : never
-  : never;
+    ? K extends keyof T
+      ? PathValue<T[K], R>
+      : never
+    : never;
 
 /**
  * Creates a strict object type that doesn't allow extra properties

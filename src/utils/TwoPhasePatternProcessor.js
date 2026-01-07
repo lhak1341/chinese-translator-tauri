@@ -1,8 +1,5 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
-import {
-  processTokensWasm,
-  isWasmPatternProcessorAvailable
-} from './WasmPatternProcessor.js';
+import { processTokensWasm, isWasmPatternProcessorAvailable } from './WasmPatternProcessor.js';
 
 /**
  * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
@@ -37,7 +34,7 @@ class TwoPhasePatternProcessor {
       enableFallback: true,
       debugMode: false,
       enableWasm: true, // Enable WASM acceleration by default
-      ...options
+      ...options,
     };
 
     // Analyze and categorize patterns
@@ -53,21 +50,21 @@ class TwoPhasePatternProcessor {
       buildVariableCache_phraseLookups: { time: 0, calls: 0 },
       buildVariableCache_properNounLookups: { time: 0, calls: 0 },
       buildVariableCache_fullTextScan: { time: 0, calls: 0 },
-      processTokensWasm: { time: 0, calls: 0 }
+      processTokensWasm: { time: 0, calls: 0 },
     };
 
     // TwoPhasePatternProcessor initialized successfully
   }
-  
+
   /**
    * Categorize patterns into processing phases
    */
   categorizePatterns() {
     // Phase A: Patterns that can serve as variables for other patterns
-    this.variablePatterns = this.processedPatterns.filter(p => p.allowAsPatternVariable === true);
+    this.variablePatterns = this.processedPatterns.filter((p) => p.allowAsPatternVariable === true);
 
     // Phase B eligible: Patterns that can use composite variables (single-variable only)
-    this.compositeEligiblePatterns = this.processedPatterns.filter(p => p.compositeEligible);
+    this.compositeEligiblePatterns = this.processedPatterns.filter((p) => p.compositeEligible);
 
     // All patterns for comprehensive processing
     this.allPatterns = this.processedPatterns;
@@ -95,7 +92,7 @@ class TwoPhasePatternProcessor {
       if (token.type === 'chinese_char' || token.type === 'chinese_word') {
         semanticTokens.push({
           ...token,
-          originalIndex: i
+          originalIndex: i,
         });
       }
     }
@@ -127,7 +124,7 @@ class TwoPhasePatternProcessor {
     }
 
     // Filter out 'phrases' from proper noun dictionaries
-    const actualProperNounDictionaries = activeProperNouns.filter(dict => dict !== 'phrases');
+    const actualProperNounDictionaries = activeProperNouns.filter((dict) => dict !== 'phrases');
 
     // 1. Cache already-translated proper nouns from tokens
     const start1 = performance.now();
@@ -136,12 +133,13 @@ class TwoPhasePatternProcessor {
         cache[token.value] = {
           translation: token.translated,
           source: token.translationSource,
-          type: 'proper_noun'
+          type: 'proper_noun',
         };
       }
     }
     if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache_alreadyTranslated.time += performance.now() - start1;
+      this.internalProfiling.buildVariableCache_alreadyTranslated.time +=
+        performance.now() - start1;
       this.internalProfiling.buildVariableCache_alreadyTranslated.calls++;
     }
 
@@ -155,19 +153,22 @@ class TwoPhasePatternProcessor {
         cache[tokens[i].value] = {
           translation: singleResult.translation,
           source: 'phrases_pattern_variable',
-          type: 'phrase'
+          type: 'phrase',
         };
       }
 
       // Check multi-character combinations (up to 6 characters)
       for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
-        const combinedText = tokens.slice(i, i + len).map(t => t.value).join('');
+        const combinedText = tokens
+          .slice(i, i + len)
+          .map((t) => t.value)
+          .join('');
         const multiResult = dictionaryManager.translate(combinedText, ['phrases']);
         if (multiResult?.metadata?.allowAsPatternVariable) {
           cache[combinedText] = {
             translation: multiResult.translation,
             source: 'phrases_pattern_variable',
-            type: 'phrase'
+            type: 'phrase',
           };
         }
       }
@@ -180,17 +181,21 @@ class TwoPhasePatternProcessor {
     // 3. Cache single-token proper noun dictionary lookups
     const start3 = performance.now();
     for (const token of tokens) {
-      const properNounResult = dictionaryManager.translate(token.value, actualProperNounDictionaries);
+      const properNounResult = dictionaryManager.translate(
+        token.value,
+        actualProperNounDictionaries
+      );
       if (properNounResult) {
         cache[token.value] = {
           translation: properNounResult.translation,
           source: properNounResult.dictionary + '_pattern_variable',
-          type: 'proper_noun'
+          type: 'proper_noun',
         };
       }
     }
     if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache_properNounLookups.time += performance.now() - start3;
+      this.internalProfiling.buildVariableCache_properNounLookups.time +=
+        performance.now() - start3;
       this.internalProfiling.buildVariableCache_properNounLookups.calls++;
     }
 
@@ -198,17 +203,21 @@ class TwoPhasePatternProcessor {
     // This is essential because pattern variables can be multi-character names
     // that span multiple tokens (e.g., "张三", "李四")
     const start4 = performance.now();
-    const fullText = tokens.map(t => t.value).join('');
+    const fullText = tokens.map((t) => t.value).join('');
 
     for (let pos = 0; pos < fullText.length; pos++) {
-      const allProperNounMatches = dictionaryManager.findAllMatches(fullText, pos, actualProperNounDictionaries);
+      const allProperNounMatches = dictionaryManager.findAllMatches(
+        fullText,
+        pos,
+        actualProperNounDictionaries
+      );
 
       for (const match of allProperNounMatches) {
         if (match.word && match.translation) {
           cache[match.word] = {
             translation: match.translation,
             source: match.dictionary + '_fulltext_scan',
-            type: 'proper_noun'
+            type: 'proper_noun',
           };
         }
       }
@@ -235,7 +244,9 @@ class TwoPhasePatternProcessor {
   async processTokens(tokens, options) {
     // WASM-only implementation (JavaScript fallback removed after parity verification)
     if (!this.options.enableWasm || !isWasmPatternProcessorAvailable()) {
-      throw new Error('WASM Pattern Processor not available. Two-phase pattern matching requires Rust WASM acceleration.');
+      throw new Error(
+        'WASM Pattern Processor not available. Two-phase pattern matching requires Rust WASM acceleration.'
+      );
     }
 
     try {
@@ -269,7 +280,7 @@ class TwoPhasePatternProcessor {
       throw error;
     }
   }
-  
+
   /**
    * Enable internal profiling
    */
@@ -307,30 +318,39 @@ class TwoPhasePatternProcessor {
     if (!this.internalProfiling.enabled) {
       return {
         enabled: false,
-        message: 'Internal profiling not enabled. Call enableInternalProfiling() first.'
+        message: 'Internal profiling not enabled. Call enableInternalProfiling() first.',
       };
     }
 
     const report = [];
-    const totalTime = this.internalProfiling.buildVariableCache.time +
-                     this.internalProfiling.extractSemanticTokens.time +
-                     this.internalProfiling.processTokensWasm.time;
+    const totalTime =
+      this.internalProfiling.buildVariableCache.time +
+      this.internalProfiling.extractSemanticTokens.time +
+      this.internalProfiling.processTokensWasm.time;
 
     // Top-level breakdown
     report.push({
       phase: 'Extract Semantic Tokens',
       timeMs: this.internalProfiling.extractSemanticTokens.time.toFixed(2),
       calls: this.internalProfiling.extractSemanticTokens.calls,
-      avgMs: (this.internalProfiling.extractSemanticTokens.time / Math.max(1, this.internalProfiling.extractSemanticTokens.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.extractSemanticTokens.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.extractSemanticTokens.time /
+        Math.max(1, this.internalProfiling.extractSemanticTokens.calls)
+      ).toFixed(2),
+      percentage:
+        ((this.internalProfiling.extractSemanticTokens.time / totalTime) * 100).toFixed(1) + '%',
     });
 
     report.push({
       phase: 'Build Variable Cache (TOTAL)',
       timeMs: this.internalProfiling.buildVariableCache.time.toFixed(2),
       calls: this.internalProfiling.buildVariableCache.calls,
-      avgMs: (this.internalProfiling.buildVariableCache.time / Math.max(1, this.internalProfiling.buildVariableCache.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.buildVariableCache.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.buildVariableCache.time /
+        Math.max(1, this.internalProfiling.buildVariableCache.calls)
+      ).toFixed(2),
+      percentage:
+        ((this.internalProfiling.buildVariableCache.time / totalTime) * 100).toFixed(1) + '%',
     });
 
     // Variable cache sub-steps
@@ -338,47 +358,77 @@ class TwoPhasePatternProcessor {
       phase: '  ↳ Already Translated Tokens',
       timeMs: this.internalProfiling.buildVariableCache_alreadyTranslated.time.toFixed(2),
       calls: this.internalProfiling.buildVariableCache_alreadyTranslated.calls,
-      avgMs: (this.internalProfiling.buildVariableCache_alreadyTranslated.time / Math.max(1, this.internalProfiling.buildVariableCache_alreadyTranslated.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.buildVariableCache_alreadyTranslated.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.buildVariableCache_alreadyTranslated.time /
+        Math.max(1, this.internalProfiling.buildVariableCache_alreadyTranslated.calls)
+      ).toFixed(2),
+      percentage:
+        (
+          (this.internalProfiling.buildVariableCache_alreadyTranslated.time / totalTime) *
+          100
+        ).toFixed(1) + '%',
     });
 
     report.push({
       phase: '  ↳ Phrase Lookups',
       timeMs: this.internalProfiling.buildVariableCache_phraseLookups.time.toFixed(2),
       calls: this.internalProfiling.buildVariableCache_phraseLookups.calls,
-      avgMs: (this.internalProfiling.buildVariableCache_phraseLookups.time / Math.max(1, this.internalProfiling.buildVariableCache_phraseLookups.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.buildVariableCache_phraseLookups.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.buildVariableCache_phraseLookups.time /
+        Math.max(1, this.internalProfiling.buildVariableCache_phraseLookups.calls)
+      ).toFixed(2),
+      percentage:
+        ((this.internalProfiling.buildVariableCache_phraseLookups.time / totalTime) * 100).toFixed(
+          1
+        ) + '%',
     });
 
     report.push({
       phase: '  ↳ Proper Noun Lookups',
       timeMs: this.internalProfiling.buildVariableCache_properNounLookups.time.toFixed(2),
       calls: this.internalProfiling.buildVariableCache_properNounLookups.calls,
-      avgMs: (this.internalProfiling.buildVariableCache_properNounLookups.time / Math.max(1, this.internalProfiling.buildVariableCache_properNounLookups.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.buildVariableCache_properNounLookups.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.buildVariableCache_properNounLookups.time /
+        Math.max(1, this.internalProfiling.buildVariableCache_properNounLookups.calls)
+      ).toFixed(2),
+      percentage:
+        (
+          (this.internalProfiling.buildVariableCache_properNounLookups.time / totalTime) *
+          100
+        ).toFixed(1) + '%',
     });
 
     report.push({
       phase: '  ↳ Full-Text Scan',
       timeMs: this.internalProfiling.buildVariableCache_fullTextScan.time.toFixed(2),
       calls: this.internalProfiling.buildVariableCache_fullTextScan.calls,
-      avgMs: (this.internalProfiling.buildVariableCache_fullTextScan.time / Math.max(1, this.internalProfiling.buildVariableCache_fullTextScan.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.buildVariableCache_fullTextScan.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.buildVariableCache_fullTextScan.time /
+        Math.max(1, this.internalProfiling.buildVariableCache_fullTextScan.calls)
+      ).toFixed(2),
+      percentage:
+        ((this.internalProfiling.buildVariableCache_fullTextScan.time / totalTime) * 100).toFixed(
+          1
+        ) + '%',
     });
 
     report.push({
       phase: 'Process Tokens (WASM)',
       timeMs: this.internalProfiling.processTokensWasm.time.toFixed(2),
       calls: this.internalProfiling.processTokensWasm.calls,
-      avgMs: (this.internalProfiling.processTokensWasm.time / Math.max(1, this.internalProfiling.processTokensWasm.calls)).toFixed(2),
-      percentage: ((this.internalProfiling.processTokensWasm.time / totalTime) * 100).toFixed(1) + '%'
+      avgMs: (
+        this.internalProfiling.processTokensWasm.time /
+        Math.max(1, this.internalProfiling.processTokensWasm.calls)
+      ).toFixed(2),
+      percentage:
+        ((this.internalProfiling.processTokensWasm.time / totalTime) * 100).toFixed(1) + '%',
     });
 
     return {
       enabled: true,
       totalTimeMs: totalTime.toFixed(2),
       totalCalls: this.internalProfiling.buildVariableCache.calls,
-      breakdown: report
+      breakdown: report,
     };
   }
 
@@ -418,32 +468,32 @@ class TwoPhasePatternProcessor {
       patterns: {
         total: this.processedPatterns.length,
         variablePatterns: this.variablePatterns.length,
-        compositeEligible: this.compositeEligiblePatterns.length
+        compositeEligible: this.compositeEligiblePatterns.length,
       },
       analysis: this.analyzer.generateSummary(this.processedPatterns),
-      options: this.options
+      options: this.options,
     };
   }
-  
+
   /**
    * Validate configuration and pattern setup
    * @returns {Object} Validation results
    */
   validateSetup() {
     const issues = [];
-    
+
     if (this.processedPatterns.length === 0) {
       issues.push('No patterns provided for processing');
     }
-    
+
     if (this.variablePatterns.length === 0) {
       issues.push('No variable patterns available for Phase A');
     }
-    
+
     if (this.compositeEligiblePatterns.length === 0) {
       issues.push('No composite-eligible patterns available for Phase B');
     }
-    
+
     // Validate individual patterns
     for (const pattern of this.processedPatterns) {
       const validation = this.analyzer.validatePattern(pattern);
@@ -451,11 +501,11 @@ class TwoPhasePatternProcessor {
         issues.push(`Pattern "${pattern.originalPattern}": ${validation.issues.join(', ')}`);
       }
     }
-    
+
     return {
       valid: issues.length === 0,
       issues,
-      warnings: issues.filter(issue => issue.includes('No ')) // Categorize missing components as warnings
+      warnings: issues.filter((issue) => issue.includes('No ')), // Categorize missing components as warnings
     };
   }
 }

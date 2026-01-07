@@ -24,7 +24,7 @@ export class TranslationProfiler {
       phrases: { time: 0, calls: 0, name: 'Phrase Dictionary' },
       characters: { time: 0, calls: 0, name: 'Character Dictionary' },
       postProcess: { time: 0, calls: 0, name: 'Post-Processing' },
-      total: { time: 0, calls: 0, name: 'Total Translation' }
+      total: { time: 0, calls: 0, name: 'Total Translation' },
     };
   }
 
@@ -126,12 +126,12 @@ export class TranslationProfiler {
     if (!this.enabled) {
       return {
         enabled: false,
-        message: 'Profiling not enabled. Run: window.translationEngine.enableProfiling()'
+        message: 'Profiling not enabled. Run: window.translationEngine.enableProfiling()',
       };
     }
 
-    const totalTime = this.phases.total.time ||
-                      Object.values(this.phases).reduce((sum, p) => sum + p.time, 0);
+    const totalTime =
+      this.phases.total.time || Object.values(this.phases).reduce((sum, p) => sum + p.time, 0);
 
     const report = Object.entries(this.phases)
       .filter(([_, data]) => data.calls > 0)
@@ -141,19 +141,19 @@ export class TranslationProfiler {
         calls: data.calls,
         avgMs: (data.time / data.calls).toFixed(2),
         percentage: ((data.time / totalTime) * 100).toFixed(1) + '%',
-        _rawTime: data.time // For sorting
+        _rawTime: data.time, // For sorting
       }))
       .sort((a, b) => b._rawTime - a._rawTime);
 
     // Remove raw time from output
-    report.forEach(r => delete r._rawTime);
+    report.forEach((r) => delete r._rawTime);
 
     return {
       enabled: true,
       totalTimeMs: totalTime.toFixed(2),
       totalCalls: this.phases.total.calls,
       phases: report,
-      recommendations: this.getRecommendations(report, totalTime)
+      recommendations: this.getRecommendations(report, totalTime),
     };
   }
 
@@ -167,8 +167,8 @@ export class TranslationProfiler {
     const recommendations = [];
 
     // Calculate dictionary phases total
-    const dictionaryPhases = phaseReport.filter(p =>
-      p.phase.includes('Dictionary') && !p.phase.includes('WASM')
+    const dictionaryPhases = phaseReport.filter(
+      (p) => p.phase.includes('Dictionary') && !p.phase.includes('WASM')
     );
     const dictionaryTime = dictionaryPhases.reduce((sum, p) => sum + parseFloat(p.timeMs), 0);
     const dictionaryPercentage = (dictionaryTime / totalTime) * 100;
@@ -180,9 +180,7 @@ export class TranslationProfiler {
       recommendations.push(
         `✅ RECOMMENDED: Migrate dictionary phases to Rust WASM (estimated 5-15x speedup)`
       );
-      recommendations.push(
-        `📋 See: DICTIONARY_PHASE_BATCHING_RUST_PLAN.md for migration plan`
-      );
+      recommendations.push(`📋 See: DICTIONARY_PHASE_BATCHING_RUST_PLAN.md for migration plan`);
     } else if (dictionaryPercentage > 25) {
       recommendations.push(
         `💡 Dictionary phases consume ${dictionaryPercentage.toFixed(1)}% of translation time (${dictionaryTime.toFixed(2)}ms)`
@@ -194,21 +192,17 @@ export class TranslationProfiler {
       recommendations.push(
         `✓ Dictionary phases only ${dictionaryPercentage.toFixed(1)}% of time (${dictionaryTime.toFixed(2)}ms) - not the bottleneck`
       );
-      recommendations.push(
-        `🔍 Focus optimization efforts on higher-percentage phases instead`
-      );
+      recommendations.push(`🔍 Focus optimization efforts on higher-percentage phases instead`);
     }
 
     // Check if any single phase is >30%
-    const dominantPhases = phaseReport.filter(p =>
-      parseFloat(p.percentage) > 30 && p.phase !== 'Total Translation'
+    const dominantPhases = phaseReport.filter(
+      (p) => parseFloat(p.percentage) > 30 && p.phase !== 'Total Translation'
     );
 
     if (dominantPhases.length > 0) {
-      dominantPhases.forEach(p => {
-        recommendations.push(
-          `🎯 ${p.phase} is a bottleneck (${p.percentage} of total time)`
-        );
+      dominantPhases.forEach((p) => {
+        recommendations.push(`🎯 ${p.phase} is a bottleneck (${p.percentage} of total time)`);
       });
     }
 
@@ -239,7 +233,7 @@ export class TranslationProfiler {
       console.log('\n' + '='.repeat(80));
       console.log('💡 RECOMMENDATIONS:');
       console.log('='.repeat(80));
-      report.recommendations.forEach(rec => console.log(rec));
+      report.recommendations.forEach((rec) => console.log(rec));
     }
 
     console.log('\n' + '='.repeat(80));

@@ -76,7 +76,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
   } = useDictionary();
 
   // Local state management for UI controls and feedback
-  const [dictionaryTypes, setDictionaryTypes] = useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
+  const [dictionaryTypes, setDictionaryTypes] =
+    useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
   const [showAddEntry, setShowAddEntry] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [updateError, _setUpdateError] = useState<string | null>(null);
@@ -92,7 +93,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
   useEffect(() => {
     const loadDictionaryTypes = async (): Promise<void> => {
       try {
-        const types = await getDictionaryTypes() as DictionaryTypesCollection;
+        const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
         setDictionaryTypes(types);
 
         // Load active dictionaries from config
@@ -336,7 +337,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
         onAddEntry: () => setShowAddEntry(true),
         canUndo,
         canRedo,
-        activeTab: 'dictionary'
+        activeTab: 'dictionary',
       })}
       <div style={headerStyle}>
         <select
@@ -416,9 +417,11 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
               className="danger"
               style={buttonStyle}
               disabled={selectionState.isDeleting}
-              title={selectionState.showBulkDeleteConfirm ?
-                `Confirm delete ${selectionState.selectedCount} entries` :
-                `Delete ${selectionState.selectedCount} selected entries`}
+              title={
+                selectionState.showBulkDeleteConfirm
+                  ? `Confirm delete ${selectionState.selectedCount} entries`
+                  : `Delete ${selectionState.selectedCount} selected entries`
+              }
             >
               {selectionState.isDeleting ? (
                 <Loader size={16} className="animate-spin" />
@@ -426,7 +429,9 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
                 <Trash2 size={16} />
               )}
               <span>
-                {selectionState.showBulkDeleteConfirm ? 'Confirm Delete' : `Delete (${selectionState.selectedCount})`}
+                {selectionState.showBulkDeleteConfirm
+                  ? 'Confirm Delete'
+                  : `Delete (${selectionState.selectedCount})`}
               </span>
             </button>
           )}
@@ -479,20 +484,23 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
       )}
 
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        {useEnhancedVirtualization ? React.createElement(EnhancedVirtualizedDictionaryTable as any, {
-          selectedDictionary,
-          searchRef,
-          onSelectionChange: setSelectionState
-        }) : React.createElement(VirtualizedDictionaryTable as any, {
-          selectedDictionary,
-          searchRef
-        })}
+        {useEnhancedVirtualization
+          ? React.createElement(EnhancedVirtualizedDictionaryTable as any, {
+              selectedDictionary,
+              searchRef,
+              onSelectionChange: setSelectionState,
+            })
+          : React.createElement(VirtualizedDictionaryTable as any, {
+              selectedDictionary,
+              searchRef,
+            })}
       </div>
 
-      {showAddEntry && React.createElement(DictionaryEntry as any, {
-        onClose: () => setShowAddEntry(false),
-        selectedDictionary
-      })}
+      {showAddEntry &&
+        React.createElement(DictionaryEntry as any, {
+          onClose: () => setShowAddEntry(false),
+          selectedDictionary,
+        })}
     </div>
   );
 };

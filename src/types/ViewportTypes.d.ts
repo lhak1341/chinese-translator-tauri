@@ -562,7 +562,10 @@ export interface ViewportSegmentComputerEnhancedInterface extends ViewportSegmen
   performanceStats: EnhancedPerformanceStats;
 
   /** Create text position mapping (async for workers) */
-  createTextPositionMapping(text: string, semanticArrays: SemanticArrays): Promise<TextPositionMapping>;
+  createTextPositionMapping(
+    text: string,
+    semanticArrays: SemanticArrays
+  ): Promise<TextPositionMapping>;
   /** Compute segments for text range (async for workers) */
   computeSegmentsForTextRange(textStart: number, textEnd: number): Promise<ViewportSegment[]>;
   /** Set worker enabled */
@@ -600,7 +603,11 @@ export interface AcceleratedPositionMapperInterface {
   /** Clear all caches */
   clearCaches(): void;
   /** Prewarm cache asynchronously */
-  prewarmCache(mapping: TextPositionMapping, textLength: number, viewportSize: number): Promise<void>;
+  prewarmCache(
+    mapping: TextPositionMapping,
+    textLength: number,
+    viewportSize: number
+  ): Promise<void>;
 }
 
 /**

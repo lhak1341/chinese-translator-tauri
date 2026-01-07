@@ -5,12 +5,12 @@
 
 export const TokenType = {
   CHINESE_CHAR: 'chinese_char',
-  CHINESE_WORD: 'chinese_word', 
+  CHINESE_WORD: 'chinese_word',
   LATIN_WORD: 'latin_word',
   NUMBER: 'number',
   PUNCTUATION: 'punctuation',
   WHITESPACE: 'whitespace',
-  UNKNOWN: 'unknown'
+  UNKNOWN: 'unknown',
 };
 
 export class Token {
@@ -39,7 +39,7 @@ export class TextTokenizer {
       latinWord: /[A-Za-z]+/,
       number: /\d+/,
       punctuation: /[^\w\s\u4e00-\u9fff]/,
-      whitespace: /\s+/
+      whitespace: /\s+/,
     };
 
     // Compiled regex for efficient matching - capture individual Chinese characters
@@ -139,7 +139,7 @@ export class TextTokenizer {
       [TokenType.NUMBER]: [],
       [TokenType.PUNCTUATION]: [],
       [TokenType.WHITESPACE]: [],
-      [TokenType.UNKNOWN]: []
+      [TokenType.UNKNOWN]: [],
     };
 
     tokens.forEach((token, index) => {
@@ -155,7 +155,7 @@ export class TextTokenizer {
    * @returns {string} Reconstructed text
    */
   reconstruct(tokens) {
-    return tokens.map(token => token.translated || token.value).join('');
+    return tokens.map((token) => token.translated || token.value).join('');
   }
 
   /**
@@ -165,7 +165,7 @@ export class TextTokenizer {
    */
   findPhraseCandidates(tokens, maxPhraseLength = 10) {
     const candidates = [];
-    
+
     for (let i = 0; i < tokens.length; i++) {
       if (tokens[i].type === TokenType.CHINESE_WORD || tokens[i].type === TokenType.CHINESE_CHAR) {
         // Generate phrase candidates of different lengths
@@ -194,7 +194,7 @@ export class TextTokenizer {
               startIndex: i,
               endIndex,
               length: phrase.length,
-              tokenCount: length
+              tokenCount: length,
             });
           }
         }
@@ -213,28 +213,29 @@ export class TextTokenizer {
   analyzeText(text) {
     const tokens = this.tokenize(text);
     const groups = this.groupTokensByType(tokens);
-    
+
     const analysis = {
       totalLength: text.length,
       tokenCount: tokens.length,
       composition: {},
-      complexity: 'simple'
+      complexity: 'simple',
     };
 
     // Calculate composition percentages
     Object.entries(groups).forEach(([type, tokenList]) => {
-      const charCount = tokenList.reduce((sum, {token}) => sum + token.value.length, 0);
+      const charCount = tokenList.reduce((sum, { token }) => sum + token.value.length, 0);
       analysis.composition[type] = {
         tokens: tokenList.length,
         characters: charCount,
-        percentage: ((charCount / text.length) * 100).toFixed(1)
+        percentage: ((charCount / text.length) * 100).toFixed(1),
       };
     });
 
     // Determine complexity
-    const chineseRatio = parseFloat(analysis.composition[TokenType.CHINESE_WORD]?.percentage || 0) +
-                        parseFloat(analysis.composition[TokenType.CHINESE_CHAR]?.percentage || 0);
-    
+    const chineseRatio =
+      parseFloat(analysis.composition[TokenType.CHINESE_WORD]?.percentage || 0) +
+      parseFloat(analysis.composition[TokenType.CHINESE_CHAR]?.percentage || 0);
+
     if (chineseRatio > 80) {
       analysis.complexity = 'chinese_heavy';
     } else if (chineseRatio > 20) {
@@ -267,7 +268,7 @@ export const tokenTypeToString = (type) => {
     [TokenType.NUMBER]: 'Number',
     [TokenType.PUNCTUATION]: 'Punctuation',
     [TokenType.WHITESPACE]: 'Whitespace',
-    [TokenType.UNKNOWN]: 'Unknown'
+    [TokenType.UNKNOWN]: 'Unknown',
   };
   return typeNames[type] || 'Unknown';
 };

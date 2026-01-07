@@ -523,11 +523,7 @@ export interface TranslationSegmentCache {
    * @param options - Translation options
    * @returns Hash-based cache key
    */
-  generateCacheKey(
-    originalText: string,
-    dictionaryFingerprint: string,
-    options?: any
-  ): string;
+  generateCacheKey(originalText: string, dictionaryFingerprint: string, options?: any): string;
 
   /**
    * Get cached translation segment
@@ -536,11 +532,7 @@ export interface TranslationSegmentCache {
    * @param options - Translation options
    * @returns Cached entry or null
    */
-  get(
-    originalText: string,
-    dictionaryFingerprint: string,
-    options?: any
-  ): SegmentCacheEntry | null;
+  get(originalText: string, dictionaryFingerprint: string, options?: any): SegmentCacheEntry | null;
 
   /**
    * Store translation segment in cache

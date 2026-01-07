@@ -42,9 +42,10 @@ export class TranslationError extends Error {
     const contextStr = Object.entries(this.context)
       .map(([key, value]) => {
         // Truncate long values
-        const valStr = typeof value === 'string' && value.length > 100
-          ? value.substring(0, 100) + '...'
-          : JSON.stringify(value);
+        const valStr =
+          typeof value === 'string' && value.length > 100
+            ? value.substring(0, 100) + '...'
+            : JSON.stringify(value);
         return `${key}: ${valStr}`;
       })
       .join(', ');
@@ -70,7 +71,7 @@ export const ErrorStrategy = {
 /**
  * Type for error strategy values
  */
-export type ErrorStrategyValue = typeof ErrorStrategy[keyof typeof ErrorStrategy];
+export type ErrorStrategyValue = (typeof ErrorStrategy)[keyof typeof ErrorStrategy];
 
 /**
  * Error callback function type
@@ -142,11 +143,7 @@ export function handleError<T = any>(
   strategy: ErrorStrategyValue,
   options: ErrorOptions<T> = {}
 ): T | never {
-  const {
-    fallbackValue = null as T,
-    context = {},
-    onError = null
-  } = options;
+  const { fallbackValue = null as T, context = {}, onError = null } = options;
 
   const err = error instanceof Error ? error : new Error(String(error));
 
@@ -162,12 +159,13 @@ export function handleError<T = any>(
   switch (strategy) {
     case ErrorStrategy.THROW: {
       // User-facing operations: throw with full context
-      const translationError = err instanceof TranslationError
-        ? err
-        : new TranslationError(
-            `Operation '${operation}' failed: ${err.message}`,
-            { ...context, originalError: err.name }
-          );
+      const translationError =
+        err instanceof TranslationError
+          ? err
+          : new TranslationError(`Operation '${operation}' failed: ${err.message}`, {
+              ...context,
+              originalError: err.name,
+            });
 
       console.error(`❌ ${operation} failed:`, translationError.getDetailedMessage());
       throw translationError;
@@ -175,11 +173,7 @@ export function handleError<T = any>(
 
     case ErrorStrategy.FALLBACK: {
       // Fallback operations: warn and return alternative
-      console.warn(
-        `⚠️ ${operation} failed, using fallback:`,
-        err.message,
-        context
-      );
+      console.warn(`⚠️ ${operation} failed, using fallback:`, err.message, context);
       return fallbackValue;
     }
 
@@ -289,11 +283,7 @@ export async function withRetry<T = any>(
   operation: () => Promise<T>,
   options: RetryOptions = {}
 ): Promise<T> {
-  const {
-    maxRetries = 3,
-    delayMs = 100,
-    shouldRetry = () => true,
-  } = options;
+  const { maxRetries = 3, delayMs = 100, shouldRetry = () => true } = options;
 
   let lastError: Error | undefined;
 
@@ -314,16 +304,15 @@ export async function withRetry<T = any>(
         if (process.env.NODE_ENV === 'development') {
           console.debug(`Retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`);
         }
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
   }
 
   // All retries exhausted
-  throw new TranslationError(
-    `Operation failed after ${maxRetries} retries`,
-    { lastError: lastError?.message }
-  );
+  throw new TranslationError(`Operation failed after ${maxRetries} retries`, {
+    lastError: lastError?.message,
+  });
 }
 
 /**
@@ -368,7 +357,11 @@ export class WasmError extends TranslationError {
  * validate(text && text.length > 0, 'Text cannot be empty', { textLength: text?.length });
  * ```
  */
-export function validate(condition: boolean, message: string, context: ErrorContext = {}): asserts condition {
+export function validate(
+  condition: boolean,
+  message: string,
+  context: ErrorContext = {}
+): asserts condition {
   if (!condition) {
     throw new ValidationError(message, context);
   }

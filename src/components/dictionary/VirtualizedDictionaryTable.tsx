@@ -16,11 +16,13 @@ import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.j
 /**
  * Dictionary entry value type (can be string or object with metadata)
  */
-type DictionaryEntryValue = string | {
-  translation: string;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-};
+type DictionaryEntryValue =
+  | string
+  | {
+      translation: string;
+      allowAsPatternVariable?: boolean;
+      lowPriority?: boolean;
+    };
 
 /**
  * Dictionary entry data structure for editing
@@ -70,7 +72,7 @@ const ITEM_HEIGHT = 40; // Height of each table row in pixels
  */
 const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
   selectedDictionary,
-  searchRef
+  searchRef,
 }) => {
   const { dictionaries, deleteEntry, isLoading } = useDictionary();
 
@@ -127,9 +129,12 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
 
     const searchLower = searchTerm.toLowerCase();
     return entries.filter(([source, translation]: [string, DictionaryEntryValue]) => {
-      const translationText = typeof translation === 'string' ? translation : translation.translation;
-      return source.toLowerCase().includes(searchLower) ||
-             translationText.toLowerCase().includes(searchLower);
+      const translationText =
+        typeof translation === 'string' ? translation : translation.translation;
+      return (
+        source.toLowerCase().includes(searchLower) ||
+        translationText.toLowerCase().includes(searchLower)
+      );
     });
   }, [dictionaries, selectedDictionary, searchTerm]);
 
@@ -142,7 +147,7 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
           itemHeight: ITEM_HEIGHT,
           totalItems: filteredEntries.length,
           scrollVelocity,
-          isScrolling
+          isScrolling,
         });
 
         if (optimalSize !== bufferSize) {
@@ -221,7 +226,7 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
       isScrolling: true,
       bufferSize: bufferSize,
       visibleItems: Math.ceil(containerHeight / ITEM_HEIGHT),
-      totalItems: filteredEntries.length
+      totalItems: filteredEntries.length,
     });
 
     // Update refs for next calculation
@@ -261,7 +266,15 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          gap: '1rem',
+        }}
+      >
         <Loader size={24} className="animate-spin" />
         <span>Loading dictionary...</span>
       </div>
@@ -271,13 +284,15 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Search bar and controls */}
-      <div style={{
-        padding: '1rem',
-        borderBottom: '1px solid var(--border-color)',
-        display: 'flex',
-        gap: '0.5rem',
-        alignItems: 'center',
-      }}>
+      <div
+        style={{
+          padding: '1rem',
+          borderBottom: '1px solid var(--border-color)',
+          display: 'flex',
+          gap: '0.5rem',
+          alignItems: 'center',
+        }}
+      >
         <input
           ref={searchRef}
           type="text"
@@ -296,22 +311,34 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
           }}
         />
         <div style={{ display: 'flex', gap: '0.25rem' }}>
-          <button onClick={scrollToTop} className="icon" title="Scroll to top" style={{ padding: '0.5rem' }}>
+          <button
+            onClick={scrollToTop}
+            className="icon"
+            title="Scroll to top"
+            style={{ padding: '0.5rem' }}
+          >
             <ChevronsUp size={16} />
           </button>
-          <button onClick={scrollToBottom} className="icon" title="Scroll to bottom" style={{ padding: '0.5rem' }}>
+          <button
+            onClick={scrollToBottom}
+            className="icon"
+            title="Scroll to bottom"
+            style={{ padding: '0.5rem' }}
+          >
             <ChevronsDown size={16} />
           </button>
         </div>
       </div>
 
       {/* Entry count indicator */}
-      <div style={{
-        padding: '0.5rem 1rem',
-        fontSize: '0.875rem',
-        color: 'var(--muted-text)',
-        borderBottom: '1px solid var(--border-color)'
-      }}>
+      <div
+        style={{
+          padding: '0.5rem 1rem',
+          fontSize: '0.875rem',
+          color: 'var(--muted-text)',
+          borderBottom: '1px solid var(--border-color)',
+        }}
+      >
         Showing {visibleEntries.length} of {filteredEntries.length} entries
         {/* OPTIMIZATION: Adaptive buffer debug info (always visible for testing) */}
         <span style={{ marginLeft: '1rem', fontSize: '0.75rem', opacity: 0.7 }}>
@@ -322,36 +349,50 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
 
       {/* Error display */}
       {deleteError && (
-        <div style={{
-          padding: '0.5rem 1rem',
-          backgroundColor: 'var(--danger-button-bg)',
-          color: 'var(--danger-button-text)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}>
+        <div
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: 'var(--danger-button-bg)',
+            color: 'var(--danger-button-text)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
           <AlertCircle size={16} />
           {deleteError}
         </div>
       )}
 
       {/* Virtualized table container */}
-      <div
-        ref={tableContainerRef}
-        style={{ flex: 1, overflow: 'hidden', position: 'relative' }}
-      >
+      <div ref={tableContainerRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         {/* Table header (fixed) */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid var(--border-color)',
-          backgroundColor: 'var(--background-color)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 1,
-        }}>
-          <div style={{ width: '40%', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
-          <div style={{ width: '40%', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Translation</div>
-          <div style={{ width: '20%', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'right' }}>Actions</div>
+        <div
+          style={{
+            display: 'flex',
+            borderBottom: '1px solid var(--border-color)',
+            backgroundColor: 'var(--background-color)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 1,
+          }}
+        >
+          <div style={{ width: '40%', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>
+            Source Text
+          </div>
+          <div style={{ width: '40%', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>
+            Translation
+          </div>
+          <div
+            style={{
+              width: '20%',
+              padding: '0.5rem 0.75rem',
+              fontWeight: 'bold',
+              textAlign: 'right',
+            }}
+          >
+            Actions
+          </div>
         </div>
 
         {/* Scrollable content */}
@@ -368,91 +409,144 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
           <div style={{ height: totalHeight, position: 'relative' }}>
             {/* Visible entries container */}
             <div style={{ transform: `translateY(${offsetY}px)` }}>
-              {visibleEntries.map(([source, translation]: [string, DictionaryEntryValue], index: number) => {
-                const actualIndex = startIndex + index;
-                const translationText = typeof translation === 'string' ? translation : translation.translation;
-                const allowAsPatternVariable = typeof translation === 'object' && translation !== null && 'allowAsPatternVariable' in translation && translation.allowAsPatternVariable === true;
-                const lowPriority = typeof translation === 'object' && translation !== null && 'lowPriority' in translation && translation.lowPriority === true;
+              {visibleEntries.map(
+                ([source, translation]: [string, DictionaryEntryValue], index: number) => {
+                  const actualIndex = startIndex + index;
+                  const translationText =
+                    typeof translation === 'string' ? translation : translation.translation;
+                  const allowAsPatternVariable =
+                    typeof translation === 'object' &&
+                    translation !== null &&
+                    'allowAsPatternVariable' in translation &&
+                    translation.allowAsPatternVariable === true;
+                  const lowPriority =
+                    typeof translation === 'object' &&
+                    translation !== null &&
+                    'lowPriority' in translation &&
+                    translation.lowPriority === true;
 
-                return (
-                  <div
-                    key={`${source}-${actualIndex}`}
-                    style={{
-                      height: ITEM_HEIGHT,
-                      display: 'flex',
-                      alignItems: 'center',
-                      borderBottom: '1px solid var(--border-color)',
-                      backgroundColor: actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
-                    }}
-                  >
-                    <div style={{ width: '40%', padding: '0.25rem 0.75rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {source}
-                    </div>
-                    <div style={{ width: '40%', padding: '0.25rem 0.75rem', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {translationText}
-                      {allowAsPatternVariable && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.8em', color: 'var(--accent-color)', fontWeight: 'bold' }}>
-                          [X]
-                        </span>
-                      )}
-                      {lowPriority && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.8em', color: '#ff8c00', fontWeight: 'bold' }}>
-                          [LP]
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ width: '20%', padding: '0.25rem 0.75rem', textAlign: 'right' }}>
-                      <button
-                        onClick={() => setEditingEntry({ source, translation: translationText, allowAsPatternVariable, lowPriority })}
-                        className="icon"
-                        disabled={isDeleting}
-                        title="Edit entry"
-                        style={{ marginRight: '0.25rem' }}
+                  return (
+                    <div
+                      key={`${source}-${actualIndex}`}
+                      style={{
+                        height: ITEM_HEIGHT,
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderBottom: '1px solid var(--border-color)',
+                        backgroundColor:
+                          actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: '40%',
+                          padding: '0.25rem 0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
                       >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => setMoveEntry({ source, translation: translationText })}
-                        className="icon"
-                        disabled={isDeleting}
-                        title="Move to another dictionary"
-                        style={{ marginRight: '0.25rem' }}
+                        {source}
+                      </div>
+                      <div
+                        style={{
+                          width: '40%',
+                          padding: '0.25rem 0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
                       >
-                        <MoveIcon size={16} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(source)}
-                        className={`icon ${showConfirmDelete === source ? 'danger' : ''}`}
-                        disabled={isDeleting}
-                        title={showConfirmDelete === source ? 'Click to confirm deletion' : 'Delete entry'}
-                      >
-                        {isDeleting && showConfirmDelete === source ? (
-                          <Loader size={16} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={16} />
+                        {translationText}
+                        {allowAsPatternVariable && (
+                          <span
+                            style={{
+                              marginLeft: '0.5rem',
+                              fontSize: '0.8em',
+                              color: 'var(--accent-color)',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            [X]
+                          </span>
                         )}
-                      </button>
+                        {lowPriority && (
+                          <span
+                            style={{
+                              marginLeft: '0.5rem',
+                              fontSize: '0.8em',
+                              color: '#ff8c00',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            [LP]
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ width: '20%', padding: '0.25rem 0.75rem', textAlign: 'right' }}>
+                        <button
+                          onClick={() =>
+                            setEditingEntry({
+                              source,
+                              translation: translationText,
+                              allowAsPatternVariable,
+                              lowPriority,
+                            })
+                          }
+                          className="icon"
+                          disabled={isDeleting}
+                          title="Edit entry"
+                          style={{ marginRight: '0.25rem' }}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => setMoveEntry({ source, translation: translationText })}
+                          className="icon"
+                          disabled={isDeleting}
+                          title="Move to another dictionary"
+                          style={{ marginRight: '0.25rem' }}
+                        >
+                          <MoveIcon size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(source)}
+                          className={`icon ${showConfirmDelete === source ? 'danger' : ''}`}
+                          disabled={isDeleting}
+                          title={
+                            showConfirmDelete === source
+                              ? 'Click to confirm deletion'
+                              : 'Delete entry'
+                          }
+                        >
+                          {isDeleting && showConfirmDelete === source ? (
+                            <Loader size={16} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={16} />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
             </div>
           </div>
         </div>
       </div>
 
       {/* Modal dialogs */}
-      {editingEntry && React.createElement(DictionaryEntry as any, {
-        entry: editingEntry,
-        onClose: () => setEditingEntry(null),
-        selectedDictionary: selectedDictionary
-      })}
+      {editingEntry &&
+        React.createElement(DictionaryEntry as any, {
+          entry: editingEntry,
+          onClose: () => setEditingEntry(null),
+          selectedDictionary: selectedDictionary,
+        })}
 
-      {moveEntry && React.createElement(MoveEntryDialog as any, {
-        entry: moveEntry,
-        currentDictionary: selectedDictionary,
-        onClose: () => setMoveEntry(null)
-      })}
+      {moveEntry &&
+        React.createElement(MoveEntryDialog as any, {
+          entry: moveEntry,
+          currentDictionary: selectedDictionary,
+          onClose: () => setMoveEntry(null),
+        })}
     </div>
   );
 };

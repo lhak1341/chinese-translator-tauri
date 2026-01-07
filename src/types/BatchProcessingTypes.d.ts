@@ -311,7 +311,9 @@ export interface AdaptiveChunker {
    * @param analysis - Content analysis results
    * @returns Optimization recommendations
    */
-  generateOptimizationRecommendations(analysis: ContentCharacteristics): OptimizationRecommendations;
+  generateOptimizationRecommendations(
+    analysis: ContentCharacteristics
+  ): OptimizationRecommendations;
 }
 
 // ============================================================================
@@ -530,10 +532,7 @@ export interface TextChunker {
    * @param semanticArrays - Optional semantic arrays
    * @returns Reconstruction result
    */
-  reconstructTextWithSegments(
-    chunks: TextChunk[],
-    semanticArrays?: any
-  ): TextReconstructionResult;
+  reconstructTextWithSegments(chunks: TextChunk[], semanticArrays?: any): TextReconstructionResult;
 
   /**
    * Merge adjacent chunks if beneficial

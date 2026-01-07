@@ -10,47 +10,47 @@ export class ParallelConfig {
       chunk: {
         enabled: true,
         maxParallelChunks: 5,
-        parallelThreshold: 2,        // Minimum chunks for parallel processing
-        memoryThreshold: 25000,      // Token limit for enabling parallel processing
-        batchSizeMultiplier: 1.0,    // Multiplier for dynamic batch sizing
-        fallbackTimeout: 5000        // Timeout before falling back to sequential
+        parallelThreshold: 2, // Minimum chunks for parallel processing
+        memoryThreshold: 25000, // Token limit for enabling parallel processing
+        batchSizeMultiplier: 1.0, // Multiplier for dynamic batch sizing
+        fallbackTimeout: 5000, // Timeout before falling back to sequential
       },
-      
+
       // Dictionary Processing Configuration
       dictionary: {
         enabled: true,
         maxParallelDictionaries: 10,
-        parallelThreshold: 2,        // Minimum dictionaries for parallel processing
-        lookupTimeout: 3000,         // Timeout for individual dictionary lookups
-        retryAttempts: 1,           // Number of retry attempts on failure
-        cachePrewarm: true          // Pre-warm dictionary caches
+        parallelThreshold: 2, // Minimum dictionaries for parallel processing
+        lookupTimeout: 3000, // Timeout for individual dictionary lookups
+        retryAttempts: 1, // Number of retry attempts on failure
+        cachePrewarm: true, // Pre-warm dictionary caches
       },
-      
+
       // Device-specific Configuration
       device: {
         autoDetectCapabilities: true,
         memoryBasedScaling: true,
         cpuCoreDetection: true,
-        batteryOptimization: false  // Reduce parallelization on battery
+        batteryOptimization: false, // Reduce parallelization on battery
       },
-      
+
       // Performance Monitoring Configuration
       monitoring: {
         enabled: true,
         trackPerformanceMetrics: true,
-        adaptiveOptimization: true,  // Automatically adjust based on performance
-        loggingLevel: 'info'        // 'verbose', 'info', 'warn', 'error'
+        adaptiveOptimization: true, // Automatically adjust based on performance
+        loggingLevel: 'info', // 'verbose', 'info', 'warn', 'error'
       },
-      
+
       // Fallback Configuration
       fallback: {
         automaticFallback: true,
-        fallbackThreshold: 0.15,    // Fallback if >15% of operations fail
+        fallbackThreshold: 0.15, // Fallback if >15% of operations fail
         gracefulDegradation: true,
-        preserveQuality: true       // Ensure output quality over performance
-      }
+        preserveQuality: true, // Ensure output quality over performance
+      },
     };
-    
+
     this.currentConfig = this.deepClone(this.defaultConfig);
     this.performanceHistory = [];
     this.adaptationInProgress = false;
@@ -98,7 +98,7 @@ export class ParallelConfig {
     // Memory-based adaptation
     if (deviceInfo.totalMemory && this.currentConfig.device.memoryBasedScaling) {
       const memoryGB = deviceInfo.totalMemory / (1024 * 1024 * 1024);
-      
+
       if (memoryGB < 2) {
         // Low memory device - reduce parallelization
         adaptedConfig.chunk.maxParallelChunks = 2;
@@ -124,7 +124,9 @@ export class ParallelConfig {
     // Battery optimization
     if (deviceInfo.onBattery && this.currentConfig.device.batteryOptimization) {
       adaptedConfig.chunk.maxParallelChunks = Math.floor(adaptedConfig.chunk.maxParallelChunks / 2);
-      adaptedConfig.dictionary.maxParallelDictionaries = Math.floor(adaptedConfig.dictionary.maxParallelDictionaries / 2);
+      adaptedConfig.dictionary.maxParallelDictionaries = Math.floor(
+        adaptedConfig.dictionary.maxParallelDictionaries / 2
+      );
     }
 
     this.currentConfig = adaptedConfig;
@@ -144,7 +146,7 @@ export class ParallelConfig {
     this.adaptationInProgress = true;
     this.performanceHistory.push({
       timestamp: Date.now(),
-      ...performanceData
+      ...performanceData,
     });
 
     // Keep only recent performance data (last 10 measurements)
@@ -163,13 +165,13 @@ export class ParallelConfig {
         if (efficiency < 0.1) {
           // Poor parallel efficiency - reduce parallelization
           adaptedConfig.chunk.maxParallelChunks = Math.max(
-            adaptedConfig.chunk.maxParallelChunks - 1, 
+            adaptedConfig.chunk.maxParallelChunks - 1,
             1
           );
         } else if (efficiency > 0.5 && fallbackRate < 0.05) {
           // Good efficiency - potentially increase parallelization
           adaptedConfig.chunk.maxParallelChunks = Math.min(
-            adaptedConfig.chunk.maxParallelChunks + 1, 
+            adaptedConfig.chunk.maxParallelChunks + 1,
             8
           );
         }
@@ -208,7 +210,7 @@ export class ParallelConfig {
    */
   getOptimalConfig(operationType, context = {}) {
     const config = this.getConfig();
-    
+
     if (operationType === 'chunk') {
       // Adjust chunk processing based on text size
       if (context.textLength) {
@@ -216,24 +218,24 @@ export class ParallelConfig {
         if (estimatedChunks < config.chunk.parallelThreshold) {
           return {
             ...config.chunk,
-            enabled: false // Don't use parallel processing for small texts
+            enabled: false, // Don't use parallel processing for small texts
           };
         }
       }
-      
+
       return config.chunk;
     } else if (operationType === 'dictionary') {
       // Adjust dictionary processing based on lookup complexity
       if (context.dictionaryCount < config.dictionary.parallelThreshold) {
         return {
           ...config.dictionary,
-          enabled: false
+          enabled: false,
         };
       }
-      
+
       return config.dictionary;
     }
-    
+
     return config;
   }
 
@@ -246,7 +248,7 @@ export class ParallelConfig {
     const validation = {
       isValid: true,
       errors: [],
-      warnings: []
+      warnings: [],
     };
 
     // Validate chunk configuration
@@ -261,7 +263,10 @@ export class ParallelConfig {
     }
 
     // Validate dictionary configuration
-    if (config.dictionary.maxParallelDictionaries < 1 || config.dictionary.maxParallelDictionaries > 20) {
+    if (
+      config.dictionary.maxParallelDictionaries < 1 ||
+      config.dictionary.maxParallelDictionaries > 20
+    ) {
       validation.errors.push('maxParallelDictionaries must be between 1 and 20');
       validation.isValid = false;
     }
@@ -283,11 +288,15 @@ export class ParallelConfig {
    * @returns {string} JSON representation of current configuration
    */
   exportConfig() {
-    return JSON.stringify({
-      config: this.currentConfig,
-      performanceHistory: this.performanceHistory,
-      timestamp: Date.now()
-    }, null, 2);
+    return JSON.stringify(
+      {
+        config: this.currentConfig,
+        performanceHistory: this.performanceHistory,
+        timestamp: Date.now(),
+      },
+      null,
+      2
+    );
   }
 
   /**
@@ -298,23 +307,23 @@ export class ParallelConfig {
   importConfig(configJson) {
     try {
       const imported = JSON.parse(configJson);
-      
+
       if (imported.config) {
         const validation = this.validateConfig(imported.config);
         if (!validation.isValid) {
           console.error('Invalid configuration:', validation.errors);
           return false;
         }
-        
+
         this.currentConfig = imported.config;
-        
+
         if (imported.performanceHistory) {
           this.performanceHistory = imported.performanceHistory;
         }
-        
+
         return true;
       }
-      
+
       return false;
     } catch (error) {
       console.error('Failed to import configuration:', error);
@@ -339,7 +348,7 @@ export class ParallelConfig {
    */
   deepMerge(target, source) {
     const result = { ...target };
-    
+
     for (const key in source) {
       if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
         result[key] = this.deepMerge(result[key] || {}, source[key]);
@@ -347,7 +356,7 @@ export class ParallelConfig {
         result[key] = source[key];
       }
     }
-    
+
     return result;
   }
 }

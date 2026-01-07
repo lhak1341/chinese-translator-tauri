@@ -53,8 +53,8 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
         id === 'properNouns'
           ? 'General Purpose Dictionary'
           : id.startsWith('properNouns-')
-          ? `Proper Nouns - ${id.replace('properNouns-', '')}`
-          : id.charAt(0).toUpperCase() + id.slice(1),
+            ? `Proper Nouns - ${id.replace('properNouns-', '')}`
+            : id.charAt(0).toUpperCase() + id.slice(1),
     }));
 
   // Handle the move operation
@@ -104,7 +104,7 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
           position: 'relative',
           border: '1px solid var(--border-color)',
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Simple Header */}
         <div
@@ -121,7 +121,7 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
         <div style={{ padding: '1rem' }}>
           <select
             value={selectedDictionary}
-            onChange={e => setSelectedDictionary(e.target.value)}
+            onChange={(e) => setSelectedDictionary(e.target.value)}
             disabled={isMoving}
             style={{
               width: '100%',

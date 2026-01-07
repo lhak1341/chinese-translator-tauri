@@ -26,16 +26,16 @@ export class WasmDictionaryManager {
     this.initialized = false;
     this.fallbackManager = null;
     this.initializationPromise = null;
-    
+
     // Performance tracking
     this.performanceStats = {
       totalLookups: 0,
       totalTime: 0,
       averageTime: 0,
       cacheHitRate: 0,
-      memoryUsage: 0
+      memoryUsage: 0,
     };
-    
+
     // Fallback trigger conditions
     this.consecutiveFailures = 0;
     this.maxFailuresBeforeFallback = 3;
@@ -59,20 +59,20 @@ export class WasmDictionaryManager {
   async _doInitialize(fallbackManager, _config) {
     try {
       console.log('🦀 Initializing WASM Dictionary Engine...');
-      
+
       // Initialize the WASM module
       await init();
-      
+
       // Create the engine instance
       this.engine = new DictionaryEngine();
       this.fallbackManager = fallbackManager;
 
       // Initialize memory pool operation helper
       this.operationHelper = new WasmDictionaryOperationHelper(this.memoryPool, this);
-      
+
       this.initialized = true;
       this.fallbackMode = false;
-      
+
       console.log('✅ WASM Dictionary Engine initialized successfully');
       return true;
     } catch (error) {
@@ -111,22 +111,25 @@ export class WasmDictionaryManager {
         // Convert all dictionaries to WASM format in one operation
         const batchData = dictionaries.map(({ name, entries }) => ({
           name,
-          entries: entries.map(entry => ({
+          entries: entries.map((entry) => ({
             chinese: entry.chinese || entry.original || entry.word || '',
             vietnamese: entry.vietnamese || entry.translation || '',
-            metadata: entry.metadata ? JSON.stringify(entry.metadata) : null
-          }))
+            metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+          })),
         }));
 
         // Single WASM call for all dictionaries with memory pool optimization
-        const success = this.engine.load_dictionaries_batch?.(batchData) ??
-                       this.engine.load_dictionaries_batch_fallback?.(batchData) ??
-                       false;
+        const success =
+          this.engine.load_dictionaries_batch?.(batchData) ??
+          this.engine.load_dictionaries_batch_fallback?.(batchData) ??
+          false;
 
         if (success) {
           // Update performance stats with memory pool usage
           this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
-          console.log(`✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds/1024).toFixed(1)}KB buffer)`);
+          console.log(
+            `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
+          );
           this.consecutiveFailures = 0;
           return true;
         } else {
@@ -158,10 +161,10 @@ export class WasmDictionaryManager {
 
     try {
       // Convert entries to WASM format
-      const wasmEntries = entries.map(entry => ({
+      const wasmEntries = entries.map((entry) => ({
         chinese: entry.chinese || entry.original || entry.word || '',
         vietnamese: entry.vietnamese || entry.translation || '',
-        metadata: entry.metadata ? JSON.stringify(entry.metadata) : null
+        metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
       }));
 
       const success = this.engine.load_dictionary(name, wasmEntries);
@@ -170,7 +173,7 @@ export class WasmDictionaryManager {
         console.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
         this.consecutiveFailures = 0; // Reset failure counter
       }
-      
+
       return success;
     } catch (error) {
       console.error(`❌ WASM dictionary loading failed for ${name}:`, error);
@@ -186,14 +189,14 @@ export class WasmDictionaryManager {
 
     try {
       const matches = this.engine.find_matches(dictionaryName, text, startPos);
-      
+
       // Convert results to expected format
-      return matches.map(match => ({
+      return matches.map((match) => ({
         word: match.word,
         translation: match.translation,
         startPos: match.start_pos,
         endPos: match.end_pos,
-        metadata: match.metadata ? JSON.parse(match.metadata) : null
+        metadata: match.metadata ? JSON.parse(match.metadata) : null,
       }));
     } catch (error) {
       console.error('❌ WASM lookup failed:', error);
@@ -209,15 +212,15 @@ export class WasmDictionaryManager {
 
     try {
       const match = this.engine.find_longest_match(dictionaryName, text, startPos);
-      
+
       if (!match) return null;
-      
+
       return {
         word: match.word,
         translation: match.translation,
         startPos: match.start_pos,
         endPos: match.end_pos,
-        metadata: match.metadata ? JSON.parse(match.metadata) : null
+        metadata: match.metadata ? JSON.parse(match.metadata) : null,
       };
     } catch (error) {
       console.error('❌ WASM longest match failed:', error);
@@ -240,7 +243,7 @@ export class WasmDictionaryManager {
       return {
         initialized: false,
         fallbackMode: this.fallbackMode,
-        error: 'WASM engine not initialized'
+        error: 'WASM engine not initialized',
       };
     }
 
@@ -250,30 +253,27 @@ export class WasmDictionaryManager {
         ...wasmStats,
         initialized: this.initialized,
         fallbackMode: this.fallbackMode,
-        consecutiveFailures: this.consecutiveFailures
+        consecutiveFailures: this.consecutiveFailures,
       };
     } catch (error) {
       return {
         initialized: this.initialized,
         fallbackMode: this.fallbackMode,
-        error: error.message
+        error: error.message,
       };
     }
   }
 
   getDictionaryCount() {
-    return this.initialized && !this.fallbackMode ? 
-      this.engine.get_dictionary_count() : 0;
+    return this.initialized && !this.fallbackMode ? this.engine.get_dictionary_count() : 0;
   }
 
   getTotalEntries() {
-    return this.initialized && !this.fallbackMode ? 
-      this.engine.get_total_entries() : 0;
+    return this.initialized && !this.fallbackMode ? this.engine.get_total_entries() : 0;
   }
 
   hasDictionary(name) {
-    return this.initialized && !this.fallbackMode ? 
-      this.engine.has_dictionary(name) : false;
+    return this.initialized && !this.fallbackMode ? this.engine.has_dictionary(name) : false;
   }
 
   clearAllDictionaries() {
@@ -326,7 +326,7 @@ export class WasmDictionaryManager {
     return {
       ...baseReport,
       memoryPool: this.memoryPool.getStats(),
-      operationHelper: this.operationHelper?.getStats?.() || null
+      operationHelper: this.operationHelper?.getStats?.() || null,
     };
   }
 

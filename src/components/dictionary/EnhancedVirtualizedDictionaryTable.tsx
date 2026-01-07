@@ -16,11 +16,13 @@ import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.j
 /**
  * Dictionary entry value type (can be string or object with metadata)
  */
-type DictionaryEntryValue = string | {
-  translation: string;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-};
+type DictionaryEntryValue =
+  | string
+  | {
+      translation: string;
+      allowAsPatternVariable?: boolean;
+      lowPriority?: boolean;
+    };
 
 /**
  * Entry data for editing modal
@@ -82,14 +84,14 @@ const highlightPatternVariables = (text: string): React.ReactNode => {
 
   // Color palette for different variables
   const variableColors: Record<string, string> = {
-    'X': '#dc2626', // red-600
-    'Y': '#16a34a', // green-600
-    'Z': '#0891b2', // cyan-600
-    'A': '#ea580c', // orange-600
-    'B': '#7c3aed', // violet-600
-    'C': '#0d9488', // teal-600
-    'D': '#db2777', // pink-600
-    'E': '#2563eb', // blue-600
+    X: '#dc2626', // red-600
+    Y: '#16a34a', // green-600
+    Z: '#0891b2', // cyan-600
+    A: '#ea580c', // orange-600
+    B: '#7c3aed', // violet-600
+    C: '#0d9488', // teal-600
+    D: '#db2777', // pink-600
+    E: '#2563eb', // blue-600
   };
 
   return parts.map((part, index) => {
@@ -122,19 +124,20 @@ interface BadgeProps {
 }
 
 const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
-  const config = type === 'variable'
-    ? {
-        label: 'VAR',
-        title: active ? 'Click to disallow as variable' : 'Click to allow as variable',
-        activeColor: '#059669',
-        inactiveColor: '#6b7280',
-      }
-    : {
-        label: 'LP',
-        title: active ? 'Click to remove low priority' : 'Click to set low priority',
-        activeColor: '#dc2626',
-        inactiveColor: '#6b7280',
-      };
+  const config =
+    type === 'variable'
+      ? {
+          label: 'VAR',
+          title: active ? 'Click to disallow as variable' : 'Click to allow as variable',
+          activeColor: '#059669',
+          inactiveColor: '#6b7280',
+        }
+      : {
+          label: 'LP',
+          title: active ? 'Click to remove low priority' : 'Click to set low priority',
+          activeColor: '#dc2626',
+          inactiveColor: '#6b7280',
+        };
 
   return (
     <span
@@ -186,7 +189,11 @@ const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
  * @param props - Component props
  * @returns Enhanced virtualized dictionary table with inline editing
  */
-const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionaryTableProps> = ({ selectedDictionary, searchRef, onSelectionChange }) => {
+const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionaryTableProps> = ({
+  selectedDictionary,
+  searchRef,
+  onSelectionChange,
+}) => {
   const { dictionaries, deleteEntry, updateEntry, isLoading } = useDictionary();
 
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -232,7 +239,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
     }
-    
+
     searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
     }, SEARCH_DEBOUNCE_MS);
@@ -278,37 +285,43 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     if (!dictionary) return [];
 
     const entries = Object.entries(dictionary) as [string, DictionaryEntryValue][];
-    
+
     if (!debouncedSearchTerm) return entries;
 
     const searchLower = debouncedSearchTerm.toLowerCase();
     const isLargeList = entries.length > LARGE_LIST_THRESHOLD;
-    
+
     if (isLargeList) {
       // For large lists, process all entries without early termination
       const filtered: [string, DictionaryEntryValue][] = [];
       const batchSize = 500;
-      
+
       for (let i = 0; i < entries.length; i += batchSize) {
         const batch = entries.slice(i, i + batchSize);
-        
+
         for (const [source, translation] of batch) {
-          const translationText = typeof translation === 'string' ? translation : translation.translation;
-          
-          if (source.toLowerCase().includes(searchLower) ||
-              translationText.toLowerCase().includes(searchLower)) {
+          const translationText =
+            typeof translation === 'string' ? translation : translation.translation;
+
+          if (
+            source.toLowerCase().includes(searchLower) ||
+            translationText.toLowerCase().includes(searchLower)
+          ) {
             filtered.push([source, translation]);
           }
         }
       }
-      
+
       return filtered;
     } else {
       // Standard filtering for smaller lists
       return entries.filter(([source, translation]) => {
-        const translationText = typeof translation === 'string' ? translation : translation.translation;
-        return source.toLowerCase().includes(searchLower) ||
-               translationText.toLowerCase().includes(searchLower);
+        const translationText =
+          typeof translation === 'string' ? translation : translation.translation;
+        return (
+          source.toLowerCase().includes(searchLower) ||
+          translationText.toLowerCase().includes(searchLower)
+        );
       });
     }
   }, [dictionaries, selectedDictionary, debouncedSearchTerm]);
@@ -323,7 +336,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           itemHeight: ITEM_HEIGHT,
           totalItems: filteredEntries.length,
           scrollVelocity,
-          isScrolling
+          isScrolling,
         });
 
         if (optimalSize !== bufferSize) {
@@ -344,71 +357,71 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const visibleRange = useMemo(() => {
     const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - bufferSize);
     const visibleCount = Math.ceil(containerHeight / ITEM_HEIGHT);
-    const endIndex = Math.min(
-      filteredEntries.length,
-      startIndex + visibleCount + (bufferSize * 2)
-    );
+    const endIndex = Math.min(filteredEntries.length, startIndex + visibleCount + bufferSize * 2);
 
     return { startIndex, endIndex, visibleCount };
   }, [scrollTop, containerHeight, filteredEntries.length, bufferSize]);
 
   const { startIndex, endIndex } = visibleRange;
   const visibleEntries = filteredEntries.slice(startIndex, endIndex);
-  
+
   // Calculate virtual scrolling properties
   const totalHeight = filteredEntries.length * ITEM_HEIGHT;
   const offsetY = startIndex * ITEM_HEIGHT;
 
   // OPTIMIZATION: Enhanced scroll handler with velocity tracking and performance monitoring
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>): void => {
-    const frameStartTime = performance.now();
-    const newScrollTop = e.currentTarget.scrollTop;
-    const currentTime = Date.now();
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>): void => {
+      const frameStartTime = performance.now();
+      const newScrollTop = e.currentTarget.scrollTop;
+      const currentTime = Date.now();
 
-    // Only update if scroll position changed significantly (reduce re-renders)
-    if (Math.abs(newScrollTop - lastScrollTop.current) < 5) {
-      return;
-    }
+      // Only update if scroll position changed significantly (reduce re-renders)
+      if (Math.abs(newScrollTop - lastScrollTop.current) < 5) {
+        return;
+      }
 
-    // Calculate scroll velocity
-    const timeDelta = currentTime - lastScrollTime.current;
-    const scrollDelta = newScrollTop - lastScrollTop.current;
-    const velocity = timeDelta > 0 ? scrollDelta / timeDelta : 0;
+      // Calculate scroll velocity
+      const timeDelta = currentTime - lastScrollTime.current;
+      const scrollDelta = newScrollTop - lastScrollTop.current;
+      const velocity = timeDelta > 0 ? scrollDelta / timeDelta : 0;
 
-    // Update scroll state
-    lastScrollTop.current = newScrollTop;
-    setScrollTop(newScrollTop);
-    setScrollVelocity(velocity);
-    setIsScrolling(true);
+      // Update scroll state
+      lastScrollTop.current = newScrollTop;
+      setScrollTop(newScrollTop);
+      setScrollVelocity(velocity);
+      setIsScrolling(true);
 
-    // Clear existing timeout
-    if (scrollTimeoutRef.current) {
-      clearTimeout(scrollTimeoutRef.current);
-    }
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
 
-    // Set scrolling to false after scroll ends
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsScrolling(false);
-      setScrollVelocity(0);
-    }, 150);
+      // Set scrolling to false after scroll ends
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsScrolling(false);
+        setScrollVelocity(0);
+      }, 150);
 
-    // Track performance metrics
-    const frameEndTime = performance.now();
-    const frameTime = frameEndTime - frameStartTime;
+      // Track performance metrics
+      const frameEndTime = performance.now();
+      const frameTime = frameEndTime - frameStartTime;
 
-    adaptiveBufferCalculator.trackScrollingMetrics({
-      frameTime,
-      scrollVelocity: velocity,
-      scrollTop: newScrollTop,
-      isScrolling: true,
-      bufferSize: bufferSize,
-      visibleItems: Math.ceil(containerHeight / ITEM_HEIGHT),
-      totalItems: filteredEntries.length
-    });
+      adaptiveBufferCalculator.trackScrollingMetrics({
+        frameTime,
+        scrollVelocity: velocity,
+        scrollTop: newScrollTop,
+        isScrolling: true,
+        bufferSize: bufferSize,
+        visibleItems: Math.ceil(containerHeight / ITEM_HEIGHT),
+        totalItems: filteredEntries.length,
+      });
 
-    // Update refs for next calculation
-    lastScrollTime.current = currentTime;
-  }, [bufferSize, containerHeight, filteredEntries.length]);
+      // Update refs for next calculation
+      lastScrollTime.current = currentTime;
+    },
+    [bufferSize, containerHeight, filteredEntries.length]
+  );
 
   // Optimized scroll utilities
   const scrollToTop = useCallback((): void => {
@@ -421,7 +434,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: totalHeight,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     }
   }, [totalHeight]);
@@ -434,18 +447,27 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   }, [searchRef]);
 
   // Wrapped updateEntry function that preserves scroll position
-  const updateEntryWithScrollPreservation = useCallback(async (dictionaryId: string, oldSource: string, newSource: string, translation: string, metadata?: any): Promise<void> => {
-    // Capture scroll position before update
-    const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
-    setPreservedScrollTop(currentScrollTop);
-    setIsUpdating(true);
+  const updateEntryWithScrollPreservation = useCallback(
+    async (
+      dictionaryId: string,
+      oldSource: string,
+      newSource: string,
+      translation: string,
+      metadata?: any
+    ): Promise<void> => {
+      // Capture scroll position before update
+      const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
+      setPreservedScrollTop(currentScrollTop);
+      setIsUpdating(true);
 
-    try {
-      await updateEntry(dictionaryId, oldSource, newSource, translation, metadata);
-    } finally {
-      setIsUpdating(false);
-    }
-  }, [updateEntry, scrollTop]);
+      try {
+        await updateEntry(dictionaryId, oldSource, newSource, translation, metadata);
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [updateEntry, scrollTop]
+  );
 
   // Restore scroll position after dictionary updates
   useEffect(() => {
@@ -469,54 +491,60 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         onBulkDelete: handleBulkDelete,
         isDeleting,
         showBulkDeleteConfirm,
-        setShowBulkDeleteConfirm
+        setShowBulkDeleteConfirm,
       });
     }
   }, [selectedEntries, isDeleting, showBulkDeleteConfirm, onSelectionChange]);
 
   // Selection handlers with scroll preservation
-  const handleSelectEntry = useCallback((source: string, isSelected: boolean): void => {
-    // Capture scroll position before selection state change
-    const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
+  const handleSelectEntry = useCallback(
+    (source: string, isSelected: boolean): void => {
+      // Capture scroll position before selection state change
+      const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
 
-    setSelectedEntries(prev => {
-      const newSet = new Set(prev);
+      setSelectedEntries((prev) => {
+        const newSet = new Set(prev);
+        if (isSelected) {
+          newSet.add(source);
+        } else {
+          newSet.delete(source);
+        }
+        return newSet;
+      });
+
+      // Restore scroll position after state update
+      requestAnimationFrame(() => {
+        if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
+          scrollRef.current.scrollTop = currentScrollTop;
+          setScrollTop(currentScrollTop);
+        }
+      });
+    },
+    [scrollTop]
+  );
+
+  const handleSelectAll = useCallback(
+    (isSelected: boolean): void => {
+      // Capture scroll position before bulk selection change
+      const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
+
       if (isSelected) {
-        newSet.add(source);
+        const allSources = filteredEntries.map(([source]) => source);
+        setSelectedEntries(new Set(allSources));
       } else {
-        newSet.delete(source);
+        setSelectedEntries(new Set());
       }
-      return newSet;
-    });
 
-    // Restore scroll position after state update
-    requestAnimationFrame(() => {
-      if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-        scrollRef.current.scrollTop = currentScrollTop;
-        setScrollTop(currentScrollTop);
-      }
-    });
-  }, [scrollTop]);
-
-  const handleSelectAll = useCallback((isSelected: boolean): void => {
-    // Capture scroll position before bulk selection change
-    const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
-
-    if (isSelected) {
-      const allSources = filteredEntries.map(([source]) => source);
-      setSelectedEntries(new Set(allSources));
-    } else {
-      setSelectedEntries(new Set());
-    }
-
-    // Restore scroll position after state update
-    requestAnimationFrame(() => {
-      if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-        scrollRef.current.scrollTop = currentScrollTop;
-        setScrollTop(currentScrollTop);
-      }
-    });
-  }, [filteredEntries, scrollTop]);
+      // Restore scroll position after state update
+      requestAnimationFrame(() => {
+        if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
+          scrollRef.current.scrollTop = currentScrollTop;
+          setScrollTop(currentScrollTop);
+        }
+      });
+    },
+    [filteredEntries, scrollTop]
+  );
 
   const handleBulkDelete = async (): Promise<void> => {
     if (selectedEntries.size === 0) return;
@@ -550,61 +578,95 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       actualIndex: number;
     }
 
-    const VirtualRowComponent = React.memo<VirtualRowProps>(({ source, translation, _index, actualIndex }) => {
-      const translationText = typeof translation === 'string' ? translation : translation.translation;
-      const allowAsPatternVariable = typeof translation === 'object' && translation.allowAsPatternVariable === true;
-      const lowPriority = typeof translation === 'object' && translation.lowPriority === true;
+    const VirtualRowComponent = React.memo<VirtualRowProps>(
+      ({ source, translation, _index, actualIndex }) => {
+        const translationText =
+          typeof translation === 'string' ? translation : translation.translation;
+        const allowAsPatternVariable =
+          typeof translation === 'object' && translation.allowAsPatternVariable === true;
+        const lowPriority = typeof translation === 'object' && translation.lowPriority === true;
 
-      // State for inline editing
-      const [editingSource, setEditingSource] = React.useState(false);
-      const [editingTranslation, setEditingTranslation] = React.useState(false);
-      const [tempSource, setTempSource] = React.useState(source);
-      const [tempTranslation, setTempTranslation] = React.useState(translationText);
+        // State for inline editing
+        const [editingSource, setEditingSource] = React.useState(false);
+        const [editingTranslation, setEditingTranslation] = React.useState(false);
+        const [tempSource, setTempSource] = React.useState(source);
+        const [tempTranslation, setTempTranslation] = React.useState(translationText);
 
-      // Update temp values when props change (after save)
-      React.useEffect(() => {
-        if (!editingSource) setTempSource(source);
-      }, [source, editingSource]);
+        // Update temp values when props change (after save)
+        React.useEffect(() => {
+          if (!editingSource) setTempSource(source);
+        }, [source, editingSource]);
 
-      React.useEffect(() => {
-        if (!editingTranslation) setTempTranslation(translationText);
-      }, [translationText, editingTranslation]);
+        React.useEffect(() => {
+          if (!editingTranslation) setTempTranslation(translationText);
+        }, [translationText, editingTranslation]);
 
-      // Handle checkbox changes for patterns - preserve scroll position
-      const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
-        try {
-          const metadata: any = { allowAsPatternVariable, lowPriority };
-          metadata[field] = value;
+        // Handle checkbox changes for patterns - preserve scroll position
+        const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
+          try {
+            const metadata: any = { allowAsPatternVariable, lowPriority };
+            metadata[field] = value;
 
-          // Use scroll-preserving update function
-          await updateEntryWithScrollPreservation(selectedDictionary, source, source, translationText, metadata);
-        } catch (error) {
-          console.error(`Failed to update ${field}:`, error);
-        }
-      };
-
-      // Handle text field changes
-      const handleTextSave = async (field: 'source' | 'translation'): Promise<void> => {
-        try {
-          // Only pass metadata for dictionaries that support it
-          const metadata = (selectedDictionary === 'patterns' || selectedDictionary === 'phrases')
-            ? { allowAsPatternVariable, lowPriority }
-            : {};
-
-          if (field === 'source') {
-            if (tempSource !== source && tempSource.trim()) {
-              await updateEntryWithScrollPreservation(selectedDictionary, source, tempSource.trim(), translationText, metadata);
-            }
-            setEditingSource(false);
-          } else if (field === 'translation') {
-            if (tempTranslation !== translationText && tempTranslation.trim()) {
-              await updateEntryWithScrollPreservation(selectedDictionary, source, source, tempTranslation.trim(), metadata);
-            }
-            setEditingTranslation(false);
+            // Use scroll-preserving update function
+            await updateEntryWithScrollPreservation(
+              selectedDictionary,
+              source,
+              source,
+              translationText,
+              metadata
+            );
+          } catch (error) {
+            console.error(`Failed to update ${field}:`, error);
           }
-        } catch (error) {
-          console.error(`Failed to update ${field}:`, error);
-          // Reset to original value on error
+        };
+
+        // Handle text field changes
+        const handleTextSave = async (field: 'source' | 'translation'): Promise<void> => {
+          try {
+            // Only pass metadata for dictionaries that support it
+            const metadata =
+              selectedDictionary === 'patterns' || selectedDictionary === 'phrases'
+                ? { allowAsPatternVariable, lowPriority }
+                : {};
+
+            if (field === 'source') {
+              if (tempSource !== source && tempSource.trim()) {
+                await updateEntryWithScrollPreservation(
+                  selectedDictionary,
+                  source,
+                  tempSource.trim(),
+                  translationText,
+                  metadata
+                );
+              }
+              setEditingSource(false);
+            } else if (field === 'translation') {
+              if (tempTranslation !== translationText && tempTranslation.trim()) {
+                await updateEntryWithScrollPreservation(
+                  selectedDictionary,
+                  source,
+                  source,
+                  tempTranslation.trim(),
+                  metadata
+                );
+              }
+              setEditingTranslation(false);
+            }
+          } catch (error) {
+            console.error(`Failed to update ${field}:`, error);
+            // Reset to original value on error
+            if (field === 'source') {
+              setTempSource(source);
+              setEditingSource(false);
+            } else {
+              setTempTranslation(translationText);
+              setEditingTranslation(false);
+            }
+          }
+        };
+
+        // Handle text field cancellation
+        const handleTextCancel = (field: 'source' | 'translation'): void => {
           if (field === 'source') {
             setTempSource(source);
             setEditingSource(false);
@@ -612,171 +674,312 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             setTempTranslation(translationText);
             setEditingTranslation(false);
           }
-        }
-      };
+        };
 
-      // Handle text field cancellation
-      const handleTextCancel = (field: 'source' | 'translation'): void => {
-        if (field === 'source') {
-          setTempSource(source);
-          setEditingSource(false);
-        } else {
-          setTempTranslation(translationText);
-          setEditingTranslation(false);
-        }
-      };
+        // Handle keyboard events for text editing
+        const handleKeyDown = (
+          e: React.KeyboardEvent<HTMLInputElement>,
+          field: 'source' | 'translation'
+        ): void => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleTextSave(field);
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            handleTextCancel(field);
+          }
+        };
 
-      // Handle keyboard events for text editing
-      const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: 'source' | 'translation'): void => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          handleTextSave(field);
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
-          handleTextCancel(field);
-        }
-      };
-
-      // Render 5-column layout for patterns (with selection checkbox)
-      if (selectedDictionary === 'patterns') {
-        return (
-          <div
-            style={{
-              height: ITEM_HEIGHT,
-              display: 'flex',
-              alignItems: 'center',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
-              willChange: isScrolling ? 'transform' : 'auto',
-            }}
-          >
-            {/* Selection Checkbox - 40px */}
-            <div style={{
-              width: '40px',
-              minWidth: '40px',
-              maxWidth: '40px',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
-              <input
-                type="checkbox"
-                checked={selectedEntries.has(source)}
-                onChange={(e) => handleSelectEntry(source, e.target.checked)}
-                style={{ cursor: 'pointer' }}
-                title="Select for deletion"
-              />
-            </div>
-
-            {/* Source Text - calc(35% - 20px) with variable highlighting */}
-            <div style={{
-              width: 'calc(35% - 20px)',
-              padding: '0.25rem 0.75rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {editingSource ? (
+        // Render 5-column layout for patterns (with selection checkbox)
+        if (selectedDictionary === 'patterns') {
+          return (
+            <div
+              style={{
+                height: ITEM_HEIGHT,
+                display: 'flex',
+                alignItems: 'center',
+                borderBottom: '1px solid var(--border-color)',
+                backgroundColor:
+                  actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+                willChange: isScrolling ? 'transform' : 'auto',
+              }}
+            >
+              {/* Selection Checkbox - 40px */}
+              <div
+                style={{
+                  width: '40px',
+                  minWidth: '40px',
+                  maxWidth: '40px',
+                  padding: '0.25rem 0.75rem',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
                 <input
-                  type="text"
-                  value={tempSource}
-                  onChange={(e) => setTempSource(e.target.value)}
-                  onBlur={() => handleTextSave('source')}
-                  onKeyDown={(e) => handleKeyDown(e, 'source')}
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    border: '1px solid var(--accent-color)',
-                    borderRadius: '2px',
-                    padding: '2px 4px',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit',
-                    backgroundColor: 'var(--background-color)',
-                    color: 'var(--text-color)'
-                  }}
+                  type="checkbox"
+                  checked={selectedEntries.has(source)}
+                  onChange={(e) => handleSelectEntry(source, e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                  title="Select for deletion"
                 />
-              ) : (
-                <span
-                  onClick={() => setEditingSource(true)}
-                  style={{
-                    cursor: 'pointer',
-                    display: 'block',
-                    width: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}
-                  title="Click to edit"
-                >
-                  {highlightPatternVariables(source)}
-                </span>
-              )}
-            </div>
+              </div>
 
-            {/* Translation - calc(65% - 20px) with metadata badges */}
-            <div style={{
-              width: 'calc(65% - 20px)',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              overflow: 'hidden'
-            }}>
-              {editingTranslation ? (
-                <input
-                  type="text"
-                  value={tempTranslation}
-                  onChange={(e) => setTempTranslation(e.target.value)}
-                  onBlur={() => handleTextSave('translation')}
-                  onKeyDown={(e) => handleKeyDown(e, 'translation')}
-                  autoFocus
-                  style={{
-                    flex: 1,
-                    border: '1px solid var(--accent-color)',
-                    borderRadius: '2px',
-                    padding: '2px 4px',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit',
-                    backgroundColor: 'var(--background-color)',
-                    color: 'var(--text-color)'
-                  }}
-                />
-              ) : (
-                <>
+              {/* Source Text - calc(35% - 20px) with variable highlighting */}
+              <div
+                style={{
+                  width: 'calc(35% - 20px)',
+                  padding: '0.25rem 0.75rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {editingSource ? (
+                  <input
+                    type="text"
+                    value={tempSource}
+                    onChange={(e) => setTempSource(e.target.value)}
+                    onBlur={() => handleTextSave('source')}
+                    onKeyDown={(e) => handleKeyDown(e, 'source')}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      border: '1px solid var(--accent-color)',
+                      borderRadius: '2px',
+                      padding: '2px 4px',
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      backgroundColor: 'var(--background-color)',
+                      color: 'var(--text-color)',
+                    }}
+                  />
+                ) : (
                   <span
-                    onClick={() => setEditingTranslation(true)}
+                    onClick={() => setEditingSource(true)}
                     style={{
                       cursor: 'pointer',
-                      flex: 1,
+                      display: 'block',
+                      width: '100%',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
                     }}
                     title="Click to edit"
                   >
-                    {highlightPatternVariables(translationText)}
+                    {highlightPatternVariables(source)}
                   </span>
-                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                    <MetadataBadge
-                      type="variable"
-                      active={allowAsPatternVariable}
-                      onClick={() => handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)}
-                    />
-                    <MetadataBadge
-                      type="lowPriority"
-                      active={lowPriority}
-                      onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      }
+                )}
+              </div>
 
-      // 3-column layout for phrases (with selection + Variable badge)
-      if (selectedDictionary === 'phrases') {
+              {/* Translation - calc(65% - 20px) with metadata badges */}
+              <div
+                style={{
+                  width: 'calc(65% - 20px)',
+                  padding: '0.25rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  overflow: 'hidden',
+                }}
+              >
+                {editingTranslation ? (
+                  <input
+                    type="text"
+                    value={tempTranslation}
+                    onChange={(e) => setTempTranslation(e.target.value)}
+                    onBlur={() => handleTextSave('translation')}
+                    onKeyDown={(e) => handleKeyDown(e, 'translation')}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      border: '1px solid var(--accent-color)',
+                      borderRadius: '2px',
+                      padding: '2px 4px',
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      backgroundColor: 'var(--background-color)',
+                      color: 'var(--text-color)',
+                    }}
+                  />
+                ) : (
+                  <>
+                    <span
+                      onClick={() => setEditingTranslation(true)}
+                      style={{
+                        cursor: 'pointer',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Click to edit"
+                    >
+                      {highlightPatternVariables(translationText)}
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                      <MetadataBadge
+                        type="variable"
+                        active={allowAsPatternVariable}
+                        onClick={() =>
+                          handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
+                        }
+                      />
+                      <MetadataBadge
+                        type="lowPriority"
+                        active={lowPriority}
+                        onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // 3-column layout for phrases (with selection + Variable badge)
+        if (selectedDictionary === 'phrases') {
+          return (
+            <div
+              style={{
+                height: ITEM_HEIGHT,
+                display: 'flex',
+                alignItems: 'center',
+                borderBottom: '1px solid var(--border-color)',
+                backgroundColor:
+                  actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+                willChange: isScrolling ? 'transform' : 'auto',
+              }}
+            >
+              {/* Selection Checkbox - 40px */}
+              <div
+                style={{
+                  width: '40px',
+                  minWidth: '40px',
+                  maxWidth: '40px',
+                  padding: '0.25rem 0.75rem',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedEntries.has(source)}
+                  onChange={(e) => handleSelectEntry(source, e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                  title="Select for deletion"
+                />
+              </div>
+
+              {/* Source Text - calc(35% - 20px) */}
+              <div
+                style={{
+                  width: 'calc(35% - 20px)',
+                  padding: '0.25rem 0.75rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {editingSource ? (
+                  <input
+                    type="text"
+                    value={tempSource}
+                    onChange={(e) => setTempSource(e.target.value)}
+                    onBlur={() => handleTextSave('source')}
+                    onKeyDown={(e) => handleKeyDown(e, 'source')}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      border: '1px solid var(--accent-color)',
+                      borderRadius: '2px',
+                      padding: '2px 4px',
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      backgroundColor: 'var(--background-color)',
+                      color: 'var(--text-color)',
+                    }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => setEditingSource(true)}
+                    style={{
+                      cursor: 'pointer',
+                      display: 'block',
+                      width: '100%',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                    title="Click to edit"
+                  >
+                    {source}
+                  </span>
+                )}
+              </div>
+
+              {/* Translation - calc(65% - 20px) with metadata badge */}
+              <div
+                style={{
+                  width: 'calc(65% - 20px)',
+                  padding: '0.25rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  overflow: 'hidden',
+                }}
+              >
+                {editingTranslation ? (
+                  <input
+                    type="text"
+                    value={tempTranslation}
+                    onChange={(e) => setTempTranslation(e.target.value)}
+                    onBlur={() => handleTextSave('translation')}
+                    onKeyDown={(e) => handleKeyDown(e, 'translation')}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      border: '1px solid var(--accent-color)',
+                      borderRadius: '2px',
+                      padding: '2px 4px',
+                      fontSize: 'inherit',
+                      fontFamily: 'inherit',
+                      backgroundColor: 'var(--background-color)',
+                      color: 'var(--text-color)',
+                    }}
+                  />
+                ) : (
+                  <>
+                    <span
+                      onClick={() => setEditingTranslation(true)}
+                      style={{
+                        cursor: 'pointer',
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="Click to edit"
+                    >
+                      {translationText}
+                    </span>
+                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                      <MetadataBadge
+                        type="variable"
+                        active={allowAsPatternVariable}
+                        onClick={() =>
+                          handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        // 3-column layout for simple dictionaries (with selection checkbox)
         return (
           <div
             style={{
@@ -784,20 +987,23 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               display: 'flex',
               alignItems: 'center',
               borderBottom: '1px solid var(--border-color)',
-              backgroundColor: actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+              backgroundColor:
+                actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
               willChange: isScrolling ? 'transform' : 'auto',
             }}
           >
             {/* Selection Checkbox - 40px */}
-            <div style={{
-              width: '40px',
-              minWidth: '40px',
-              maxWidth: '40px',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}>
+            <div
+              style={{
+                width: '40px',
+                minWidth: '40px',
+                maxWidth: '40px',
+                padding: '0.25rem 0.75rem',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
               <input
                 type="checkbox"
                 checked={selectedEntries.has(source)}
@@ -808,13 +1014,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             </div>
 
             {/* Source Text - calc(35% - 20px) */}
-            <div style={{
-              width: 'calc(35% - 20px)',
-              padding: '0.25rem 0.75rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
+            <div
+              style={{
+                width: 'calc(35% - 20px)',
+                padding: '0.25rem 0.75rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {editingSource ? (
                 <input
                   type="text"
@@ -831,7 +1039,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     fontSize: 'inherit',
                     fontFamily: 'inherit',
                     backgroundColor: 'var(--background-color)',
-                    color: 'var(--text-color)'
+                    color: 'var(--text-color)',
                   }}
                 />
               ) : (
@@ -842,7 +1050,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     display: 'block',
                     width: '100%',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    textOverflow: 'ellipsis',
                   }}
                   title="Click to edit"
                 >
@@ -851,15 +1059,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               )}
             </div>
 
-            {/* Translation - calc(65% - 20px) with metadata badge */}
-            <div style={{
-              width: 'calc(65% - 20px)',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              overflow: 'hidden'
-            }}>
+            {/* Translation - calc(65% - 20px) */}
+            <div
+              style={{
+                width: 'calc(65% - 20px)',
+                padding: '0.25rem 0.75rem',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {editingTranslation ? (
                 <input
                   type="text"
@@ -869,189 +1078,68 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   onKeyDown={(e) => handleKeyDown(e, 'translation')}
                   autoFocus
                   style={{
-                    flex: 1,
+                    width: '100%',
                     border: '1px solid var(--accent-color)',
                     borderRadius: '2px',
                     padding: '2px 4px',
                     fontSize: 'inherit',
                     fontFamily: 'inherit',
                     backgroundColor: 'var(--background-color)',
-                    color: 'var(--text-color)'
+                    color: 'var(--text-color)',
                   }}
                 />
               ) : (
-                <>
-                  <span
-                    onClick={() => setEditingTranslation(true)}
-                    style={{
-                      cursor: 'pointer',
-                      flex: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                    title="Click to edit"
-                  >
-                    {translationText}
-                  </span>
-                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                    <MetadataBadge
-                      type="variable"
-                      active={allowAsPatternVariable}
-                      onClick={() => handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)}
-                    />
-                  </div>
-                </>
+                <span
+                  onClick={() => setEditingTranslation(true)}
+                  style={{
+                    cursor: 'pointer',
+                    display: 'block',
+                    width: '100%',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                  title="Click to edit"
+                >
+                  {translationText}
+                </span>
               )}
             </div>
           </div>
         );
       }
-
-      // 3-column layout for simple dictionaries (with selection checkbox)
-      return (
-        <div
-          style={{
-            height: ITEM_HEIGHT,
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
-            willChange: isScrolling ? 'transform' : 'auto',
-          }}
-        >
-          {/* Selection Checkbox - 40px */}
-          <div style={{
-            width: '40px',
-            minWidth: '40px',
-            maxWidth: '40px',
-            padding: '0.25rem 0.75rem',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}>
-            <input
-              type="checkbox"
-              checked={selectedEntries.has(source)}
-              onChange={(e) => handleSelectEntry(source, e.target.checked)}
-              style={{ cursor: 'pointer' }}
-              title="Select for deletion"
-            />
-          </div>
-
-          {/* Source Text - calc(35% - 20px) */}
-          <div style={{
-            width: 'calc(35% - 20px)',
-            padding: '0.25rem 0.75rem',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}>
-            {editingSource ? (
-              <input
-                type="text"
-                value={tempSource}
-                onChange={(e) => setTempSource(e.target.value)}
-                onBlur={() => handleTextSave('source')}
-                onKeyDown={(e) => handleKeyDown(e, 'source')}
-                autoFocus
-                style={{
-                  width: '100%',
-                  border: '1px solid var(--accent-color)',
-                  borderRadius: '2px',
-                  padding: '2px 4px',
-                  fontSize: 'inherit',
-                  fontFamily: 'inherit',
-                  backgroundColor: 'var(--background-color)',
-                  color: 'var(--text-color)'
-                }}
-              />
-            ) : (
-              <span
-                onClick={() => setEditingSource(true)}
-                style={{
-                  cursor: 'pointer',
-                  display: 'block',
-                  width: '100%',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}
-                title="Click to edit"
-              >
-                {source}
-              </span>
-            )}
-          </div>
-
-          {/* Translation - calc(65% - 20px) */}
-          <div style={{
-            width: 'calc(65% - 20px)',
-            padding: '0.25rem 0.75rem',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}>
-            {editingTranslation ? (
-              <input
-                type="text"
-                value={tempTranslation}
-                onChange={(e) => setTempTranslation(e.target.value)}
-                onBlur={() => handleTextSave('translation')}
-                onKeyDown={(e) => handleKeyDown(e, 'translation')}
-                autoFocus
-                style={{
-                  width: '100%',
-                  border: '1px solid var(--accent-color)',
-                  borderRadius: '2px',
-                  padding: '2px 4px',
-                  fontSize: 'inherit',
-                  fontFamily: 'inherit',
-                  backgroundColor: 'var(--background-color)',
-                  color: 'var(--text-color)'
-                }}
-              />
-            ) : (
-              <span
-                onClick={() => setEditingTranslation(true)}
-                style={{
-                  cursor: 'pointer',
-                  display: 'block',
-                  width: '100%',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
-                }}
-                title="Click to edit"
-              >
-                {translationText}
-              </span>
-            )}
-          </div>
-        </div>
-      );
-    });
+    );
 
     VirtualRowComponent.displayName = 'VirtualRowComponent';
 
     return VirtualRowComponent;
-  }, [isScrolling, setEditingEntry, selectedDictionary, updateEntryWithScrollPreservation, selectedEntries, handleSelectEntry]);
+  }, [
+    isScrolling,
+    setEditingEntry,
+    selectedDictionary,
+    updateEntryWithScrollPreservation,
+    selectedEntries,
+    handleSelectEntry,
+  ]);
 
   // Performance monitoring for large lists
   const performanceMetrics = useMemo(() => {
     const listSize = filteredEntries.length;
     const renderedCount = visibleEntries.length;
     const renderRatio = listSize > 0 ? (renderedCount / listSize) * 100 : 0;
-    
+
     return {
       totalEntries: listSize,
       renderedEntries: renderedCount,
       renderEfficiency: renderRatio.toFixed(1),
-      isLargeDataset: listSize > LARGE_LIST_THRESHOLD
+      isLargeDataset: listSize > LARGE_LIST_THRESHOLD,
     };
   }, [filteredEntries.length, visibleEntries.length]);
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+      <div
+        style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}
+      >
         <Loader className="animate-spin" size={24} />
       </div>
     );
@@ -1060,13 +1148,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Search controls */}
-      <div style={{ 
-        display: 'flex', 
-        padding: '1rem', 
-        gap: '1rem', 
-        alignItems: 'center',
-        borderBottom: '1px solid var(--border-color)'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          padding: '1rem',
+          gap: '1rem',
+          alignItems: 'center',
+          borderBottom: '1px solid var(--border-color)',
+        }}
+      >
         <input
           type="text"
           placeholder="Search dictionary entries..."
@@ -1084,27 +1174,48 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           }}
         />
         <div style={{ display: 'flex', gap: '0.25rem' }}>
-          <button onClick={scrollToTop} className="icon" title="Scroll to top" style={{ padding: '0.5rem' }}>
+          <button
+            onClick={scrollToTop}
+            className="icon"
+            title="Scroll to top"
+            style={{ padding: '0.5rem' }}
+          >
             <ChevronsUp size={16} />
           </button>
-          <button onClick={scrollToBottom} className="icon" title="Scroll to bottom" style={{ padding: '0.5rem' }}>
+          <button
+            onClick={scrollToBottom}
+            className="icon"
+            title="Scroll to bottom"
+            style={{ padding: '0.5rem' }}
+          >
             <ChevronsDown size={16} />
           </button>
         </div>
       </div>
 
       {/* Enhanced entry count indicator with performance metrics */}
-      <div style={{ 
-        padding: '0.5rem 1rem', 
-        fontSize: '0.875rem', 
-        color: 'var(--muted-text)',
-        borderBottom: '1px solid var(--border-color)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <span>Showing {visibleEntries.length} of {filteredEntries.length} entries</span>
-        <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', color: 'var(--accent-color)' }}>
+      <div
+        style={{
+          padding: '0.5rem 1rem',
+          fontSize: '0.875rem',
+          color: 'var(--muted-text)',
+          borderBottom: '1px solid var(--border-color)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
+        <span>
+          Showing {visibleEntries.length} of {filteredEntries.length} entries
+        </span>
+        <div
+          style={{
+            display: 'flex',
+            gap: '1rem',
+            fontSize: '0.75rem',
+            color: 'var(--accent-color)',
+          }}
+        >
           {process.env.NODE_ENV === 'development' && performanceMetrics.isLargeDataset && (
             <span>
               Render efficiency: {performanceMetrics.renderEfficiency}%
@@ -1113,23 +1224,23 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           )}
           {/* OPTIMIZATION: Adaptive buffer indicator */}
           {process.env.NODE_ENV === 'development' && (
-            <span style={{ color: 'var(--muted-text)' }}>
-              Buffer: {bufferSize} (adaptive)
-            </span>
+            <span style={{ color: 'var(--muted-text)' }}>Buffer: {bufferSize} (adaptive)</span>
           )}
         </div>
       </div>
 
       {/* Error display */}
       {deleteError && (
-        <div style={{
-          padding: '0.5rem 1rem',
-          backgroundColor: 'var(--danger-button-bg)',
-          color: 'var(--danger-button-text)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}>
+        <div
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: 'var(--danger-button-bg)',
+            color: 'var(--danger-button-text)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
           <AlertCircle size={16} />
           {deleteError}
         </div>
@@ -1137,28 +1248,30 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
       {/* Empty state when no entries */}
       {filteredEntries.length === 0 ? (
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '3rem'
-        }}>
-          <div style={{
-            color: 'var(--text-color)',
-            opacity: 0.4,
-            textAlign: 'center',
-            fontSize: '1rem',
-            lineHeight: '1.8'
-          }}>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '3rem',
+          }}
+        >
+          <div
+            style={{
+              color: 'var(--text-color)',
+              opacity: 0.4,
+              textAlign: 'center',
+              fontSize: '1rem',
+              lineHeight: '1.8',
+            }}
+          >
             {searchTerm ? (
               <>
                 <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
                   No entries matching "{searchTerm}"
                 </div>
-                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                  Try a different search term
-                </div>
+                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>Try a different search term</div>
               </>
             ) : (
               <>
@@ -1166,7 +1279,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   Dictionary is empty
                 </div>
                 <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                  Add entries using Quick Add<br />shortcuts (Cmd/Ctrl+1-5)
+                  Add entries using Quick Add
+                  <br />
+                  shortcuts (Cmd/Ctrl+1-5)
                 </div>
               </>
             )}
@@ -1177,110 +1292,199 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           {/* Enhanced virtualized table container */}
           <div
             ref={tableContainerRef}
-            style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+            }}
           >
             {/* Fixed table header */}
-            <div style={{
-              display: 'flex',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: 'var(--background-color)',
-              flexShrink: 0,
-              zIndex: 1,
-            }}>
-          {selectedDictionary === 'patterns' ? (
-            <>
-              <div style={{ width: '40px', minWidth: '40px', maxWidth: '40px', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                  title="Select all"
-                />
-              </div>
-              <div style={{ width: 'calc(35% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }} title="Pattern with highlighted variables">
-                Source Text
-              </div>
-              <div style={{ width: 'calc(65% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }} title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)">
-                Translation
-              </div>
-            </>
-          ) : selectedDictionary === 'phrases' ? (
-            <>
-              <div style={{ width: '40px', minWidth: '40px', maxWidth: '40px', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                  title="Select all"
-                />
-              </div>
-              <div style={{ width: 'calc(35% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
-              <div style={{ width: 'calc(65% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }} title="Translation with metadata badge (VAR = Allow as variable)">
-                Translation
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ width: '40px', minWidth: '40px', maxWidth: '40px', padding: '0.5rem 0.75rem', fontWeight: 'bold', textAlign: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                  title="Select all"
-                />
-              </div>
-              <div style={{ width: 'calc(35% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Source Text</div>
-              <div style={{ width: 'calc(65% - 20px)', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>Translation</div>
-            </>
-          )}
-        </div>
-
-        {/* Scrollable content with enhanced performance */}
-        <div
-          ref={scrollRefCallback}
-          onScroll={handleScroll}
-          style={{
-            flex: 1,
-            minHeight: 0,
-            maxHeight: '100%',
-            overflow: 'auto',
-            position: 'relative',
-          }}
-        >
-          {/* Virtual spacer for total height */}
-          <div style={{ 
-            height: totalHeight, 
-            position: 'relative',
-            // Hint to browser about content changes
-            willChange: 'transform'
-          }}>
-            {/* Visible entries container with transform optimization */}
-            <div 
-              style={{ 
-                transform: `translateY(${offsetY}px)`,
-                // Optimize compositing during scroll
-                willChange: isScrolling ? 'transform' : 'auto'
+            <div
+              style={{
+                display: 'flex',
+                borderBottom: '1px solid var(--border-color)',
+                backgroundColor: 'var(--background-color)',
+                flexShrink: 0,
+                zIndex: 1,
               }}
             >
-              {visibleEntries.map(([source, translation], index) => {
-                const actualIndex = startIndex + index;
-                return (
-                  <VirtualRow
-                    key={`${selectedDictionary}-${source}-${actualIndex}`}
-                    source={source}
-                    translation={translation}
-                    _index={index}
-                    actualIndex={actualIndex}
-                  />
-                );
-              })}
+              {selectedDictionary === 'patterns' ? (
+                <>
+                  <div
+                    style={{
+                      width: '40px',
+                      minWidth: '40px',
+                      maxWidth: '40px',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                      }
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                      title="Select all"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(35% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                    title="Pattern with highlighted variables"
+                  >
+                    Source Text
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(65% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                    title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)"
+                  >
+                    Translation
+                  </div>
+                </>
+              ) : selectedDictionary === 'phrases' ? (
+                <>
+                  <div
+                    style={{
+                      width: '40px',
+                      minWidth: '40px',
+                      maxWidth: '40px',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                      }
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                      title="Select all"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(35% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Source Text
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(65% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                    title="Translation with metadata badge (VAR = Allow as variable)"
+                  >
+                    Translation
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      width: '40px',
+                      minWidth: '40px',
+                      maxWidth: '40px',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                      }
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                      title="Select all"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(35% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Source Text
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(65% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Translation
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Scrollable content with enhanced performance */}
+            <div
+              ref={scrollRefCallback}
+              onScroll={handleScroll}
+              style={{
+                flex: 1,
+                minHeight: 0,
+                maxHeight: '100%',
+                overflow: 'auto',
+                position: 'relative',
+              }}
+            >
+              {/* Virtual spacer for total height */}
+              <div
+                style={{
+                  height: totalHeight,
+                  position: 'relative',
+                  // Hint to browser about content changes
+                  willChange: 'transform',
+                }}
+              >
+                {/* Visible entries container with transform optimization */}
+                <div
+                  style={{
+                    transform: `translateY(${offsetY}px)`,
+                    // Optimize compositing during scroll
+                    willChange: isScrolling ? 'transform' : 'auto',
+                  }}
+                >
+                  {visibleEntries.map(([source, translation], index) => {
+                    const actualIndex = startIndex + index;
+                    return (
+                      <VirtualRow
+                        key={`${selectedDictionary}-${source}-${actualIndex}`}
+                        source={source}
+                        translation={translation}
+                        _index={index}
+                        actualIndex={actualIndex}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
         </>
       )}
 
@@ -1301,7 +1505,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           currentDictionary={selectedDictionary}
         />
       )}
-
     </div>
   );
 };

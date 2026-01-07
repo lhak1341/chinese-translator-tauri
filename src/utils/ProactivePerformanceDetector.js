@@ -45,10 +45,10 @@ export class PerformanceBaselineTracker {
         memoryCritical: options.memoryCritical || 1.5, // 50% more memory
         cacheHitRateWarning: options.cacheHitRateWarning || 0.8, // <80%
         cacheHitRateCritical: options.cacheHitRateCritical || 0.6, // <60%
-        ...options.alertThresholds
+        ...options.alertThresholds,
       },
       maxHistorySize: options.maxHistorySize || 1000,
-      ...options
+      ...options,
     };
 
     // Performance history storage
@@ -76,7 +76,7 @@ export class PerformanceBaselineTracker {
       operationType,
       timestamp,
       ...metrics,
-      sessionAge: timestamp - this.monitoringStartTime
+      sessionAge: timestamp - this.monitoringStartTime,
     };
 
     this.performanceHistory.push(dataPoint);
@@ -120,9 +120,9 @@ export class PerformanceBaselineTracker {
     if (history.length < 10) return;
 
     // Calculate baseline statistics
-    const durations = history.map(h => h.duration || 0).filter(d => d > 0);
-    const memoryUsages = history.map(h => h.memoryUsed || 0).filter(m => m > 0);
-    const cacheHitRates = history.map(h => h.cacheHitRate || 0).filter(c => c > 0);
+    const durations = history.map((h) => h.duration || 0).filter((d) => d > 0);
+    const memoryUsages = history.map((h) => h.memoryUsed || 0).filter((m) => m > 0);
+    const cacheHitRates = history.map((h) => h.cacheHitRate || 0).filter((c) => c > 0);
 
     const baseline = {
       operationType,
@@ -144,14 +144,18 @@ export class PerformanceBaselineTracker {
       medianCacheHitRate: this.calculateMedian(cacheHitRates),
 
       // Quality metrics
-      operationsPerSecond: durations.length > 0 ? 1000 / this.calculateMean(durations) : 0
+      operationsPerSecond: durations.length > 0 ? 1000 / this.calculateMean(durations) : 0,
     };
 
     this.baselines.set(operationType, baseline);
     console.log(`📊 Performance baseline established for '${operationType}':`, {
       avgDuration: baseline.avgDuration.toFixed(1) + 'ms',
-      avgMemory: baseline.avgMemoryUsed ? (baseline.avgMemoryUsed / 1024 / 1024).toFixed(1) + 'MB' : 'N/A',
-      avgCacheHitRate: baseline.avgCacheHitRate ? (baseline.avgCacheHitRate * 100).toFixed(1) + '%' : 'N/A'
+      avgMemory: baseline.avgMemoryUsed
+        ? (baseline.avgMemoryUsed / 1024 / 1024).toFixed(1) + 'MB'
+        : 'N/A',
+      avgCacheHitRate: baseline.avgCacheHitRate
+        ? (baseline.avgCacheHitRate * 100).toFixed(1) + '%'
+        : 'N/A',
     });
   }
 
@@ -168,9 +172,9 @@ export class PerformanceBaselineTracker {
 
     if (recentHistory.length < 5) return;
 
-    const recentDurations = recentHistory.map(h => h.duration || 0).filter(d => d > 0);
-    const recentMemoryUsages = recentHistory.map(h => h.memoryUsed || 0).filter(m => m > 0);
-    const recentCacheHitRates = recentHistory.map(h => h.cacheHitRate || 0).filter(c => c > 0);
+    const recentDurations = recentHistory.map((h) => h.duration || 0).filter((d) => d > 0);
+    const recentMemoryUsages = recentHistory.map((h) => h.memoryUsed || 0).filter((m) => m > 0);
+    const recentCacheHitRates = recentHistory.map((h) => h.cacheHitRate || 0).filter((c) => c > 0);
 
     // Update baseline with exponential moving average
     if (recentDurations.length > 0) {
@@ -185,7 +189,8 @@ export class PerformanceBaselineTracker {
 
     if (recentCacheHitRates.length > 0) {
       const newAvgCacheHitRate = this.calculateMean(recentCacheHitRates);
-      baseline.avgCacheHitRate = baseline.avgCacheHitRate * (1 - alpha) + newAvgCacheHitRate * alpha;
+      baseline.avgCacheHitRate =
+        baseline.avgCacheHitRate * (1 - alpha) + newAvgCacheHitRate * alpha;
     }
 
     baseline.lastUpdate = Date.now();
@@ -211,7 +216,7 @@ export class PerformanceBaselineTracker {
           message: `${operationType} duration ${durationRatio.toFixed(1)}x slower than baseline (${dataPoint.duration.toFixed(1)}ms vs ${baseline.avgDuration.toFixed(1)}ms)`,
           ratio: durationRatio,
           current: dataPoint.duration,
-          baseline: baseline.avgDuration
+          baseline: baseline.avgDuration,
         });
       } else if (durationRatio >= this.options.alertThresholds.warningDegradation) {
         alerts.push({
@@ -220,7 +225,7 @@ export class PerformanceBaselineTracker {
           message: `${operationType} duration ${durationRatio.toFixed(1)}x slower than baseline`,
           ratio: durationRatio,
           current: dataPoint.duration,
-          baseline: baseline.avgDuration
+          baseline: baseline.avgDuration,
         });
       }
     }
@@ -231,7 +236,8 @@ export class PerformanceBaselineTracker {
     if (false && dataPoint.memoryUsed && baseline.avgMemoryUsed > 0) {
       const memoryRatio = dataPoint.memoryUsed / baseline.avgMemoryUsed;
       // Increased thresholds to prevent false positives
-      if (memoryRatio >= 3.0) { // Was 2.0, now 3.0
+      if (memoryRatio >= 3.0) {
+        // Was 2.0, now 3.0
         alerts.push({
           level: 'critical',
           type: 'memory_regression',
@@ -239,9 +245,10 @@ export class PerformanceBaselineTracker {
           ratio: memoryRatio,
           current: dataPoint.memoryUsed,
           baseline: baseline.avgMemoryUsed,
-          investigation: this.generateMemoryInvestigationSuggestions(memoryRatio)
+          investigation: this.generateMemoryInvestigationSuggestions(memoryRatio),
         });
-      } else if (memoryRatio >= 2.5) { // Was 1.5, now 2.5
+      } else if (memoryRatio >= 2.5) {
+        // Was 1.5, now 2.5
         alerts.push({
           level: 'warning',
           type: 'memory_regression',
@@ -249,28 +256,34 @@ export class PerformanceBaselineTracker {
           ratio: memoryRatio,
           current: dataPoint.memoryUsed,
           baseline: baseline.avgMemoryUsed,
-          investigation: this.generateMemoryInvestigationSuggestions(memoryRatio)
+          investigation: this.generateMemoryInvestigationSuggestions(memoryRatio),
         });
       }
     }
 
     // Cache hit rate degradation check
     if (dataPoint.cacheHitRate !== undefined && baseline.avgCacheHitRate > 0) {
-      if (dataPoint.cacheHitRate < baseline.avgCacheHitRate * this.options.alertThresholds.cacheHitRateCritical) {
+      if (
+        dataPoint.cacheHitRate <
+        baseline.avgCacheHitRate * this.options.alertThresholds.cacheHitRateCritical
+      ) {
         alerts.push({
           level: 'critical',
           type: 'cache_degradation',
           message: `${operationType} cache hit rate critically low: ${(dataPoint.cacheHitRate * 100).toFixed(1)}% vs baseline ${(baseline.avgCacheHitRate * 100).toFixed(1)}%`,
           current: dataPoint.cacheHitRate,
-          baseline: baseline.avgCacheHitRate
+          baseline: baseline.avgCacheHitRate,
         });
-      } else if (dataPoint.cacheHitRate < baseline.avgCacheHitRate * this.options.alertThresholds.cacheHitRateWarning) {
+      } else if (
+        dataPoint.cacheHitRate <
+        baseline.avgCacheHitRate * this.options.alertThresholds.cacheHitRateWarning
+      ) {
         alerts.push({
           level: 'warning',
           type: 'cache_degradation',
           message: `${operationType} cache hit rate below baseline`,
           current: dataPoint.cacheHitRate,
-          baseline: baseline.avgCacheHitRate
+          baseline: baseline.avgCacheHitRate,
         });
       }
     }
@@ -313,12 +326,12 @@ export class PerformanceBaselineTracker {
 
     for (const windowMinutes of this.options.trendAnalysisWindows) {
       const windowMs = windowMinutes * 60 * 1000;
-      const windowData = history.filter(h => now - h.timestamp <= windowMs);
+      const windowData = history.filter((h) => now - h.timestamp <= windowMs);
 
       if (windowData.length < 5) continue;
 
       // Calculate trend slope using linear regression
-      const durations = windowData.map(h => h.duration || 0).filter(d => d > 0);
+      const durations = windowData.map((h) => h.duration || 0).filter((d) => d > 0);
       if (durations.length > 3) {
         const slope = this.calculateTrendSlope(windowData.map((d, i) => ({ x: i, y: d.duration })));
         trends[`${windowMinutes}min`] = {
@@ -326,7 +339,7 @@ export class PerformanceBaselineTracker {
           direction: slope > 0 ? 'degrading' : slope < 0 ? 'improving' : 'stable',
           samples: durations.length,
           avgDuration: this.calculateMean(durations),
-          change: slope * durations.length // Total change over window
+          change: slope * durations.length, // Total change over window
         };
       }
     }
@@ -338,7 +351,7 @@ export class PerformanceBaselineTracker {
    * Get performance history for specific operation type
    */
   getOperationHistory(operationType, limit = null) {
-    let history = this.performanceHistory.filter(h => h.operationType === operationType);
+    let history = this.performanceHistory.filter((h) => h.operationType === operationType);
     if (limit) {
       history = history.slice(-limit);
     }
@@ -350,12 +363,13 @@ export class PerformanceBaselineTracker {
    */
   getHealthSummary() {
     const now = Date.now();
-    const recentAlerts = this.alerts.filter(a => now - a.timestamp < 60 * 60 * 1000); // Last hour
-    const criticalAlerts = recentAlerts.filter(a => a.level === 'critical');
-    const warningAlerts = recentAlerts.filter(a => a.level === 'warning');
+    const recentAlerts = this.alerts.filter((a) => now - a.timestamp < 60 * 60 * 1000); // Last hour
+    const criticalAlerts = recentAlerts.filter((a) => a.level === 'critical');
+    const warningAlerts = recentAlerts.filter((a) => a.level === 'warning');
 
     return {
-      status: criticalAlerts.length > 0 ? 'critical' : warningAlerts.length > 0 ? 'warning' : 'healthy',
+      status:
+        criticalAlerts.length > 0 ? 'critical' : warningAlerts.length > 0 ? 'warning' : 'healthy',
       totalBaselines: this.baselines.size,
       totalSamples: this.performanceHistory.length,
       recentAlerts: recentAlerts.length,
@@ -368,8 +382,8 @@ export class PerformanceBaselineTracker {
         avgMemoryUsed: baseline.avgMemoryUsed,
         avgCacheHitRate: baseline.avgCacheHitRate,
         sampleCount: baseline.sampleCount,
-        lastUpdate: baseline.lastUpdate
-      }))
+        lastUpdate: baseline.lastUpdate,
+      })),
     };
   }
 
@@ -378,9 +392,12 @@ export class PerformanceBaselineTracker {
    */
   setupPeriodicAnalysis() {
     // Run trend analysis every 5 minutes
-    setInterval(() => {
-      this.runPeriodicAnalysis();
-    }, 5 * 60 * 1000);
+    setInterval(
+      () => {
+        this.runPeriodicAnalysis();
+      },
+      5 * 60 * 1000
+    );
   }
 
   /**
@@ -389,20 +406,26 @@ export class PerformanceBaselineTracker {
   runPeriodicAnalysis() {
     if (!this.isActive) return;
 
-    const operationTypes = [...new Set(this.performanceHistory.map(h => h.operationType))];
+    const operationTypes = [...new Set(this.performanceHistory.map((h) => h.operationType))];
 
     for (const operationType of operationTypes) {
       const trends = this.analyzeTrends(operationType);
       if (trends) {
         this.trends.set(operationType, {
           ...trends,
-          analyzedAt: Date.now()
+          analyzedAt: Date.now(),
         });
 
         // Check for concerning trends
         const longerTermTrend = trends['30min'] || trends['15min'];
-        if (longerTermTrend && longerTermTrend.direction === 'degrading' && longerTermTrend.change > 10) {
-          console.warn(`📉 Performance trend warning: ${operationType} degrading over time (+${longerTermTrend.change.toFixed(1)}ms)`);
+        if (
+          longerTermTrend &&
+          longerTermTrend.direction === 'degrading' &&
+          longerTermTrend.change > 10
+        ) {
+          console.warn(
+            `📉 Performance trend warning: ${operationType} degrading over time (+${longerTermTrend.change.toFixed(1)}ms)`
+          );
         }
       }
     }
@@ -424,7 +447,7 @@ export class PerformanceBaselineTracker {
   calculateStdDev(values) {
     if (values.length === 0) return 0;
     const mean = this.calculateMean(values);
-    const squareDiffs = values.map(value => Math.pow(value - mean, 2));
+    const squareDiffs = values.map((value) => Math.pow(value - mean, 2));
     return Math.sqrt(this.calculateMean(squareDiffs));
   }
 
@@ -459,12 +482,16 @@ export class PerformanceBaselineTracker {
     const suggestions = [];
 
     if (memoryRatio >= 2.0) {
-      suggestions.push('🔴 CRITICAL: Memory usage doubled. Check for memory leaks in translation segments or cache growth.');
+      suggestions.push(
+        '🔴 CRITICAL: Memory usage doubled. Check for memory leaks in translation segments or cache growth.'
+      );
       suggestions.push('💡 Try: Clear translation cache with "Reload Dictionary" button');
       suggestions.push('🔍 Investigate: Large text translations accumulating segments');
     } else if (memoryRatio >= 1.5) {
       suggestions.push('🟡 WARNING: Memory usage 50% above baseline');
-      suggestions.push('💡 Monitor: Check if translation segment cleanup is working (threshold: 150 segments)');
+      suggestions.push(
+        '💡 Monitor: Check if translation segment cleanup is working (threshold: 150 segments)'
+      );
       suggestions.push('🔍 Check: Position cache size and WASM memory allocation');
     } else if (memoryRatio >= 1.3) {
       suggestions.push('📊 INFO: Memory usage 30% above baseline');
@@ -490,7 +517,9 @@ export class PerformanceBaselineTracker {
 
     // Show current memory if available
     if (window.performanceDashboard) {
-      console.log(`📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`);
+      console.log(
+        `📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`
+      );
     }
 
     // Show quick recommendations
@@ -519,7 +548,7 @@ export class PerformanceBaselineTracker {
       baselines: Object.fromEntries(this.baselines),
       alerts: this.alerts,
       trends: Object.fromEntries(this.trends),
-      healthSummary: this.getHealthSummary()
+      healthSummary: this.getHealthSummary(),
     };
   }
 }
@@ -546,7 +575,7 @@ export class SystemPerformanceMonitor {
       this.integrations.set('globalPerformanceMonitor', {
         name: 'Global Performance Monitor',
         collectMetrics: () => globalPerformanceMonitor.getMetrics(),
-        isActive: true
+        isActive: true,
       });
     }
 
@@ -555,7 +584,7 @@ export class SystemPerformanceMonitor {
       this.integrations.set('positionCache', {
         name: 'Position Mapping Cache',
         collectMetrics: () => contentAwarePositionCache.getStats(),
-        isActive: true
+        isActive: true,
       });
     }
 
@@ -564,21 +593,22 @@ export class SystemPerformanceMonitor {
       this.integrations.set('virtualScrolling', {
         name: 'Virtual Scrolling Buffer',
         collectMetrics: () => adaptiveBufferCalculator.getScrollingStats(),
-        isActive: true
+        isActive: true,
       });
     }
-
 
     // Integration 4: WASM Memory Pool Manager
     if (wasmMemoryPoolManager) {
       this.integrations.set('wasmMemoryPool', {
         name: 'WASM Memory Pool',
         collectMetrics: () => wasmMemoryPoolManager.getStats(),
-        isActive: true
+        isActive: true,
       });
     }
 
-    console.log(`🔍 System Performance Monitor initialized with ${this.integrations.size} integrations`);
+    console.log(
+      `🔍 System Performance Monitor initialized with ${this.integrations.size} integrations`
+    );
   }
 
   /**
@@ -591,7 +621,7 @@ export class SystemPerformanceMonitor {
     const systemMetrics = {
       timestamp,
       memory: this.getMemoryMetrics(),
-      integrations: {}
+      integrations: {},
     };
 
     // Collect metrics from each integration
@@ -620,7 +650,7 @@ export class SystemPerformanceMonitor {
         duration: gpm.avgTime || 0,
         memoryUsed: systemMetrics.memory.used,
         operationsPerSecond: gpm.opsPerSecond || 0,
-        sampleCount: gpm.sampleCount || 0
+        sampleCount: gpm.sampleCount || 0,
       });
     }
 
@@ -632,7 +662,7 @@ export class SystemPerformanceMonitor {
         cacheHitRate: cache.hitRate / 100, // Convert percentage to decimal
         memoryUsed: systemMetrics.memory.used,
         totalHits: cache.totalHits || 0,
-        estimatedTimeSaved: cache.estimatedTimeSaved || 0
+        estimatedTimeSaved: cache.estimatedTimeSaved || 0,
       });
     }
 
@@ -644,7 +674,7 @@ export class SystemPerformanceMonitor {
           duration: vs.averageFrameTime,
           memoryUsed: systemMetrics.memory.used,
           isPerformant: vs.isPerformant,
-          averageScrollVelocity: vs.averageScrollVelocity || 0
+          averageScrollVelocity: vs.averageScrollVelocity || 0,
         });
       }
     }
@@ -658,7 +688,7 @@ export class SystemPerformanceMonitor {
         memoryUsed: systemMetrics.memory.used,
         exactHits: stc.exactHits || 0,
         semanticHits: stc.semanticHits || 0,
-        estimatedTimeSaved: stc.estimatedTimeSaved || 0
+        estimatedTimeSaved: stc.estimatedTimeSaved || 0,
       });
     }
 
@@ -671,7 +701,7 @@ export class SystemPerformanceMonitor {
         memoryUsed: wmp.totalMemoryUsage || 0,
         poolHits: wmp.poolHits || 0,
         poolMisses: wmp.poolMisses || 0,
-        memoryReused: wmp.memoryReused || 0
+        memoryReused: wmp.memoryReused || 0,
       });
     }
   }
@@ -685,7 +715,7 @@ export class SystemPerformanceMonitor {
         used: performance.memory.usedJSHeapSize,
         total: performance.memory.totalJSHeapSize,
         limit: performance.memory.jsHeapSizeLimit,
-        pressure: performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit
+        pressure: performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit,
       };
     }
     return { used: 0, total: 0, limit: 0, pressure: 0 };
@@ -705,7 +735,7 @@ export class SystemPerformanceMonitor {
     const total = performance.memory.totalJSHeapSize;
     const limit = performance.memory.jsHeapSizeLimit;
 
-    const usagePercent = (used / limit * 100).toFixed(1);
+    const usagePercent = ((used / limit) * 100).toFixed(1);
     const usedMB = (used / 1024 / 1024).toFixed(1);
     const totalMB = (total / 1024 / 1024).toFixed(1);
     const limitMB = (limit / 1024 / 1024).toFixed(1);
@@ -743,14 +773,22 @@ export class SystemPerformanceMonitor {
       totalMB: parseFloat(totalMB),
       limitMB: parseFloat(limitMB),
       usagePercent: parseFloat(usagePercent),
-      status: usagePercent < 20 ? 'HEALTHY' : usagePercent < 30 ? 'WATCH' : usagePercent < 50 ? 'ELEVATED' : 'CRITICAL'
+      status:
+        usagePercent < 20
+          ? 'HEALTHY'
+          : usagePercent < 30
+            ? 'WATCH'
+            : usagePercent < 50
+              ? 'ELEVATED'
+              : 'CRITICAL',
     };
   }
 
   /**
    * Start continuous monitoring
    */
-  startMonitoring(intervalMs = 30000) { // 30 seconds default
+  startMonitoring(intervalMs = 30000) {
+    // 30 seconds default
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
     }
@@ -780,13 +818,13 @@ export class SystemPerformanceMonitor {
     const baselineHealth = this.baselineTracker.getHealthSummary();
     const systemMetrics = {
       memory: this.getMemoryMetrics(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     return {
       ...baselineHealth,
       systemMetrics,
-      recommendations: this.generateRecommendations(baselineHealth, systemMetrics)
+      recommendations: this.generateRecommendations(baselineHealth, systemMetrics),
     };
   }
 
@@ -801,8 +839,9 @@ export class SystemPerformanceMonitor {
       recommendations.push({
         level: 'warning',
         type: 'memory',
-        message: 'High memory pressure detected. Consider reducing buffer sizes or clearing caches.',
-        action: 'reduce_memory_usage'
+        message:
+          'High memory pressure detected. Consider reducing buffer sizes or clearing caches.',
+        action: 'reduce_memory_usage',
       });
     }
 
@@ -811,19 +850,23 @@ export class SystemPerformanceMonitor {
       recommendations.push({
         level: 'critical',
         type: 'performance',
-        message: 'Critical performance regressions detected. Review recent changes or consider rollback.',
-        action: 'investigate_regressions'
+        message:
+          'Critical performance regressions detected. Review recent changes or consider rollback.',
+        action: 'investigate_regressions',
       });
     }
 
     // Cache optimization recommendations
-    const positionCacheBaseline = health.baselines.find(b => b.operationType === 'position_cache');
+    const positionCacheBaseline = health.baselines.find(
+      (b) => b.operationType === 'position_cache'
+    );
     if (positionCacheBaseline && positionCacheBaseline.avgCacheHitRate < 0.7) {
       recommendations.push({
         level: 'info',
         type: 'optimization',
-        message: 'Position cache hit rate could be improved. Consider adjusting cache size or similarity thresholds.',
-        action: 'optimize_cache'
+        message:
+          'Position cache hit rate could be improved. Consider adjusting cache size or similarity thresholds.',
+        action: 'optimize_cache',
       });
     }
 
@@ -849,14 +892,17 @@ export class SystemPerformanceMonitor {
         // Calculate specific growth areas
         if (currentMetrics && baseline) {
           console.log(`🔺 Memory Growth Analysis:`);
-          Object.keys(currentMetrics).forEach(key => {
+          Object.keys(currentMetrics).forEach((key) => {
             if (key.includes('memory') || key.includes('cache') || key.includes('size')) {
               const current = currentMetrics[key] || 0;
-              const baselineVal = baseline[`avg${key.charAt(0).toUpperCase()}${key.slice(1)}`] || baseline[key] || 0;
+              const baselineVal =
+                baseline[`avg${key.charAt(0).toUpperCase()}${key.slice(1)}`] || baseline[key] || 0;
               if (baselineVal > 0) {
                 const ratio = current / baselineVal;
                 if (ratio > 1.2) {
-                  console.log(`   ${key}: ${current} (${ratio.toFixed(1)}x baseline: ${baselineVal})`);
+                  console.log(
+                    `   ${key}: ${current} (${ratio.toFixed(1)}x baseline: ${baselineVal})`
+                  );
                 }
               }
             }
@@ -866,8 +912,10 @@ export class SystemPerformanceMonitor {
         // Add specific cache size information
         if (operationType === 'semantic_translation_cache') {
           console.log(`🧠 Semantic Cache Details:`);
-          if (currentMetrics.cacheSize) console.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
-          if (currentMetrics.similarityCacheSize) console.log(`   Similarity Cache: ${currentMetrics.similarityCacheSize} entries`);
+          if (currentMetrics.cacheSize)
+            console.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
+          if (currentMetrics.similarityCacheSize)
+            console.log(`   Similarity Cache: ${currentMetrics.similarityCacheSize} entries`);
           if (currentMetrics.hitRate) console.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
         }
 
@@ -875,7 +923,8 @@ export class SystemPerformanceMonitor {
           console.log(`📍 Position Cache Details:`);
           if (currentMetrics.totalHits) console.log(`   Total Hits: ${currentMetrics.totalHits}`);
           if (currentMetrics.hitRate) console.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
-          if (currentMetrics.cacheSize) console.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
+          if (currentMetrics.cacheSize)
+            console.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
         }
       }
 

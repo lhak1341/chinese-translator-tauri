@@ -9,47 +9,47 @@
  *   window.runAllParityTests()
  */
 
-import { isWasmPatternProcessorAvailable, processTokensWasm } from './WasmPatternProcessor.js';
+import { isWasmPatternProcessorAvailable } from './WasmPatternProcessor.js';
 
 /**
  * Test cases covering critical pattern matching scenarios
  */
 export const PARITY_TEST_CASES = [
   {
-    name: "Simple variable pattern",
-    input: "从武技上",
-    pattern: "从X上",
+    name: 'Simple variable pattern',
+    input: '从武技上',
+    pattern: '从X上',
     expectedMatch: true,
-    description: "Basic single-variable pattern matching"
+    description: 'Basic single-variable pattern matching',
   },
   {
-    name: "Overlapping patterns (competition)",
-    input: "在那些魔帅眼中",
-    patterns: ["在XY中", "在X眼中"],
-    expectedWinner: "在X眼中",
-    description: "Pattern priority calculation with lowPriority flag"
+    name: 'Overlapping patterns (competition)',
+    input: '在那些魔帅眼中',
+    patterns: ['在XY中', '在X眼中'],
+    expectedWinner: '在X眼中',
+    description: 'Pattern priority calculation with lowPriority flag',
   },
   {
-    name: "Hierarchical composition",
-    input: "在这可怕的声波振荡之中",
-    description: "Phase A result absorbed into Phase B pattern"
+    name: 'Hierarchical composition',
+    input: '在这可怕的声波振荡之中',
+    description: 'Phase A result absorbed into Phase B pattern',
   },
   {
-    name: "Multiple non-overlapping patterns",
-    input: "这些强大的武技都很厉害",
-    description: "Multiple Phase B patterns without overlap"
+    name: 'Multiple non-overlapping patterns',
+    input: '这些强大的武技都很厉害',
+    description: 'Multiple Phase B patterns without overlap',
   },
   {
-    name: "Identical position filtering",
-    input: "从上",
-    description: "Tests duplicate position check in hierarchical composition"
+    name: 'Identical position filtering',
+    input: '从上',
+    description: 'Tests duplicate position check in hierarchical composition',
   },
   {
-    name: "Empty input",
-    input: "",
+    name: 'Empty input',
+    input: '',
     expectedMatch: false,
-    description: "Edge case: empty token array"
-  }
+    description: 'Edge case: empty token array',
+  },
 ];
 
 /**
@@ -67,7 +67,7 @@ export function comparePatternResults(wasmResults, jsResults) {
       type: 'result_count',
       wasm: wasmResults.length,
       js: jsResults.length,
-      message: `Result count mismatch: WASM=${wasmResults.length}, JS=${jsResults.length}`
+      message: `Result count mismatch: WASM=${wasmResults.length}, JS=${jsResults.length}`,
     });
   }
 
@@ -82,7 +82,7 @@ export function comparePatternResults(wasmResults, jsResults) {
         type: 'missing_wasm_result',
         index: i,
         jsResult,
-        message: `WASM missing result at index ${i}`
+        message: `WASM missing result at index ${i}`,
       });
       continue;
     }
@@ -92,7 +92,7 @@ export function comparePatternResults(wasmResults, jsResults) {
         type: 'missing_js_result',
         index: i,
         wasmResult,
-        message: `JavaScript missing result at index ${i}`
+        message: `JavaScript missing result at index ${i}`,
       });
       continue;
     }
@@ -104,7 +104,7 @@ export function comparePatternResults(wasmResults, jsResults) {
         index: i,
         wasm: wasmResult.originalText,
         js: jsResult.originalText,
-        message: `Original text mismatch at index ${i}`
+        message: `Original text mismatch at index ${i}`,
       });
     }
 
@@ -115,19 +115,21 @@ export function comparePatternResults(wasmResults, jsResults) {
         index: i,
         wasm: wasmResult.translation,
         js: jsResult.translation,
-        message: `Translation mismatch at index ${i}`
+        message: `Translation mismatch at index ${i}`,
       });
     }
 
     // Compare indices
-    if (wasmResult.startIndex !== jsResult.startIndex ||
-        wasmResult.endIndex !== jsResult.endIndex) {
+    if (
+      wasmResult.startIndex !== jsResult.startIndex ||
+      wasmResult.endIndex !== jsResult.endIndex
+    ) {
       differences.push({
         type: 'indices',
         index: i,
         wasm: `[${wasmResult.startIndex}, ${wasmResult.endIndex}]`,
         js: `[${jsResult.startIndex}, ${jsResult.endIndex}]`,
-        message: `Index range mismatch at index ${i}`
+        message: `Index range mismatch at index ${i}`,
       });
     }
 
@@ -138,7 +140,7 @@ export function comparePatternResults(wasmResults, jsResults) {
         index: i,
         wasm: wasmResult.source,
         js: jsResult.source,
-        message: `Source mismatch at index ${i}`
+        message: `Source mismatch at index ${i}`,
       });
     }
 
@@ -151,7 +153,7 @@ export function comparePatternResults(wasmResults, jsResults) {
         index: i,
         wasm: wasmPattern,
         js: jsPattern,
-        message: `Pattern mismatch at index ${i}`
+        message: `Pattern mismatch at index ${i}`,
       });
     }
   }
@@ -159,9 +161,10 @@ export function comparePatternResults(wasmResults, jsResults) {
   return {
     identical: differences.length === 0,
     differences,
-    summary: differences.length === 0
-      ? '✅ Results are identical'
-      : `❌ Found ${differences.length} difference(s)`
+    summary:
+      differences.length === 0
+        ? '✅ Results are identical'
+        : `❌ Found ${differences.length} difference(s)`,
   };
 }
 
@@ -186,7 +189,7 @@ export async function testPatternParity(input, processor) {
     value: char,
     translated: null,
     translationSource: null,
-    originalIndex: i
+    originalIndex: i,
   }));
 
   // Test with WASM enabled
@@ -209,7 +212,7 @@ export async function testPatternParity(input, processor) {
 
     if (!comparison.identical) {
       console.group('Differences:');
-      comparison.differences.forEach(diff => {
+      comparison.differences.forEach((diff) => {
         console.log(`  ${diff.message}`);
         console.log(`    WASM: ${JSON.stringify(diff.wasm)}`);
         console.log(`    JS:   ${JSON.stringify(diff.js)}`);
@@ -222,9 +225,8 @@ export async function testPatternParity(input, processor) {
       wasmResults,
       jsResults,
       comparison,
-      passed: comparison.identical
+      passed: comparison.identical,
     };
-
   } finally {
     // Restore original setting
     processor.options.enableWasm = originalWasmSetting;
@@ -243,7 +245,7 @@ export async function runAllParityTests(processor) {
   }
 
   console.log('🧪 Running Pattern Processing Parity Tests...\n');
-  console.log('=' .repeat(60));
+  console.log('='.repeat(60));
 
   const results = [];
   let passCount = 0;
@@ -287,7 +289,7 @@ export async function runAllParityTests(processor) {
     passCount,
     failCount,
     total: PARITY_TEST_CASES.length,
-    results
+    results,
   };
 }
 

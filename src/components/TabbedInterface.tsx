@@ -128,9 +128,7 @@ const TabbedInterface: React.FC = () => {
         </button>
         <button
           onClick={() => handleTabChange('configuration')}
-          style={
-            activeTab === 'configuration' ? activeTabStyle : tabButtonStyle
-          }
+          style={activeTab === 'configuration' ? activeTabStyle : tabButtonStyle}
           title="Switch to Configuration (Cmd/Ctrl + Shift + 3)"
         >
           Configuration
@@ -156,10 +154,12 @@ const TabbedInterface: React.FC = () => {
         <div style={componentStyle(activeTab === 'configuration')}>
           {React.createElement(ConfigurationManager as any)}
         </div>
-        <div style={{
-          ...componentStyle(activeTab === 'appearance'),
-          overflow: 'auto'  // Only the Appearance tab gets scrolling
-        }}>
+        <div
+          style={{
+            ...componentStyle(activeTab === 'appearance'),
+            overflow: 'auto', // Only the Appearance tab gets scrolling
+          }}
+        >
           {React.createElement(AppearanceManager as any)}
         </div>
       </div>

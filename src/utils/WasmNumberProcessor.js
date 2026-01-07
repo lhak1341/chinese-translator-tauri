@@ -116,6 +116,6 @@ export function getWasmNumberProcessorStatus() {
 }
 
 // Auto-initialize on import (non-blocking)
-initializeWasmNumberProcessor().catch(err => {
+initializeWasmNumberProcessor().catch((err) => {
   console.warn('Background WASM NumberProcessor initialization failed:', err);
 });

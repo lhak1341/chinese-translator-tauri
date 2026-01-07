@@ -35,7 +35,7 @@ export class DevicePerformanceDetector {
       memory: this.detectMemoryCapabilities(),
       cpu: await this.detectCPUCapabilities(),
       graphics: this.detectGraphicsCapabilities(),
-      network: this.detectNetworkCapabilities()
+      network: this.detectNetworkCapabilities(),
     };
 
     // Calculate overall performance score (0-100)
@@ -45,7 +45,7 @@ export class DevicePerformanceDetector {
       ...capabilities,
       performanceScore: this.performanceScore,
       tier: this.getPerformanceTier(this.performanceScore),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     this.lastMeasurement = Date.now();
@@ -60,7 +60,7 @@ export class DevicePerformanceDetector {
       available: 0,
       total: 0,
       usage: 0,
-      pressure: 'unknown'
+      pressure: 'unknown',
     };
 
     try {
@@ -100,7 +100,7 @@ export class DevicePerformanceDetector {
     const cpu = {
       cores: navigator.hardwareConcurrency || 4,
       benchmarkScore: 0,
-      operationsPerSecond: 0
+      operationsPerSecond: 0,
     };
 
     try {
@@ -115,14 +115,13 @@ export class DevicePerformanceDetector {
 
       // Sort and filter operations
       arr.sort((a, b) => a - b);
-      const filtered = arr.filter(x => x > 0.5);
+      const filtered = arr.filter((x) => x > 0.5);
 
       const elapsed = performance.now() - startTime;
       cpu.operationsPerSecond = iterations / (elapsed / 1000);
 
       // Score based on operations per second (normalize to 0-100)
       cpu.benchmarkScore = Math.min(100, cpu.operationsPerSecond / 10000);
-
     } catch (error) {
       console.warn('CPU benchmark failed:', error);
       cpu.benchmarkScore = 50; // Average score
@@ -141,7 +140,7 @@ export class DevicePerformanceDetector {
       webgl2: false,
       renderer: 'unknown',
       vendor: 'unknown',
-      canvasScore: 0
+      canvasScore: 0,
     };
 
     try {
@@ -174,7 +173,6 @@ export class DevicePerformanceDetector {
         const elapsed = performance.now() - startTime;
         graphics.canvasScore = Math.max(0, 100 - elapsed); // Faster = higher score
       }
-
     } catch (error) {
       console.warn('Graphics detection failed:', error);
       graphics.canvasScore = 50;
@@ -191,7 +189,7 @@ export class DevicePerformanceDetector {
       effectiveType: 'unknown',
       downlink: 0,
       rtt: 0,
-      saveData: false
+      saveData: false,
     };
 
     try {
@@ -238,14 +236,16 @@ export class DevicePerformanceDetector {
       memory: 0.3,
       cpu: 0.4,
       graphics: 0.2,
-      network: 0.1
+      network: 0.1,
     };
 
     // Normalize scores to 0-100
     const memoryScore = Math.min(100, (capabilities.memory.available / (1024 * 1024 * 1024)) * 25); // 4GB = 100
     const cpuScore = capabilities.cpu.benchmarkScore;
     const graphicsScore = capabilities.graphics.canvasScore;
-    const networkScore = capabilities.network.downlink ? Math.min(100, capabilities.network.downlink * 10) : 50;
+    const networkScore = capabilities.network.downlink
+      ? Math.min(100, capabilities.network.downlink * 10)
+      : 50;
 
     return (
       memoryScore * weights.memory +
@@ -297,7 +297,7 @@ export class AdaptiveBufferCalculator {
       itemHeight = 40,
       totalItems = 1000,
       scrollVelocity = 0,
-      isScrolling = false
+      isScrolling = false,
     } = context;
 
     // Create cache key
@@ -305,12 +305,14 @@ export class AdaptiveBufferCalculator {
       containerHeight,
       itemHeight,
       totalItems: Math.floor(totalItems / 100) * 100, // Round to nearest 100
-      scrollVelocity: Math.floor(scrollVelocity / 10) * 10 // Round velocity
+      scrollVelocity: Math.floor(scrollVelocity / 10) * 10, // Round velocity
     });
 
     // Return cached result if recent
-    if (this.calculationCache[cacheKey] &&
-        Date.now() - this.calculationCache[cacheKey].timestamp < this.cacheTimeout) {
+    if (
+      this.calculationCache[cacheKey] &&
+      Date.now() - this.calculationCache[cacheKey].timestamp < this.cacheTimeout
+    ) {
       return this.calculationCache[cacheKey].bufferSize;
     }
 
@@ -368,10 +370,12 @@ export class AdaptiveBufferCalculator {
       bufferSize,
       timestamp: Date.now(),
       capabilities: capabilities.tier,
-      memoryPressure: capabilities.memory.pressure
+      memoryPressure: capabilities.memory.pressure,
     };
 
-    console.log(`📊 Adaptive buffer size: ${bufferSize} (tier: ${capabilities.tier}, memory: ${capabilities.memory.pressure}, visible: ${visibleItems})`);
+    console.log(
+      `📊 Adaptive buffer size: ${bufferSize} (tier: ${capabilities.tier}, memory: ${capabilities.memory.pressure}, visible: ${visibleItems})`
+    );
 
     return bufferSize;
   }
@@ -382,7 +386,7 @@ export class AdaptiveBufferCalculator {
   trackScrollingMetrics(metrics) {
     this.scrollingHistory.push({
       ...metrics,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Keep history size manageable
@@ -399,13 +403,14 @@ export class AdaptiveBufferCalculator {
 
     const recent = this.scrollingHistory.slice(-10); // Last 10 measurements
     const avgFrameTime = recent.reduce((sum, m) => sum + (m.frameTime || 0), 0) / recent.length;
-    const avgScrollVelocity = recent.reduce((sum, m) => sum + Math.abs(m.scrollVelocity || 0), 0) / recent.length;
+    const avgScrollVelocity =
+      recent.reduce((sum, m) => sum + Math.abs(m.scrollVelocity || 0), 0) / recent.length;
 
     return {
       averageFrameTime: avgFrameTime,
       averageScrollVelocity: avgScrollVelocity,
       isPerformant: avgFrameTime < 16.67, // 60fps threshold
-      measurementCount: this.scrollingHistory.length
+      measurementCount: this.scrollingHistory.length,
     };
   }
 

@@ -78,7 +78,7 @@ export const validateDictionaryEntry = (dictionaryId, source, translation) => {
   return dictionaryType.validate(source, translation);
 };
 
-export const getDefaultDictionary = dictionaryId => {
+export const getDefaultDictionary = (dictionaryId) => {
   if (dictionaryId === 'properNouns') {
     return properNounsDict;
   }
@@ -88,7 +88,7 @@ export const getDefaultDictionary = dictionaryId => {
   return DICTIONARY_TYPES[dictionaryId]?.data || {};
 };
 
-export const getDictionaryInfo = dictionaryId => {
+export const getDictionaryInfo = (dictionaryId) => {
   if (dictionaryId.startsWith('properNouns-')) {
     return {
       label: `Proper Nouns - ${dictionaryId.replace('properNouns-', '')}`,
@@ -104,9 +104,7 @@ export const getDictionaryTypes = async () => {
   try {
     // Get list of all proper nouns dictionaries first
     const listResult = await window.electronAPI.listProperNounsDictionaries();
-    const allProperNouns = listResult.success
-      ? listResult.dictionaries
-      : ['properNouns'];
+    const allProperNouns = listResult.success ? listResult.dictionaries : ['properNouns'];
 
     // Create proper nouns dictionary types for all available dictionaries
     const properNounsTypes = {};

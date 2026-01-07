@@ -23,25 +23,25 @@ export class AcceleratedPositionMapper {
     this.wasmEngine = null;
     this.fallbackComputer = new ViewportSegmentComputerEnhanced({
       useWorkers: options.useWorkers !== false,
-      workerThreshold: options.workerThreshold || 1000
+      workerThreshold: options.workerThreshold || 1000,
     });
-    
+
     // Performance thresholds
     this.wasmThreshold = options.wasmThreshold || 2000; // Use WASM for texts >2000 chars
     this.workerThreshold = options.workerThreshold || 1000; // Use workers for texts >1000 chars
-    
+
     // Configuration
     this.useWasm = options.useWasm !== false;
     this.useWorkers = options.useWorkers !== false;
     this.strictValidation = options.strictValidation || process.env.NODE_ENV === 'development';
-    
+
     this.performanceStats = {
       totalOperations: 0,
       wasmOperations: 0,
       workerOperations: 0,
       mainThreadOperations: 0,
       totalTime: 0,
-      averageTime: 0
+      averageTime: 0,
     };
 
     // Initialize WASM if available
@@ -57,7 +57,9 @@ export class AcceleratedPositionMapper {
     try {
       // Access WASM engine through the global TranslationEngine instance
       // We'll get this dynamically when needed since TranslationEngine might not be ready at startup
-      console.log('✅ WASM position mapping acceleration ready (will connect to engine when needed)');
+      console.log(
+        '✅ WASM position mapping acceleration ready (will connect to engine when needed)'
+      );
     } catch (error) {
       console.warn('⚠️ WASM position mapping initialization error:', error.message);
       this.useWasm = false;
@@ -105,7 +107,7 @@ export class AcceleratedPositionMapper {
           result = await this.createPositionMappingWorker(text, semanticArrays, strategy);
           this.performanceStats.workerOperations++;
           break;
-          
+
         case 'main_thread':
         default:
           result = await this.createPositionMappingMainThread(text, semanticArrays, strategy);
@@ -118,19 +120,18 @@ export class AcceleratedPositionMapper {
         strategy: strategy.type,
         reason: strategy.reason,
         textLength: text.length,
-        rangeCount: result.semanticRanges?.length || 0
+        rangeCount: result.semanticRanges?.length || 0,
       };
-
     } catch (error) {
       console.warn(`⚠️ ${strategy.type} position mapping failed, falling back:`, error.message);
-      
+
       // Fallback to main thread
       result = await this.fallbackComputer.createTextPositionMapping(text, semanticArrays);
       result.accelerationInfo = {
         strategy: 'fallback',
         reason: `${strategy.type} failed: ${error.message}`,
         textLength: text.length,
-        rangeCount: result.semanticRanges?.length || 0
+        rangeCount: result.semanticRanges?.length || 0,
       };
       this.performanceStats.mainThreadOperations++;
     }
@@ -139,7 +140,8 @@ export class AcceleratedPositionMapper {
     const elapsed = performance.now() - startTime;
     const computeTime = performance.now() - computeStartTime;
     this.performanceStats.totalTime += elapsed;
-    this.performanceStats.averageTime = this.performanceStats.totalTime / this.performanceStats.totalOperations;
+    this.performanceStats.averageTime =
+      this.performanceStats.totalTime / this.performanceStats.totalOperations;
 
     // Add timing info to acceleration metadata
     if (result.accelerationInfo) {
@@ -239,7 +241,7 @@ export class AcceleratedPositionMapper {
     if (this.useWasm && textLength > this.wasmThreshold) {
       return {
         type: 'wasm',
-        reason: `Text length ${textLength} > WASM threshold ${this.wasmThreshold}`
+        reason: `Text length ${textLength} > WASM threshold ${this.wasmThreshold}`,
       };
     }
 
@@ -247,14 +249,14 @@ export class AcceleratedPositionMapper {
     if (this.useWorkers && textLength > this.workerThreshold) {
       return {
         type: 'worker',
-        reason: `Text length ${textLength} > Worker threshold ${this.workerThreshold}`
+        reason: `Text length ${textLength} > Worker threshold ${this.workerThreshold}`,
       };
     }
 
     // Main thread strategy (fast for small texts)
     return {
       type: 'main_thread',
-      reason: `Text length ${textLength} below acceleration thresholds`
+      reason: `Text length ${textLength} below acceleration thresholds`,
     };
   }
 
@@ -272,26 +274,29 @@ export class AcceleratedPositionMapper {
       ...this.performanceStats,
 
       // Strategy distribution
-      wasmPercentage: total > 0 ? (this.performanceStats.wasmOperations / total * 100).toFixed(1) : 0,
-      workerPercentage: total > 0 ? (this.performanceStats.workerOperations / total * 100).toFixed(1) : 0,
-      mainThreadPercentage: total > 0 ? (this.performanceStats.mainThreadOperations / total * 100).toFixed(1) : 0,
+      wasmPercentage:
+        total > 0 ? ((this.performanceStats.wasmOperations / total) * 100).toFixed(1) : 0,
+      workerPercentage:
+        total > 0 ? ((this.performanceStats.workerOperations / total) * 100).toFixed(1) : 0,
+      mainThreadPercentage:
+        total > 0 ? ((this.performanceStats.mainThreadOperations / total) * 100).toFixed(1) : 0,
 
       // Sub-system stats
       validationStats: validator,
       workerStats: worker,
       cacheStats: cache, // OPTIMIZATION: Expose cache performance metrics
-      
+
       // Configuration
       configuration: {
         useWasm: this.useWasm,
         useWorkers: this.useWorkers,
         wasmThreshold: this.wasmThreshold,
         workerThreshold: this.workerThreshold,
-        strictValidation: this.strictValidation
+        strictValidation: this.strictValidation,
       },
-      
+
       // Recommendations
-      recommendations: this.getOptimizationRecommendations()
+      recommendations: this.getOptimizationRecommendations(),
     };
   }
 
@@ -301,24 +306,25 @@ export class AcceleratedPositionMapper {
   getOptimizationRecommendations() {
     const stats = this.performanceStats;
     const recommendations = [];
-    
+
     if (stats.wasmOperations === 0 && stats.totalOperations > 10) {
       recommendations.push('WASM never used - consider lowering wasmThreshold');
     }
-    
+
     if (stats.averageTime > 100) {
       recommendations.push('High average processing time - check for large text handling');
     }
-    
-    const wasmPercent = stats.totalOperations > 0 ? stats.wasmOperations / stats.totalOperations : 0;
+
+    const wasmPercent =
+      stats.totalOperations > 0 ? stats.wasmOperations / stats.totalOperations : 0;
     if (wasmPercent < 0.1 && this.useWasm) {
       recommendations.push('Low WASM usage - verify WASM initialization');
     }
-    
+
     if (recommendations.length === 0) {
       recommendations.push('Performance optimal');
     }
-    
+
     return recommendations;
   }
 
@@ -330,31 +336,31 @@ export class AcceleratedPositionMapper {
     if (config.useWasm !== undefined) {
       this.useWasm = config.useWasm;
     }
-    
+
     if (config.useWorkers !== undefined) {
       this.useWorkers = config.useWorkers;
       this.fallbackComputer.setWorkerEnabled(config.useWorkers);
     }
-    
+
     if (config.wasmThreshold !== undefined) {
       this.wasmThreshold = config.wasmThreshold;
     }
-    
+
     if (config.workerThreshold !== undefined) {
       this.workerThreshold = config.workerThreshold;
     }
-    
+
     if (config.strictValidation !== undefined) {
       this.strictValidation = config.strictValidation;
       positionMappingValidator.setValidationMode(config.strictValidation);
     }
-    
+
     console.log('🔧 AcceleratedPositionMapper configured:', {
       useWasm: this.useWasm,
       useWorkers: this.useWorkers,
       wasmThreshold: this.wasmThreshold,
       workerThreshold: this.workerThreshold,
-      strictValidation: this.strictValidation
+      strictValidation: this.strictValidation,
     });
   }
 
@@ -365,14 +371,14 @@ export class AcceleratedPositionMapper {
     this.fallbackComputer.clearCache();
     contentAwarePositionCache.clear(); // OPTIMIZATION: Clear content-aware cache
     positionMappingValidator.resetStats();
-    
+
     this.performanceStats = {
       totalOperations: 0,
       wasmOperations: 0,
       workerOperations: 0,
       mainThreadOperations: 0,
       totalTime: 0,
-      averageTime: 0
+      averageTime: 0,
     };
   }
 }

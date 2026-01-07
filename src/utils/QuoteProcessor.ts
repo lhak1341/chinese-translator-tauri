@@ -49,14 +49,14 @@ export interface QuoteInfo {
  */
 export const QUOTE_TYPES = {
   // Straight quotes (ASCII)
-  STRAIGHT_DOUBLE: '"',           // U+0022 - Standard double quote
-  STRAIGHT_SINGLE: "'",           // U+0027 - Standard apostrophe
+  STRAIGHT_DOUBLE: '"', // U+0022 - Standard double quote
+  STRAIGHT_SINGLE: "'", // U+0027 - Standard apostrophe
 
   // Curly quotes (Unicode)
-  CURLY_OPEN_DOUBLE: '\u201c',    // U+201C - Left double quotation mark "
-  CURLY_CLOSE_DOUBLE: '\u201d',   // U+201D - Right double quotation mark "
-  CURLY_OPEN_SINGLE: '\u2018',    // U+2018 - Left single quotation mark '
-  CURLY_CLOSE_SINGLE: '\u2019',   // U+2019 - Right single quotation mark '
+  CURLY_OPEN_DOUBLE: '\u201c', // U+201C - Left double quotation mark "
+  CURLY_CLOSE_DOUBLE: '\u201d', // U+201D - Right double quotation mark "
+  CURLY_OPEN_SINGLE: '\u2018', // U+2018 - Left single quotation mark '
+  CURLY_CLOSE_SINGLE: '\u2019', // U+2019 - Right single quotation mark '
 } as const;
 
 /**
@@ -67,14 +67,11 @@ export const QUOTE_CATEGORIES = {
   OPENING: [
     QUOTE_TYPES.STRAIGHT_DOUBLE,
     QUOTE_TYPES.CURLY_OPEN_DOUBLE,
-    QUOTE_TYPES.CURLY_OPEN_SINGLE
+    QUOTE_TYPES.CURLY_OPEN_SINGLE,
   ] as const,
 
   /** Closing quote characters */
-  CLOSING: [
-    QUOTE_TYPES.CURLY_CLOSE_DOUBLE,
-    QUOTE_TYPES.CURLY_CLOSE_SINGLE
-  ] as const,
+  CLOSING: [QUOTE_TYPES.CURLY_CLOSE_DOUBLE, QUOTE_TYPES.CURLY_CLOSE_SINGLE] as const,
 
   /** All quote characters */
   ALL: [
@@ -83,8 +80,8 @@ export const QUOTE_CATEGORIES = {
     QUOTE_TYPES.CURLY_OPEN_DOUBLE,
     QUOTE_TYPES.CURLY_CLOSE_DOUBLE,
     QUOTE_TYPES.CURLY_OPEN_SINGLE,
-    QUOTE_TYPES.CURLY_CLOSE_SINGLE
-  ] as const
+    QUOTE_TYPES.CURLY_CLOSE_SINGLE,
+  ] as const,
 };
 
 /**
@@ -124,7 +121,7 @@ export class QuoteProcessor {
    * @returns Regex matching opening quotes
    */
   static createOpeningQuoteRegex(): RegExp {
-    const escapedQuotes = QUOTE_CATEGORIES.OPENING.map(q =>
+    const escapedQuotes = QUOTE_CATEGORIES.OPENING.map((q) =>
       q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     );
     return new RegExp(`[${escapedQuotes.join('')}]`);
@@ -135,7 +132,7 @@ export class QuoteProcessor {
    * @returns Regex matching closing quotes
    */
   static createClosingQuoteRegex(): RegExp {
-    const escapedQuotes = QUOTE_CATEGORIES.CLOSING.map(q =>
+    const escapedQuotes = QUOTE_CATEGORIES.CLOSING.map((q) =>
       q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     );
     return new RegExp(`[${escapedQuotes.join('')}]`);
@@ -146,9 +143,7 @@ export class QuoteProcessor {
    * @returns Regex matching any quote type
    */
   static createAllQuotesRegex(): RegExp {
-    const escapedQuotes = QUOTE_CATEGORIES.ALL.map(q =>
-      q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
+    const escapedQuotes = QUOTE_CATEGORIES.ALL.map((q) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     return new RegExp(`[${escapedQuotes.join('')}]`);
   }
 
@@ -157,9 +152,7 @@ export class QuoteProcessor {
    * @returns Regex matching colon followed by any quote
    */
   static createColonQuoteRegex(): RegExp {
-    const escapedQuotes = QUOTE_CATEGORIES.ALL.map(q =>
-      q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
+    const escapedQuotes = QUOTE_CATEGORIES.ALL.map((q) => q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
     return new RegExp(`:([${escapedQuotes.join('')}])`, 'g');
   }
 
@@ -168,7 +161,7 @@ export class QuoteProcessor {
    * @returns Regex matching period followed by opening quote
    */
   static createPeriodQuoteRegex(): RegExp {
-    const escapedOpeningQuotes = QUOTE_CATEGORIES.OPENING.map(q =>
+    const escapedOpeningQuotes = QUOTE_CATEGORIES.OPENING.map((q) =>
       q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     );
     return new RegExp(`([.。])([${escapedOpeningQuotes.join('')}])`, 'g');
@@ -186,7 +179,7 @@ export class QuoteProcessor {
       isQuote: this.isQuote(char),
       isOpening: this.isOpeningQuote(char),
       isClosing: this.isClosingQuote(char),
-      type: this.getQuoteType(char)
+      type: this.getQuoteType(char),
     };
   }
 
@@ -197,13 +190,20 @@ export class QuoteProcessor {
    */
   static getQuoteType(char: string): QuoteTypeName {
     switch (char) {
-      case QUOTE_TYPES.STRAIGHT_DOUBLE: return 'straight_double';
-      case QUOTE_TYPES.STRAIGHT_SINGLE: return 'straight_single';
-      case QUOTE_TYPES.CURLY_OPEN_DOUBLE: return 'curly_open_double';
-      case QUOTE_TYPES.CURLY_CLOSE_DOUBLE: return 'curly_close_double';
-      case QUOTE_TYPES.CURLY_OPEN_SINGLE: return 'curly_open_single';
-      case QUOTE_TYPES.CURLY_CLOSE_SINGLE: return 'curly_close_single';
-      default: return 'not_quote';
+      case QUOTE_TYPES.STRAIGHT_DOUBLE:
+        return 'straight_double';
+      case QUOTE_TYPES.STRAIGHT_SINGLE:
+        return 'straight_single';
+      case QUOTE_TYPES.CURLY_OPEN_DOUBLE:
+        return 'curly_open_double';
+      case QUOTE_TYPES.CURLY_CLOSE_DOUBLE:
+        return 'curly_close_double';
+      case QUOTE_TYPES.CURLY_OPEN_SINGLE:
+        return 'curly_open_single';
+      case QUOTE_TYPES.CURLY_CLOSE_SINGLE:
+        return 'curly_close_single';
+      default:
+        return 'not_quote';
     }
   }
 

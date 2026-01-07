@@ -62,21 +62,18 @@ class RustLookupIndexManager {
 
       // Debug: Log what dictionaries are being indexed
       if (process.env.NODE_ENV === 'development') {
-        console.log(`📚 Building Rust index with ${dictionaries.length} dictionaries:`,
-          dictionaries.map(d => `${d.name} (${d.entries.length} entries)`).join(', '));
+        console.log(
+          `📚 Building Rust index with ${dictionaries.length} dictionaries:`,
+          dictionaries.map((d) => `${d.name} (${d.entries.length} entries)`).join(', ')
+        );
       }
 
       // Call Rust implementation (let Rust do the minTextLength check)
-      const result = await tauriAPI.buildLookupIndex(
-        text,
-        dictionaries,
-        dictionaryOrder,
-        {
-          minTextLength,
-          enableIndexing,
-          useParallel: options.useParallel ?? this.useParallel,
-        }
-      );
+      const result = await tauriAPI.buildLookupIndex(text, dictionaries, dictionaryOrder, {
+        minTextLength,
+        enableIndexing,
+        useParallel: options.useParallel ?? this.useParallel,
+      });
 
       if (result.success) {
         // Update stats
@@ -120,8 +117,8 @@ class RustLookupIndexManager {
     const dictionaries = [];
 
     // Handle both Map and plain object for dictionariesMap
-    const dictMap = dictionariesMap instanceof Map ?
-      Object.fromEntries(dictionariesMap) : dictionariesMap;
+    const dictMap =
+      dictionariesMap instanceof Map ? Object.fromEntries(dictionariesMap) : dictionariesMap;
 
     // Handle missing or invalid dictionaryOrder
     if (!dictionaryOrder || !Array.isArray(dictionaryOrder)) {
@@ -202,7 +199,10 @@ class RustLookupIndexManager {
       this.enabled = false;
     }
 
-    console.error(`Rust lookup index failure (${this.consecutiveFailures}/${this.maxFailuresBeforeFallback}):`, error);
+    console.error(
+      `Rust lookup index failure (${this.consecutiveFailures}/${this.maxFailuresBeforeFallback}):`,
+      error
+    );
   }
 
   /**

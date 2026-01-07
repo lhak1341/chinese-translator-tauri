@@ -1,16 +1,6 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-} from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
-import {
-  validateDictionaryEntry,
-  getDictionaryTypes,
-} from './DictionaryTypes';
+import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 
@@ -72,9 +62,20 @@ interface DictionaryContextValue {
   /** Whether initial loading is in progress */
   isLoading: boolean;
   /** Add a new entry to dictionary */
-  addEntry: (dictionaryId: string, source: string, translation: string, metadata?: DictionaryEntryMetadata) => Promise<void>;
+  addEntry: (
+    dictionaryId: string,
+    source: string,
+    translation: string,
+    metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
   /** Update an existing entry */
-  updateEntry: (dictionaryId: string, oldSource: string, newSource: string, translation: string, metadata?: DictionaryEntryMetadata) => Promise<void>;
+  updateEntry: (
+    dictionaryId: string,
+    oldSource: string,
+    newSource: string,
+    translation: string,
+    metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
   /** Undo last operation */
@@ -118,7 +119,12 @@ const sortDictionaryEntries = (
   changedKey: string | null = null,
   oldKey: string | null = null
 ): DictionaryData => {
-  return dictionarySorter.sortDictionary(dictionary, dictionaryId, changedKey ?? undefined, oldKey ?? undefined) as DictionaryData;
+  return dictionarySorter.sortDictionary(
+    dictionary,
+    dictionaryId,
+    changedKey ?? undefined,
+    oldKey ?? undefined
+  ) as DictionaryData;
 };
 
 /**
@@ -151,7 +157,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
       try {
         // First, load all available dictionary types
-        const types = await getDictionaryTypes() as DictionaryTypesCollection;
+        const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
 
         // Load and validate saved dictionary selection
         const configResult = await window.electronAPI.loadConfiguration();
@@ -172,7 +178,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         const endTime = performance.now();
         const loadTime = (endTime - startTime).toFixed(2);
 
-        console.log(`📚 Parallel dictionary loading: ${batchResult.successful}/${batchResult.total} dictionaries loaded in ${loadTime}ms`);
+        console.log(
+          `📚 Parallel dictionary loading: ${batchResult.successful}/${batchResult.total} dictionaries loaded in ${loadTime}ms`
+        );
         if (batchResult.failed > 0) {
           console.warn(`⚠️ ${batchResult.failed} dictionaries failed to load`);
         }
@@ -215,10 +223,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         } as any);
 
         if (!saveResult.success) {
-          console.error(
-            'Failed to save selected dictionary:',
-            saveResult.error
-          );
+          console.error('Failed to save selected dictionary:', saveResult.error);
         }
       } catch (error) {
         console.error('Failed to save selected dictionary:', error);
@@ -236,7 +241,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     try {
       const result = await window.electronAPI.loadDictionary(dictionaryId);
       if (result.success && result.data) {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: sortDictionaryEntries(result.data, dictionaryId),
         }));
@@ -249,7 +254,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // Helper function to add operations to history
   const addToHistory = useCallback(
     (dictionaryId: string, oldData: DictionaryData, newData: DictionaryData): void => {
-      setHistory(prevHistory => {
+      setHistory((prevHistory) => {
         const newHistory = prevHistory.slice(0, currentHistoryIndex + 1);
         newHistory.push({
           dictionaryId,
@@ -262,19 +267,20 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
         return newHistory;
       });
-      setCurrentHistoryIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
+      setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
     },
     [currentHistoryIndex]
   );
 
   // Add a new entry to a dictionary
   const addEntry = useCallback(
-    async (dictionaryId: string, source: string, translation: string, metadata: DictionaryEntryMetadata = {}): Promise<void> => {
-      const validationError = validateDictionaryEntry(
-        dictionaryId,
-        source,
-        translation
-      );
+    async (
+      dictionaryId: string,
+      source: string,
+      translation: string,
+      metadata: DictionaryEntryMetadata = {}
+    ): Promise<void> => {
+      const validationError = validateDictionaryEntry(dictionaryId, source, translation);
       if (validationError) {
         toast.error(validationError);
         throw new Error(validationError);
@@ -284,33 +290,32 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
       // Handle new format with metadata for phrases and patterns dictionaries
       let targetValue: string | DictionaryEntryValue = translation;
-      if ((dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)) {
+      if (
+        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
+        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+      ) {
         targetValue = {
           translation: translation,
           allowAsPatternVariable: metadata.allowAsPatternVariable,
-          lowPriority: metadata.lowPriority
+          lowPriority: metadata.lowPriority,
         };
       }
 
       const updatedDictionary = { ...oldData, [source]: targetValue };
       const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source); // Incremental sort for new entry
 
-      setDictionaries(prev => ({
+      setDictionaries((prev) => ({
         ...prev,
         [dictionaryId]: sortedDictionary,
       }));
 
-      const result = await window.electronAPI.saveDictionary(
-        dictionaryId,
-        sortedDictionary
-      );
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
         toast.success('Entry added successfully');
       } else {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
@@ -323,12 +328,14 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   // Update an existing entry
   const updateEntry = useCallback(
-    async (dictionaryId: string, oldSource: string, newSource: string, translation: string, metadata: DictionaryEntryMetadata = {}): Promise<void> => {
-      const validationError = validateDictionaryEntry(
-        dictionaryId,
-        newSource,
-        translation
-      );
+    async (
+      dictionaryId: string,
+      oldSource: string,
+      newSource: string,
+      translation: string,
+      metadata: DictionaryEntryMetadata = {}
+    ): Promise<void> => {
+      const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
       if (validationError) {
         toast.error(validationError);
         throw new Error(validationError);
@@ -343,33 +350,37 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
       // Handle new format with metadata for phrases and patterns dictionaries
       let targetValue: string | DictionaryEntryValue = translation;
-      if ((dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)) {
+      if (
+        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
+        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+      ) {
         targetValue = {
           translation: translation,
           allowAsPatternVariable: metadata.allowAsPatternVariable,
-          lowPriority: metadata.lowPriority
+          lowPriority: metadata.lowPriority,
         };
       }
 
       updatedDictionary[newSource] = targetValue;
 
-      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, newSource, oldSource); // Incremental sort for edited entry
-      setDictionaries(prev => ({
+      const sortedDictionary = sortDictionaryEntries(
+        updatedDictionary,
+        dictionaryId,
+        newSource,
+        oldSource
+      ); // Incremental sort for edited entry
+      setDictionaries((prev) => ({
         ...prev,
         [dictionaryId]: sortedDictionary,
       }));
 
-      const result = await window.electronAPI.saveDictionary(
-        dictionaryId,
-        sortedDictionary
-      );
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
         toast.success('Entry updated successfully');
       } else {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
@@ -388,21 +399,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       delete updatedDictionary[source];
       const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source); // Incremental sort for deleted entry
 
-      setDictionaries(prev => ({
+      setDictionaries((prev) => ({
         ...prev,
         [dictionaryId]: sortedDictionary,
       }));
 
-      const result = await window.electronAPI.saveDictionary(
-        dictionaryId,
-        sortedDictionary
-      );
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
       if (result.success && result.data) {
         addToHistory(dictionaryId, oldData, result.data);
         toast.success('Entry deleted successfully');
       } else {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [dictionaryId]: oldData,
         }));
@@ -423,11 +431,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       );
 
       if (result.success) {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [operation.dictionaryId]: operation.oldData,
         }));
-        setCurrentHistoryIndex(prev => prev - 1);
+        setCurrentHistoryIndex((prev) => prev - 1);
         return true;
       }
     }
@@ -444,11 +452,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       );
 
       if (result.success) {
-        setDictionaries(prev => ({
+        setDictionaries((prev) => ({
           ...prev,
           [operation.dictionaryId]: operation.newData,
         }));
-        setCurrentHistoryIndex(prev => prev + 1);
+        setCurrentHistoryIndex((prev) => prev + 1);
         return true;
       }
     }
@@ -467,42 +475,41 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   // Create the context value object
   // Memoized to prevent unnecessary re-renders of all consumers when Provider re-renders
-  const value = useMemo((): DictionaryContextValue => ({
-    dictionaries,
-    isLoading,
-    addEntry,
-    updateEntry,
-    deleteEntry,
-    undo,
-    redo,
-    canUndo: currentHistoryIndex >= 0,
-    canRedo: currentHistoryIndex < history.length - 1,
-    loadDictionary,
-    selectedDictionary,
-    setSelectedDictionary,
-    getSortingStats,
-    resetSortingStats,
-  }), [
-    dictionaries,
-    isLoading,
-    addEntry,
-    updateEntry,
-    deleteEntry,
-    undo,
-    redo,
-    currentHistoryIndex,
-    history.length,
-    loadDictionary,
-    selectedDictionary,
-    getSortingStats,
-    resetSortingStats,
-  ]);
-
-  return (
-    <DictionaryContext.Provider value={value}>
-      {children}
-    </DictionaryContext.Provider>
+  const value = useMemo(
+    (): DictionaryContextValue => ({
+      dictionaries,
+      isLoading,
+      addEntry,
+      updateEntry,
+      deleteEntry,
+      undo,
+      redo,
+      canUndo: currentHistoryIndex >= 0,
+      canRedo: currentHistoryIndex < history.length - 1,
+      loadDictionary,
+      selectedDictionary,
+      setSelectedDictionary,
+      getSortingStats,
+      resetSortingStats,
+    }),
+    [
+      dictionaries,
+      isLoading,
+      addEntry,
+      updateEntry,
+      deleteEntry,
+      undo,
+      redo,
+      currentHistoryIndex,
+      history.length,
+      loadDictionary,
+      selectedDictionary,
+      getSortingStats,
+      resetSortingStats,
+    ]
   );
+
+  return <DictionaryContext.Provider value={value}>{children}</DictionaryContext.Provider>;
 }
 
 /**

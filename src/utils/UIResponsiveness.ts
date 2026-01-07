@@ -90,14 +90,18 @@ export class DebouncedProgressHandler {
     this.callbacks = {
       progress: null,
       translation: null,
-      semanticArrays: null
+      semanticArrays: null,
     };
   }
 
   /**
    * Set up callbacks for different UI updates
    */
-  setCallbacks({ onProgressUpdate, onTranslationUpdate, onSemanticArraysUpdate }: ProgressCallbacks): void {
+  setCallbacks({
+    onProgressUpdate,
+    onTranslationUpdate,
+    onSemanticArraysUpdate,
+  }: ProgressCallbacks): void {
     this.callbacks.progress = onProgressUpdate || null;
     this.callbacks.translation = onTranslationUpdate || null;
     this.callbacks.semanticArrays = onSemanticArraysUpdate || null;
@@ -174,14 +178,18 @@ export class SmoothLoadingManager {
   /**
    * Start loading state with smooth transitions
    */
-  startLoading(key: string, message: string = 'Loading...', estimatedDuration: number | null = null): void {
+  startLoading(
+    key: string,
+    message: string = 'Loading...',
+    estimatedDuration: number | null = null
+  ): void {
     const loadingState: LoadingState = {
       key,
       message,
       startTime: performance.now(),
       estimatedDuration,
       progress: 0,
-      isIndeterminate: estimatedDuration === null
+      isIndeterminate: estimatedDuration === null,
     };
 
     this.loadingStates.set(key, loadingState);
@@ -275,7 +283,8 @@ export class ThrottledScrollHandler {
   private lastExecution: number;
   private timeoutId: ReturnType<typeof setTimeout> | null;
 
-  constructor(delay: number = 16) { // ~60fps
+  constructor(delay: number = 16) {
+    // ~60fps
     this.delay = delay;
     this.lastExecution = 0;
     this.timeoutId = null;
@@ -296,11 +305,14 @@ export class ThrottledScrollHandler {
         clearTimeout(this.timeoutId);
       }
 
-      this.timeoutId = setTimeout(() => {
-        callback();
-        this.lastExecution = performance.now();
-        this.timeoutId = null;
-      }, this.delay - (now - this.lastExecution));
+      this.timeoutId = setTimeout(
+        () => {
+          callback();
+          this.lastExecution = performance.now();
+          this.timeoutId = null;
+        },
+        this.delay - (now - this.lastExecution)
+      );
     }
   }
 
@@ -327,6 +339,6 @@ export const smoothDOMUpdate = (updateFunction: () => void): void => {
 export const batchStateUpdates = (updates: (() => void)[]): void => {
   // Use React's automatic batching (React 18+) or manual batching
   Promise.resolve().then(() => {
-    updates.forEach(update => update());
+    updates.forEach((update) => update());
   });
 };

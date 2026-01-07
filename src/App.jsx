@@ -39,7 +39,7 @@ function App() {
       console.log('📊 Performance monitoring initialized:', {
         status: healthReport.status,
         integrations: systemPerformanceMonitor.integrations.size,
-        memoryPressure: (healthReport.systemMetrics.memory.pressure * 100).toFixed(1) + '%'
+        memoryPressure: (healthReport.systemMetrics.memory.pressure * 100).toFixed(1) + '%',
       });
 
       // Expose performance dashboard to console for debugging (development only)
@@ -53,7 +53,9 @@ function App() {
           resetData: () => systemPerformanceMonitor.baselineTracker.reset(),
           investigateMemoryAlerts: () => {
             const alerts = systemPerformanceMonitor.baselineTracker.alerts;
-            const memoryAlerts = alerts.filter(a => a.type === 'memory_regression' && Date.now() - a.timestamp < 3600000); // Last hour
+            const memoryAlerts = alerts.filter(
+              (a) => a.type === 'memory_regression' && Date.now() - a.timestamp < 3600000
+            ); // Last hour
 
             if (memoryAlerts.length === 0) {
               console.log('🟢 No recent memory alerts found');
@@ -64,7 +66,7 @@ function App() {
             memoryAlerts.forEach((alert, index) => {
               console.log(`\n${index + 1}. ${alert.level.toUpperCase()}: ${alert.message}`);
               if (alert.investigation) {
-                alert.investigation.forEach(suggestion => console.log(`   ${suggestion}`));
+                alert.investigation.forEach((suggestion) => console.log(`   ${suggestion}`));
               }
             });
           },
@@ -72,13 +74,20 @@ function App() {
             try {
               const healthReport = systemPerformanceMonitor.getSystemHealthReport();
               const positionCache = healthReport.systemMetrics?.integrations?.positionCache;
-              const semanticCache = healthReport.systemMetrics?.integrations?.semanticTranslationCache;
+              const semanticCache =
+                healthReport.systemMetrics?.integrations?.semanticTranslationCache;
               const wasmMemoryPool = healthReport.systemMetrics?.integrations?.wasmMemoryPool;
 
               // Also check baselines for cache data
-              const positionCacheBaseline = healthReport.baselines?.find(b => b.operationType === 'position_cache');
-              const semanticCacheBaseline = healthReport.baselines?.find(b => b.operationType === 'semantic_translation_cache');
-              const wasmMemoryPoolBaseline = healthReport.baselines?.find(b => b.operationType === 'wasm_memory_pool');
+              const positionCacheBaseline = healthReport.baselines?.find(
+                (b) => b.operationType === 'position_cache'
+              );
+              const semanticCacheBaseline = healthReport.baselines?.find(
+                (b) => b.operationType === 'semantic_translation_cache'
+              );
+              const wasmMemoryPoolBaseline = healthReport.baselines?.find(
+                (b) => b.operationType === 'wasm_memory_pool'
+              );
 
               if (positionCache) {
                 console.log('📊 Position Cache Performance:');
@@ -103,14 +112,21 @@ function App() {
                   console.log(`   Exact Hits: ${semanticCache.exactHits || 0}`);
                   console.log(`   Semantic Hits: ${semanticCache.semanticHits || 0}`);
                   console.log(`   Cache Size: ${semanticCache.cacheSize || 0} entries`);
-                  console.log(`   Estimated Time Saved: ${semanticCache.estimatedTimeSaved || 0}ms`);
+                  console.log(
+                    `   Estimated Time Saved: ${semanticCache.estimatedTimeSaved || 0}ms`
+                  );
                 } else if (semanticCacheBaseline) {
-                  console.log(`   Baseline Hit Rate: ${(semanticCacheBaseline.avgCacheHitRate * 100).toFixed(1)}%`);
+                  console.log(
+                    `   Baseline Hit Rate: ${(semanticCacheBaseline.avgCacheHitRate * 100).toFixed(1)}%`
+                  );
                   console.log(`   Sample Count: ${semanticCacheBaseline.sampleCount}`);
-                  console.log(`   Last Update: ${new Date(semanticCacheBaseline.lastUpdate).toLocaleTimeString()}`);
+                  console.log(
+                    `   Last Update: ${new Date(semanticCacheBaseline.lastUpdate).toLocaleTimeString()}`
+                  );
                 }
 
-                const hitRate = semanticCache?.hitRate || (semanticCacheBaseline?.avgCacheHitRate * 100) || 0;
+                const hitRate =
+                  semanticCache?.hitRate || semanticCacheBaseline?.avgCacheHitRate * 100 || 0;
                 if (hitRate < 60) {
                   console.log('\n💡 Semantic Cache Suggestions:');
                   console.log('   - Lower similarity threshold from 80% to 75%');
@@ -126,19 +142,34 @@ function App() {
                 console.log('\n🧠 WASM Memory Pool Performance:');
 
                 if (wasmMemoryPool) {
-                  console.log(`   Recycling Efficiency: ${wasmMemoryPool.recyclingEfficiency?.toFixed(1) || 0}%`);
+                  console.log(
+                    `   Recycling Efficiency: ${wasmMemoryPool.recyclingEfficiency?.toFixed(1) || 0}%`
+                  );
                   console.log(`   Pool Hits: ${wasmMemoryPool.poolHits || 0}`);
                   console.log(`   Pool Misses: ${wasmMemoryPool.poolMisses || 0}`);
-                  console.log(`   Total Memory Usage: ${((wasmMemoryPool.totalMemoryUsage || 0) / 1024).toFixed(1)}KB`);
-                  console.log(`   Memory Reused: ${((wasmMemoryPool.memoryReused || 0) / 1024).toFixed(1)}KB`);
-                  console.log(`   Avg Allocation Time: ${(wasmMemoryPool.averageAllocationTime || 0).toFixed(2)}ms`);
+                  console.log(
+                    `   Total Memory Usage: ${((wasmMemoryPool.totalMemoryUsage || 0) / 1024).toFixed(1)}KB`
+                  );
+                  console.log(
+                    `   Memory Reused: ${((wasmMemoryPool.memoryReused || 0) / 1024).toFixed(1)}KB`
+                  );
+                  console.log(
+                    `   Avg Allocation Time: ${(wasmMemoryPool.averageAllocationTime || 0).toFixed(2)}ms`
+                  );
                 } else if (wasmMemoryPoolBaseline) {
-                  console.log(`   Baseline Recycling Efficiency: ${(wasmMemoryPoolBaseline.recyclingEfficiency * 100).toFixed(1)}%`);
+                  console.log(
+                    `   Baseline Recycling Efficiency: ${(wasmMemoryPoolBaseline.recyclingEfficiency * 100).toFixed(1)}%`
+                  );
                   console.log(`   Sample Count: ${wasmMemoryPoolBaseline.sampleCount}`);
-                  console.log(`   Last Update: ${new Date(wasmMemoryPoolBaseline.lastUpdate).toLocaleTimeString()}`);
+                  console.log(
+                    `   Last Update: ${new Date(wasmMemoryPoolBaseline.lastUpdate).toLocaleTimeString()}`
+                  );
                 }
 
-                const recyclingEfficiency = wasmMemoryPool?.recyclingEfficiency || (wasmMemoryPoolBaseline?.recyclingEfficiency * 100) || 0;
+                const recyclingEfficiency =
+                  wasmMemoryPool?.recyclingEfficiency ||
+                  wasmMemoryPoolBaseline?.recyclingEfficiency * 100 ||
+                  0;
                 if (recyclingEfficiency < 70) {
                   console.log('\n💡 WASM Memory Pool Suggestions:');
                   console.log('   - Increase pool sizes for better recycling');
@@ -164,7 +195,8 @@ function App() {
               console.error('Error checking cache performance:', error);
             }
           },
-          help: () => console.log(`
+          help: () =>
+            console.log(`
 📊 Performance Dashboard Commands:
 - performanceDashboard.getHealthReport() - Current system health
 - performanceDashboard.getBaselines() - Performance baselines
@@ -174,7 +206,7 @@ function App() {
 - performanceDashboard.getTrends() - Performance trend analysis
 - performanceDashboard.exportData() - Export all monitoring data
 - performanceDashboard.resetData() - Reset all monitoring data
-          `)
+          `),
         };
 
         console.log('🛠️ Development performance dashboard available: window.performanceDashboard');
@@ -190,7 +222,9 @@ function App() {
             console.log(`   Used: ${(memory.usedJSHeapSize / 1024 / 1024).toFixed(1)}MB`);
             console.log(`   Total: ${(memory.totalJSHeapSize / 1024 / 1024).toFixed(1)}MB`);
             console.log(`   Limit: ${(memory.jsHeapSizeLimit / 1024 / 1024).toFixed(1)}MB`);
-            console.log(`   Usage: ${((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100).toFixed(1)}%`);
+            console.log(
+              `   Usage: ${((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100).toFixed(1)}%`
+            );
             return memory;
           } else {
             console.log('⚠️ performance.memory not available');

@@ -17,27 +17,28 @@ type FontProperty = 'fontFamily' | 'fontSize' | 'letterSpacing' | 'paragraphSpac
  */
 const DEFAULT_APPEARANCE: AppearanceSettings = {
   chineseText: {
-    fontFamily: '"Noto Sans CJK SC", SimSun, "Microsoft YaHei", Inter, system-ui, Arial, sans-serif',
+    fontFamily:
+      '"Noto Sans CJK SC", SimSun, "Microsoft YaHei", Inter, system-ui, Arial, sans-serif',
     fontSize: '1.25rem',
     letterSpacing: 'normal',
-    paragraphSpacing: '1rem'
+    paragraphSpacing: '1rem',
   },
   fullTranslation: {
     fontFamily: 'Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif',
     fontSize: '1.25rem',
     letterSpacing: 'normal',
-    paragraphSpacing: '1rem'
+    paragraphSpacing: '1rem',
   },
   characterOnly: {
     fontFamily: 'Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif',
     fontSize: '1.25rem',
     letterSpacing: 'normal',
-    paragraphSpacing: '1rem'
+    paragraphSpacing: '1rem',
   },
   uiFont: {
-    fontFamily: 'Inter, system-ui, Arial, sans-serif'
+    fontFamily: 'Inter, system-ui, Arial, sans-serif',
   },
-  theme: 'auto'
+  theme: 'auto',
 };
 
 /**
@@ -67,21 +68,21 @@ const AppearanceManager: React.FC = () => {
         const loadedAppearance: AppearanceSettings = {
           chineseText: {
             ...DEFAULT_APPEARANCE.chineseText,
-            ...result.data.chineseText
+            ...result.data.chineseText,
           },
           fullTranslation: {
             ...DEFAULT_APPEARANCE.fullTranslation,
-            ...result.data.fullTranslation
+            ...result.data.fullTranslation,
           },
           characterOnly: {
             ...DEFAULT_APPEARANCE.characterOnly,
-            ...result.data.characterOnly
+            ...result.data.characterOnly,
           },
           uiFont: {
             ...DEFAULT_APPEARANCE.uiFont,
-            ...result.data.uiFont
+            ...result.data.uiFont,
           },
-          theme: result.data.theme || 'auto'
+          theme: result.data.theme || 'auto',
         };
         setAppearance(loadedAppearance);
       }
@@ -100,15 +101,24 @@ const AppearanceManager: React.FC = () => {
     root.style.setProperty('--chinese-text-font', appearance.chineseText.fontFamily);
     root.style.setProperty('--chinese-text-size', appearance.chineseText.fontSize);
     root.style.setProperty('--chinese-text-spacing', appearance.chineseText.letterSpacing);
-    root.style.setProperty('--chinese-text-paragraph-spacing', appearance.chineseText.paragraphSpacing || '1rem');
+    root.style.setProperty(
+      '--chinese-text-paragraph-spacing',
+      appearance.chineseText.paragraphSpacing || '1rem'
+    );
     root.style.setProperty('--full-translation-font', appearance.fullTranslation.fontFamily);
     root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
     root.style.setProperty('--full-translation-spacing', appearance.fullTranslation.letterSpacing);
-    root.style.setProperty('--full-translation-paragraph-spacing', appearance.fullTranslation.paragraphSpacing || '1rem');
+    root.style.setProperty(
+      '--full-translation-paragraph-spacing',
+      appearance.fullTranslation.paragraphSpacing || '1rem'
+    );
     root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
     root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
     root.style.setProperty('--character-only-spacing', appearance.characterOnly.letterSpacing);
-    root.style.setProperty('--character-only-paragraph-spacing', appearance.characterOnly.paragraphSpacing || '1rem');
+    root.style.setProperty(
+      '--character-only-paragraph-spacing',
+      appearance.characterOnly.paragraphSpacing || '1rem'
+    );
     root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
   }, [appearance]);
 
@@ -117,13 +127,17 @@ const AppearanceManager: React.FC = () => {
     applyStylesToDocument();
   }, [appearance, applyStylesToDocument]);
 
-  const handleFontChange = (section: AppearanceSection, property: FontProperty, value: string): void => {
-    setAppearance(prev => ({
+  const handleFontChange = (
+    section: AppearanceSection,
+    property: FontProperty,
+    value: string
+  ): void => {
+    setAppearance((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
-        [property]: value
-      }
+        [property]: value,
+      },
     }));
   };
 
@@ -145,15 +159,19 @@ const AppearanceManager: React.FC = () => {
   };
 
   // Reset individual property to default
-  const resetToDefault = async (section: AppearanceSection, property: FontProperty): Promise<void> => {
-    const defaultValue = DEFAULT_APPEARANCE[section][property as keyof typeof DEFAULT_APPEARANCE[typeof section]];
+  const resetToDefault = async (
+    section: AppearanceSection,
+    property: FontProperty
+  ): Promise<void> => {
+    const defaultValue =
+      DEFAULT_APPEARANCE[section][property as keyof (typeof DEFAULT_APPEARANCE)[typeof section]];
 
     const newAppearance: AppearanceSettings = {
       ...appearance,
       [section]: {
         ...appearance[section],
-        [property]: defaultValue
-      }
+        [property]: defaultValue,
+      },
     };
 
     setAppearance(newAppearance);
@@ -176,38 +194,38 @@ const AppearanceManager: React.FC = () => {
     padding: '2rem',
     height: '100%',
     overflowY: 'auto',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
   };
 
   const sectionStyle: React.CSSProperties = {
-    marginBottom: '2rem'
+    marginBottom: '2rem',
   };
 
   const titleStyle: React.CSSProperties = {
-    marginBottom: '1.5rem'
+    marginBottom: '1.5rem',
   };
 
   const sectionTitleStyle: React.CSSProperties = {
-    marginBottom: '1rem'
+    marginBottom: '1rem',
   };
 
   const controlGroupStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
-    gap: '1rem'
+    gap: '1rem',
   };
 
   const controlRowStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.5rem'
+    gap: '0.5rem',
   };
 
   const labelStyle: React.CSSProperties = {
     minWidth: '160px',
     fontSize: '0.9rem',
     fontWeight: '500',
-    color: 'var(--text-color)'
+    color: 'var(--text-color)',
   };
 
   const inputStyle: React.CSSProperties = {
@@ -217,7 +235,7 @@ const AppearanceManager: React.FC = () => {
     borderRadius: '4px',
     backgroundColor: 'var(--background-color)',
     color: 'var(--text-color)',
-    fontSize: '0.9rem'
+    fontSize: '0.9rem',
   };
 
   const resetButtonStyle: React.CSSProperties = {
@@ -231,7 +249,7 @@ const AppearanceManager: React.FC = () => {
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: '2rem',
-    height: '2rem'
+    height: '2rem',
   };
 
   const previewStyle: React.CSSProperties = {
@@ -239,15 +257,13 @@ const AppearanceManager: React.FC = () => {
     border: '1px solid var(--border-color)',
     borderRadius: '4px',
     backgroundColor: 'var(--background-color)',
-    marginTop: '1rem'
+    marginTop: '1rem',
   };
 
   if (isLoading) {
     return (
       <div style={{ padding: '2rem' }}>
-        <div style={{ textAlign: 'center', padding: '2rem' }}>
-          Loading appearance settings...
-        </div>
+        <div style={{ textAlign: 'center', padding: '2rem' }}>Loading appearance settings...</div>
       </div>
     );
   }
@@ -260,13 +276,15 @@ const AppearanceManager: React.FC = () => {
       </div>
 
       {error && (
-        <div style={{
-          padding: '1rem',
-          backgroundColor: 'var(--error-bg)',
-          color: 'white',
-          borderRadius: '4px',
-          marginBottom: '1rem'
-        }}>
+        <div
+          style={{
+            padding: '1rem',
+            backgroundColor: 'var(--error-bg)',
+            color: 'white',
+            borderRadius: '4px',
+            marginBottom: '1rem',
+          }}
+        >
           {error}
         </div>
       )}
@@ -329,12 +347,14 @@ const AppearanceManager: React.FC = () => {
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={{
-            ...previewStyle,
-            fontFamily: appearance.chineseText.fontFamily,
-            fontSize: appearance.chineseText.fontSize,
-            letterSpacing: appearance.chineseText.letterSpacing
-          }}>
+          <div
+            style={{
+              ...previewStyle,
+              fontFamily: appearance.chineseText.fontFamily,
+              fontSize: appearance.chineseText.fontSize,
+              letterSpacing: appearance.chineseText.letterSpacing,
+            }}
+          >
             这是中文文本的预览样式。你好世界！
           </div>
         </div>
@@ -404,7 +424,9 @@ const AppearanceManager: React.FC = () => {
               type="text"
               style={inputStyle}
               value={appearance.fullTranslation.paragraphSpacing || '1rem'}
-              onChange={(e) => handleFontChange('fullTranslation', 'paragraphSpacing', e.target.value)}
+              onChange={(e) =>
+                handleFontChange('fullTranslation', 'paragraphSpacing', e.target.value)
+              }
               onBlur={handleAutoSave}
               placeholder="e.g., 1rem, 16px, 1.5em"
             />
@@ -416,12 +438,14 @@ const AppearanceManager: React.FC = () => {
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={{
-            ...previewStyle,
-            fontFamily: appearance.fullTranslation.fontFamily,
-            fontSize: appearance.fullTranslation.fontSize,
-            letterSpacing: appearance.fullTranslation.letterSpacing
-          }}>
+          <div
+            style={{
+              ...previewStyle,
+              fontFamily: appearance.fullTranslation.fontFamily,
+              fontSize: appearance.fullTranslation.fontSize,
+              letterSpacing: appearance.fullTranslation.letterSpacing,
+            }}
+          >
             This is a preview of the full translation style. Hello world!
           </div>
         </div>
@@ -439,7 +463,7 @@ const AppearanceManager: React.FC = () => {
               value={appearance.characterOnly.fontFamily}
               onChange={(e) => handleFontChange('characterOnly', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
-              placeholder='e.g., Bookerly, Arial, sans-serif'
+              placeholder="e.g., Bookerly, Arial, sans-serif"
             />
             <button
               style={resetButtonStyle}
@@ -485,12 +509,14 @@ const AppearanceManager: React.FC = () => {
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={{
-            ...previewStyle,
-            fontFamily: appearance.characterOnly.fontFamily,
-            fontSize: appearance.characterOnly.fontSize,
-            letterSpacing: appearance.characterOnly.letterSpacing
-          }}>
+          <div
+            style={{
+              ...previewStyle,
+              fontFamily: appearance.characterOnly.fontFamily,
+              fontSize: appearance.characterOnly.fontSize,
+              letterSpacing: appearance.characterOnly.letterSpacing,
+            }}
+          >
             This is a preview of the character-only translation style.
           </div>
         </div>
@@ -508,7 +534,7 @@ const AppearanceManager: React.FC = () => {
               value={appearance.uiFont.fontFamily}
               onChange={(e) => handleFontChange('uiFont', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
-              placeholder='e.g., Inter, system-ui, Arial, sans-serif'
+              placeholder="e.g., Inter, system-ui, Arial, sans-serif"
             />
             <button
               style={resetButtonStyle}
@@ -520,7 +546,6 @@ const AppearanceManager: React.FC = () => {
           </div>
         </div>
       </div>
-
     </div>
   );
 };

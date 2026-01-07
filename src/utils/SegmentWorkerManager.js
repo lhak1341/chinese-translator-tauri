@@ -23,14 +23,14 @@ export class SegmentWorkerManager {
     this.taskIdCounter = 0;
     this.initializationPromise = null;
     this.fallbackMode = false;
-    
+
     // Performance tracking
     this.stats = {
       workerTasks: 0,
       fallbackTasks: 0,
       totalWorkerTime: 0,
       totalFallbackTime: 0,
-      errors: 0
+      errors: 0,
     };
   }
 
@@ -58,7 +58,7 @@ export class SegmentWorkerManager {
 
       // Create worker
       this.worker = new Worker('/src/workers/SegmentPositionWorker.js', {
-        type: 'module'
+        type: 'module',
       });
 
       // Set up message handling
@@ -85,18 +85,17 @@ export class SegmentWorkerManager {
       });
 
       return true;
-
     } catch (error) {
       console.warn('⚠️ Failed to initialize SegmentPositionWorker, using fallback:', error.message);
       this.fallbackMode = true;
       this.stats.errors++;
-      
+
       // Clean up failed worker
       if (this.worker) {
         this.worker.terminate();
         this.worker = null;
       }
-      
+
       return false;
     }
   }
@@ -133,7 +132,7 @@ export class SegmentWorkerManager {
   _handleWorkerError(error) {
     console.error('🚨 SegmentPositionWorker error:', error);
     this.stats.errors++;
-    
+
     // Reject all pending tasks
     for (const [id, { reject }] of this.pendingTasks) {
       reject(new Error('Worker error: ' + error.message));
@@ -163,13 +162,13 @@ export class SegmentWorkerManager {
     return new Promise((resolve, reject) => {
       const id = ++this.taskIdCounter;
       const startTime = performance.now();
-      
+
       this.pendingTasks.set(id, { resolve, reject, startTime });
-      
+
       this.worker.postMessage({
         type,
         id,
-        data
+        data,
       });
     });
   }
@@ -208,7 +207,7 @@ export class SegmentWorkerManager {
         computer.semanticRangeMap = data.semanticRangeMap;
         return {
           segments: computer.computeSegmentsForTextRange(data.textStart, data.textEnd),
-          stats: { computeTime: 0, segmentCount: 0 } // Fallback doesn't track stats
+          stats: { computeTime: 0, segmentCount: 0 }, // Fallback doesn't track stats
         };
       }
     );
@@ -228,24 +227,24 @@ export class SegmentWorkerManager {
         const { ViewportSegmentComputer } = await import('./ViewportSegmentComputer.js');
         const computer = new ViewportSegmentComputer();
         computer.semanticRangeMap = data.semanticRangeMap;
-        
+
         const results = {};
         const startTime = performance.now();
-        
+
         for (const range of data.viewportRanges) {
           const cacheKey = `${range.textStart}-${range.textEnd}`;
           results[cacheKey] = {
             segments: computer.computeSegmentsForTextRange(range.textStart, range.textEnd),
-            stats: { computeTime: 0, segmentCount: 0 }
+            stats: { computeTime: 0, segmentCount: 0 },
           };
         }
-        
+
         return {
           results,
           batchStats: {
             totalTime: performance.now() - startTime,
-            rangeCount: data.viewportRanges.length
-          }
+            rangeCount: data.viewportRanges.length,
+          },
         };
       }
     );
@@ -256,24 +255,23 @@ export class SegmentWorkerManager {
    */
   getStats() {
     const total = this.stats.workerTasks + this.stats.fallbackTasks;
-    const avgWorkerTime = this.stats.workerTasks > 0 
-      ? this.stats.totalWorkerTime / this.stats.workerTasks 
-      : 0;
-    const avgFallbackTime = this.stats.fallbackTasks > 0 
-      ? this.stats.totalFallbackTime / this.stats.fallbackTasks 
-      : 0;
+    const avgWorkerTime =
+      this.stats.workerTasks > 0 ? this.stats.totalWorkerTime / this.stats.workerTasks : 0;
+    const avgFallbackTime =
+      this.stats.fallbackTasks > 0 ? this.stats.totalFallbackTime / this.stats.fallbackTasks : 0;
 
     return {
       ...this.stats,
       isInitialized: this.isInitialized,
       fallbackMode: this.fallbackMode,
       totalTasks: total,
-      workerPercentage: total > 0 ? (this.stats.workerTasks / total * 100).toFixed(1) : 0,
+      workerPercentage: total > 0 ? ((this.stats.workerTasks / total) * 100).toFixed(1) : 0,
       avgWorkerTime: avgWorkerTime.toFixed(2),
       avgFallbackTime: avgFallbackTime.toFixed(2),
-      speedupFactor: avgFallbackTime > 0 && avgWorkerTime > 0 
-        ? (avgFallbackTime / avgWorkerTime).toFixed(2) 
-        : 'N/A'
+      speedupFactor:
+        avgFallbackTime > 0 && avgWorkerTime > 0
+          ? (avgFallbackTime / avgWorkerTime).toFixed(2)
+          : 'N/A',
     };
   }
 

@@ -11,35 +11,35 @@ import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 /**
  * @param {ClickableTranslationSemanticProps} props
  */
-const ClickableTranslationSemantic = ({ 
-  translatedText, 
-  semanticArrays, 
+const ClickableTranslationSemantic = ({
+  translatedText,
+  semanticArrays,
   onSegmentClick,
   highlightedTranslationUnitIndex = -1,
-  direction = 'translation-to-original'
+  direction = 'translation-to-original',
 }) => {
   // Use SegmentPrecomputer to create reliable segments, with special handling for character-only
   const segments = useMemo(() => {
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
       return [];
     }
-    
+
     // For character-only translation, use a simpler direct mapping approach
     if (direction === 'character-only-to-original') {
       const directSegments = [];
       let currentPosition = 0;
-      
+
       for (let i = 0; i < semanticArrays.translated.length; i++) {
         const translatedUnit = semanticArrays.translated[i];
         const originalUnit = semanticArrays.original[i];
-        
+
         // Find this unit in the translated text starting from current position
         const remainingText = translatedText.substring(currentPosition);
         const unitPosition = remainingText.indexOf(translatedUnit);
-        
+
         if (unitPosition !== -1) {
           const actualPosition = currentPosition + unitPosition;
-          
+
           // Add any non-semantic text before this unit
           if (unitPosition > 0) {
             const nonSemanticText = remainingText.substring(0, unitPosition);
@@ -49,10 +49,10 @@ const ClickableTranslationSemantic = ({
               start: currentPosition,
               end: actualPosition,
               unitIndex: -1,
-              isClickable: false
+              isClickable: false,
             });
           }
-          
+
           // Add the semantic unit
           directSegments.push({
             type: 'semantic',
@@ -62,13 +62,13 @@ const ClickableTranslationSemantic = ({
             unitIndex: i,
             originalText: originalUnit,
             translatedText: translatedUnit,
-            isClickable: true
+            isClickable: true,
           });
-          
+
           currentPosition = actualPosition + translatedUnit.length;
         }
       }
-      
+
       // Add any remaining text
       if (currentPosition < translatedText.length) {
         const remainingText = translatedText.substring(currentPosition);
@@ -78,14 +78,13 @@ const ClickableTranslationSemantic = ({
           start: currentPosition,
           end: translatedText.length,
           unitIndex: -1,
-          isClickable: false
+          isClickable: false,
         });
       }
-      
-      
+
       return directSegments;
     }
-    
+
     // For other translations, use the existing SegmentPrecomputer
     const computedSegments = SegmentPrecomputer.precomputeSegments(translatedText, semanticArrays);
     return computedSegments;
@@ -141,16 +140,20 @@ const ClickableTranslationSemantic = ({
     if (!semanticArrays || unitIndex >= semanticArrays.original.length) {
       return;
     }
-    
+
     const originalText = semanticArrays.original[unitIndex];
     const translatedText = semanticArrays.translated[unitIndex];
     const metadata = semanticArrays.metadata[unitIndex];
-    
+
     // Debug: Log which component is handling the click
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🎯 ClickableTranslationSemantic (${direction}) handling click:`, { unitIndex, originalText, translatedText });
+      console.log(`🎯 ClickableTranslationSemantic (${direction}) handling click:`, {
+        unitIndex,
+        originalText,
+        translatedText,
+      });
     }
-    
+
     // Call the callback with the semantic unit information
     if (onSegmentClick) {
       onSegmentClick({
@@ -159,7 +162,7 @@ const ClickableTranslationSemantic = ({
         translatedText,
         source: metadata.source,
         metadata,
-        direction: direction
+        direction: direction,
       });
     }
   };
@@ -184,7 +187,7 @@ const ClickableTranslationSemantic = ({
             display: 'inline',
             backgroundColor: isHighlighted ? 'var(--highlight-bg)' : 'transparent',
             color: isHighlighted ? 'var(--highlight-text)' : 'inherit',
-            fontWeight: isHighlighted ? 'bold' : 'normal'
+            fontWeight: isHighlighted ? 'bold' : 'normal',
           }}
           onMouseEnter={(e) => {
             if (!isHighlighted) {
@@ -225,10 +228,11 @@ const ClickableTranslationSemantic = ({
       <div
         key={`paragraph-${paragraphIndex}`}
         style={{
-          marginBottom: paragraphIndex < paragraphs.length - 1
-            ? 'var(--character-only-paragraph-spacing, 1rem)'
-            : '0',
-          whiteSpace: 'pre-wrap'
+          marginBottom:
+            paragraphIndex < paragraphs.length - 1
+              ? 'var(--character-only-paragraph-spacing, 1rem)'
+              : '0',
+          whiteSpace: 'pre-wrap',
         }}
       >
         {paragraphSegments.map((segment, segmentIndex) => renderSegment(segment, segmentIndex))}
@@ -236,11 +240,7 @@ const ClickableTranslationSemantic = ({
     ));
   };
 
-  return (
-    <div style={{ lineHeight: '1.4' }}>
-      {renderSegments()}
-    </div>
-  );
+  return <div style={{ lineHeight: '1.4' }}>{renderSegments()}</div>;
 };
 
 ClickableTranslationSemantic.propTypes = {
@@ -248,11 +248,11 @@ ClickableTranslationSemantic.propTypes = {
   semanticArrays: PropTypes.shape({
     original: PropTypes.array,
     translated: PropTypes.array,
-    metadata: PropTypes.array
+    metadata: PropTypes.array,
   }),
   onSegmentClick: PropTypes.func,
   highlightedTranslationUnitIndex: PropTypes.oneOfType([PropTypes.number, PropTypes.array]),
-  direction: PropTypes.string
+  direction: PropTypes.string,
 };
 
 export default React.memo(ClickableTranslationSemantic);

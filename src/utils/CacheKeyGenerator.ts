@@ -90,9 +90,9 @@ function normalizeContext(context: CacheContext | string[] | string | null | und
 
   // Sort object keys for consistency
   const sorted = Object.keys(context)
-    .filter(key => context[key] !== undefined && context[key] !== null)
+    .filter((key) => context[key] !== undefined && context[key] !== null)
     .sort()
-    .map(key => {
+    .map((key) => {
       const value = context[key];
       if (Array.isArray(value)) {
         return `${key}=${value.sort().join(',')}`;

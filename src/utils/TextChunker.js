@@ -39,20 +39,50 @@ export class TextChunker {
   constructor(punctuationConfig = {}) {
     // Initialize Unicode-based punctuation detection system
     this.unicodePunctuationDetector = new UnicodePunctuationDetector(punctuationConfig);
-    
+
     // Legacy punctuation marks for fallback compatibility
     // These are used when Unicode property escapes are not supported
     this.legacyChunkSeparators = [
-      ',', '.', '!', '?', ';', ':', 
-      '，', '。', '．', '！', '？', '；', '：',
-      '(', ')', '（', '）', '[', ']', '{', '}', '《', '》', '【', '】',
-      '"', '\u201c', '\u201d', '\u2018', '\u2019', "'",
-      '、', '…', '——', '－'
+      ',',
+      '.',
+      '!',
+      '?',
+      ';',
+      ':',
+      '，',
+      '。',
+      '．',
+      '！',
+      '？',
+      '；',
+      '：',
+      '(',
+      ')',
+      '（',
+      '）',
+      '[',
+      ']',
+      '{',
+      '}',
+      '《',
+      '》',
+      '【',
+      '】',
+      '"',
+      '\u201c',
+      '\u201d',
+      '\u2018',
+      '\u2019',
+      "'",
+      '、',
+      '…',
+      '——',
+      '－',
     ];
-    
+
     // Build regex patterns based on Unicode support
     this.buildChunkingRegex();
-    
+
     // Initialize unified punctuation processor
     this.punctuationProcessor = new PunctuationProcessor();
   }
@@ -63,31 +93,39 @@ export class TextChunker {
   buildChunkingRegex() {
     if (this.unicodePunctuationDetector.supportsUnicodeProperties) {
       // Use Unicode property-based regex for comprehensive punctuation detection
-      const enabledCategories = Object.keys(this.unicodePunctuationDetector.config.enabledCategories)
-        .filter(cat => this.unicodePunctuationDetector.config.enabledCategories[cat]);
-      
+      const enabledCategories = Object.keys(
+        this.unicodePunctuationDetector.config.enabledCategories
+      ).filter((cat) => this.unicodePunctuationDetector.config.enabledCategories[cat]);
+
       if (enabledCategories.length > 0) {
-        const categoryPattern = enabledCategories.map(cat => `\\p{${cat}}`).join('|');
+        const categoryPattern = enabledCategories.map((cat) => `\\p{${cat}}`).join('|');
         // Match content + punctuation, capturing both parts
         this.chunkRegex = new RegExp(`([^\\p{P}]*?)([${categoryPattern}]*)`, 'gu');
-        
+
         if (process.env.NODE_ENV === 'development') {
-          console.log(`🔧 TextChunker: Using Unicode punctuation categories: ${enabledCategories.join(', ')}`);
+          console.log(
+            `🔧 TextChunker: Using Unicode punctuation categories: ${enabledCategories.join(', ')}`
+          );
         }
         return;
       }
     }
-    
+
     // Fallback to legacy separator list
-    const escapedSeparators = this.legacyChunkSeparators.map(sep => 
+    const escapedSeparators = this.legacyChunkSeparators.map((sep) =>
       sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     );
-    
+
     // Match content + punctuation, capturing both parts
-    this.chunkRegex = new RegExp(`([^${escapedSeparators.join('')}]+)([${escapedSeparators.join('')}]*)`, 'g');
-    
+    this.chunkRegex = new RegExp(
+      `([^${escapedSeparators.join('')}]+)([${escapedSeparators.join('')}]*)`,
+      'g'
+    );
+
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🔧 TextChunker: Using legacy punctuation separators (${this.legacyChunkSeparators.length} characters)`);
+      console.log(
+        `🔧 TextChunker: Using legacy punctuation separators (${this.legacyChunkSeparators.length} characters)`
+      );
     }
   }
 
@@ -127,7 +165,7 @@ export class TextChunker {
       enabledCategories: this.unicodePunctuationDetector.config.enabledCategories,
       customSeparatorCount: this.unicodePunctuationDetector.config.customSeparators.length,
       excludedCharacters: Array.from(this.unicodePunctuationDetector.config.excludedCharacters),
-      includedCharacters: Array.from(this.unicodePunctuationDetector.config.includedCharacters)
+      includedCharacters: Array.from(this.unicodePunctuationDetector.config.includedCharacters),
     };
   }
 
@@ -139,7 +177,7 @@ export class TextChunker {
   hasOpeningPunctuation(punctuation) {
     if (!punctuation) return false;
     const openingChars = ['《', '【', '(', '（', '[', '{', ...QUOTE_CATEGORIES.OPENING];
-    return Array.from(punctuation).some(char => openingChars.includes(char));
+    return Array.from(punctuation).some((char) => openingChars.includes(char));
   }
 
   /**
@@ -149,11 +187,11 @@ export class TextChunker {
    */
   separateOpeningPunctuation(punctuation) {
     if (!punctuation) return { opening: '', remaining: '' };
-    
+
     const openingChars = ['《', '【', '(', '（', '[', '{', ...QUOTE_CATEGORIES.OPENING];
     let opening = '';
     let remaining = '';
-    
+
     for (const char of punctuation) {
       if (openingChars.includes(char)) {
         opening += char;
@@ -161,7 +199,7 @@ export class TextChunker {
         remaining += char;
       }
     }
-    
+
     return { opening, remaining };
   }
 
@@ -187,18 +225,24 @@ export class TextChunker {
       if (currentContent.trim() || currentPunctuation || currentLineBreaks) {
         let startedBy = previousPunctuation;
         // Only treat as linebreak if there's no meaningful punctuation before it
-        if (currentLineBreaks && chunks.length > 0 && (!previousPunctuation || previousPunctuation === 'start')) {
+        if (
+          currentLineBreaks &&
+          chunks.length > 0 &&
+          (!previousPunctuation || previousPunctuation === 'start')
+        ) {
           startedBy = 'linebreak';
         }
-        
-        chunks.push(new TextChunk(
-          currentContent,
-          currentPunctuation,
-          chunkStartIndex,
-          currentLineBreaks,
-          startedBy
-        ));
-        
+
+        chunks.push(
+          new TextChunk(
+            currentContent,
+            currentPunctuation,
+            chunkStartIndex,
+            currentLineBreaks,
+            startedBy
+          )
+        );
+
         // Update previous punctuation for next chunk
         if (currentLineBreaks) {
           previousPunctuation = 'linebreak';
@@ -206,7 +250,7 @@ export class TextChunker {
           previousPunctuation = currentPunctuation || '';
         }
       }
-      
+
       // Reset for next chunk
       currentContent = '';
       currentPunctuation = '';
@@ -216,7 +260,7 @@ export class TextChunker {
 
     for (let i = 0; i < chars.length; i++) {
       const char = chars[i];
-      
+
       if (char === '\r' || char === '\n') {
         // Handle line breaks
         currentLineBreaks += char;
@@ -233,17 +277,17 @@ export class TextChunker {
         if (chunkStartIndex === -1) {
           chunkStartIndex = i;
         }
-        
+
         // If we have accumulated punctuation or line breaks, flush previous chunk
         if (currentPunctuation || currentLineBreaks) {
           flushChunk();
           chunkStartIndex = i;
         }
-        
+
         currentContent += char;
       }
     }
-    
+
     // Flush final chunk
     flushChunk();
 
@@ -276,12 +320,16 @@ export class TextChunker {
         openingPunctuation = ' ' + openingPunctuation;
       }
       let remainingPunctuation = punctuation;
-      
+
       // Process remaining punctuation using unified processor
       if (remainingPunctuation) {
         // Only add space after punctuation if there's a next chunk with content
-        const hasNextChunk = index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
-        processedPunctuation = this.punctuationProcessor.processSequence(remainingPunctuation, hasNextChunk);
+        const hasNextChunk =
+          index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
+        processedPunctuation = this.punctuationProcessor.processSequence(
+          remainingPunctuation,
+          hasNextChunk
+        );
 
         // Add space before opening punctuation when there's content before it
         // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
@@ -290,14 +338,20 @@ export class TextChunker {
         const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
         const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
 
-        if (content && this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
-            !processedPunctuation.startsWith(' ') && !startsWithSentencePunct && !startsWithClosingElement) {
+        if (
+          content &&
+          this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
+          !processedPunctuation.startsWith(' ') &&
+          !startsWithSentencePunct &&
+          !startsWithClosingElement
+        ) {
           // Add space for opening elements including opening quotes
           processedPunctuation = ' ' + processedPunctuation;
         }
       }
 
-      const fullChunkText = prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
+      const fullChunkText =
+        prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
 
       // Build segments if semantic arrays are provided
       if (segments !== null) {
@@ -309,11 +363,11 @@ export class TextChunker {
             end: currentPosition + openingPunctuation.length,
             text: openingPunctuation,
             isClickable: false,
-            chunkIndex: index
+            chunkIndex: index,
           });
           currentPosition += openingPunctuation.length;
         }
-        
+
         // Add content segment
         if (content) {
           if (chunk.semanticIndex !== undefined && semanticArrays) {
@@ -328,7 +382,7 @@ export class TextChunker {
               source: semanticArrays.metadata[chunk.semanticIndex]?.source || 'unknown',
               metadata: semanticArrays.metadata[chunk.semanticIndex],
               isClickable: true,
-              chunkIndex: index
+              chunkIndex: index,
             });
           } else {
             // Untranslated content (Latin/numbers)
@@ -338,12 +392,12 @@ export class TextChunker {
               end: currentPosition + content.length,
               text: content,
               isClickable: false,
-              chunkIndex: index
+              chunkIndex: index,
             });
           }
           currentPosition += content.length;
         }
-        
+
         // Add punctuation segment
         if (processedPunctuation) {
           segments.push({
@@ -352,11 +406,11 @@ export class TextChunker {
             end: currentPosition + processedPunctuation.length,
             text: processedPunctuation,
             isClickable: false,
-            chunkIndex: index
+            chunkIndex: index,
           });
           currentPosition += processedPunctuation.length;
         }
-        
+
         // Add line breaks segment
         if (lineBreaks) {
           segments.push({
@@ -365,14 +419,14 @@ export class TextChunker {
             end: currentPosition + lineBreaks.length,
             text: lineBreaks,
             isClickable: false,
-            chunkIndex: index
+            chunkIndex: index,
           });
           currentPosition += lineBreaks.length;
         }
       } else {
         currentPosition += fullChunkText.length;
       }
-      
+
       return fullChunkText;
     });
 
@@ -387,52 +441,62 @@ export class TextChunker {
    * @returns {string} Reconstructed text
    */
   reconstructText(chunks) {
-    return chunks.map((chunk, index) => {
-      const content = chunk.translated || chunk.translatedContent || chunk.content;
-      const punctuation = chunk.translatedPunctuation || chunk.punctuation;
-      const lineBreaks = chunk.lineBreaks || '';
-      
-      
-      // Handle spacing using unified punctuation processor
-      let prefixSpacing = '';
-      let processedPunctuation = '';
-      
-      // Check if this chunk has opening punctuation that should appear before content
-      let openingPunctuation = chunk.openingPunctuation || '';
-      // Add space before opening punctuation if there's previous content and no existing space
-      if (openingPunctuation && content && index > 0 && !openingPunctuation.startsWith(' ')) {
-        openingPunctuation = ' ' + openingPunctuation;
-      }
-      let remainingPunctuation = punctuation;
-      
-      // Note: Ellipsis spacing is now handled by PunctuationProcessor
-      
-      // Process remaining punctuation using unified processor
-      if (remainingPunctuation) {
-        // Only add space after punctuation if there's a next chunk with content
-        // This prevents empty chunks from adding unwanted spaces
-        const hasNextChunk = index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
-        processedPunctuation = this.punctuationProcessor.processSequence(remainingPunctuation, hasNextChunk);
-        
-        
-        // Add space before opening punctuation when there's content before it
-        // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
-        // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
-        // BUT DO add space for opening quotes (they need space before them)
-        const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-        const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
-        const _containsOnlyOpeningQuotes = remainingPunctuation.length > 0 &&
-          Array.from(remainingPunctuation).every(char => QuoteProcessor.isOpeningQuote(char));
+    return chunks
+      .map((chunk, index) => {
+        const content = chunk.translated || chunk.translatedContent || chunk.content;
+        const punctuation = chunk.translatedPunctuation || chunk.punctuation;
+        const lineBreaks = chunk.lineBreaks || '';
 
-        if (content && this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
-            !processedPunctuation.startsWith(' ') && !startsWithSentencePunct && !startsWithClosingElement) {
-          // Add space for opening elements including opening quotes
-          processedPunctuation = ' ' + processedPunctuation;
+        // Handle spacing using unified punctuation processor
+        let prefixSpacing = '';
+        let processedPunctuation = '';
+
+        // Check if this chunk has opening punctuation that should appear before content
+        let openingPunctuation = chunk.openingPunctuation || '';
+        // Add space before opening punctuation if there's previous content and no existing space
+        if (openingPunctuation && content && index > 0 && !openingPunctuation.startsWith(' ')) {
+          openingPunctuation = ' ' + openingPunctuation;
         }
-      }
-      
-      return prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
-    }).join('');
+        let remainingPunctuation = punctuation;
+
+        // Note: Ellipsis spacing is now handled by PunctuationProcessor
+
+        // Process remaining punctuation using unified processor
+        if (remainingPunctuation) {
+          // Only add space after punctuation if there's a next chunk with content
+          // This prevents empty chunks from adding unwanted spaces
+          const hasNextChunk =
+            index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
+          processedPunctuation = this.punctuationProcessor.processSequence(
+            remainingPunctuation,
+            hasNextChunk
+          );
+
+          // Add space before opening punctuation when there's content before it
+          // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
+          // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
+          // BUT DO add space for opening quotes (they need space before them)
+          const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
+          const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
+          const _containsOnlyOpeningQuotes =
+            remainingPunctuation.length > 0 &&
+            Array.from(remainingPunctuation).every((char) => QuoteProcessor.isOpeningQuote(char));
+
+          if (
+            content &&
+            this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
+            !processedPunctuation.startsWith(' ') &&
+            !startsWithSentencePunct &&
+            !startsWithClosingElement
+          ) {
+            // Add space for opening elements including opening quotes
+            processedPunctuation = ' ' + processedPunctuation;
+          }
+        }
+
+        return prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
+      })
+      .join('');
   }
 
   /**
@@ -443,7 +507,7 @@ export class TextChunker {
   translatePunctuation(chunks, punctuationDict) {
     // Translate punctuation normally
     this.translatePunctuationNormally(chunks, punctuationDict);
-    
+
     // Fix the specific angle quote positioning issue
     this.fixAngleQuotePositioning(chunks);
   }
@@ -456,13 +520,15 @@ export class TextChunker {
   translatePunctuationNormally(chunks, punctuationDict) {
     for (const chunk of chunks) {
       if (chunk.punctuation) {
-        
         // If translatedPunctuation already exists (with spacing), preserve the spacing
-        if (chunk.translatedPunctuation && chunk.translatedPunctuation !== "null") {
+        if (chunk.translatedPunctuation && chunk.translatedPunctuation !== 'null') {
           // Apply character translation while preserving spacing
           let result = chunk.translatedPunctuation;
           for (const [originalChar, translatedChar] of Object.entries(punctuationDict)) {
-            result = result.replace(new RegExp(originalChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), translatedChar);
+            result = result.replace(
+              new RegExp(originalChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+              translatedChar
+            );
           }
           chunk.translatedPunctuation = result;
         } else {
@@ -473,41 +539,51 @@ export class TextChunker {
           }
           chunk.translatedPunctuation = translatedPunctuation;
         }
-        
+
         // SIMPLE FIX: Add space after comma if there's a next chunk with content
         // BUT NOT if the next chunk starts with a quote
         if (chunk.translatedPunctuation && chunk.translatedPunctuation.includes(',')) {
           const chunkIndex = chunks.indexOf(chunk);
           const nextChunk = chunkIndex < chunks.length - 1 ? chunks[chunkIndex + 1] : null;
           const hasNextChunk = nextChunk?.content?.trim();
-          
+
           // Check if comma is followed by a quote (either in same chunk or next chunk)
           const nextChunkFirstChar = nextChunk?.content?.trim().charAt(0);
-          const nextChunkStartsWithQuote = nextChunkFirstChar && QuoteProcessor.isQuote(nextChunkFirstChar);
-          
+          const nextChunkStartsWithQuote =
+            nextChunkFirstChar && QuoteProcessor.isQuote(nextChunkFirstChar);
+
           // Check if current punctuation ends with a quote (comma+quote in same chunk)
           const currentPunctLastChar = chunk.translatedPunctuation.slice(-1);
           const currentPunctEndsWithQuote = QuoteProcessor.isQuote(currentPunctLastChar);
-          
+
           // Check if next chunk's punctuation contains a closing quote
           const nextChunkPunctuation = nextChunk?.punctuation || '';
-          const nextChunkHasClosingQuote = Array.from(nextChunkPunctuation).some(char => QuoteProcessor.isClosingQuote(char));
-          
+          const nextChunkHasClosingQuote = Array.from(nextChunkPunctuation).some((char) =>
+            QuoteProcessor.isClosingQuote(char)
+          );
+
           // Don't add space if comma is followed by quote (any type, any location)
-          const commaFollowedByQuote = currentPunctEndsWithQuote || nextChunkStartsWithQuote || nextChunkHasClosingQuote;
-          
+          const commaFollowedByQuote =
+            currentPunctEndsWithQuote || nextChunkStartsWithQuote || nextChunkHasClosingQuote;
+
           // Special handling for comma-bracket sequences: ensure proper spacing
           const commaPattern = /,\s*[[({（【《]/;
           if (commaPattern.test(chunk.translatedPunctuation)) {
             // Replace comma+bracket patterns with comma+space+bracket
-            chunk.translatedPunctuation = chunk.translatedPunctuation.replace(/,\s*([[({（【《])/g, ', $1');
-          } else if (hasNextChunk && !chunk.translatedPunctuation.endsWith(' ') && !commaFollowedByQuote) {
+            chunk.translatedPunctuation = chunk.translatedPunctuation.replace(
+              /,\s*([[({（【《])/g,
+              ', $1'
+            );
+          } else if (
+            hasNextChunk &&
+            !chunk.translatedPunctuation.endsWith(' ') &&
+            !commaFollowedByQuote
+          ) {
             chunk.translatedPunctuation += ' ';
           }
         }
-        
       }
-      
+
       // Also translate punctuation characters that might be mixed in the content
       if (chunk.content) {
         let translatedContent = '';
@@ -528,10 +604,11 @@ export class TextChunker {
     for (let i = 0; i < chunks.length - 1; i++) {
       const chunk = chunks[i];
       const nextChunk = chunks[i + 1];
-      
+
       // Check if chunk has opening quote (angle or curly) that should be moved to next chunk
       // BUT ONLY if the current chunk has no content (quote-only chunk)
-      const isOpeningQuote = chunk.punctuation === '《' || QuoteProcessor.isOpeningQuote(chunk.punctuation);
+      const isOpeningQuote =
+        chunk.punctuation === '《' || QuoteProcessor.isOpeningQuote(chunk.punctuation);
       if (isOpeningQuote && nextChunk.content.trim() && !chunk.content.trim()) {
         // Determine appropriate opening quote before clearing
         let openingQuote;
@@ -542,14 +619,14 @@ export class TextChunker {
           // Keep the original opening quote (already curly)
           openingQuote = chunk.punctuation;
         }
-        
+
         // Clear both original and translated punctuation from this chunk
         chunk.punctuation = '';
         chunk.translatedPunctuation = '';
-        
+
         // Add opening quote to next chunk - store separately to place before content
         nextChunk.openingPunctuation = openingQuote;
-        
+
         // Update startedBy for capitalization
         nextChunk.startedBy = openingQuote;
       }
@@ -569,7 +646,7 @@ export class TextChunker {
       minLength: Infinity,
       chineseChunks: 0,
       emptyChunks: 0,
-      parallelizable: chunks.length > 1
+      parallelizable: chunks.length > 1,
     };
 
     let totalLength = 0;
@@ -578,13 +655,13 @@ export class TextChunker {
     for (const chunk of chunks) {
       const length = chunk.content.length;
       totalLength += length;
-      
+
       if (length === 0) {
         analysis.emptyChunks++;
       } else {
         analysis.maxLength = Math.max(analysis.maxLength, length);
         analysis.minLength = Math.min(analysis.minLength, length);
-        
+
         if (chineseRegex.test(chunk.content)) {
           analysis.chineseChunks++;
         }
@@ -604,9 +681,7 @@ export class TextChunker {
    */
   getTranslatableChunks(chunks) {
     const chineseRegex = /[\u4e00-\u9fff]/;
-    return chunks.filter(chunk => 
-      chunk.content.trim() && chineseRegex.test(chunk.content)
-    );
+    return chunks.filter((chunk) => chunk.content.trim() && chineseRegex.test(chunk.content));
   }
 
   /**
@@ -618,25 +693,27 @@ export class TextChunker {
     const chunks = this.chunkText(text);
     const analysis = this.analyzeChunks(chunks);
     const reconstructed = this.reconstructText(chunks);
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.log('📝 Testing chunking system with:', text);
       console.log('📊 Chunks created:', chunks.length);
-      
+
       chunks.forEach((chunk, index) => {
-        console.log(`  ${index + 1}. "${chunk.content}"${chunk.punctuation ? ` + "${chunk.punctuation}"` : ''}`);
+        console.log(
+          `  ${index + 1}. "${chunk.content}"${chunk.punctuation ? ` + "${chunk.punctuation}"` : ''}`
+        );
       });
-      
+
       console.log('📈 Analysis:', analysis);
       console.log('🔄 Reconstructed:', reconstructed);
       console.log('✅ Match original:', reconstructed === text);
     }
-    
+
     return {
       chunks,
       analysis,
       reconstructed,
-      isValid: reconstructed === text
+      isValid: reconstructed === text,
     };
   }
 }
@@ -648,15 +725,15 @@ export const createChunker = () => new TextChunker();
 export const testChunker = () => {
   if (process.env.NODE_ENV === 'development') {
     const chunker = new TextChunker();
-    
+
     // Test with your example
     console.log('🧪 Testing with example: ABC,DE.FG"HIJ"KL!MNOP.');
     chunker.testChunking('ABC,DE.FG"HIJ"KL!MNOP.');
-    
+
     // Test with Chinese text
     console.log('\n🧪 Testing with Chinese text:');
     chunker.testChunking('她的目光忽然落在陈暮的脸上，当看到陈暮闭上的双眼时，她的眼睛腾地红了。');
-    
+
     // Test with mixed punctuation
     console.log('\n🧪 Testing with mixed punctuation:');
     chunker.testChunking('Hello, 世界！How are you? 你好吗？');

@@ -49,7 +49,7 @@ export class LRUCache<K = string, V = any> {
       hits: 0,
       misses: 0,
       evictions: 0,
-      totalQueries: 0
+      totalQueries: 0,
     };
   }
 
@@ -143,16 +143,17 @@ export class LRUCache<K = string, V = any> {
    * @returns Cache performance stats with computed metrics
    */
   getStats(): ExtendedCacheStats {
-    const hitRate = this.stats.totalQueries > 0
-      ? (this.stats.hits / this.stats.totalQueries * 100).toFixed(1)
-      : '0';
+    const hitRate =
+      this.stats.totalQueries > 0
+        ? ((this.stats.hits / this.stats.totalQueries) * 100).toFixed(1)
+        : '0';
 
     return {
       ...this.stats,
       hitRate: `${hitRate}%`,
       size: this.cache.size,
       maxSize: this.maxSize,
-      memoryEfficiency: `${this.cache.size}/${this.maxSize} (${(this.cache.size/this.maxSize*100).toFixed(1)}%)`
+      memoryEfficiency: `${this.cache.size}/${this.maxSize} (${((this.cache.size / this.maxSize) * 100).toFixed(1)}%)`,
     };
   }
 

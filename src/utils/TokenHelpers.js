@@ -38,7 +38,7 @@ export function getSemanticTokens(tokens) {
     if (tokens[i].type === TokenType.CHINESE_WORD || tokens[i].type === TokenType.CHINESE_CHAR) {
       semanticTokens.push({
         ...tokens[i],
-        originalIndex: i
+        originalIndex: i,
       });
     }
   }
@@ -65,17 +65,10 @@ export function getTokenSpanForText(tokens, startIndex, text) {
   let remainingText = text;
   let span = 0;
 
-  for (
-    let i = startIndex;
-    i < tokens.length && remainingText.length > 0;
-    i++
-  ) {
+  for (let i = startIndex; i < tokens.length && remainingText.length > 0; i++) {
     const token = tokens[i];
 
-    if (
-      token.type === TokenType.CHINESE_WORD ||
-      token.type === TokenType.CHINESE_CHAR
-    ) {
+    if (token.type === TokenType.CHINESE_WORD || token.type === TokenType.CHINESE_CHAR) {
       // Use original value if available (for grouped tokens), otherwise use current value
       const valueToCheck = token.originalValue || token.value;
       if (remainingText.startsWith(valueToCheck)) {
@@ -105,11 +98,8 @@ export function getTokenSpanForText(tokens, startIndex, text) {
  */
 export function reconstructChineseText(tokens) {
   return tokens
-    .filter(
-      t =>
-        t.type === TokenType.CHINESE_WORD || t.type === TokenType.CHINESE_CHAR
-    )
-    .map(t => t.value)
+    .filter((t) => t.type === TokenType.CHINESE_WORD || t.type === TokenType.CHINESE_CHAR)
+    .map((t) => t.value)
     .join('');
 }
 
@@ -163,8 +153,8 @@ export function reconstructTextFromIndex(tokens, startIndex) {
  */
 export function getTextFromTokens(tokens) {
   return tokens
-    .filter(token => token.groupLeader === null || token.groupLeader === undefined) // Skip tokens that are part of another token group
-    .map(token => token.value)
+    .filter((token) => token.groupLeader === null || token.groupLeader === undefined) // Skip tokens that are part of another token group
+    .map((token) => token.value)
     .join('');
 }
 

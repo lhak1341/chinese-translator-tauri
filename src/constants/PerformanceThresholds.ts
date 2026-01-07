@@ -328,7 +328,10 @@ export function validateThresholds(): boolean {
   }
 
   // Cache hit rate should be between 0-100
-  if (CACHE_THRESHOLDS.CACHE_HIT_RATE_WARNING < 0 || CACHE_THRESHOLDS.CACHE_HIT_RATE_WARNING > 100) {
+  if (
+    CACHE_THRESHOLDS.CACHE_HIT_RATE_WARNING < 0 ||
+    CACHE_THRESHOLDS.CACHE_HIT_RATE_WARNING > 100
+  ) {
     warnings.push('CACHE_HIT_RATE_WARNING should be between 0-100');
   }
 

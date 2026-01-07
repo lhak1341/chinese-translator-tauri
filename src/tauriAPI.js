@@ -79,11 +79,11 @@ const tauriAPI = {
         total: dictionaryIds.length,
         successful: 0,
         failed: dictionaryIds.length,
-        results: dictionaryIds.map(id => ({
+        results: dictionaryIds.map((id) => ({
           dictionary_id: id,
           success: false,
-          error: error.toString()
-        }))
+          error: error.toString(),
+        })),
       };
     }
   },
@@ -138,7 +138,7 @@ const tauriAPI = {
     try {
       return await invoke('rename_proper_nouns_dictionary', {
         oldDictionaryId,
-        newDictionaryId
+        newDictionaryId,
       });
     } catch (error) {
       console.error('Error in renameProperNounsDictionary:', error);
@@ -275,7 +275,9 @@ const tauriAPI = {
       });
 
       if (result.success && result.buildTimeMs) {
-        console.log(`🦀 Lookup index built in ${result.buildTimeMs}ms (${result.positionsIndexed} positions, ${result.indexSize} matches)`);
+        console.log(
+          `🦀 Lookup index built in ${result.buildTimeMs}ms (${result.positionsIndexed} positions, ${result.indexSize} matches)`
+        );
       }
 
       return result;

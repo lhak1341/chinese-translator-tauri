@@ -12,7 +12,7 @@ export class SemanticArrayBuilder {
       characters: Object.freeze({ source: 'characters', tokenIndex: -1 }),
       properNouns: Object.freeze({ source: 'properNouns', tokenIndex: -1 }),
       patterns: Object.freeze({ source: 'patterns', tokenIndex: -1 }),
-      numbers: Object.freeze({ source: 'numbers', tokenIndex: -1 })
+      numbers: Object.freeze({ source: 'numbers', tokenIndex: -1 }),
     };
 
     this.reset();
@@ -29,7 +29,7 @@ export class SemanticArrayBuilder {
     this.translated = [];
     this.metadata = [];
   }
-  
+
   /**
    * Add a semantic unit (original text mapped to translated text)
    * @param {string} originalText - Original text segment
@@ -51,8 +51,8 @@ export class SemanticArrayBuilder {
       tokenIndex,
       originalText,
       translatedText,
-      translatedStart: -1,  // Will be set during postProcess text assembly
-      translatedEnd: -1      // Will be set during postProcess text assembly
+      translatedStart: -1, // Will be set during postProcess text assembly
+      translatedEnd: -1, // Will be set during postProcess text assembly
     };
 
     this.metadata.push(metadata);
@@ -80,9 +80,12 @@ export class SemanticArrayBuilder {
       const meta = this.metadata[i];
 
       // Match by tokenIndex and translatedText (case-insensitive)
-      if (meta.tokenIndex === tokenIndex &&
-          this.translated[i].toLowerCase() === translatedText.toLowerCase() &&
-          meta.translatedStart === -1) {  // Only update if not already set
+      if (
+        meta.tokenIndex === tokenIndex &&
+        this.translated[i].toLowerCase() === translatedText.toLowerCase() &&
+        meta.translatedStart === -1
+      ) {
+        // Only update if not already set
 
         meta.translatedStart = startPos;
         meta.translatedEnd = endPos;
@@ -104,29 +107,29 @@ export class SemanticArrayBuilder {
   buildPositionMappings(originalText, translatedText) {
     const originalPositions = new Map(); // position -> semantic index
     const translatedPositions = new Map(); // position -> semantic index
-    
+
     // Track which semantic indices have been used
     const usedIndices = new Set();
-    
+
     // Build original text position mapping
     let currentPos = 0;
     while (currentPos < originalText.length) {
       let bestMatch = null;
       let bestLength = 0;
-      
+
       // Find longest unused semantic unit at current position
       for (let i = 0; i < this.original.length; i++) {
         if (usedIndices.has(i)) continue;
-        
+
         const unit = this.original[i];
         const remainingText = originalText.substring(currentPos);
-        
+
         if (remainingText.startsWith(unit) && unit.length > bestLength) {
           bestMatch = { index: i, unit, length: unit.length };
           bestLength = unit.length;
         }
       }
-      
+
       if (bestMatch) {
         // Map each character position to this semantic index
         for (let j = 0; j < bestMatch.length; j++) {
@@ -138,29 +141,32 @@ export class SemanticArrayBuilder {
         currentPos++;
       }
     }
-    
+
     // Reset used indices for translation mapping
     usedIndices.clear();
-    
+
     // Build translated text position mapping
     currentPos = 0;
     while (currentPos < translatedText.length) {
       let bestMatch = null;
       let bestLength = 0;
-      
+
       // Find longest unused semantic unit at current position (case-insensitive)
       for (let i = 0; i < this.translated.length; i++) {
         if (usedIndices.has(i)) continue;
-        
+
         const unit = this.translated[i];
         const remainingText = translatedText.substring(currentPos);
-        
-        if (remainingText.toLowerCase().startsWith(unit.toLowerCase()) && unit.length > bestLength) {
+
+        if (
+          remainingText.toLowerCase().startsWith(unit.toLowerCase()) &&
+          unit.length > bestLength
+        ) {
           bestMatch = { index: i, unit, length: unit.length };
           bestLength = unit.length;
         }
       }
-      
+
       if (bestMatch) {
         // Map each character position to this semantic index
         for (let j = 0; j < bestMatch.length; j++) {
@@ -172,13 +178,13 @@ export class SemanticArrayBuilder {
         currentPos++;
       }
     }
-    
+
     return {
       originalPositions,
-      translatedPositions
+      translatedPositions,
     };
   }
-  
+
   /**
    * Get the built semantic arrays
    * @returns {Object} Semantic arrays with original, translated, and metadata
@@ -186,8 +192,8 @@ export class SemanticArrayBuilder {
   getArrays() {
     return {
       original: [...this.original],
-      translated: [...this.translated], 
-      metadata: [...this.metadata]
+      translated: [...this.translated],
+      metadata: [...this.metadata],
     };
   }
 
@@ -200,18 +206,18 @@ export class SemanticArrayBuilder {
 
     for (let i = 0; i < this.translated.length; i++) {
       const originalTranslation = this.translated[i];
-      
+
       // Skip if empty
       if (!originalTranslation || originalTranslation.length === 0) continue;
-      
+
       // Find all case-insensitive matches in final text
       const regex = new RegExp(this.escapeRegex(originalTranslation), 'gi');
       const matches = [...finalText.matchAll(regex)];
-      
+
       if (matches.length > 0) {
         // Prefer capitalized versions
         let bestMatch = originalTranslation;
-        
+
         for (const match of matches) {
           const matchText = match[0];
           // If this match is different (capitalized) and starts with uppercase, prefer it
@@ -220,7 +226,7 @@ export class SemanticArrayBuilder {
             break;
           }
         }
-        
+
         // Update if we found a better (capitalized) version
         if (bestMatch !== originalTranslation) {
           this.translated[i] = bestMatch;
@@ -236,7 +242,7 @@ export class SemanticArrayBuilder {
   escapeRegex(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
-  
+
   /**
    * Get the total number of semantic units
    * @returns {number} Number of semantic units
@@ -244,16 +250,18 @@ export class SemanticArrayBuilder {
   getLength() {
     return this.original.length;
   }
-  
+
   /**
    * Check if arrays are properly aligned (should always be true)
    * @returns {boolean} True if arrays are properly aligned
    */
   isValid() {
-    return this.original.length === this.translated.length && 
-           this.original.length === this.metadata.length;
+    return (
+      this.original.length === this.translated.length &&
+      this.original.length === this.metadata.length
+    );
   }
-  
+
   /**
    * Get debug information about the semantic arrays
    * @returns {Object} Debug information
@@ -262,13 +270,13 @@ export class SemanticArrayBuilder {
     return {
       totalUnits: this.getLength(),
       isValid: this.isValid(),
-      sources: this.metadata.map(m => m.source),
+      sources: this.metadata.map((m) => m.source),
       mappings: this.original.map((orig, i) => ({
         index: i,
         original: orig,
         translated: this.translated[i],
-        source: this.metadata[i].source
-      }))
+        source: this.metadata[i].source,
+      })),
     };
   }
 }

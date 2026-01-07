@@ -92,7 +92,7 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
         end: currentPos + bestMatch.length,
         text: originalText.substring(currentPos, currentPos + bestMatch.length),
         semanticIndex: bestMatch.semanticIndex,
-        isClickable: true
+        isClickable: true,
       });
       usedOriginalIndices.add(bestMatch.semanticIndex);
       currentPos += bestMatch.length;
@@ -104,7 +104,7 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
         end: currentPos + 1,
         text: originalText[currentPos],
         semanticIndex: -1,
-        isClickable: false
+        isClickable: false,
       });
       currentPos++;
     }
@@ -139,7 +139,7 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
         end: currentPos + bestMatch.length,
         text: translatedText.substring(currentPos, currentPos + bestMatch.length),
         semanticIndex: bestMatch.semanticIndex,
-        isClickable: true
+        isClickable: true,
       });
       usedTranslatedIndices.add(bestMatch.semanticIndex);
       currentPos += bestMatch.length;
@@ -151,7 +151,7 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
         end: currentPos + 1,
         text: translatedText[currentPos],
         semanticIndex: -1,
-        isClickable: false
+        isClickable: false,
       });
       currentPos++;
     }
@@ -165,7 +165,7 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
   const originalBySemanticIndex = new Map();
   const translatedBySemanticIndex = new Map();
 
-  originalSegments.forEach(segment => {
+  originalSegments.forEach((segment) => {
     if (segment.isClickable) {
       if (!originalBySemanticIndex.has(segment.semanticIndex)) {
         originalBySemanticIndex.set(segment.semanticIndex, []);
@@ -174,7 +174,7 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
     }
   });
 
-  translatedSegments.forEach(segment => {
+  translatedSegments.forEach((segment) => {
     if (segment.isClickable) {
       if (!translatedBySemanticIndex.has(segment.semanticIndex)) {
         translatedBySemanticIndex.set(segment.semanticIndex, []);
@@ -202,6 +202,6 @@ export function buildPositionMappings(semanticArrays, originalText, translatedTe
     originalSegments,
     translatedSegments,
     originalToTranslated,
-    translatedToOriginal
+    translatedToOriginal,
   };
 }

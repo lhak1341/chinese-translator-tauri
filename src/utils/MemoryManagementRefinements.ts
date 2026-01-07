@@ -163,9 +163,9 @@ export class SmartMemoryPressureDetector {
   constructor(options: MemoryPressureOptions = {}) {
     this.options = {
       // Memory pressure thresholds (percentage of heap limit)
-      lowPressure: options.lowPressure || 0.6,      // 60% - light cleanup
+      lowPressure: options.lowPressure || 0.6, // 60% - light cleanup
       mediumPressure: options.mediumPressure || 0.75, // 75% - moderate cleanup
-      highPressure: options.highPressure || 0.85,    // 85% - aggressive cleanup
+      highPressure: options.highPressure || 0.85, // 85% - aggressive cleanup
       criticalPressure: options.criticalPressure || 0.95, // 95% - emergency cleanup
 
       // Sampling and history
@@ -190,7 +190,15 @@ export class SmartMemoryPressureDetector {
    */
   getCurrentPressureLevel(): MemoryPressure {
     if (!performance.memory) {
-      return { level: 'unknown', ratio: 0, available: 0, used: 0, total: 0, limit: 0, timestamp: performance.now() };
+      return {
+        level: 'unknown',
+        ratio: 0,
+        available: 0,
+        used: 0,
+        total: 0,
+        limit: 0,
+        timestamp: performance.now(),
+      };
     }
 
     const memory = performance.memory;
@@ -211,7 +219,7 @@ export class SmartMemoryPressureDetector {
       used: memory.usedJSHeapSize,
       total: memory.totalJSHeapSize,
       limit: memory.jsHeapSizeLimit,
-      timestamp: performance.now()
+      timestamp: performance.now(),
     };
   }
 
@@ -254,7 +262,7 @@ export class SmartMemoryPressureDetector {
       }
 
       // Trigger callbacks for monitoring
-      this.callbacks.forEach(callback => {
+      this.callbacks.forEach((callback) => {
         try {
           callback({ pressure, growthRate, shouldCleanup });
         } catch (error) {
@@ -303,7 +311,7 @@ export class SmartMemoryPressureDetector {
       urgency,
       pressure,
       growthRate,
-      timestamp: performance.now()
+      timestamp: performance.now(),
     };
 
     // Notify all cleanup handlers
@@ -351,7 +359,7 @@ export class SmartMemoryPressureDetector {
       availableMB: (current.available / (1024 * 1024)).toFixed(1),
       growthRateMB: growthRate.toFixed(2),
       samples: this.memoryHistory.length,
-      lastCleanup: this.lastCleanup
+      lastCleanup: this.lastCleanup,
     };
   }
 }
@@ -430,7 +438,7 @@ export class BackgroundCleanupManager {
       tasksProcessed: 0,
       tasksQueued: 0,
       idleTimeUsed: 0,
-      averageTaskTime: 0
+      averageTaskTime: 0,
     };
   }
 
@@ -444,7 +452,7 @@ export class BackgroundCleanupManager {
       priority,
       queued: performance.now(),
       attempts: 0,
-      maxAttempts: 3
+      maxAttempts: 3,
     };
 
     // Insert based on priority
@@ -488,9 +496,10 @@ export class BackgroundCleanupManager {
 
           // Log success for urgent tasks
           if (task.priority === 'urgent') {
-            console.log(`🧹 Background cleanup: ${task.id} completed in ${taskDuration.toFixed(1)}ms`);
+            console.log(
+              `🧹 Background cleanup: ${task.id} completed in ${taskDuration.toFixed(1)}ms`
+            );
           }
-
         } catch (error) {
           task.attempts++;
 
@@ -535,16 +544,16 @@ export class BackgroundCleanupManager {
   private updateAverageTaskTime(taskTime: number): void {
     const currentAvg = this.stats.averageTaskTime;
     const count = this.stats.tasksProcessed;
-    this.stats.averageTaskTime = ((currentAvg * (count - 1)) + taskTime) / count;
+    this.stats.averageTaskTime = (currentAvg * (count - 1) + taskTime) / count;
   }
 
   /**
    * Force process urgent tasks immediately
    */
   processUrgentTasks(): void {
-    const urgentTasks = this.cleanupQueue.filter(task => task.priority === 'urgent');
+    const urgentTasks = this.cleanupQueue.filter((task) => task.priority === 'urgent');
 
-    urgentTasks.forEach(task => {
+    urgentTasks.forEach((task) => {
       try {
         const result = task.task();
         this.stats.tasksProcessed++;
@@ -554,7 +563,6 @@ export class BackgroundCleanupManager {
         if (index > -1) {
           this.cleanupQueue.splice(index, 1);
         }
-
       } catch (error) {
         console.warn('Urgent cleanup task failed:', error);
       }
@@ -571,7 +579,7 @@ export class BackgroundCleanupManager {
       tasksQueued: this.stats.tasksQueued,
       idleTimeUsedMs: this.stats.idleTimeUsed.toFixed(1),
       averageTaskTimeMs: this.stats.averageTaskTime.toFixed(1),
-      isProcessing: this.isProcessing
+      isProcessing: this.isProcessing,
     };
   }
 
@@ -772,7 +780,7 @@ export class ComponentMemoryProfiler {
       startMemory: currentMemory,
       startTime: performance.now(),
       samples: [],
-      completed: false
+      completed: false,
     };
 
     this.profiles.set(profileId, profile);
@@ -795,14 +803,17 @@ export class ComponentMemoryProfiler {
       label,
       memory: currentMemory,
       timestamp: performance.now(),
-      memoryDelta: currentMemory.used - profile.startMemory.used
+      memoryDelta: currentMemory.used - profile.startMemory.used,
     });
   }
 
   /**
    * Complete profiling and calculate metrics
    */
-  completeProfiling(profileId: string | null, metadata: Record<string, any> = {}): ComponentMetrics | null {
+  completeProfiling(
+    profileId: string | null,
+    metadata: Record<string, any> = {}
+  ): ComponentMetrics | null {
     if (!this.samplingEnabled || !profileId) return null;
 
     const profile = this.profiles.get(profileId) as ComponentProfile | undefined;
@@ -825,9 +836,9 @@ export class ComponentMemoryProfiler {
       duration: endTime - profile.startTime,
       memoryUsed: endMemory.used - profile.startMemory.used,
       memoryUsedMB: (endMemory.used - profile.startMemory.used) / (1024 * 1024),
-      peakMemoryDelta: Math.max(...profile.samples.map(s => s.memoryDelta), 0),
+      peakMemoryDelta: Math.max(...profile.samples.map((s) => s.memoryDelta), 0),
       sampleCount: profile.samples.length,
-      metadata
+      metadata,
     };
 
     // Store metrics and remove from active profiles
@@ -847,7 +858,7 @@ export class ComponentMemoryProfiler {
         operations: [],
         totalMemoryUsed: 0,
         averageMemoryUsed: 0,
-        operationCount: 0
+        operationCount: 0,
       });
     }
 
@@ -855,7 +866,8 @@ export class ComponentMemoryProfiler {
     componentProfile.operations.push(metrics);
     componentProfile.totalMemoryUsed += metrics.memoryUsed;
     componentProfile.operationCount++;
-    componentProfile.averageMemoryUsed = componentProfile.totalMemoryUsed / componentProfile.operationCount;
+    componentProfile.averageMemoryUsed =
+      componentProfile.totalMemoryUsed / componentProfile.operationCount;
 
     // Keep only recent operations to prevent memory accumulation
     if (componentProfile.operations.length > 50) {
@@ -863,7 +875,8 @@ export class ComponentMemoryProfiler {
       if (removed) {
         componentProfile.totalMemoryUsed -= removed.memoryUsed;
         componentProfile.operationCount--;
-        componentProfile.averageMemoryUsed = componentProfile.totalMemoryUsed / componentProfile.operationCount;
+        componentProfile.averageMemoryUsed =
+          componentProfile.totalMemoryUsed / componentProfile.operationCount;
       }
     }
   }
@@ -878,7 +891,7 @@ export class ComponentMemoryProfiler {
       used: performance.memory.usedJSHeapSize,
       total: performance.memory.totalJSHeapSize,
       limit: performance.memory.jsHeapSizeLimit,
-      timestamp: performance.now()
+      timestamp: performance.now(),
     };
   }
 
@@ -888,7 +901,7 @@ export class ComponentMemoryProfiler {
   getComponentStats(componentName: string | null = null): ComponentStats | ComponentStats[] | null {
     if (componentName) {
       const stats = this.profiles.get(componentName);
-      return (stats && 'averageMemoryUsed' in stats) ? stats : null;
+      return stats && 'averageMemoryUsed' in stats ? stats : null;
     }
 
     // Return all component stats sorted by memory usage
@@ -904,12 +917,12 @@ export class ComponentMemoryProfiler {
    */
   getTopMemoryConsumers(limit: number = 10): TopMemoryConsumer[] {
     const stats = this.getComponentStats() as ComponentStats[];
-    return stats.slice(0, limit).map(profile => ({
+    return stats.slice(0, limit).map((profile) => ({
       component: profile.componentName,
       averageMemoryMB: (profile.averageMemoryUsed / (1024 * 1024)).toFixed(2),
       totalMemoryMB: (profile.totalMemoryUsed / (1024 * 1024)).toFixed(2),
       operationCount: profile.operationCount,
-      recentOperations: profile.operations.slice(-5)
+      recentOperations: profile.operations.slice(-5),
     }));
   }
 
@@ -920,8 +933,9 @@ export class ComponentMemoryProfiler {
     this.samplingEnabled = enabled;
     if (!enabled) {
       // Clear active profiles but keep completed stats
-      Array.from(this.profiles.keys()).forEach(key => {
-        if (key.includes(':')) { // Active profile IDs contain ':'
+      Array.from(this.profiles.keys()).forEach((key) => {
+        if (key.includes(':')) {
+          // Active profile IDs contain ':'
           this.profiles.delete(key);
         }
       });
@@ -932,14 +946,16 @@ export class ComponentMemoryProfiler {
    * Get profiler statistics
    */
   getProfilerStats(): ProfilerStats {
-    const activeProfiles = Array.from(this.profiles.keys()).filter(key => key.includes(':'));
-    const componentStats = Array.from(this.profiles.values()).filter((p): p is ComponentStats => 'averageMemoryUsed' in p);
+    const activeProfiles = Array.from(this.profiles.keys()).filter((key) => key.includes(':'));
+    const componentStats = Array.from(this.profiles.values()).filter(
+      (p): p is ComponentStats => 'averageMemoryUsed' in p
+    );
 
     return {
       enabled: this.samplingEnabled,
       activeProfiles: activeProfiles.length,
       componentCount: componentStats.length,
-      totalOperationsTracked: componentStats.reduce((sum, p) => sum + p.operationCount, 0)
+      totalOperationsTracked: componentStats.reduce((sum, p) => sum + p.operationCount, 0),
     };
   }
 }

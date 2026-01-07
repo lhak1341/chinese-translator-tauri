@@ -19,22 +19,14 @@
  * } from '../types/PatternProcessingTypes'
  */
 
-import {
-  initializeWasmPatternProcessor,
-  processTokensWasm,
-  isWasmPatternProcessorAvailable,
-  hasWasmPatternProcessorFailed,
-  getWasmPatternProcessorStats
-} from './WasmPatternProcessor.js';
-
 import { calculatePatternPriority } from './PatternPriorityCalculator.js';
 
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
- * 
- * Pre-computes all possible token substring combinations to eliminate expensive 
+ *
+ * Pre-computes all possible token substring combinations to eliminate expensive
  * slice().map().join() operations during variable resolution.
- * 
+ *
  * Performance impact: 5-10x speedup in pattern matching by replacing
  * ~15,000 dynamic string operations with ~70 pre-computed Map lookups.
  */
@@ -42,16 +34,16 @@ class PrecomputedTokenStrings {
   constructor(semanticTokens, maxSpan = 10) {
     this.stringLookup = new Map();
     this.enabled = true;
-    
+
     // Performance tracking
     this.stats = {
       totalPrecomputed: 0,
       totalLookups: 0,
-      precomputeTime: 0
+      precomputeTime: 0,
     };
-    
+
     const startTime = performance.now();
-    
+
     // Pre-compute all possible substrings
     for (let pos = 0; pos < semanticTokens.length; pos++) {
       for (let span = 1; span <= maxSpan; span++) {
@@ -59,17 +51,17 @@ class PrecomputedTokenStrings {
           const key = `${pos}_${span}`;
           const value = semanticTokens
             .slice(pos, pos + span)
-            .map(t => t.value)
+            .map((t) => t.value)
             .join('');
           this.stringLookup.set(key, value);
           this.stats.totalPrecomputed++;
         }
       }
     }
-    
+
     this.stats.precomputeTime = performance.now() - startTime;
   }
-  
+
   /**
    * Get pre-computed string for position and span
    * @param {number} position - Starting position
@@ -78,12 +70,12 @@ class PrecomputedTokenStrings {
    */
   getString(position, span) {
     if (!this.enabled) return null;
-    
+
     this.stats.totalLookups++;
     const key = `${position}_${span}`;
     return this.stringLookup.get(key) || null;
   }
-  
+
   /**
    * Fallback to dynamic string generation (original method)
    * @param {Array} semanticTokens - Semantic tokens array
@@ -94,18 +86,20 @@ class PrecomputedTokenStrings {
   static generateDynamic(semanticTokens, position, span) {
     return semanticTokens
       .slice(position, position + span)
-      .map(t => t.value)
+      .map((t) => t.value)
       .join('');
   }
-  
+
   /**
    * Get performance statistics
    */
   getStats() {
     return {
       ...this.stats,
-      cacheHitRate: this.stats.totalLookups > 0 ? 
-        (this.stats.totalLookups - this.stats.totalMisses || 0) / this.stats.totalLookups : 0
+      cacheHitRate:
+        this.stats.totalLookups > 0
+          ? (this.stats.totalLookups - this.stats.totalMisses || 0) / this.stats.totalLookups
+          : 0,
     };
   }
 }
@@ -125,7 +119,7 @@ export class SemanticPatternProcessor {
     // Pre-computed string optimization
     this.precomputedStrings = null;
     this.enableStringOptimization = true; // Toggle for A/B testing
-    
+
     // Statistics tracking
     this.stats = {
       totalMatches: 0,
@@ -144,8 +138,8 @@ export class SemanticPatternProcessor {
         precomputeTime: 0,
         dynamicStringOps: 0,
         precomputedLookups: 0,
-        speedupFactor: 0
-      }
+        speedupFactor: 0,
+      },
     };
   }
 
@@ -172,10 +166,15 @@ export class SemanticPatternProcessor {
         allowedVariableTypes = templateOrObject.allowedVariableTypes;
         allowAsPatternVariable = templateOrObject.allowAsPatternVariable || false;
         lowPriority = templateOrObject.lowPriority || false;
-
       }
 
-      const semanticPattern = this.parsePattern(patternText, template, allowedVariableTypes, allowAsPatternVariable, lowPriority);
+      const semanticPattern = this.parsePattern(
+        patternText,
+        template,
+        allowedVariableTypes,
+        allowAsPatternVariable,
+        lowPriority
+      );
       if (semanticPattern) {
         this.patterns.push(semanticPattern);
         this.indexPattern(semanticPattern);
@@ -215,8 +214,11 @@ export class SemanticPatternProcessor {
       this.wasmInitialized = false;
     }
 
-    this.log(options.debugLevel, 5,
-      `🔧 SemanticPatternProcessor initialized with ${this.patterns.length} patterns`);
+    this.log(
+      options.debugLevel,
+      5,
+      `🔧 SemanticPatternProcessor initialized with ${this.patterns.length} patterns`
+    );
   }
 
   /**
@@ -227,20 +229,26 @@ export class SemanticPatternProcessor {
    * @param {boolean} allowAsPatternVariable - Whether pattern can be used as variable in hierarchical processing
    * @returns {Object} Semantic pattern object
    */
-  parsePattern(patternText, template, allowedVariableTypes = null, allowAsPatternVariable = false, lowPriority = false) {
+  parsePattern(
+    patternText,
+    template,
+    allowedVariableTypes = null,
+    allowAsPatternVariable = false,
+    lowPriority = false
+  ) {
     const tokens = [];
     const variables = [];
-    
+
     // Parse pattern into literal and variable tokens
     for (let i = 0; i < patternText.length; i++) {
       const char = patternText[i];
-      
+
       if (/[A-Z]/.test(char)) {
         // Variable token
         tokens.push({
           type: 'variable',
           name: char,
-          position: i
+          position: i,
         });
         if (!variables.includes(char)) {
           variables.push(char);
@@ -250,11 +258,11 @@ export class SemanticPatternProcessor {
         tokens.push({
           type: 'literal',
           value: char,
-          position: i
+          position: i,
         });
       }
     }
-    
+
     return {
       id: patternText,
       originalPattern: patternText,
@@ -270,7 +278,7 @@ export class SemanticPatternProcessor {
         complexity: variables.length,
         length: tokens.length,
         allowedVariableTypes: allowedVariableTypes,
-        lowPriority: lowPriority
+        lowPriority: lowPriority,
       },
       usage: {
         matchCount: 0,
@@ -282,8 +290,8 @@ export class SemanticPatternProcessor {
         lastUsed: null,
         avgTime: 0,
         minTime: Infinity,
-        maxTime: 0
-      }
+        maxTime: 0,
+      },
     };
   }
 
@@ -293,7 +301,7 @@ export class SemanticPatternProcessor {
    */
   indexPattern(pattern) {
     const firstToken = pattern.firstToken;
-    
+
     if (firstToken.type === 'literal') {
       const key = firstToken.value;
       if (!this.patternIndex.has(key)) {
@@ -320,39 +328,39 @@ export class SemanticPatternProcessor {
    */
   buildVariableCache(tokens, activeProperNouns, dictionaryManager, phaseAResults = []) {
     this.variableCache.clear();
-    
+
     // Build variable cache with Phase A results
-    
+
     // ENHANCED: Add Phase A results as high-priority pattern variables
     // These structural patterns can serve as variables for Phase B patterns
     for (const phaseAResult of phaseAResults) {
       if (phaseAResult.originalText && phaseAResult.translation) {
         // Extract the variable content from Phase A pattern
         const variableText = this.extractVariableFromPhaseAResult(phaseAResult, tokens);
-        
+
         // Extracted variable from Phase A for cache
-        
+
         if (variableText) {
           this.variableCache.set(variableText, {
             translation: phaseAResult.translation,
             source: 'phaseA_pattern',
             type: 'structural_pattern',
             confidence: 'high',
-            phaseAResult: phaseAResult // Store reference for debugging
+            phaseAResult: phaseAResult, // Store reference for debugging
           });
         }
-        
+
         // Also cache the full Phase A result as a potential variable
         this.variableCache.set(phaseAResult.originalText, {
           translation: phaseAResult.translation,
           source: 'phaseA_full_pattern',
           type: 'structural_pattern',
           confidence: 'high',
-          phaseAResult: phaseAResult
+          phaseAResult: phaseAResult,
         });
       }
     }
-    
+
     // Cache only proper noun token translations as pattern variables
     // Phrases must explicitly have allowAsPatternVariable flag (checked below)
     for (const token of tokens) {
@@ -363,12 +371,12 @@ export class SemanticPatternProcessor {
           this.variableCache.set(key, {
             translation: token.translated,
             source: token.translationSource,
-            type: this.classifyVariableType(token.translationSource, token.value, token.metadata)
+            type: this.classifyVariableType(token.translationSource, token.value, token.metadata),
           });
         }
       }
     }
-    
+
     // Cache phrase translations with allowAsPatternVariable flag
     // Check ALL tokens AND multi-character combinations for pattern variable capability
     for (let i = 0; i < tokens.length; i++) {
@@ -378,47 +386,60 @@ export class SemanticPatternProcessor {
         this.variableCache.set(tokens[i].value, {
           translation: singleTokenResult.translation,
           source: 'phrases_pattern_variable',
-          type: 'phrase'
+          type: 'phrase',
         });
       }
-      
+
       // Check multi-character combinations (up to 6 characters for efficiency)
       for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
-        const combinedText = tokens.slice(i, i + len).map(t => t.value).join('');
+        const combinedText = tokens
+          .slice(i, i + len)
+          .map((t) => t.value)
+          .join('');
         const multiTokenResult = dictionaryManager.translate(combinedText, ['phrases']);
         if (multiTokenResult?.metadata?.allowAsPatternVariable) {
           this.variableCache.set(combinedText, {
             translation: multiTokenResult.translation,
             source: 'phrases_pattern_variable',
-            type: 'phrase'
+            type: 'phrase',
           });
         }
       }
     }
-    
+
     // Cache proper noun translations from active dictionaries
     // This ensures proper nouns are available as pattern variables even if not yet translated
     // Filter out 'phrases' from activeProperNouns since phrases are handled separately with allowAsPatternVariable flag
-    const actualProperNounDictionaries = activeProperNouns.filter(dict => dict !== 'phrases');
+    const actualProperNounDictionaries = activeProperNouns.filter((dict) => dict !== 'phrases');
     for (const token of tokens) {
-      const properNounResult = dictionaryManager.translate(token.value, actualProperNounDictionaries);
+      const properNounResult = dictionaryManager.translate(
+        token.value,
+        actualProperNounDictionaries
+      );
       if (properNounResult) {
         this.variableCache.set(token.value, {
           translation: properNounResult.translation,
           source: properNounResult.dictionary + '_pattern_variable',
-          type: this.classifyVariableType(properNounResult.dictionary + '_pattern_variable', token.value, properNounResult.metadata)
+          type: this.classifyVariableType(
+            properNounResult.dictionary + '_pattern_variable',
+            token.value,
+            properNounResult.metadata
+          ),
         });
       }
     }
-    
+
     // Build full text for proper noun scanning only
-    const fullText = tokens.map(t => t.value).join('');
-    
+    const fullText = tokens.map((t) => t.value).join('');
+
     // Search for proper nouns at all positions
     // Use actualProperNounDictionaries to avoid phrases dictionary in full text scanning
     for (let pos = 0; pos < fullText.length; pos++) {
-      const allProperNounMatches = dictionaryManager.findAllMatches(fullText, pos, actualProperNounDictionaries);
-
+      const allProperNounMatches = dictionaryManager.findAllMatches(
+        fullText,
+        pos,
+        actualProperNounDictionaries
+      );
 
       for (const match of allProperNounMatches) {
         // Check allowAsPatternVariable for phrases found during full text scanning
@@ -430,15 +451,19 @@ export class SemanticPatternProcessor {
             continue; // Skip this phrase
           }
         }
-        
+
         this.variableCache.set(match.word, {
           translation: match.translation,
           source: match.dictionary + '_pattern_variable',
-          type: this.classifyVariableType(match.dictionary + '_pattern_variable', match.word, match.metadata)
+          type: this.classifyVariableType(
+            match.dictionary + '_pattern_variable',
+            match.word,
+            match.metadata
+          ),
         });
       }
     }
-    
+
     // Variable cache built successfully
   }
 
@@ -452,16 +477,16 @@ export class SemanticPatternProcessor {
   extractVariableFromPhaseAResult(phaseAResult, _tokens) {
     const pattern = phaseAResult.pattern?.originalPattern;
     const matchedText = phaseAResult.originalText;
-    
+
     if (!pattern || !matchedText || !pattern.includes('X')) {
       return null;
     }
-    
+
     // Find position of X in pattern
     const xIndex = pattern.indexOf('X');
     const prefix = pattern.substring(0, xIndex);
     const suffix = pattern.substring(xIndex + 1);
-    
+
     // Extract variable by removing prefix and suffix from matched text
     let variableText = matchedText;
     if (prefix) {
@@ -470,14 +495,14 @@ export class SemanticPatternProcessor {
         variableText = variableText.substring(prefix.length);
       }
     }
-    
+
     if (suffix) {
       const suffixIndex = variableText.lastIndexOf(suffix);
       if (suffixIndex !== -1 && suffixIndex === variableText.length - suffix.length) {
         variableText = variableText.substring(0, suffixIndex);
       }
     }
-    
+
     return variableText.trim() || null;
   }
 
@@ -493,14 +518,14 @@ export class SemanticPatternProcessor {
     if (metadata?.semanticType) {
       return metadata.semanticType;
     }
-    
+
     // Enhanced classification based on source
     if (source?.includes('properNoun')) {
       // Try to infer semantic type from dictionary name for proper nouns
       if (source.includes('HarryPotter') || source.includes('DuongThan')) {
         return 'character'; // Character names from novel dictionaries
       }
-      
+
       // For generic proper nouns, try heuristic classification first
       if (word) {
         const heuristicType = this.getHeuristicType(word);
@@ -508,24 +533,24 @@ export class SemanticPatternProcessor {
           return heuristicType;
         }
       }
-      
+
       return 'proper_noun'; // Generic proper noun fallback
     }
-    
+
     if (source?.includes('phrase')) {
       // Phrases can represent various semantic concepts
       return 'concept';
     }
-    
+
     if (source?.includes('character')) {
       return 'character_unit'; // Individual character vs character name distinction
     }
-    
+
     // Heuristic-based classification for words without metadata
     if (word) {
       return this.getHeuristicType(word);
     }
-    
+
     return 'unknown';
   }
 
@@ -536,27 +561,48 @@ export class SemanticPatternProcessor {
    */
   getHeuristicType(word) {
     if (!word) return 'unknown';
-    
+
     // Enhanced heuristics based on common Chinese patterns
     // Place indicators
-    if (word.includes('市') || word.includes('省') || word.includes('国') || 
-        word.includes('县') || word.includes('区') || word.includes('镇') ||
-        word.includes('村') || word.includes('州') || word.includes('府') ||
-        word.endsWith('京') || word.endsWith('海') || word.endsWith('川')) {
+    if (
+      word.includes('市') ||
+      word.includes('省') ||
+      word.includes('国') ||
+      word.includes('县') ||
+      word.includes('区') ||
+      word.includes('镇') ||
+      word.includes('村') ||
+      word.includes('州') ||
+      word.includes('府') ||
+      word.endsWith('京') ||
+      word.endsWith('海') ||
+      word.endsWith('川')
+    ) {
       return 'place';
     }
-    
-    // Person indicators  
-    if (word.length >= 2 && /[人名姓李王张刘陈杨赵黄周吴徐孙胡朱高林何郭罗梁宋郑谢韩唐冯于董萧程曹袁邓许傅沈曾彭吕苏卢蒋蔡贾丁魏薛叶阎余潘杜戴夏钟汪田任姜范方石姚谭廖邹熊金陆郝孔白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文]/.test(word)) {
+
+    // Person indicators
+    if (
+      word.length >= 2 &&
+      /[人名姓李王张刘陈杨赵黄周吴徐孙胡朱高林何郭罗梁宋郑谢韩唐冯于董萧程曹袁邓许傅沈曾彭吕苏卢蒋蔡贾丁魏薛叶阎余潘杜戴夏钟汪田任姜范方石姚谭廖邹熊金陆郝孔白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文]/.test(
+        word
+      )
+    ) {
       return 'person';
     }
-    
+
     // Object/concept indicators
-    if (word.includes('法') || word.includes('术') || word.includes('道') || 
-        word.includes('力') || word.includes('功') || word.includes('技')) {
+    if (
+      word.includes('法') ||
+      word.includes('术') ||
+      word.includes('道') ||
+      word.includes('力') ||
+      word.includes('功') ||
+      word.includes('技')
+    ) {
       return 'concept';
     }
-    
+
     return 'unknown';
   }
 
@@ -570,43 +616,46 @@ export class SemanticPatternProcessor {
     const pattern = prioritizedMatch.pattern;
     const startIndex = prioritizedMatch.startIndex;
     const endIndex = prioritizedMatch.endIndex;
-    
+
     // Get the pattern template
-    const template = pattern.template || this.dictionaryManager?.translate(pattern.originalPattern, ['patterns'])?.translation;
-    
+    const template =
+      pattern.template ||
+      this.dictionaryManager?.translate(pattern.originalPattern, ['patterns'])?.translation;
+
     if (!template) {
       if (process.env.NODE_ENV === 'development') {
         console.warn(`No template found for pattern: ${pattern.originalPattern}`);
       }
       return null;
     }
-    
+
     const matchedTokens = [];
     let result = template;
-    
+
     // Process each token and resolve variables using existing variable cache
     for (let i = startIndex; i <= endIndex; i++) {
       const tokenValue = tokens[i].value;
       matchedTokens.push({
         value: tokenValue,
-        originalIndex: i
+        originalIndex: i,
       });
-      
+
       // Check if this token is a variable (not a literal part of the pattern)
       if (!pattern.originalPattern.includes(tokenValue)) {
         // This is the variable - try to translate it using variable cache
         const translation = this.variableCache?.get(tokenValue);
-        
+
         if (translation) {
           // Variable cache stores objects with .translation property
-          const translatedValue = typeof translation === 'string' ? translation : translation.translation;
-          result = result.replace('X', translatedValue || tokenValue)
+          const translatedValue =
+            typeof translation === 'string' ? translation : translation.translation;
+          result = result.replace('X', translatedValue || tokenValue);
         } else {
           result = result.replace('X', tokenValue);
         }
       }
     }
-    
+
     return {
       success: true,
       pattern: pattern,
@@ -615,7 +664,7 @@ export class SemanticPatternProcessor {
       matchedTokens: matchedTokens,
       startPosition: startIndex,
       endPosition: endIndex,
-      matchTime: 0
+      matchTime: 0,
     };
   }
 
@@ -635,51 +684,50 @@ export class SemanticPatternProcessor {
         translation: pattern.template || pattern.translation,
         allowAsPatternVariable: pattern.allowAsPatternVariable || false,
         allowedVariableTypes: pattern.allowedVariableTypes,
-        lowPriority: pattern.lowPriority || false
+        lowPriority: pattern.lowPriority || false,
       };
     }
-    
+
     this.initializePatterns(patternsDict, options);
-    
+
     // Build variable cache with Phase A results if provided
     const phaseAResults = options.phaseAResults || [];
     this.buildVariableCache(
-      tokens, 
-      options.activeProperNouns || [], 
+      tokens,
+      options.activeProperNouns || [],
       options.dictionaryManager,
       phaseAResults
     );
-    
+
     // Collect pattern matches
     const results = [];
     const semanticTokens = this.getSemanticTokens(tokens);
 
     for (let i = 0; i < semanticTokens.length; i++) {
-      // Skip tokens already consumed by patterns 
+      // Skip tokens already consumed by patterns
       // BUT allow patterns to override Phase A protection if they are longer
       if (semanticTokens[i].translationSource === 'pattern_consumed') {
         continue;
       }
-      
+
       const matchResult = this.findBestPatternMatch(semanticTokens, i, options);
-      
+
       if (matchResult) {
-        
         // Convert match result to the format expected by hierarchical processor
         const result = {
           startIndex: matchResult.matchedTokens[0].originalIndex,
           endIndex: matchResult.matchedTokens[matchResult.matchedTokens.length - 1].originalIndex,
-          originalText: matchResult.matchedTokens.map(t => t.value).join(''),
+          originalText: matchResult.matchedTokens.map((t) => t.value).join(''),
           translation: matchResult.result,
           pattern: matchResult.pattern,
           originalPattern: matchResult.pattern, // Add this for debugging
           confidence: this.calculateMatchConfidence(matchResult),
           translationSource: 'pattern',
-          variables: matchResult.variables
+          variables: matchResult.variables,
         };
-        
+
         results.push(result);
-        
+
         // Mark tokens as consumed to prevent overlap
         for (const matchedToken of matchResult.matchedTokens) {
           const tokenIndex = matchedToken.originalIndex;
@@ -687,13 +735,13 @@ export class SemanticPatternProcessor {
             tokens[tokenIndex].translationSource = 'pattern_consumed';
           }
         }
-        
+
         // Skip processed tokens
         const tokensProcessed = matchResult.endPosition - matchResult.startPosition + 1;
         i += tokensProcessed - 1;
       }
     }
-    
+
     return results;
   }
 
@@ -704,22 +752,23 @@ export class SemanticPatternProcessor {
    */
   calculateMatchConfidence(matchResult) {
     let confidence = 0.8; // Base confidence for successful pattern match
-    
+
     // Bonus for patterns with multiple variables (more context)
     if (matchResult.pattern.variables.length > 1) {
       confidence += 0.1;
     }
-    
+
     // Bonus for longer patterns (more specific)
     if (matchResult.pattern.tokens.length > 3) {
       confidence += 0.05;
     }
-    
+
     // Bonus for cached variable resolution (known translations)
-    const cacheHitRatio = matchResult.pattern.usage.cacheHits / 
-                         Math.max(1, matchResult.pattern.usage.cacheHits + matchResult.pattern.usage.cacheMisses);
+    const cacheHitRatio =
+      matchResult.pattern.usage.cacheHits /
+      Math.max(1, matchResult.pattern.usage.cacheHits + matchResult.pattern.usage.cacheMisses);
     confidence += cacheHitRatio * 0.05;
-    
+
     return Math.min(1, confidence);
   }
 
@@ -737,19 +786,27 @@ export class SemanticPatternProcessor {
     const prioritizedPatterns = options.prioritizedPatterns || [];
 
     this.log(debugLevel, 5, '🔍 Starting semantic pattern matching');
-    
+
     // Process prioritized patterns first
     if (prioritizedPatterns.length > 0) {
-      this.log(debugLevel, 5, `🎯 Processing ${prioritizedPatterns.length} prioritized patterns first`);
-      
+      this.log(
+        debugLevel,
+        5,
+        `🎯 Processing ${prioritizedPatterns.length} prioritized patterns first`
+      );
+
       for (const prioritizedMatch of prioritizedPatterns) {
-        this.log(debugLevel, 5, `🎯 Applying prioritized pattern: "${prioritizedMatch.pattern.originalPattern}"`);
+        this.log(
+          debugLevel,
+          5,
+          `🎯 Applying prioritized pattern: "${prioritizedMatch.pattern.originalPattern}"`
+        );
         // Convert prioritized pattern format to match result format and apply with proper variable cache
         const matchResult = this.convertPrioritizedPatternToMatchResult(prioritizedMatch, tokens);
         this.applyPatternMatch(tokens, matchResult, options);
       }
     }
-    
+
     // Get semantic tokens (Chinese characters/words only)
     const semanticTokens = this.getSemanticTokens(tokens);
 
@@ -762,17 +819,23 @@ export class SemanticPatternProcessor {
       this.stats.stringOptimization.enabled = true;
       this.stats.stringOptimization.precomputeTime += precomputeTime;
 
-      this.log(debugLevel, 5,
-        `⚡ Pre-computed ${this.precomputedStrings.stats.totalPrecomputed} strings in ${precomputeTime.toFixed(2)}ms`);
+      this.log(
+        debugLevel,
+        5,
+        `⚡ Pre-computed ${this.precomputedStrings.stats.totalPrecomputed} strings in ${precomputeTime.toFixed(2)}ms`
+      );
     } else {
       this.precomputedStrings = null;
       this.stats.stringOptimization.enabled = false;
     }
-    
-    this.log(debugLevel, 5,
+
+    this.log(
+      debugLevel,
+      5,
       `🔍 Processing ${semanticTokens.length} semantic tokens:`,
-      semanticTokens.map(t => `"${t.value}"`).join(', '));
-    
+      semanticTokens.map((t) => `"${t.value}"`).join(', ')
+    );
+
     // Process each semantic position for pattern matches
     for (let i = 0; i < semanticTokens.length; i++) {
       // Don't skip translated tokens - they might be pattern variables!
@@ -780,39 +843,52 @@ export class SemanticPatternProcessor {
       if (semanticTokens[i].translationSource === 'pattern_consumed') {
         continue; // Skip tokens consumed by previous patterns
       }
-      
+
       const matchResult = this.findBestPatternMatch(semanticTokens, i, options);
-      
+
       if (matchResult) {
-        this.log(debugLevel, 5,
-          `🎯 Pattern matched: "${matchResult.pattern.originalPattern}" -> "${matchResult.result}"`);
-        
+        this.log(
+          debugLevel,
+          5,
+          `🎯 Pattern matched: "${matchResult.pattern.originalPattern}" -> "${matchResult.result}"`
+        );
+
         this.applyPatternMatch(tokens, matchResult, options);
-        
+
         // Skip processed tokens (adjust for semantic vs original indices)
         const tokensProcessed = matchResult.endPosition - matchResult.startPosition + 1;
         i += tokensProcessed - 1; // -1 because loop will increment
       }
     }
-    
+
     // Calculate and log performance metrics for the optimization
     if (this.stats.stringOptimization.enabled && this.precomputedStrings) {
       const _precomputedStats = this.precomputedStrings.getStats();
-      const totalStringOps = this.stats.stringOptimization.precomputedLookups + this.stats.stringOptimization.dynamicStringOps;
-      const optimizationRate = totalStringOps > 0 ? 
-        (this.stats.stringOptimization.precomputedLookups / totalStringOps) * 100 : 0;
-      
+      const totalStringOps =
+        this.stats.stringOptimization.precomputedLookups +
+        this.stats.stringOptimization.dynamicStringOps;
+      const optimizationRate =
+        totalStringOps > 0
+          ? (this.stats.stringOptimization.precomputedLookups / totalStringOps) * 100
+          : 0;
+
       // Estimate speedup: pre-computed lookup ~0.001ms vs dynamic generation ~0.1ms
-      const estimatedSpeedup = totalStringOps > 0 ? 
-        (this.stats.stringOptimization.dynamicStringOps * 0.1 + this.stats.stringOptimization.precomputedLookups * 0.001) / 
-        (totalStringOps * 0.1) : 1;
-      
+      const estimatedSpeedup =
+        totalStringOps > 0
+          ? (this.stats.stringOptimization.dynamicStringOps * 0.1 +
+              this.stats.stringOptimization.precomputedLookups * 0.001) /
+            (totalStringOps * 0.1)
+          : 1;
+
       this.stats.stringOptimization.speedupFactor = 1 / estimatedSpeedup;
-      
-      this.log(debugLevel, 5,
-        `⚡ String optimization: ${optimizationRate.toFixed(1)}% lookups pre-computed (${this.stats.stringOptimization.precomputedLookups}/${totalStringOps}), estimated ${this.stats.stringOptimization.speedupFactor.toFixed(1)}x speedup`);
+
+      this.log(
+        debugLevel,
+        5,
+        `⚡ String optimization: ${optimizationRate.toFixed(1)}% lookups pre-computed (${this.stats.stringOptimization.precomputedLookups}/${totalStringOps}), estimated ${this.stats.stringOptimization.speedupFactor.toFixed(1)}x speedup`
+      );
     }
-    
+
     this.log(debugLevel, 5, '✅ Semantic pattern matching completed');
   }
 
@@ -823,23 +899,23 @@ export class SemanticPatternProcessor {
    */
   getSemanticTokens(tokens) {
     const semanticTokens = [];
-    
+
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
-      
+
       // Skip grouped followers and non-Chinese tokens
       if (token.isGrouped && token.groupLeader !== null) {
         continue;
       }
-      
+
       if (token.type === 'chinese_char' || token.type === 'chinese_word') {
         semanticTokens.push({
           ...token,
-          originalIndex: i
+          originalIndex: i,
         });
       }
     }
-    
+
     return semanticTokens;
   }
 
@@ -853,36 +929,40 @@ export class SemanticPatternProcessor {
   findBestPatternMatch(semanticTokens, position, options) {
     const firstToken = semanticTokens[position];
     if (!firstToken) return null;
-    
+
     const debugLevel = options.debugLevel || 3; // TEMP: Enable debug for pattern investigation
-    
+
     // Use traditional O(1) lookup for reliable pattern matching
     // Trie optimization temporarily disabled due to traversal complexity
     const candidatePatterns = [
       ...(this.patternIndex.get(firstToken.value) || []),
-      ...(this.patternIndex.get('__VARIABLE__') || [])
+      ...(this.patternIndex.get('__VARIABLE__') || []),
     ];
-    
-    
+
     // Only log candidate counts at very high debug level to avoid console spam
-    this.log(debugLevel, 5,
-      `🔍 Found ${candidatePatterns.length} candidates for "${firstToken.value}"`);
-    
+    this.log(
+      debugLevel,
+      5,
+      `🔍 Found ${candidatePatterns.length} candidates for "${firstToken.value}"`
+    );
+
     // Test candidate patterns at current position
-    
+
     let bestMatch = null;
     let bestPriority = -1;
-    
+
     // Test each candidate pattern
     for (const pattern of candidatePatterns) {
       const matchResult = this.testPatternMatch(pattern, semanticTokens, position, options);
 
-
       // Only log successful matches to reduce noise
       if (matchResult.success) {
         if (debugLevel >= 6) {
-          this.log(debugLevel, 6,
-            `✅ Pattern MATCH: "${pattern.originalPattern}" (priority: ${pattern.metadata.priority}, lowPriority: ${pattern.metadata.lowPriority})`);
+          this.log(
+            debugLevel,
+            6,
+            `✅ Pattern MATCH: "${pattern.originalPattern}" (priority: ${pattern.metadata.priority}, lowPriority: ${pattern.metadata.lowPriority})`
+          );
         }
       }
 
@@ -893,8 +973,11 @@ export class SemanticPatternProcessor {
     }
 
     if (bestMatch && debugLevel >= 6) {
-      this.log(debugLevel, 6,
-        `🏆 WINNER: "${bestMatch.pattern.originalPattern}" (priority: ${bestMatch.pattern.metadata.priority})`);
+      this.log(
+        debugLevel,
+        6,
+        `🏆 WINNER: "${bestMatch.pattern.originalPattern}" (priority: ${bestMatch.pattern.metadata.priority})`
+      );
     }
 
     return bestMatch;
@@ -948,28 +1031,27 @@ export class SemanticPatternProcessor {
    */
   testPatternMatch(pattern, semanticTokens, position, _options) {
     const startTime = performance.now();
-    
-    
+
     const variables = {};
     const matchedTokens = [];
     let currentPosition = position;
-    
+
     // Test pattern tokens against semantic tokens
-    
+
     // Test each pattern token against semantic tokens
     for (let i = 0; i < pattern.tokens.length; i++) {
       const patternToken = pattern.tokens[i];
-      
+
       // Check if we have a semantic token at the current position
       if (currentPosition >= semanticTokens.length) {
         return { success: false };
       }
-      
+
       const semanticToken = semanticTokens[currentPosition];
-      
+
       if (patternToken.type === 'literal') {
         // Literal match - handle both single character and multi-character grouped tokens
-        
+
         // First try exact match (single character case)
         if (semanticToken.value === patternToken.value) {
           matchedTokens.push(semanticToken);
@@ -980,14 +1062,16 @@ export class SemanticPatternProcessor {
           // Look ahead to see if consecutive literal tokens can match this semantic token
           let literalSequence = patternToken.value;
           let lookaheadPos = i + 1;
-          
+
           // Collect consecutive literal tokens
-          while (lookaheadPos < pattern.tokens.length && 
-                 pattern.tokens[lookaheadPos].type === 'literal') {
+          while (
+            lookaheadPos < pattern.tokens.length &&
+            pattern.tokens[lookaheadPos].type === 'literal'
+          ) {
             literalSequence += pattern.tokens[lookaheadPos].value;
             lookaheadPos++;
           }
-          
+
           // Check if the semantic token matches the literal sequence
           if (semanticToken.value === literalSequence) {
             matchedTokens.push(semanticToken);
@@ -1020,7 +1104,11 @@ export class SemanticPatternProcessor {
 
             // Fallback to dynamic generation if pre-computation unavailable
             if (!multiTokenValue) {
-              multiTokenValue = PrecomputedTokenStrings.generateDynamic(semanticTokens, currentPosition, span);
+              multiTokenValue = PrecomputedTokenStrings.generateDynamic(
+                semanticTokens,
+                currentPosition,
+                span
+              );
               this.stats.stringOptimization.dynamicStringOps++;
             }
 
@@ -1069,7 +1157,10 @@ export class SemanticPatternProcessor {
                 // Try building literal sequence for multi-character matching
                 let literalSequence = nextPatternToken.value;
                 let lookahead = i + 2;
-                while (lookahead < pattern.tokens.length && pattern.tokens[lookahead].type === 'literal') {
+                while (
+                  lookahead < pattern.tokens.length &&
+                  pattern.tokens[lookahead].type === 'literal'
+                ) {
                   literalSequence += pattern.tokens[lookahead].value;
                   lookahead++;
                 }
@@ -1097,14 +1188,20 @@ export class SemanticPatternProcessor {
           // No valid span found even with backtracking
           pattern.usage.cacheMisses++;
           this.stats.cacheMisses++;
-          return { success: false, reason: 'Variable resolution failed: subsequent pattern tokens cannot match' };
+          return {
+            success: false,
+            reason: 'Variable resolution failed: subsequent pattern tokens cannot match',
+          };
         }
 
         cachedTranslation = validSpan.translation;
         tokenSpan = validSpan.span;
 
         // SEMANTIC TYPE VALIDATION: Check if variable type is allowed for this pattern
-        if (pattern.metadata.allowedVariableTypes && pattern.metadata.allowedVariableTypes[patternToken.name]) {
+        if (
+          pattern.metadata.allowedVariableTypes &&
+          pattern.metadata.allowedVariableTypes[patternToken.name]
+        ) {
           const allowedTypes = pattern.metadata.allowedVariableTypes[patternToken.name];
           const variableType = cachedTranslation.type || 'unknown';
 
@@ -1114,7 +1211,7 @@ export class SemanticPatternProcessor {
             this.stats.cacheMisses++;
             return {
               success: false,
-              reason: `Variable type '${variableType}' not allowed for ${patternToken.name} in pattern '${pattern.originalPattern}'. Allowed: [${allowedTypes.join(', ')}]`
+              reason: `Variable type '${variableType}' not allowed for ${patternToken.name} in pattern '${pattern.originalPattern}'. Allowed: [${allowedTypes.join(', ')}]`,
             };
           }
         }
@@ -1122,7 +1219,6 @@ export class SemanticPatternProcessor {
         variables[patternToken.name] = cachedTranslation.translation;
         pattern.usage.cacheHits++;
         this.stats.cacheHits++;
-
 
         // Add all matched tokens to the result (only if we consumed tokens from current position)
         if (tokenSpan > 0) {
@@ -1138,55 +1234,57 @@ export class SemanticPatternProcessor {
         currentPosition++;
       }
     }
-    
+
     // Build result using template
     const templateBuildStart = performance.now();
     const result = this.buildResult(pattern.template, variables);
     const templateBuildTime = performance.now() - templateBuildStart;
     pattern.usage.templateBuildTime += templateBuildTime;
     this.stats.totalTemplateBuildTime += templateBuildTime;
-    
+
     // Update statistics
     const matchTime = performance.now() - startTime;
     pattern.usage.matchCount++;
     pattern.usage.totalTime += matchTime;
     pattern.usage.lastUsed = Date.now();
-    
+
     // Update min/max timing and average
     pattern.usage.minTime = Math.min(pattern.usage.minTime, matchTime);
     pattern.usage.maxTime = Math.max(pattern.usage.maxTime, matchTime);
     pattern.usage.avgTime = pattern.usage.totalTime / pattern.usage.matchCount;
-    
+
     // Update bottleneck tracking (patterns taking >5ms average are potential bottlenecks)
     if (pattern.usage.avgTime > 5 && pattern.usage.matchCount >= 5) {
       const bottleneckScore = pattern.usage.avgTime * pattern.usage.matchCount;
       this.stats.bottleneckPatterns.set(pattern.originalPattern, bottleneckScore);
     }
-    
+
     // CHECK FOR PHASE A OVERRIDE: If this pattern spans tokens protected by Phase A,
     // check if this pattern is longer than the Phase A pattern(s) it would override
     let hasPhaseAProtection = false;
     let maxPhaseALength = 0;
-    
+
     for (let i = position; i < currentPosition; i++) {
       const token = semanticTokens[i];
       if (token.protectedByPhaseA) {
         hasPhaseAProtection = true;
         // Check the length of the Phase A pattern that protected this token
         if (token.phaseAResult && token.phaseAResult.originalText) {
-          const phaseAPatternLength = token.phaseAResult.pattern?.originalPattern?.length || token.phaseAResult.originalText.length;
+          const phaseAPatternLength =
+            token.phaseAResult.pattern?.originalPattern?.length ||
+            token.phaseAResult.originalText.length;
           maxPhaseALength = Math.max(maxPhaseALength, phaseAPatternLength);
         }
       }
     }
-    
+
     // If this pattern overlaps with Phase A protection, only allow it if it's longer
     if (hasPhaseAProtection) {
       // For hierarchical composition, compare the full matched text character length
-      const currentMatchedText = matchedTokens.map(t => t.value).join('');
+      const currentMatchedText = matchedTokens.map((t) => t.value).join('');
       const currentMatchedTextLength = currentMatchedText.length;
       let maxPhaseAMatchedLength = 0;
-      
+
       for (let i = position; i < currentPosition; i++) {
         const token = semanticTokens[i];
         if (token.protectedByPhaseA && token.phaseAResult && token.phaseAResult.originalText) {
@@ -1194,7 +1292,7 @@ export class SemanticPatternProcessor {
           maxPhaseAMatchedLength = Math.max(maxPhaseAMatchedLength, phaseAMatchLength);
         }
       }
-      
+
       if (currentMatchedTextLength <= maxPhaseAMatchedLength) {
         // This pattern match is not longer than the Phase A match(es) it would override
         // Don't allow this match to prevent shorter matches from overriding longer ones
@@ -1202,7 +1300,7 @@ export class SemanticPatternProcessor {
       }
       // Pattern match is longer than Phase A - allow the override for hierarchical composition
     }
-    
+
     return {
       success: true,
       pattern: pattern,
@@ -1211,7 +1309,7 @@ export class SemanticPatternProcessor {
       matchedTokens: matchedTokens,
       startPosition: position,
       endPosition: currentPosition - 1,
-      matchTime: matchTime
+      matchTime: matchTime,
     };
   }
 
@@ -1225,19 +1323,19 @@ export class SemanticPatternProcessor {
     let result = template;
     const placeholders = {};
     let placeholderIndex = 0;
-    
+
     // Replace variables with placeholders to avoid collision
     for (const [varName, translation] of Object.entries(variables)) {
       const placeholder = `__PLACEHOLDER_${placeholderIndex++}__`;
       placeholders[placeholder] = translation;
       result = result.replace(new RegExp(varName, 'g'), placeholder);
     }
-    
+
     // Replace placeholders with translations
     for (const [placeholder, translation] of Object.entries(placeholders)) {
       result = result.replace(new RegExp(placeholder, 'g'), translation);
     }
-    
+
     return result;
   }
 
@@ -1259,7 +1357,7 @@ export class SemanticPatternProcessor {
     // Mark consumed tokens
     for (let i = 1; i < matchResult.matchedTokens.length; i++) {
       const tokenIndex = matchResult.matchedTokens[i].originalIndex;
-      tokens[tokenIndex].translated = "";  // Use empty string to prevent number processor double-processing
+      tokens[tokenIndex].translated = ''; // Use empty string to prevent number processor double-processing
       tokens[tokenIndex].translationSource = 'pattern_consumed';
     }
 
@@ -1289,58 +1387,68 @@ export class SemanticPatternProcessor {
     const bottleneckPatterns = Array.from(this.stats.bottleneckPatterns.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
-    
+
     return {
       // Basic metrics
       patternsLoaded: this.patterns.length,
       indexSize: this.patternIndex.size,
       cacheSize: this.variableCache.size,
-      
+
       // Performance metrics
       totalMatches: this.stats.totalMatches,
       sessionDurationMs: sessionDuration,
       matchesPerSecond: this.stats.totalMatches / Math.max(sessionDuration / 1000, 0.001),
-      
+
       // Cache performance
-      cacheHitRate: totalCacheAttempts > 0 ? (this.stats.cacheHits / totalCacheAttempts * 100).toFixed(1) + '%' : '0%',
+      cacheHitRate:
+        totalCacheAttempts > 0
+          ? ((this.stats.cacheHits / totalCacheAttempts) * 100).toFixed(1) + '%'
+          : '0%',
       cacheHits: this.stats.cacheHits,
       cacheMisses: this.stats.cacheMisses,
-      
+
       // Timing breakdown
-      avgVariableResolutionTime: this.stats.totalMatches > 0 ? 
-        (this.stats.totalVariableResolutionTime / this.stats.totalMatches).toFixed(3) + 'ms' : '0ms',
-      avgTemplateBuildTime: this.stats.totalMatches > 0 ? 
-        (this.stats.totalTemplateBuildTime / this.stats.totalMatches).toFixed(3) + 'ms' : '0ms',
-      
+      avgVariableResolutionTime:
+        this.stats.totalMatches > 0
+          ? (this.stats.totalVariableResolutionTime / this.stats.totalMatches).toFixed(3) + 'ms'
+          : '0ms',
+      avgTemplateBuildTime:
+        this.stats.totalMatches > 0
+          ? (this.stats.totalTemplateBuildTime / this.stats.totalMatches).toFixed(3) + 'ms'
+          : '0ms',
+
       // Pattern performance analysis
       topPatterns: this.patterns
-        .filter(p => p.usage.matchCount > 0)
+        .filter((p) => p.usage.matchCount > 0)
         .sort((a, b) => b.usage.matchCount - a.usage.matchCount)
         .slice(0, 5)
-        .map(p => ({
+        .map((p) => ({
           pattern: p.originalPattern,
           matches: p.usage.matchCount,
           avgTime: p.usage.avgTime.toFixed(3) + 'ms',
           minTime: p.usage.minTime.toFixed(3) + 'ms',
           maxTime: p.usage.maxTime.toFixed(3) + 'ms',
-          cacheHitRate: (p.usage.cacheHits + p.usage.cacheMisses) > 0 ? 
-            (p.usage.cacheHits / (p.usage.cacheHits + p.usage.cacheMisses) * 100).toFixed(1) + '%' : '0%',
-          lastUsed: p.usage.lastUsed ? new Date(p.usage.lastUsed).toLocaleTimeString() : 'Never'
+          cacheHitRate:
+            p.usage.cacheHits + p.usage.cacheMisses > 0
+              ? ((p.usage.cacheHits / (p.usage.cacheHits + p.usage.cacheMisses)) * 100).toFixed(1) +
+                '%'
+              : '0%',
+          lastUsed: p.usage.lastUsed ? new Date(p.usage.lastUsed).toLocaleTimeString() : 'Never',
         })),
-      
+
       // Bottleneck identification
       bottleneckPatterns: bottleneckPatterns.map(([pattern, score]) => ({
         pattern: pattern,
         bottleneckScore: score.toFixed(2),
-        recommendation: score > 50 ? 'Consider optimization' : 'Monitor performance'
+        recommendation: score > 50 ? 'Consider optimization' : 'Monitor performance',
       })),
-      
+
       // Memory usage estimation
       estimatedMemoryUsage: {
         patternsKB: Math.round(this.patterns.length * 0.5), // Rough estimate
         cacheKB: Math.round(this.variableCache.size * 0.1),
-        indexKB: Math.round(this.patternIndex.size * 0.05)
-      }
+        indexKB: Math.round(this.patternIndex.size * 0.05),
+      },
     };
   }
 
@@ -1358,11 +1466,11 @@ export class SemanticPatternProcessor {
       cacheMisses: 0,
       bottleneckPatterns: new Map(),
       sessionStart: Date.now(),
-      lastResetTime: Date.now()
+      lastResetTime: Date.now(),
     };
-    
+
     // Reset individual pattern statistics
-    this.patterns.forEach(pattern => {
+    this.patterns.forEach((pattern) => {
       pattern.usage = {
         matchCount: 0,
         totalTime: 0,
@@ -1373,7 +1481,7 @@ export class SemanticPatternProcessor {
         lastUsed: null,
         avgTime: 0,
         minTime: Infinity,
-        maxTime: 0
+        maxTime: 0,
       };
     });
   }
@@ -1397,7 +1505,7 @@ export class SemanticPatternProcessor {
       }
     }
   }
-  
+
   /**
    * Toggle the string pre-computation optimization
    * @param {boolean} enabled - Whether to enable the optimization
@@ -1406,7 +1514,7 @@ export class SemanticPatternProcessor {
     this.enableStringOptimization = enabled;
     console.log(`⚡ String pre-computation optimization ${enabled ? 'ENABLED' : 'DISABLED'}`);
   }
-  
+
   /**
    * Get performance statistics including optimization metrics
    * @returns {Object} Performance statistics
@@ -1416,10 +1524,16 @@ export class SemanticPatternProcessor {
       ...this.stats,
       stringOptimization: {
         ...this.stats.stringOptimization,
-        efficiency: this.stats.stringOptimization.precomputedLookups + this.stats.stringOptimization.dynamicStringOps > 0 ?
-          (this.stats.stringOptimization.precomputedLookups / 
-           (this.stats.stringOptimization.precomputedLookups + this.stats.stringOptimization.dynamicStringOps)) * 100 : 0
-      }
+        efficiency:
+          this.stats.stringOptimization.precomputedLookups +
+            this.stats.stringOptimization.dynamicStringOps >
+          0
+            ? (this.stats.stringOptimization.precomputedLookups /
+                (this.stats.stringOptimization.precomputedLookups +
+                  this.stats.stringOptimization.dynamicStringOps)) *
+              100
+            : 0,
+      },
     };
   }
 }

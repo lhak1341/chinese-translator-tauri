@@ -20,7 +20,7 @@ class SegmentPositionWorker {
     this.cacheStats = {
       hits: 0,
       misses: 0,
-      computations: 0
+      computations: 0,
     };
   }
 
@@ -32,12 +32,12 @@ class SegmentPositionWorker {
    */
   createTextPositionMapping(text, semanticArrays) {
     const startTime = performance.now();
-    
+
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
       return {
         textLength: text.length,
         semanticRanges: [],
-        stats: { computeTime: performance.now() - startTime, rangeCount: 0 }
+        stats: { computeTime: performance.now() - startTime, rangeCount: 0 },
       };
     }
 
@@ -48,15 +48,15 @@ class SegmentPositionWorker {
     // Build lightweight position mapping (identical algorithm to main thread)
     for (let i = 0; i < translated.length; i++) {
       const unit = translated[i];
-      
+
       // Find unit in text starting from current position
       const searchText = text.substring(currentPosition);
       const matchResult = this.findUnitInText(searchText, unit);
-      
+
       if (matchResult.found) {
         const actualStart = currentPosition + matchResult.offset;
         const actualEnd = actualStart + unit.length;
-        
+
         // Store lightweight range info
         semanticRanges.push({
           startPos: actualStart,
@@ -65,20 +65,20 @@ class SegmentPositionWorker {
           originalText: original[i],
           translatedText: unit,
           source: metadata[i].source,
-          metadata: metadata[i]
+          metadata: metadata[i],
         });
-        
+
         currentPosition = actualEnd;
       }
     }
 
     const computeTime = performance.now() - startTime;
-    
+
     return {
       textLength: text.length,
       semanticRanges,
       fullText: text,
-      stats: { computeTime, rangeCount: semanticRanges.length }
+      stats: { computeTime, rangeCount: semanticRanges.length },
     };
   }
 
@@ -98,20 +98,20 @@ class SegmentPositionWorker {
     // Try normalized matching (case-insensitive, whitespace normalized)
     const normalizedSearch = this.normalizeText(searchText);
     const normalizedUnit = this.normalizeText(unit);
-    
+
     const normalizedIndex = normalizedSearch.indexOf(normalizedUnit);
     if (normalizedIndex !== -1) {
       // Find actual offset in original text
       let actualOffset = 0;
       let normalizedOffset = 0;
-      
+
       while (normalizedOffset < normalizedIndex && actualOffset < searchText.length) {
         if (this.normalizeText(searchText[actualOffset]) !== '') {
           normalizedOffset++;
         }
         actualOffset++;
       }
-      
+
       return { found: true, offset: actualOffset };
     }
 
@@ -151,15 +151,15 @@ class SegmentPositionWorker {
     let currentPos = textStart;
 
     // Find semantic ranges that overlap with visible area
-    const relevantRanges = semanticRanges.filter(range => 
-      range.startPos < textEnd && range.endPos > textStart
+    const relevantRanges = semanticRanges.filter(
+      (range) => range.startPos < textEnd && range.endPos > textStart
     );
 
     // Build segments for visible area
     while (currentPos < textEnd) {
       // Find next semantic unit starting at or after current position
-      const nextRange = relevantRanges.find(range => 
-        range.startPos >= currentPos && range.startPos < textEnd
+      const nextRange = relevantRanges.find(
+        (range) => range.startPos >= currentPos && range.startPos < textEnd
       );
 
       if (nextRange) {
@@ -173,7 +173,7 @@ class SegmentPositionWorker {
               start: currentPos,
               end: nextRange.startPos,
               unitIndex: -1,
-              isClickable: false
+              isClickable: false,
             });
           }
         }
@@ -190,7 +190,7 @@ class SegmentPositionWorker {
           translatedText: nextRange.translatedText,
           source: nextRange.source,
           metadata: nextRange.metadata,
-          isClickable: true
+          isClickable: true,
         });
 
         currentPos = segmentEnd;
@@ -204,7 +204,7 @@ class SegmentPositionWorker {
             start: currentPos,
             end: textEnd,
             unitIndex: -1,
-            isClickable: false
+            isClickable: false,
           });
         }
         break;
@@ -215,7 +215,7 @@ class SegmentPositionWorker {
 
     return {
       segments,
-      stats: { computeTime, segmentCount: segments.length }
+      stats: { computeTime, segmentCount: segments.length },
     };
   }
 
@@ -232,8 +232,8 @@ class SegmentPositionWorker {
     for (const range of viewportRanges) {
       const cacheKey = `${range.textStart}-${range.textEnd}`;
       const result = this.computeSegmentsForTextRange(
-        semanticRangeMap, 
-        range.textStart, 
+        semanticRangeMap,
+        range.textStart,
         range.textEnd
       );
       results[cacheKey] = result;
@@ -243,8 +243,8 @@ class SegmentPositionWorker {
       results,
       batchStats: {
         totalTime: performance.now() - startTime,
-        rangeCount: viewportRanges.length
-      }
+        rangeCount: viewportRanges.length,
+      },
     };
   }
 }
@@ -253,7 +253,7 @@ class SegmentPositionWorker {
 const worker = new SegmentPositionWorker();
 
 // Message handling
-self.onmessage = function(e) {
+self.onmessage = function (e) {
   const { type, id, data } = e.data;
 
   try {
@@ -273,10 +273,7 @@ self.onmessage = function(e) {
         break;
 
       case 'COMPUTE_BATCH_SEGMENTS':
-        result = worker.computeBatchSegments(
-          data.semanticRangeMap,
-          data.viewportRanges
-        );
+        result = worker.computeBatchSegments(data.semanticRangeMap, data.viewportRanges);
         break;
 
       case 'GET_CACHE_STATS':
@@ -291,9 +288,8 @@ self.onmessage = function(e) {
     self.postMessage({
       type: 'SUCCESS',
       id,
-      result
+      result,
     });
-
   } catch (error) {
     // Send error result
     self.postMessage({
@@ -301,8 +297,8 @@ self.onmessage = function(e) {
       id,
       error: {
         message: error.message,
-        stack: error.stack
-      }
+        stack: error.stack,
+      },
     });
   }
 };
@@ -310,5 +306,5 @@ self.onmessage = function(e) {
 // Worker ready signal
 self.postMessage({
   type: 'READY',
-  message: 'SegmentPositionWorker initialized and ready'
+  message: 'SegmentPositionWorker initialized and ready',
 });

@@ -48,9 +48,9 @@ describe('UnicodePunctuationDetector', () => {
 
   test('should respect excluded characters', () => {
     const customDetector = new UnicodePunctuationDetector({
-      excludedCharacters: new Set(['.', '，'])
+      excludedCharacters: new Set(['.', '，']),
     });
-    
+
     expect(customDetector.isPunctuationSeparator('.')).toBe(false);
     expect(customDetector.isPunctuationSeparator('，')).toBe(false);
     expect(customDetector.isPunctuationSeparator('!')).toBe(true); // Still enabled
@@ -58,9 +58,9 @@ describe('UnicodePunctuationDetector', () => {
 
   test('should respect included characters', () => {
     const customDetector = new UnicodePunctuationDetector({
-      includedCharacters: new Set(['-', '_'])
+      includedCharacters: new Set(['-', '_']),
     });
-    
+
     expect(customDetector.isPunctuationSeparator('-')).toBe(true);
     expect(customDetector.isPunctuationSeparator('_')).toBe(true);
   });
@@ -88,7 +88,7 @@ describe('TextChunker with Unicode Punctuation', () => {
     const chunker = new TextChunker();
     const text = 'Hello, world! 你好，世界！How are you?';
     const chunks = chunker.chunkText(text);
-    
+
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks[0].content).toBe('Hello');
     expect(chunks[0].punctuation).toBe(',');
@@ -97,7 +97,7 @@ describe('TextChunker with Unicode Punctuation', () => {
   test('should provide diagnostic information', () => {
     const chunker = new TextChunker();
     const diagnostics = chunker.getDiagnosticInfo();
-    
+
     expect(typeof diagnostics.supportsUnicodeProperties).toBe('boolean');
     expect(typeof diagnostics.enabledCategories).toBe('object');
     expect(typeof diagnostics.customSeparatorCount).toBe('number');
@@ -105,12 +105,12 @@ describe('TextChunker with Unicode Punctuation', () => {
 
   test('should allow configuration updates', () => {
     const chunker = new TextChunker();
-    
+
     // Test that we can update configuration
     chunker.updatePunctuationConfig({
-      excludedCharacters: new Set(['.'])
+      excludedCharacters: new Set(['.']),
     });
-    
+
     expect(chunker.isPunctuationSeparator('.')).toBe(false);
     expect(chunker.isPunctuationSeparator(',')).toBe(true);
   });
@@ -121,8 +121,8 @@ describe('Unicode Category Support', () => {
     const categories = UnicodePunctuationDetector.getSupportedCategories();
     expect(categories).toBeInstanceOf(Array);
     expect(categories.length).toBeGreaterThan(0);
-    
-    const poCategory = categories.find(cat => cat.code === 'Po');
+
+    const poCategory = categories.find((cat) => cat.code === 'Po');
     expect(poCategory).toBeDefined();
     expect(poCategory.name).toBe('Other Punctuation');
   });

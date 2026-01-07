@@ -140,7 +140,9 @@ export interface DictionaryTrie {
    * @param word - Word to translate
    * @returns {translation, metadata} or null
    */
-  getWithMetadata(word: string): { translation: string; metadata: DictionaryEntryMetadata | null } | null;
+  getWithMetadata(
+    word: string
+  ): { translation: string; metadata: DictionaryEntryMetadata | null } | null;
 
   /**
    * Find all possible translations starting at position
@@ -324,9 +326,12 @@ export interface DictionaryStats {
   totalLookups: number;
 
   /** Per-dictionary statistics */
-  byDictionary?: Record<string, {
-    entries: number;
-    avgLookupTime: number;
-    hitRate: number;
-  }>;
+  byDictionary?: Record<
+    string,
+    {
+      entries: number;
+      avgLookupTime: number;
+      hitRate: number;
+    }
+  >;
 }

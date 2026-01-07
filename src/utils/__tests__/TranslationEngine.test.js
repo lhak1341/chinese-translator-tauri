@@ -2,113 +2,115 @@
  * Comprehensive test suite for translation engine
  */
 
-import { describe, test, expect, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeEach } from 'vitest';
 
 // Test data similar to actual dictionaries
 const mockDictionaries = {
   characters: {
-    "你": "bạn",
-    "好": "tốt", 
-    "谢": "cảm",
-    "一": "một",
-    "二": "hai",
-    "三": "ba"
+    你: 'bạn',
+    好: 'tốt',
+    谢: 'cảm',
+    一: 'một',
+    二: 'hai',
+    三: 'ba',
   },
   phrases: {
-    "你好": "xin chào",
-    "谢谢": "cảm ơn",
-    "早上好": "chào buổi sáng",
-    "我": { "translation": "tôi", "allowAsPatternVariable": true },
-    "你": { "translation": "bạn", "allowAsPatternVariable": true },
-    "他": { "translation": "anh ấy", "allowAsPatternVariable": true }
+    你好: 'xin chào',
+    谢谢: 'cảm ơn',
+    早上好: 'chào buổi sáng',
+    我: { translation: 'tôi', allowAsPatternVariable: true },
+    你: { translation: 'bạn', allowAsPatternVariable: true },
+    他: { translation: 'anh ấy', allowAsPatternVariable: true },
   },
   patterns: {
-    "X的右手": "tay phải của X",
-    "X的左手": "tay trái của X", 
-    "X的眼睛": "mắt của X",
-    "在X上": "trên X"
+    X的右手: 'tay phải của X',
+    X的左手: 'tay trái của X',
+    X的眼睛: 'mắt của X',
+    在X上: 'trên X',
   },
   properNouns: {
-    "小明": "Xiao Ming",
-    "张三": "Zhang San",
-    "北京": "Beijing"
+    小明: 'Xiao Ming',
+    张三: 'Zhang San',
+    北京: 'Beijing',
   },
   conversion: {
-    "傳統": "传统",
-    "語言": "语言"
+    傳統: '传统',
+    語言: '语言',
   },
   punctuation: {
-    "。": ".",
-    "，": ",",
-    "？": "?"
-  }
+    '。': '.',
+    '，': ',',
+    '？': '?',
+  },
 };
 
 // Test cases covering various scenarios
 export const testCases = {
   // Basic character translation
   characters: [
-    { input: "你", expected: "bạn" },
-    { input: "好", expected: "tốt" },
-    { input: "一二三", expected: "một hai ba" }
+    { input: '你', expected: 'bạn' },
+    { input: '好', expected: 'tốt' },
+    { input: '一二三', expected: 'một hai ba' },
   ],
 
   // Phrase translation (should override character translation)
   phrases: [
-    { input: "你好", expected: "xin chào" },
-    { input: "谢谢", expected: "cảm ơn" },
-    { input: "早上好朋友", expected: "chào buổi sáng bạn" } // Mixed phrase + character
+    { input: '你好', expected: 'xin chào' },
+    { input: '谢谢', expected: 'cảm ơn' },
+    { input: '早上好朋友', expected: 'chào buổi sáng bạn' }, // Mixed phrase + character
   ],
 
   // Pattern matching with proper nouns
   patterns: [
-    { input: "小明的右手", expected: "tay phải của Xiao Ming" },
-    { input: "张三的眼睛", expected: "mắt của Zhang San" },
-    { input: "在北京上", expected: "trên Beijing" }
+    { input: '小明的右手', expected: 'tay phải của Xiao Ming' },
+    { input: '张三的眼睛', expected: 'mắt của Zhang San' },
+    { input: '在北京上', expected: 'trên Beijing' },
   ],
 
   // Mixed content with Latin characters
   mixed: [
-    { input: "Hello 你好", expected: "Hello xin chào" },
-    { input: "123 一二三", expected: "123 một hai ba" },
-    { input: "小明 said 你好", expected: "Xiao Ming said xin chào" }
+    { input: 'Hello 你好', expected: 'Hello xin chào' },
+    { input: '123 一二三', expected: '123 một hai ba' },
+    { input: '小明 said 你好', expected: 'Xiao Ming said xin chào' },
   ],
 
   // Traditional to simplified conversion
   conversion: [
-    { input: "傳統語言", expected: "传统语言" }, // Should convert before translation
+    { input: '傳統語言', expected: '传统语言' }, // Should convert before translation
   ],
 
   // Punctuation handling
   punctuation: [
-    { input: "你好。", expected: "xin chào." },
-    { input: "你好，朋友？", expected: "xin chào, bạn?" }
+    { input: '你好。', expected: 'xin chào.' },
+    { input: '你好，朋友？', expected: 'xin chào, bạn?' },
   ],
 
   // Edge cases
   edge: [
-    { input: "", expected: "" },
-    { input: "   ", expected: "   " }, // Preserve whitespace
-    { input: "English only", expected: "English only" },
-    { input: "你好你好", expected: "xin chào xin chào" }, // Repeated phrases
-    { input: "小明的右手和左手", expected: "tay phải của Xiao Ming và tay trái" } // Multiple patterns
+    { input: '', expected: '' },
+    { input: '   ', expected: '   ' }, // Preserve whitespace
+    { input: 'English only', expected: 'English only' },
+    { input: '你好你好', expected: 'xin chào xin chào' }, // Repeated phrases
+    { input: '小明的右手和左手', expected: 'tay phải của Xiao Ming và tay trái' }, // Multiple patterns
   ],
 
   // Performance test cases (longer texts)
   performance: [
     {
-      input: "小明的朋友张三在北京的大学里学习，他每天都很努力。",
-      description: "Long sentence with multiple proper nouns and patterns"
+      input: '小明的朋友张三在北京的大学里学习，他每天都很努力。',
+      description: 'Long sentence with multiple proper nouns and patterns',
     },
     {
-      input: "你好".repeat(100),
-      description: "Repeated phrases (stress test)"
+      input: '你好'.repeat(100),
+      description: 'Repeated phrases (stress test)',
     },
     {
-      input: "这是一个包含很多字符的长句子，用来测试翻译系统的性能。" + "一二三四五六七八九十".repeat(10),
-      description: "Mixed long content"
-    }
-  ]
+      input:
+        '这是一个包含很多字符的长句子，用来测试翻译系统的性能。' +
+        '一二三四五六七八九十'.repeat(10),
+      description: 'Mixed long content',
+    },
+  ],
 };
 
 // Mock translation functions for testing
@@ -120,7 +122,7 @@ class MockTranslationEngine {
   // Simple mock implementation for testing
   async translate(text) {
     let result = text;
-    
+
     // Convert traditional to simplified
     if (this.dictionaries.conversion) {
       Object.entries(this.dictionaries.conversion).forEach(([trad, simp]) => {
@@ -161,7 +163,10 @@ class MockTranslationEngine {
     // Apply punctuation
     if (this.dictionaries.punctuation) {
       Object.entries(this.dictionaries.punctuation).forEach(([chinese, vietnamese]) => {
-        result = result.replace(new RegExp(chinese.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), vietnamese);
+        result = result.replace(
+          new RegExp(chinese.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+          vietnamese
+        );
       });
     }
 
@@ -177,31 +182,43 @@ describe('Translation Engine Test Suite', () => {
   });
 
   describe('Character Translation', () => {
-    test.each(testCases.characters)('should translate "$input" to "$expected"', async ({ input, expected }) => {
-      const result = await engine.translate(input);
-      expect(result).toBe(expected);
-    });
+    test.each(testCases.characters)(
+      'should translate "$input" to "$expected"',
+      async ({ input, expected }) => {
+        const result = await engine.translate(input);
+        expect(result).toBe(expected);
+      }
+    );
   });
 
   describe('Phrase Translation', () => {
-    test.each(testCases.phrases)('should translate "$input" to "$expected"', async ({ input, expected }) => {
-      const result = await engine.translate(input);
-      expect(result).toBe(expected);
-    });
+    test.each(testCases.phrases)(
+      'should translate "$input" to "$expected"',
+      async ({ input, expected }) => {
+        const result = await engine.translate(input);
+        expect(result).toBe(expected);
+      }
+    );
   });
 
   describe('Pattern Matching', () => {
-    test.each(testCases.patterns)('should translate "$input" to "$expected"', async ({ input, expected }) => {
-      const result = await engine.translate(input);
-      expect(result).toBe(expected);
-    });
+    test.each(testCases.patterns)(
+      'should translate "$input" to "$expected"',
+      async ({ input, expected }) => {
+        const result = await engine.translate(input);
+        expect(result).toBe(expected);
+      }
+    );
   });
 
   describe('Mixed Content', () => {
-    test.each(testCases.mixed)('should handle mixed content "$input" correctly', async ({ input, expected }) => {
-      const result = await engine.translate(input);
-      expect(result).toBe(expected);
-    });
+    test.each(testCases.mixed)(
+      'should handle mixed content "$input" correctly',
+      async ({ input, expected }) => {
+        const result = await engine.translate(input);
+        expect(result).toBe(expected);
+      }
+    );
   });
 
   describe('Edge Cases', () => {
@@ -212,34 +229,37 @@ describe('Translation Engine Test Suite', () => {
   });
 
   describe('Performance Tests', () => {
-    test.each(testCases.performance)('should handle performance case: $description', async ({ input }) => {
-      const startTime = performance.now();
-      const result = await engine.translate(input);
-      const endTime = performance.now();
-      
-      expect(result).toBeDefined();
-      expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
-    });
+    test.each(testCases.performance)(
+      'should handle performance case: $description',
+      async ({ input }) => {
+        const startTime = performance.now();
+        const result = await engine.translate(input);
+        const endTime = performance.now();
+
+        expect(result).toBeDefined();
+        expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
+      }
+    );
   });
 
   describe('Translation Pipeline Order', () => {
     test('should apply phrases before characters', async () => {
       // "你好" should translate as phrase "xin chào", not as characters "bạn tốt"
-      const result = await engine.translate("你好");
-      expect(result).toBe("xin chào");
-      expect(result).not.toBe("bạn tốt");
+      const result = await engine.translate('你好');
+      expect(result).toBe('xin chào');
+      expect(result).not.toBe('bạn tốt');
     });
 
     test('should apply patterns before other translations', async () => {
-      const result = await engine.translate("小明的右手");
-      expect(result).toBe("tay phải của Xiao Ming");
+      const result = await engine.translate('小明的右手');
+      expect(result).toBe('tay phải của Xiao Ming');
     });
 
     test('should preserve Latin characters', async () => {
-      const result = await engine.translate("Hello 你好 World");
-      expect(result).toContain("Hello");
-      expect(result).toContain("World");
-      expect(result).toContain("xin chào");
+      const result = await engine.translate('Hello 你好 World');
+      expect(result).toContain('Hello');
+      expect(result).toContain('World');
+      expect(result).toContain('xin chào');
     });
   });
 });

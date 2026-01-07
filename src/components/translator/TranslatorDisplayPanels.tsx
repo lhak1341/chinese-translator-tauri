@@ -117,7 +117,7 @@ export default function TranslatorDisplayPanels({
   // Refs (from parent)
   originalTextRef,
   translationTextRef,
-  characterOnlyTextRef
+  characterOnlyTextRef,
 }: TranslatorDisplayPanelsProps): React.ReactElement {
   return (
     <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minHeight: 0 }}>
@@ -137,7 +137,7 @@ export default function TranslatorDisplayPanels({
             ...inputTextStyle,
             flex: '1 0 50%',
             minHeight: 0,
-            overflowY: inputText ? 'auto' : 'hidden'
+            overflowY: inputText ? 'auto' : 'hidden',
           }}
           ref={originalTextRef}
         >
@@ -150,21 +150,27 @@ export default function TranslatorDisplayPanels({
               onSegmentClick={handleSemanticSegmentClick}
             />
           ) : (
-            <div style={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <div style={{
-                color: 'var(--text-color)',
-                opacity: 0.4,
-                textAlign: 'center',
-                fontSize: '1rem',
-                lineHeight: '1.6',
-                padding: '0 2rem'
-              }}>
-                Paste Chinese text or click<br />"Translate from Clipboard"
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <div
+                style={{
+                  color: 'var(--text-color)',
+                  opacity: 0.4,
+                  textAlign: 'center',
+                  fontSize: '1rem',
+                  lineHeight: '1.6',
+                  padding: '0 2rem',
+                }}
+              >
+                Paste Chinese text or click
+                <br />
+                "Translate from Clipboard"
               </div>
             </div>
           )}
@@ -174,7 +180,7 @@ export default function TranslatorDisplayPanels({
         <div
           style={{
             ...characterOnlyTextStyle,
-            overflowY: characterOnlyText ? 'auto' : 'hidden'
+            overflowY: characterOnlyText ? 'auto' : 'hidden',
           }}
           ref={characterOnlyTextRef}
         >
@@ -183,27 +189,31 @@ export default function TranslatorDisplayPanels({
               translatedText={characterOnlyText}
               semanticArrays={characterOnlySemanticArrays}
               onSegmentClick={handleSemanticSegmentClick}
-              highlightedTranslationUnitIndex={
-                highlightedCharacterOnlyUnitIndex ?? undefined
-              }
+              highlightedTranslationUnitIndex={highlightedCharacterOnlyUnitIndex ?? undefined}
               direction="character-only-to-original"
             />
           ) : (
-            <div style={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <div style={{
-                color: 'var(--text-color)',
-                opacity: 0.4,
-                textAlign: 'center',
-                fontSize: '1rem',
-                lineHeight: '1.6',
-                padding: '0 2rem'
-              }}>
-                Character-by-character<br />translation will appear here
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <div
+                style={{
+                  color: 'var(--text-color)',
+                  opacity: 0.4,
+                  textAlign: 'center',
+                  fontSize: '1rem',
+                  lineHeight: '1.6',
+                  padding: '0 2rem',
+                }}
+              >
+                Character-by-character
+                <br />
+                translation will appear here
               </div>
             </div>
           )}
@@ -217,39 +227,43 @@ export default function TranslatorDisplayPanels({
           flex: '2 0 66.67%',
           minWidth: 0,
           position: 'relative',
-          overflowY: translatedText ? 'auto' : 'hidden'
+          overflowY: translatedText ? 'auto' : 'hidden',
         }}
         ref={translationTextRef}
       >
         {/* Streaming display overlay - shows during translation */}
         {throttledStreamingState.isStreaming && (
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'var(--streaming-bg-secondary)',
-            zIndex: 10,
-            overflow: 'hidden'
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'var(--streaming-bg-secondary)',
+              zIndex: 10,
+              overflow: 'hidden',
+            }}
+          >
             {React.createElement(StreamingTranslationDisplay as any, {
               streamingState: throttledStreamingState,
               finalText: translatedText,
               isComplete: false,
               semanticArrays: semanticArrays,
               partialSemanticArrays: partialSemanticArrays,
-              style: { height: '100%' }
+              style: { height: '100%' },
             })}
           </div>
         )}
 
         {/* Translation display - shows when complete or as fallback */}
         {translatedText ? (
-          <div style={{
-            opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
-            transition: 'opacity 0.3s ease'
-          }}>
+          <div
+            style={{
+              opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
+              transition: 'opacity 0.3s ease',
+            }}
+          >
             <ClickableTranslationOptimized
               translatedText={translatedText}
               semanticArrays={semanticArrays}
@@ -259,22 +273,26 @@ export default function TranslatorDisplayPanels({
             />
           </div>
         ) : (
-          <div style={{
-            height: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
-            transition: 'opacity 0.3s ease'
-          }}>
-            <div style={{
-              color: 'var(--text-color)',
-              opacity: 0.4,
-              textAlign: 'center',
-              fontSize: '1rem',
-              lineHeight: '1.6',
-              padding: '0 2rem'
-            }}>
+          <div
+            style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
+              transition: 'opacity 0.3s ease',
+            }}
+          >
+            <div
+              style={{
+                color: 'var(--text-color)',
+                opacity: 0.4,
+                textAlign: 'center',
+                fontSize: '1rem',
+                lineHeight: '1.6',
+                padding: '0 2rem',
+              }}
+            >
               Translation will appear here
             </div>
           </div>

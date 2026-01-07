@@ -100,7 +100,7 @@ export default function TranslatorControls({
   performanceStats,
   wasmStatus,
   regressionHealth,
-  throttledStreamingState
+  throttledStreamingState,
 }: TranslatorControlsProps): React.ReactElement {
   return (
     <div
@@ -111,7 +111,7 @@ export default function TranslatorControls({
         justifyContent: 'flex-start',
         paddingLeft: '0.5rem',
         flexWrap: 'wrap',
-        alignItems: 'center'
+        alignItems: 'center',
       }}
     >
       <button
@@ -133,9 +133,11 @@ export default function TranslatorControls({
         disabled={isLoading || isTranslating}
       >
         <ClipboardPaste size={16} />
-        {isLoading ? 'Loading dictionaries...' :
-         isTranslating ? 'Translating...' :
-         'Translate from Clipboard'}
+        {isLoading
+          ? 'Loading dictionaries...'
+          : isTranslating
+            ? 'Translating...'
+            : 'Translate from Clipboard'}
       </button>
 
       {/* Add Quick Add Entry button */}
@@ -185,93 +187,120 @@ Cmd/Ctrl+5: Custom Proper Noun"
       </button>
 
       {progressInfo ? (
-        <div style={{
-          padding: '0.5rem 1rem',
-          backgroundColor: 'var(--success-bg)',
-          color: 'white',
-          borderRadius: '0.375rem',
-          fontSize: '0.75rem',
-          fontWeight: '500'
-        }}>
-          🔄 Translating batch {progressInfo.currentBatch} of {progressInfo.totalBatches} ({progressInfo.completedChunks}/{progressInfo.totalChunks} chunks)
+        <div
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: 'var(--success-bg)',
+            color: 'white',
+            borderRadius: '0.375rem',
+            fontSize: '0.75rem',
+            fontWeight: '500',
+          }}
+        >
+          🔄 Translating batch {progressInfo.currentBatch} of {progressInfo.totalBatches} (
+          {progressInfo.completedChunks}/{progressInfo.totalChunks} chunks)
         </div>
       ) : (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}>
-          {/* Compact Performance Display */}
-          <div style={{
+        <div
+          style={{
             display: 'flex',
-            gap: '0.5rem',
             alignItems: 'center',
-            flexWrap: 'wrap'
-          }}>
-            {/* Combined Performance Stats */}
-            <div style={{
-              padding: '0.5rem 0.75rem',
-              backgroundColor: 'var(--nav-hover)',
-              borderRadius: '0.375rem',
-              fontSize: '0.7rem',
-              color: 'var(--nav-text)',
-              border: performanceStats.cacheHitRate > 50 ? '1px solid #10b981' : '1px solid transparent',
+            gap: '0.5rem',
+          }}
+        >
+          {/* Compact Performance Display */}
+          <div
+            style={{
               display: 'flex',
+              gap: '0.5rem',
               alignItems: 'center',
-              gap: '0.75rem'
-            }}>
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Combined Performance Stats */}
+            <div
+              style={{
+                padding: '0.5rem 0.75rem',
+                backgroundColor: 'var(--nav-hover)',
+                borderRadius: '0.375rem',
+                fontSize: '0.7rem',
+                color: 'var(--nav-text)',
+                border:
+                  performanceStats.cacheHitRate > 50
+                    ? '1px solid #10b981'
+                    : '1px solid transparent',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+              }}
+            >
               <span>⚡ {Math.round(performanceStats.avgTime)}ms</span>
               <span>💾 {Math.round(performanceStats.cacheHitRate)}%</span>
               <span>#{performanceStats.operations}</span>
               {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
                 <span style={{ color: wasmStatus.fallbackMode ? '#f59e0b' : '#8b5cf6' }}>
-                  {wasmStatus.fallbackMode ? 'JS' : 'WASM'} {Math.round(wasmStatus.totalEntries / 1000)}k
+                  {wasmStatus.fallbackMode ? 'JS' : 'WASM'}{' '}
+                  {Math.round(wasmStatus.totalEntries / 1000)}k
                 </span>
               )}
               {/* Regression Detection Health Indicator */}
-              <span style={{
-                color: regressionHealth.status === 'critical' ? '#ef4444' :
-                       regressionHealth.status === 'warning' ? '#f59e0b' : '#10b981'
-              }} title={`Performance Health: ${regressionHealth.status.toUpperCase()} • Baselines: ${regressionHealth.baselines} • Alerts: ${regressionHealth.criticalAlerts + regressionHealth.warningAlerts}`}>
-                📊 {regressionHealth.status === 'critical' ? '🔴' :
-                     regressionHealth.status === 'warning' ? '🟡' : '🟢'}
+              <span
+                style={{
+                  color:
+                    regressionHealth.status === 'critical'
+                      ? '#ef4444'
+                      : regressionHealth.status === 'warning'
+                        ? '#f59e0b'
+                        : '#10b981',
+                }}
+                title={`Performance Health: ${regressionHealth.status.toUpperCase()} • Baselines: ${regressionHealth.baselines} • Alerts: ${regressionHealth.criticalAlerts + regressionHealth.warningAlerts}`}
+              >
+                📊{' '}
+                {regressionHealth.status === 'critical'
+                  ? '🔴'
+                  : regressionHealth.status === 'warning'
+                    ? '🟡'
+                    : '🟢'}
                 {regressionHealth.baselines}
-                {(regressionHealth.criticalAlerts > 0 || regressionHealth.warningAlerts > 0) &&
+                {(regressionHealth.criticalAlerts > 0 || regressionHealth.warningAlerts > 0) && (
                   <span style={{ fontSize: '0.6rem', marginLeft: '2px' }}>
                     !{regressionHealth.criticalAlerts + regressionHealth.warningAlerts}
                   </span>
-                }
+                )}
               </span>
             </div>
-
           </div>
 
           {/* Streaming Progress (simplified) */}
           {throttledStreamingState.isStreaming && (
-            <div style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: 'var(--streaming-accent-light)',
-              borderRadius: '0.375rem',
-              fontSize: '0.75rem',
-              color: 'var(--streaming-accent)',
-              border: '1px solid var(--streaming-accent)'
-            }}>
-              🔄 Translating: {Math.round(throttledStreamingState.progress)}%
-              ({throttledStreamingState.completedChunks}/{throttledStreamingState.totalChunks})
+            <div
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: 'var(--streaming-accent-light)',
+                borderRadius: '0.375rem',
+                fontSize: '0.75rem',
+                color: 'var(--streaming-accent)',
+                border: '1px solid var(--streaming-accent)',
+              }}
+            >
+              🔄 Translating: {Math.round(throttledStreamingState.progress)}% (
+              {throttledStreamingState.completedChunks}/{throttledStreamingState.totalChunks})
             </div>
           )}
         </div>
       )}
 
       {activeTranslations > 0 && (
-        <div style={{
-          padding: '0.5rem 1rem',
-          backgroundColor: activeTranslations > 1 ? 'var(--warning-bg)' : 'var(--success-bg)',
-          color: 'white',
-          borderRadius: '0.375rem',
-          fontSize: '0.75rem',
-          fontWeight: '500'
-        }}>
+        <div
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: activeTranslations > 1 ? 'var(--warning-bg)' : 'var(--success-bg)',
+            color: 'white',
+            borderRadius: '0.375rem',
+            fontSize: '0.75rem',
+            fontWeight: '500',
+          }}
+        >
           🔄 {activeTranslations} active
         </div>
       )}

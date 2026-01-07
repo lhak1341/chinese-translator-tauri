@@ -33,12 +33,12 @@ export class AdaptiveChunker {
       performanceWindow: options.performanceWindow || 5, // Track last 5 batches for adaptation
       adaptationSensitivity: options.adaptationSensitivity || 0.2, // How quickly to adapt (0.1 = conservative, 0.5 = aggressive)
       complexityThresholds: {
-        simple: 0.5,    // Simple conversational text
-        moderate: 1.0,  // Mixed content with some technical terms
-        complex: 1.5,   // Dense technical/literary content
-        veryComplex: 2.0 // Academic/highly technical content
+        simple: 0.5, // Simple conversational text
+        moderate: 1.0, // Mixed content with some technical terms
+        complex: 1.5, // Dense technical/literary content
+        veryComplex: 2.0, // Academic/highly technical content
       },
-      ...options
+      ...options,
     };
 
     // Performance tracking for adaptive sizing
@@ -47,7 +47,7 @@ export class AdaptiveChunker {
     this.adaptationStats = {
       totalAdaptations: 0,
       improvementGains: 0,
-      degradationPrevented: 0
+      degradationPrevented: 0,
     };
   }
 
@@ -62,7 +62,7 @@ export class AdaptiveChunker {
       complexity: 0,
       factors: {},
       recommendations: {},
-      chunkingStrategy: 'standard'
+      chunkingStrategy: 'standard',
     };
 
     // Factor 1: Vocabulary complexity (proper nouns, technical terms)
@@ -88,21 +88,22 @@ export class AdaptiveChunker {
     analysis.factors.dictionaryHitRate = dictionaryHitEstimate;
 
     // Calculate overall complexity score
-    analysis.complexity = (
+    analysis.complexity =
       analysis.factors.vocabularyComplexity * 0.3 +
       analysis.factors.structuralComplexity * 0.25 +
       analysis.factors.punctuationDensity * 0.15 +
       analysis.factors.chunkVariance * 0.15 +
-      (1 - analysis.factors.dictionaryHitRate) * 0.15 // Lower hit rate = higher complexity
-    );
+      (1 - analysis.factors.dictionaryHitRate) * 0.15; // Lower hit rate = higher complexity
 
     // Determine chunking strategy based on analysis
     analysis.chunkingStrategy = this.determineChunkingStrategy(analysis);
     analysis.recommendations = this.generateOptimizationRecommendations(analysis);
 
-    batchLog.verbose('adaptive-chunker-analysis', 
-      `Content analysis complete: complexity=${analysis.complexity.toFixed(2)}, strategy=${analysis.chunkingStrategy}`, 
-      analysis.factors);
+    batchLog.verbose(
+      'adaptive-chunker-analysis',
+      `Content analysis complete: complexity=${analysis.complexity.toFixed(2)}, strategy=${analysis.chunkingStrategy}`,
+      analysis.factors
+    );
 
     return analysis;
   }
@@ -133,13 +134,13 @@ export class AdaptiveChunker {
       /[0-9]+[年月日]/g, // Dates
       /第[一二三四五六七八九十百千万]+[章节回]/g, // Chapter/section markers
     ];
-    
+
     let technicalMatches = 0;
-    technicalPatterns.forEach(pattern => {
+    technicalPatterns.forEach((pattern) => {
       const matches = text.match(pattern) || [];
       technicalMatches += matches.length;
     });
-    
+
     return Math.min(technicalMatches / (text.length / 50), 1.0);
   }
 
@@ -149,9 +150,9 @@ export class AdaptiveChunker {
    * @returns {number} Average sentence length in characters
    */
   calculateAverageSentenceLength(text) {
-    const sentences = text.split(/[。！？]/).filter(s => s.trim().length > 0);
+    const sentences = text.split(/[。！？]/).filter((s) => s.trim().length > 0);
     if (sentences.length === 0) return 0;
-    
+
     const totalLength = sentences.reduce((sum, sentence) => sum + sentence.length, 0);
     return totalLength / sentences.length;
   }
@@ -174,11 +175,12 @@ export class AdaptiveChunker {
    */
   calculateChunkVariance(chunks) {
     if (chunks.length < 2) return 0;
-    
-    const lengths = chunks.map(chunk => chunk.content.length);
+
+    const lengths = chunks.map((chunk) => chunk.content.length);
     const mean = lengths.reduce((sum, len) => sum + len, 0) / lengths.length;
-    const variance = lengths.reduce((sum, len) => sum + Math.pow(len - mean, 2), 0) / lengths.length;
-    
+    const variance =
+      lengths.reduce((sum, len) => sum + Math.pow(len - mean, 2), 0) / lengths.length;
+
     // Normalize variance relative to mean length
     return Math.min(Math.sqrt(variance) / mean, 1.0);
   }
@@ -191,10 +193,11 @@ export class AdaptiveChunker {
   estimateDictionaryHitRate(text) {
     // Common Chinese characters have higher dictionary hit rates
     // This is a rough heuristic based on character frequency patterns
-    const commonCharPattern = /[的是了不在有个人这中大为上国我以要他时来用于下自己就会么说出所][的是了不在有个人这中大为上国我以要他时来用于下自己就会么说出所]*/g;
+    const commonCharPattern =
+      /[的是了不在有个人这中大为上国我以要他时来用于下自己就会么说出所][的是了不在有个人这中大为上国我以要他时来用于下自己就会么说出所]*/g;
     const commonMatches = text.match(commonCharPattern) || [];
     const commonCharRatio = commonMatches.join('').length / text.length;
-    
+
     // Higher ratio of common characters suggests higher dictionary hit rate
     return Math.min(commonCharRatio * 1.2, 0.95); // Cap at 95% hit rate
   }
@@ -228,7 +231,7 @@ export class AdaptiveChunker {
    */
   calculateOptimalChunkSize(contentAnalysis, deviceInfo = {}, _totalChunks = 0) {
     const { complexity, chunkingStrategy } = contentAnalysis;
-    
+
     // Base chunk size from strategy
     let baseSize;
     switch (chunkingStrategy) {
@@ -252,7 +255,7 @@ export class AdaptiveChunker {
     if (deviceInfo.memoryPressure === 'high') {
       baseSize = Math.max(this.options.minChunkSize, Math.ceil(baseSize * 0.8));
     }
-    
+
     if (deviceInfo.cpuCores && deviceInfo.cpuCores < 4) {
       baseSize = Math.max(this.options.minChunkSize, Math.ceil(baseSize * 0.9));
     }
@@ -270,11 +273,16 @@ export class AdaptiveChunker {
     }
 
     // Ensure within bounds
-    const finalSize = Math.max(this.options.minChunkSize, Math.min(this.options.maxChunkSize, baseSize));
-    
-    batchLog.info('adaptive-chunker-sizing', 
-      `Optimal chunk size calculated: ${finalSize} (strategy: ${chunkingStrategy}, complexity: ${complexity.toFixed(2)})`);
-    
+    const finalSize = Math.max(
+      this.options.minChunkSize,
+      Math.min(this.options.maxChunkSize, baseSize)
+    );
+
+    batchLog.info(
+      'adaptive-chunker-sizing',
+      `Optimal chunk size calculated: ${finalSize} (strategy: ${chunkingStrategy}, complexity: ${complexity.toFixed(2)})`
+    );
+
     return finalSize;
   }
 
@@ -289,18 +297,20 @@ export class AdaptiveChunker {
       throughput: performanceData.throughput, // chunks/second
       memoryUsage: performanceData.memoryUsage,
       timestamp: Date.now(),
-      efficiency: performanceData.throughput / performanceData.chunkSize // normalized efficiency
+      efficiency: performanceData.throughput / performanceData.chunkSize, // normalized efficiency
     };
 
     this.performanceHistory.push(record);
-    
+
     // Maintain sliding window
     if (this.performanceHistory.length > this.options.performanceWindow) {
       this.performanceHistory.shift();
     }
 
-    batchLog.hotVerbose('adaptive-chunker-perf', 
-      `Performance recorded: size=${record.chunkSize}, throughput=${record.throughput.toFixed(2)}, efficiency=${record.efficiency.toFixed(3)}`);
+    batchLog.hotVerbose(
+      'adaptive-chunker-perf',
+      `Performance recorded: size=${record.chunkSize}, throughput=${record.throughput.toFixed(2)}, efficiency=${record.efficiency.toFixed(3)}`
+    );
   }
 
   /**
@@ -313,25 +323,29 @@ export class AdaptiveChunker {
     }
 
     const recentPerformance = this.performanceHistory.slice(-3);
-    const efficiencies = recentPerformance.map(record => record.efficiency);
-    
+    const efficiencies = recentPerformance.map((record) => record.efficiency);
+
     // Calculate trend using linear regression on efficiency values
     const n = efficiencies.length;
-    const sumX = (n - 1) * n / 2; // 0 + 1 + 2 + ... + (n-1)
+    const sumX = ((n - 1) * n) / 2; // 0 + 1 + 2 + ... + (n-1)
     const sumY = efficiencies.reduce((sum, eff) => sum + eff, 0);
     const sumXY = efficiencies.reduce((sum, eff, i) => sum + i * eff, 0);
-    const sumX2 = (n - 1) * n * (2 * n - 1) / 6; // 0² + 1² + 2² + ... + (n-1)²
-    
+    const sumX2 = ((n - 1) * n * (2 * n - 1)) / 6; // 0² + 1² + 2² + ... + (n-1)²
+
     const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-    const correlation = Math.abs(slope) / Math.sqrt(efficiencies.reduce((sum, eff) => {
-      const avgEff = sumY / n;
-      return sum + Math.pow(eff - avgEff, 2);
-    }, 0) / n);
-    
+    const correlation =
+      Math.abs(slope) /
+      Math.sqrt(
+        efficiencies.reduce((sum, eff) => {
+          const avgEff = sumY / n;
+          return sum + Math.pow(eff - avgEff, 2);
+        }, 0) / n
+      );
+
     return {
       direction: slope > 0.01 ? 'improving' : slope < -0.01 ? 'degrading' : 'stable',
       confidence: Math.min(correlation, 1.0),
-      slope: slope
+      slope: slope,
     };
   }
 
@@ -344,7 +358,7 @@ export class AdaptiveChunker {
     const recommendations = {
       chunkSizeStrategy: analysis.chunkingStrategy,
       priorityOptimizations: [],
-      performanceExpectations: {}
+      performanceExpectations: {},
     };
 
     // Vocabulary complexity recommendations
@@ -353,17 +367,17 @@ export class AdaptiveChunker {
         type: 'dictionary_preloading',
         priority: 'high',
         description: 'High proper noun density detected - preload relevant dictionaries',
-        expectedGain: '15-25% faster processing'
+        expectedGain: '15-25% faster processing',
       });
     }
 
-    // Dictionary hit rate recommendations  
+    // Dictionary hit rate recommendations
     if (analysis.factors.dictionaryHitRate < 0.6) {
       recommendations.priorityOptimizations.push({
         type: 'dictionary_expansion',
-        priority: 'medium', 
+        priority: 'medium',
         description: 'Low dictionary hit rate - consider expanding relevant dictionaries',
-        expectedGain: '10-20% better translation quality'
+        expectedGain: '10-20% better translation quality',
       });
     }
 
@@ -373,7 +387,7 @@ export class AdaptiveChunker {
         type: 'conservative_processing',
         priority: 'high',
         description: 'Complex sentence structures detected - use smaller chunk sizes',
-        expectedGain: 'Better translation accuracy'
+        expectedGain: 'Better translation accuracy',
       });
     }
 
@@ -382,13 +396,13 @@ export class AdaptiveChunker {
       recommendations.performanceExpectations = {
         relativeSpeed: '110-130%',
         qualityImpact: 'minimal',
-        memoryUsage: 'standard'
+        memoryUsage: 'standard',
       };
     } else if (analysis.complexity > 1.5) {
       recommendations.performanceExpectations = {
         relativeSpeed: '70-85%',
         qualityImpact: 'improved accuracy',
-        memoryUsage: 'reduced due to smaller chunks'
+        memoryUsage: 'reduced due to smaller chunks',
       };
     }
 
@@ -404,9 +418,12 @@ export class AdaptiveChunker {
       ...this.adaptationStats,
       currentOptimalSize: this.currentOptimalSize,
       performanceHistoryLength: this.performanceHistory.length,
-      averageEfficiency: this.performanceHistory.length > 0 ? 
-        this.performanceHistory.reduce((sum, record) => sum + record.efficiency, 0) / this.performanceHistory.length : 0,
-      recentTrend: this.performanceHistory.length >= 3 ? this.analyzePerformanceTrend() : null
+      averageEfficiency:
+        this.performanceHistory.length > 0
+          ? this.performanceHistory.reduce((sum, record) => sum + record.efficiency, 0) /
+            this.performanceHistory.length
+          : 0,
+      recentTrend: this.performanceHistory.length >= 3 ? this.analyzePerformanceTrend() : null,
     };
   }
 
@@ -419,9 +436,9 @@ export class AdaptiveChunker {
     this.adaptationStats = {
       totalAdaptations: 0,
       improvementGains: 0,
-      degradationPrevented: 0
+      degradationPrevented: 0,
     };
-    
+
     batchLog.info('adaptive-chunker-reset', 'Adaptive chunker statistics reset');
   }
 }
@@ -431,7 +448,7 @@ export const adaptiveChunker = new AdaptiveChunker({
   minChunkSize: 8,
   maxChunkSize: 20,
   performanceWindow: 5,
-  adaptationSensitivity: 0.2
+  adaptationSensitivity: 0.2,
 });
 
 export default AdaptiveChunker;

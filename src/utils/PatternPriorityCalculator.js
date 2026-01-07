@@ -110,10 +110,10 @@ export function calculatePatternPriority(tokens, variables, lowPriority = false)
  * These constants are NOT used in the calculation - they're for reference only
  */
 export const PRIORITY_WEIGHTS = {
-  VARIABLE: 10,          // Points per variable in pattern
-  LENGTH: 1,             // Points per token in pattern
-  LITERAL_FIRST: 5,      // Bonus for patterns starting with literal
-  LOW_PRIORITY_PENALTY: -12  // Penalty for low priority flag
+  VARIABLE: 10, // Points per variable in pattern
+  LENGTH: 1, // Points per token in pattern
+  LITERAL_FIRST: 5, // Bonus for patterns starting with literal
+  LOW_PRIORITY_PENALTY: -12, // Penalty for low priority flag
 };
 
 /**
@@ -149,6 +149,6 @@ export function calculatePriorityBreakdown(tokens, variables, lowPriority = fals
     lengthScore,
     literalFirstBonus,
     lowPriorityPenalty,
-    totalPriority: variableScore + lengthScore + literalFirstBonus + lowPriorityPenalty
+    totalPriority: variableScore + lengthScore + literalFirstBonus + lowPriorityPenalty,
   };
 }

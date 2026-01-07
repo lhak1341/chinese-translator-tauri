@@ -73,7 +73,25 @@ export class PunctuationProcessor {
   constructor() {
     // Define punctuation categories for systematic processing
     this.CLOSING_PUNCT = [']', ')', '}', '】', '》', '）', ...QUOTE_CATEGORIES.CLOSING]; // Closing brackets + quotes
-    this.MIDDLE_PUNCT = [',', '.', '!', '?', ':', ';', '，', '。', '！', '？', '：', '；', '、', '…', '……', '－', '——']; // Sentence punctuation
+    this.MIDDLE_PUNCT = [
+      ',',
+      '.',
+      '!',
+      '?',
+      ':',
+      ';',
+      '，',
+      '。',
+      '！',
+      '？',
+      '：',
+      '；',
+      '、',
+      '…',
+      '……',
+      '－',
+      '——',
+    ]; // Sentence punctuation
     this.OPENING_PUNCT = ['[', '(', '{', '【', '《', '（', ...QUOTE_CATEGORIES.OPENING]; // Opening brackets + quotes
 
     // Common regex pattern for opening brackets (excluding quotes)
@@ -90,7 +108,7 @@ export class PunctuationProcessor {
       // Question mark + opening bracket: ?[ → ? [ (both Chinese and ASCII question marks)
       { regex: /([?？])([[（【(])/g, replacement: '$1 $2' },
       // Exclamation mark + opening bracket: ![ → ! [ (both Chinese and ASCII exclamation marks)
-      { regex: /([!！])([[（【(])/g, replacement: '$1 $2' }
+      { regex: /([!！])([[（【(])/g, replacement: '$1 $2' },
     ];
   }
 
@@ -122,10 +140,9 @@ export class PunctuationProcessor {
     // PRESERVE ORIGINAL ORDER with proper spacing for comma-quote sequences
     let result = punctuation;
 
-
     // Handle comma-quote combinations properly
     const hasComma = punctuation.includes(',') || punctuation.includes('，');
-    const hasQuote = Array.from(punctuation).some(char => QuoteProcessor.isQuote(char));
+    const hasQuote = Array.from(punctuation).some((char) => QuoteProcessor.isQuote(char));
 
     if (hasComma && hasQuote) {
       // For comma + opening quote: add space between them (", ")
@@ -134,16 +151,25 @@ export class PunctuationProcessor {
     }
 
     // Special case: single opening quote should get space before it
-    const isOnlyOpeningQuote = punctuation.length === 1 && QuoteProcessor.isOpeningQuote(punctuation);
+    const isOnlyOpeningQuote =
+      punctuation.length === 1 && QuoteProcessor.isOpeningQuote(punctuation);
     if (isOnlyOpeningQuote && hasNextChunk) {
       result = ' ' + result; // Space before the quote
     } else {
       // Add trailing space for normal punctuation (including closing quotes)
       // But not if we already have proper spacing or if it's comma+opening quote combo
       // But not for opening brackets/parentheses - they should be adjacent to content
-      const isCommaOpeningQuoteCombo = hasComma && hasQuote && Array.from(punctuation).some(char => QuoteProcessor.isOpeningQuote(char));
+      const isCommaOpeningQuoteCombo =
+        hasComma &&
+        hasQuote &&
+        Array.from(punctuation).some((char) => QuoteProcessor.isOpeningQuote(char));
       const hasOpeningBracket = this.OPENING_BRACKET_PATTERN.test(punctuation);
-      const needsTrailingSpace = hasNextChunk && !result.endsWith(' ') && !isOnlyOpeningQuote && !isCommaOpeningQuoteCombo && !hasOpeningBracket;
+      const needsTrailingSpace =
+        hasNextChunk &&
+        !result.endsWith(' ') &&
+        !isOnlyOpeningQuote &&
+        !isCommaOpeningQuoteCombo &&
+        !hasOpeningBracket;
 
       if (needsTrailingSpace) {
         result += ' ';
@@ -164,7 +190,7 @@ export class PunctuationProcessor {
     const components: PunctuationComponents = {
       closing: [],
       middle: [],
-      opening: []
+      opening: [],
     };
 
     // Parse in natural order: closing → middle → opening
@@ -277,7 +303,7 @@ export class PunctuationProcessor {
    * @returns True if contains opening elements
    */
   hasOpeningElements(punctuation: string): boolean {
-    return this.OPENING_PUNCT.some(punct => punctuation.includes(punct));
+    return this.OPENING_PUNCT.some((punct) => punctuation.includes(punct));
   }
 
   /**
@@ -286,7 +312,7 @@ export class PunctuationProcessor {
    * @returns True if contains closing elements
    */
   hasClosingElements(punctuation: string): boolean {
-    return this.CLOSING_PUNCT.some(punct => punctuation.includes(punct));
+    return this.CLOSING_PUNCT.some((punct) => punctuation.includes(punct));
   }
 
   /**
@@ -301,12 +327,18 @@ export class PunctuationProcessor {
     const openingQuotePattern = QuoteProcessor.createOpeningQuoteRegex().source;
 
     // Pattern: closing + middle + space + opening (e.g., "], [")
-    if (new RegExp(`[\\])\\}】》）][.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`).test(punctuation)) {
+    if (
+      new RegExp(
+        `[\\])\\}】》）][.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`
+      ).test(punctuation)
+    ) {
       return true;
     }
 
     // Pattern: middle + space + opening (e.g., ". [", ", "")
-    if (new RegExp(`[.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`).test(punctuation)) {
+    if (
+      new RegExp(`[.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`).test(punctuation)
+    ) {
       return true;
     }
 
@@ -328,7 +360,7 @@ export class PunctuationProcessor {
       processed: processed,
       hasOpening: this.hasOpeningElements(punctuation),
       hasClosing: this.hasClosingElements(punctuation),
-      alreadySpaced: this.isAlreadyProperlySpaced(punctuation)
+      alreadySpaced: this.isAlreadyProperlySpaced(punctuation),
     };
   }
 }

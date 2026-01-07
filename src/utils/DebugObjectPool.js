@@ -1,10 +1,10 @@
 /**
  * Debug Object Pool
  * Memory-efficient pooling for debugging and performance monitoring objects
- * 
+ *
  * SAFETY GUARANTEE: Only pools non-critical debugging objects that don't affect
  * translation logic, semantic arrays, or clickable highlighting functionality.
- * 
+ *
  * Features:
  * - Reduces GC pressure from frequent debugging object allocation
  * - Automatic pool size management with configurable limits
@@ -27,7 +27,7 @@ class ObjectPool {
       created: 0,
       reused: 0,
       disposed: 0,
-      peakSize: 0
+      peakSize: 0,
     };
   }
 
@@ -62,8 +62,8 @@ class ObjectPool {
     return {
       ...this.stats,
       currentSize: this.pool.length,
-      reuseRate: total > 0 ? (this.stats.reused / total * 100).toFixed(1) : 0,
-      efficiency: total > 0 ? ((total - this.stats.created) / total * 100).toFixed(1) : 0
+      reuseRate: total > 0 ? ((this.stats.reused / total) * 100).toFixed(1) : 0,
+      efficiency: total > 0 ? (((total - this.stats.created) / total) * 100).toFixed(1) : 0,
     };
   }
 }
@@ -76,7 +76,7 @@ class DebugObjectPoolManager {
   constructor() {
     // Only enable in development
     this.enabled = process.env.NODE_ENV === 'development';
-    
+
     if (!this.enabled) {
       // Provide no-op methods for production
       this.getPerformanceMetric = () => ({});
@@ -98,7 +98,7 @@ class DebugObjectPoolManager {
         type: '',
         metadata: {},
         phase: '',
-        textLength: 0
+        textLength: 0,
       }),
       (obj) => {
         obj.operationId = '';
@@ -121,7 +121,7 @@ class DebugObjectPoolManager {
         message: '',
         args: [],
         time: '',
-        context: ''
+        context: '',
       }),
       (obj) => {
         obj.timestamp = 0;
@@ -141,7 +141,7 @@ class DebugObjectPoolManager {
         start: 0,
         end: 0,
         duration: 0,
-        label: ''
+        label: '',
       }),
       (obj) => {
         obj.operation = '';
@@ -161,7 +161,7 @@ class DebugObjectPoolManager {
         limit: 0,
         timestamp: 0,
         operation: '',
-        phase: ''
+        phase: '',
       }),
       (obj) => {
         obj.used = 0;
@@ -183,7 +183,7 @@ class DebugObjectPoolManager {
         evictions: 0,
         hitRate: 0,
         size: 0,
-        timestamp: 0
+        timestamp: 0,
       }),
       (obj) => {
         obj.hits = 0;
@@ -212,7 +212,7 @@ class DebugObjectPoolManager {
     }
   }
 
-  // Log Entry Pool Methods  
+  // Log Entry Pool Methods
   getLogEntry() {
     return this.enabled ? this.logEntryPool.get() : {};
   }
@@ -261,23 +261,26 @@ class DebugObjectPoolManager {
     if (!this.enabled) return;
 
     // Clean up pools every 5 minutes to prevent memory leaks
-    setInterval(() => {
-      // Only keep half the objects in each pool to prevent accumulation
-      [
-        this.performanceMetricPool,
-        this.logEntryPool,
-        this.timestampPool,
-        this.memorySnapshotPool,
-        this.cacheStatsPool
-      ].forEach(pool => {
-        const currentSize = pool.pool.length;
-        const targetSize = Math.floor(currentSize / 2);
-        
-        if (currentSize > targetSize + 10) {
-          pool.pool.splice(targetSize);
-        }
-      });
-    }, 5 * 60 * 1000);
+    setInterval(
+      () => {
+        // Only keep half the objects in each pool to prevent accumulation
+        [
+          this.performanceMetricPool,
+          this.logEntryPool,
+          this.timestampPool,
+          this.memorySnapshotPool,
+          this.cacheStatsPool,
+        ].forEach((pool) => {
+          const currentSize = pool.pool.length;
+          const targetSize = Math.floor(currentSize / 2);
+
+          if (currentSize > targetSize + 10) {
+            pool.pool.splice(targetSize);
+          }
+        });
+      },
+      5 * 60 * 1000
+    );
   }
 
   // Get comprehensive pool statistics
@@ -293,9 +296,9 @@ class DebugObjectPoolManager {
         logEntries: this.logEntryPool.getStats(),
         timestamps: this.timestampPool.getStats(),
         memorySnapshots: this.memorySnapshotPool.getStats(),
-        cacheStats: this.cacheStatsPool.getStats()
+        cacheStats: this.cacheStatsPool.getStats(),
       },
-      summary: this.getSummaryStats()
+      summary: this.getSummaryStats(),
     };
   }
 
@@ -305,32 +308,35 @@ class DebugObjectPoolManager {
       this.logEntryPool,
       this.timestampPool,
       this.memorySnapshotPool,
-      this.cacheStatsPool
+      this.cacheStatsPool,
     ];
 
-    const totals = pools.reduce((acc, pool) => {
-      const stats = pool.getStats();
-      acc.totalCreated += stats.created;
-      acc.totalReused += stats.reused;
-      acc.totalDisposed += stats.disposed;
-      acc.currentPooled += stats.currentSize;
-      return acc;
-    }, {
-      totalCreated: 0,
-      totalReused: 0,
-      totalDisposed: 0,
-      currentPooled: 0
-    });
+    const totals = pools.reduce(
+      (acc, pool) => {
+        const stats = pool.getStats();
+        acc.totalCreated += stats.created;
+        acc.totalReused += stats.reused;
+        acc.totalDisposed += stats.disposed;
+        acc.currentPooled += stats.currentSize;
+        return acc;
+      },
+      {
+        totalCreated: 0,
+        totalReused: 0,
+        totalDisposed: 0,
+        currentPooled: 0,
+      }
+    );
 
     const totalOperations = totals.totalCreated + totals.totalReused;
-    
+
     return {
       ...totals,
-      overallReuseRate: totalOperations > 0 ? 
-        ((totals.totalReused / totalOperations) * 100).toFixed(1) : 0,
-      memoryPressureReduction: totalOperations > 0 ?
-        ((totals.totalReused / totalOperations) * 100).toFixed(1) : 0,
-      gcReductionEstimate: `~${Math.floor(totals.totalReused * 0.1)}ms saved`
+      overallReuseRate:
+        totalOperations > 0 ? ((totals.totalReused / totalOperations) * 100).toFixed(1) : 0,
+      memoryPressureReduction:
+        totalOperations > 0 ? ((totals.totalReused / totalOperations) * 100).toFixed(1) : 0,
+      gcReductionEstimate: `~${Math.floor(totals.totalReused * 0.1)}ms saved`,
     };
   }
 
@@ -343,8 +349,8 @@ class DebugObjectPoolManager {
       this.logEntryPool,
       this.timestampPool,
       this.memorySnapshotPool,
-      this.cacheStatsPool
-    ].forEach(pool => pool.clear());
+      this.cacheStatsPool,
+    ].forEach((pool) => pool.clear());
   }
 }
 

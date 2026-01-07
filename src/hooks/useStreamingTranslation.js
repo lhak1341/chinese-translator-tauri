@@ -47,7 +47,7 @@ export function useStreamingTranslation(throttleMs = 100) {
     completedChunks: 0,
     totalChunks: 0,
     batchNumber: 0,
-    avgTimePerChunk: 0
+    avgTimePerChunk: 0,
   });
 
   // Partial semantic arrays for streaming highlighting
@@ -70,9 +70,9 @@ export function useStreamingTranslation(throttleMs = 100) {
    * @param {Object} data - Partial state to update
    */
   const updateStreaming = useCallback((data) => {
-    setStreamingTranslation(prev => ({
+    setStreamingTranslation((prev) => ({
       ...prev,
-      ...data
+      ...data,
     }));
   }, []);
 
@@ -104,7 +104,7 @@ export function useStreamingTranslation(throttleMs = 100) {
       completedChunks: 0,
       totalChunks: 0,
       batchNumber: 0,
-      avgTimePerChunk: 0
+      avgTimePerChunk: 0,
     });
     setPartialSemanticArrays(null);
   }, []);
@@ -117,6 +117,6 @@ export function useStreamingTranslation(throttleMs = 100) {
     updateStreaming,
     setProgress,
     setPartialArrays,
-    resetStreaming
+    resetStreaming,
   };
 }

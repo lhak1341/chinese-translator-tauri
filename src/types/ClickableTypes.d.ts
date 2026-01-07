@@ -22,8 +22,8 @@ import type { SemanticArrays, SemanticUnit, SemanticMetadata } from './SemanticT
  * Direction of click interaction between original and translated text
  */
 export type ClickDirection =
-  | 'original-to-translation'   // Click on original text to highlight translation
-  | 'translation-to-original'   // Click on translation to highlight original
+  | 'original-to-translation' // Click on original text to highlight translation
+  | 'translation-to-original' // Click on translation to highlight original
   | 'character-only-to-original'; // Special mode for character-only translation
 
 // =============================================================================

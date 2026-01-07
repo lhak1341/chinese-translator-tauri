@@ -63,9 +63,7 @@ export function useDictionaryConfig() {
    */
   const openQuickAddCustomProperNoun = useCallback(() => {
     // Filter active proper nouns to find custom ones (properNouns-*)
-    const customProperNouns = activeProperNouns.filter(dict =>
-      dict.startsWith('properNouns-')
-    );
+    const customProperNouns = activeProperNouns.filter((dict) => dict.startsWith('properNouns-'));
 
     if (customProperNouns.length === 0) {
       // No custom proper nouns are active, fallback to general properNouns
@@ -113,6 +111,6 @@ export function useDictionaryConfig() {
     openQuickAddCustomProperNoun,
     closeQuickAdd,
     updateActiveProperNouns,
-    handleQuickAddDictionaryChange
+    handleQuickAddDictionaryChange,
   };
 }

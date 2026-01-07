@@ -94,8 +94,14 @@ export interface TrieStats {
  */
 export interface TrieValidationError {
   /** Type of error */
-  type: 'CIRCULAR_REFERENCE' | 'INVALID_NODE_STRUCTURE' | 'MISSING_TRANSLATION' |
-        'INVALID_CHARACTER' | 'INVALID_CHILD_NODE' | 'MISSING_ROOT' | 'VALIDATION_ERROR';
+  type:
+    | 'CIRCULAR_REFERENCE'
+    | 'INVALID_NODE_STRUCTURE'
+    | 'MISSING_TRANSLATION'
+    | 'INVALID_CHARACTER'
+    | 'INVALID_CHILD_NODE'
+    | 'MISSING_ROOT'
+    | 'VALIDATION_ERROR';
 
   /** Path to the problematic node */
   path?: string;
@@ -201,8 +207,12 @@ export interface TrieValidationResult {
  */
 export interface TrieRepairAction {
   /** Type of repair action */
-  type: 'NO_REPAIR_NEEDED' | 'SIZE_CORRECTED' | 'ORPHANED_NODES_REMOVED' |
-        'REPAIR_FAILED' | 'REPAIR_ERROR';
+  type:
+    | 'NO_REPAIR_NEEDED'
+    | 'SIZE_CORRECTED'
+    | 'ORPHANED_NODES_REMOVED'
+    | 'REPAIR_FAILED'
+    | 'REPAIR_ERROR';
 
   /** Count of items affected (for ORPHANED_NODES_REMOVED) */
   count?: number;
@@ -296,10 +306,12 @@ export interface DictionaryEntry {
  * Dictionary object format (raw data)
  */
 export interface DictionaryData {
-  [source: string]: string | {
-    translation: string;
-    allowAsPatternVariable?: boolean;
-  };
+  [source: string]:
+    | string
+    | {
+        translation: string;
+        allowAsPatternVariable?: boolean;
+      };
 }
 
 /**
@@ -854,16 +866,12 @@ export function isDictionaryObjectFormat(
 /**
  * Type guard for checking if result is TranslationResult
  */
-export function isTranslationResult(
-  result: any
-): result is TranslationResult;
+export function isTranslationResult(result: any): result is TranslationResult;
 
 /**
  * Type guard for checking if entry is valid DictionaryEntry
  */
-export function isDictionaryEntry(
-  entry: any
-): entry is DictionaryEntry;
+export function isDictionaryEntry(entry: any): entry is DictionaryEntry;
 
 // ============================================================================
 // Class Interfaces
@@ -879,7 +887,9 @@ export interface DictionaryTrieInterface {
 
   insert(word: string, translation: string, metadata?: DictionaryEntryMetadata | null): void;
   get(word: string): string | null;
-  getWithMetadata(word: string): { translation: string; metadata: DictionaryEntryMetadata | null } | null;
+  getWithMetadata(
+    word: string
+  ): { translation: string; metadata: DictionaryEntryMetadata | null } | null;
   has(word: string): boolean;
   findMatches(text: string, startPos?: number): TrieMatch[];
   findLongestMatch(text: string, startPos?: number): TrieMatch | null;
@@ -910,15 +920,32 @@ export interface DictionaryManagerInterface {
   lookupIndexStats: LookupIndexStats;
 
   log(level: DebugLevel, message: string, data?: any): void;
-  loadDictionaries(dictionaryData: Record<string, DictionaryData>, options?: DictionaryLoadOptions): Promise<void>;
+  loadDictionaries(
+    dictionaryData: Record<string, DictionaryData>,
+    options?: DictionaryLoadOptions
+  ): Promise<void>;
   estimateFrequency(source: string, dictionaryName: string): number;
   translate(word: string, dictionaryOrder?: DictionarySearchOrder | null): TranslationResult | null;
-  findMatchesThreadSafe(dictionary: DictionaryTrieInterface, text: string, startPos?: number): TrieMatch[];
-  findAllMatchesParallel(text: string, startPos?: number, dictionaryOrder?: DictionarySearchOrder | null): Promise<DictionaryMatchResult[]>;
+  findMatchesThreadSafe(
+    dictionary: DictionaryTrieInterface,
+    text: string,
+    startPos?: number
+  ): TrieMatch[];
+  findAllMatchesParallel(
+    text: string,
+    startPos?: number,
+    dictionaryOrder?: DictionarySearchOrder | null
+  ): Promise<DictionaryMatchResult[]>;
   getDefaultSearchOrder(): DictionarySearchOrder;
   getGlobalStats(): DictionaryManagerStats;
-  filterActiveDictionaries(dictionaryData: Record<string, DictionaryData>, options: DictionaryLoadOptions): Record<string, DictionaryData>;
-  getPendingDictionaries(dictionaryData: Record<string, DictionaryData>, active: Record<string, DictionaryData>): Record<string, DictionaryData>;
+  filterActiveDictionaries(
+    dictionaryData: Record<string, DictionaryData>,
+    options: DictionaryLoadOptions
+  ): Record<string, DictionaryData>;
+  getPendingDictionaries(
+    dictionaryData: Record<string, DictionaryData>,
+    active: Record<string, DictionaryData>
+  ): Record<string, DictionaryData>;
 }
 
 /**
@@ -937,11 +964,27 @@ export interface EnhancedDictionaryManagerInterface extends DictionaryManagerInt
   initializeWasm(): Promise<void>;
   syncDictionariesToWasm(): Promise<void>;
   extractTrieEntries(trie: DictionaryTrieInterface): DictionaryEntry[];
-  translateJS(word: string, dictionaryOrder?: DictionarySearchOrder | null): TranslationResult | null;
-  translateWasm(word: string, dictionaryOrder?: DictionarySearchOrder | null): TranslationResult | null;
-  findAllMatchesWasm(text: string, startPos?: number, dictionaryOrder?: DictionarySearchOrder | null): Promise<DictionaryMatchResult[]>;
-  reloadDictionaries(dictionaryData: Record<string, DictionaryData>, options?: DictionaryLoadOptions): Promise<void>;
-  validateWasmFallback(testWords?: string[] | null, dictionaryOrder?: DictionarySearchOrder | null): WasmValidationResult;
+  translateJS(
+    word: string,
+    dictionaryOrder?: DictionarySearchOrder | null
+  ): TranslationResult | null;
+  translateWasm(
+    word: string,
+    dictionaryOrder?: DictionarySearchOrder | null
+  ): TranslationResult | null;
+  findAllMatchesWasm(
+    text: string,
+    startPos?: number,
+    dictionaryOrder?: DictionarySearchOrder | null
+  ): Promise<DictionaryMatchResult[]>;
+  reloadDictionaries(
+    dictionaryData: Record<string, DictionaryData>,
+    options?: DictionaryLoadOptions
+  ): Promise<void>;
+  validateWasmFallback(
+    testWords?: string[] | null,
+    dictionaryOrder?: DictionarySearchOrder | null
+  ): WasmValidationResult;
   periodicWasmValidation(currentWord: string, validationFrequency?: number): void;
   getPerformanceReport(): EnhancedPerformanceReport;
   isWasmBeneficial(): boolean;

@@ -31,14 +31,14 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   constructor(options = {}) {
     // Initialize parent DictionaryManager
     super(options);
-    
+
     // WASM integration settings
     this.enableWasm = options.enableWasm !== false; // Default to enabled
     this.wasmMemoryLimit = options.wasmMemoryLimit || 15; // 15MB default
     this.wasmManager = null;
     this.wasmInitialized = false;
     this.wasmInitPromise = null;
-    
+
     // Enhanced performance tracking for WASM vs JS comparison
     this.performanceComparison = {
       wasmLookups: 0,
@@ -47,9 +47,9 @@ export class EnhancedDictionaryManager extends DictionaryManager {
       jsTotalTime: 0,
       wasmAverageTime: 0,
       jsAverageTime: 0,
-      speedupRatio: 1.0
+      speedupRatio: 1.0,
     };
-    
+
     // Initialize WASM in background if enabled
     if (this.enableWasm) {
       this.initializeWasmBackground();
@@ -71,18 +71,18 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   async _initializeWasm() {
     try {
       this.log(1, '🦀 Initializing WASM integration...');
-      
+
       this.wasmManager = new WasmDictionaryManager();
-      
+
       const config = {
         maxMemoryMB: this.wasmMemoryLimit,
         enableParallelLookups: this.enableParallelLookups,
         maxParallelDictionaries: this.maxParallelDictionaries,
-        cacheSize: this.cache.lookupCacheSize
+        cacheSize: this.cache.lookupCacheSize,
       };
-      
+
       const success = await this.wasmManager.initialize(this, config);
-      
+
       if (success) {
         this.wasmInitialized = true;
 
@@ -94,7 +94,9 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         return true;
       } else {
         this.log(1, '⚠️ WASM initialization failed, using JavaScript fallback');
-        console.warn('⚠️ [EnhancedDictionaryManager] WASM initialization returned false, using JavaScript fallback');
+        console.warn(
+          '⚠️ [EnhancedDictionaryManager] WASM initialization returned false, using JavaScript fallback'
+        );
         return false;
       }
     } catch (error) {
@@ -143,7 +145,10 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         const elapsed = performance.now() - batchStartTime;
 
         if (batchSuccess) {
-          this.log(1, `✅ Batch loaded ${allDictionaries.length} dictionaries (${totalEntries} entries) in ${elapsed.toFixed(1)}ms`);
+          this.log(
+            1,
+            `✅ Batch loaded ${allDictionaries.length} dictionaries (${totalEntries} entries) in ${elapsed.toFixed(1)}ms`
+          );
         } else {
           this.log(1, '⚠️ Batch loading failed, falling back to sequential loading');
           await this.syncDictionariesToWasmSequential();
@@ -176,21 +181,21 @@ export class EnhancedDictionaryManager extends DictionaryManager {
    */
   extractTrieEntries(trie) {
     const entries = [];
-    
+
     const traverse = (node, currentWord = '') => {
       if (node.isEndOfWord) {
         entries.push({
           chinese: currentWord,
           vietnamese: node.translation,
-          metadata: node.metadata
+          metadata: node.metadata,
         });
       }
-      
+
       for (const [char, childNode] of node.children) {
         traverse(childNode, currentWord + char);
       }
     };
-    
+
     traverse(trie.root);
     return entries;
   }
@@ -201,7 +206,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   async loadDictionaries(dictionaryData, options = {}) {
     // Load dictionaries using parent implementation
     const jsResult = await super.loadDictionaries(dictionaryData, options);
-    
+
     // Sync to WASM if available
     if (this.wasmInitialized && this.wasmManager) {
       try {
@@ -210,7 +215,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         this.log(1, '⚠️ WASM sync failed, continuing with JavaScript only:', error);
       }
     }
-    
+
     return jsResult;
   }
 
@@ -223,17 +228,17 @@ export class EnhancedDictionaryManager extends DictionaryManager {
       // Use JavaScript implementation while WASM initializes
       return this.translateJS(word, dictionaryOrder);
     }
-    
+
     // Periodic WASM validation (every 100th word by default)
     if (this.wasmInitialized && this.wasmManager && !this.wasmManager.isInFallbackMode()) {
       this.periodicWasmValidation(word);
     }
-    
+
     // Use WASM if available and ready
     if (this.wasmInitialized && this.wasmManager && !this.wasmManager.isInFallbackMode()) {
       return this.translateWasm(word, dictionaryOrder);
     }
-    
+
     // Fallback to JavaScript
     return this.translateJS(word, dictionaryOrder);
   }
@@ -245,13 +250,13 @@ export class EnhancedDictionaryManager extends DictionaryManager {
     const startTime = performance.now();
     const result = super.translate(word, dictionaryOrder);
     const endTime = performance.now();
-    
+
     // Track performance
     this.performanceComparison.jsLookups++;
-    this.performanceComparison.jsTotalTime += (endTime - startTime);
-    this.performanceComparison.jsAverageTime = 
+    this.performanceComparison.jsTotalTime += endTime - startTime;
+    this.performanceComparison.jsAverageTime =
       this.performanceComparison.jsTotalTime / this.performanceComparison.jsLookups;
-    
+
     return result;
   }
 
@@ -260,45 +265,45 @@ export class EnhancedDictionaryManager extends DictionaryManager {
    */
   translateWasm(word, dictionaryOrder = null) {
     const startTime = performance.now();
-    
+
     try {
       const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-      
+
       // Try each dictionary in order
       for (const dictionaryName of searchOrder) {
         if (!this.wasmManager.hasDictionary(dictionaryName)) continue;
-        
+
         const match = this.wasmManager.findLongestMatch(dictionaryName, word, 0);
         if (match && match.word === word) {
           const endTime = performance.now();
-          
+
           // Track performance
           this.performanceComparison.wasmLookups++;
-          this.performanceComparison.wasmTotalTime += (endTime - startTime);
-          this.performanceComparison.wasmAverageTime = 
+          this.performanceComparison.wasmTotalTime += endTime - startTime;
+          this.performanceComparison.wasmAverageTime =
             this.performanceComparison.wasmTotalTime / this.performanceComparison.wasmLookups;
-          
+
           // Calculate speedup ratio
           if (this.performanceComparison.jsAverageTime > 0) {
-            this.performanceComparison.speedupRatio = 
+            this.performanceComparison.speedupRatio =
               this.performanceComparison.jsAverageTime / this.performanceComparison.wasmAverageTime;
           }
-          
+
           return {
             word: match.word,
             translation: match.translation,
             dictionary: dictionaryName,
-            metadata: match.metadata
+            metadata: match.metadata,
           };
         }
       }
-      
+
       const endTime = performance.now();
       this.performanceComparison.wasmLookups++;
-      this.performanceComparison.wasmTotalTime += (endTime - startTime);
-      this.performanceComparison.wasmAverageTime = 
+      this.performanceComparison.wasmTotalTime += endTime - startTime;
+      this.performanceComparison.wasmAverageTime =
         this.performanceComparison.wasmTotalTime / this.performanceComparison.wasmLookups;
-      
+
       return null;
     } catch (error) {
       this.log(1, '⚠️ WASM translation failed, falling back to JavaScript:', error);
@@ -314,7 +319,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
     if (this.wasmInitialized && this.wasmManager && !this.wasmManager.isInFallbackMode()) {
       return this.findAllMatchesWasm(text, startPos, dictionaryOrder);
     }
-    
+
     // Fallback to JavaScript implementation
     return super.findAllMatchesParallel(text, startPos, dictionaryOrder);
   }
@@ -325,25 +330,25 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   async findAllMatchesWasm(text, startPos = 0, dictionaryOrder = null) {
     const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
     const allMatches = [];
-    
+
     try {
       // Use WASM for dictionary lookups
       for (const dictionaryName of searchOrder) {
         if (!this.wasmManager.hasDictionary(dictionaryName)) continue;
-        
+
         const matches = this.wasmManager.findMatches(dictionaryName, text, startPos);
         const priority = this.metadata.get(dictionaryName)?.priority || 10;
-        
+
         // Add metadata to matches
-        const enrichedMatches = matches.map(match => ({
+        const enrichedMatches = matches.map((match) => ({
           ...match,
           dictionary: dictionaryName,
-          priority
+          priority,
         }));
-        
+
         allMatches.push(...enrichedMatches);
       }
-      
+
       // Sort by priority and length (same as parent implementation)
       return allMatches.sort((a, b) => {
         if (a.priority !== b.priority) {
@@ -363,24 +368,24 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   async reloadDictionaries(dictionaryData, options = {}) {
     // Reload in JavaScript
     const jsResult = await super.loadDictionaries(dictionaryData, options);
-    
+
     // Reload in WASM if available
     if (this.wasmInitialized && this.wasmManager) {
       try {
         this.log(2, '🔄 Reloading WASM dictionaries...');
-        
+
         // Clear existing WASM dictionaries
         this.wasmManager.clearAllDictionaries();
-        
+
         // Reload from fresh JavaScript data
         await this.syncDictionariesToWasm();
-        
+
         this.log(1, '✅ WASM dictionaries reloaded successfully');
       } catch (error) {
         this.log(1, '⚠️ WASM reload failed:', error);
       }
     }
-    
+
     return jsResult;
   }
 
@@ -394,34 +399,35 @@ export class EnhancedDictionaryManager extends DictionaryManager {
     // Default test words if none provided
     const defaultTestWords = ['这', '个', '人', '好', '说话', '不错', '非常', '什么'];
     const wordsToTest = testWords || defaultTestWords;
-    
+
     const validation = {
       timestamp: Date.now(),
-      wasmAvailable: this.wasmInitialized && this.wasmManager && !this.wasmManager.isInFallbackMode(),
+      wasmAvailable:
+        this.wasmInitialized && this.wasmManager && !this.wasmManager.isInFallbackMode(),
       testWordsCount: wordsToTest.length,
       results: {
         identical: 0,
         different: 0,
         wasmErrors: 0,
-        jsErrors: 0
+        jsErrors: 0,
       },
       differences: [],
       errors: [],
       performance: {
         wasmTotalTime: 0,
         jsTotalTime: 0,
-        speedupRatio: 1.0
-      }
+        speedupRatio: 1.0,
+      },
     };
-    
+
     if (!validation.wasmAvailable) {
       validation.status = 'SKIPPED';
       validation.reason = 'WASM not available or in fallback mode';
       return validation;
     }
-    
+
     this.log(2, `🧪 Starting WASM fallback validation with ${wordsToTest.length} test words...`);
-    
+
     for (const word of wordsToTest) {
       try {
         // Test WASM translation
@@ -435,11 +441,11 @@ export class EnhancedDictionaryManager extends DictionaryManager {
           validation.errors.push({
             word,
             type: 'WASM_ERROR',
-            error: error.message
+            error: error.message,
           });
           continue;
         }
-        
+
         // Test JavaScript translation
         const jsStart = performance.now();
         let jsResult = null;
@@ -451,17 +457,17 @@ export class EnhancedDictionaryManager extends DictionaryManager {
           validation.errors.push({
             word,
             type: 'JS_ERROR',
-            error: error.message
+            error: error.message,
           });
           continue;
         }
-        
+
         // Compare results
         const wasmTranslation = wasmResult?.translation || null;
         const jsTranslation = jsResult?.translation || null;
         const wasmDictionary = wasmResult?.dictionary || null;
         const jsDictionary = jsResult?.dictionary || null;
-        
+
         if (wasmTranslation === jsTranslation && wasmDictionary === jsDictionary) {
           validation.results.identical++;
         } else {
@@ -471,31 +477,30 @@ export class EnhancedDictionaryManager extends DictionaryManager {
             wasm: {
               translation: wasmTranslation,
               dictionary: wasmDictionary,
-              word: wasmResult?.word || null
+              word: wasmResult?.word || null,
             },
             js: {
               translation: jsTranslation,
               dictionary: jsDictionary,
-              word: jsResult?.word || null
-            }
+              word: jsResult?.word || null,
+            },
           });
         }
-        
       } catch (error) {
         validation.errors.push({
           word,
           type: 'VALIDATION_ERROR',
-          error: error.message
+          error: error.message,
         });
       }
     }
-    
+
     // Calculate performance metrics
     if (validation.performance.jsTotalTime > 0) {
-      validation.performance.speedupRatio = 
+      validation.performance.speedupRatio =
         validation.performance.jsTotalTime / validation.performance.wasmTotalTime;
     }
-    
+
     // Determine overall status
     if (validation.results.different === 0 && validation.errors.length === 0) {
       validation.status = 'PASS';
@@ -504,19 +509,28 @@ export class EnhancedDictionaryManager extends DictionaryManager {
     } else if (validation.errors.length > 0) {
       validation.status = 'FAIL_ERRORS';
     }
-    
+
     // Log validation summary
     if (validation.status === 'PASS') {
-      this.log(1, `✅ WASM fallback validation PASSED: ${validation.results.identical}/${wordsToTest.length} identical results`);
+      this.log(
+        1,
+        `✅ WASM fallback validation PASSED: ${validation.results.identical}/${wordsToTest.length} identical results`
+      );
     } else {
-      this.log(0, `❌ WASM fallback validation FAILED: ${validation.results.different} differences, ${validation.errors.length} errors`);
-      
+      this.log(
+        0,
+        `❌ WASM fallback validation FAILED: ${validation.results.different} differences, ${validation.errors.length} errors`
+      );
+
       // Log first few differences for debugging
-      validation.differences.slice(0, 3).forEach(diff => {
-        this.log(0, `  - "${diff.word}": WASM="${diff.wasm.translation}" JS="${diff.js.translation}"`);
+      validation.differences.slice(0, 3).forEach((diff) => {
+        this.log(
+          0,
+          `  - "${diff.word}": WASM="${diff.wasm.translation}" JS="${diff.js.translation}"`
+        );
       });
     }
-    
+
     return validation;
   }
 
@@ -530,7 +544,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
     if (!this.wasmInitialized || !this.wasmManager || this.wasmManager.isInFallbackMode()) {
       return;
     }
-    
+
     // Initialize validation counter if not exists
     if (!this.wasmValidationCounter) {
       this.wasmValidationCounter = 0;
@@ -538,35 +552,42 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         totalValidations: 0,
         passedValidations: 0,
         failedValidations: 0,
-        lastValidation: null
+        lastValidation: null,
       };
     }
-    
+
     this.wasmValidationCounter++;
-    
+
     // Perform validation every Nth word
     if (this.wasmValidationCounter % validationFrequency === 0) {
       const validation = this.validateWasmFallback([currentWord]);
       this.wasmValidationResults.totalValidations++;
       this.wasmValidationResults.lastValidation = validation;
-      
+
       if (validation.status === 'PASS') {
         this.wasmValidationResults.passedValidations++;
       } else {
         this.wasmValidationResults.failedValidations++;
-        
+
         // Log failed validation for monitoring
         this.log(1, `⚠️ Periodic WASM validation failed for word: "${currentWord}"`, {
           status: validation.status,
           differences: validation.differences.length,
-          errors: validation.errors.length
+          errors: validation.errors.length,
         });
       }
-      
+
       // Log periodic summary
       if (this.wasmValidationResults.totalValidations % 10 === 0) {
-        const passRate = (this.wasmValidationResults.passedValidations / this.wasmValidationResults.totalValidations * 100).toFixed(1);
-        this.log(2, `📊 WASM validation summary: ${passRate}% pass rate (${this.wasmValidationResults.passedValidations}/${this.wasmValidationResults.totalValidations})`);
+        const passRate = (
+          (this.wasmValidationResults.passedValidations /
+            this.wasmValidationResults.totalValidations) *
+          100
+        ).toFixed(1);
+        this.log(
+          2,
+          `📊 WASM validation summary: ${passRate}% pass rate (${this.wasmValidationResults.passedValidations}/${this.wasmValidationResults.totalValidations})`
+        );
       }
     }
   }
@@ -583,7 +604,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
       managerExists: !!this.wasmManager,
       engineExists: !!this.wasmManager?.engine,
       dictionaryCount: this.wasmManager?.engine?.get_dictionary_count?.() ?? 0,
-      initPromisePending: !!this.wasmInitPromise && !this.wasmInitialized
+      initPromisePending: !!this.wasmInitPromise && !this.wasmInitialized,
     };
   }
 
@@ -602,20 +623,20 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         initialized: this.wasmInitialized,
         fallbackMode: this.wasmManager?.isInFallbackMode() ?? true,
         ...this.performanceComparison,
-        
+
         // WASM-specific metrics
         wasmStats: this.wasmManager?.getPerformanceReport() ?? null,
-        
+
         // WASM validation results
         validation: this.wasmValidationResults || {
           totalValidations: 0,
           passedValidations: 0,
           failedValidations: 0,
-          lastValidation: null
-        }
-      }
+          lastValidation: null,
+        },
+      },
     };
-    
+
     return jsReport;
   }
 
@@ -623,9 +644,11 @@ export class EnhancedDictionaryManager extends DictionaryManager {
    * Check if WASM is providing performance benefits
    */
   isWasmBeneficial() {
-    return this.wasmInitialized && 
-           this.performanceComparison.speedupRatio > 1.2 && // At least 20% faster
-           this.performanceComparison.wasmLookups > 10; // Enough sample size
+    return (
+      this.wasmInitialized &&
+      this.performanceComparison.speedupRatio > 1.2 && // At least 20% faster
+      this.performanceComparison.wasmLookups > 10
+    ); // Enough sample size
   }
 
   /**
@@ -634,24 +657,26 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   getMemoryUsage() {
     const jsMemory = {
       dictionariesLoaded: this.dictionaries.size,
-      totalEntries: Array.from(this.dictionaries.values())
-        .reduce((sum, trie) => sum + trie.size, 0)
+      totalEntries: Array.from(this.dictionaries.values()).reduce(
+        (sum, trie) => sum + trie.size,
+        0
+      ),
     };
-    
+
     const wasmMemory = this.wasmManager?.getPerformanceReport() ?? {
       memoryUsageBytes: 0,
       dictionariesLoaded: 0,
-      totalEntries: 0
+      totalEntries: 0,
     };
-    
+
     return {
       javascript: jsMemory,
       wasm: wasmMemory,
       combined: {
         totalDictionaries: jsMemory.dictionariesLoaded,
         totalEntries: jsMemory.totalEntries,
-        estimatedMemoryMB: (wasmMemory.memoryUsageBytes || 0) / (1024 * 1024)
-      }
+        estimatedMemoryMB: (wasmMemory.memoryUsageBytes || 0) / (1024 * 1024),
+      },
     };
   }
 }

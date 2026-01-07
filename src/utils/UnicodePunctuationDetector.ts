@@ -107,22 +107,52 @@ export class UnicodePunctuationDetector {
     this.config = {
       // Core punctuation categories that should split chunks
       enabledCategories: {
-        Po: true,  // Other Punctuation (., !, ?, :, ;, etc.)
-        Pe: true,  // Close Punctuation (], ), }, 》, 】, etc.)
-        Ps: true,  // Open Punctuation ([, (, {, 《, 【, etc.)
-        Pi: true,  // Initial Punctuation (opening quotes)
-        Pf: true,  // Final Punctuation (closing quotes)
+        Po: true, // Other Punctuation (., !, ?, :, ;, etc.)
+        Pe: true, // Close Punctuation (], ), }, 》, 】, etc.)
+        Ps: true, // Open Punctuation ([, (, {, 《, 【, etc.)
+        Pi: true, // Initial Punctuation (opening quotes)
+        Pf: true, // Final Punctuation (closing quotes)
         Pd: false, // Dash Punctuation (-, —, etc.) - often part of words
         Pc: false, // Connector Punctuation (_) - often part of identifiers
       },
 
       // Additional custom separators (fallback for browsers without Unicode property support)
       customSeparators: [
-        ',', '.', '!', '?', ';', ':',
-        '，', '。', '．', '！', '？', '；', '：',
-        '(', ')', '（', '）', '[', ']', '{', '}', '《', '》', '【', '】',
-        '"', '\u201c', '\u201d', '\u2018', '\u2019', "'",
-        '、', '…', '——', '－'
+        ',',
+        '.',
+        '!',
+        '?',
+        ';',
+        ':',
+        '，',
+        '。',
+        '．',
+        '！',
+        '？',
+        '；',
+        '：',
+        '(',
+        ')',
+        '（',
+        '）',
+        '[',
+        ']',
+        '{',
+        '}',
+        '《',
+        '》',
+        '【',
+        '】',
+        '"',
+        '\u201c',
+        '\u201d',
+        '\u2018',
+        '\u2019',
+        "'",
+        '、',
+        '…',
+        '——',
+        '－',
       ],
 
       // Allow users to disable specific characters even if they're in enabled categories
@@ -131,7 +161,7 @@ export class UnicodePunctuationDetector {
       // Allow users to force include specific characters
       includedCharacters: new Set<string>(),
 
-      ...config
+      ...config,
     };
 
     // Test if browser supports Unicode property escapes
@@ -164,18 +194,19 @@ export class UnicodePunctuationDetector {
 
     if (this.supportsUnicodeProperties) {
       // Create Unicode property-based regexes for each enabled category
-      const enabledCategories = (Object.keys(this.config.enabledCategories) as PunctuationCategory[])
-        .filter(cat => this.config.enabledCategories[cat]);
+      const enabledCategories = (
+        Object.keys(this.config.enabledCategories) as PunctuationCategory[]
+      ).filter((cat) => this.config.enabledCategories[cat]);
 
       if (enabledCategories.length > 0) {
-        const categoryPattern = enabledCategories.map(cat => `\\p{${cat}}`).join('|');
+        const categoryPattern = enabledCategories.map((cat) => `\\p{${cat}}`).join('|');
         regexes.allPunctuation = new RegExp(`(${categoryPattern})`, 'gu');
         regexes.punctuationTest = new RegExp(`^(${categoryPattern})$`, 'u');
       }
     }
 
     // Always create fallback regex using custom separators
-    const escapedSeparators = this.config.customSeparators.map(sep =>
+    const escapedSeparators = this.config.customSeparators.map((sep) =>
       sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     );
     regexes.fallbackTest = new RegExp(`^[${escapedSeparators.join('')}]$`);
@@ -215,12 +246,12 @@ export class UnicodePunctuationDetector {
   findAllSeparators(text: string): string[] {
     if (this.supportsUnicodeProperties && this.compiledRegexes.allPunctuation) {
       const matches = text.match(this.compiledRegexes.allPunctuation) || [];
-      return matches.filter(char => !this.config.excludedCharacters.has(char));
+      return matches.filter((char) => !this.config.excludedCharacters.has(char));
     }
 
     // Fallback method
     const matches = text.match(this.compiledRegexes.fallbackAll) || [];
-    return matches.filter(char => !this.config.excludedCharacters.has(char));
+    return matches.filter((char) => !this.config.excludedCharacters.has(char));
   }
 
   /**
@@ -236,7 +267,7 @@ export class UnicodePunctuationDetector {
       codePoint: codePoint,
       hexCode: '0x' + codePoint.toString(16).toUpperCase(),
       isSeparator: this.isPunctuationSeparator(char),
-      detectedCategories: []
+      detectedCategories: [],
     };
 
     if (this.supportsUnicodeProperties) {
@@ -274,7 +305,7 @@ export class UnicodePunctuationDetector {
     return {
       ...this.config,
       excludedCharacters: new Set(this.config.excludedCharacters),
-      includedCharacters: new Set(this.config.includedCharacters)
+      includedCharacters: new Set(this.config.includedCharacters),
     };
   }
 
@@ -284,13 +315,48 @@ export class UnicodePunctuationDetector {
    */
   static getSupportedCategories(): CategoryInfo[] {
     return [
-      { code: 'Po', name: 'Other Punctuation', description: 'Period, comma, exclamation, question mark, etc.', default: true },
-      { code: 'Pe', name: 'Close Punctuation', description: 'Closing brackets, parentheses, etc.', default: true },
-      { code: 'Ps', name: 'Open Punctuation', description: 'Opening brackets, parentheses, etc.', default: true },
-      { code: 'Pi', name: 'Initial Punctuation', description: 'Opening quotation marks', default: true },
-      { code: 'Pf', name: 'Final Punctuation', description: 'Closing quotation marks', default: true },
-      { code: 'Pd', name: 'Dash Punctuation', description: 'Hyphens, dashes (often part of words)', default: false },
-      { code: 'Pc', name: 'Connector Punctuation', description: 'Underscore, etc. (often part of identifiers)', default: false }
+      {
+        code: 'Po',
+        name: 'Other Punctuation',
+        description: 'Period, comma, exclamation, question mark, etc.',
+        default: true,
+      },
+      {
+        code: 'Pe',
+        name: 'Close Punctuation',
+        description: 'Closing brackets, parentheses, etc.',
+        default: true,
+      },
+      {
+        code: 'Ps',
+        name: 'Open Punctuation',
+        description: 'Opening brackets, parentheses, etc.',
+        default: true,
+      },
+      {
+        code: 'Pi',
+        name: 'Initial Punctuation',
+        description: 'Opening quotation marks',
+        default: true,
+      },
+      {
+        code: 'Pf',
+        name: 'Final Punctuation',
+        description: 'Closing quotation marks',
+        default: true,
+      },
+      {
+        code: 'Pd',
+        name: 'Dash Punctuation',
+        description: 'Hyphens, dashes (often part of words)',
+        default: false,
+      },
+      {
+        code: 'Pc',
+        name: 'Connector Punctuation',
+        description: 'Underscore, etc. (often part of identifiers)',
+        default: false,
+      },
     ];
   }
 }

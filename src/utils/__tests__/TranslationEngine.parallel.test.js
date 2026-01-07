@@ -3,6 +3,7 @@
  * Verifies that parallel chunk processing produces identical results to sequential processing
  */
 
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { TranslationEngine } from '../TranslationEngine.js';
 
 // Mock performance object for consistent testing
@@ -10,18 +11,18 @@ global.performance = {
   now: () => Date.now(),
   memory: {
     jsHeapSizeLimit: 4 * 1024 * 1024 * 1024, // 4GB - high memory device
-    usedJSHeapSize: 100 * 1024 * 1024
-  }
+    usedJSHeapSize: 100 * 1024 * 1024,
+  },
 };
 
 describe('TranslationEngine Parallel Processing', () => {
   let engine;
-  
+
   beforeEach(async () => {
     engine = new TranslationEngine();
     await engine.initialize();
   });
-  
+
   afterEach(() => {
     // Reset any test modifications
     if (engine.parallelConfig) {
@@ -32,170 +33,174 @@ describe('TranslationEngine Parallel Processing', () => {
   describe('Parallel Configuration', () => {
     test('should initialize parallel config based on device memory', () => {
       engine.initializeParallelProcessing();
-      
+
       expect(engine.parallelConfig).toBeDefined();
       expect(engine.parallelConfig.enableParallelChunks).toBe(true); // High memory device
       expect(engine.parallelConfig.maxParallelChunks).toBe(5);
       expect(engine.parallelConfig.chunkParallelThreshold).toBe(2);
     });
-    
+
     test('should disable parallel processing for low memory devices', () => {
       // Mock low memory device
       const originalCalculateMax = engine.calculateMaxTokensForDevice;
       engine.calculateMaxTokensForDevice = jest.fn(() => 10000); // Low memory device
-      
+
       engine.initializeParallelProcessing();
-      
+
       expect(engine.parallelConfig.enableParallelChunks).toBe(false);
       expect(engine.parallelConfig.maxParallelChunks).toBe(1);
-      
+
       // Restore original method
       engine.calculateMaxTokensForDevice = originalCalculateMax;
     });
-    
+
     test('should respect explicit configuration options', () => {
-      engine.initializeParallelProcessing({ 
+      engine.initializeParallelProcessing({
         enableParallelChunks: false,
-        maxParallelChunks: 3 
+        maxParallelChunks: 3,
       });
-      
+
       expect(engine.parallelConfig.enableParallelChunks).toBe(false);
     });
   });
 
   describe('Parallel Chunk Processing', () => {
     test('should produce identical results to sequential processing', async () => {
-      const testText = "这是测试文本。另一个句子。第三个句子。第四个句子。";
-      
+      const testText = '这是测试文本。另一个句子。第三个句子。第四个句子。';
+
       // Test with parallel processing enabled
       const parallelResult = await engine.translateWithProgressiveBatches(testText, {
-        enableParallelChunks: true
+        enableParallelChunks: true,
       });
-      
+
       // Test with parallel processing disabled
       const sequentialResult = await engine.translateWithProgressiveBatches(testText, {
-        enableParallelChunks: false
+        enableParallelChunks: false,
       });
-      
+
       // Results should be identical
       expect(parallelResult.translatedText).toBe(sequentialResult.translatedText);
-      expect(parallelResult.semanticArrays.original.length).toBe(sequentialResult.semanticArrays.original.length);
-      expect(parallelResult.semanticArrays.translated.length).toBe(sequentialResult.semanticArrays.translated.length);
+      expect(parallelResult.semanticArrays.original.length).toBe(
+        sequentialResult.semanticArrays.original.length
+      );
+      expect(parallelResult.semanticArrays.translated.length).toBe(
+        sequentialResult.semanticArrays.translated.length
+      );
     });
-    
+
     test('should fallback to sequential processing for single chunk', async () => {
-      const testText = "单个句子测试";
-      
-      const logSpy = jest.spyOn(engine, 'log').mockImplementation(() => {});
-      
+      const testText = '单个句子测试';
+
+      const logSpy = vi.spyOn(engine, 'log').mockImplementation(() => {});
+
       await engine.translateWithProgressiveBatches(testText, {
-        enableParallelChunks: true
+        enableParallelChunks: true,
       });
-      
+
       // Should not see parallel processing logs for single chunk
-      const parallelLogs = logSpy.mock.calls.filter(call => 
-        call[1] && call[1].includes('Parallel batch processing')
+      const parallelLogs = logSpy.mock.calls.filter(
+        (call) => call[1] && call[1].includes('Parallel batch processing')
       );
       expect(parallelLogs).toHaveLength(0);
-      
+
       logSpy.mockRestore();
     });
-    
+
     test('should handle parallel processing errors gracefully', async () => {
-      const testText = "测试错误处理。另一个句子。第三个句子。";
-      
+      const testText = '测试错误处理。另一个句子。第三个句子。';
+
       // Mock translateDirectly to fail on specific content
       const originalTranslateDirectly = engine.translateDirectly;
       let failCount = 0;
-      engine.translateDirectly = jest.fn().mockImplementation((content, options) => {
+      engine.translateDirectly = vi.fn().mockImplementation((content, options) => {
         if (content.includes('错误') && failCount === 0) {
           failCount++;
           throw new Error('Simulated translation failure');
         }
         return originalTranslateDirectly.call(engine, content, options);
       });
-      
-      const logSpy = jest.spyOn(engine, 'log').mockImplementation(() => {});
-      
+
+      const logSpy = vi.spyOn(engine, 'log').mockImplementation(() => {});
+
       const result = await engine.translateWithProgressiveBatches(testText);
-      
+
       // Should complete successfully despite error
       expect(result.translatedText).toBeDefined();
       expect(result.translatedText).not.toContain('undefined');
-      
+
       // Should log fallback to sequential processing
-      const fallbackLogs = logSpy.mock.calls.filter(call => 
-        call[1] && call[1].includes('Falling back to sequential')
+      const fallbackLogs = logSpy.mock.calls.filter(
+        (call) => call[1] && call[1].includes('Falling back to sequential')
       );
       expect(fallbackLogs.length).toBeGreaterThan(0);
-      
+
       // Restore mocks
       engine.translateDirectly = originalTranslateDirectly;
       logSpy.mockRestore();
     });
-    
+
     test('should respect chunk parallel threshold', async () => {
-      const testText = "单句";
-      
-      const processSequentiallySpy = jest.spyOn(engine, 'processChunksSequentially');
-      
+      const testText = '单句';
+
+      const processSequentiallySpy = vi.spyOn(engine, 'processChunksSequentially');
+
       await engine.translateWithProgressiveBatches(testText, {
-        enableParallelChunks: true
+        enableParallelChunks: true,
       });
-      
+
       // Should use sequential processing for text below threshold
       expect(processSequentiallySpy).toHaveBeenCalled();
-      
+
       processSequentiallySpy.mockRestore();
     });
   });
 
   describe('Progressive System Integration', () => {
     test('should preserve existing batch-level processing', async () => {
-      const testText = "测试标点。引用文本\"内容\"。数字123。";
-      
+      const testText = '测试标点。引用文本"内容"。数字123。';
+
       // Spy on existing methods to ensure they're still called
-      const punctuationSpy = jest.spyOn(engine.textChunker, 'translatePunctuation');
-      const capitalizationSpy = jest.spyOn(engine, 'applySmartCapitalization');
-      const cleanupSpy = jest.spyOn(engine, 'applyFinalCleanup');
-      
+      const punctuationSpy = vi.spyOn(engine.textChunker, 'translatePunctuation');
+      const capitalizationSpy = vi.spyOn(engine, 'applySmartCapitalization');
+      const cleanupSpy = vi.spyOn(engine, 'applyFinalCleanup');
+
       const result = await engine.translateWithProgressiveBatches(testText, {
-        enableParallelChunks: true
+        enableParallelChunks: true,
       });
-      
+
       // Verify batch-level processing still occurs
       expect(punctuationSpy).toHaveBeenCalled();
-      expect(capitalizationSpy).toHaveBeenCalled(); 
+      expect(capitalizationSpy).toHaveBeenCalled();
       expect(cleanupSpy).toHaveBeenCalled();
-      
+
       // Result should be properly formatted
       expect(result.translatedText).toBeDefined();
       expect(result.semanticArrays).toBeDefined();
-      
+
       // Cleanup spies
       punctuationSpy.mockRestore();
       capitalizationSpy.mockRestore();
       cleanupSpy.mockRestore();
     });
-    
+
     test('should maintain progress reporting during parallel processing', async () => {
-      const testText = "句子一。句子二。句子三。句子四。句子五。".repeat(2);
-      
+      const testText = '句子一。句子二。句子三。句子四。句子五。'.repeat(2);
+
       const progressUpdates = [];
       const progressCallback = (progress) => {
         progressUpdates.push(progress);
       };
-      
+
       await engine.translateWithProgressiveBatches(testText, {
         enableParallelChunks: true,
-        onProgress: progressCallback
+        onProgress: progressCallback,
       });
-      
+
       // Should receive progress updates
       expect(progressUpdates.length).toBeGreaterThan(0);
-      
+
       // Progress updates should have required fields
-      progressUpdates.forEach(update => {
+      progressUpdates.forEach((update) => {
         expect(update).toHaveProperty('currentBatch');
         expect(update).toHaveProperty('totalBatches');
         expect(update).toHaveProperty('completedChunks');
@@ -213,25 +218,25 @@ describe('TranslationEngine Parallel Processing', () => {
         console.log('Skipping performance test on low-memory device');
         return;
       }
-      
-      const testText = "性能测试句子。".repeat(20); // Create substantial workload
-      
+
+      const testText = '性能测试句子。'.repeat(20); // Create substantial workload
+
       // Measure sequential processing time
       const sequentialStart = performance.now();
-      await engine.translateWithProgressiveBatches(testText, { 
-        enableParallelChunks: false 
+      await engine.translateWithProgressiveBatches(testText, {
+        enableParallelChunks: false,
       });
       const sequentialTime = performance.now() - sequentialStart;
-      
+
       // Measure parallel processing time
       const parallelStart = performance.now();
-      await engine.translateWithProgressiveBatches(testText, { 
-        enableParallelChunks: true 
+      await engine.translateWithProgressiveBatches(testText, {
+        enableParallelChunks: true,
       });
       const parallelTime = performance.now() - parallelStart;
-      
+
       console.log(`Sequential: ${sequentialTime}ms, Parallel: ${parallelTime}ms`);
-      
+
       // Parallel should be faster or at least not significantly slower
       // Allow 20% margin for test variability and setup overhead
       expect(parallelTime).toBeLessThan(sequentialTime * 1.2);
@@ -240,29 +245,29 @@ describe('TranslationEngine Parallel Processing', () => {
 
   describe('Error Recovery', () => {
     test('should recover from partial batch failures', async () => {
-      const testText = "正常文本。失败文本fail。正常文本。另一个正常文本。";
-      
+      const testText = '正常文本。失败文本fail。正常文本。另一个正常文本。';
+
       // Mock translateDirectly to fail intermittently
       const originalTranslateDirectly = engine.translateDirectly;
-      engine.translateDirectly = jest.fn().mockImplementation((content, options) => {
+      engine.translateDirectly = vi.fn().mockImplementation((content, options) => {
         if (content.includes('fail')) {
           throw new Error('Simulated intermittent failure');
         }
         return originalTranslateDirectly.call(engine, content, options);
       });
-      
+
       const result = await engine.translateWithProgressiveBatches(testText, {
-        enableParallelChunks: true
+        enableParallelChunks: true,
       });
-      
+
       // Should complete translation despite partial failures
       expect(result.translatedText).toBeDefined();
       expect(result.translatedText.length).toBeGreaterThan(0);
-      
+
       // Should not contain undefined or error text
       expect(result.translatedText).not.toContain('undefined');
       expect(result.translatedText).not.toContain('Error');
-      
+
       // Restore original method
       engine.translateDirectly = originalTranslateDirectly;
     });
@@ -273,12 +278,12 @@ describe('TranslationEngine Parallel Processing', () => {
       // Mock low memory device
       const originalCalculateMax = engine.calculateMaxTokensForDevice;
       engine.calculateMaxTokensForDevice = jest.fn(() => 5000); // Very low memory
-      
+
       engine.initializeParallelProcessing();
-      
+
       expect(engine.parallelConfig.enableParallelChunks).toBe(false);
       expect(engine.parallelConfig.maxParallelChunks).toBe(1);
-      
+
       // Restore original method
       engine.calculateMaxTokensForDevice = originalCalculateMax;
     });

@@ -41,7 +41,7 @@
   --focus-ring-color: #3b82f680;
   --focus-ring-offset: 2px;
   --transition-timing: 0.2s ease;
-  
+
   /* Border radius variables for macOS corner smoothing */
   --border-radius-sm: 4px;
   --border-radius-md: 8px;
@@ -64,12 +64,12 @@
   --alert-success-border: #bee5eb;
   --alert-success-text: #0c5460;
   --alert-success-dark: #084c61;
-  
+
   --alert-warning-bg: #fef3cd;
   --alert-warning-border: #ffeaa7;
   --alert-warning-text: #856404;
   --alert-warning-dark: #6c5500;
-  
+
   --alert-error-bg: #f8d7da;
   --alert-error-border: #f5c6cb;
   --alert-error-text: #721c24;

@@ -33,14 +33,14 @@ const ConfigurationManager: React.FC = () => {
       try {
         const result = await window.electronAPI.listProperNounsDictionaries();
         if (result.success && result.dictionaries) {
-          setAvailableDictionaries(result.dictionaries.map(d => typeof d === 'string' ? d : d.id));
+          setAvailableDictionaries(
+            result.dictionaries.map((d) => (typeof d === 'string' ? d : d.id))
+          );
 
           // Load active dictionaries from saved configuration
           const configResult = await window.electronAPI.loadConfiguration();
           if (configResult.success && configResult.data) {
-            setActiveDictionaries(
-              configResult.data.activeProperNouns || ['properNouns']
-            );
+            setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
 
             // Load WASM configuration
             setWasmEnabled(configResult.data.wasmEnabled !== false); // Default to enabled
@@ -63,7 +63,7 @@ const ConfigurationManager: React.FC = () => {
   const handleToggleDictionary = async (dictionaryId: string): Promise<void> => {
     try {
       const newActiveDictionaries = activeDictionaries.includes(dictionaryId)
-        ? activeDictionaries.filter(id => id !== dictionaryId)
+        ? activeDictionaries.filter((id) => id !== dictionaryId)
         : [...activeDictionaries, dictionaryId];
 
       // Save configuration (including WASM settings)
@@ -89,12 +89,8 @@ const ConfigurationManager: React.FC = () => {
     if (!newDictionaryName.trim()) return;
 
     try {
-      const dictionaryId = `properNouns-${newDictionaryName
-        .trim()
-        .replace(/\s+/g, '')}`;
-      const result = await window.electronAPI.createProperNounsDictionary(
-        dictionaryId
-      );
+      const dictionaryId = `properNouns-${newDictionaryName.trim().replace(/\s+/g, '')}`;
+      const result = await window.electronAPI.createProperNounsDictionary(dictionaryId);
 
       if (result.success) {
         setAvailableDictionaries([...availableDictionaries, dictionaryId]);
@@ -179,13 +175,13 @@ const ConfigurationManager: React.FC = () => {
 
       if (result.success) {
         // Update the available dictionaries list
-        setAvailableDictionaries(prev =>
-          prev.map(id => (id === renamingDictionaryId ? newDictionaryId : id))
+        setAvailableDictionaries((prev) =>
+          prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id))
         );
 
         // Update active dictionaries if the renamed one was active
-        setActiveDictionaries(prev =>
-          prev.map(id => (id === renamingDictionaryId ? newDictionaryId : id))
+        setActiveDictionaries((prev) =>
+          prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id))
         );
 
         handleCancelRename();
@@ -215,36 +211,42 @@ const ConfigurationManager: React.FC = () => {
   }
 
   return (
-    <div style={{
-      padding: '2rem',
-      height: '100%',
-      overflowY: 'auto',
-      boxSizing: 'border-box'
-    }}>
+    <div
+      style={{
+        padding: '2rem',
+        height: '100%',
+        overflowY: 'auto',
+        boxSizing: 'border-box',
+      }}
+    >
       {/* WASM Configuration Section */}
       <div style={{ marginBottom: '3rem' }}>
         <h2>🦀 WebAssembly Configuration</h2>
         <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
-          Configure WASM acceleration for dictionary lookups. WASM provides significant performance improvements
-          for large dictionaries but requires additional memory.
+          Configure WASM acceleration for dictionary lookups. WASM provides significant performance
+          improvements for large dictionaries but requires additional memory.
         </p>
 
-        <div style={{
-          padding: '1.5rem',
-          backgroundColor: 'var(--background-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: '8px',
-          marginBottom: '1rem'
-        }}>
+        <div
+          style={{
+            padding: '1.5rem',
+            backgroundColor: 'var(--background-secondary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              fontWeight: 500
-            }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: 500,
+              }}
+            >
               <input
                 type="checkbox"
                 checked={wasmEnabled}
@@ -256,17 +258,21 @@ const ConfigurationManager: React.FC = () => {
           </div>
 
           {wasmEnabled && (
-            <div style={{
-              marginTop: '1rem',
-              paddingLeft: '1rem',
-              paddingRight: '3rem'
-            }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontSize: '0.875rem',
-                fontWeight: 500
-              }}>
+            <div
+              style={{
+                marginTop: '1rem',
+                paddingLeft: '1rem',
+                paddingRight: '3rem',
+              }}
+            >
+              <label
+                style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontSize: '0.875rem',
+                  fontWeight: 500,
+                }}
+              >
                 Memory Limit: {wasmMemoryLimit}MB
               </label>
               <input
@@ -277,17 +283,19 @@ const ConfigurationManager: React.FC = () => {
                 onChange={(e) => handleMemoryLimitChange(parseInt(e.target.value))}
                 style={{
                   width: '100%',
-                  marginBottom: '0.5rem'
+                  marginBottom: '0.5rem',
                 }}
               />
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '0.75rem',
-                color: 'var(--text-secondary)',
-                paddingLeft: '0.25rem',
-                paddingRight: '0.25rem'
-              }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: '0.75rem',
+                  color: 'var(--text-secondary)',
+                  paddingLeft: '0.25rem',
+                  paddingRight: '0.25rem',
+                }}
+              >
                 <span>10MB (Minimal)</span>
                 <span>30MB (Recommended)</span>
                 <span>50MB (Maximum)</span>
@@ -295,14 +303,16 @@ const ConfigurationManager: React.FC = () => {
             </div>
           )}
 
-          <div style={{
-            marginTop: '1rem',
-            padding: '0.75rem',
-            backgroundColor: wasmEnabled ? '#e8f5e8' : '#fff3cd',
-            border: `1px solid ${wasmEnabled ? '#10b981' : '#f59e0b'}`,
-            borderRadius: '4px',
-            fontSize: '0.75rem'
-          }}>
+          <div
+            style={{
+              marginTop: '1rem',
+              padding: '0.75rem',
+              backgroundColor: wasmEnabled ? '#e8f5e8' : '#fff3cd',
+              border: `1px solid ${wasmEnabled ? '#10b981' : '#f59e0b'}`,
+              borderRadius: '4px',
+              fontSize: '0.75rem',
+            }}
+          >
             {wasmEnabled ? (
               <span style={{ color: '#065f46' }}>
                 ✅ WASM enabled - Dictionary lookups will use Rust acceleration
@@ -350,12 +360,14 @@ const ConfigurationManager: React.FC = () => {
         </button>
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '0.75rem'
-      }}>
-        {availableDictionaries.map(dictionaryId => {
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+          gap: '0.75rem',
+        }}
+      >
+        {availableDictionaries.map((dictionaryId) => {
           const isChecked = activeDictionaries.includes(dictionaryId);
           const isRenaming = renamingDictionaryId === dictionaryId;
           const canRename = dictionaryId !== 'properNouns';
@@ -370,7 +382,7 @@ const ConfigurationManager: React.FC = () => {
                 backgroundColor: isChecked ? '#f0fdf4' : 'var(--background-color)',
                 border: `1px solid ${isChecked ? '#10b981' : 'var(--border-color)'}`,
                 borderRadius: '6px',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
               }}
             >
               {isRenaming ? (
@@ -390,7 +402,7 @@ const ConfigurationManager: React.FC = () => {
                       padding: '0.5rem',
                       border: '1px solid var(--border-color)',
                       borderRadius: '4px',
-                      fontSize: '0.875rem'
+                      fontSize: '0.875rem',
                     }}
                   />
                   <button
@@ -403,7 +415,7 @@ const ConfigurationManager: React.FC = () => {
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      color: 'white'
+                      color: 'white',
                     }}
                     title="Confirm rename"
                   >
@@ -419,7 +431,7 @@ const ConfigurationManager: React.FC = () => {
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      color: 'white'
+                      color: 'white',
                     }}
                     title="Cancel rename"
                   >
@@ -437,7 +449,7 @@ const ConfigurationManager: React.FC = () => {
                       gap: '1rem',
                       cursor: 'pointer',
                       color: isChecked ? '#065f46' : 'inherit',
-                      fontWeight: isChecked ? 500 : 'normal'
+                      fontWeight: isChecked ? 500 : 'normal',
                     }}
                   >
                     <input
@@ -461,10 +473,10 @@ const ConfigurationManager: React.FC = () => {
                         display: 'flex',
                         alignItems: 'center',
                         color: '#6b7280',
-                        transition: 'color 0.2s'
+                        transition: 'color 0.2s',
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#10b981'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = '#10b981')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = '#6b7280')}
                       title="Rename dictionary"
                     >
                       <Pencil size={16} />
@@ -505,13 +517,11 @@ const ConfigurationManager: React.FC = () => {
             <h3 style={{ marginBottom: '1.5rem' }}>Create New Dictionary</h3>
             <form onSubmit={handleCreateDictionary}>
               <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-                  Dictionary Name:
-                </label>
+                <label style={{ display: 'block', marginBottom: '0.5rem' }}>Dictionary Name:</label>
                 <input
                   type="text"
                   value={newDictionaryName}
-                  onChange={e => setNewDictionaryName(e.target.value)}
+                  onChange={(e) => setNewDictionaryName(e.target.value)}
                   placeholder="e.g., HarryPotter, JourneyToTheWest"
                   style={{ width: '100%' }}
                 />
@@ -523,17 +533,10 @@ const ConfigurationManager: React.FC = () => {
                   gap: '0.5rem',
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setShowNewDictionaryModal(false)}
-                >
+                <button type="button" onClick={() => setShowNewDictionaryModal(false)}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="primary"
-                  disabled={!newDictionaryName.trim()}
-                >
+                <button type="submit" className="primary" disabled={!newDictionaryName.trim()}>
                   Create
                 </button>
               </div>

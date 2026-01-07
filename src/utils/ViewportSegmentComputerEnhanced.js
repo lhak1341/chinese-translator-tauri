@@ -16,13 +16,13 @@ export class ViewportSegmentComputerEnhanced {
     this.semanticRangeMap = null;
     this.useWorkers = options.useWorkers !== false; // Default to true
     this.workerThreshold = options.workerThreshold || 1000; // Use workers for texts >1000 chars
-    
+
     this.cacheStats = {
       hits: 0,
       misses: 0,
       computations: 0,
       workerHits: 0,
-      mainThreadHits: 0
+      mainThreadHits: 0,
     };
 
     // Performance tracking
@@ -30,7 +30,7 @@ export class ViewportSegmentComputerEnhanced {
       positionMappingTime: 0,
       segmentComputationTime: 0,
       cacheOperationTime: 0,
-      workerCommunicationTime: 0
+      workerCommunicationTime: 0,
     };
   }
 
@@ -42,19 +42,19 @@ export class ViewportSegmentComputerEnhanced {
    */
   async createTextPositionMapping(text, semanticArrays) {
     const startTime = performance.now();
-    
+
     // Quick validation
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
       return {
         textLength: text.length,
         semanticRanges: [],
-        stats: { computeTime: performance.now() - startTime, rangeCount: 0, usedWorker: false }
+        stats: { computeTime: performance.now() - startTime, rangeCount: 0, usedWorker: false },
       };
     }
 
     // Determine whether to use Web Workers
     const shouldUseWorker = this.useWorkers && text.length > this.workerThreshold;
-    
+
     let result;
     if (shouldUseWorker) {
       try {
@@ -63,9 +63,10 @@ export class ViewportSegmentComputerEnhanced {
         result = await segmentWorkerManager.createTextPositionMapping(text, semanticArrays);
         result.stats.usedWorker = true;
         result.stats.workerTime = performance.now() - workerStartTime;
-        
-        console.log(`🚀 Worker position mapping: ${result.semanticRanges.length} ranges in ${result.stats.computeTime.toFixed(1)}ms (worker overhead: ${result.stats.workerTime.toFixed(1)}ms)`);
-        
+
+        console.log(
+          `🚀 Worker position mapping: ${result.semanticRanges.length} ranges in ${result.stats.computeTime.toFixed(1)}ms (worker overhead: ${result.stats.workerTime.toFixed(1)}ms)`
+        );
       } catch (error) {
         console.warn('⚠️ Worker failed, falling back to main thread:', error.message);
         result = this._createTextPositionMappingMainThread(text, semanticArrays);
@@ -81,7 +82,7 @@ export class ViewportSegmentComputerEnhanced {
 
     // Store result for segment computation
     this.semanticRangeMap = result;
-    
+
     // Update performance stats
     this.performanceStats.positionMappingTime += performance.now() - startTime;
 
@@ -93,7 +94,7 @@ export class ViewportSegmentComputerEnhanced {
    */
   _createTextPositionMappingMainThread(text, semanticArrays) {
     const startTime = performance.now();
-    
+
     const { translated, original, metadata } = semanticArrays;
     const semanticRanges = [];
     let currentPosition = 0;
@@ -101,15 +102,15 @@ export class ViewportSegmentComputerEnhanced {
     // Build lightweight position mapping (identical algorithm to worker)
     for (let i = 0; i < translated.length; i++) {
       const unit = translated[i];
-      
+
       // Find unit in text starting from current position
       const searchText = text.substring(currentPosition);
       const matchResult = this.findUnitInText(searchText, unit);
-      
+
       if (matchResult.found) {
         const actualStart = currentPosition + matchResult.offset;
         const actualEnd = actualStart + unit.length;
-        
+
         // Store lightweight range info (not full segment objects)
         semanticRanges.push({
           startPos: actualStart,
@@ -118,9 +119,9 @@ export class ViewportSegmentComputerEnhanced {
           originalText: original[i],
           translatedText: unit,
           source: metadata[i].source,
-          metadata: metadata[i]
+          metadata: metadata[i],
         });
-        
+
         currentPosition = actualEnd;
       }
     }
@@ -131,7 +132,7 @@ export class ViewportSegmentComputerEnhanced {
       textLength: text.length,
       semanticRanges,
       fullText: text,
-      stats: { computeTime, rangeCount: semanticRanges.length }
+      stats: { computeTime, rangeCount: semanticRanges.length },
     };
   }
 
@@ -149,7 +150,7 @@ export class ViewportSegmentComputerEnhanced {
 
     const startTime = performance.now();
     const cacheKey = `${textStart}-${textEnd}`;
-    
+
     // Check cache first (main thread cache is still faster for hits)
     if (this.segmentCache.has(cacheKey)) {
       this.cacheStats.hits++;
@@ -169,24 +170,23 @@ export class ViewportSegmentComputerEnhanced {
       try {
         // Use Web Worker for segment computation
         segmentResult = await segmentWorkerManager.computeSegmentsForTextRange(
-          this.semanticRangeMap, 
-          textStart, 
+          this.semanticRangeMap,
+          textStart,
           textEnd
         );
         this.cacheStats.workerHits++;
-        
       } catch (error) {
         console.warn('⚠️ Worker segment computation failed, using main thread:', error.message);
         segmentResult = {
           segments: this._computeSegmentsMainThread(textStart, textEnd),
-          stats: { computeTime: performance.now() - startTime }
+          stats: { computeTime: performance.now() - startTime },
         };
       }
     } else {
       // Use main thread
       segmentResult = {
         segments: this._computeSegmentsMainThread(textStart, textEnd),
-        stats: { computeTime: performance.now() - startTime }
+        stats: { computeTime: performance.now() - startTime },
       };
     }
 
@@ -216,7 +216,7 @@ export class ViewportSegmentComputerEnhanced {
       console.error('⚠️ _computeSegmentsMainThread: Missing semanticRanges or fullText', {
         hasSemanticRanges: !!semanticRanges,
         hasFullText: !!fullText,
-        semanticRangeMap: this.semanticRangeMap
+        semanticRangeMap: this.semanticRangeMap,
       });
       return [];
     }
@@ -224,22 +224,25 @@ export class ViewportSegmentComputerEnhanced {
     // DEBUG: Check if fullText has capitalization
     if (process.env.NODE_ENV === 'development' && textStart === 0) {
       const firstChar = fullText.charAt(0);
-      const isCapitalized = firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
-      console.log(`🔍 Segment computation fullText capitalization check: "${fullText.substring(0, 50)}" - First char capitalized: ${isCapitalized}`);
+      const isCapitalized =
+        firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
+      console.log(
+        `🔍 Segment computation fullText capitalization check: "${fullText.substring(0, 50)}" - First char capitalized: ${isCapitalized}`
+      );
     }
 
     const segments = [];
     let currentPos = textStart;
 
     // Find semantic ranges that overlap with visible area
-    const relevantRanges = semanticRanges.filter(range => 
-      range.startPos < textEnd && range.endPos > textStart
+    const relevantRanges = semanticRanges.filter(
+      (range) => range.startPos < textEnd && range.endPos > textStart
     );
 
     // Build segments for visible area (identical to worker algorithm)
     while (currentPos < textEnd) {
-      const nextRange = relevantRanges.find(range => 
-        range.startPos >= currentPos && range.startPos < textEnd
+      const nextRange = relevantRanges.find(
+        (range) => range.startPos >= currentPos && range.startPos < textEnd
       );
 
       if (nextRange) {
@@ -253,7 +256,7 @@ export class ViewportSegmentComputerEnhanced {
               start: currentPos,
               end: nextRange.startPos,
               unitIndex: -1,
-              isClickable: false
+              isClickable: false,
             });
           }
         }
@@ -270,7 +273,7 @@ export class ViewportSegmentComputerEnhanced {
           translatedText: nextRange.translatedText,
           source: nextRange.source,
           metadata: nextRange.metadata,
-          isClickable: true
+          isClickable: true,
         });
 
         currentPos = segmentEnd;
@@ -284,7 +287,7 @@ export class ViewportSegmentComputerEnhanced {
             start: currentPos,
             end: textEnd,
             unitIndex: -1,
-            isClickable: false
+            isClickable: false,
           });
         }
         break;
@@ -304,11 +307,11 @@ export class ViewportSegmentComputerEnhanced {
 
     const positions = [
       { textStart: 0, textEnd: Math.min(viewportSize, textLength) },
-      { 
-        textStart: Math.max(0, textLength / 2 - viewportSize / 2), 
-        textEnd: Math.min(textLength, textLength / 2 + viewportSize / 2) 
+      {
+        textStart: Math.max(0, textLength / 2 - viewportSize / 2),
+        textEnd: Math.min(textLength, textLength / 2 + viewportSize / 2),
       },
-      { textStart: Math.max(0, textLength - viewportSize), textEnd: textLength }
+      { textStart: Math.max(0, textLength - viewportSize), textEnd: textLength },
     ];
 
     console.log('🔄 Pre-warming viewport cache with Web Workers...');
@@ -326,7 +329,9 @@ export class ViewportSegmentComputerEnhanced {
           this.segmentCache.set(cacheKey, result.segments);
         }
 
-        console.log(`✅ Batch cache pre-warmed: ${Object.keys(batchResult.results).length} ranges in ${batchResult.batchStats.totalTime.toFixed(1)}ms`);
+        console.log(
+          `✅ Batch cache pre-warmed: ${Object.keys(batchResult.results).length} ranges in ${batchResult.batchStats.totalTime.toFixed(1)}ms`
+        );
       } else {
         // Fallback to individual computations
         for (const pos of positions) {
@@ -352,20 +357,20 @@ export class ViewportSegmentComputerEnhanced {
     // Try normalized matching (case-insensitive, whitespace normalized)
     const normalizedSearch = this.normalizeText(searchText);
     const normalizedUnit = this.normalizeText(unit);
-    
+
     const normalizedIndex = normalizedSearch.indexOf(normalizedUnit);
     if (normalizedIndex !== -1) {
       // Find actual offset in original text
       let actualOffset = 0;
       let normalizedOffset = 0;
-      
+
       while (normalizedOffset < normalizedIndex && actualOffset < searchText.length) {
         if (this.normalizeText(searchText[actualOffset]) !== '') {
           normalizedOffset++;
         }
         actualOffset++;
       }
-      
+
       return { found: true, offset: actualOffset };
     }
 
@@ -389,22 +394,22 @@ export class ViewportSegmentComputerEnhanced {
   getCacheStats() {
     const total = this.cacheStats.hits + this.cacheStats.misses;
     const workerStats = segmentWorkerManager.getStats();
-    
+
     return {
       // Local cache stats
       ...this.cacheStats,
       hitRate: total > 0 ? this.cacheStats.hits / total : 0,
       cacheSize: this.segmentCache.size,
-      
+
       // Worker stats
       workerStats,
-      
+
       // Performance stats
       performanceStats: this.performanceStats,
-      
+
       // Combined efficiency
       totalSpeedup: this.useWorkers ? 'Enabled' : 'Disabled',
-      recommendedAction: this._getOptimizationRecommendation()
+      recommendedAction: this._getOptimizationRecommendation(),
     };
   }
 
@@ -413,19 +418,19 @@ export class ViewportSegmentComputerEnhanced {
    */
   _getOptimizationRecommendation() {
     const workerStats = segmentWorkerManager.getStats();
-    
+
     if (this.cacheStats.misses > 20 && workerStats.workerPercentage < 50) {
       return 'Consider lowering workerThreshold to use workers more often';
     }
-    
+
     if (workerStats.errors > 5) {
       return 'High worker error rate - consider disabling workers';
     }
-    
+
     if (this.cacheStats.hits / Math.max(this.cacheStats.misses, 1) > 10) {
       return 'Excellent cache performance - consider increasing cache size';
     }
-    
+
     return 'Performance optimized';
   }
 
@@ -439,7 +444,7 @@ export class ViewportSegmentComputerEnhanced {
       positionMappingTime: 0,
       segmentComputationTime: 0,
       cacheOperationTime: 0,
-      workerCommunicationTime: 0
+      workerCommunicationTime: 0,
     };
   }
 
@@ -460,7 +465,7 @@ export class ViewportSegmentComputerEnhanced {
     }
 
     const { textLength, semanticRanges } = this.semanticRangeMap;
-    
+
     // Calculate visible line range
     const startLineIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - bufferSize);
     const endLineIndex = Math.min(
@@ -470,7 +475,7 @@ export class ViewportSegmentComputerEnhanced {
 
     // Convert line indices to text positions
     const avgCharsPerLine = textLength / semanticRanges.length;
-    
+
     const textStart = Math.max(0, Math.floor(startLineIndex * avgCharsPerLine));
     const textEnd = Math.min(textLength, Math.ceil(endLineIndex * avgCharsPerLine));
 
