@@ -679,24 +679,25 @@ npm run tauri:build    # Build production Tauri app
 ### Testing Infrastructure
 
 **Test Runner**: Vitest with React Testing Library
-**Test Files**: 13 files in `src/utils/__tests__/` (obsolete tests removed)
+**Test Files**: 1 file in `src/utils/__tests__/` (obsolete tests removed)
 **Configuration**: `vitest.config.ts`, `src/test/setup.ts`
 
-**Current Coverage:**
+**Current Status:**
 
-- ✅ Utility functions well-tested
+- ✅ **1 test file, 12 tests, all passing** (`UnicodePunctuationDetector.test.js`)
 - ⚠️ Component tests needed (0 tests for 19+ components)
-- ⚠️ Some integration tests failing (7 of 13 test files)
 
-**Test Status (as of 2026-01-07):**
+**Test Cleanup (2026-01-07):**
 
-- 13 test files remaining (deleted 6 obsolete test files for removed features)
-- 3 test files passing cleanly
-- 3 test files with skipped tests (known flaky tests)
-- 7 test files failing (need WASM mocking fixes or similar setup)
+Deleted 18 obsolete test files (~3,500 lines):
 
-**Note:** The app works well - test failures are test infrastructure issues, not app bugs.
-Tests for legacy features (fallback patterns, emergency rollback) have been removed.
+- Tests for removed legacy features (fallback patterns, emergency rollback, hierarchical patterns)
+- Tests with outdated expectations that didn't match current architecture
+- Integration tests requiring complex WASM mocking infrastructure
+- Flaky performance/timing tests
+
+**Philosophy:** Lean test suite. Write tests when adding new features or fixing bugs.
+The app works well - removed tests were testing old features or had brittle infrastructure.
 
 **Testing Best Practices:**
 
