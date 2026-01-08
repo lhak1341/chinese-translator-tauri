@@ -1,17 +1,12 @@
 /**
  * Semantic Array-Based Clickable Original Component
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
- *
- * @import { ClickableOriginalSemanticProps } from '../types/ClickableTypes'
  */
 import { useMemo } from 'react';
-import PropTypes from 'prop-types';
+import type { ClickableOriginalSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 
-/**
- * @param {ClickableOriginalSemanticProps} props
- */
-const ClickableOriginalSemantic = ({
+const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   originalText,
   semanticArrays,
   highlightedUnitIndex = -1,
@@ -19,7 +14,7 @@ const ClickableOriginalSemantic = ({
   onSegmentClick,
 }) => {
   // Handle click on a semantic unit in original text
-  const handleUnitClick = (unitIndex) => {
+  const handleUnitClick = (unitIndex: number) => {
     if (!semanticArrays || unitIndex >= semanticArrays.original.length) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('Invalid unit index or no semantic arrays:', unitIndex);
@@ -42,7 +37,7 @@ const ClickableOriginalSemantic = ({
 
     // Call the callback to highlight the corresponding translation
     if (onSegmentClick) {
-      onSegmentClick({
+      (onSegmentClick as any)({
         unitIndex,
         originalText,
         translatedText,
@@ -58,15 +53,15 @@ const ClickableOriginalSemantic = ({
     if (!semanticArrays || !semanticArrays.original || semanticArrays.original.length === 0) {
       return [];
     }
-    return SegmentPrecomputer.precomputeOriginalSegments(originalText, semanticArrays);
+    return SegmentPrecomputer.precomputeOriginalSegments(originalText!, semanticArrays);
   }, [originalText, semanticArrays]);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)
   const paragraphs = useMemo(() => {
     if (segments.length === 0) return [];
 
-    const result = [];
-    let currentParagraph = [];
+    const result: any[][] = [];
+    let currentParagraph: any[] = [];
 
     for (const segment of segments) {
       // Split by single newlines to detect indented paragraphs
@@ -107,7 +102,7 @@ const ClickableOriginalSemantic = ({
   }, [segments]);
 
   // Render a single segment with highlighting
-  const renderSegment = (segment, index) => {
+  const renderSegment = (segment: any, index: number) => {
     if (segment.isClickable) {
       const isHighlighted =
         highlightedUnitIndex === segment.unitIndex ||
@@ -129,12 +124,12 @@ const ClickableOriginalSemantic = ({
           }}
           onMouseEnter={(e) => {
             if (!isHighlighted) {
-              e.target.style.backgroundColor = 'var(--hover-bg)';
+              (e.target as HTMLElement).style.backgroundColor = 'var(--hover-bg)';
             }
           }}
           onMouseLeave={(e) => {
             if (!isHighlighted) {
-              e.target.style.backgroundColor = 'transparent';
+              (e.target as HTMLElement).style.backgroundColor = 'transparent';
             }
           }}
           title={`"${segment.originalText}" → "${segment.translatedText}" (${segment.source})`}
@@ -174,24 +169,14 @@ const ClickableOriginalSemantic = ({
           whiteSpace: 'pre-wrap',
         }}
       >
-        {paragraphSegments.map((segment, segmentIndex) => renderSegment(segment, segmentIndex))}
+        {paragraphSegments.map((segment: any, segmentIndex: number) =>
+          renderSegment(segment, segmentIndex)
+        )}
       </div>
     ));
   };
 
   return <div style={{ lineHeight: '1.6' }}>{renderSegments()}</div>;
-};
-
-ClickableOriginalSemantic.propTypes = {
-  originalText: PropTypes.string,
-  semanticArrays: PropTypes.shape({
-    original: PropTypes.array,
-    translated: PropTypes.array,
-    metadata: PropTypes.array,
-  }),
-  highlightedUnitIndex: PropTypes.number,
-  highlightedTranslationUnitIndex: PropTypes.number,
-  onSegmentClick: PropTypes.func,
 };
 
 export default ClickableOriginalSemantic;

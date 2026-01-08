@@ -1,17 +1,12 @@
 /**
  * Semantic Array-Based Clickable Translation Component
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
- *
- * @import { ClickableTranslationSemanticProps } from '../types/ClickableTypes'
  */
 import React, { useMemo } from 'react';
-import PropTypes from 'prop-types';
+import type { ClickableTranslationSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 
-/**
- * @param {ClickableTranslationSemanticProps} props
- */
-const ClickableTranslationSemantic = ({
+const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> = ({
   translatedText,
   semanticArrays,
   onSegmentClick,
@@ -34,7 +29,7 @@ const ClickableTranslationSemantic = ({
         const originalUnit = semanticArrays.original[i];
 
         // Find this unit in the translated text starting from current position
-        const remainingText = translatedText.substring(currentPosition);
+        const remainingText = translatedText!.substring(currentPosition);
         const unitPosition = remainingText.indexOf(translatedUnit);
 
         if (unitPosition !== -1) {
@@ -44,25 +39,25 @@ const ClickableTranslationSemantic = ({
           if (unitPosition > 0) {
             const nonSemanticText = remainingText.substring(0, unitPosition);
             directSegments.push({
-              type: 'text',
+              type: 'text' as const,
               text: nonSemanticText,
               start: currentPosition,
               end: actualPosition,
               unitIndex: -1,
-              isClickable: false,
+              isClickable: false as const,
             });
           }
 
           // Add the semantic unit
           directSegments.push({
-            type: 'semantic',
+            type: 'semantic' as const,
             text: translatedUnit,
             start: actualPosition,
             end: actualPosition + translatedUnit.length,
             unitIndex: i,
             originalText: originalUnit,
             translatedText: translatedUnit,
-            isClickable: true,
+            isClickable: true as const,
           });
 
           currentPosition = actualPosition + translatedUnit.length;
@@ -70,15 +65,15 @@ const ClickableTranslationSemantic = ({
       }
 
       // Add any remaining text
-      if (currentPosition < translatedText.length) {
+      if (translatedText && currentPosition < translatedText.length) {
         const remainingText = translatedText.substring(currentPosition);
         directSegments.push({
-          type: 'text',
+          type: 'text' as const,
           text: remainingText,
           start: currentPosition,
           end: translatedText.length,
           unitIndex: -1,
-          isClickable: false,
+          isClickable: false as const,
         });
       }
 
@@ -86,7 +81,7 @@ const ClickableTranslationSemantic = ({
     }
 
     // For other translations, use the existing SegmentPrecomputer
-    const computedSegments = SegmentPrecomputer.precomputeSegments(translatedText, semanticArrays);
+    const computedSegments = SegmentPrecomputer.precomputeSegments(translatedText!, semanticArrays);
     return computedSegments;
   }, [translatedText, semanticArrays, direction]);
 
@@ -95,7 +90,7 @@ const ClickableTranslationSemantic = ({
     if (segments.length === 0) return [];
 
     const result = [];
-    let currentParagraph = [];
+    let currentParagraph: any[] = [];
 
     for (const segment of segments) {
       // Split by single newlines to detect indented paragraphs
@@ -136,7 +131,7 @@ const ClickableTranslationSemantic = ({
   }, [segments]);
 
   // Handle click on a semantic unit
-  const handleUnitClick = (unitIndex) => {
+  const handleUnitClick = (unitIndex: number) => {
     if (!semanticArrays || unitIndex >= semanticArrays.original.length) {
       return;
     }
@@ -156,7 +151,7 @@ const ClickableTranslationSemantic = ({
 
     // Call the callback with the semantic unit information
     if (onSegmentClick) {
-      onSegmentClick({
+      (onSegmentClick as any)({
         unitIndex,
         originalText,
         translatedText,
@@ -168,7 +163,7 @@ const ClickableTranslationSemantic = ({
   };
 
   // Render a single segment with highlighting
-  const renderSegment = (segment, index) => {
+  const renderSegment = (segment: any, index: number) => {
     if (segment.isClickable) {
       // Handle both single index and array of indices for highlighting
       const isHighlighted = Array.isArray(highlightedTranslationUnitIndex)
@@ -191,12 +186,12 @@ const ClickableTranslationSemantic = ({
           }}
           onMouseEnter={(e) => {
             if (!isHighlighted) {
-              e.target.style.backgroundColor = 'var(--hover-bg)';
+              (e.target as HTMLElement).style.backgroundColor = 'var(--hover-bg)';
             }
           }}
           onMouseLeave={(e) => {
             if (!isHighlighted) {
-              e.target.style.backgroundColor = 'transparent';
+              (e.target as HTMLElement).style.backgroundColor = 'transparent';
             }
           }}
           title={`Click to highlight "${segment.originalText}" (${segment.source})`}
@@ -235,24 +230,14 @@ const ClickableTranslationSemantic = ({
           whiteSpace: 'pre-wrap',
         }}
       >
-        {paragraphSegments.map((segment, segmentIndex) => renderSegment(segment, segmentIndex))}
+        {paragraphSegments.map((segment: any, segmentIndex: number) =>
+          renderSegment(segment, segmentIndex)
+        )}
       </div>
     ));
   };
 
   return <div style={{ lineHeight: '1.4' }}>{renderSegments()}</div>;
-};
-
-ClickableTranslationSemantic.propTypes = {
-  translatedText: PropTypes.string,
-  semanticArrays: PropTypes.shape({
-    original: PropTypes.array,
-    translated: PropTypes.array,
-    metadata: PropTypes.array,
-  }),
-  onSegmentClick: PropTypes.func,
-  highlightedTranslationUnitIndex: PropTypes.oneOfType([PropTypes.number, PropTypes.array]),
-  direction: PropTypes.string,
 };
 
 export default React.memo(ClickableTranslationSemantic);

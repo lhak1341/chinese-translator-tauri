@@ -1,94 +1,79 @@
 /**
  * Optimized Clickable Translation Component
  * Uses pre-computed segments and memoization for maximum performance
- *
- * @import { ClickableTranslationOptimizedProps, SegmentComponentProps } from '../types/ClickableTypes'
  */
 import React, { useMemo, useCallback } from 'react';
-import PropTypes from 'prop-types';
+import type {
+  ClickableTranslationOptimizedProps,
+  SegmentComponentProps,
+} from '../types/ClickableTypes';
 
 // Memoized segment component to prevent unnecessary re-renders
-const SegmentComponent = React.memo(({ segment, onClick, isHighlighted }) => {
-  const handleClick = useCallback(() => {
-    if (segment.isClickable) {
-      onClick({
-        unitIndex: segment.unitIndex,
-        originalText: segment.originalText,
-        translatedText: segment.translatedText,
-        source: segment.source,
-        metadata: segment.metadata,
-        direction: 'translation-to-original',
-      });
-    }
-  }, [segment, onClick]);
-
-  const styles = useMemo(() => {
-    const baseStyles = {
-      display: 'inline',
-      transition: 'all 0.1s ease-out',
-    };
-
-    if (segment.isClickable) {
-      baseStyles.cursor = 'pointer';
-      baseStyles.borderRadius = '2px';
-
-      if (isHighlighted) {
-        baseStyles.backgroundColor = 'var(--highlight-bg)';
-        baseStyles.color = 'var(--highlight-text)';
+const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
+  ({ segment, onClick, isHighlighted }) => {
+    const handleClick = useCallback(() => {
+      if (segment.isClickable) {
+        (onClick as any)({
+          unitIndex: segment.unitIndex,
+          originalText: segment.originalText,
+          translatedText: segment.translatedText,
+          source: segment.source,
+          metadata: segment.metadata!,
+          direction: 'translation-to-original',
+        });
       }
-    }
+    }, [segment, onClick]);
 
-    return baseStyles;
-  }, [segment.isClickable, isHighlighted]);
+    const styles = useMemo(() => {
+      const baseStyles: React.CSSProperties = {
+        display: 'inline',
+        transition: 'all 0.1s ease-out',
+      };
 
-  return (
-    <span
-      key={segment.key}
-      data-unit-index={segment.unitIndex}
-      onClick={handleClick}
-      style={styles}
-      onMouseEnter={(e) => {
-        if (segment.isClickable && !isHighlighted) {
-          e.target.style.backgroundColor = 'var(--hover-bg)';
+      if (segment.isClickable) {
+        baseStyles.cursor = 'pointer';
+        baseStyles.borderRadius = '2px';
+
+        if (isHighlighted) {
+          baseStyles.backgroundColor = 'var(--highlight-bg)';
+          baseStyles.color = 'var(--highlight-text)';
         }
-      }}
-      onMouseLeave={(e) => {
-        if (segment.isClickable && !isHighlighted) {
-          e.target.style.backgroundColor = 'transparent';
-        }
-      }}
-      title={
-        segment.isClickable
-          ? `"${segment.text}" ← translation (${segment.source || 'unknown'})`
-          : undefined
       }
-    >
-      {segment.text}
-    </span>
-  );
-});
+
+      return baseStyles;
+    }, [segment.isClickable, isHighlighted]);
+
+    return (
+      <span
+        key={segment.key}
+        data-unit-index={segment.unitIndex}
+        onClick={handleClick}
+        style={styles}
+        onMouseEnter={(e) => {
+          if (segment.isClickable && !isHighlighted) {
+            (e.target as HTMLElement).style.backgroundColor = 'var(--hover-bg)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (segment.isClickable && !isHighlighted) {
+            (e.target as HTMLElement).style.backgroundColor = 'transparent';
+          }
+        }}
+        title={
+          segment.isClickable
+            ? `"${segment.text}" ← translation (${segment.source || 'unknown'})`
+            : undefined
+        }
+      >
+        {segment.text}
+      </span>
+    );
+  }
+);
 
 SegmentComponent.displayName = 'SegmentComponent';
 
-SegmentComponent.propTypes = {
-  segment: PropTypes.shape({
-    isClickable: PropTypes.bool,
-    unitIndex: PropTypes.number,
-    originalText: PropTypes.string,
-    translatedText: PropTypes.string,
-    source: PropTypes.string,
-    metadata: PropTypes.object,
-    key: PropTypes.string,
-    text: PropTypes.string,
-  }).isRequired,
-  onClick: PropTypes.func.isRequired,
-  isHighlighted: PropTypes.bool.isRequired,
-};
-
-/**
- * @param {ClickableTranslationOptimizedProps} props
- */
-const ClickableTranslationOptimized = ({
+const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps> = ({
   translatedText,
   semanticArrays,
   prebuiltSegments = [],
@@ -119,8 +104,8 @@ const ClickableTranslationOptimized = ({
   const paragraphs = useMemo(() => {
     if (renderSegments.length === 0) return [];
 
-    const result = [];
-    let currentParagraph = [];
+    const result: any[][] = [];
+    let currentParagraph: any[] = [];
 
     for (let i = 0; i < renderSegments.length; i++) {
       const segment = renderSegments[i];
@@ -161,9 +146,9 @@ const ClickableTranslationOptimized = ({
 
   // Memoize click handler to prevent re-renders
   const handleSegmentClick = useCallback(
-    (segmentData) => {
+    (segmentData: any) => {
       if (onSegmentClick) {
-        onSegmentClick(segmentData);
+        (onSegmentClick as any)(segmentData);
       }
     },
     [onSegmentClick]
@@ -190,7 +175,7 @@ const ClickableTranslationOptimized = ({
             whiteSpace: 'pre-wrap',
           }}
         >
-          {paragraphSegments.map((segment) => (
+          {paragraphSegments.map((segment: any) => (
             <SegmentComponent
               key={segment.key}
               segment={segment}
@@ -202,18 +187,6 @@ const ClickableTranslationOptimized = ({
       ))}
     </div>
   );
-};
-
-ClickableTranslationOptimized.propTypes = {
-  translatedText: PropTypes.string,
-  semanticArrays: PropTypes.shape({
-    original: PropTypes.array,
-    translated: PropTypes.array,
-    metadata: PropTypes.array,
-  }),
-  prebuiltSegments: PropTypes.array,
-  onSegmentClick: PropTypes.func,
-  highlightedTranslationUnitIndex: PropTypes.number,
 };
 
 // Memoize the entire component to prevent unnecessary re-renders
