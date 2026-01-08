@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 /**
  * Dictionary configuration hook
@@ -24,6 +24,23 @@ export function useDictionaryConfig() {
   const [activeProperNouns, setActiveProperNouns] = useState(['properNouns']);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddDictionary, setQuickAddDictionary] = useState('properNouns');
+  const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState(null);
+
+  // Load default Cmd-5 dictionary on mount and when active proper nouns change
+  // (cache it for instant access during Cmd-5)
+  useEffect(() => {
+    const loadDefaultDictionary = async () => {
+      try {
+        const configResult = await window.electronAPI.loadConfiguration();
+        if (configResult.success && configResult.data?.defaultQuickAddDictionary) {
+          setDefaultQuickAddDictionary(configResult.data.defaultQuickAddDictionary);
+        }
+      } catch (error) {
+        console.error('Error loading default Cmd-5 dictionary:', error);
+      }
+    };
+    loadDefaultDictionary();
+  }, [activeProperNouns]); // Reload when active dictionaries change
 
   /**
    * Open Quick Add modal for character dictionary
@@ -59,9 +76,17 @@ export function useDictionaryConfig() {
 
   /**
    * Open Quick Add modal for custom proper noun dictionary
-   * Selects first active custom proper noun alphabetically
+   * Uses cached default from configuration, or falls back to first active custom proper noun alphabetically
    */
   const openQuickAddCustomProperNoun = useCallback(() => {
+    // If there's a cached default and it's active, use it
+    if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
+      setQuickAddDictionary(defaultQuickAddDictionary);
+      setShowQuickAdd(true);
+      return;
+    }
+
+    // Otherwise, fall back to previous behavior
     // Filter active proper nouns to find custom ones (properNouns-*)
     const customProperNouns = activeProperNouns.filter((dict) => dict.startsWith('properNouns-'));
 
@@ -75,7 +100,7 @@ export function useDictionaryConfig() {
     }
 
     setShowQuickAdd(true);
-  }, [activeProperNouns]);
+  }, [activeProperNouns, defaultQuickAddDictionary]);
 
   /**
    * Close Quick Add modal

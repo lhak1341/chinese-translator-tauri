@@ -104,6 +104,8 @@ export interface AppConfiguration {
   wasmEnabled: boolean;
   /** WASM memory limit in MB */
   wasmMemoryLimit: number;
+  /** Default dictionary for Cmd-5 quick add */
+  defaultQuickAddDictionary?: string | null;
   /** Last selected dictionary ID */
   lastSelectedDictionary?: string;
   /** Auto-save configuration changes */

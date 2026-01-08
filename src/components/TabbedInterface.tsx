@@ -145,11 +145,14 @@ const TabbedInterface: React.FC = () => {
       <div style={contentStyle}>
         <div style={componentStyle(activeTab === 'translator')}>
           <ErrorBoundary>
-            <Translator />
+            {React.createElement(Translator as any, { isActive: activeTab === 'translator' })}
           </ErrorBoundary>
         </div>
         <div style={componentStyle(activeTab === 'dictionary')}>
-          {React.createElement(DictionaryManager as any, { searchRef: dictionarySearchRef })}
+          {React.createElement(DictionaryManager as any, {
+            searchRef: dictionarySearchRef,
+            isActive: activeTab === 'dictionary',
+          })}
         </div>
         <div style={componentStyle(activeTab === 'configuration')}>
           {React.createElement(ConfigurationManager as any)}

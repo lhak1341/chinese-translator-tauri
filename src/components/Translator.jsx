@@ -98,7 +98,7 @@ import { buildPositionMappings } from '../utils/PositionMappingBuilder.js';
 //   - Scroll position management requires DOM ref coordination
 // ============================================================================
 
-const Translator = () => {
+const Translator = ({ isActive = true }) => {
   const { dictionaries, isLoading, loadDictionary: _loadDictionary } = useDictionary();
 
   // Performance monitoring hook (extracted)
@@ -2393,7 +2393,7 @@ const Translator = () => {
         onQuickAddPattern={handleQuickAddPattern}
         onQuickAddCustomProperNoun={handleQuickAddCustomProperNoun}
         onReloadDictionary={handleForceReload}
-        activeTab="translator"
+        activeTab={isActive ? 'translator' : null}
       />
       <TranslatorControls
         handleTranslateFromClipboard={handleTranslateFromClipboard}

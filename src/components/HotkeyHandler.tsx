@@ -151,7 +151,7 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
               if (activeTab === 'translator') {
                 event.preventDefault();
                 await copySelectedText();
-                onQuickAddCustomProperNoun?.();
+                onQuickAddCustomProperNoun?.(); // Don't await - let it load config in background
               }
               break;
             case 'l':

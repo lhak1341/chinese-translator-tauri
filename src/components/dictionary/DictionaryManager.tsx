@@ -40,6 +40,8 @@ interface SelectionState {
 interface DictionaryManagerProps {
   /** Optional ref for search input (for keyboard shortcut focus) */
   searchRef?: React.RefObject<HTMLInputElement>;
+  /** Whether this tab is currently active (for reloading when tab becomes visible) */
+  isActive?: boolean;
 }
 
 /**
@@ -57,7 +59,7 @@ interface DictionaryManagerProps {
  * @param props - Component props
  * @returns Dictionary management interface
  */
-const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
+const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActive }) => {
   // Feature flag for enhanced virtualized table
   // Always use enhanced virtualization for better UX (direct editing)
   const useEnhancedVirtualization = true;
@@ -120,6 +122,24 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
   useEffect(() => {
     setRefreshTimestamp(Date.now());
   }, []);
+
+  // Reload configuration when tab becomes active (to pick up changes from Configuration tab)
+  useEffect(() => {
+    if (isActive) {
+      // Reload active dictionaries from configuration
+      const reloadConfig = async (): Promise<void> => {
+        try {
+          const configResult = await window.electronAPI.loadConfiguration();
+          if (configResult.success && configResult.data) {
+            setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
+          }
+        } catch (error) {
+          console.error('Failed to reload configuration:', error);
+        }
+      };
+      reloadConfig();
+    }
+  }, [isActive]);
 
   // Load selected dictionary when it changes
   useEffect(() => {
@@ -371,7 +391,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef }) => {
             onChange={(e) => setShowAllDictionaries(e.target.checked)}
             style={{ cursor: 'pointer' }}
           />
-          <span>Show all dictionaries</span>
+          <span>Show all</span>
         </label>
 
         <div style={controlsStyle}>

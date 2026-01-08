@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Loader, AlertCircle, Pencil, Check, X } from 'lucide-react';
+import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
 
 /**
  * ConfigurationManager Component
@@ -27,6 +27,9 @@ const ConfigurationManager: React.FC = () => {
   const [renamingDictionaryId, setRenamingDictionaryId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
 
+  // Default Cmd-5 dictionary state
+  const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
+
   // Load available dictionaries on mount
   useEffect(() => {
     const loadDictionaries = async (): Promise<void> => {
@@ -45,6 +48,9 @@ const ConfigurationManager: React.FC = () => {
             // Load WASM configuration
             setWasmEnabled(configResult.data.wasmEnabled !== false); // Default to enabled
             setWasmMemoryLimit(configResult.data.wasmMemoryLimit || 20); // Default 20MB
+
+            // Load default Cmd-5 dictionary
+            setDefaultQuickAddDictionary(configResult.data.defaultQuickAddDictionary || null);
           }
         } else {
           throw new Error(result.error || 'Failed to load dictionaries');
@@ -66,11 +72,12 @@ const ConfigurationManager: React.FC = () => {
         ? activeDictionaries.filter((id) => id !== dictionaryId)
         : [...activeDictionaries, dictionaryId];
 
-      // Save configuration (including WASM settings)
+      // Save configuration (including WASM settings and default Cmd-5 dictionary)
       const result = await window.electronAPI.saveConfiguration({
         activeProperNouns: newActiveDictionaries,
         wasmEnabled: wasmEnabled,
         wasmMemoryLimit: wasmMemoryLimit,
+        defaultQuickAddDictionary: defaultQuickAddDictionary,
       });
 
       if (result.success) {
@@ -111,6 +118,7 @@ const ConfigurationManager: React.FC = () => {
         activeProperNouns: activeDictionaries,
         wasmEnabled: enabled,
         wasmMemoryLimit: wasmMemoryLimit,
+        defaultQuickAddDictionary: defaultQuickAddDictionary,
       });
 
       if (result.success) {
@@ -129,6 +137,7 @@ const ConfigurationManager: React.FC = () => {
         activeProperNouns: activeDictionaries,
         wasmEnabled: wasmEnabled,
         wasmMemoryLimit: limit,
+        defaultQuickAddDictionary: defaultQuickAddDictionary,
       });
 
       if (result.success) {
@@ -184,12 +193,40 @@ const ConfigurationManager: React.FC = () => {
           prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id))
         );
 
+        // Update default Cmd-5 dictionary if the renamed one was the default
+        if (defaultQuickAddDictionary === renamingDictionaryId) {
+          setDefaultQuickAddDictionary(newDictionaryId);
+        }
+
         handleCancelRename();
       } else {
         throw new Error(result.error);
       }
     } catch (err) {
       setError('Failed to rename dictionary: ' + (err as Error).message);
+    }
+  };
+
+  // Handle setting default Cmd-5 dictionary
+  const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
+    try {
+      // If clicking the same dictionary, unset it (toggle off)
+      const newDefault = defaultQuickAddDictionary === dictionaryId ? null : dictionaryId;
+
+      const result = await window.electronAPI.saveConfiguration({
+        activeProperNouns: activeDictionaries,
+        wasmEnabled: wasmEnabled,
+        wasmMemoryLimit: wasmMemoryLimit,
+        defaultQuickAddDictionary: newDefault,
+      });
+
+      if (result.success) {
+        setDefaultQuickAddDictionary(newDefault);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err) {
+      setError('Failed to set default Cmd-5 dictionary: ' + (err as Error).message);
     }
   };
 
@@ -328,7 +365,15 @@ const ConfigurationManager: React.FC = () => {
 
       <div style={{ marginBottom: '2rem' }}>
         <h2>Proper Nouns Dictionaries</h2>
-        <p>Select which proper nouns dictionaries to use during translation.</p>
+        <p>
+          Select which proper nouns dictionaries to use during translation. For active custom
+          dictionaries, click the{' '}
+          <Bookmark
+            size={14}
+            style={{ display: 'inline', verticalAlign: 'middle', marginBottom: '2px' }}
+          />{' '}
+          bookmark icon to set the default dictionary for Cmd/Ctrl-5 quick add.
+        </p>
       </div>
 
       {error && (
@@ -371,6 +416,8 @@ const ConfigurationManager: React.FC = () => {
           const isChecked = activeDictionaries.includes(dictionaryId);
           const isRenaming = renamingDictionaryId === dictionaryId;
           const canRename = dictionaryId !== 'properNouns';
+          const isDefaultQuickAdd = defaultQuickAddDictionary === dictionaryId;
+          const isCustomProperNoun = dictionaryId.startsWith('properNouns-');
 
           return (
             <div
@@ -462,6 +509,35 @@ const ConfigurationManager: React.FC = () => {
                       ? 'General Purpose Dictionary'
                       : dictionaryId.replace('properNouns-', '')}
                   </label>
+                  {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
+                  {isChecked && isCustomProperNoun && (
+                    <button
+                      onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
+                      style={{
+                        padding: '0.5rem',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: isDefaultQuickAdd ? '#ef4444' : '#d1d5db',
+                        transition: 'color 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isDefaultQuickAdd) e.currentTarget.style.color = '#f87171';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isDefaultQuickAdd) e.currentTarget.style.color = '#d1d5db';
+                      }}
+                      title={
+                        isDefaultQuickAdd
+                          ? 'Default Cmd-5 dictionary (click to unset)'
+                          : 'Set as default Cmd-5 dictionary'
+                      }
+                    >
+                      <Bookmark size={16} fill={isDefaultQuickAdd ? '#ef4444' : 'none'} />
+                    </button>
+                  )}
                   {canRename && (
                     <button
                       onClick={() => handleStartRename(dictionaryId)}
