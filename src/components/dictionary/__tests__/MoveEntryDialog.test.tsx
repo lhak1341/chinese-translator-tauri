@@ -10,7 +10,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import MoveEntryDialog from '../MoveEntryDialog';
 import * as DictionaryContext from '../DictionaryContext';
@@ -350,8 +350,10 @@ describe('MoveEntryDialog', () => {
       const cancelButton = screen.getByRole('button', { name: /Cancel/i });
       expect(cancelButton).toBeDisabled();
 
-      // Resolve
-      resolveAdd!();
+      // Resolve the promise and wait for state updates
+      await act(async () => {
+        resolveAdd!();
+      });
     });
   });
 
