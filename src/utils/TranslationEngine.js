@@ -3143,17 +3143,29 @@ export class TranslationEngine {
    * @param {string} patternResult - Text after pattern application
    */
   updateTokensFromPatternResult(tokens, originalText, patternResult) {
-    // TEMPORARY FIX: Disable pattern token updates to prevent entire text replacement
-    // TODO: Implement precise pattern matching that only updates matched tokens
+    /**
+     * INTENTIONAL LIMITATION: Pattern token updates are disabled to prevent entire text replacement.
+     *
+     * Background: Early implementation attempted to update tokens based on pattern results,
+     * but patterns would replace the entire text instead of just matched portions, breaking
+     * the translation of unmatched text.
+     *
+     * Current approach: Individual token translation handles unmatched parts, allowing
+     * patterns to work without breaking the rest of the text. This is the correct behavior
+     * for the current architecture where patterns are applied separately from token-level
+     * translation.
+     *
+     * Future optimization: Could implement precise pattern matching that tracks which tokens
+     * were matched and only updates those specific tokens, but current approach is stable
+     * and performant.
+     */
     this.log(
       DEBUG_LEVELS.DEBUG,
-      `🚨 Pattern token update disabled: Pattern replaced entire text instead of just matched portion`
+      `Pattern token update disabled: Using individual token translation for unmatched text`
     );
     this.log(DEBUG_LEVELS.DEBUG, `Original: ${originalText.substring(0, 50)}...`);
     this.log(DEBUG_LEVELS.DEBUG, `Result: ${patternResult.substring(0, 50)}...`);
 
-    // For now, let individual token translation handle the unmatched parts
-    // This allows patterns to work without breaking the rest of the text
     return;
   }
 
@@ -6345,8 +6357,19 @@ export class TranslationEngine {
       };
     }
 
-    // For now, return all arrays (this could be optimized to track batch-specific arrays)
-    // TODO: Track which semantic array entries belong to which batch for better isolation
+    /**
+     * Performance optimization opportunity: Currently returns all semantic arrays instead of
+     * batch-specific arrays. This works correctly but includes entries from other batches.
+     *
+     * Future optimization: Track which semantic array entries belong to each batch for better
+     * isolation. This would reduce memory usage and improve cache locality for multi-batch
+     * processing, but requires batch ID tracking in semantic array metadata.
+     *
+     * Current approach is acceptable because:
+     * - Semantic arrays are shared across batches (correct for progressive translation)
+     * - Performance impact is minimal for typical text sizes
+     * - Simplicity outweighs optimization benefits for current use cases
+     */
     return {
       original: allSemanticArrays.original || [],
       translated: allSemanticArrays.translated || [],

@@ -274,7 +274,7 @@ const tauriAPI = {
         },
       });
 
-      if (result.success && result.buildTimeMs) {
+      if (result.success && result.buildTimeMs && process.env.NODE_ENV === 'development') {
         console.log(
           `🦀 Lookup index built in ${result.buildTimeMs}ms (${result.positionsIndexed} positions, ${result.indexSize} matches)`
         );
