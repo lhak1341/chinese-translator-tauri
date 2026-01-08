@@ -441,8 +441,51 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     setTranslation(capitalizedWords.join(' '));
   };
 
+  const handleCapitalizeExceptLastThree = (): void => {
+    const words = translation.split(' ');
+    if (words.length === 0) return;
+
+    const capitalizedWords = words.map((word, index) => {
+      if (index >= words.length - 3) {
+        // Last three words: lowercase
+        return word.toLowerCase();
+      } else {
+        // Other words: capitalize first letter
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      }
+    });
+    setTranslation(capitalizedWords.join(' '));
+  };
+
   const handleLowercaseAll = (): void => {
     setTranslation(translation.toLowerCase());
+  };
+
+  const handleMoveLastWordToBeginning = (): void => {
+    const words = translation.split(' ');
+    if (words.length < 2) return; // Need at least 2 words to reorder
+
+    const lastWord = words[words.length - 1];
+    const remainingWords = words.slice(0, -1);
+    setTranslation([lastWord, ...remainingWords].join(' '));
+  };
+
+  const handleMoveLastTwoWordsToBeginning = (): void => {
+    const words = translation.split(' ');
+    if (words.length < 3) return; // Need at least 3 words to reorder
+
+    const lastTwoWords = words.slice(-2);
+    const remainingWords = words.slice(0, -2);
+    setTranslation([...lastTwoWords, ...remainingWords].join(' '));
+  };
+
+  const handleMoveLastThreeWordsToBeginning = (): void => {
+    const words = translation.split(' ');
+    if (words.length < 4) return; // Need at least 4 words to reorder
+
+    const lastThreeWords = words.slice(-3);
+    const remainingWords = words.slice(0, -3);
+    setTranslation([...lastThreeWords, ...remainingWords].join(' '));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -821,16 +864,18 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           <div style={formGroupStyle}>
             <label style={labelStyle}>Translation</label>
 
-            {/* Capitalization buttons */}
+            {/* Helper buttons: Capitalization and Word Reordering */}
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'center',
+                alignItems: 'center',
                 gap: '0.5rem',
                 marginBottom: '0.5rem',
                 flexWrap: 'wrap',
               }}
             >
+              {/* Capitalization Group */}
               <button
                 type="button"
                 onClick={handleCapitalizeAll}
@@ -850,7 +895,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 }}
                 title="Capitalize all words"
               >
-                AAA
+                AAAA
               </button>
               <button
                 type="button"
@@ -871,7 +916,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 }}
                 title="Capitalize all words except the last one"
               >
-                AAa
+                ---a
               </button>
               <button
                 type="button"
@@ -892,7 +937,28 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 }}
                 title="Capitalize all words except the last two"
               >
-                Aaa
+                --aa
+              </button>
+              <button
+                type="button"
+                onClick={handleCapitalizeExceptLastThree}
+                disabled={isSaving || !translation.trim()}
+                tabIndex={-1}
+                style={{
+                  fontSize: '0.8rem',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: 'var(--secondary-button-bg)',
+                  color: 'var(--secondary-button-text)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor: isSaving || !translation.trim() ? 'not-allowed' : 'pointer',
+                  opacity: isSaving || !translation.trim() ? 0.5 : 1,
+                  minHeight: 'auto',
+                  fontFamily: 'monospace',
+                }}
+                title="Capitalize all words except the last three"
+              >
+                -aaa
               </button>
               <button
                 type="button"
@@ -913,7 +979,91 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 }}
                 title="Lowercase all words"
               >
-                aaa
+                aaaa
+              </button>
+
+              {/* Separator */}
+              <div
+                style={{
+                  width: '1px',
+                  height: '24px',
+                  backgroundColor: 'var(--border-color)',
+                  margin: '0 0.25rem',
+                }}
+              />
+
+              {/* Word Reordering Group */}
+              <button
+                type="button"
+                onClick={handleMoveLastWordToBeginning}
+                disabled={isSaving || translation.trim().split(' ').length < 2}
+                tabIndex={-1}
+                style={{
+                  fontSize: '0.8rem',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: 'var(--secondary-button-bg)',
+                  color: 'var(--secondary-button-text)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor:
+                    isSaving || translation.trim().split(' ').length < 2
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity: isSaving || translation.trim().split(' ').length < 2 ? 0.5 : 1,
+                  minHeight: 'auto',
+                  fontFamily: 'monospace',
+                }}
+                title="Move last word to beginning"
+              >
+                ←1
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveLastTwoWordsToBeginning}
+                disabled={isSaving || translation.trim().split(' ').length < 3}
+                tabIndex={-1}
+                style={{
+                  fontSize: '0.8rem',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: 'var(--secondary-button-bg)',
+                  color: 'var(--secondary-button-text)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor:
+                    isSaving || translation.trim().split(' ').length < 3
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity: isSaving || translation.trim().split(' ').length < 3 ? 0.5 : 1,
+                  minHeight: 'auto',
+                  fontFamily: 'monospace',
+                }}
+                title="Move last 2 words to beginning"
+              >
+                ←2
+              </button>
+              <button
+                type="button"
+                onClick={handleMoveLastThreeWordsToBeginning}
+                disabled={isSaving || translation.trim().split(' ').length < 4}
+                tabIndex={-1}
+                style={{
+                  fontSize: '0.8rem',
+                  padding: '0.25rem 0.5rem',
+                  backgroundColor: 'var(--secondary-button-bg)',
+                  color: 'var(--secondary-button-text)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor:
+                    isSaving || translation.trim().split(' ').length < 4
+                      ? 'not-allowed'
+                      : 'pointer',
+                  opacity: isSaving || translation.trim().split(' ').length < 4 ? 0.5 : 1,
+                  minHeight: 'auto',
+                  fontFamily: 'monospace',
+                }}
+                title="Move last 3 words to beginning"
+              >
+                ←3
               </button>
             </div>
 
