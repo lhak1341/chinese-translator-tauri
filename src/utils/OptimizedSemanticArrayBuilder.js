@@ -521,13 +521,4 @@ export class OptimizedSemanticArrayBuilder {
   }
 }
 
-/**
- * Factory function to create builder with estimated capacity
- * @param {number} estimatedCapacity - Expected number of semantic units
- * @returns {OptimizedSemanticArrayBuilder} New builder instance
- */
-export function createOptimizedSemanticBuilder(estimatedCapacity) {
-  return new OptimizedSemanticArrayBuilder(estimatedCapacity);
-}
-
 export default OptimizedSemanticArrayBuilder;

@@ -8,7 +8,7 @@
  * - Opening elements: [, (, {, ", ", etc.
  */
 
-import { QuoteProcessor, QUOTE_CATEGORIES } from './QuoteProcessor.js';
+import { QuoteProcessor, QUOTE_CATEGORIES } from './QuoteProcessor';
 
 /**
  * Special punctuation pattern replacement rule

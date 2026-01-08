@@ -15,7 +15,7 @@
  */
 
 import { PunctuationProcessor } from './PunctuationProcessor.js';
-import { QuoteProcessor, QUOTE_CATEGORIES, QUOTE_TYPES } from './QuoteProcessor.js';
+import { QuoteProcessor, QUOTE_CATEGORIES, QUOTE_TYPES } from './QuoteProcessor';
 import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
 
 export class TextChunk {
