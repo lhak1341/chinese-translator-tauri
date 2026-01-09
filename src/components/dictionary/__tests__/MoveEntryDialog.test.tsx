@@ -22,6 +22,19 @@ vi.mock('../DictionaryContext', () => ({
   useDictionary: () => mockUseDictionary(),
 }));
 
+// Mock getDictionaryTypes
+vi.mock('../DictionaryTypes', () => ({
+  getDictionaryTypes: vi.fn().mockResolvedValue({
+    characters: { label: 'Characters' },
+    phrases: { label: 'Phrases' },
+    properNouns: { label: 'General Purpose Dictionary' },
+    'properNouns-NovelName': { label: 'Proper Nouns - NovelName' },
+    patterns: { label: 'Patterns' },
+    conversion: { label: 'Conversion' },
+    punctuation: { label: 'Punctuation' },
+  }),
+}));
+
 describe('MoveEntryDialog', () => {
   const mockEntry = {
     source: '你好',
@@ -50,30 +63,42 @@ describe('MoveEntryDialog', () => {
   });
 
   describe('rendering', () => {
-    test('should render dialog with title', () => {
+    test('should render dialog with title', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
-      expect(screen.getByRole('heading', { name: 'Move Entry' })).toBeInTheDocument();
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Move Entry' })).toBeInTheDocument();
+      });
     });
 
-    test('should render dropdown with available dictionaries', () => {
+    test('should render dropdown with available dictionaries', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
-      const select = screen.getByRole('combobox');
-      expect(select).toBeInTheDocument();
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox');
+        expect(select).toBeInTheDocument();
+      });
 
       // Should have placeholder
       expect(screen.getByText('Select a dictionary...')).toBeInTheDocument();
     });
 
-    test('should exclude current dictionary from options', () => {
+    test('should exclude current dictionary from options', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const select = screen.getByRole('combobox') as HTMLSelectElement;
       const options = Array.from(select.options).map((opt) => opt.value);
@@ -86,39 +111,55 @@ describe('MoveEntryDialog', () => {
       expect(options).toContain('properNouns');
     });
 
-    test('should format dictionary labels correctly', () => {
+    test('should format dictionary labels correctly', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        expect(screen.getByText('Phrases')).toBeInTheDocument();
+      });
+
       // Check label formatting
-      expect(screen.getByText('Phrases')).toBeInTheDocument();
       expect(screen.getByText('General Purpose Dictionary')).toBeInTheDocument();
       expect(screen.getByText('Proper Nouns - NovelName')).toBeInTheDocument();
     });
 
-    test('should render Move Entry button', () => {
+    test('should render Move Entry button', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
-      expect(screen.getByRole('button', { name: /Move Entry/i })).toBeInTheDocument();
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Move Entry/i })).toBeInTheDocument();
+      });
     });
 
-    test('should render Cancel button', () => {
+    test('should render Cancel button', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
-      expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
+      });
     });
   });
 
   describe('dictionary selection', () => {
-    test('should allow selecting a dictionary', () => {
+    test('should allow selecting a dictionary', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const select = screen.getByRole('combobox') as HTMLSelectElement;
       fireEvent.change(select, { target: { value: 'phrases' } });
@@ -126,10 +167,16 @@ describe('MoveEntryDialog', () => {
       expect(select.value).toBe('phrases');
     });
 
-    test('should enable Move button when dictionary selected', () => {
+    test('should enable Move button when dictionary selected', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const moveButton = screen.getByRole('button', { name: /Move Entry/i });
       expect(moveButton).toBeDisabled();
@@ -149,6 +196,12 @@ describe('MoveEntryDialog', () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       // Select target dictionary
       const select = screen.getByRole('combobox');
@@ -181,6 +234,12 @@ describe('MoveEntryDialog', () => {
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
+
       // Select and click Move
       const select = screen.getByRole('combobox');
       fireEvent.change(select, { target: { value: 'phrases' } });
@@ -208,6 +267,12 @@ describe('MoveEntryDialog', () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       // Select and click Move
       const select = screen.getByRole('combobox');
@@ -237,6 +302,12 @@ describe('MoveEntryDialog', () => {
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
+
       const select = screen.getByRole('combobox');
       fireEvent.change(select, { target: { value: 'phrases' } });
 
@@ -251,10 +322,16 @@ describe('MoveEntryDialog', () => {
   });
 
   describe('validation', () => {
-    test('should keep Move button disabled when no dictionary selected', () => {
+    test('should keep Move button disabled when no dictionary selected', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const moveButton = screen.getByRole('button', { name: /Move Entry/i });
 
@@ -267,10 +344,16 @@ describe('MoveEntryDialog', () => {
       expect(mockDeleteEntry).not.toHaveBeenCalled();
     });
 
-    test('should enable Move button when dictionary is selected', () => {
+    test('should enable Move button when dictionary is selected', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const moveButton = screen.getByRole('button', { name: /Move Entry/i });
       const select = screen.getByRole('combobox');
@@ -287,10 +370,16 @@ describe('MoveEntryDialog', () => {
   });
 
   describe('close behavior', () => {
-    test('should close on Cancel button click', () => {
+    test('should close on Cancel button click', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const cancelButton = screen.getByRole('button', { name: /Cancel/i });
       fireEvent.click(cancelButton);
@@ -298,10 +387,16 @@ describe('MoveEntryDialog', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    test('should close on backdrop click', () => {
+    test('should close on backdrop click', async () => {
       const { container } = render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       // Click backdrop (outermost div)
       const backdrop = container.firstChild as HTMLElement;
@@ -310,10 +405,16 @@ describe('MoveEntryDialog', () => {
       expect(mockOnClose).toHaveBeenCalled();
     });
 
-    test('should not close when clicking dialog content', () => {
+    test('should not close when clicking dialog content', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       // Click on dialog heading
       const dialogTitle = screen.getByRole('heading', { name: 'Move Entry' });
@@ -333,6 +434,12 @@ describe('MoveEntryDialog', () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       // Start move operation
       const select = screen.getByRole('combobox');
@@ -358,7 +465,14 @@ describe('MoveEntryDialog', () => {
   });
 
   describe('edge cases', () => {
-    test('should handle only one other dictionary available', () => {
+    test('should handle only one other dictionary available', async () => {
+      // Mock getDictionaryTypes to return only 2 dictionaries for this test
+      const { getDictionaryTypes } = await import('../DictionaryTypes');
+      vi.mocked(getDictionaryTypes).mockResolvedValueOnce({
+        characters: { label: 'Characters' },
+        phrases: { label: 'Phrases' },
+      } as any);
+
       mockUseDictionary.mockReturnValue({
         dictionaries: {
           characters: { entries: [] },
@@ -371,6 +485,12 @@ describe('MoveEntryDialog', () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(0);
+      });
 
       const select = screen.getByRole('combobox') as HTMLSelectElement;
       const options = Array.from(select.options)
@@ -394,6 +514,12 @@ describe('MoveEntryDialog', () => {
         <MoveEntryDialog entry={specialEntry} onClose={mockOnClose} currentDictionary="patterns" />
       );
 
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
+
       const select = screen.getByRole('combobox');
       fireEvent.change(select, { target: { value: 'phrases' } });
 
@@ -416,6 +542,12 @@ describe('MoveEntryDialog', () => {
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
 
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
+
       const select = screen.getByRole('combobox');
       fireEvent.change(select, { target: { value: 'phrases' } });
 
@@ -429,19 +561,31 @@ describe('MoveEntryDialog', () => {
   });
 
   describe('accessibility', () => {
-    test('should have accessible buttons', () => {
+    test('should have accessible buttons', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       expect(screen.getByRole('button', { name: /Move Entry/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Cancel/i })).toBeInTheDocument();
     });
 
-    test('should have accessible dropdown', () => {
+    test('should have accessible dropdown', async () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       expect(screen.getByRole('combobox')).toBeInTheDocument();
     });
@@ -456,6 +600,12 @@ describe('MoveEntryDialog', () => {
       render(
         <MoveEntryDialog entry={mockEntry} onClose={mockOnClose} currentDictionary="characters" />
       );
+
+      // Wait for async dictionary loading to complete
+      await waitFor(() => {
+        const select = screen.getByRole('combobox') as HTMLSelectElement;
+        expect(select.options.length).toBeGreaterThan(1);
+      });
 
       const select = screen.getByRole('combobox');
       fireEvent.change(select, { target: { value: 'phrases' } });

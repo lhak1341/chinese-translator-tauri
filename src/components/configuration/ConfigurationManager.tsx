@@ -30,15 +30,25 @@ const ConfigurationManager: React.FC = () => {
   // Default Cmd-5 dictionary state
   const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
 
+  // Sort dictionaries: general 'properNouns' first, then custom ones alphabetically
+  const sortDictionaries = (dictionaries: string[]): string[] => {
+    return dictionaries.sort((a, b) => {
+      // Always put 'properNouns' first
+      if (a === 'properNouns') return -1;
+      if (b === 'properNouns') return 1;
+      // Sort custom dictionaries alphabetically
+      return a.localeCompare(b);
+    });
+  };
+
   // Load available dictionaries on mount
   useEffect(() => {
     const loadDictionaries = async (): Promise<void> => {
       try {
         const result = await window.electronAPI.listProperNounsDictionaries();
         if (result.success && result.dictionaries) {
-          setAvailableDictionaries(
-            result.dictionaries.map((d) => (typeof d === 'string' ? d : d.id))
-          );
+          const dictionaryIds = result.dictionaries.map((d) => (typeof d === 'string' ? d : d.id));
+          setAvailableDictionaries(sortDictionaries(dictionaryIds));
 
           // Load active dictionaries from saved configuration
           const configResult = await window.electronAPI.loadConfiguration();
@@ -100,7 +110,7 @@ const ConfigurationManager: React.FC = () => {
       const result = await window.electronAPI.createProperNounsDictionary(dictionaryId);
 
       if (result.success) {
-        setAvailableDictionaries([...availableDictionaries, dictionaryId]);
+        setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
         setShowNewDictionaryModal(false);
         setNewDictionaryName('');
       } else {
@@ -183,9 +193,9 @@ const ConfigurationManager: React.FC = () => {
       );
 
       if (result.success) {
-        // Update the available dictionaries list
+        // Update the available dictionaries list and re-sort
         setAvailableDictionaries((prev) =>
-          prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id))
+          sortDictionaries(prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id)))
         );
 
         // Update active dictionaries if the renamed one was active

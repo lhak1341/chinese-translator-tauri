@@ -9,6 +9,7 @@ import {
   Download,
   Upload,
   Trash2,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
@@ -32,6 +33,10 @@ interface SelectionState {
   setShowBulkDeleteConfirm: (show: boolean) => void;
   /** Whether bulk delete is in progress */
   isDeleting: boolean;
+  /** Optional callback to execute bulk move */
+  onBulkMove?: () => void;
+  /** Optional flag indicating bulk move is in progress */
+  isMoving?: boolean;
 }
 
 /**
@@ -123,10 +128,13 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     setRefreshTimestamp(Date.now());
   }, []);
 
-  // Reload configuration when tab becomes active (to pick up changes from Configuration tab)
+  // Reload configuration and dictionary types when tab becomes active (to pick up changes from Configuration tab)
   useEffect(() => {
     if (isActive) {
-      // Reload active dictionaries from configuration
+      // Trigger full reload of dictionary types and configuration
+      setRefreshTimestamp(Date.now());
+
+      // Also reload active dictionaries from configuration
       const reloadConfig = async (): Promise<void> => {
         try {
           const configResult = await window.electronAPI.loadConfiguration();
@@ -257,6 +265,17 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     return filtered;
   }, [dictionaryTypes, showAllDictionaries, activeDictionaries]);
 
+  // Sort dictionary entries for dropdown: general 'properNouns' first, then alphabetical
+  const sortedDictionaryEntries = React.useMemo(() => {
+    return Object.entries(filteredDictionaryTypes).sort(([idA], [idB]) => {
+      // Always put 'properNouns' first
+      if (idA === 'properNouns') return -1;
+      if (idB === 'properNouns') return 1;
+      // Sort other dictionaries alphabetically
+      return idA.localeCompare(idB);
+    });
+  }, [filteredDictionaryTypes]);
+
   // Style definitions for consistent layout
   const containerStyle: React.CSSProperties = {
     position: 'absolute',
@@ -366,7 +385,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           onChange={(e) => setSelectedDictionary(e.target.value)}
           disabled={isLoadingDictionary}
         >
-          {Object.entries(filteredDictionaryTypes).map(([id, { label }]) => (
+          {sortedDictionaryEntries.map(([id, { label }]) => (
             <option key={id} value={id}>
               {label}
             </option>
@@ -426,34 +445,55 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           </button>
 
           {selectionState && selectionState.selectedCount > 0 && (
-            <button
-              onClick={() => {
-                if (selectionState.showBulkDeleteConfirm) {
-                  selectionState.onBulkDelete();
-                } else {
-                  selectionState.setShowBulkDeleteConfirm(true);
+            <>
+              <button
+                onClick={() => {
+                  if (selectionState.onBulkMove) {
+                    selectionState.onBulkMove();
+                  }
+                }}
+                className="secondary"
+                style={buttonStyle}
+                disabled={selectionState.isMoving}
+                title={`Move ${selectionState.selectedCount} selected entries to another dictionary`}
+              >
+                {selectionState.isMoving ? (
+                  <Loader size={16} className="animate-spin" />
+                ) : (
+                  <ArrowRightLeft size={16} />
+                )}
+                <span>Move ({selectionState.selectedCount})</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (selectionState.showBulkDeleteConfirm) {
+                    selectionState.onBulkDelete();
+                  } else {
+                    selectionState.setShowBulkDeleteConfirm(true);
+                  }
+                }}
+                className="danger"
+                style={buttonStyle}
+                disabled={selectionState.isDeleting}
+                title={
+                  selectionState.showBulkDeleteConfirm
+                    ? `Confirm delete ${selectionState.selectedCount} entries`
+                    : `Delete ${selectionState.selectedCount} selected entries`
                 }
-              }}
-              className="danger"
-              style={buttonStyle}
-              disabled={selectionState.isDeleting}
-              title={
-                selectionState.showBulkDeleteConfirm
-                  ? `Confirm delete ${selectionState.selectedCount} entries`
-                  : `Delete ${selectionState.selectedCount} selected entries`
-              }
-            >
-              {selectionState.isDeleting ? (
-                <Loader size={16} className="animate-spin" />
-              ) : (
-                <Trash2 size={16} />
-              )}
-              <span>
-                {selectionState.showBulkDeleteConfirm
-                  ? 'Confirm Delete'
-                  : `Delete (${selectionState.selectedCount})`}
-              </span>
-            </button>
+              >
+                {selectionState.isDeleting ? (
+                  <Loader size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                <span>
+                  {selectionState.showBulkDeleteConfirm
+                    ? 'Confirm Delete'
+                    : `Delete (${selectionState.selectedCount})`}
+                </span>
+              </button>
+            </>
           )}
 
           <button

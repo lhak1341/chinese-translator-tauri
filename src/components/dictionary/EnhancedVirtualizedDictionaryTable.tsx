@@ -9,6 +9,7 @@ import {
   ChevronsDown,
 } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
+import { getDictionaryTypes } from './DictionaryTypes';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
@@ -52,6 +53,18 @@ interface SelectionState {
   isDeleting: boolean;
   showBulkDeleteConfirm: boolean;
   setShowBulkDeleteConfirm: (show: boolean) => void;
+  onBulkMove?: () => void;
+  isMoving?: boolean;
+}
+
+/**
+ * Context menu state
+ */
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  entry: { source: string; translation: string } | null;
 }
 
 /**
@@ -205,6 +218,14 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState<boolean>(false);
   const [scrollTop, setScrollTop] = useState<number>(0);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    entry: null,
+  });
+  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState<boolean>(false);
+  const [isMoving, setIsMoving] = useState<boolean>(false);
   const [containerHeight, setContainerHeight] = useState<number>(600);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [preservedScrollTop, setPreservedScrollTop] = useState<number | null>(null);
@@ -492,9 +513,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         isDeleting,
         showBulkDeleteConfirm,
         setShowBulkDeleteConfirm,
+        onBulkMove: handleBulkMove,
+        isMoving,
       });
     }
-  }, [selectedEntries, isDeleting, showBulkDeleteConfirm, onSelectionChange]);
+  }, [selectedEntries, isDeleting, showBulkDeleteConfirm, isMoving, onSelectionChange]);
 
   // Selection handlers with scroll preservation
   const handleSelectEntry = useCallback(
@@ -567,6 +590,257 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleBulkMove = (): void => {
+    if (selectedEntries.size === 0) return;
+    setShowBulkMoveDialog(true);
+  };
+
+  // Context menu handlers
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, source: string, translation: string): void => {
+      e.preventDefault();
+      setContextMenu({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY,
+        entry: { source, translation },
+      });
+    },
+    []
+  );
+
+  const closeContextMenu = useCallback((): void => {
+    setContextMenu({ visible: false, x: 0, y: 0, entry: null });
+  }, []);
+
+  const handleContextMenuEdit = (): void => {
+    if (!contextMenu.entry) return;
+    const dictionary = dictionaries[selectedDictionary];
+    if (!dictionary) return;
+
+    const value = dictionary[contextMenu.entry.source];
+    setEditingEntry({
+      source: contextMenu.entry.source,
+      translation: typeof value === 'string' ? value : value.translation,
+      allowAsPatternVariable:
+        typeof value === 'object' && value.allowAsPatternVariable ? true : false,
+      lowPriority: typeof value === 'object' && value.lowPriority ? true : false,
+    });
+    closeContextMenu();
+  };
+
+  const handleContextMenuMove = (): void => {
+    if (!contextMenu.entry) return;
+    setMoveEntry(contextMenu.entry);
+    closeContextMenu();
+  };
+
+  const handleContextMenuDelete = async (): Promise<void> => {
+    if (!contextMenu.entry) return;
+    try {
+      await deleteEntry(selectedDictionary, contextMenu.entry.source);
+      closeContextMenu();
+    } catch (error) {
+      setDeleteError(`Failed to delete entry: ${(error as Error).message}`);
+      closeContextMenu();
+    }
+  };
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    if (contextMenu.visible) {
+      const handleClickOutside = () => closeContextMenu();
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+    return undefined;
+  }, [contextMenu.visible, closeContextMenu]);
+
+  // Bulk Move Dialog Component
+  const BulkMoveDialog: React.FC = () => {
+    const { addEntry } = useDictionary();
+    const [selectedTargetDict, setSelectedTargetDict] = useState<string>('');
+    const [error, setError] = useState<string | null>(null);
+    const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
+
+    // Load fresh dictionary list on mount to pick up renamed dictionaries
+    useEffect(() => {
+      const loadDictionaries = async (): Promise<void> => {
+        try {
+          const types = await getDictionaryTypes();
+          const dictionaryList = Object.keys(types)
+            .filter((id) => id !== selectedDictionary)
+            .sort((a, b) => {
+              // Always put 'properNouns' first
+              if (a === 'properNouns') return -1;
+              if (b === 'properNouns') return 1;
+              // Sort custom dictionaries alphabetically
+              return a.localeCompare(b);
+            });
+          setAvailableDictionaries(dictionaryList);
+        } catch (error) {
+          console.error('Failed to load dictionaries:', error);
+          setError('Failed to load available dictionaries');
+        }
+      };
+
+      loadDictionaries();
+    }, [selectedDictionary]);
+
+    const handleBulkMoveExecute = async (): Promise<void> => {
+      if (!selectedTargetDict) {
+        setError('Please select a target dictionary');
+        return;
+      }
+
+      setIsMoving(true);
+      setError(null);
+
+      try {
+        const entriesToMove = Array.from(selectedEntries);
+        const dictionary = dictionaries[selectedDictionary];
+
+        // Move each entry sequentially
+        for (const source of entriesToMove) {
+          const value = dictionary[source];
+          const translation = typeof value === 'string' ? value : value.translation;
+          const metadata =
+            typeof value === 'object'
+              ? {
+                  allowAsPatternVariable: value.allowAsPatternVariable,
+                  lowPriority: value.lowPriority,
+                }
+              : {};
+
+          // Add to target dictionary
+          await addEntry(selectedTargetDict, source, translation, metadata);
+          // Delete from current dictionary
+          await deleteEntry(selectedDictionary, source);
+        }
+
+        setSelectedEntries(new Set());
+        setShowBulkMoveDialog(false);
+      } catch (error) {
+        setError(`Failed to move entries: ${(error as Error).message}`);
+        console.error('Bulk move error:', error);
+      } finally {
+        setIsMoving(false);
+      }
+    };
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 1000,
+        }}
+        onClick={() => setShowBulkMoveDialog(false)}
+      >
+        <div
+          style={{
+            backgroundColor: 'var(--background-color)',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            width: '100%',
+            maxWidth: '400px',
+            position: 'relative',
+            border: '1px solid var(--border-color)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            style={{
+              padding: '1rem',
+              borderBottom: '1px solid var(--border-color)',
+              textAlign: 'center',
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+              Move {selectedEntries.size} {selectedEntries.size === 1 ? 'Entry' : 'Entries'}
+            </h2>
+          </div>
+
+          <div style={{ padding: '1rem' }}>
+            <select
+              value={selectedTargetDict}
+              onChange={(e) => setSelectedTargetDict(e.target.value)}
+              disabled={isMoving}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--background-color)',
+                color: 'var(--text-color)',
+                marginBottom: error ? '0.75rem' : 0,
+              }}
+            >
+              <option value="">Select target dictionary...</option>
+              {availableDictionaries.map((id) => (
+                <option key={id} value={id}>
+                  {id === 'properNouns'
+                    ? 'General Purpose Dictionary'
+                    : id.startsWith('properNouns-')
+                      ? `Proper Nouns - ${id.replace('properNouns-', '')}`
+                      : id.charAt(0).toUpperCase() + id.slice(1)}
+                </option>
+              ))}
+            </select>
+
+            {error && (
+              <div
+                style={{
+                  color: 'var(--danger-button-text)',
+                  fontSize: '0.875rem',
+                  marginTop: '0.5rem',
+                }}
+              >
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              padding: '1rem',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+            }}
+          >
+            <button onClick={() => setShowBulkMoveDialog(false)} disabled={isMoving}>
+              Cancel
+            </button>
+            <button
+              onClick={handleBulkMoveExecute}
+              className="primary"
+              disabled={isMoving || !selectedTargetDict}
+            >
+              {isMoving ? (
+                <>
+                  <Loader size={16} className="animate-spin" />
+                  <span>Moving...</span>
+                </>
+              ) : (
+                `Move ${selectedEntries.size} ${selectedEntries.size === 1 ? 'Entry' : 'Entries'}`
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Optimized row component with React.memo
@@ -694,6 +968,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         if (selectedDictionary === 'patterns') {
           return (
             <div
+              onContextMenu={(e) => handleContextMenu(e, source, translationText)}
               style={{
                 height: ITEM_HEIGHT,
                 display: 'flex',
@@ -841,6 +1116,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         if (selectedDictionary === 'phrases') {
           return (
             <div
+              onContextMenu={(e) => handleContextMenu(e, source, translationText)}
               style={{
                 height: ITEM_HEIGHT,
                 display: 'flex',
@@ -982,6 +1258,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         // 3-column layout for simple dictionaries (with selection checkbox)
         return (
           <div
+            onContextMenu={(e) => handleContextMenu(e, source, translationText)}
             style={{
               height: ITEM_HEIGHT,
               display: 'flex',
@@ -1119,6 +1396,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     updateEntryWithScrollPreservation,
     selectedEntries,
     handleSelectEntry,
+    handleContextMenu,
   ]);
 
   // Performance monitoring for large lists
@@ -1505,6 +1783,102 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           currentDictionary={selectedDictionary}
         />
       )}
+
+      {/* Context menu */}
+      {contextMenu.visible && contextMenu.entry && (
+        <div
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            backgroundColor: 'var(--background-color)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '6px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            zIndex: 2000,
+            minWidth: '180px',
+            overflow: 'hidden',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={handleContextMenuEdit}
+            style={{
+              width: '100%',
+              padding: '0.75rem 1rem',
+              border: 'none',
+              background: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.875rem',
+              color: 'var(--text-color)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--secondary-bg)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            <Edit2 size={14} />
+            <span>Edit Entry</span>
+          </button>
+
+          <button
+            onClick={handleContextMenuMove}
+            style={{
+              width: '100%',
+              padding: '0.75rem 1rem',
+              border: 'none',
+              background: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.875rem',
+              color: 'var(--text-color)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--secondary-bg)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            <ChevronsUp size={14} />
+            <span>Move to...</span>
+          </button>
+
+          <div
+            style={{
+              height: '1px',
+              backgroundColor: 'var(--border-color)',
+              margin: '0.25rem 0',
+            }}
+          />
+
+          <button
+            onClick={handleContextMenuDelete}
+            style={{
+              width: '100%',
+              padding: '0.75rem 1rem',
+              border: 'none',
+              background: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.875rem',
+              color: 'var(--danger-button-text)',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+          >
+            <Trash2 size={14} />
+            <span>Delete Entry</span>
+          </button>
+        </div>
+      )}
+
+      {/* Bulk move dialog */}
+      {showBulkMoveDialog && <BulkMoveDialog />}
     </div>
   );
 };

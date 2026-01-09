@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDictionary } from './DictionaryContext';
+import { getDictionaryTypes } from './DictionaryTypes';
 import { Loader } from 'lucide-react';
 
 /**
@@ -41,21 +42,42 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
   const [selectedDictionary, setSelectedDictionary] = useState<string>('');
   const [isMoving, setIsMoving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [availableDictionaries, setAvailableDictionaries] = useState<AvailableDictionary[]>([]);
 
-  const { dictionaries, addEntry, deleteEntry } = useDictionary();
+  const { addEntry, deleteEntry } = useDictionary();
 
-  // Get available dictionaries, excluding current one
-  const availableDictionaries: AvailableDictionary[] = Object.entries(dictionaries)
-    .filter(([id]) => id !== currentDictionary)
-    .map(([id, _]) => ({
-      id,
-      label:
-        id === 'properNouns'
-          ? 'General Purpose Dictionary'
-          : id.startsWith('properNouns-')
-            ? `Proper Nouns - ${id.replace('properNouns-', '')}`
-            : id.charAt(0).toUpperCase() + id.slice(1),
-    }));
+  // Load fresh dictionary list on mount to pick up renamed dictionaries
+  useEffect(() => {
+    const loadDictionaries = async (): Promise<void> => {
+      try {
+        const types = await getDictionaryTypes();
+        const dictionaryList: AvailableDictionary[] = Object.keys(types)
+          .filter((id) => id !== currentDictionary)
+          .map((id) => ({
+            id,
+            label:
+              id === 'properNouns'
+                ? 'General Purpose Dictionary'
+                : id.startsWith('properNouns-')
+                  ? `Proper Nouns - ${id.replace('properNouns-', '')}`
+                  : id.charAt(0).toUpperCase() + id.slice(1),
+          }))
+          .sort((a, b) => {
+            // Always put 'properNouns' first
+            if (a.id === 'properNouns') return -1;
+            if (b.id === 'properNouns') return 1;
+            // Sort custom dictionaries alphabetically
+            return a.id.localeCompare(b.id);
+          });
+        setAvailableDictionaries(dictionaryList);
+      } catch (error) {
+        console.error('Failed to load dictionaries:', error);
+        setError('Failed to load available dictionaries');
+      }
+    };
+
+    loadDictionaries();
+  }, [currentDictionary]);
 
   // Handle the move operation
   const handleMove = async (): Promise<void> => {
