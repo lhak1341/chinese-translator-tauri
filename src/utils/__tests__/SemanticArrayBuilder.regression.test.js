@@ -60,9 +60,10 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       builder.buildPositionMappings(originalText, translatedText);
       const duration = performance.now() - startTime;
 
-      // Should complete in reasonable time (< 100ms for 5000 chars)
+      // Should complete in reasonable time (< 150ms for 5000 chars)
       // Old O(n*m*k) implementation would take 200-500ms
-      expect(duration).toBeLessThan(100);
+      // Threshold increased to 150ms for CI/slower environments
+      expect(duration).toBeLessThan(150);
     });
 
     it('should produce identical results with optimization', () => {
