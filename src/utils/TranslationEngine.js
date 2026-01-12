@@ -421,6 +421,10 @@ export class TranslationEngine {
       switch (urgency) {
         case 'critical':
           // Emergency cleanup - immediate action required
+          // Clear any pending background cleanups to prevent interference
+          if (this.backgroundCleanup) {
+            this.backgroundCleanup.clear();
+          }
           this.performEmergencyCleanup();
           this.log(
             DEBUG_LEVELS.WARN,
@@ -430,6 +434,10 @@ export class TranslationEngine {
 
         case 'high':
           // High priority cleanup - process immediately
+          // Clear any pending background cleanups to prevent interference
+          if (this.backgroundCleanup) {
+            this.backgroundCleanup.clear();
+          }
           this.performHighPriorityCleanup();
           this.log(
             DEBUG_LEVELS.INFO,
@@ -551,8 +559,13 @@ export class TranslationEngine {
    */
   optimizeMemoryStructures() {
     // Trim translation segments to reasonable size
-    if (this.translationSegments && this.translationSegments.length > 35) {
-      this.translationSegments = this.translationSegments.slice(-35);
+    if (
+      this.translationSegments &&
+      this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+    ) {
+      this.translationSegments = this.translationSegments.slice(
+        -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+      );
     }
 
     // Optimize dictionary manager caches if available
@@ -3372,14 +3385,19 @@ export class TranslationEngine {
 
       // Use requestIdleCallback for non-blocking cleanup (or setTimeout fallback)
       const cleanupFn = () => {
-        this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
+        // Re-check threshold before cleanup to prevent race condition
+        // (new segments may have been added while cleanup was queued)
+        if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
+          const actualRemoved = this.translationSegments.length - segmentsToKeep;
+          this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
 
-        // Only log cleanup in debug mode to avoid performance impact
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🧹 Async proactive cleanup: removed ${removedCount} old segments, kept ${segmentsToKeep}`
-          );
+          // Only log cleanup in debug mode to avoid performance impact
+          if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+            this.log(
+              DEBUG_LEVELS.DEBUG,
+              `🧹 Async proactive cleanup: removed ${actualRemoved} old segments, kept ${segmentsToKeep}`
+            );
+          }
         }
       };
 
@@ -4250,9 +4268,15 @@ export class TranslationEngine {
         if (level === 'automatic') {
           // OPTIMIZATION: Defer automatic cleanup to idle time to avoid blocking translation
           const automaticCleanupFn = () => {
-            // Gentle cleanup: Keep last 35 segments, clean older ones
-            if (this.translationSegments && this.translationSegments.length > 35) {
-              const segmentsToClean = this.translationSegments.slice(0, -35);
+            // Gentle cleanup: Keep last N segments, clean older ones
+            if (
+              this.translationSegments &&
+              this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+            ) {
+              const segmentsToClean = this.translationSegments.slice(
+                0,
+                -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+              );
               segmentsToClean.forEach((segment) => {
                 // Nullify properties to break references
                 if (segment) {
@@ -4261,7 +4285,9 @@ export class TranslationEngine {
                   segment.metadata = null;
                 }
               });
-              this.translationSegments = this.translationSegments.slice(-35);
+              this.translationSegments = this.translationSegments.slice(
+                -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+              );
               batchLog.info(
                 `🧹 Async automatic cleanup: Removed ${segmentsToClean.length} old segments`
               );

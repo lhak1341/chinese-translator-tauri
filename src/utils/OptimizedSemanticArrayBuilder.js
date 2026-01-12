@@ -41,20 +41,23 @@ export class OptimizedSemanticArrayBuilder {
    * @param {number} estimatedSize - Expected number of semantic units
    */
   reset(estimatedSize) {
-    if (estimatedSize) {
+    // Validate input early to prevent NaN propagation
+    const validSize = Number.isFinite(estimatedSize) && estimatedSize > 0 ? estimatedSize : null;
+
+    if (validSize) {
       // Adjust capacity based on new estimation (with 20% buffer)
-      let newCapacity = Math.ceil(estimatedSize * 1.2);
+      let newCapacity = Math.ceil(validSize * 1.2);
 
       // Validate capacity to prevent "Invalid array length" error
       const MAX_SAFE_CAPACITY = 10000; // Conservative limit for translation arrays
-      if (!Number.isFinite(newCapacity) || newCapacity < 1 || newCapacity > MAX_SAFE_CAPACITY) {
-        newCapacity = Math.min(1000, Math.max(100, estimatedSize || 100));
+      if (newCapacity < 1 || newCapacity > MAX_SAFE_CAPACITY) {
+        newCapacity = Math.min(1000, Math.max(100, validSize));
       }
 
       this.estimatedCapacity = newCapacity;
     }
 
-    // Ensure estimatedCapacity is always valid
+    // Ensure estimatedCapacity is always valid (fallback for first call or invalid input)
     if (!Number.isFinite(this.estimatedCapacity) || this.estimatedCapacity < 1) {
       this.estimatedCapacity = 100;
     }

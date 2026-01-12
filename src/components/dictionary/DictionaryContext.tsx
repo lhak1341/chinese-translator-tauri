@@ -212,21 +212,28 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   // Persist selected dictionary to configuration
   useEffect(() => {
+    let isMounted = true;
+
     const saveSelectedDictionary = async (): Promise<void> => {
       try {
         const configResult = await window.electronAPI.loadConfiguration();
+        if (!isMounted) return;
+
         const currentConfig = configResult.success && configResult.data ? configResult.data : {};
 
         const saveResult = await window.electronAPI.saveConfiguration({
           ...currentConfig,
           lastSelectedDictionary: selectedDictionary,
         } as any);
+        if (!isMounted) return;
 
         if (!saveResult.success) {
           console.error('Failed to save selected dictionary:', saveResult.error);
         }
       } catch (error) {
-        console.error('Failed to save selected dictionary:', error);
+        if (isMounted) {
+          console.error('Failed to save selected dictionary:', error);
+        }
       }
     };
 
@@ -234,6 +241,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     if (selectedDictionary && !isLoading) {
       saveSelectedDictionary();
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedDictionary, isLoading]);
 
   // Function to load a specific dictionary
@@ -286,44 +297,50 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         throw new Error(validationError);
       }
 
-      const oldData = { ...dictionaries[dictionaryId] };
+      // Capture old data and update state atomically using functional update
+      let oldData: Record<string, string | DictionaryEntryValue> | undefined;
+      let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
-      // Handle new format with metadata for phrases and patterns dictionaries
-      let targetValue: string | DictionaryEntryValue = translation;
-      if (
-        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
-      ) {
-        targetValue = {
-          translation: translation,
-          allowAsPatternVariable: metadata.allowAsPatternVariable,
-          lowPriority: metadata.lowPriority,
+      setDictionaries((prevDictionaries) => {
+        oldData = { ...prevDictionaries[dictionaryId] };
+
+        // Handle new format with metadata for phrases and patterns dictionaries
+        let targetValue: string | DictionaryEntryValue = translation;
+        if (
+          (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
+          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+        ) {
+          targetValue = {
+            translation: translation,
+            allowAsPatternVariable: metadata.allowAsPatternVariable,
+            lowPriority: metadata.lowPriority,
+          };
+        }
+
+        const updatedDictionary = { ...oldData, [source]: targetValue };
+        sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
+
+        return {
+          ...prevDictionaries,
+          [dictionaryId]: sortedDictionary,
         };
-      }
+      });
 
-      const updatedDictionary = { ...oldData, [source]: targetValue };
-      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source); // Incremental sort for new entry
-
-      setDictionaries((prev) => ({
-        ...prev,
-        [dictionaryId]: sortedDictionary,
-      }));
-
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
 
       if (result.success && result.data) {
-        addToHistory(dictionaryId, oldData, result.data);
+        addToHistory(dictionaryId, oldData!, result.data);
         toast.success('Entry added successfully');
       } else {
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData,
+          [dictionaryId]: oldData!,
         }));
         toast.error('Failed to save dictionary changes');
         throw new Error('Failed to save dictionary changes');
       }
     },
-    [dictionaries, addToHistory]
+    [addToHistory]
   );
 
   // Update an existing entry
@@ -341,84 +358,97 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         throw new Error(validationError);
       }
 
-      const oldData = { ...dictionaries[dictionaryId] };
-      const updatedDictionary = { ...oldData };
+      // Capture old data and update state atomically using functional update
+      let oldData: Record<string, string | DictionaryEntryValue> | undefined;
+      let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
-      if (oldSource !== newSource) {
-        delete updatedDictionary[oldSource];
-      }
+      setDictionaries((prevDictionaries) => {
+        oldData = { ...prevDictionaries[dictionaryId] };
+        const updatedDictionary = { ...oldData };
 
-      // Handle new format with metadata for phrases and patterns dictionaries
-      let targetValue: string | DictionaryEntryValue = translation;
-      if (
-        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
-      ) {
-        targetValue = {
-          translation: translation,
-          allowAsPatternVariable: metadata.allowAsPatternVariable,
-          lowPriority: metadata.lowPriority,
+        if (oldSource !== newSource) {
+          delete updatedDictionary[oldSource];
+        }
+
+        // Handle new format with metadata for phrases and patterns dictionaries
+        let targetValue: string | DictionaryEntryValue = translation;
+        if (
+          (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
+          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+        ) {
+          targetValue = {
+            translation: translation,
+            allowAsPatternVariable: metadata.allowAsPatternVariable,
+            lowPriority: metadata.lowPriority,
+          };
+        }
+
+        updatedDictionary[newSource] = targetValue;
+
+        sortedDictionary = sortDictionaryEntries(
+          updatedDictionary,
+          dictionaryId,
+          newSource,
+          oldSource
+        );
+
+        return {
+          ...prevDictionaries,
+          [dictionaryId]: sortedDictionary,
         };
-      }
+      });
 
-      updatedDictionary[newSource] = targetValue;
-
-      const sortedDictionary = sortDictionaryEntries(
-        updatedDictionary,
-        dictionaryId,
-        newSource,
-        oldSource
-      ); // Incremental sort for edited entry
-      setDictionaries((prev) => ({
-        ...prev,
-        [dictionaryId]: sortedDictionary,
-      }));
-
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
 
       if (result.success && result.data) {
-        addToHistory(dictionaryId, oldData, result.data);
+        addToHistory(dictionaryId, oldData!, result.data);
         toast.success('Entry updated successfully');
       } else {
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData,
+          [dictionaryId]: oldData!,
         }));
         toast.error('Failed to save dictionary changes');
         throw new Error('Failed to save dictionary changes');
       }
     },
-    [dictionaries, addToHistory]
+    [addToHistory]
   );
 
   // Delete an entry
   const deleteEntry = useCallback(
     async (dictionaryId: string, source: string): Promise<void> => {
-      const oldData = { ...dictionaries[dictionaryId] };
-      const updatedDictionary = { ...oldData };
-      delete updatedDictionary[source];
-      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source); // Incremental sort for deleted entry
+      // Capture old data and update state atomically using functional update
+      let oldData: Record<string, string | DictionaryEntryValue> | undefined;
+      let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
-      setDictionaries((prev) => ({
-        ...prev,
-        [dictionaryId]: sortedDictionary,
-      }));
+      setDictionaries((prevDictionaries) => {
+        oldData = { ...prevDictionaries[dictionaryId] };
+        const updatedDictionary = { ...oldData };
+        delete updatedDictionary[source];
+        sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+        return {
+          ...prevDictionaries,
+          [dictionaryId]: sortedDictionary,
+        };
+      });
+
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
 
       if (result.success && result.data) {
-        addToHistory(dictionaryId, oldData, result.data);
+        addToHistory(dictionaryId, oldData!, result.data);
         toast.success('Entry deleted successfully');
       } else {
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData,
+          [dictionaryId]: oldData!,
         }));
         toast.error('Failed to delete dictionary entry');
         throw new Error('Failed to delete dictionary entry');
       }
     },
-    [dictionaries, addToHistory]
+    [addToHistory]
   );
 
   // Undo function

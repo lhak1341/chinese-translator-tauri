@@ -69,14 +69,17 @@ export function validateWasmToken(token: unknown): WasmToken {
  */
 export function copyWasmTokens(source: WasmToken[], target: any[]): void {
   if (source.length !== target.length) {
-    throw new Error(`Token array length mismatch: source=${source.length}, target=${target.length}`);
+    throw new Error(
+      `Token array length mismatch: source=${source.length}, target=${target.length}`
+    );
   }
 
   for (let i = 0; i < source.length; i++) {
     const processed = validateWasmToken(source[i]);
 
     // Only copy if WASM actually modified the token
-    if (processed.translationSource !== undefined && processed.translationSource !== null) {
+    // Check for null (not undefined) since validateWasmToken converts undefined → null
+    if (processed.translationSource !== null) {
       target[i].translationSource = processed.translationSource;
 
       // Consumed tokens: explicit null
@@ -84,7 +87,7 @@ export function copyWasmTokens(source: WasmToken[], target: any[]): void {
         target[i].translated = null;
       }
       // Converted tokens: copy translation
-      else if (processed.translated !== undefined) {
+      else if (processed.translated !== null) {
         target[i].translated = processed.translated;
       }
     }

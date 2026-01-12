@@ -172,6 +172,7 @@ export class WasmDictionaryManager {
       if (success) {
         console.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
         this.consecutiveFailures = 0; // Reset failure counter
+        this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
       }
 
       return success;

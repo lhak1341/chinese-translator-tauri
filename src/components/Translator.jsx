@@ -229,47 +229,43 @@ const Translator = ({ isActive = true }) => {
 
       console.log('📍 Attempting to restore positions:', positions);
 
-      const attemptRestore = () => {
-        let restored = false;
-        if (
-          originalTextRef.current &&
-          positions.original &&
-          originalTextRef.current.scrollHeight > 0
-        ) {
-          originalTextRef.current.scrollTop = positions.original.scrollTop;
-          originalTextRef.current.scrollLeft = positions.original.scrollLeft;
-          restored = true;
-        }
-        if (
-          translationTextRef.current &&
-          positions.translation &&
-          translationTextRef.current.scrollHeight > 0
-        ) {
-          translationTextRef.current.scrollTop = positions.translation.scrollTop;
-          translationTextRef.current.scrollLeft = positions.translation.scrollLeft;
-          restored = true;
-        }
-        if (
-          characterOnlyTextRef.current &&
-          positions.characterOnly &&
-          characterOnlyTextRef.current.scrollHeight > 0
-        ) {
-          characterOnlyTextRef.current.scrollTop = positions.characterOnly.scrollTop;
-          characterOnlyTextRef.current.scrollLeft = positions.characterOnly.scrollLeft;
-          restored = true;
-        }
-        if (restored) {
+      // Recursive retry with early termination on success
+      const attemptRestore = (attemptsLeft = 5, delay = 0) => {
+        // Check if all refs are ready with content
+        const allRefsReady =
+          (!positions.original ||
+            (originalTextRef.current && originalTextRef.current.scrollHeight > 0)) &&
+          (!positions.translation ||
+            (translationTextRef.current && translationTextRef.current.scrollHeight > 0)) &&
+          (!positions.characterOnly ||
+            (characterOnlyTextRef.current && characterOnlyTextRef.current.scrollHeight > 0));
+
+        if (allRefsReady) {
+          // Restore positions
+          if (originalTextRef.current && positions.original) {
+            originalTextRef.current.scrollTop = positions.original.scrollTop;
+            originalTextRef.current.scrollLeft = positions.original.scrollLeft;
+          }
+          if (translationTextRef.current && positions.translation) {
+            translationTextRef.current.scrollTop = positions.translation.scrollTop;
+            translationTextRef.current.scrollLeft = positions.translation.scrollLeft;
+          }
+          if (characterOnlyTextRef.current && positions.characterOnly) {
+            characterOnlyTextRef.current.scrollTop = positions.characterOnly.scrollTop;
+            characterOnlyTextRef.current.scrollLeft = positions.characterOnly.scrollLeft;
+          }
           console.log('📍 Scroll positions restored successfully');
+        } else if (attemptsLeft > 0) {
+          // Retry with exponential backoff
+          const nextDelay = delay === 0 ? 50 : Math.min(delay * 2, 500);
+          setTimeout(() => attemptRestore(attemptsLeft - 1, nextDelay), nextDelay);
+        } else {
+          console.warn('📍 Failed to restore scroll positions after 5 attempts');
         }
       };
 
-      // Try multiple times with different delays to ensure DOM is ready
-      // Use multiple approaches to ensure restoration works after React re-renders
-      requestAnimationFrame(attemptRestore);
-      setTimeout(attemptRestore, 50);
-      setTimeout(attemptRestore, 150);
-      setTimeout(attemptRestore, 300);
-      setTimeout(attemptRestore, 500);
+      // Start restoration with requestAnimationFrame for immediate attempt
+      requestAnimationFrame(() => attemptRestore());
     },
     [savedScrollPositions]
   );
@@ -378,7 +374,8 @@ const Translator = ({ isActive = true }) => {
 
       initializeEngine();
     }
-  }, [isLoading, dictionaries, engineInitialized, getFilteredDictionaries, activeProperNouns]); // Add missing dependency
+    // Note: getFilteredDictionaries has empty deps and never changes, so excluded from dependencies
+  }, [isLoading, dictionaries, engineInitialized, activeProperNouns]);
 
   // Monitor WASM status changes
   useEffect(() => {

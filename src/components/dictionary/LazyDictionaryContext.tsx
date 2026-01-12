@@ -245,7 +245,10 @@ export function LazyDictionaryProvider({
     };
 
     loadInitialState();
-  }, [loadDictionaryImmediate, schedulePreload]);
+    // ESLint disable: This effect should run exactly once on mount for initial dictionary load.
+    // Including schedulePreload would cause re-runs when loadedDictionaries changes, which is incorrect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Public load dictionary function (triggers immediate load if not loaded)
   const loadDictionary = useCallback(

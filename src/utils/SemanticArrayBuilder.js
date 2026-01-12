@@ -122,11 +122,22 @@ export class SemanticArrayBuilder {
         if (usedIndices.has(i)) continue;
 
         const unit = this.original[i];
-        const remainingText = originalText.substring(currentPos);
+        const remainingLength = originalText.length - currentPos;
 
-        if (remainingText.startsWith(unit) && unit.length > bestLength) {
-          bestMatch = { index: i, unit, length: unit.length };
-          bestLength = unit.length;
+        // Check if unit fits and matches (optimized: direct character comparison)
+        if (unit.length <= remainingLength && unit.length > bestLength) {
+          let matches = true;
+          for (let j = 0; j < unit.length; j++) {
+            if (originalText[currentPos + j] !== unit[j]) {
+              matches = false;
+              break;
+            }
+          }
+
+          if (matches) {
+            bestMatch = { index: i, unit, length: unit.length };
+            bestLength = unit.length;
+          }
         }
       }
 
@@ -156,14 +167,23 @@ export class SemanticArrayBuilder {
         if (usedIndices.has(i)) continue;
 
         const unit = this.translated[i];
-        const remainingText = translatedText.substring(currentPos);
+        const remainingLength = translatedText.length - currentPos;
 
-        if (
-          remainingText.toLowerCase().startsWith(unit.toLowerCase()) &&
-          unit.length > bestLength
-        ) {
-          bestMatch = { index: i, unit, length: unit.length };
-          bestLength = unit.length;
+        // Check if unit fits and matches (optimized: direct character comparison)
+        if (unit.length <= remainingLength && unit.length > bestLength) {
+          let matches = true;
+          for (let j = 0; j < unit.length; j++) {
+            // Case-insensitive comparison
+            if (translatedText[currentPos + j].toLowerCase() !== unit[j].toLowerCase()) {
+              matches = false;
+              break;
+            }
+          }
+
+          if (matches) {
+            bestMatch = { index: i, unit, length: unit.length };
+            bestLength = unit.length;
+          }
         }
       }
 
