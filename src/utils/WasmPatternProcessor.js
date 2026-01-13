@@ -80,12 +80,16 @@ export async function initializeWasmPatternProcessor(patternsDict) {
  * @param {Array} semanticTokens - Array of semantic token objects
  * @param {Object} variableCache - Variable translation cache
  * @returns {Promise<Array>} Array of PatternProcessingResult objects
+ * @throws {Error} If WASM pattern processor is not initialized or processing fails
  */
 export async function processTokensWasm(semanticTokens, variableCache) {
-  // Ensure WASM is initialized
+  // ERROR HANDLING FIX: Pattern processing is WASM-only (JavaScript fallback removed Jan 2025)
+  // Throw error instead of silently returning empty array to maintain translation quality
   if (!wasmPatternProcessor) {
-    console.warn('⚠️ WASM Pattern Processor not initialized');
-    return [];
+    console.error('❌ WASM Pattern Processor not initialized - patterns unavailable');
+    throw new Error(
+      'Pattern processing unavailable: WASM not initialized. Patterns are required for translation.'
+    );
   }
 
   try {
@@ -94,8 +98,9 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     return results;
   } catch (error) {
     console.error('❌ Error in WASM pattern processing:', error);
-    // Fallback: return empty array (JavaScript processor will be used)
-    return [];
+    // ERROR HANDLING FIX: Re-throw instead of silent failure
+    // Pattern processing is critical - propagate error so caller can handle appropriately
+    throw new Error(`Pattern processing failed: ${error.message || error}`);
   }
 }
 

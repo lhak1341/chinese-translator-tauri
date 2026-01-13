@@ -120,7 +120,38 @@ export class TranslationSegmentCache {
         return null;
       }
 
-      const cachedData = JSON.parse(cachedDataStr);
+      // ERROR HANDLING FIX: Validate JSON.parse to prevent cache corruption crashes
+      let cachedData;
+      try {
+        cachedData = JSON.parse(cachedDataStr);
+      } catch (parseError) {
+        // Corrupted cache entry - remove and treat as miss
+        console.warn(`Corrupted cache entry removed: ${cacheKey}`, parseError.message);
+        localStorage.removeItem(cacheKey);
+        this.removeFromMetadata(cacheKey);
+        this.stats.misses++;
+        this.stats.evictions++;
+        this.updateHitRate();
+        return null;
+      }
+
+      // ERROR HANDLING FIX: Validate cached data structure
+      if (
+        !cachedData ||
+        typeof cachedData !== 'object' ||
+        !cachedData.translatedText ||
+        !cachedData.semanticArrays ||
+        typeof cachedData.timestamp !== 'number'
+      ) {
+        console.warn(`Invalid cache data structure, removing: ${cacheKey}`);
+        localStorage.removeItem(cacheKey);
+        this.removeFromMetadata(cacheKey);
+        this.stats.misses++;
+        this.stats.evictions++;
+        this.updateHitRate();
+        return null;
+      }
+
       const now = Date.now();
 
       // Check if cache entry is expired

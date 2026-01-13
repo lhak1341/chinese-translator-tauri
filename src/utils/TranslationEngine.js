@@ -151,6 +151,8 @@ export class TranslationEngine {
     }
 
     this.isInitialized = false;
+    // ERROR HANDLING FIX: Track initialization error for better debugging
+    this.initializationError = null;
     // PERFORMANCE OPTIMIZATION: Reduce default logging to prevent console spam
     this.debugLevel =
       process.env.NODE_ENV === 'production' ? DEBUG_LEVELS.ERROR : DEBUG_LEVELS.DEBUG; // Production: errors only, Development: debug messages
@@ -747,6 +749,8 @@ export class TranslationEngine {
       }
 
       this.isInitialized = true;
+      // ERROR HANDLING FIX: Clear any previous initialization errors
+      this.initializationError = null;
       const initTime = performance.now() - startTime;
 
       // Pre-warm translation caches with common characters and phrases for better first-translation performance
@@ -768,11 +772,15 @@ export class TranslationEngine {
       this.log(DEBUG_LEVELS.DEBUG, '📊 Engine stats:', this.getEngineStats());
 
       // WASM Core Engine removed - dictionary sync no longer needed
-    } catch (_error) {
+    } catch (error) {
+      // ERROR HANDLING FIX: Capture initialization error for better debugging
+      this.isInitialized = false;
+      this.initializationError = error.message || String(error);
+
       if (process.env.NODE_ENV === 'development') {
-        console.error('Failed to initialize Translation Engine:', _error);
+        console.error('Failed to initialize Translation Engine:', error);
       }
-      throw _error;
+      throw error;
     }
   }
 
@@ -793,7 +801,11 @@ export class TranslationEngine {
    */
   async translate(text, options = {}) {
     if (!this.isInitialized) {
-      throw new Error('Translation Engine not initialized');
+      // ERROR HANDLING FIX: Include initialization error context for better debugging
+      const errorContext = this.initializationError
+        ? `: ${this.initializationError}`
+        : ' (unknown reason)';
+      throw new Error(`Translation Engine not initialized${errorContext}`);
     }
 
     if (!text || text.trim() === '') {
@@ -843,7 +855,11 @@ export class TranslationEngine {
    */
   async translateWithCharactersOnly(text, options = {}) {
     if (!this.isInitialized) {
-      throw new Error('Translation Engine not initialized');
+      // ERROR HANDLING FIX: Include initialization error context for better debugging
+      const errorContext = this.initializationError
+        ? `: ${this.initializationError}`
+        : ' (unknown reason)';
+      throw new Error(`Translation Engine not initialized${errorContext}`);
     }
 
     if (!text || text.trim() === '') {
