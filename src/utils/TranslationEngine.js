@@ -5472,7 +5472,46 @@ export class TranslationEngine {
       // Numbers should be processed before phrases to preserve number sequences like "六十五"
       // This prevents phrase-level matches from breaking up number tokens
       await this.profiler.profile('numbers', async () => {
+        // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
+        // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
+        let numberCandidateCount = 0;
+        for (const token of tokens) {
+          if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
+            numberCandidateCount++;
+            // Early exit if many candidates (no point counting further)
+            if (numberCandidateCount > 50) break;
+          }
+        }
+
+        // Skip WASM entirely if no number candidates
+        if (numberCandidateCount === 0) {
+          this.log(
+            DEBUG_LEVELS.DEBUG,
+            '⏭️  Skipping WASM number processing (no untranslated chinese_char tokens)'
+          );
+          return;
+        }
+
+        // Use JavaScript fallback for very small counts (serialization overhead > benefit)
+        if (numberCandidateCount < 10) {
+          this.log(
+            DEBUG_LEVELS.DEBUG,
+            `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
+          );
+          this.numberProcessor.processTokens(tokens, {
+            debugLevel: this.debugLevel,
+            semanticArrayBuilder: this.semanticArrayBuilder,
+            ...options,
+          });
+          return;
+        }
+
         // Use WASM number processing (5-10x faster for Chinese number conversion)
+        // Only worthwhile for >=10 candidates where WASM speedup > serialization overhead
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
+        );
         try {
           const processedTokens = await processNumbersWasm(tokens);
           // Copy WASM results with proper undefined → null conversion
