@@ -57,10 +57,18 @@ export class PerformanceBaselineTracker {
     this.alerts = [];
     this.trends = new Map(); // Trend analysis cache
 
+    // MEMORY LEAK FIX: Collection size limits to prevent unbounded growth
+    this.MAX_BASELINES = 100; // Limit baseline entries
+    this.MAX_TRENDS = 200; // Limit trend cache
+    this.MAX_ALERTS = 50; // Limit alert history
+
     // Monitoring state
     this.isActive = true;
     this.lastBaselineUpdate = 0;
     this.monitoringStartTime = Date.now();
+
+    // MEMORY LEAK FIX: Store interval ID for cleanup
+    this.analysisIntervalId = null;
 
     this.setupPeriodicAnalysis();
   }
@@ -146,6 +154,12 @@ export class PerformanceBaselineTracker {
       // Quality metrics
       operationsPerSecond: durations.length > 0 ? 1000 / this.calculateMean(durations) : 0,
     };
+
+    // MEMORY LEAK FIX: Enforce baselines Map size limit
+    if (this.baselines.size >= this.MAX_BASELINES) {
+      const firstKey = this.baselines.keys().next().value;
+      this.baselines.delete(firstKey);
+    }
 
     this.baselines.set(operationType, baseline);
     console.log(`📊 Performance baseline established for '${operationType}':`, {
@@ -292,6 +306,12 @@ export class PerformanceBaselineTracker {
     for (const alert of alerts) {
       alert.timestamp = Date.now();
       alert.operationType = operationType;
+
+      // MEMORY LEAK FIX: Enforce alerts array size limit
+      if (this.alerts.length >= this.MAX_ALERTS) {
+        this.alerts.shift(); // Remove oldest alert
+      }
+
       this.alerts.push(alert);
 
       if (alert.level === 'critical') {
@@ -391,13 +411,32 @@ export class PerformanceBaselineTracker {
    * Set up periodic trend analysis
    */
   setupPeriodicAnalysis() {
+    // MEMORY LEAK FIX: Store interval ID for cleanup
     // Run trend analysis every 5 minutes
-    setInterval(
+    this.analysisIntervalId = setInterval(
       () => {
         this.runPeriodicAnalysis();
       },
       5 * 60 * 1000
     );
+  }
+
+  /**
+   * MEMORY LEAK FIX: Cleanup method to stop periodic analysis timer
+   * Call this when tracker is no longer needed to prevent memory leaks
+   */
+  destroy() {
+    this.isActive = false;
+
+    if (this.analysisIntervalId !== null) {
+      clearInterval(this.analysisIntervalId);
+      this.analysisIntervalId = null;
+    }
+
+    if (this.monitoringInterval !== null) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+    }
   }
 
   /**
@@ -411,6 +450,12 @@ export class PerformanceBaselineTracker {
     for (const operationType of operationTypes) {
       const trends = this.analyzeTrends(operationType);
       if (trends) {
+        // MEMORY LEAK FIX: Enforce trends Map size limit
+        if (this.trends.size >= this.MAX_TRENDS) {
+          const firstKey = this.trends.keys().next().value;
+          this.trends.delete(firstKey);
+        }
+
         this.trends.set(operationType, {
           ...trends,
           analyzedAt: Date.now(),

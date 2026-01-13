@@ -41,6 +41,9 @@ export class TranslationSegmentCache {
     // Initialize or load existing metadata
     this.metadata = this.loadMetadata();
 
+    // MEMORY LEAK FIX: Store interval ID for cleanup
+    this.cleanupIntervalId = null;
+
     // Periodic cleanup (every 5 minutes when active)
     this.setupPeriodicCleanup();
   }
@@ -432,13 +435,25 @@ export class TranslationSegmentCache {
    * Setup periodic cleanup of expired entries
    */
   setupPeriodicCleanup() {
+    // MEMORY LEAK FIX: Store interval ID for cleanup
     // Run cleanup every 5 minutes when active
-    setInterval(
+    this.cleanupIntervalId = setInterval(
       () => {
         this.cleanupExpiredEntries();
       },
       5 * 60 * 1000
     );
+  }
+
+  /**
+   * MEMORY LEAK FIX: Cleanup method to stop periodic cleanup timer
+   * Call this when cache is no longer needed to prevent memory leaks
+   */
+  destroy() {
+    if (this.cleanupIntervalId !== null) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
   }
 
   /**
