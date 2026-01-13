@@ -218,6 +218,12 @@ export class TranslationSegmentCache {
     };
 
     try {
+      // MEMORY PROFILING FIX: Proactive quota monitoring to prevent quota exceeded errors
+      // Check quota before storing to avoid delays from reactive cleanup
+      if (this.isApproachingQuota()) {
+        this.proactiveCleanup();
+      }
+
       // Check if we need to evict old entries before storing
       this.ensureCacheSpace();
 
@@ -301,6 +307,79 @@ export class TranslationSegmentCache {
           batchLog.immediate('INFO', `Cache evicted ${entriesToRemove} LRU entries`);
         });
       }
+    }
+  }
+
+  /**
+   * MEMORY PROFILING FIX: Check if localStorage is approaching quota limit
+   * @returns {boolean} True if localStorage usage > 80% of typical 5MB quota
+   */
+  isApproachingQuota() {
+    try {
+      // Estimate localStorage usage by summing all values
+      let totalBytes = 0;
+      const cacheKeys = this.metadata.keys || [];
+
+      for (const key of cacheKeys) {
+        const value = localStorage.getItem(key);
+        if (value) {
+          // Each character is ~2 bytes in UTF-16
+          totalBytes += (key.length + value.length) * 2;
+        }
+      }
+
+      // Also count metadata
+      const metadataStr = localStorage.getItem(this.metadataKey);
+      if (metadataStr) {
+        totalBytes += (this.metadataKey.length + metadataStr.length) * 2;
+      }
+
+      const totalMB = totalBytes / 1024 / 1024;
+      const quotaLimitMB = 4; // 80% of typical 5MB quota
+
+      if (totalMB > quotaLimitMB) {
+        console.warn(
+          `⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB (${((totalMB / 5) * 100).toFixed(1)}%)`
+        );
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn('Failed to check localStorage quota:', error);
+      return false; // Don't trigger cleanup on errors
+    }
+  }
+
+  /**
+   * MEMORY PROFILING FIX: Proactive cleanup to prevent quota exceeded errors
+   * More aggressive than reactive cleanup - removes entries older than 3 days
+   */
+  proactiveCleanup() {
+    const now = Date.now();
+    const cacheKeys = this.metadata.keys || [];
+    let removedCount = 0;
+
+    // Remove entries older than 3 days (less aggressive than 1-day reactive cleanup)
+    cacheKeys.forEach((key) => {
+      try {
+        const data = JSON.parse(localStorage.getItem(key) || '{}');
+        if (now - (data.timestamp || 0) > 3 * 24 * 60 * 60 * 1000) {
+          // 3 days
+          localStorage.removeItem(key);
+          this.removeFromMetadata(key);
+          removedCount++;
+        }
+      } catch (_error) {
+        // Remove corrupted entries
+        localStorage.removeItem(key);
+        this.removeFromMetadata(key);
+        removedCount++;
+      }
+    });
+
+    if (removedCount > 0) {
+      console.log(`🧹 Proactive quota cleanup removed ${removedCount} entries older than 3 days`);
     }
   }
 
