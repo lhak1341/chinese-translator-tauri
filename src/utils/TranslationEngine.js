@@ -186,6 +186,9 @@ export class TranslationEngine {
 
     // Store reference to TwoPhasePatternProcessor for internal profiling
     this.twoPhaseProcessor = null;
+
+    // CRITICAL-2 FIX: Track pattern processor warning to show only once
+    this.showedPatternWarning = false;
   }
 
   /**
@@ -1263,6 +1266,25 @@ export class TranslationEngine {
       // Update semantic arrays with capitalized versions from final text
       this.semanticArrayBuilder.updateWithCapitalizedText(translatedText);
 
+      // MEMORY PROFILING FIX: Auto-compact semantic arrays to remove wasted capacity
+      // Only for OptimizedSemanticArrayBuilder which has compact() method
+      if (
+        this.useOptimizedSemanticBuilder &&
+        typeof this.semanticArrayBuilder.compact === 'function'
+      ) {
+        const stats = this.semanticArrayBuilder.getMemoryStats();
+        const wastePercentage = stats.wastedCapacity / (stats.arrays * 100);
+
+        // Compact if >30% wasted capacity to reduce memory usage
+        if (wastePercentage > 0.3) {
+          this.semanticArrayBuilder.compact();
+          this.log(
+            DEBUG_LEVELS.DEBUG,
+            `🗜️  Auto-compact: removed ${stats.wastedCapacity} wasted array slots (${(wastePercentage * 100).toFixed(1)}% waste)`
+          );
+        }
+      }
+
       // Get semantic arrays
       semanticArrays = this.semanticArrayBuilder.getArrays();
     }
@@ -1923,6 +1945,17 @@ export class TranslationEngine {
         DEBUG_LEVELS.DEBUG,
         `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
       );
+
+      // CRITICAL-2 FIX: Show warning if pattern processing failed silently
+      if (hierarchicalResults.length === 0 && this.semanticPatternProcessor.patterns?.length > 0) {
+        if (!this.showedPatternWarning) {
+          console.warn(
+            `⚠️ Pattern processing returned no results despite ${this.semanticPatternProcessor.patterns.length} patterns loaded. WASM may have failed - translations will use fallback (lower quality)`
+          );
+          this.showedPatternWarning = true;
+        }
+      }
+
       return;
     }
 
@@ -3402,6 +3435,13 @@ export class TranslationEngine {
       const segmentsToKeep = MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP;
       const removedCount = this.translationSegments.length - segmentsToKeep;
 
+      // MEMORY PROFILING FIX: Log warning if segments exceed emergency threshold
+      if (this.translationSegments.length > 100) {
+        console.warn(
+          `⚠️ Translation segments exceeding safe threshold: ${this.translationSegments.length} segments (emergency threshold: 100). Cleanup may not be triggering reliably.`
+        );
+      }
+
       // Use requestIdleCallback for non-blocking cleanup (or setTimeout fallback)
       const cleanupFn = () => {
         // Re-check threshold before cleanup to prevent race condition
@@ -3410,13 +3450,11 @@ export class TranslationEngine {
           const actualRemoved = this.translationSegments.length - segmentsToKeep;
           this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
 
-          // Only log cleanup in debug mode to avoid performance impact
-          if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🧹 Async proactive cleanup: removed ${actualRemoved} old segments, kept ${segmentsToKeep}`
-            );
-          }
+          // MEMORY PROFILING FIX: Always log cleanup trigger for verification
+          // This helps verify cleanup executes reliably in production
+          console.log(
+            `🧹 Segment cleanup triggered: ${actualRemoved} segments removed (${this.translationSegments.length + actualRemoved} → ${this.translationSegments.length})`
+          );
         }
       };
 

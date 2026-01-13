@@ -19,6 +19,7 @@
 
 import init, { DictionaryEngine } from '../wasm/translation_wasm.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
+import toast from 'react-hot-toast';
 
 export class WasmDictionaryManager {
   constructor() {
@@ -40,6 +41,9 @@ export class WasmDictionaryManager {
     this.consecutiveFailures = 0;
     this.maxFailuresBeforeFallback = 3;
     this.fallbackMode = false;
+
+    // HIGH-4 FIX: Track if fallback warning shown
+    this.notifiedFallbackMode = false;
 
     // Memory pool integration
     this.memoryPool = wasmMemoryPoolManager;
@@ -235,6 +239,14 @@ export class WasmDictionaryManager {
     if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
       console.warn('🚨 WASM engine entering fallback mode after repeated failures');
       this.fallbackMode = true;
+
+      // HIGH-4 FIX: Show one-time notification when entering fallback mode
+      if (!this.notifiedFallbackMode) {
+        toast.warning('Dictionary system using slower fallback mode. Performance may be reduced.', {
+          duration: 5000,
+        });
+        this.notifiedFallbackMode = true;
+      }
     }
   }
 

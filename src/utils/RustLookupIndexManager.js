@@ -10,6 +10,7 @@
  */
 
 import tauriAPI from '../tauriAPI.js';
+import toast from 'react-hot-toast';
 
 class RustLookupIndexManager {
   constructor() {
@@ -18,6 +19,9 @@ class RustLookupIndexManager {
     this.minTextLength = 50; // Don't build index for very short texts
     this.consecutiveFailures = 0;
     this.maxFailuresBeforeFallback = 3;
+
+    // HIGH-2 FIX: Track if fallback warning shown
+    this.showedFallbackWarning = false;
 
     // Performance tracking
     this.stats = {
@@ -197,6 +201,14 @@ class RustLookupIndexManager {
     if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
       console.warn('🚨 Too many Rust lookup index failures, disabling Rust implementation');
       this.enabled = false;
+
+      // HIGH-2 FIX: Show user-facing warning when entering fallback mode (first time only)
+      if (!this.showedFallbackWarning) {
+        toast.warning('High-performance indexing unavailable. Large texts may translate slower.', {
+          duration: 5000,
+        });
+        this.showedFallbackWarning = true;
+      }
     }
 
     console.error(

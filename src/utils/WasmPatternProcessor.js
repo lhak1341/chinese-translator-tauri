@@ -80,16 +80,15 @@ export async function initializeWasmPatternProcessor(patternsDict) {
  * @param {Array} semanticTokens - Array of semantic token objects
  * @param {Object} variableCache - Variable translation cache
  * @returns {Promise<Array>} Array of PatternProcessingResult objects
- * @throws {Error} If WASM pattern processor is not initialized or processing fails
  */
 export async function processTokensWasm(semanticTokens, variableCache) {
-  // ERROR HANDLING FIX: Pattern processing is WASM-only (JavaScript fallback removed Jan 2025)
-  // Throw error instead of silently returning empty array to maintain translation quality
+  // CRITICAL-2 FIX: Degrade gracefully instead of throwing
+  // Patterns enhance translation quality but aren't essential - allow basic translation to continue
   if (!wasmPatternProcessor) {
-    console.error('❌ WASM Pattern Processor not initialized - patterns unavailable');
-    throw new Error(
-      'Pattern processing unavailable: WASM not initialized. Patterns are required for translation.'
-    );
+    console.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
+    console.warn('Translation will continue with lower quality (no pattern matching)');
+    // Return empty results to skip pattern phase gracefully
+    return [];
   }
 
   try {
@@ -97,10 +96,10 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     const results = wasmPatternProcessor.processTokens(semanticTokens, variableCache);
     return results;
   } catch (error) {
-    console.error('❌ Error in WASM pattern processing:', error);
-    // ERROR HANDLING FIX: Re-throw instead of silent failure
-    // Pattern processing is critical - propagate error so caller can handle appropriately
-    throw new Error(`Pattern processing failed: ${error.message || error}`);
+    console.error('❌ Error in WASM pattern processing, skipping patterns:', error);
+    // Log error but don't block translation - patterns are quality enhancement
+    // Translation can continue without patterns (proper nouns + phrases + characters still work)
+    return [];
   }
 }
 

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
@@ -331,39 +332,55 @@ export function LazyDictionaryProvider({
       translation: string,
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
-      const validationError = validateDictionaryEntry(dictionaryId, source, translation);
-      if (validationError) {
-        throw new Error(validationError);
-      }
+      // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
+      try {
+        const validationError = validateDictionaryEntry(dictionaryId, source, translation);
+        if (validationError) {
+          toast.error(`Invalid entry: ${validationError}`);
+          throw new Error(validationError);
+        }
 
-      const oldData = { ...dictionaries[dictionaryId] };
+        const oldData = { ...dictionaries[dictionaryId] };
 
-      let targetValue: string | DictionaryEntryValue = translation;
-      if (dictionaryId === 'phrases' && metadata.allowAsPatternVariable !== undefined) {
-        targetValue = {
-          translation: translation,
-          allowAsPatternVariable: metadata.allowAsPatternVariable,
-        };
-      }
+        let targetValue: string | DictionaryEntryValue = translation;
+        if (dictionaryId === 'phrases' && metadata.allowAsPatternVariable !== undefined) {
+          targetValue = {
+            translation: translation,
+            allowAsPatternVariable: metadata.allowAsPatternVariable,
+          };
+        }
 
-      const updatedDictionary = { ...oldData, [source]: targetValue };
-      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
+        const updatedDictionary = { ...oldData, [source]: targetValue };
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-      setDictionaries((prev) => ({
-        ...prev,
-        [dictionaryId]: sortedDictionary,
-      }));
-
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-      if (result.success && result.data) {
-        addToHistory(dictionaryId, oldData, result.data);
-      } else {
+        // Optimistic update
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData,
+          [dictionaryId]: sortedDictionary,
         }));
-        throw new Error('Failed to save dictionary changes');
+
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+
+        if (result.success && result.data) {
+          addToHistory(dictionaryId, oldData, result.data);
+          toast.success('Entry added successfully');
+        } else {
+          // Rollback optimistic update
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: oldData,
+          }));
+          const errorMsg = result.error || 'Failed to save dictionary changes';
+          toast.error(`Save failed: ${errorMsg}. Changes reverted.`);
+          throw new Error(errorMsg);
+        }
+      } catch (error) {
+        console.error('Error adding dictionary entry:', error);
+        // Only show toast if not already shown above
+        if (error instanceof Error && !error.message.includes('Invalid entry')) {
+          toast.error(`Could not add entry: ${error.message}`);
+        }
+        throw error; // Re-throw for caller handling
       }
     },
     [dictionaries, addToHistory]
@@ -377,53 +394,70 @@ export function LazyDictionaryProvider({
       translation: string,
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
-      const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
-      if (validationError) {
-        throw new Error(validationError);
-      }
+      // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
+      try {
+        const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
+        if (validationError) {
+          toast.error(`Invalid entry: ${validationError}`);
+          throw new Error(validationError);
+        }
 
-      const oldData = { ...dictionaries[dictionaryId] };
-      const updatedDictionary = { ...oldData };
+        const oldData = { ...dictionaries[dictionaryId] };
+        const updatedDictionary = { ...oldData };
 
-      if (oldSource !== newSource) {
-        delete updatedDictionary[oldSource];
-      }
+        if (oldSource !== newSource) {
+          delete updatedDictionary[oldSource];
+        }
 
-      let targetValue: string | DictionaryEntryValue = translation;
-      if (
-        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
-      ) {
-        targetValue = {
-          translation: translation,
-          allowAsPatternVariable: metadata.allowAsPatternVariable,
-          lowPriority: metadata.lowPriority,
-        };
-      }
+        let targetValue: string | DictionaryEntryValue = translation;
+        if (
+          (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
+          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+        ) {
+          targetValue = {
+            translation: translation,
+            allowAsPatternVariable: metadata.allowAsPatternVariable,
+            lowPriority: metadata.lowPriority,
+          };
+        }
 
-      updatedDictionary[newSource] = targetValue;
+        updatedDictionary[newSource] = targetValue;
 
-      const sortedDictionary = sortDictionaryEntries(
-        updatedDictionary,
-        dictionaryId,
-        newSource,
-        oldSource
-      );
-      setDictionaries((prev) => ({
-        ...prev,
-        [dictionaryId]: sortedDictionary,
-      }));
+        const sortedDictionary = sortDictionaryEntries(
+          updatedDictionary,
+          dictionaryId,
+          newSource,
+          oldSource
+        );
 
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-      if (result.success && result.data) {
-        addToHistory(dictionaryId, oldData, result.data);
-      } else {
+        // Optimistic update
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData,
+          [dictionaryId]: sortedDictionary,
         }));
-        throw new Error('Failed to save dictionary changes');
+
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+
+        if (result.success && result.data) {
+          addToHistory(dictionaryId, oldData, result.data);
+          toast.success('Entry updated successfully');
+        } else {
+          // Rollback optimistic update
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: oldData,
+          }));
+          const errorMsg = result.error || 'Failed to save dictionary changes';
+          toast.error(`Save failed: ${errorMsg}. Changes reverted.`);
+          throw new Error(errorMsg);
+        }
+      } catch (error) {
+        console.error('Error updating dictionary entry:', error);
+        // Only show toast if not already shown above
+        if (error instanceof Error && !error.message.includes('Invalid entry')) {
+          toast.error(`Could not update entry: ${error.message}`);
+        }
+        throw error; // Re-throw for caller handling
       }
     },
     [dictionaries, addToHistory]
@@ -431,68 +465,102 @@ export function LazyDictionaryProvider({
 
   const deleteEntry = useCallback(
     async (dictionaryId: string, source: string): Promise<void> => {
-      const oldData = { ...dictionaries[dictionaryId] };
-      const updatedDictionary = { ...oldData };
-      delete updatedDictionary[source];
-      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
+      // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
+      try {
+        const oldData = { ...dictionaries[dictionaryId] };
+        const updatedDictionary = { ...oldData };
+        delete updatedDictionary[source];
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-      setDictionaries((prev) => ({
-        ...prev,
-        [dictionaryId]: sortedDictionary,
-      }));
-
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-      if (result.success && result.data) {
-        addToHistory(dictionaryId, oldData, result.data);
-      } else {
+        // Optimistic update
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData,
+          [dictionaryId]: sortedDictionary,
         }));
-        throw new Error('Failed to delete dictionary entry');
+
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+
+        if (result.success && result.data) {
+          addToHistory(dictionaryId, oldData, result.data);
+          toast.success('Entry deleted successfully');
+        } else {
+          // Rollback optimistic update
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: oldData,
+          }));
+          const errorMsg = result.error || 'Failed to delete dictionary entry';
+          toast.error(`Delete failed: ${errorMsg}. Changes reverted.`);
+          throw new Error(errorMsg);
+        }
+      } catch (error) {
+        console.error('Error deleting dictionary entry:', error);
+        toast.error(
+          `Could not delete entry: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+        throw error; // Re-throw for caller handling
       }
     },
     [dictionaries, addToHistory]
   );
 
   const undo = useCallback(async (): Promise<boolean> => {
+    // MEDIUM-3 FIX: Add user feedback for undo/redo operations
     if (currentHistoryIndex >= 0) {
-      const operation = history[currentHistoryIndex];
-      const result = await window.electronAPI.saveDictionary(
-        operation.dictionaryId,
-        operation.oldData
-      );
+      try {
+        const operation = history[currentHistoryIndex];
+        const result = await window.electronAPI.saveDictionary(
+          operation.dictionaryId,
+          operation.oldData
+        );
 
-      if (result.success) {
-        setDictionaries((prev) => ({
-          ...prev,
-          [operation.dictionaryId]: operation.oldData,
-        }));
-        setCurrentHistoryIndex((prev) => prev - 1);
-        return true;
+        if (result.success) {
+          setDictionaries((prev) => ({
+            ...prev,
+            [operation.dictionaryId]: operation.oldData,
+          }));
+          setCurrentHistoryIndex((prev) => prev - 1);
+          toast.success('Change undone');
+          return true;
+        } else {
+          toast.error(`Could not undo: ${result.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        console.error('Error during undo:', error);
+        toast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
+    // Note: No toast for "nothing to undo" - button should be disabled in this state
     return false;
   }, [history, currentHistoryIndex]);
 
   const redo = useCallback(async (): Promise<boolean> => {
+    // MEDIUM-3 FIX: Add user feedback for undo/redo operations
     if (currentHistoryIndex < history.length - 1) {
-      const operation = history[currentHistoryIndex + 1];
-      const result = await window.electronAPI.saveDictionary(
-        operation.dictionaryId,
-        operation.newData
-      );
+      try {
+        const operation = history[currentHistoryIndex + 1];
+        const result = await window.electronAPI.saveDictionary(
+          operation.dictionaryId,
+          operation.newData
+        );
 
-      if (result.success) {
-        setDictionaries((prev) => ({
-          ...prev,
-          [operation.dictionaryId]: operation.newData,
-        }));
-        setCurrentHistoryIndex((prev) => prev + 1);
-        return true;
+        if (result.success) {
+          setDictionaries((prev) => ({
+            ...prev,
+            [operation.dictionaryId]: operation.newData,
+          }));
+          setCurrentHistoryIndex((prev) => prev + 1);
+          toast.success('Change redone');
+          return true;
+        } else {
+          toast.error(`Could not redo: ${result.error || 'Unknown error'}`);
+        }
+      } catch (error) {
+        console.error('Error during redo:', error);
+        toast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
+    // Note: No toast for "nothing to redo" - button should be disabled in this state
     return false;
   }, [history, currentHistoryIndex]);
 

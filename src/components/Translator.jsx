@@ -158,6 +158,8 @@ const Translator = ({ isActive = true }) => {
   const [_engineStats, setEngineStats] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [engineInitialized, setEngineInitialized] = useState(false);
+  // CRITICAL-3 FIX: Track initialization errors for user display
+  const [initializationError, setInitializationError] = useState(null);
   const [wasmStatus, setWasmStatus] = useState({
     initialized: false,
     fallbackMode: true,
@@ -303,9 +305,16 @@ const Translator = ({ isActive = true }) => {
         const result = await window.electronAPI.loadConfiguration();
         if (result.success && result.data.activeProperNouns) {
           setActiveProperNouns(result.data.activeProperNouns);
+        } else {
+          // HIGH-3 FIX: Show warning for config load failures (except expected first-run case)
+          if (result.error && !result.error.includes('File not found')) {
+            toast.warning('Could not load saved settings. Using defaults.');
+          }
         }
-      } catch (_error) {
-        console.error('Failed to load initial configuration:', _error);
+      } catch (error) {
+        console.error('Failed to load initial configuration:', error);
+        // HIGH-3 FIX: Notify user of unexpected configuration errors
+        toast.error('Error loading settings. Using defaults.');
       }
     };
 
@@ -366,9 +375,19 @@ const Translator = ({ isActive = true }) => {
             onTranslationUpdate: setTranslatedText,
             onSemanticArraysUpdate: setSemanticArrays,
           });
-        } catch (_error) {
-          console.error('Failed to initialize engine:', _error);
+
+          // CRITICAL-3 FIX: Clear error on successful initialization
+          setInitializationError(null);
+        } catch (error) {
+          console.error('Failed to initialize engine:', error);
           setEngineInitialized(false);
+
+          // CRITICAL-3 FIX: Show error to user with actionable guidance
+          const errorMsg = error instanceof Error ? error.message : 'Unknown initialization error';
+          setInitializationError(errorMsg);
+          toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
+            duration: 10000, // Longer duration for critical errors
+          });
         }
       };
 
@@ -2392,6 +2411,57 @@ const Translator = ({ isActive = true }) => {
         onReloadDictionary={handleForceReload}
         activeTab={isActive ? 'translator' : null}
       />
+
+      {/* CRITICAL-3 FIX: Show initialization error banner */}
+      {initializationError && (
+        <div
+          style={{
+            backgroundColor: '#fef2f2',
+            borderLeft: '4px solid #dc2626',
+            padding: '1rem',
+            marginBottom: '1rem',
+            borderRadius: '4px',
+          }}
+        >
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}
+          >
+            <strong style={{ color: '#dc2626' }}>⚠️ Translation Engine Error</strong>
+          </div>
+          <div style={{ color: '#991b1b', marginBottom: '0.75rem' }}>{initializationError}</div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={handleForceReload}
+              style={{
+                backgroundColor: '#dc2626',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '500',
+              }}
+            >
+              Reload Dictionaries
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                backgroundColor: '#6b7280',
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '500',
+              }}
+            >
+              Reload App
+            </button>
+          </div>
+        </div>
+      )}
+
       <TranslatorControls
         handleTranslateFromClipboard={handleTranslateFromClipboard}
         handleQuickAddProperNoun={handleQuickAddProperNoun}
