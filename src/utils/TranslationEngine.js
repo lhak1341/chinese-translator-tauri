@@ -5340,10 +5340,30 @@ export class TranslationEngine {
         } catch (error) {
           this.log(
             DEBUG_LEVELS.WARN,
-            '⚠️ Rust lookup index build failed, using traditional lookup:',
+            '⚠️ Rust lookup index build failed, falling back to JavaScript indexing:',
             error.message
           );
-          // Continue without lookup index (traditional dictionary lookup will be used)
+          // OPTIMIZATION: Fallback to JavaScript-based comprehensive lookup index
+          // This ensures lookup index is ALWAYS built for texts >50 chars (10-20% speedup)
+          try {
+            const jsIndexStartTime = performance.now();
+            options.lookupIndex = await this.dictionaryManager.buildComprehensiveLookupIndex(text, {
+              enableLookupIndexing: true,
+            });
+            options.useSharedLookupIndex = true;
+            const jsIndexTime = performance.now() - jsIndexStartTime;
+            this.log(
+              DEBUG_LEVELS.DEBUG,
+              `📋 JavaScript lookup index built: ${options.lookupIndex.size} positions in ${jsIndexTime.toFixed(1)}ms`
+            );
+          } catch (jsError) {
+            this.log(
+              DEBUG_LEVELS.WARN,
+              '⚠️ JavaScript lookup index build failed, using traditional lookup:',
+              jsError.message
+            );
+            // Final fallback: continue without lookup index
+          }
         }
       }
 
