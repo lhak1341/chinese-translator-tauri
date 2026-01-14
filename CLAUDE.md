@@ -564,6 +564,368 @@ getEngineStats() {
 - Type checking: `npm run type-check` before committing (0 errors expected)
 - Migration principle: Only migrate truly independent utilities and display components
 
+### Error Handling Patterns
+
+**Production reliability** (January 2025): Comprehensive error handling with user-facing notifications and graceful degradation.
+
+**React Async Error Boundaries Pattern**:
+
+Error boundaries don't catch errors in async callbacks. Wrap all async operations in try-catch with toast notifications.
+
+```typescript
+// CRITICAL-1: React async operations
+const addEntry = useCallback(
+  async (dictionaryId: string, source: string, translation: string) => {
+    try {
+      // Validation
+      const validationError = validateDictionaryEntry(dictionaryId, source, translation);
+      if (validationError) {
+        toast.error(`Invalid entry: ${validationError}`);
+        throw new Error(validationError);
+      }
+
+      // Optimistic update
+      const oldData = { ...dictionaries[dictionaryId] };
+      setDictionaries((prev) => ({ ...prev, [dictionaryId]: newData }));
+
+      // Persist to backend
+      const result = await window.electronAPI.saveDictionary(dictionaryId, newData);
+
+      if (result.success) {
+        toast.success('Entry added successfully');
+      } else {
+        // Rollback on failure
+        setDictionaries((prev) => ({ ...prev, [dictionaryId]: oldData }));
+        toast.error(`Save failed: ${result.error}. Changes reverted.`);
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error adding dictionary entry:', error);
+      if (!(error instanceof Error && error.message.includes('Invalid entry'))) {
+        toast.error(`Could not add entry: ${error.message}`);
+      }
+      throw error;
+    }
+  },
+  [dictionaries]
+);
+```
+
+**Key principles:**
+
+- Try-catch wraps entire async operation
+- Optimistic updates with rollback on failure
+- Toast notifications for all outcomes (success, validation, failure)
+- Don't re-toast validation errors (already shown)
+
+**Implementation**: `LazyDictionaryContext.tsx:addEntry()`, `updateEntry()`, `deleteEntry()`, `undo()`, `redo()`
+
+**WASM Graceful Degradation Pattern**:
+
+WASM modules may fail to initialize. Return empty results instead of throwing to allow app to continue with reduced functionality.
+
+```javascript
+// CRITICAL-2: WASM pattern processor
+export async function processTokensWasm(semanticTokens, variableCache) {
+  if (!wasmPatternProcessor) {
+    console.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
+    console.warn('Translation will continue with lower quality (no pattern matching)');
+    return []; // Graceful degradation, don't block translation
+  }
+
+  try {
+    return wasmPatternProcessor.processTokens(semanticTokens, variableCache);
+  } catch (error) {
+    console.error('❌ Error in WASM pattern processing, skipping patterns:', error);
+    return []; // Don't propagate error, allow translation to continue
+  }
+}
+```
+
+**Key principles:**
+
+- Check initialization before use
+- Warn user about degraded functionality
+- Return empty results (not null/undefined)
+- Catch and log errors without propagating
+
+**Implementation**: `WasmPatternProcessor.js:processTokensWasm()`, `WasmDictionaryManager.js:findMatches()`
+
+**Initialization Error Recovery Pattern**:
+
+Critical initialization failures need user-visible errors with recovery options.
+
+```javascript
+// CRITICAL-3: Translation engine initialization
+const [initializationError, setInitializationError] = useState(null);
+
+useEffect(() => {
+  async function initializeEngine() {
+    try {
+      engineRef.current = createTranslationEngine();
+      await engineRef.current.initialize(filteredDictionaries, {...});
+      setEngineInitialized(true);
+      setInitializationError(null);
+    } catch (error) {
+      console.error('Failed to initialize engine:', error);
+      setEngineInitialized(false);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown initialization error';
+      setInitializationError(errorMsg);
+      toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
+        duration: 10000,
+      });
+    }
+  }
+  initializeEngine();
+}, [filteredDictionaries]);
+
+// In render:
+{initializationError && (
+  <div style={{ backgroundColor: '#fef2f2', borderLeft: '4px solid #dc2626', padding: '1rem' }}>
+    <strong style={{ color: '#dc2626' }}>⚠️ Translation Engine Error</strong>
+    <div style={{ color: '#991b1b' }}>{initializationError}</div>
+    <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <button onClick={handleForceReload}>Reload Dictionaries</button>
+      <button onClick={() => window.location.reload()}>Reload App</button>
+    </div>
+  </div>
+)}
+```
+
+**Key principles:**
+
+- State tracks initialization errors
+- Error banner visible to user
+- Provide recovery actions (reload dictionaries, reload app)
+- Long toast duration (10s) for critical errors
+
+**Implementation**: `Translator.jsx:initializationError state`
+
+**Fallback Mode Notification Pattern**:
+
+When performance-critical systems degrade to slower fallbacks, notify users once.
+
+```javascript
+// HIGH-2: Rust lookup index fallback
+handleFailure(error) {
+  this.consecutiveFailures++;
+
+  if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
+    console.warn('🚨 Too many Rust lookup index failures, disabling Rust implementation');
+    this.enabled = false;
+
+    // One-time notification
+    if (!this.showedFallbackWarning) {
+      toast.warning(
+        'High-performance indexing unavailable. Large texts may translate slower.',
+        { duration: 5000 }
+      );
+      this.showedFallbackWarning = true;
+    }
+  }
+}
+```
+
+**Key principles:**
+
+- Track consecutive failures (not total)
+- One-time notification (boolean flag prevents spam)
+- Warn about performance impact
+- Clear, actionable message
+
+**Implementation**: `RustLookupIndexManager.js:handleFailure()`, `WasmDictionaryManager.js:handleFailure()`
+
+**Test Coverage**: 43 tests across 4 test files verify all error handling patterns.
+
+### Memory Management Patterns
+
+**Production stability** (January 2025): Eliminated memory leaks causing 50MB+ accumulation over long sessions.
+
+**Timer Cleanup Pattern**:
+
+All `setInterval` must have corresponding `clearInterval` in cleanup/destroy methods.
+
+```javascript
+// CRITICAL: setInterval leak fix
+class TranslationSegmentCache {
+  constructor() {
+    this.cleanupIntervalId = null; // Track interval ID
+
+    // Start periodic cleanup
+    this.cleanupIntervalId = setInterval(() => {
+      this.performCleanup();
+    }, 60000);
+  }
+
+  destroy() {
+    // MUST clear interval on cleanup
+    if (this.cleanupIntervalId !== null) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+  }
+}
+```
+
+**Key principles:**
+
+- Store interval ID in instance variable
+- Provide explicit `destroy()` method
+- Set ID to null after clearing
+- Call destroy in React cleanup: `useEffect(() => { return () => cache.destroy(); }, [])`
+
+**Impact**: Long-running sessions 50MB → <10MB
+
+**Implementation**: `TranslationSegmentCache.js:destroy()`, `ProactivePerformanceDetector.js:destroy()`
+
+**Bounded Collection Pattern**:
+
+Map/Set collections must have size limits with LRU eviction.
+
+```javascript
+// CRITICAL: Unbounded Map growth fix
+class ProactivePerformanceDetector {
+  constructor() {
+    this.MAX_BASELINES = 100;
+    this.MAX_TRENDS = 200;
+    this.MAX_ALERTS = 50;
+
+    this.baselines = new Map();
+    this.trends = new Map();
+    this.recentAlerts = new Map();
+  }
+
+  recordBaseline(metricKey, value) {
+    // Enforce size limit with LRU eviction
+    if (this.baselines.size >= this.MAX_BASELINES) {
+      const firstKey = this.baselines.keys().next().value;
+      this.baselines.delete(firstKey); // Remove oldest
+    }
+
+    this.baselines.set(metricKey, value);
+  }
+}
+```
+
+**Key principles:**
+
+- Define MAX\_\* constants for all collections
+- Check size before adding
+- Delete oldest entry (Map insertion order = chronological)
+- Typical limits: Baselines=100, Trends=200, Alerts=50
+
+**Impact**: Dictionary switching 20-50MB → <5MB
+
+**Implementation**: `ProactivePerformanceDetector.js:recordBaseline()`, `recordTrend()`, `recordAlert()`
+
+**localStorage Quota Monitoring Pattern**:
+
+localStorage has 5-10MB quota. Monitor and cleanup proactively at 80% threshold.
+
+```javascript
+// HIGH: localStorage quota monitoring
+isApproachingQuota() {
+  try {
+    let totalBytes = 0;
+    const cacheKeys = this.metadata.keys || [];
+
+    for (const key of cacheKeys) {
+      const value = localStorage.getItem(key);
+      if (value) {
+        totalBytes += (key.length + value.length) * 2; // UTF-16 encoding
+      }
+    }
+
+    const totalMB = totalBytes / 1024 / 1024;
+    const quotaLimitMB = 4; // 80% of typical 5MB quota
+
+    if (totalMB > quotaLimitMB) {
+      console.warn(`⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB`);
+      this.proactiveCleanup(); // Remove oldest entries
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+```
+
+**Key principles:**
+
+- Calculate total bytes (key + value, UTF-16 = 2 bytes/char)
+- Set threshold at 80% (4MB of 5MB typical quota)
+- Trigger proactive cleanup before hitting quota
+- Check before every large write operation
+
+**Impact**: Translation cache 12.6MB → <5MB (within quota)
+
+**Implementation**: `TranslationSegmentCache.js:isApproachingQuota()`, `proactiveCleanup()`
+
+**Segment Cleanup Verification Pattern**:
+
+Translation segments accumulate large arrays. Verify cleanup triggers fire correctly.
+
+```javascript
+// HIGH: Segment cleanup verification
+cleanupOldSegments() {
+  const threshold = this.getSegmentCleanupThreshold();
+  const segmentCount = this.translationSegments.length;
+
+  // Log cleanup trigger
+  console.log(
+    `🧹 Segment cleanup: ${segmentCount} segments (threshold: ${threshold.type}=${threshold.value})`
+  );
+
+  if (segmentCount > threshold.value) {
+    const removedCount = segmentCount - threshold.value;
+    this.translationSegments.splice(0, removedCount);
+
+    console.log(`✅ Removed ${removedCount} old segments, ${this.translationSegments.length} remaining`);
+  }
+}
+```
+
+**Key principles:**
+
+- Log when cleanup triggers (verify thresholds work)
+- Log removal count and remaining count
+- Expected behavior: ≤35 segments (Emergency:3, Critical:5, Normal:35)
+- Problem indicator: >35 segments = thresholds not firing
+
+**Implementation**: `TranslationEngine.js:cleanupOldSegments()`
+
+**Semantic Array Auto-Compact Pattern**:
+
+Semantic arrays pre-allocate capacity but waste memory if oversized. Auto-compact when >30% waste.
+
+```javascript
+// HIGH: Semantic array auto-compact
+autoCompactIfNeeded() {
+  const wastedCapacity = this.capacity - this.length;
+  const wasteRatio = wastedCapacity / this.capacity;
+
+  if (wasteRatio > 0.3) {
+    console.log(
+      `📦 Auto-compacting semantic array: ${this.capacity} → ${this.length} (${(wasteRatio * 100).toFixed(1)}% waste)`
+    );
+    this.compact();
+  }
+}
+```
+
+**Key principles:**
+
+- Calculate waste ratio: (capacity - length) / capacity
+- Compact if waste >30%
+- Log before compacting (helps debug performance)
+- Call after translation completes
+
+**Implementation**: `OptimizedSemanticArrayBuilder.js:autoCompactIfNeeded()`
+
+**Test Coverage**: 60 tests in `MemoryLeakDetector.test.js` verify memory monitoring and leak prevention.
+
 ### Failed Patterns (Avoid)
 
 **Architectural restructuring:**
@@ -697,15 +1059,16 @@ npm run tauri:build    # Build production Tauri app
 ### Testing Infrastructure
 
 **Test Runner**: Vitest with React Testing Library
-**Test Files**: 9 files across utilities, types, and components
+**Test Files**: 19 files across utilities, types, components, and error handling
 **Configuration**: `vitest.config.ts`, `src/test/setup.ts`
 
 **Current Status:**
 
-- ✅ **9 test files, 308 tests, all passing** (2,467% increase from baseline)
+- ✅ **19 test files, 408 tests, all passing** (3,300% increase from baseline)
 - ✅ **Utility functions covered** - Token helpers, caching, memory monitoring
 - ✅ **WASM boundaries covered** - Type safety, Rust ↔ JS serialization
 - ✅ **React components covered** - Error boundary, dictionary dialogs
+- ✅ **Error handling covered** - WASM degradation, Rust fallback, async operations
 
 **Test Coverage Details:**
 
@@ -714,6 +1077,8 @@ npm run tauri:build    # Build production Tauri app
 | Utilities        | 5     | 245   | Token helpers, caching, pattern priority, memory |
 | WASM Boundaries  | 1     | 27    | Type contracts, undefined → null conversion      |
 | React Components | 2     | 51    | Error handling, dictionary operations            |
+| Error Handling   | 4     | 43    | WASM degradation, Rust fallback, async ops       |
+| Regression Tests | 6     | 30    | WASM, engine, semantic arrays, dictionary        |
 | Original         | 1     | 12    | Unicode punctuation detection                    |
 
 **Key Test Files:**
@@ -726,12 +1091,17 @@ npm run tauri:build    # Build production Tauri app
 - `WasmTypes.test.ts` (27 tests) - WASM type safety (prevents "undefined" in translations)
 - `ErrorBoundary.test.tsx` (27 tests) - Error catching and recovery
 - `MoveEntryDialog.test.tsx` (24 tests) - Dictionary entry operations
+- `LazyDictionaryContext.errorHandling.test.tsx` (12 tests) - Async error handling, rollback
+- `WasmPatternProcessor.errorHandling.test.js` (9 tests) - Graceful degradation
+- `RustLookupIndexManager.errorHandling.test.js` (10 tests) - Fallback notifications
+- `WasmDictionaryManager.errorHandling.test.js` (12 tests) - WASM fallback handling
 - `UnicodePunctuationDetector.test.js` (12 tests) - Original test file
 
 **Test History:**
 
 - **2026-01-07**: Deleted 18 obsolete test files (~3,500 lines) - legacy features, outdated expectations, brittle WASM mocks
 - **2026-01-08**: Added 8 new test files (296 tests) - systematic coverage of critical paths
+- **2026-01-14**: Added 4 error handling test files (43 tests) - comprehensive error recovery coverage
 
 **Philosophy:** Lean test suite focused on critical paths. Write tests when adding new features or fixing bugs.
 
