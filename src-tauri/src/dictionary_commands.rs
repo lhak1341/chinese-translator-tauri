@@ -566,7 +566,13 @@ pub async fn save_appearance_settings(
 }
 
 #[tauri::command]
-pub async fn export_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+pub async fn export_dictionaries(
+    app_handle: tauri::AppHandle,
+    limiters: State<'_, RateLimiters>,
+) -> Result<DictionaryResponse, String> {
+    // SECURITY: Rate limit to prevent abuse
+    limiters.check_export_import()?;
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
     // Use dialog to get save location
@@ -639,7 +645,11 @@ pub async fn export_dictionaries(app_handle: tauri::AppHandle) -> Result<Diction
 pub async fn import_dictionaries(
     app_handle: tauri::AppHandle,
     cache: State<'_, DictionaryCache>,
+    limiters: State<'_, RateLimiters>,
 ) -> Result<DictionaryResponse, String> {
+    // SECURITY: Rate limit to prevent abuse
+    limiters.check_export_import()?;
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
     // Use dialog to get file to import
