@@ -24,7 +24,7 @@ const mockDictionaryEngine = {
   get_total_entries: vi.fn(),
 };
 
-vi.mock('../../wasm/translation_wasm.js', () => ({
+vi.mock('../../wasm/translation_wasm_core.js', () => ({
   default: vi.fn(() => Promise.resolve()),
   DictionaryEngine: vi.fn(() => mockDictionaryEngine),
 }));

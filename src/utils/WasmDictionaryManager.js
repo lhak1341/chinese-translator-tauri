@@ -17,7 +17,7 @@
  * } from '../types/DictionaryManagerTypes'
  */
 
-import init, { DictionaryEngine } from '../wasm/translation_wasm.js';
+import init, { DictionaryEngine } from '../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
 import toast from 'react-hot-toast';
 
