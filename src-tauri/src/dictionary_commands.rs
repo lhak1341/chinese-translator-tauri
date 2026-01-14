@@ -42,19 +42,16 @@ fn validate_dictionary_id(dictionary_id: &str) -> Result<(), String> {
         return Err("Invalid dictionary ID: path separators not allowed".to_string());
     }
 
-    // Check for absolute paths
-    if dictionary_id.starts_with('/') || dictionary_id.contains(':') {
-        return Err("Invalid dictionary ID: absolute paths not allowed".to_string());
-    }
 
     // Check for null bytes (can bypass extension checks)
     if dictionary_id.contains('\0') {
         return Err("Invalid dictionary ID: null bytes not allowed".to_string());
     }
 
-    // Whitelist allowed characters (alphanumeric + hyphen only)
-    if !dictionary_id.chars().all(|c| c.is_alphanumeric() || c == '-') {
-        return Err("Invalid dictionary ID: only alphanumeric and hyphen allowed".to_string());
+    // Blacklist dangerous characters (allow Unicode for international names)
+    // Block: control characters (including null bytes checked above)
+    if dictionary_id.chars().any(|c| c.is_control()) {
+        return Err("Invalid dictionary ID: control characters not allowed".to_string());
     }
 
     // Enforce maximum length

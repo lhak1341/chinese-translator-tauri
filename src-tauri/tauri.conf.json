@@ -28,18 +28,6 @@
     },
     "withGlobalTauri": true
   },
-  "plugins": {
-    "fs": {
-      "scope": ["$APPDATA/**", "$RESOURCE/**"]
-    },
-    "dialog": {
-      "open": true,
-      "save": true
-    },
-    "shell": {
-      "scope": []
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",
