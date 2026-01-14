@@ -4,17 +4,105 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::num::NonZeroU32;
 use tauri::{Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
 use std::time::Instant;
+use governor::{Quota, RateLimiter, clock::DefaultClock, state::{InMemoryState, NotKeyed}};
 
 // Import lookup index engine
 use crate::lookup_index_engine::{
     build_comprehensive_lookup_index, Dictionary, DictionaryType, IndexBuildOptions, TrieNode,
     CategorizedMatches,
 };
+
+// ============================================================================
+// SECURITY: Constants and Validation Functions
+// ============================================================================
+
+// Size limits to prevent DoS attacks
+const MAX_JSON_SIZE_BYTES: usize = 10 * 1024 * 1024; // 10MB
+const MAX_TEXT_SIZE_BYTES: usize = 1 * 1024 * 1024;  // 1MB
+const MAX_DICTIONARY_ENTRIES: usize = 50_000;
+const MAX_DICTIONARY_ID_LENGTH: usize = 100;
+
+/// SECURITY: Validate dictionary ID to prevent path traversal attacks
+///
+/// Prevents:
+/// - Path traversal (../, /, \)
+/// - Absolute paths (/, C:)
+/// - Null byte injection
+/// - Non-alphanumeric characters (except hyphen)
+/// - Excessively long IDs
+fn validate_dictionary_id(dictionary_id: &str) -> Result<(), String> {
+    // Check for path traversal sequences
+    if dictionary_id.contains("..") || dictionary_id.contains('/') || dictionary_id.contains('\\') {
+        return Err("Invalid dictionary ID: path separators not allowed".to_string());
+    }
+
+    // Check for absolute paths
+    if dictionary_id.starts_with('/') || dictionary_id.contains(':') {
+        return Err("Invalid dictionary ID: absolute paths not allowed".to_string());
+    }
+
+    // Check for null bytes (can bypass extension checks)
+    if dictionary_id.contains('\0') {
+        return Err("Invalid dictionary ID: null bytes not allowed".to_string());
+    }
+
+    // Whitelist allowed characters (alphanumeric + hyphen only)
+    if !dictionary_id.chars().all(|c| c.is_alphanumeric() || c == '-') {
+        return Err("Invalid dictionary ID: only alphanumeric and hyphen allowed".to_string());
+    }
+
+    // Enforce maximum length
+    if dictionary_id.len() > MAX_DICTIONARY_ID_LENGTH {
+        return Err(format!(
+            "Invalid dictionary ID: maximum length is {} characters",
+            MAX_DICTIONARY_ID_LENGTH
+        ));
+    }
+
+    // Must not be empty
+    if dictionary_id.is_empty() {
+        return Err("Invalid dictionary ID: cannot be empty".to_string());
+    }
+
+    Ok(())
+}
+
+/// SECURITY: Validate file size before reading to prevent DoS
+fn validate_file_size(path: &PathBuf, max_size: usize) -> Result<(), String> {
+    let metadata = fs::metadata(path).map_err(|e| {
+        sanitize_io_error(e, "file")
+    })?;
+
+    if metadata.len() > max_size as u64 {
+        return Err(format!(
+            "File too large: {} MB (max: {} MB)",
+            metadata.len() / 1024 / 1024,
+            max_size / 1024 / 1024
+        ));
+    }
+    Ok(())
+}
+
+/// SECURITY: Sanitize I/O errors to prevent information disclosure
+fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
+    match error.kind() {
+        std::io::ErrorKind::NotFound => format!("{} not found", context),
+        std::io::ErrorKind::PermissionDenied => format!("Permission denied accessing {}", context),
+        std::io::ErrorKind::AlreadyExists => format!("{} already exists", context),
+        _ => {
+            // Log full error server-side for debugging
+            eprintln!("Error accessing {}: {:?}", context, error);
+            // Return generic message to user
+            format!("Failed to access {}", context)
+        }
+    }
+}
 
 // Dictionary cache for preventing duplicate loads
 pub struct DictionaryCache {
@@ -28,21 +116,95 @@ impl DictionaryCache {
         }
     }
 
+    /// SECURITY: Handle mutex poisoning gracefully to prevent app crashes
     pub fn get(&self, key: &str) -> Option<serde_json::Value> {
-        self.cache.lock().unwrap().get(key).cloned()
-    }
-
-    pub fn set(&self, key: String, value: serde_json::Value) {
-        self.cache.lock().unwrap().insert(key, value);
-    }
-
-    pub fn invalidate(&self, dictionary_id: Option<&str>) {
-        let mut cache = self.cache.lock().unwrap();
-        if let Some(id) = dictionary_id {
-            cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
-        } else {
-            cache.clear();
+        match self.cache.lock() {
+            Ok(cache) => cache.get(key).cloned(),
+            Err(poisoned) => {
+                eprintln!("Warning: Cache mutex poisoned during get, recovering");
+                poisoned.into_inner().get(key).cloned()
+            }
         }
+    }
+
+    /// SECURITY: Handle mutex poisoning gracefully to prevent app crashes
+    pub fn set(&self, key: String, value: serde_json::Value) {
+        match self.cache.lock() {
+            Ok(mut cache) => {
+                cache.insert(key, value);
+            }
+            Err(poisoned) => {
+                eprintln!("Warning: Cache mutex poisoned during set, recovering");
+                poisoned.into_inner().insert(key, value);
+            }
+        }
+    }
+
+    /// SECURITY: Handle mutex poisoning gracefully to prevent app crashes
+    pub fn invalidate(&self, dictionary_id: Option<&str>) {
+        match self.cache.lock() {
+            Ok(mut cache) => {
+                if let Some(id) = dictionary_id {
+                    cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
+                } else {
+                    cache.clear();
+                }
+            }
+            Err(poisoned) => {
+                eprintln!("Warning: Cache mutex poisoned during invalidation, recovering");
+                let mut cache = poisoned.into_inner();
+                if let Some(id) = dictionary_id {
+                    cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
+                } else {
+                    cache.clear();
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
+// SECURITY: Rate Limiters
+// ============================================================================
+
+/// Rate limiters for expensive operations to prevent DoS attacks
+pub struct RateLimiters {
+    build_index: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
+    load_parallel: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
+    export_import: RateLimiter<NotKeyed, InMemoryState, DefaultClock>,
+}
+
+impl RateLimiters {
+    pub fn new() -> Self {
+        Self {
+            // 10 build_index calls per minute (expensive operation)
+            build_index: RateLimiter::direct(
+                Quota::per_minute(NonZeroU32::new(10).unwrap())
+            ),
+            // 30 load_parallel calls per minute
+            load_parallel: RateLimiter::direct(
+                Quota::per_minute(NonZeroU32::new(30).unwrap())
+            ),
+            // 5 export/import operations per minute (very expensive)
+            export_import: RateLimiter::direct(
+                Quota::per_minute(NonZeroU32::new(5).unwrap())
+            ),
+        }
+    }
+
+    pub fn check_build_index(&self) -> Result<(), String> {
+        self.build_index.check()
+            .map_err(|_| "Rate limit exceeded for index building. Please wait before retrying.".to_string())
+    }
+
+    pub fn check_load_parallel(&self) -> Result<(), String> {
+        self.load_parallel.check()
+            .map_err(|_| "Rate limit exceeded for parallel loading. Please wait before retrying.".to_string())
+    }
+
+    pub fn check_export_import(&self) -> Result<(), String> {
+        self.export_import.check()
+            .map_err(|_| "Rate limit exceeded for export/import. Please wait before retrying.".to_string())
     }
 }
 
@@ -132,6 +294,9 @@ pub async fn create_proper_nouns_dictionary(
     app_handle: tauri::AppHandle,
     dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
+    // SECURITY: Validate dictionary ID to prevent path traversal
+    validate_dictionary_id(&dictionary_id)?;
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
@@ -167,14 +332,38 @@ pub async fn save_dictionary(
     dictionary_id: String,
     data: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
+    // SECURITY: Validate dictionary ID to prevent path traversal
+    validate_dictionary_id(&dictionary_id)?;
+
+    // SECURITY: Check entry count before saving
+    if let Some(obj) = data.as_object() {
+        if obj.len() > MAX_DICTIONARY_ENTRIES {
+            return Err(format!(
+                "Dictionary too large: {} entries (max: {})",
+                obj.len(),
+                MAX_DICTIONARY_ENTRIES
+            ));
+        }
+    }
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
-    fs::create_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
 
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     // Save the data
     let json_string = serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?;
-    fs::write(&file_path, json_string).map_err(|e| e.to_string())?;
+
+    // SECURITY: Check JSON size before writing
+    if json_string.len() > MAX_JSON_SIZE_BYTES {
+        return Err(format!(
+            "Dictionary too large: {} MB (max: {} MB)",
+            json_string.len() / 1024 / 1024,
+            MAX_JSON_SIZE_BYTES / 1024 / 1024
+        ));
+    }
+
+    fs::write(&file_path, json_string).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
 
     // Invalidate cache for this dictionary
     cache.invalidate(Some(&dictionary_id));
@@ -199,6 +388,9 @@ pub async fn load_dictionary(
     cache: State<'_, DictionaryCache>,
     dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
+    // SECURITY: Validate dictionary ID to prevent path traversal
+    validate_dictionary_id(&dictionary_id)?;
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
@@ -215,11 +407,14 @@ pub async fn load_dictionary(
         });
     }
 
+    // SECURITY: Check file size before reading
+    validate_file_size(&file_path, MAX_JSON_SIZE_BYTES)?;
+
     // Load from file
     match fs::read_to_string(&file_path) {
         Ok(contents) => {
             let data: serde_json::Value = serde_json::from_str(&contents)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| format!("Invalid JSON format: {}", e))?;
 
             // Cache the result
             cache.set(cache_key, data.clone());
@@ -609,14 +804,28 @@ pub struct BatchDictionaryResponse {
 pub async fn load_dictionaries_parallel(
     app_handle: tauri::AppHandle,
     cache: State<'_, DictionaryCache>,
+    limiters: State<'_, RateLimiters>,
     dictionary_ids: Vec<String>,
 ) -> Result<BatchDictionaryResponse, String> {
+    // SECURITY: Rate limit to prevent abuse
+    limiters.check_load_parallel()?;
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
     // Use Rayon to load dictionaries in parallel across all CPU cores
     let results: Vec<BatchDictionaryResult> = dictionary_ids
         .par_iter()
         .map(|dictionary_id| {
+            // SECURITY: Validate dictionary ID to prevent path traversal
+            if let Err(e) = validate_dictionary_id(dictionary_id) {
+                return BatchDictionaryResult {
+                    dictionary_id: dictionary_id.clone(),
+                    success: false,
+                    data: None,
+                    error: Some(e),
+                };
+            }
+
             let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
             let cache_key = get_cache_key(dictionary_id, &file_path);
 
@@ -689,6 +898,10 @@ pub async fn rename_proper_nouns_dictionary(
     old_dictionary_id: String,
     new_dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
+    // SECURITY: Validate both dictionary IDs to prevent path traversal
+    validate_dictionary_id(&old_dictionary_id)?;
+    validate_dictionary_id(&new_dictionary_id)?;
+
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
     // Validate dictionary IDs
@@ -865,11 +1078,24 @@ fn build_trie_from_entries(entries: &[DictionaryEntry]) -> TrieNode {
 /// Expected speedup: 6-50x (200-800ms vs 5-10 seconds for 10KB text)
 #[tauri::command]
 pub async fn build_lookup_index(
+    limiters: State<'_, RateLimiters>,
     text: String,
     dictionaries: Vec<DictionaryData>,
     dictionary_order: Vec<String>,
     options: Option<LookupIndexOptions>,
 ) -> Result<LookupIndexResponse, String> {
+    // SECURITY: Rate limit to prevent abuse
+    limiters.check_build_index()?;
+
+    // SECURITY: Validate text size to prevent DoS
+    if text.len() > MAX_TEXT_SIZE_BYTES {
+        return Err(format!(
+            "Text too large: {} MB (max: {} MB)",
+            text.len() / 1024 / 1024,
+            MAX_TEXT_SIZE_BYTES / 1024 / 1024
+        ));
+    }
+
     let start_time = Instant::now();
 
     // Parse options with defaults

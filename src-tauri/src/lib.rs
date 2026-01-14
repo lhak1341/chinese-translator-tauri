@@ -2,7 +2,7 @@
 mod dictionary_commands;
 mod lookup_index_engine;
 
-use dictionary_commands::DictionaryCache;
+use dictionary_commands::{DictionaryCache, RateLimiters};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Example greeting command (can be removed later)
@@ -30,6 +30,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         // Manage dictionary cache state
         .manage(DictionaryCache::new())
+        // SECURITY: Manage rate limiters for DoS prevention
+        .manage(RateLimiters::new())
         // Register all commands
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -45,8 +47,6 @@ pub fn run() {
             dictionary_commands::save_configuration,
             dictionary_commands::load_appearance_settings,
             dictionary_commands::save_appearance_settings,
-            dictionary_commands::export_dictionaries,
-            dictionary_commands::import_dictionaries,
             dictionary_commands::reset_dictionaries,
             dictionary_commands::build_lookup_index,
         ])
