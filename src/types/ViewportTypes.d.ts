@@ -4,7 +4,6 @@
  * Type definitions for viewport optimization and position mapping systems:
  * - ViewportSegmentComputer: Basic viewport-based segment computation (50ms vs 6800ms)
  * - ViewportSegmentComputerEnhanced: Web Worker acceleration (~20ms with workers)
- * - AcceleratedPositionMapper: Unified WASM + Worker interface with validation
  * - ContentAwarePositionCache: Content-aware caching for position mappings
  *
  * Performance Impact: 98.5% faster initial rendering through viewport optimization
