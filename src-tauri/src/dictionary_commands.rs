@@ -442,6 +442,11 @@ pub async fn load_configuration(app_handle: tauri::AppHandle) -> Result<Dictiona
     let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let config_path = app_data_dir.join("config.json");
 
+    // SECURITY: Check file size before reading to prevent DoS
+    if config_path.exists() {
+        validate_file_size(&config_path, MAX_JSON_SIZE_BYTES)?;
+    }
+
     match fs::read_to_string(&config_path) {
         Ok(contents) => {
             let data: serde_json::Value = serde_json::from_str(&contents)
@@ -495,6 +500,11 @@ pub async fn save_configuration(
 pub async fn load_appearance_settings(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
     let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     let appearance_path = app_data_dir.join("appearance.json");
+
+    // SECURITY: Check file size before reading to prevent DoS
+    if appearance_path.exists() {
+        validate_file_size(&appearance_path, MAX_JSON_SIZE_BYTES)?;
+    }
 
     match fs::read_to_string(&appearance_path) {
         Ok(contents) => {

@@ -857,6 +857,18 @@ export class SystemPerformanceMonitor {
   }
 
   /**
+   * MEMORY LEAK FIX: Complete cleanup of all resources
+   * Call this when the monitor is no longer needed
+   */
+  destroy() {
+    this.isActive = false;
+    this.stopMonitoring();
+    this.baselineTracker.destroy();
+    this.integrations.clear();
+    console.log('🗑️ System performance monitor destroyed');
+  }
+
+  /**
    * Get comprehensive system health report
    */
   getSystemHealthReport() {

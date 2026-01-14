@@ -150,6 +150,8 @@ export function LazyDictionaryProvider({
   const [dictionaryTypes, setDictionaryTypes] = useState<DictionaryTypesCollection>({});
 
   const preloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Track in-flight dictionary loads to prevent race conditions
+  const loadingDictionariesRef = useRef<Set<string>>(new Set());
 
   // Load a dictionary immediately
   const loadDictionaryImmediate = useCallback(
@@ -157,6 +159,14 @@ export function LazyDictionaryProvider({
       if (loadedDictionaries.has(dictionaryId)) {
         return; // Already loaded
       }
+
+      // RACE CONDITION FIX: Check if already loading to prevent duplicate loads
+      if (loadingDictionariesRef.current.has(dictionaryId)) {
+        return; // Already loading
+      }
+
+      // Mark as loading
+      loadingDictionariesRef.current.add(dictionaryId);
 
       try {
         const result = await window.electronAPI.loadDictionary(dictionaryId);
@@ -179,6 +189,9 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         console.error(`Error loading dictionary ${dictionaryId}:`, error);
+      } finally {
+        // Always remove from loading set when done
+        loadingDictionariesRef.current.delete(dictionaryId);
       }
     },
     [loadedDictionaries]

@@ -155,9 +155,19 @@ class RustLookupIndexManager {
    */
   extractEntriesFromTrie(trie) {
     const entries = [];
+    // SAFETY FIX: Maximum depth to prevent infinite recursion from corrupted tries
+    const MAX_DEPTH = 100;
 
     // Traverse the trie using DFS
-    const traverse = (node, currentWord) => {
+    const traverse = (node, currentWord, depth = 0) => {
+      // Prevent infinite recursion from circular references or corrupted data
+      if (depth > MAX_DEPTH) {
+        console.error(
+          `Trie traversal depth exceeded ${MAX_DEPTH}, possible cycle or corrupted trie at word: "${currentWord}"`
+        );
+        return;
+      }
+
       // If this is an end-of-word node, add it
       if (node.isEndOfWord && node.translation) {
         entries.push({
@@ -173,12 +183,12 @@ class RustLookupIndexManager {
         if (node.children instanceof Map) {
           // Use Map.entries() for Map objects
           for (const [char, childNode] of node.children.entries()) {
-            traverse(childNode, currentWord + char);
+            traverse(childNode, currentWord + char, depth + 1);
           }
         } else {
           // Use Object.entries() for plain objects
           for (const [char, childNode] of Object.entries(node.children)) {
-            traverse(childNode, currentWord + char);
+            traverse(childNode, currentWord + char, depth + 1);
           }
         }
       }
@@ -186,7 +196,7 @@ class RustLookupIndexManager {
 
     // Start traversal from root (handle both DictionaryTrie with .root and direct trie nodes)
     const rootNode = trie.root || trie;
-    traverse(rootNode, '');
+    traverse(rootNode, '', 0);
 
     return entries;
   }

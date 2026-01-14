@@ -55,14 +55,39 @@ export class TranslationSegmentCache {
   generateCacheKey(originalText, dictionaryFingerprint, options = {}) {
     const startTime = performance.now();
 
+    // SECURITY FIX: Sanitize options to prevent cache collisions from unexpected types
+    const safeOptions = this.sanitizeOptions(options);
+
     // Simple but effective hash for cache key generation
-    const hashContent = originalText + '|' + dictionaryFingerprint + '|' + JSON.stringify(options);
+    const hashContent =
+      originalText + '|' + dictionaryFingerprint + '|' + JSON.stringify(safeOptions);
     const hash = this.simpleHash(hashContent);
 
     this.stats.averageLookupTime =
       (this.stats.averageLookupTime + (performance.now() - startTime)) / 2;
 
     return `${this.cacheKeyPrefix}${hash}`;
+  }
+
+  /**
+   * Sanitize options object to prevent cache collisions from unexpected types
+   * Only allows primitive string/number/boolean values
+   */
+  sanitizeOptions(options) {
+    if (!options || typeof options !== 'object') {
+      return {};
+    }
+
+    const safeOptions = {};
+    for (const key of Object.keys(options)) {
+      const value = options[key];
+      // Only allow primitive types that serialize predictably
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        safeOptions[key] = value;
+      }
+      // Skip functions, objects, symbols, undefined, etc.
+    }
+    return safeOptions;
   }
 
   /**
