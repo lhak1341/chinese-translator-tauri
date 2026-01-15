@@ -41,6 +41,36 @@ const ConfigurationManager: React.FC = () => {
     });
   };
 
+  // Categorize dictionaries into Base, Generic (_), and Fiction (f_)
+  const categorizeDictionaries = (
+    dictionaries: string[]
+  ): { base: string[]; generic: string[]; fiction: string[] } => {
+    const base: string[] = [];
+    const generic: string[] = [];
+    const fiction: string[] = [];
+
+    dictionaries.forEach((id) => {
+      const name = id.replace('properNouns-', '');
+      if (id === 'properNouns') {
+        base.push(id);
+      } else if (name.startsWith('f_')) {
+        fiction.push(id);
+      } else if (name.startsWith('_')) {
+        generic.push(id);
+      } else {
+        base.push(id);
+      }
+    });
+
+    return {
+      base: base.sort((a, b) => a.localeCompare(b)),
+      generic: generic.sort((a, b) => a.localeCompare(b)),
+      fiction: fiction.sort((a, b) => a.localeCompare(b)),
+    };
+  };
+
+  const categorizedDictionaries = categorizeDictionaries(availableDictionaries);
+
   // Load available dictionaries on mount
   useEffect(() => {
     const loadDictionaries = async (): Promise<void> => {
@@ -240,6 +270,162 @@ const ConfigurationManager: React.FC = () => {
     }
   };
 
+  // Render a single dictionary row (minimal style, no card borders)
+  const renderDictionaryRow = (dictionaryId: string) => {
+    const isChecked = activeDictionaries.includes(dictionaryId);
+    const isRenaming = renamingDictionaryId === dictionaryId;
+    const canRename = dictionaryId !== 'properNouns';
+    const isDefaultQuickAdd = defaultQuickAddDictionary === dictionaryId;
+    const isCustomProperNoun = dictionaryId.startsWith('properNouns-');
+
+    // Get display name
+    const getDisplayName = (id: string): string => {
+      if (id === 'properNouns') return 'General Purpose Dictionary';
+      return id.replace('properNouns-', '');
+    };
+
+    return (
+      <div
+        key={dictionaryId}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0.5rem 0.625rem',
+          borderRadius: 'var(--radius-sm)',
+          transition: 'background-color 0.15s ease',
+          backgroundColor: 'transparent',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--background-color)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        {isRenaming ? (
+          // Rename mode
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleConfirmRename();
+                if (e.key === 'Escape') handleCancelRename();
+              }}
+              autoFocus
+              style={{
+                flex: 1,
+                padding: '0.375rem 0.5rem',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.875rem',
+                background: 'var(--background-color)',
+                color: 'var(--text-color)',
+              }}
+            />
+            <button
+              onClick={handleConfirmRename}
+              style={{
+                padding: '0.375rem',
+                background: 'var(--success-color)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'white',
+              }}
+              title="Confirm rename"
+            >
+              <Check size={14} />
+            </button>
+            <button
+              onClick={handleCancelRename}
+              style={{
+                padding: '0.375rem',
+                background: 'var(--error-color)',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                color: 'white',
+              }}
+              title="Cancel rename"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          // Normal mode
+          <>
+            <label
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                cursor: 'pointer',
+                color: isChecked ? 'var(--primary-color)' : 'var(--text-color)',
+                fontWeight: isChecked ? 500 : 'normal',
+                fontSize: '0.875rem',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => handleToggleDictionary(dictionaryId)}
+              />
+              {getDisplayName(dictionaryId)}
+            </label>
+            {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
+            {isChecked && isCustomProperNoun && (
+              <button
+                onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
+                style={{
+                  padding: '0.25rem',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: isDefaultQuickAdd ? 'var(--error-color)' : 'var(--text-muted)',
+                  transition: 'color 0.15s ease',
+                }}
+                title={
+                  isDefaultQuickAdd
+                    ? 'Default Cmd-5 dictionary (click to unset)'
+                    : 'Set as default Cmd-5 dictionary'
+                }
+              >
+                <Bookmark size={14} fill={isDefaultQuickAdd ? 'var(--error-color)' : 'none'} />
+              </button>
+            )}
+            {canRename && (
+              <button
+                onClick={() => handleStartRename(dictionaryId)}
+                style={{
+                  padding: '0.25rem',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: 'var(--text-muted)',
+                  transition: 'color 0.15s ease',
+                }}
+                title="Rename dictionary"
+              >
+                <Pencil size={14} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div
@@ -252,7 +438,7 @@ const ConfigurationManager: React.FC = () => {
         }}
       >
         <Loader size={20} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem' }}>
           Loading configuration...
         </span>
       </div>
@@ -303,14 +489,14 @@ const ConfigurationManager: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
               <Zap
-                size={14}
+                size={15}
                 style={{ color: wasmEnabled ? 'var(--warning-color)' : 'var(--text-muted)' }}
               />
               <div>
-                <div style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-color)' }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-color)' }}>
                   WASM Acceleration
                 </div>
-                <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   {wasmEnabled ? 'Rust-powered dictionary lookups' : 'JavaScript fallback mode'}
                 </div>
               </div>
@@ -367,12 +553,12 @@ const ConfigurationManager: React.FC = () => {
                   marginBottom: '0.5rem',
                 }}
               >
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
                   Memory Limit
                 </span>
                 <span
                   style={{
-                    fontSize: '0.75rem',
+                    fontSize: '0.8125rem',
                     fontWeight: 600,
                     color: 'var(--primary-color)',
                     fontFamily: 'var(--font-mono)',
@@ -458,7 +644,7 @@ const ConfigurationManager: React.FC = () => {
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  fontSize: '0.625rem',
+                  fontSize: '0.6875rem',
                   color: 'var(--text-muted)',
                   marginTop: '0.25rem',
                 }}
@@ -499,15 +685,23 @@ const ConfigurationManager: React.FC = () => {
                 margin: 0,
               }}
             >
-              Dictionaries
+              Proper Nouns Dictionaries
             </h2>
             <span
               style={{
-                fontSize: '0.75rem',
+                fontSize: '0.8125rem',
                 color: 'var(--text-muted)',
               }}
             >
               {activeDictionaries.length} active
+              {defaultQuickAddDictionary && (
+                <>
+                  {' • Quick Add defaults to '}
+                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                    {defaultQuickAddDictionary.replace('properNouns-', '')}
+                  </span>
+                </>
+              )}
             </span>
           </div>
           <button
@@ -534,171 +728,163 @@ const ConfigurationManager: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               gap: '0.375rem',
-              fontSize: '0.8125rem',
+              fontSize: '0.875rem',
               color: 'var(--error-color)',
             }}
           >
-            <AlertCircle size={14} />
+            <AlertCircle size={15} />
             {error}
           </div>
         )}
 
+        {/* 2-Column Layout: Left 25% (Base + Generic stacked) | Right 75% (Fiction in 3 cols) */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '0.5rem',
+            display: 'flex',
+            gap: '2rem',
           }}
         >
-          {availableDictionaries.map((dictionaryId) => {
-            const isChecked = activeDictionaries.includes(dictionaryId);
-            const isRenaming = renamingDictionaryId === dictionaryId;
-            const canRename = dictionaryId !== 'properNouns';
-            const isDefaultQuickAdd = defaultQuickAddDictionary === dictionaryId;
-            const isCustomProperNoun = dictionaryId.startsWith('properNouns-');
-
-            return (
+          {/* Left Column: Base + Generic stacked (25% width) */}
+          <div style={{ flex: '0 0 25%', minWidth: 0 }}>
+            {/* Base Section */}
+            <div style={{ marginBottom: '1.5rem' }}>
               <div
-                key={dictionaryId}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0.75rem 1rem',
-                  backgroundColor: isChecked ? 'var(--success-subtle)' : 'var(--surface-color)',
-                  border: `1px solid ${isChecked ? 'var(--success-color)' : 'var(--border-color)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  transition: 'all 0.15s ease',
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.75rem',
+                  paddingBottom: '0.5rem',
+                  borderBottom: '1px solid var(--border-color)',
                 }}
               >
-                {isRenaming ? (
-                  // Rename mode
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                    <input
-                      type="text"
-                      value={renameValue}
-                      onChange={(e) => setRenameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleConfirmRename();
-                        if (e.key === 'Escape') handleCancelRename();
-                      }}
-                      autoFocus
-                      style={{
-                        flex: 1,
-                        padding: '0.375rem 0.5rem',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.8125rem',
-                        background: 'var(--background-color)',
-                        color: 'var(--text-color)',
-                      }}
-                    />
-                    <button
-                      onClick={handleConfirmRename}
-                      style={{
-                        padding: '0.375rem',
-                        background: 'var(--success-color)',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        color: 'white',
-                      }}
-                      title="Confirm rename"
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      onClick={handleCancelRename}
-                      style={{
-                        padding: '0.375rem',
-                        background: 'var(--error-color)',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        color: 'white',
-                      }}
-                      title="Cancel rename"
-                    >
-                      <X size={14} />
-                    </button>
+                Base
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {categorizedDictionaries.base.map((dictionaryId) =>
+                  renderDictionaryRow(dictionaryId)
+                )}
+                {categorizedDictionaries.base.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: '0.875rem',
+                      color: 'var(--text-muted)',
+                      padding: '0.5rem 0',
+                    }}
+                  >
+                    No dictionaries
                   </div>
-                ) : (
-                  // Normal mode
-                  <>
-                    <label
-                      style={{
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        cursor: 'pointer',
-                        color: isChecked ? 'var(--success-color)' : 'var(--text-color)',
-                        fontWeight: isChecked ? 500 : 'normal',
-                        fontSize: '0.8125rem',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => handleToggleDictionary(dictionaryId)}
-                        style={{ accentColor: 'var(--success-color)' }}
-                      />
-                      {dictionaryId === 'properNouns'
-                        ? 'General Purpose Dictionary'
-                        : dictionaryId.replace('properNouns-', '')}
-                    </label>
-                    {/* Bookmark icon for setting Cmd-5 default (only for active custom proper noun dictionaries) */}
-                    {isChecked && isCustomProperNoun && (
-                      <button
-                        onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
-                        style={{
-                          padding: '0.375rem',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          color: isDefaultQuickAdd ? 'var(--error-color)' : 'var(--text-muted)',
-                          transition: 'color 0.15s ease',
-                        }}
-                        title={
-                          isDefaultQuickAdd
-                            ? 'Default Cmd-5 dictionary (click to unset)'
-                            : 'Set as default Cmd-5 dictionary'
-                        }
-                      >
-                        <Bookmark
-                          size={15}
-                          fill={isDefaultQuickAdd ? 'var(--error-color)' : 'none'}
-                        />
-                      </button>
-                    )}
-                    {canRename && (
-                      <button
-                        onClick={() => handleStartRename(dictionaryId)}
-                        style={{
-                          padding: '0.375rem',
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          color: 'var(--text-muted)',
-                          transition: 'color 0.15s ease',
-                        }}
-                        title="Rename dictionary"
-                      >
-                        <Pencil size={15} />
-                      </button>
-                    )}
-                  </>
                 )}
               </div>
-            );
-          })}
+            </div>
+
+            {/* Generic Section */}
+            <div>
+              <div
+                style={{
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  marginBottom: '0.75rem',
+                  paddingBottom: '0.5rem',
+                  borderBottom: '1px solid var(--border-color)',
+                }}
+              >
+                Generic
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                {categorizedDictionaries.generic.map((dictionaryId) =>
+                  renderDictionaryRow(dictionaryId)
+                )}
+                {categorizedDictionaries.generic.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: '0.875rem',
+                      color: 'var(--text-muted)',
+                      padding: '0.5rem 0',
+                    }}
+                  >
+                    No dictionaries
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Fiction in 3 columns (75% width, column-first ordering) */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '0.75rem',
+                paddingBottom: '0.5rem',
+                borderBottom: '1px solid var(--border-color)',
+              }}
+            >
+              Fiction
+            </div>
+            {categorizedDictionaries.fiction.length === 0 ? (
+              <div
+                style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}
+              >
+                No dictionaries
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                {/* Split fiction into 3 columns for A-Z column-first ordering */}
+                {(() => {
+                  const fiction = categorizedDictionaries.fiction;
+                  const itemsPerColumn = Math.ceil(fiction.length / 3);
+                  const col1 = fiction.slice(0, itemsPerColumn);
+                  const col2 = fiction.slice(itemsPerColumn, itemsPerColumn * 2);
+                  const col3 = fiction.slice(itemsPerColumn * 2);
+
+                  return (
+                    <>
+                      <div
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        {col1.map((dictionaryId) => renderDictionaryRow(dictionaryId))}
+                      </div>
+                      <div
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        {col2.map((dictionaryId) => renderDictionaryRow(dictionaryId))}
+                      </div>
+                      <div
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
+                        }}
+                      >
+                        {col3.map((dictionaryId) => renderDictionaryRow(dictionaryId))}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -745,7 +931,7 @@ const ConfigurationManager: React.FC = () => {
                   style={{
                     display: 'block',
                     marginBottom: '0.375rem',
-                    fontSize: '0.8125rem',
+                    fontSize: '0.875rem',
                     fontWeight: 500,
                     color: 'var(--text-color)',
                   }}
@@ -762,7 +948,7 @@ const ConfigurationManager: React.FC = () => {
                     padding: '0.5rem 0.75rem',
                     border: '1px solid var(--border-color)',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '0.8125rem',
+                    fontSize: '0.875rem',
                     background: 'var(--background-color)',
                     color: 'var(--text-color)',
                     boxSizing: 'border-box',
@@ -784,7 +970,7 @@ const ConfigurationManager: React.FC = () => {
                     alignItems: 'center',
                     padding: '0.5rem 0.875rem',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '0.8125rem',
+                    fontSize: '0.875rem',
                     fontWeight: 500,
                     cursor: 'pointer',
                     border: '1px solid var(--border-color)',
@@ -804,7 +990,7 @@ const ConfigurationManager: React.FC = () => {
                     alignItems: 'center',
                     padding: '0.5rem 0.875rem',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '0.8125rem',
+                    fontSize: '0.875rem',
                     fontWeight: 500,
                     cursor: newDictionaryName.trim() ? 'pointer' : 'not-allowed',
                     border: 'none',
