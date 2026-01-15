@@ -1016,7 +1016,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
                 backgroundColor: selectedEntries.has(source)
-                  ? 'rgba(59, 130, 246, 0.18)'
+                  ? 'rgba(16, 185, 129, 0.18)'
                   : actualIndex % 2 === 0
                     ? 'var(--background-color)'
                     : 'var(--secondary-bg)',
@@ -1167,7 +1167,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
                 backgroundColor: selectedEntries.has(source)
-                  ? 'rgba(59, 130, 246, 0.18)'
+                  ? 'rgba(16, 185, 129, 0.18)'
                   : actualIndex % 2 === 0
                     ? 'var(--background-color)'
                     : 'var(--secondary-bg)',
@@ -1312,7 +1312,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               alignItems: 'center',
               borderBottom: '1px solid var(--border-color)',
               backgroundColor: selectedEntries.has(source)
-                ? 'rgba(59, 130, 246, 0.18)'
+                ? 'rgba(16, 185, 129, 0.18)'
                 : actualIndex % 2 === 0
                   ? 'var(--background-color)'
                   : 'var(--secondary-bg)',

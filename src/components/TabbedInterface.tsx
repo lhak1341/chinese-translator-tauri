@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { Languages, Book, Settings, Palette, LucideIcon } from 'lucide-react';
 import Translator from './Translator';
 import DictionaryManager from './dictionary/DictionaryManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
@@ -14,11 +15,11 @@ type TabId = 'translator' | 'dictionary' | 'configuration' | 'appearance';
 /**
  * Tab configuration
  */
-const TABS: { id: TabId; label: string; shortcut: string }[] = [
-  { id: 'translator', label: 'Translator', shortcut: '1' },
-  { id: 'dictionary', label: 'Dictionary', shortcut: '2' },
-  { id: 'configuration', label: 'Configuration', shortcut: '3' },
-  { id: 'appearance', label: 'Appearance', shortcut: '4' },
+const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] = [
+  { id: 'translator', label: 'Translator', shortcut: '1', icon: Languages },
+  { id: 'dictionary', label: 'Dictionary', shortcut: '2', icon: Book },
+  { id: 'configuration', label: 'Configuration', shortcut: '3', icon: Settings },
+  { id: 'appearance', label: 'Appearance', shortcut: '4', icon: Palette },
 ];
 
 /**
@@ -53,10 +54,12 @@ const TabbedInterface: React.FC = () => {
     overflow: 'hidden',
   };
 
-  // Navigation bar - clean flat design
+  // Navigation bar - clean flat design, centered tabs
   const navStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'stretch',
+    justifyContent: 'center',
+    gap: '0.5rem',
     background: 'var(--nav-bg-solid)',
     padding: '0',
     flexShrink: 0,
@@ -69,11 +72,13 @@ const TabbedInterface: React.FC = () => {
 
     return {
       position: 'relative',
+      display: 'inline-flex',
+      alignItems: 'center',
       background: 'transparent',
       border: 'none',
       borderBottom: isActive ? '2px solid var(--nav-active-border)' : '2px solid transparent',
-      padding: '0.875rem 1.25rem',
-      fontSize: '0.875rem',
+      padding: '0.875rem 1.75rem',
+      fontSize: '0.9375rem',
       fontWeight: isActive ? 600 : 500,
       color: isActive ? 'var(--text-color)' : 'var(--nav-text)',
       cursor: 'pointer',
@@ -113,19 +118,20 @@ const TabbedInterface: React.FC = () => {
 
       {/* Navigation Bar */}
       <nav style={navStyle}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id)}
-            style={getTabStyle(tab.id)}
-            title={`Switch to ${tab.label} (Cmd/Ctrl + Shift + ${tab.shortcut})`}
-          >
-            {tab.label}
-          </button>
-        ))}
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              style={getTabStyle(tab.id)}
+              title={`Switch to ${tab.label} (Cmd/Ctrl + Shift + ${tab.shortcut})`}
+            >
+              <Icon size={17} style={{ marginRight: '0.5rem' }} />
+              {tab.label}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Content Area */}
