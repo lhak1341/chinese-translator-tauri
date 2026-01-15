@@ -49,6 +49,8 @@ interface DictionaryEntryProps {
   allowDictionarySelection?: boolean;
   /** Callback when dictionary selection changes */
   onDictionaryChange?: (dictionaryId: string) => void;
+  /** Initial source text (pre-populated from clipboard via keyboard shortcut) */
+  initialSource?: string;
 }
 
 /**
@@ -71,6 +73,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   selectedDictionary,
   allowDictionarySelection = false,
   onDictionaryChange,
+  initialSource,
 }) => {
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
   const { updateEntry, addEntry, dictionaries } = useDictionary();
@@ -212,7 +215,23 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           return;
         }
 
-        // Read clipboard content
+        // Priority 1: Use initialSource prop if provided (from keyboard shortcut)
+        if (initialSource && initialSource.trim()) {
+          setSource(initialSource.trim());
+
+          // Generate rough translation using character dictionary
+          const roughTranslation = generateRoughTranslation(initialSource.trim(), activeDictionary);
+          setTranslation(roughTranslation);
+
+          // Focus translation field for immediate editing
+          setTimeout(() => {
+            translationInputRef.current?.focus();
+            translationInputRef.current?.select(); // Select all text for easy replacement
+          }, 100);
+          return;
+        }
+
+        // Priority 2: Fallback to reading clipboard if no initialSource
         if (navigator.clipboard && navigator.clipboard.readText) {
           const clipboardText = await navigator.clipboard.readText();
           if (clipboardText.trim()) {
@@ -243,7 +262,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     };
 
     handleAutoSetup();
-  }, [activeDictionary, entry?.source, generateRoughTranslation]);
+  }, [activeDictionary, entry?.source, generateRoughTranslation, initialSource]);
 
   // Validate form when source or translation changes
   useEffect(() => {

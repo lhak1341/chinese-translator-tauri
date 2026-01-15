@@ -13,11 +13,11 @@ interface HotkeyHandlerProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onTabSwitch?: (tab: TabId) => void;
-  onQuickAddCharacter?: () => void;
-  onQuickAddPhrase?: () => void;
-  onQuickAddProperNoun?: () => void;
-  onQuickAddPattern?: () => void;
-  onQuickAddCustomProperNoun?: () => void;
+  onQuickAddCharacter?: (text?: string) => void;
+  onQuickAddPhrase?: (text?: string) => void;
+  onQuickAddProperNoun?: (text?: string) => void;
+  onQuickAddPattern?: (text?: string) => void;
+  onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
   onReloadDictionary?: () => void;
   onFocusSearch?: () => void;
   activeTab?: TabId;
@@ -118,40 +118,45 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
               // Quick Add Character - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                await copySelectedText();
-                onQuickAddCharacter?.();
+                const copied = await copySelectedText();
+                const text = copied ? await navigator.clipboard.readText() : '';
+                onQuickAddCharacter?.(text);
               }
               break;
             case '2':
               // Quick Add Phrase - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                await copySelectedText();
-                onQuickAddPhrase?.();
+                const copied = await copySelectedText();
+                const text = copied ? await navigator.clipboard.readText() : '';
+                onQuickAddPhrase?.(text);
               }
               break;
             case '3':
               // Quick Add Proper Noun - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                await copySelectedText();
-                onQuickAddProperNoun?.();
+                const copied = await copySelectedText();
+                const text = copied ? await navigator.clipboard.readText() : '';
+                onQuickAddProperNoun?.(text);
               }
               break;
             case '4':
               // Quick Add Pattern - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                await copySelectedText();
-                onQuickAddPattern?.();
+                const copied = await copySelectedText();
+                const text = copied ? await navigator.clipboard.readText() : '';
+                onQuickAddPattern?.(text);
               }
               break;
             case '5':
               // Quick Add Custom Proper Noun - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                await copySelectedText();
-                onQuickAddCustomProperNoun?.(); // Don't await - let it load config in background
+                const copied = await copySelectedText();
+                const text = copied ? await navigator.clipboard.readText() : '';
+                await onQuickAddCustomProperNoun?.(text);
               }
               break;
             case 'l':

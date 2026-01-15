@@ -24,35 +24,44 @@ export function useDictionaryConfig() {
   const [activeProperNouns, setActiveProperNouns] = useState(['properNouns']);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddDictionary, setQuickAddDictionary] = useState('properNouns');
+  const [clipboardText, setClipboardText] = useState('');
 
   /**
    * Open Quick Add modal for character dictionary
+   * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddCharacter = useCallback(() => {
+  const openQuickAddCharacter = useCallback((text = '') => {
+    setClipboardText(text);
     setQuickAddDictionary('characters');
     setShowQuickAdd(true);
   }, []);
 
   /**
    * Open Quick Add modal for phrase dictionary
+   * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddPhrase = useCallback(() => {
+  const openQuickAddPhrase = useCallback((text = '') => {
+    setClipboardText(text);
     setQuickAddDictionary('phrases');
     setShowQuickAdd(true);
   }, []);
 
   /**
    * Open Quick Add modal for proper noun dictionary
+   * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddProperNoun = useCallback(() => {
+  const openQuickAddProperNoun = useCallback((text = '') => {
+    setClipboardText(text);
     setQuickAddDictionary('properNouns');
     setShowQuickAdd(true);
   }, []);
 
   /**
    * Open Quick Add modal for pattern dictionary
+   * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddPattern = useCallback(() => {
+  const openQuickAddPattern = useCallback((text = '') => {
+    setClipboardText(text);
     setQuickAddDictionary('patterns');
     setShowQuickAdd(true);
   }, []);
@@ -61,44 +70,51 @@ export function useDictionaryConfig() {
    * Open Quick Add modal for custom proper noun dictionary
    * Loads configuration at operation time (not cached) to avoid stale config
    * Falls back to first active custom proper noun alphabetically
+   * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddCustomProperNoun = useCallback(async () => {
-    // Load configuration at operation time (CRITICAL: do not cache in state)
-    try {
-      const configResult = await window.electronAPI.loadConfiguration();
-      const defaultQuickAddDictionary = configResult.data?.defaultQuickAddDictionary;
+  const openQuickAddCustomProperNoun = useCallback(
+    async (text = '') => {
+      setClipboardText(text);
 
-      // If there's a configured default and it's active, use it
-      if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
-        setQuickAddDictionary(defaultQuickAddDictionary);
-        setShowQuickAdd(true);
-        return;
+      // Load configuration at operation time (CRITICAL: do not cache in state)
+      try {
+        const configResult = await window.electronAPI.loadConfiguration();
+        const defaultQuickAddDictionary = configResult.data?.defaultQuickAddDictionary;
+
+        // If there's a configured default and it's active, use it
+        if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
+          setQuickAddDictionary(defaultQuickAddDictionary);
+          setShowQuickAdd(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading default Cmd-5 dictionary:', error);
+        // Fall through to fallback behavior
       }
-    } catch (error) {
-      console.error('Error loading default Cmd-5 dictionary:', error);
-      // Fall through to fallback behavior
-    }
 
-    // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
-    const customProperNouns = activeProperNouns.filter((dict) => dict.startsWith('properNouns-'));
+      // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
+      const customProperNouns = activeProperNouns.filter((dict) => dict.startsWith('properNouns-'));
 
-    if (customProperNouns.length === 0) {
-      // No custom proper nouns are active, fallback to general properNouns
-      setQuickAddDictionary('properNouns');
-    } else {
-      // Choose the first one alphabetically if multiple are active
-      const selectedDict = customProperNouns.sort()[0];
-      setQuickAddDictionary(selectedDict);
-    }
+      if (customProperNouns.length === 0) {
+        // No custom proper nouns are active, fallback to general properNouns
+        setQuickAddDictionary('properNouns');
+      } else {
+        // Choose the first one alphabetically if multiple are active
+        const selectedDict = customProperNouns.sort()[0];
+        setQuickAddDictionary(selectedDict);
+      }
 
-    setShowQuickAdd(true);
-  }, [activeProperNouns]);
+      setShowQuickAdd(true);
+    },
+    [activeProperNouns]
+  );
 
   /**
-   * Close Quick Add modal
+   * Close Quick Add modal and clear clipboard text
    */
   const closeQuickAdd = useCallback(() => {
     setShowQuickAdd(false);
+    setClipboardText(''); // Clear clipboard text when closing
   }, []);
 
   /**
@@ -121,6 +137,7 @@ export function useDictionaryConfig() {
     activeProperNouns,
     showQuickAdd,
     quickAddDictionary,
+    clipboardText,
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,

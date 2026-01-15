@@ -122,6 +122,7 @@ const Translator = ({ isActive = true }) => {
     activeProperNouns,
     showQuickAdd,
     quickAddDictionary,
+    clipboardText,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
     openQuickAddProperNoun: handleQuickAddProperNoun,
@@ -2503,6 +2504,7 @@ const Translator = ({ isActive = true }) => {
           selectedDictionary={quickAddDictionary}
           allowDictionarySelection={true}
           onDictionaryChange={handleQuickAddDictionaryChange}
+          initialSource={clipboardText}
         />
       )}
     </div>
