@@ -7,7 +7,6 @@ import type { SemanticArrays } from '../../types/SemanticTypes';
 
 /**
  * Individual semantic unit mapping original to translated text
- * Note: SemanticArrays is now imported from SemanticTypes.d.ts
  */
 interface SemanticUnit {
   originalStart: number;
@@ -41,103 +40,110 @@ interface ThrottledStreamingState {
  * Props for TranslatorDisplayPanels component
  */
 interface TranslatorDisplayPanelsProps {
-  // Text content
   inputText: string;
   translatedText: string;
   characterOnlyText: string;
-
-  // Semantic arrays
   semanticArrays: SemanticArrays;
   characterOnlySemanticArrays: SemanticArrays;
   partialSemanticArrays: SemanticArrays | null;
   prebuiltSegments: PrebuiltSegment[];
-
-  // Highlighting state
   highlightedUnitIndex: number | null;
   highlightedTranslationUnitIndex: number | null;
   highlightedCharacterOnlyUnitIndex: number | null;
-
-  // Streaming state
   throttledStreamingState: ThrottledStreamingState;
-
-  // Handlers
   handleSemanticSegmentClick: (index: number, direction: string) => void;
-
-  // Styles (memoized from parent)
   inputTextStyle: React.CSSProperties;
   outputTextStyle: React.CSSProperties;
   characterOnlyTextStyle: React.CSSProperties;
-
-  // Refs (from parent)
   originalTextRef: React.RefObject<HTMLDivElement>;
   translationTextRef: React.RefObject<HTMLDivElement>;
   characterOnlyTextRef: React.RefObject<HTMLDivElement>;
 }
 
 /**
+ * Panel base styles - flat card appearance
+ */
+const panelBase: React.CSSProperties = {
+  background: 'var(--surface-color)',
+  borderRadius: 'var(--radius-lg)',
+  border: '1px solid var(--border-color)',
+  position: 'relative',
+  overflow: 'hidden',
+};
+
+/**
+ * Placeholder styles
+ */
+const placeholderStyle: React.CSSProperties = {
+  height: '100%',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
+
+const placeholderTextStyle: React.CSSProperties = {
+  color: 'var(--text-muted)',
+  textAlign: 'center',
+  fontSize: '0.875rem',
+  lineHeight: 1.6,
+  padding: '0 2rem',
+};
+
+/**
  * TranslatorDisplayPanels Component
  *
- * Renders the three-panel translation display layout:
- * - Left panel: Original Chinese text (top) and character-only translation (bottom)
- * - Right panel: Main translation with streaming support
- *
- * Handles virtualization for large texts and streaming translation overlays.
- *
- * @param props - Component props
- * @returns Three-panel translation display
+ * Three-panel translation display:
+ * - Left: Original Chinese (top) and character-only translation (bottom)
+ * - Right: Main translation with streaming support
  */
 export default function TranslatorDisplayPanels({
-  // Text content
   inputText,
   translatedText,
   characterOnlyText,
-
-  // Semantic arrays
   semanticArrays,
   characterOnlySemanticArrays,
   partialSemanticArrays,
   prebuiltSegments,
-
-  // Highlighting state
   highlightedUnitIndex,
   highlightedTranslationUnitIndex,
   highlightedCharacterOnlyUnitIndex,
-
-  // Streaming state
   throttledStreamingState,
-
-  // Handlers
   handleSemanticSegmentClick,
-
-  // Styles (memoized from parent)
   inputTextStyle,
   outputTextStyle,
   characterOnlyTextStyle,
-
-  // Refs (from parent)
   originalTextRef,
   translationTextRef,
   characterOnlyTextRef,
 }: TranslatorDisplayPanelsProps): React.ReactElement {
   return (
-    <div style={{ display: 'flex', gap: '0.5rem', flex: 1, minHeight: 0 }}>
-      {/* Left side - split into original text (top) and character-only translation (bottom) */}
+    <div
+      style={{
+        display: 'flex',
+        gap: '0.75rem',
+        flex: 1,
+        minHeight: 0,
+      }}
+    >
+      {/* Left Column */}
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.5rem',
-          flex: '1 0 33.33%',
+          gap: '0.75rem',
+          flex: '1 0 35%',
           minWidth: 0,
         }}
       >
-        {/* Original Chinese text area (upper half) */}
+        {/* Original Chinese Panel */}
         <div
           style={{
+            ...panelBase,
             ...inputTextStyle,
             flex: '1 0 50%',
             minHeight: 0,
             overflowY: inputText ? 'auto' : 'hidden',
+            padding: '1rem',
           }}
           ref={originalTextRef}
         >
@@ -150,37 +156,23 @@ export default function TranslatorDisplayPanels({
               onSegmentClick={handleSemanticSegmentClick}
             />
           ) : (
-            <div
-              style={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <div
-                style={{
-                  color: 'var(--text-color)',
-                  opacity: 0.4,
-                  textAlign: 'center',
-                  fontSize: '1rem',
-                  lineHeight: '1.6',
-                  padding: '0 2rem',
-                }}
-              >
-                Paste Chinese text or click
-                <br />
-                "Translate from Clipboard"
+            <div style={placeholderStyle}>
+              <div style={placeholderTextStyle}>
+                Paste Chinese text or click <strong>Translate</strong>
               </div>
             </div>
           )}
         </div>
 
-        {/* Character-only translation area (lower half) */}
+        {/* Character-only Panel */}
         <div
           style={{
+            ...panelBase,
             ...characterOnlyTextStyle,
+            flex: '1 0 50%',
+            minHeight: 0,
             overflowY: characterOnlyText ? 'auto' : 'hidden',
+            padding: '1rem',
           }}
           ref={characterOnlyTextRef}
         >
@@ -193,45 +185,26 @@ export default function TranslatorDisplayPanels({
               direction="character-only-to-original"
             />
           ) : (
-            <div
-              style={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <div
-                style={{
-                  color: 'var(--text-color)',
-                  opacity: 0.4,
-                  textAlign: 'center',
-                  fontSize: '1rem',
-                  lineHeight: '1.6',
-                  padding: '0 2rem',
-                }}
-              >
-                Character-by-character
-                <br />
-                translation will appear here
-              </div>
+            <div style={placeholderStyle}>
+              <div style={placeholderTextStyle}>Character-by-character translation</div>
             </div>
           )}
         </div>
       </div>
 
-      {/* Translation output area with streaming support */}
+      {/* Right Column - Main Translation */}
       <div
         style={{
+          ...panelBase,
           ...outputTextStyle,
-          flex: '2 0 66.67%',
+          flex: '2 0 65%',
           minWidth: 0,
-          position: 'relative',
           overflowY: translatedText ? 'auto' : 'hidden',
+          padding: '1rem',
         }}
         ref={translationTextRef}
       >
-        {/* Streaming display overlay - shows during translation */}
+        {/* Streaming Overlay */}
         {throttledStreamingState.isStreaming && (
           <div
             style={{
@@ -240,9 +213,10 @@ export default function TranslatorDisplayPanels({
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: 'var(--streaming-bg-secondary)',
+              background: 'var(--surface-color)',
               zIndex: 10,
               overflow: 'hidden',
+              borderRadius: 'var(--radius-lg)',
             }}
           >
             {React.createElement(StreamingTranslationDisplay as any, {
@@ -251,17 +225,17 @@ export default function TranslatorDisplayPanels({
               isComplete: false,
               semanticArrays: semanticArrays,
               partialSemanticArrays: partialSemanticArrays,
-              style: { height: '100%' },
+              style: { height: '100%', padding: '1rem' },
             })}
           </div>
         )}
 
-        {/* Translation display - shows when complete or as fallback */}
+        {/* Translation Content */}
         {translatedText ? (
           <div
             style={{
-              opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
-              transition: 'opacity 0.3s ease',
+              opacity: throttledStreamingState.isStreaming ? 0.2 : 1,
+              transition: 'opacity 0.15s ease',
             }}
           >
             <ClickableTranslationOptimized
@@ -275,26 +249,11 @@ export default function TranslatorDisplayPanels({
         ) : (
           <div
             style={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: throttledStreamingState.isStreaming ? 0.3 : 1,
-              transition: 'opacity 0.3s ease',
+              ...placeholderStyle,
+              opacity: throttledStreamingState.isStreaming ? 0.2 : 1,
             }}
           >
-            <div
-              style={{
-                color: 'var(--text-color)',
-                opacity: 0.4,
-                textAlign: 'center',
-                fontSize: '1rem',
-                lineHeight: '1.6',
-                padding: '0 2rem',
-              }}
-            >
-              Translation will appear here
-            </div>
+            <div style={placeholderTextStyle}>Translation will appear here</div>
           </div>
         )}
       </div>

@@ -191,14 +191,19 @@ const AppearanceManager: React.FC = () => {
 
   // Styles
   const containerStyle: React.CSSProperties = {
-    padding: '2rem',
+    padding: '1.5rem',
     height: '100%',
     overflowY: 'auto',
     boxSizing: 'border-box',
+    background: 'var(--background-color)',
   };
 
   const sectionStyle: React.CSSProperties = {
-    marginBottom: '2rem',
+    marginBottom: '1.5rem',
+    padding: '1rem',
+    background: 'var(--surface-color)',
+    border: '1px solid var(--border-color)',
+    borderRadius: 'var(--radius-lg)',
   };
 
   const titleStyle: React.CSSProperties = {
@@ -206,13 +211,16 @@ const AppearanceManager: React.FC = () => {
   };
 
   const sectionTitleStyle: React.CSSProperties = {
-    marginBottom: '1rem',
+    marginBottom: '0.75rem',
+    fontSize: '0.875rem',
+    fontWeight: 600,
+    color: 'var(--text-color)',
   };
 
   const controlGroupStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
-    gap: '1rem',
+    gap: '0.625rem',
   };
 
   const controlRowStyle: React.CSSProperties = {
@@ -222,48 +230,71 @@ const AppearanceManager: React.FC = () => {
   };
 
   const labelStyle: React.CSSProperties = {
-    minWidth: '160px',
-    fontSize: '0.9rem',
-    fontWeight: '500',
-    color: 'var(--text-color)',
+    minWidth: '120px',
+    fontSize: '0.8125rem',
+    fontWeight: 500,
+    color: 'var(--text-secondary)',
   };
 
   const inputStyle: React.CSSProperties = {
     flex: 1,
-    padding: '0.5rem',
+    padding: '0.5rem 0.75rem',
     border: '1px solid var(--border-color)',
-    borderRadius: '4px',
+    borderRadius: 'var(--radius-md)',
     backgroundColor: 'var(--background-color)',
     color: 'var(--text-color)',
-    fontSize: '0.9rem',
+    fontSize: '0.8125rem',
+    transition: 'border-color 0.15s ease',
   };
 
   const resetButtonStyle: React.CSSProperties = {
     padding: '0.5rem',
     border: '1px solid var(--border-color)',
-    borderRadius: '4px',
-    backgroundColor: 'var(--nav-hover)',
-    color: 'var(--text-color)',
+    borderRadius: 'var(--radius-md)',
+    backgroundColor: 'var(--surface-color)',
+    color: 'var(--text-muted)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: '2rem',
     height: '2rem',
+    transition: 'all 0.15s ease',
   };
 
   const previewStyle: React.CSSProperties = {
-    padding: '1rem',
+    padding: '0.75rem 1rem',
     border: '1px solid var(--border-color)',
-    borderRadius: '4px',
+    borderRadius: 'var(--radius-md)',
     backgroundColor: 'var(--background-color)',
-    marginTop: '1rem',
+    marginTop: '0.75rem',
+    color: 'var(--text-color)',
   };
 
   if (isLoading) {
     return (
-      <div style={{ padding: '2rem' }}>
-        <div style={{ textAlign: 'center', padding: '2rem' }}>Loading appearance settings...</div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          gap: '0.75rem',
+        }}
+      >
+        <div
+          style={{
+            width: '20px',
+            height: '20px',
+            border: '2px solid var(--border-color)',
+            borderTopColor: 'var(--primary-color)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+          Loading appearance settings...
+        </span>
       </div>
     );
   }
@@ -271,18 +302,30 @@ const AppearanceManager: React.FC = () => {
   return (
     <div style={containerStyle}>
       <div style={titleStyle}>
-        <h2>Appearance Settings</h2>
-        <p>Customize the font family and size for each text area.</p>
+        <h2
+          style={{
+            fontSize: '0.9375rem',
+            fontWeight: 600,
+            color: 'var(--text-color)',
+            marginBottom: '0.375rem',
+          }}
+        >
+          Appearance Settings
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+          Customize the font family and size for each text area.
+        </p>
       </div>
 
       {error && (
         <div
           style={{
-            padding: '1rem',
-            backgroundColor: 'var(--error-bg)',
-            color: 'white',
-            borderRadius: '4px',
+            padding: '0.625rem 0.75rem',
+            backgroundColor: 'var(--error-subtle)',
+            color: 'var(--error-color)',
+            borderRadius: 'var(--radius-md)',
             marginBottom: '1rem',
+            fontSize: '0.8125rem',
           }}
         >
           {error}

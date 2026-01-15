@@ -77,6 +77,8 @@ interface EnhancedVirtualizedDictionaryTableProps {
   searchRef?: React.RefObject<HTMLInputElement>;
   /** Callback when selection state changes */
   onSelectionChange?: (state: SelectionState) => void;
+  /** Whether the parent tab is active (for remeasuring on visibility) */
+  isActive?: boolean;
 }
 
 // Optimized constants for better performance
@@ -206,6 +208,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   selectedDictionary,
   searchRef,
   onSelectionChange,
+  isActive,
 }) => {
   const { dictionaries, deleteEntry, updateEntry, isLoading } = useDictionary();
 
@@ -271,6 +274,21 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       }
     };
   }, [searchTerm]);
+
+  // Remeasure container height when tab becomes active (fixes virtualization on tab switch)
+  useEffect(() => {
+    if (isActive && scrollRef.current) {
+      // Use requestAnimationFrame to ensure DOM has fully rendered
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          const height = scrollRef.current.clientHeight;
+          if (height > 0) {
+            setContainerHeight(height);
+          }
+        }
+      });
+    }
+  }, [isActive]);
 
   // Track ResizeObserver instance for cleanup
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -660,7 +678,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   // Bulk Move Dialog Component
   const BulkMoveDialog: React.FC = () => {
-    const { addEntry } = useDictionary();
+    const { loadDictionary } = useDictionary();
     const [selectedTargetDict, setSelectedTargetDict] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
@@ -700,25 +718,48 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
       try {
         const entriesToMove = Array.from(selectedEntries);
-        const dictionary = dictionaries[selectedDictionary];
 
-        // Move each entry sequentially
-        for (const source of entriesToMove) {
-          const value = dictionary[source];
-          const translation = typeof value === 'string' ? value : value.translation;
-          const metadata =
-            typeof value === 'object'
-              ? {
-                  allowAsPatternVariable: value.allowAsPatternVariable,
-                  lowPriority: value.lowPriority,
-                }
-              : {};
+        // Load fresh dictionary data to avoid stale closure issues
+        const [sourceResult, targetResult] = await Promise.all([
+          window.electronAPI.loadDictionary(selectedDictionary),
+          window.electronAPI.loadDictionary(selectedTargetDict),
+        ]);
 
-          // Add to target dictionary
-          await addEntry(selectedTargetDict, source, translation, metadata);
-          // Delete from current dictionary
-          await deleteEntry(selectedDictionary, source);
+        if (!sourceResult.success || !sourceResult.data) {
+          throw new Error('Failed to load source dictionary');
         }
+        if (!targetResult.success || !targetResult.data) {
+          throw new Error('Failed to load target dictionary');
+        }
+
+        const sourceDictData = { ...sourceResult.data } as Record<string, unknown>;
+        const targetDictData = { ...targetResult.data } as Record<string, unknown>;
+
+        // Batch: Add all entries to target, remove from source
+        for (const source of entriesToMove) {
+          const value = sourceDictData[source];
+          if (value !== undefined) {
+            targetDictData[source] = value;
+            delete sourceDictData[source];
+          }
+        }
+
+        // Save both dictionaries
+        const [saveTargetResult, saveSourceResult] = await Promise.all([
+          window.electronAPI.saveDictionary(selectedTargetDict, targetDictData),
+          window.electronAPI.saveDictionary(selectedDictionary, sourceDictData),
+        ]);
+
+        if (!saveTargetResult.success) {
+          throw new Error(`Failed to save target dictionary: ${saveTargetResult.error}`);
+        }
+        if (!saveSourceResult.success) {
+          throw new Error(`Failed to save source dictionary: ${saveSourceResult.error}`);
+        }
+
+        // Reload dictionaries to update UI state
+        await loadDictionary(selectedDictionary);
+        await loadDictionary(selectedTargetDict);
 
         setSelectedEntries(new Set());
         setShowBulkMoveDialog(false);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardPaste, PlusCircle, RotateCcw } from 'lucide-react';
+import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Database, Activity } from 'lucide-react';
 
 /**
  * Performance statistics for translation operations
@@ -53,18 +53,13 @@ interface ThrottledStreamingState {
  * Props for TranslatorControls component
  */
 interface TranslatorControlsProps {
-  // Handlers
   handleTranslateFromClipboard: () => Promise<void>;
   handleQuickAddProperNoun: () => void;
   handleForceReload: () => Promise<void>;
-
-  // State
   isLoading: boolean;
   isTranslating: boolean;
   progressInfo: ProgressInfo | null;
   activeTranslations: number;
-
-  // Performance stats
   performanceStats: PerformanceStats;
   wasmStatus: WasmStatus;
   regressionHealth: RegressionHealth;
@@ -74,234 +69,252 @@ interface TranslatorControlsProps {
 /**
  * TranslatorControls Component
  *
- * Renders the control buttons row including:
- * - Translate from clipboard button
- * - Quick Add Entry button
- * - Reload Dictionary button
- * - Progress/Performance indicators
- * - Streaming progress display
- *
- * @param props - Component props
- * @returns Control buttons and status displays
+ * Control buttons row with flat, bold styling
  */
 export default function TranslatorControls({
-  // Handlers
   handleTranslateFromClipboard,
   handleQuickAddProperNoun,
   handleForceReload,
-
-  // State
   isLoading,
   isTranslating,
   progressInfo,
   activeTranslations,
-
-  // Performance stats
   performanceStats,
   wasmStatus,
   regressionHealth,
   throttledStreamingState,
 }: TranslatorControlsProps): React.ReactElement {
+  const healthColor =
+    regressionHealth.status === 'critical'
+      ? 'var(--error-color)'
+      : regressionHealth.status === 'warning'
+        ? 'var(--warning-color)'
+        : 'var(--success-color)';
+
   return (
     <div
       style={{
         display: 'flex',
-        gap: '0.75rem',
-        marginBottom: '1.5rem',
-        justifyContent: 'flex-start',
-        paddingLeft: '0.5rem',
+        gap: '0.5rem',
+        marginBottom: '1rem',
         flexWrap: 'wrap',
         alignItems: 'center',
       }}
     >
+      {/* Primary Action - Translate */}
       <button
         onClick={handleTranslateFromClipboard}
+        disabled={isLoading || isTranslating}
+        title="Translate from Clipboard (Ctrl/Cmd + Shift + V)"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.5rem 1rem',
-          fontSize: '0.875rem',
+          gap: '0.375rem',
+          padding: '0.5rem 0.875rem',
+          fontSize: '0.8125rem',
           fontWeight: 500,
-          backgroundColor: 'var(--success-bg)',
-          color: 'white',
+          borderRadius: 'var(--radius-md)',
+          cursor: isLoading || isTranslating ? 'not-allowed' : 'pointer',
           border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
+          background: 'var(--primary-color)',
+          color: 'white',
+          opacity: isLoading || isTranslating ? 0.6 : 1,
+          transition: 'all 0.15s ease',
         }}
-        title="Translate from Clipboard (Ctrl/Cmd + Shift + V)"
-        disabled={isLoading || isTranslating}
       >
-        <ClipboardPaste size={16} />
-        {isLoading
-          ? 'Loading dictionaries...'
-          : isTranslating
-            ? 'Translating...'
-            : 'Translate from Clipboard'}
+        <ClipboardPaste size={15} />
+        {isLoading ? 'Loading...' : isTranslating ? 'Translating...' : 'Translate'}
       </button>
 
-      {/* Add Quick Add Entry button */}
+      {/* Add Entry */}
       <button
         onClick={handleQuickAddProperNoun}
-        className="secondary"
-        title="Quick Add Entry - Keyboard shortcuts:
-Cmd/Ctrl+1: Character
-Cmd/Ctrl+2: Phrase
-Cmd/Ctrl+3: Proper Noun
-Cmd/Ctrl+4: Pattern
-Cmd/Ctrl+5: Custom Proper Noun"
+        title="Quick Add Entry (Cmd/Ctrl + 1-5)"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.5rem 1rem',
-          fontSize: '0.875rem',
+          gap: '0.375rem',
+          padding: '0.5rem 0.875rem',
+          fontSize: '0.8125rem',
           fontWeight: 500,
+          borderRadius: 'var(--radius-md)',
+          cursor: 'pointer',
+          border: '1px solid var(--border-color)',
+          background: 'var(--surface-color)',
+          color: 'var(--text-color)',
+          transition: 'all 0.15s ease',
         }}
       >
-        <PlusCircle size={16} />
-        Quick Add Entry
+        <PlusCircle size={15} />
+        Add Entry
       </button>
 
-      {/* Reload Dictionary button */}
+      {/* Reload */}
       <button
         onClick={handleForceReload}
-        className="secondary"
-        title="Reload Dictionary - Clear all caches and reinitialize engine"
+        disabled={isLoading}
+        title="Reload Dictionary"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          padding: '0.5rem 1rem',
-          fontSize: '0.875rem',
+          gap: '0.375rem',
+          padding: '0.5rem 0.875rem',
+          fontSize: '0.8125rem',
           fontWeight: 500,
-          backgroundColor: 'var(--error-bg)',
-          color: 'white',
+          borderRadius: 'var(--radius-md)',
+          cursor: isLoading ? 'not-allowed' : 'pointer',
           border: 'none',
-          borderRadius: '8px',
+          background: 'var(--error-subtle)',
+          color: 'var(--error-color)',
+          opacity: isLoading ? 0.6 : 1,
+          transition: 'all 0.15s ease',
         }}
-        disabled={isLoading}
       >
-        <RotateCcw size={16} />
-        Reload Dictionary
+        <RotateCcw size={15} />
+        Reload
       </button>
 
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Progress or Stats */}
       {progressInfo ? (
-        <div
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'var(--success-bg)',
-            color: 'white',
-            borderRadius: '0.375rem',
-            fontSize: '0.75rem',
-            fontWeight: '500',
-          }}
-        >
-          🔄 Translating batch {progressInfo.currentBatch} of {progressInfo.totalBatches} (
-          {progressInfo.completedChunks}/{progressInfo.totalChunks} chunks)
-        </div>
-      ) : (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
+            padding: '0.5rem 0.75rem',
+            background: 'var(--success-subtle)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            color: 'var(--success-color)',
           }}
         >
-          {/* Compact Performance Display */}
+          <div
+            style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: 'currentColor',
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
+          Batch {progressInfo.currentBatch}/{progressInfo.totalBatches}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Stats chip */}
           <div
             style={{
               display: 'flex',
-              gap: '0.5rem',
               alignItems: 'center',
-              flexWrap: 'wrap',
+              gap: '0.625rem',
+              padding: '0.5rem 0.75rem',
+              background: 'var(--surface-color)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '0.75rem',
+              color: 'var(--text-secondary)',
             }}
           >
-            {/* Combined Performance Stats */}
-            <div
-              style={{
-                padding: '0.5rem 0.75rem',
-                backgroundColor: 'var(--nav-hover)',
-                borderRadius: '0.375rem',
-                fontSize: '0.7rem',
-                color: 'var(--nav-text)',
-                border:
-                  performanceStats.cacheHitRate > 50
-                    ? '1px solid #10b981'
-                    : '1px solid transparent',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-              }}
-            >
-              <span>⚡ {Math.round(performanceStats.avgTime)}ms</span>
-              <span>💾 {Math.round(performanceStats.cacheHitRate)}%</span>
-              <span>#{performanceStats.operations}</span>
-              {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
-                <span style={{ color: wasmStatus.fallbackMode ? '#f59e0b' : '#8b5cf6' }}>
-                  {wasmStatus.fallbackMode ? 'JS' : 'WASM'}{' '}
-                  {Math.round(wasmStatus.totalEntries / 1000)}k
-                </span>
-              )}
-              {/* Regression Detection Health Indicator */}
-              <span
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Zap size={12} style={{ color: 'var(--warning-color)' }} />
+              {Math.round(performanceStats.avgTime)}ms
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Database
+                size={12}
                 style={{
                   color:
-                    regressionHealth.status === 'critical'
-                      ? '#ef4444'
-                      : regressionHealth.status === 'warning'
-                        ? '#f59e0b'
-                        : '#10b981',
+                    performanceStats.cacheHitRate > 50
+                      ? 'var(--success-color)'
+                      : 'var(--text-muted)',
                 }}
-                title={`Performance Health: ${regressionHealth.status.toUpperCase()} • Baselines: ${regressionHealth.baselines} • Alerts: ${regressionHealth.criticalAlerts + regressionHealth.warningAlerts}`}
+              />
+              {Math.round(performanceStats.cacheHitRate)}%
+            </span>
+            {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
+              <span
+                style={{
+                  color: wasmStatus.fallbackMode ? 'var(--warning-color)' : 'var(--primary-color)',
+                  fontFamily: 'var(--font-mono)',
+                }}
               >
-                📊{' '}
-                {regressionHealth.status === 'critical'
-                  ? '🔴'
-                  : regressionHealth.status === 'warning'
-                    ? '🟡'
-                    : '🟢'}
-                {regressionHealth.baselines}
-                {(regressionHealth.criticalAlerts > 0 || regressionHealth.warningAlerts > 0) && (
-                  <span style={{ fontSize: '0.6rem', marginLeft: '2px' }}>
-                    !{regressionHealth.criticalAlerts + regressionHealth.warningAlerts}
-                  </span>
-                )}
+                {wasmStatus.fallbackMode ? 'JS' : 'WASM'}
               </span>
-            </div>
+            )}
+            <span
+              style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: healthColor }}
+            >
+              <Activity size={12} />
+            </span>
           </div>
 
-          {/* Streaming Progress (simplified) */}
+          {/* Streaming progress */}
           {throttledStreamingState.isStreaming && (
             <div
               style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: 'var(--streaming-accent-light)',
-                borderRadius: '0.375rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0.75rem',
+                background: 'var(--primary-subtle)',
+                borderRadius: 'var(--radius-md)',
                 fontSize: '0.75rem',
-                color: 'var(--streaming-accent)',
-                border: '1px solid var(--streaming-accent)',
+                color: 'var(--primary-color)',
               }}
             >
-              🔄 Translating: {Math.round(throttledStreamingState.progress)}% (
-              {throttledStreamingState.completedChunks}/{throttledStreamingState.totalChunks})
+              <div
+                style={{
+                  width: '40px',
+                  height: '4px',
+                  background: 'var(--border-color)',
+                  borderRadius: '2px',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: `${throttledStreamingState.progress}%`,
+                    height: '100%',
+                    background: 'var(--primary-color)',
+                    transition: 'width 0.15s ease',
+                  }}
+                />
+              </div>
+              {Math.round(throttledStreamingState.progress)}%
             </div>
           )}
         </div>
       )}
 
+      {/* Active badge */}
       {activeTranslations > 0 && (
         <div
           style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: activeTranslations > 1 ? 'var(--warning-bg)' : 'var(--success-bg)',
-            color: 'white',
-            borderRadius: '0.375rem',
-            fontSize: '0.75rem',
-            fontWeight: '500',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            padding: '0.25rem 0.5rem',
+            background: activeTranslations > 1 ? 'var(--warning-subtle)' : 'var(--success-subtle)',
+            borderRadius: 'var(--radius-full)',
+            fontSize: '0.6875rem',
+            fontWeight: 600,
+            color: activeTranslations > 1 ? 'var(--warning-color)' : 'var(--success-color)',
           }}
         >
-          🔄 {activeTranslations} active
+          <div
+            style={{
+              width: '5px',
+              height: '5px',
+              borderRadius: '50%',
+              background: 'currentColor',
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
+          {activeTranslations} active
         </div>
       )}
     </div>

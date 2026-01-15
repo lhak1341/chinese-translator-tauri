@@ -12,15 +12,19 @@ import ErrorBoundary from './ErrorBoundary';
 type TabId = 'translator' | 'dictionary' | 'configuration' | 'appearance';
 
 /**
+ * Tab configuration
+ */
+const TABS: { id: TabId; label: string; shortcut: string }[] = [
+  { id: 'translator', label: 'Translator', shortcut: '1' },
+  { id: 'dictionary', label: 'Dictionary', shortcut: '2' },
+  { id: 'configuration', label: 'Configuration', shortcut: '3' },
+  { id: 'appearance', label: 'Appearance', shortcut: '4' },
+];
+
+/**
  * TabbedInterface Component
  *
- * Main application container with tab navigation between:
- * - Translator (main translation interface)
- * - Dictionary (dictionary management)
- * - Configuration (settings)
- * - Appearance (theme and font settings)
- *
- * @returns Tabbed application interface
+ * Main application container with tab navigation.
  */
 const TabbedInterface: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('translator');
@@ -31,13 +35,12 @@ const TabbedInterface: React.FC = () => {
   };
 
   const handleFocusSearch = (): void => {
-    // Focus the search input in the Dictionary tab
     if (dictionarySearchRef.current) {
       dictionarySearchRef.current.focus();
     }
   };
 
-  // Base container styles using CSS variables for theming
+  // Main container
   const containerStyle: React.CSSProperties = {
     position: 'absolute',
     top: 0,
@@ -46,55 +49,51 @@ const TabbedInterface: React.FC = () => {
     bottom: 0,
     display: 'flex',
     flexDirection: 'column',
-    background: 'var(--background-color)', // Using shorthand
+    background: 'var(--background-color)',
     overflow: 'hidden',
   };
 
-  // Navigation bar styles with consistent border handling
+  // Navigation bar - clean flat design
   const navStyle: React.CSSProperties = {
     display: 'flex',
-    background: 'var(--nav-bg)', // Using shorthand
-    padding: '0.5rem 1rem 0',
+    alignItems: 'stretch',
+    background: 'var(--nav-bg-solid)',
+    padding: '0',
     flexShrink: 0,
-    border: 'none',
     borderBottom: '1px solid var(--border-color)',
   };
 
-  // Content area styles
+  // Tab button styles
+  const getTabStyle = (tabId: TabId): React.CSSProperties => {
+    const isActive = activeTab === tabId;
+
+    return {
+      position: 'relative',
+      background: 'transparent',
+      border: 'none',
+      borderBottom: isActive ? '2px solid var(--nav-active-border)' : '2px solid transparent',
+      padding: '0.875rem 1.25rem',
+      fontSize: '0.875rem',
+      fontWeight: isActive ? 600 : 500,
+      color: isActive ? 'var(--text-color)' : 'var(--nav-text)',
+      cursor: 'pointer',
+      transition: 'all 0.15s ease',
+      minHeight: 'auto',
+      borderRadius: 0,
+    };
+  };
+
+  // Content area
   const contentStyle: React.CSSProperties = {
     flex: 1,
     minHeight: 0,
     position: 'relative',
     overflow: 'hidden',
+    background: 'var(--background-color)',
   };
 
-  // Base tab button styles
-  const tabButtonStyle: React.CSSProperties = {
-    background: 'transparent', // Using shorthand consistently
-    border: '1px solid transparent',
-    borderRadius: '6px 6px 0 0',
-    padding: '0.75rem 1.5rem',
-    fontSize: '0.95rem',
-    color: 'var(--nav-text)',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    opacity: 0.85,
-    marginBottom: '-1px',
-  };
-
-  // Active tab styles extending base tab styles
-  const activeTabStyle: React.CSSProperties = {
-    ...tabButtonStyle,
-    background: 'var(--nav-active)', // Using shorthand consistently
-    color: 'var(--text-color)',
-    opacity: 1,
-    fontWeight: '500',
-    border: '1px solid var(--border-color)',
-    borderBottom: '1px solid var(--nav-active)',
-  };
-
-  // Component container style for visibility handling
-  const componentStyle = (isActive: boolean): React.CSSProperties => ({
+  // Component visibility wrapper - no opacity to avoid virtualization issues
+  const getComponentStyle = (isActive: boolean): React.CSSProperties => ({
     position: 'absolute',
     top: 0,
     left: 0,
@@ -111,56 +110,44 @@ const TabbedInterface: React.FC = () => {
         onFocusSearch={handleFocusSearch}
         activeTab={activeTab}
       />
+
+      {/* Navigation Bar */}
       <nav style={navStyle}>
-        <button
-          onClick={() => handleTabChange('translator')}
-          style={activeTab === 'translator' ? activeTabStyle : tabButtonStyle}
-          title="Switch to Translator (Cmd/Ctrl + Shift + 1)"
-        >
-          Translator
-        </button>
-        <button
-          onClick={() => handleTabChange('dictionary')}
-          style={activeTab === 'dictionary' ? activeTabStyle : tabButtonStyle}
-          title="Switch to Dictionary (Cmd/Ctrl + Shift + 2)"
-        >
-          Dictionary
-        </button>
-        <button
-          onClick={() => handleTabChange('configuration')}
-          style={activeTab === 'configuration' ? activeTabStyle : tabButtonStyle}
-          title="Switch to Configuration (Cmd/Ctrl + Shift + 3)"
-        >
-          Configuration
-        </button>
-        <button
-          onClick={() => handleTabChange('appearance')}
-          style={activeTab === 'appearance' ? activeTabStyle : tabButtonStyle}
-          title="Switch to Appearance (Cmd/Ctrl + Shift + 4)"
-        >
-          Appearance
-        </button>
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            style={getTabStyle(tab.id)}
+            title={`Switch to ${tab.label} (Cmd/Ctrl + Shift + ${tab.shortcut})`}
+          >
+            {tab.label}
+          </button>
+        ))}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
       </nav>
 
+      {/* Content Area */}
       <div style={contentStyle}>
-        <div style={componentStyle(activeTab === 'translator')}>
+        <div style={getComponentStyle(activeTab === 'translator')}>
           <ErrorBoundary>
             {React.createElement(Translator as any, { isActive: activeTab === 'translator' })}
           </ErrorBoundary>
         </div>
-        <div style={componentStyle(activeTab === 'dictionary')}>
+        <div style={getComponentStyle(activeTab === 'dictionary')}>
           {React.createElement(DictionaryManager as any, {
             searchRef: dictionarySearchRef,
             isActive: activeTab === 'dictionary',
           })}
         </div>
-        <div style={componentStyle(activeTab === 'configuration')}>
+        <div style={getComponentStyle(activeTab === 'configuration')}>
           {React.createElement(ConfigurationManager as any)}
         </div>
         <div
           style={{
-            ...componentStyle(activeTab === 'appearance'),
-            overflow: 'auto', // Only the Appearance tab gets scrolling
+            ...getComponentStyle(activeTab === 'appearance'),
+            overflow: 'auto',
           }}
         >
           {React.createElement(AppearanceManager as any)}

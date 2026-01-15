@@ -290,28 +290,29 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   };
 
   const headerStyle: React.CSSProperties = {
-    padding: '1rem 1.5rem',
-    border: 'none',
+    padding: '0.75rem 1rem',
     borderBottom: '1px solid var(--border-color)',
     background: 'var(--background-color)',
     flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: '1rem',
+    gap: '0.75rem',
   };
 
   const selectStyle: React.CSSProperties = {
-    padding: '0.5rem 2.5rem 0.5rem 1rem',
-    borderRadius: '0.375rem',
+    padding: '0.5rem 2rem 0.5rem 0.75rem',
+    borderRadius: 'var(--radius-md)',
     border: '1px solid var(--border-color)',
-    fontSize: '0.875rem',
-    background: 'var(--background-color)',
+    fontSize: '0.8125rem',
+    background: 'var(--surface-color)',
     appearance: 'none',
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23e5e7eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 0.5rem center',
-    minWidth: '200px',
+    minWidth: '180px',
     color: 'var(--text-color)',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s ease',
   };
 
   const controlsStyle: React.CSSProperties = {
@@ -324,19 +325,27 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   const buttonStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.5rem 1rem',
-    borderRadius: '0.375rem',
-    fontSize: '0.875rem',
+    gap: '0.375rem',
+    padding: '0.5rem 0.875rem',
+    borderRadius: 'var(--radius-md)',
+    fontSize: '0.8125rem',
     fontWeight: 500,
+    cursor: 'pointer',
+    border: 'none',
+    transition: 'all 0.15s ease',
   };
 
   const iconButtonStyle: React.CSSProperties = {
     padding: '0.5rem',
-    borderRadius: '0.375rem',
+    borderRadius: 'var(--radius-md)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
+    cursor: 'pointer',
+    border: '1px solid var(--border-color)',
+    background: 'var(--surface-color)',
+    color: 'var(--text-color)',
+    transition: 'all 0.15s ease',
   };
 
   const errorStyle: React.CSSProperties = {
@@ -358,11 +367,13 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           ...containerStyle,
           justifyContent: 'center',
           alignItems: 'center',
-          gap: '1rem',
+          gap: '0.75rem',
         }}
       >
-        <Loader size={24} className="animate-spin" />
-        <span>Loading dictionary...</span>
+        <Loader size={20} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+          Loading dictionary...
+        </span>
       </div>
     );
   }
@@ -396,11 +407,12 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
-            fontSize: '0.875rem',
+            gap: '0.375rem',
+            fontSize: '0.8125rem',
             cursor: 'pointer',
             userSelect: 'none',
             whiteSpace: 'nowrap',
+            color: 'var(--text-secondary)',
           }}
           title="Show all proper nouns dictionaries, including inactive ones"
         >
@@ -408,9 +420,9 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             type="checkbox"
             checked={showAllDictionaries}
             onChange={(e) => setShowAllDictionaries(e.target.checked)}
-            style={{ cursor: 'pointer' }}
+            style={{ cursor: 'pointer', accentColor: 'var(--primary-color)' }}
           />
-          <span>Show all</span>
+          Show all
         </label>
 
         <div style={controlsStyle}>
@@ -419,18 +431,16 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             style={iconButtonStyle}
             disabled={!canUndo || isLoadingDictionary}
             title="Undo last change"
-            className="icon"
           >
-            <Undo2 size={16} />
+            <Undo2 size={15} />
           </button>
           <button
             onClick={handleRedo}
             style={iconButtonStyle}
             disabled={!canRedo || isLoadingDictionary}
             title="Redo last change"
-            className="icon"
           >
-            <Redo2 size={16} />
+            <Redo2 size={15} />
           </button>
 
           <button
@@ -440,8 +450,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             disabled={isLoadingDictionary}
             title="Add new entry"
           >
-            <PlusCircle size={16} />
-            <span>Add Entry</span>
+            <PlusCircle size={15} />
+            Add Entry
           </button>
 
           {selectionState && selectionState.selectedCount > 0 && (
@@ -458,11 +468,11 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                 title={`Move ${selectionState.selectedCount} selected entries to another dictionary`}
               >
                 {selectionState.isMoving ? (
-                  <Loader size={16} className="animate-spin" />
+                  <Loader size={15} className="animate-spin" />
                 ) : (
-                  <ArrowRightLeft size={16} />
+                  <ArrowRightLeft size={15} />
                 )}
-                <span>Move ({selectionState.selectedCount})</span>
+                Move ({selectionState.selectedCount})
               </button>
 
               <button
@@ -483,15 +493,13 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                 }
               >
                 {selectionState.isDeleting ? (
-                  <Loader size={16} className="animate-spin" />
+                  <Loader size={15} className="animate-spin" />
                 ) : (
-                  <Trash2 size={16} />
+                  <Trash2 size={15} />
                 )}
-                <span>
-                  {selectionState.showBulkDeleteConfirm
-                    ? 'Confirm Delete'
-                    : `Delete (${selectionState.selectedCount})`}
-                </span>
+                {selectionState.showBulkDeleteConfirm
+                  ? 'Confirm Delete'
+                  : `Delete (${selectionState.selectedCount})`}
               </button>
             </>
           )}
@@ -503,8 +511,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             title="Export all dictionaries to ZIP file"
             disabled={isLoadingDictionary}
           >
-            <Download size={16} />
-            <span>Export All</span>
+            <Download size={15} />
+            Export All
           </button>
 
           <button
@@ -514,8 +522,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             title="Import dictionaries from ZIP file"
             disabled={isLoadingDictionary}
           >
-            <Upload size={16} />
-            <span>Import All</span>
+            <Upload size={15} />
+            Import All
           </button>
 
           <button
@@ -524,21 +532,21 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             style={buttonStyle}
             title="Show dictionaries folder in Finder"
           >
-            <Folder size={16} />
-            <span>Show in Finder</span>
+            <Folder size={15} />
+            Show in Finder
           </button>
         </div>
       </div>
 
       {error && (
         <div style={errorStyle}>
-          <AlertCircle size={16} />
+          <AlertCircle size={15} />
           {error}
         </div>
       )}
       {updateError && (
         <div style={errorStyle}>
-          <AlertCircle size={16} />
+          <AlertCircle size={15} />
           {updateError}
         </div>
       )}
@@ -549,10 +557,12 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
               selectedDictionary,
               searchRef,
               onSelectionChange: setSelectionState,
+              isActive,
             })
           : React.createElement(VirtualizedDictionaryTable as any, {
               selectedDictionary,
               searchRef,
+              isActive,
             })}
       </div>
 

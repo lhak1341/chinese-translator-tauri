@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
+import {
+  PlusCircle,
+  Loader,
+  AlertCircle,
+  Pencil,
+  Check,
+  X,
+  Bookmark,
+  Cpu,
+  BookOpen,
+  Zap,
+} from 'lucide-react';
 
 /**
  * ConfigurationManager Component
@@ -248,11 +259,13 @@ const ConfigurationManager: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           height: '100%',
-          gap: '1rem',
+          gap: '0.75rem',
         }}
       >
-        <Loader size={24} className="animate-spin" />
-        <span>Loading configuration...</span>
+        <Loader size={20} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+          Loading configuration...
+        </span>
       </div>
     );
   }
@@ -260,68 +273,140 @@ const ConfigurationManager: React.FC = () => {
   return (
     <div
       style={{
-        padding: '2rem',
+        padding: '1.5rem',
         height: '100%',
         overflowY: 'auto',
         boxSizing: 'border-box',
+        background: 'var(--background-color)',
       }}
     >
       {/* WASM Configuration Section */}
-      <div style={{ marginBottom: '3rem' }}>
-        <h2>🦀 WebAssembly Configuration</h2>
-        <p style={{ marginBottom: '2rem', color: 'var(--text-secondary)' }}>
-          Configure WASM acceleration for dictionary lookups. WASM provides significant performance
-          improvements for large dictionaries but requires additional memory.
-        </p>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginBottom: '0.75rem',
+          }}
+        >
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--primary-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Cpu size={15} style={{ color: 'var(--primary-color)' }} />
+          </div>
+          <h2
+            style={{
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              color: 'var(--text-color)',
+              margin: 0,
+            }}
+          >
+            Performance
+          </h2>
+        </div>
 
         <div
           style={{
-            padding: '1.5rem',
-            backgroundColor: 'var(--background-secondary)',
+            padding: '1rem',
+            backgroundColor: 'var(--surface-color)',
             border: '1px solid var(--border-color)',
-            borderRadius: '8px',
-            marginBottom: '1rem',
+            borderRadius: 'var(--radius-lg)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-            <label
+          {/* Toggle row */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: wasmEnabled ? '1rem' : 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+              <Zap
+                size={14}
+                style={{ color: wasmEnabled ? 'var(--warning-color)' : 'var(--text-muted)' }}
+              />
+              <div>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-color)' }}>
+                  WASM Acceleration
+                </div>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                  {wasmEnabled ? 'Rust-powered dictionary lookups' : 'JavaScript fallback mode'}
+                </div>
+              </div>
+            </div>
+            {/* Toggle switch */}
+            <button
+              onClick={() => handleWasmToggle(!wasmEnabled)}
               style={{
+                width: '40px',
+                height: '22px',
+                borderRadius: '11px',
+                border: 'none',
+                padding: '2px',
+                cursor: 'pointer',
+                background: wasmEnabled ? 'var(--primary-color)' : 'var(--border-color)',
+                transition: 'background 0.2s ease',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '1rem',
-                fontWeight: 500,
               }}
             >
-              <input
-                type="checkbox"
-                checked={wasmEnabled}
-                onChange={(e) => handleWasmToggle(e.target.checked)}
-                style={{ transform: 'scale(1.2)' }}
+              <div
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  background: 'white',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  transform: wasmEnabled ? 'translateX(18px)' : 'translateX(0)',
+                  transition: 'transform 0.2s ease',
+                }}
               />
-              Enable WASM Acceleration
-            </label>
+            </button>
           </div>
 
+          {/* Memory slider - only show when enabled */}
           {wasmEnabled && (
             <div
               style={{
-                marginTop: '1rem',
-                paddingLeft: '1rem',
-                paddingRight: '3rem',
+                padding: '0.75rem',
+                background: 'var(--background-color)',
+                borderRadius: 'var(--radius-md)',
               }}
             >
-              <label
+              <div
                 style={{
-                  display: 'block',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                   marginBottom: '0.5rem',
-                  fontSize: '0.875rem',
-                  fontWeight: 500,
                 }}
               >
-                Memory Limit: {wasmMemoryLimit}MB
-              </label>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Memory Limit
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--primary-color)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {wasmMemoryLimit}MB
+                </span>
+              </div>
               <input
                 type="range"
                 min="10"
@@ -330,96 +415,113 @@ const ConfigurationManager: React.FC = () => {
                 onChange={(e) => handleMemoryLimitChange(parseInt(e.target.value))}
                 style={{
                   width: '100%',
-                  marginBottom: '0.5rem',
+                  height: '4px',
+                  accentColor: 'var(--primary-color)',
                 }}
               />
               <div
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  fontSize: '0.75rem',
-                  color: 'var(--text-secondary)',
-                  paddingLeft: '0.25rem',
-                  paddingRight: '0.25rem',
+                  fontSize: '0.625rem',
+                  color: 'var(--text-muted)',
+                  marginTop: '0.25rem',
                 }}
               >
-                <span>10MB (Minimal)</span>
-                <span>30MB (Recommended)</span>
-                <span>50MB (Maximum)</span>
+                <span>10MB</span>
+                <span>30MB</span>
+                <span>50MB</span>
               </div>
             </div>
           )}
-
-          <div
-            style={{
-              marginTop: '1rem',
-              padding: '0.75rem',
-              backgroundColor: wasmEnabled ? '#e8f5e8' : '#fff3cd',
-              border: `1px solid ${wasmEnabled ? '#10b981' : '#f59e0b'}`,
-              borderRadius: '4px',
-              fontSize: '0.75rem',
-            }}
-          >
-            {wasmEnabled ? (
-              <span style={{ color: '#065f46' }}>
-                ✅ WASM enabled - Dictionary lookups will use Rust acceleration
-              </span>
-            ) : (
-              <span style={{ color: '#92400e' }}>
-                ⚠️ WASM disabled - Using JavaScript fallback (slower performance)
-              </span>
-            )}
-          </div>
         </div>
       </div>
 
-      <div style={{ marginBottom: '2rem' }}>
-        <h2>Proper Nouns Dictionaries</h2>
-        <p>
-          Select which proper nouns dictionaries to use during translation. For active custom
-          dictionaries, click the{' '}
-          <Bookmark
-            size={14}
-            style={{ display: 'inline', verticalAlign: 'middle', marginBottom: '2px' }}
-          />{' '}
-          bookmark icon to set the default dictionary for Cmd/Ctrl-5 quick add.
-        </p>
+      {/* Dictionaries Section */}
+      <div style={{ marginBottom: '1rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '0.75rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--success-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <BookOpen size={15} style={{ color: 'var(--success-color)' }} />
+            </div>
+            <div>
+              <h2
+                style={{
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: 'var(--text-color)',
+                  margin: 0,
+                }}
+              >
+                Dictionaries
+              </h2>
+              <p
+                style={{
+                  fontSize: '0.6875rem',
+                  color: 'var(--text-muted)',
+                  margin: 0,
+                }}
+              >
+                {activeDictionaries.length} active
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowNewDictionaryModal(true)}
+            className="primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.375rem',
+            }}
+          >
+            <PlusCircle size={14} />
+            New
+          </button>
+        </div>
       </div>
 
       {error && (
         <div
           style={{
-            padding: '1rem',
-            marginBottom: '1rem',
-            backgroundColor: 'var(--danger-button-bg)',
-            color: 'var(--danger-button-text)',
-            borderRadius: '6px',
+            padding: '0.625rem 0.75rem',
+            marginBottom: '0.75rem',
+            backgroundColor: 'var(--error-subtle)',
+            borderRadius: 'var(--radius-md)',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.375rem',
+            fontSize: '0.8125rem',
+            color: 'var(--error-color)',
           }}
         >
-          <AlertCircle size={16} />
+          <AlertCircle size={14} />
           {error}
         </div>
       )}
 
-      <div style={{ marginBottom: '2rem' }}>
-        <button
-          onClick={() => setShowNewDictionaryModal(true)}
-          className="primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <PlusCircle size={16} />
-          Create New Dictionary
-        </button>
-      </div>
-
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-          gap: '0.75rem',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+          gap: '0.5rem',
         }}
       >
         {availableDictionaries.map((dictionaryId) => {
@@ -435,16 +537,16 @@ const ConfigurationManager: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                padding: '1rem',
-                backgroundColor: isChecked ? '#f0fdf4' : 'var(--background-color)',
-                border: `1px solid ${isChecked ? '#10b981' : 'var(--border-color)'}`,
-                borderRadius: '6px',
-                transition: 'all 0.2s ease',
+                padding: '0.75rem 1rem',
+                backgroundColor: isChecked ? 'var(--success-subtle)' : 'var(--surface-color)',
+                border: `1px solid ${isChecked ? 'var(--success-color)' : 'var(--border-color)'}`,
+                borderRadius: 'var(--radius-md)',
+                transition: 'all 0.15s ease',
               }}
             >
               {isRenaming ? (
                 // Rename mode
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                   <input
                     type="text"
                     value={renameValue}
@@ -456,19 +558,21 @@ const ConfigurationManager: React.FC = () => {
                     autoFocus
                     style={{
                       flex: 1,
-                      padding: '0.5rem',
+                      padding: '0.375rem 0.5rem',
                       border: '1px solid var(--border-color)',
-                      borderRadius: '4px',
-                      fontSize: '0.875rem',
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '0.8125rem',
+                      background: 'var(--background-color)',
+                      color: 'var(--text-color)',
                     }}
                   />
                   <button
                     onClick={handleConfirmRename}
                     style={{
-                      padding: '0.5rem',
-                      background: '#10b981',
+                      padding: '0.375rem',
+                      background: 'var(--success-color)',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: 'var(--radius-sm)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -476,15 +580,15 @@ const ConfigurationManager: React.FC = () => {
                     }}
                     title="Confirm rename"
                   >
-                    <Check size={16} />
+                    <Check size={14} />
                   </button>
                   <button
                     onClick={handleCancelRename}
                     style={{
-                      padding: '0.5rem',
-                      background: '#ef4444',
+                      padding: '0.375rem',
+                      background: 'var(--error-color)',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: 'var(--radius-sm)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -492,7 +596,7 @@ const ConfigurationManager: React.FC = () => {
                     }}
                     title="Cancel rename"
                   >
-                    <X size={16} />
+                    <X size={14} />
                   </button>
                 </div>
               ) : (
@@ -503,17 +607,18 @@ const ConfigurationManager: React.FC = () => {
                       flex: 1,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '1rem',
+                      gap: '0.5rem',
                       cursor: 'pointer',
-                      color: isChecked ? '#065f46' : 'inherit',
+                      color: isChecked ? 'var(--success-color)' : 'var(--text-color)',
                       fontWeight: isChecked ? 500 : 'normal',
+                      fontSize: '0.8125rem',
                     }}
                   >
                     <input
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => handleToggleDictionary(dictionaryId)}
-                      style={{ accentColor: '#10b981' }}
+                      style={{ accentColor: 'var(--success-color)' }}
                     />
                     {dictionaryId === 'properNouns'
                       ? 'General Purpose Dictionary'
@@ -524,20 +629,14 @@ const ConfigurationManager: React.FC = () => {
                     <button
                       onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
                       style={{
-                        padding: '0.5rem',
+                        padding: '0.375rem',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        color: isDefaultQuickAdd ? '#ef4444' : '#d1d5db',
-                        transition: 'color 0.2s',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isDefaultQuickAdd) e.currentTarget.style.color = '#f87171';
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isDefaultQuickAdd) e.currentTarget.style.color = '#d1d5db';
+                        color: isDefaultQuickAdd ? 'var(--error-color)' : 'var(--text-muted)',
+                        transition: 'color 0.15s ease',
                       }}
                       title={
                         isDefaultQuickAdd
@@ -545,27 +644,28 @@ const ConfigurationManager: React.FC = () => {
                           : 'Set as default Cmd-5 dictionary'
                       }
                     >
-                      <Bookmark size={16} fill={isDefaultQuickAdd ? '#ef4444' : 'none'} />
+                      <Bookmark
+                        size={15}
+                        fill={isDefaultQuickAdd ? 'var(--error-color)' : 'none'}
+                      />
                     </button>
                   )}
                   {canRename && (
                     <button
                       onClick={() => handleStartRename(dictionaryId)}
                       style={{
-                        padding: '0.5rem',
+                        padding: '0.375rem',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        color: '#6b7280',
-                        transition: 'color 0.2s',
+                        color: 'var(--text-muted)',
+                        transition: 'color 0.15s ease',
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = '#10b981')}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = '#6b7280')}
                       title="Rename dictionary"
                     >
-                      <Pencil size={16} />
+                      <Pencil size={15} />
                     </button>
                   )}
                 </>
@@ -583,7 +683,7 @@ const ConfigurationManager: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -593,23 +693,53 @@ const ConfigurationManager: React.FC = () => {
         >
           <div
             style={{
-              backgroundColor: 'var(--background-color)',
-              padding: '2rem',
-              borderRadius: '8px',
+              backgroundColor: 'var(--surface-color)',
+              padding: '1.5rem',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--border-color)',
               width: '100%',
-              maxWidth: '480px',
+              maxWidth: '400px',
+              boxShadow: 'var(--shadow-lg)',
             }}
           >
-            <h3 style={{ marginBottom: '1.5rem' }}>Create New Dictionary</h3>
+            <h3
+              style={{
+                marginBottom: '1rem',
+                fontSize: '0.9375rem',
+                fontWeight: 600,
+                color: 'var(--text-color)',
+              }}
+            >
+              Create New Dictionary
+            </h3>
             <form onSubmit={handleCreateDictionary}>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem' }}>Dictionary Name:</label>
+              <div style={{ marginBottom: '1rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    marginBottom: '0.375rem',
+                    fontSize: '0.8125rem',
+                    fontWeight: 500,
+                    color: 'var(--text-color)',
+                  }}
+                >
+                  Dictionary Name
+                </label>
                 <input
                   type="text"
                   value={newDictionaryName}
                   onChange={(e) => setNewDictionaryName(e.target.value)}
                   placeholder="e.g., HarryPotter, JourneyToTheWest"
-                  style={{ width: '100%' }}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.8125rem',
+                    background: 'var(--background-color)',
+                    color: 'var(--text-color)',
+                    boxSizing: 'border-box',
+                  }}
                 />
               </div>
               <div
@@ -619,10 +749,42 @@ const ConfigurationManager: React.FC = () => {
                   gap: '0.5rem',
                 }}
               >
-                <button type="button" onClick={() => setShowNewDictionaryModal(false)}>
+                <button
+                  type="button"
+                  onClick={() => setShowNewDictionaryModal(false)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '0.5rem 0.875rem',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.8125rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--surface-color)',
+                    color: 'var(--text-color)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
                   Cancel
                 </button>
-                <button type="submit" className="primary" disabled={!newDictionaryName.trim()}>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={!newDictionaryName.trim()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '0.5rem 0.875rem',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.8125rem',
+                    fontWeight: 500,
+                    cursor: newDictionaryName.trim() ? 'pointer' : 'not-allowed',
+                    border: 'none',
+                    opacity: newDictionaryName.trim() ? 1 : 0.6,
+                    transition: 'all 0.15s ease',
+                  }}
+                >
                   Create
                 </button>
               </div>
