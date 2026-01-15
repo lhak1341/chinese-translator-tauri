@@ -160,14 +160,12 @@ export class TranslationEngine {
 
     // MEMORY MANAGEMENT: Bounded collection limits for stats
     this.MAX_TOKEN_STATS = 500; // Most frequently used token types
-    this.MAX_PATTERN_STATS = 200; // Pattern statistics
     this.MAX_PROPER_NOUN_TRANSLATIONS = 10000; // Maximum proper noun cache size (prevents unbounded growth)
 
     this.stats = {
       totalTranslations: 0,
       totalTime: 0,
       tokenStats: new Map(),
-      patternStats: new Map(),
     };
 
     // Initialize parallel processing configuration (will be set during first use)
@@ -3937,7 +3935,6 @@ export class TranslationEngine {
       totalTranslations: 0,
       totalTime: 0,
       tokenStats: new Map(),
-      patternStats: new Map(),
     };
   }
 
