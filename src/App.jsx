@@ -51,6 +51,95 @@ function App() {
           getTrends: () => systemPerformanceMonitor.baselineTracker.trends,
           exportData: () => systemPerformanceMonitor.baselineTracker.exportData(),
           resetData: () => systemPerformanceMonitor.baselineTracker.reset(),
+          getWasmSyncMetrics: () => {
+            // ARCHITECTURAL FIX: Expose WASM sync failure tracking
+            try {
+              if (!window.translationEngine?.dictionaryManager?.wasmManager) {
+                console.log('⚠️ WASM Dictionary Manager not available');
+                return null;
+              }
+
+              const metrics =
+                window.translationEngine.dictionaryManager.wasmManager.getSyncMetrics();
+
+              console.log('🦀 WASM Dictionary Sync Metrics:');
+              console.log(`   Status: ${metrics.currentStatus}`);
+              console.log(
+                `   Overall Success Rate: ${metrics.successRate}% (${metrics.successfulSyncs}/${metrics.totalAttempts} operations)`
+              );
+              console.log(`   Failed Syncs: ${metrics.failedSyncs}`);
+              console.log(`   Consecutive Failures: ${metrics.consecutiveFailures}`);
+
+              // Show batch vs sequential breakdown
+              console.log('\n   📦 Batch Loading:');
+              console.log(`      Attempts: ${metrics.batch.attempts}`);
+              console.log(`      Successes: ${metrics.batch.successes}`);
+              console.log(
+                `      Success Rate: ${metrics.batch.successRate}${metrics.batch.successRate !== 'N/A' ? '%' : ''}`
+              );
+
+              console.log('\n   📝 Sequential Loading:');
+              console.log(`      Attempts: ${metrics.sequential.attempts}`);
+              console.log(`      Successes: ${metrics.sequential.successes}`);
+              console.log(
+                `      Success Rate: ${metrics.sequential.successRate}${metrics.sequential.successRate !== 'N/A' ? '%' : ''}`
+              );
+
+              if (metrics.lastSyncAttempt) {
+                console.log(
+                  `\n   Last Sync Attempt: ${new Date(metrics.lastSyncAttempt).toLocaleString()}`
+                );
+              }
+
+              if (metrics.lastSyncSuccess) {
+                console.log(
+                  `   Last Success: ${new Date(metrics.lastSyncSuccess).toLocaleString()}`
+                );
+              }
+
+              if (metrics.lastSyncFailure) {
+                console.log(
+                  `   Last Failure: ${new Date(metrics.lastSyncFailure).toLocaleString()}`
+                );
+              }
+
+              if (metrics.recentFailures && metrics.recentFailures.length > 0) {
+                console.log('\n   Recent Failures:');
+                metrics.recentFailures.forEach((failure, index) => {
+                  const methodLabel =
+                    failure.method === 'batch'
+                      ? '📦'
+                      : failure.method === 'sequential'
+                        ? '📝'
+                        : '❓';
+                  console.log(
+                    `   ${index + 1}. ${methodLabel} ${new Date(failure.timestamp).toLocaleTimeString()} - ${failure.reason}`
+                  );
+                });
+              }
+
+              if (metrics.currentStatus === 'FALLBACK_MODE') {
+                console.log(
+                  '\n⚠️ WARNING: WASM in fallback mode. Dictionary operations using slower JavaScript implementation.'
+                );
+              }
+
+              // Provide helpful context
+              if (
+                metrics.batch.successRate === '0.0' &&
+                metrics.sequential.successRate === '100.0'
+              ) {
+                console.log(
+                  '\n💡 INFO: Batch loading failed but sequential fallback succeeded. All dictionaries loaded successfully.'
+                );
+              }
+
+              return metrics;
+            } catch (error) {
+              console.error('Error getting WASM sync metrics:', error);
+              return null;
+            }
+          },
           investigateMemoryAlerts: () => {
             const alerts = systemPerformanceMonitor.baselineTracker.alerts;
             const memoryAlerts = alerts.filter(
@@ -203,6 +292,7 @@ function App() {
 - performanceDashboard.getAlerts() - Recent performance alerts
 - performanceDashboard.investigateMemoryAlerts() - Show memory investigation suggestions
 - performanceDashboard.checkCachePerformance() - Analyze position cache performance
+- performanceDashboard.getWasmSyncMetrics() - WASM dictionary sync status and failure tracking
 - performanceDashboard.getTrends() - Performance trend analysis
 - performanceDashboard.exportData() - Export all monitoring data
 - performanceDashboard.resetData() - Reset all monitoring data

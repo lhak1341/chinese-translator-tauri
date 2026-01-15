@@ -45,6 +45,23 @@ export class WasmDictionaryManager {
     // HIGH-4 FIX: Track if fallback warning shown
     this.notifiedFallbackMode = false;
 
+    // ARCHITECTURAL FIX: Track sync failures for performance dashboard
+    this.syncFailureTracking = {
+      totalSyncAttempts: 0,
+      successfulSyncs: 0,
+      failedSyncs: 0,
+      lastSyncAttempt: null,
+      lastSyncSuccess: null,
+      lastSyncFailure: null,
+      failureReasons: [], // Last 10 failure reasons
+      syncHistory: [], // Last 20 sync attempts with timestamps
+      // Track batch vs sequential loading separately
+      batchAttempts: 0,
+      batchSuccesses: 0,
+      sequentialAttempts: 0,
+      sequentialSuccesses: 0,
+    };
+
     // Memory pool integration
     this.memoryPool = wasmMemoryPoolManager;
     this.operationHelper = null; // Initialize after WASM engine is ready
@@ -92,12 +109,23 @@ export class WasmDictionaryManager {
    * Reduces boundary crossings from N calls to 1 call
    */
   async loadDictionariesBatch(dictionaries) {
+    // ARCHITECTURAL FIX: Track sync attempt
+    this.syncFailureTracking.totalSyncAttempts++;
+    this.syncFailureTracking.batchAttempts++;
+    this.syncFailureTracking.lastSyncAttempt = Date.now();
+
     if (!this.initialized || this.fallbackMode) {
       console.log('🔄 Using fallback for batch loading (WASM not available)');
-      // Fall back to sequential loading
+      this._recordSyncFailure('WASM not initialized or in fallback mode', 'batch');
+      // Fall back to sequential loading (tracked separately)
+      let successCount = 0;
       for (const { name, entries } of dictionaries) {
-        await this.loadDictionary(name, entries);
+        const success = await this.loadDictionary(name, entries);
+        if (success) successCount++;
       }
+      console.log(
+        `✅ Sequential fallback loaded ${successCount}/${dictionaries.length} dictionaries`
+      );
       return true;
     }
 
@@ -135,9 +163,14 @@ export class WasmDictionaryManager {
             `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
           );
           this.consecutiveFailures = 0;
+
+          // ARCHITECTURAL FIX: Record successful sync
+          this._recordSyncSuccess('batch');
+
           return true;
         } else {
           console.log('⚠️ Memory pool batch loading returned false, using sequential fallback');
+          this._recordSyncFailure('Batch loading returned false', 'batch');
           return false; // Trigger fallback to sequential loading
         }
       } finally {
@@ -147,6 +180,9 @@ export class WasmDictionaryManager {
     } catch (error) {
       console.error('❌ Batch dictionary loading failed:', error);
       this.consecutiveFailures++;
+
+      // ARCHITECTURAL FIX: Record sync failure with reason
+      this._recordSyncFailure(error.message || 'Unknown error', 'batch');
 
       if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
         console.log('🔄 Too many failures, switching to fallback mode');
@@ -158,8 +194,12 @@ export class WasmDictionaryManager {
   }
 
   async loadDictionary(name, entries) {
+    // ARCHITECTURAL FIX: Track sequential loading attempts
+    this.syncFailureTracking.sequentialAttempts++;
+
     if (!this.initialized || this.fallbackMode) {
       console.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
+      this._recordSyncFailure(`Sequential: WASM not available for ${name}`, 'sequential');
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
     }
 
@@ -177,11 +217,20 @@ export class WasmDictionaryManager {
         console.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
         this.consecutiveFailures = 0; // Reset failure counter
         this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
+
+        // ARCHITECTURAL FIX: Record sequential success
+        this._recordSyncSuccess('sequential');
+      } else {
+        this._recordSyncFailure(
+          `Sequential: load_dictionary returned false for ${name}`,
+          'sequential'
+        );
       }
 
       return success;
     } catch (error) {
       console.error(`❌ WASM dictionary loading failed for ${name}:`, error);
+      this._recordSyncFailure(`Sequential: ${error.message} for ${name}`, 'sequential');
       this.handleFailure();
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
     }
@@ -340,6 +389,138 @@ export class WasmDictionaryManager {
       ...baseReport,
       memoryPool: this.memoryPool.getStats(),
       operationHelper: this.operationHelper?.getStats?.() || null,
+    };
+  }
+
+  /**
+   * ARCHITECTURAL FIX: Record successful sync for performance dashboard
+   * @private
+   * @param {string} method - 'batch' or 'sequential'
+   */
+  _recordSyncSuccess(method = 'unknown') {
+    this.syncFailureTracking.successfulSyncs++;
+    this.syncFailureTracking.lastSyncSuccess = Date.now();
+
+    // Track method-specific successes
+    if (method === 'batch') {
+      this.syncFailureTracking.batchSuccesses++;
+    } else if (method === 'sequential') {
+      this.syncFailureTracking.sequentialSuccesses++;
+    }
+
+    // Add to history (keep last 20)
+    this.syncFailureTracking.syncHistory.push({
+      timestamp: Date.now(),
+      success: true,
+      method: method,
+      reason: null,
+    });
+
+    if (this.syncFailureTracking.syncHistory.length > 20) {
+      this.syncFailureTracking.syncHistory.shift();
+    }
+  }
+
+  /**
+   * ARCHITECTURAL FIX: Record sync failure with reason for performance dashboard
+   * @private
+   * @param {string} reason - Failure reason
+   * @param {string} method - 'batch' or 'sequential'
+   */
+  _recordSyncFailure(reason, method = 'unknown') {
+    this.syncFailureTracking.failedSyncs++;
+    this.syncFailureTracking.lastSyncFailure = Date.now();
+
+    // Add to failure reasons (keep last 10)
+    this.syncFailureTracking.failureReasons.push({
+      timestamp: Date.now(),
+      method: method,
+      reason: reason,
+    });
+
+    if (this.syncFailureTracking.failureReasons.length > 10) {
+      this.syncFailureTracking.failureReasons.shift();
+    }
+
+    // Add to history (keep last 20)
+    this.syncFailureTracking.syncHistory.push({
+      timestamp: Date.now(),
+      success: false,
+      method: method,
+      reason: reason,
+    });
+
+    if (this.syncFailureTracking.syncHistory.length > 20) {
+      this.syncFailureTracking.syncHistory.shift();
+    }
+  }
+
+  /**
+   * ARCHITECTURAL FIX: Get sync metrics for performance dashboard
+   * @returns {Object} Sync metrics including success rate and recent failures
+   */
+  getSyncMetrics() {
+    const {
+      totalSyncAttempts,
+      successfulSyncs,
+      failedSyncs,
+      batchAttempts,
+      batchSuccesses,
+      sequentialAttempts,
+      sequentialSuccesses,
+    } = this.syncFailureTracking;
+
+    // Calculate overall success rate
+    const overallSuccessRate =
+      totalSyncAttempts > 0 ? ((successfulSyncs / totalSyncAttempts) * 100).toFixed(1) : '0.0';
+
+    // Calculate batch success rate
+    const batchSuccessRate =
+      batchAttempts > 0 ? ((batchSuccesses / batchAttempts) * 100).toFixed(1) : 'N/A';
+
+    // Calculate sequential success rate
+    const sequentialSuccessRate =
+      sequentialAttempts > 0
+        ? ((sequentialSuccesses / sequentialAttempts) * 100).toFixed(1)
+        : 'N/A';
+
+    return {
+      // Overall metrics
+      totalAttempts: totalSyncAttempts,
+      successfulSyncs: successfulSyncs,
+      failedSyncs: failedSyncs,
+      successRate: overallSuccessRate,
+
+      // Batch loading metrics
+      batch: {
+        attempts: batchAttempts,
+        successes: batchSuccesses,
+        successRate: batchSuccessRate,
+      },
+
+      // Sequential loading metrics
+      sequential: {
+        attempts: sequentialAttempts,
+        successes: sequentialSuccesses,
+        successRate: sequentialSuccessRate,
+      },
+
+      // Timestamps
+      lastSyncAttempt: this.syncFailureTracking.lastSyncAttempt,
+      lastSyncSuccess: this.syncFailureTracking.lastSyncSuccess,
+      lastSyncFailure: this.syncFailureTracking.lastSyncFailure,
+
+      // Failure tracking
+      recentFailures: this.syncFailureTracking.failureReasons.slice(-5), // Last 5 failures
+      syncHistory: this.syncFailureTracking.syncHistory,
+
+      // Status
+      currentStatus: this.fallbackMode
+        ? 'FALLBACK_MODE'
+        : this.initialized
+          ? 'ACTIVE'
+          : 'NOT_INITIALIZED',
+      consecutiveFailures: this.consecutiveFailures,
     };
   }
 

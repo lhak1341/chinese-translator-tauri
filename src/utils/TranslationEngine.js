@@ -6828,10 +6828,83 @@ export class TranslationEngine {
   }
 
   /**
-   * Clear all translation caches
+   * Clear all translation caches (legacy method - use invalidateAllCaches instead)
+   * @deprecated Use invalidateAllCaches() for comprehensive cache clearing
    */
   clearCache() {
     this.dictionaryManager.clearCache();
+  }
+
+  /**
+   * Invalidate all caches across the translation system
+   * This is the unified API for clearing all caches when dictionaries change
+   *
+   * Called automatically when:
+   * - Dictionary entries are added/updated/deleted
+   * - Dictionaries are reloaded (Cmd/Ctrl-R)
+   * - Dictionary configuration changes
+   *
+   * @param {string} [dictionaryName] - Optional: invalidate specific dictionary only
+   */
+  async invalidateAllCaches(dictionaryName = null) {
+    const startTime = performance.now();
+    this.log(DEBUG_LEVELS.INFO, '🧹 Invalidating all translation caches...', { dictionaryName });
+
+    try {
+      // 1. Dictionary Manager Caches (character, phrase, pattern, lookup)
+      if (this.dictionaryManager) {
+        if (dictionaryName && typeof this.dictionaryManager.invalidateCache === 'function') {
+          this.dictionaryManager.invalidateCache(dictionaryName);
+        } else if (typeof this.dictionaryManager.clearCaches === 'function') {
+          this.dictionaryManager.clearCaches();
+        } else {
+          this.dictionaryManager.clearCache();
+        }
+      }
+
+      // 2. Semantic Array Builder Cache
+      if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
+        this.semanticArrayBuilder.clearCache();
+      }
+
+      // 3. Pattern Processor Variable Cache
+      if (this.semanticPatternProcessor && this.semanticPatternProcessor.variableCache) {
+        this.semanticPatternProcessor.variableCache.clear();
+      }
+
+      // 4. Rust Lookup Index Manager (dynamically loaded)
+      try {
+        const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
+        if (
+          rustLookupIndexManager &&
+          typeof rustLookupIndexManager.invalidateCache === 'function'
+        ) {
+          rustLookupIndexManager.invalidateCache();
+        }
+      } catch (error) {
+        // Rust lookup index manager not available - safe to ignore
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          '⚠️ Rust lookup index manager not available for cache invalidation'
+        );
+      }
+
+      // 5. Translation Segments (for highlighting)
+      if (this.translationSegments) {
+        this.translationSegments = [];
+      }
+
+      // 6. Proper Noun Translation Cache (bounded collection)
+      if (this.properNounTranslations) {
+        this.properNounTranslations.clear();
+      }
+
+      const duration = performance.now() - startTime;
+      this.log(DEBUG_LEVELS.INFO, `✅ All caches invalidated in ${duration.toFixed(2)}ms`);
+    } catch (error) {
+      this.log(DEBUG_LEVELS.ERROR, '❌ Error invalidating caches:', error);
+      throw error;
+    }
   }
 
   /**

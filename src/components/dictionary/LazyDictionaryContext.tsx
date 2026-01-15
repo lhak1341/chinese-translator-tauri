@@ -377,6 +377,15 @@ export function LazyDictionaryProvider({
         if (result.success && result.data) {
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry added successfully');
+
+          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
+          // Prevents stale translations from being served after dictionary updates
+          if (
+            window.translationEngine &&
+            typeof window.translationEngine.invalidateAllCaches === 'function'
+          ) {
+            await window.translationEngine.invalidateAllCaches(dictionaryId);
+          }
         } else {
           // Rollback optimistic update
           setDictionaries((prev) => ({
@@ -454,6 +463,15 @@ export function LazyDictionaryProvider({
         if (result.success && result.data) {
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry updated successfully');
+
+          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
+          // Prevents stale translations from being served after dictionary updates
+          if (
+            window.translationEngine &&
+            typeof window.translationEngine.invalidateAllCaches === 'function'
+          ) {
+            await window.translationEngine.invalidateAllCaches(dictionaryId);
+          }
         } else {
           // Rollback optimistic update
           setDictionaries((prev) => ({
@@ -496,6 +514,15 @@ export function LazyDictionaryProvider({
         if (result.success && result.data) {
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry deleted successfully');
+
+          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
+          // Prevents stale translations from being served after dictionary updates
+          if (
+            window.translationEngine &&
+            typeof window.translationEngine.invalidateAllCaches === 'function'
+          ) {
+            await window.translationEngine.invalidateAllCaches(dictionaryId);
+          }
         } else {
           // Rollback optimistic update
           setDictionaries((prev) => ({
@@ -534,6 +561,16 @@ export function LazyDictionaryProvider({
           }));
           setCurrentHistoryIndex((prev) => prev - 1);
           toast.success('Change undone');
+
+          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
+          // Prevents stale translations from being served after undo
+          if (
+            window.translationEngine &&
+            typeof window.translationEngine.invalidateAllCaches === 'function'
+          ) {
+            await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+          }
+
           return true;
         } else {
           toast.error(`Could not undo: ${result.error || 'Unknown error'}`);
@@ -564,6 +601,16 @@ export function LazyDictionaryProvider({
           }));
           setCurrentHistoryIndex((prev) => prev + 1);
           toast.success('Change redone');
+
+          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
+          // Prevents stale translations from being served after redo
+          if (
+            window.translationEngine &&
+            typeof window.translationEngine.invalidateAllCaches === 'function'
+          ) {
+            await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+          }
+
           return true;
         } else {
           toast.error(`Could not redo: ${result.error || 'Unknown error'}`);

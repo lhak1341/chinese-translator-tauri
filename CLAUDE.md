@@ -67,6 +67,32 @@ npm run tauri:dev  # WASM build (2-3s) → Vite (100-200ms) → Tauri window
 
 **Archive**: See `docs/archive/pattern-optimization/` for WASM optimization history (hash map cloning elimination, string allocation reduction, early pattern rejection).
 
+### WASM Dictionary Sync Validation (Automatic)
+
+**4-layer state synchronization** (React → JS → WASM → Rust) can diverge if WASM sync fails silently.
+
+**Automatic validation** (January 2025): Every dictionary reload validates WASM sync integrity:
+
+- **Location**: `Translator.jsx:2150-2178` (handleForceReload)
+- **What it checks**: Compares WASM vs JavaScript translation results for test words
+- **When it runs**: After every Cmd/Ctrl-R reload
+- **User notification**: Toast error if sync fails, falls back to JavaScript
+- **Validation method**: `EnhancedDictionaryManager.validateWasmFallback()`
+
+**Sync metrics tracking** (January 2025):
+
+- Tracks batch vs sequential loading separately
+- Records sync attempts, successes, failures with timestamps
+- Maintains last 20 sync attempts in history
+- Calculates success rates for overall, batch, and sequential loading
+- Debug: `window.performanceDashboard.getWasmSyncMetrics()`
+
+**Why this matters**:
+
+- Batch loading may fail but sequential fallback succeeds (typical: 0% batch, 100% sequential)
+- All 12 dictionaries can load successfully via sequential method
+- Metrics show true system health, not just batch operation status
+
 ### Semantic Arrays (Clickable Highlighting)
 
 **Direct position tracking** (January 2025): Positions stored during `postProcess()` text assembly instead of searching.
@@ -313,6 +339,43 @@ if (cacheResult && cacheResult.metadata.phasePriority <= currentPhasePriority) {
 **Implementation**: `TranslationEngine.js:567-636` validates phase priority before serving cached results.
 
 **Resolution**: Click "Reload Dictionary" button - clears all caches including semantic cache.
+
+### Cache Invalidation (Unified API)
+
+**Problem**: Dictionary edits don't clear caches → stale translations served after add/update/delete operations.
+
+**Solution** (January 2025): Unified `invalidateAllCaches()` API clears all 6 cache systems:
+
+1. **Dictionary Manager Caches** - Character, phrase, pattern, lookup caches (LRU-based)
+2. **Semantic Array Builder Cache** - Capitalization update optimization cache
+3. **Pattern Processor Variable Cache** - Pattern variable resolution cache
+4. **Rust Lookup Index Cache** - Backend trie indexing cache (dynamically loaded)
+5. **Translation Segments** - Interactive highlighting segments
+6. **Proper Noun Translation Cache** - Bounded collection (max 10,000 entries)
+
+**Usage**:
+
+```javascript
+// Clear all caches (comprehensive)
+await window.translationEngine.invalidateAllCaches();
+
+// Clear specific dictionary only
+await window.translationEngine.invalidateAllCaches('properNouns');
+```
+
+**Automatic invalidation** (January 2025): Dictionary operations automatically invalidate caches:
+
+- `addEntry()` - Clears caches after successful add
+- `updateEntry()` - Clears caches after successful update
+- `deleteEntry()` - Clears caches after successful delete
+- `undo()` / `redo()` - Clears caches after history operations
+
+**Implementation**:
+
+- Unified API: `TranslationEngine.js:6849-6902`
+- Dictionary operations: `LazyDictionaryContext.tsx` (lines 383-385, 466-468, 514-516, 558-560, 595-597)
+
+**Why this matters**: Prevents stale translations from being served after dictionary changes. Each cache invalidation is logged with timing for debugging.
 
 ### When to Profile Performance
 
@@ -1190,6 +1253,13 @@ window.translationEngine.dictionaryManager.getWasmStatus(); // WASM diagnostics
 window.checkRealMemory(); // Real heap usage % (10-20% healthy)
 window.performanceDashboard.getHealthReport(); // Status, baselines, alerts
 window.performanceDashboard.checkCachePerformance(); // Hit rate, suggestions
+
+// WASM sync diagnostics (January 2025)
+window.performanceDashboard.getWasmSyncMetrics(); // Batch vs sequential loading metrics
+
+// Cache invalidation (January 2025)
+window.translationEngine.invalidateAllCaches(); // Clear all 6 cache systems
+window.translationEngine.invalidateAllCaches('properNouns'); // Clear specific dictionary
 ```
 
 ### Key Files

@@ -234,6 +234,14 @@ declare global {
   interface Window {
     /** Electron API bridge for IPC communication */
     electronAPI: ElectronAPI;
+    /** Translation engine instance (development mode only) */
+    translationEngine?: any;
+    /** Performance dashboard (development mode only) */
+    performanceDashboard?: any;
+    /** System performance monitor (development mode only) */
+    systemPerformanceMonitor?: any;
+    /** Check real memory usage (development mode only) */
+    checkRealMemory?: () => void;
   }
 }
 

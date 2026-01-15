@@ -2093,6 +2093,26 @@ const Translator = ({ isActive = true }) => {
       setEngineInitialized(false); // Reset initialization flag for reload
 
       // Step 6: Load fresh configuration to get updated activeProperNouns
+      // CRITICAL ARCHITECTURAL PATTERN: Load config at operation time, NOT from React state
+      // Why this pattern is necessary:
+      // 1. React state updates are asynchronous - setState doesn't guarantee immediate value
+      // 2. Configuration can change externally (manual JSON editing)
+      // 3. File I/O is the authoritative source of truth, not in-memory state
+      // 4. Dictionary reload MUST use latest saved config, not stale captured values
+      //
+      // ANTI-PATTERN (DO NOT USE):
+      // const [config, setConfig] = useState(defaultConfig);
+      // const reload = useCallback(() => {
+      //   processWithConfig(data, config); // Stale! Captured at callback creation time
+      // }, [config]);
+      //
+      // CORRECT PATTERN (USED HERE):
+      // const reload = useCallback(async () => {
+      //   const freshConfig = await loadConfiguration(); // Fresh from disk
+      //   processWithConfig(data, freshConfig); // Always current
+      // }, []); // No config in dependencies
+      //
+      // See CLAUDE.md "Configuration Loading" section for detailed rationale
       console.log('Step 6: Loading fresh configuration...');
       let freshActiveProperNouns = activeProperNouns; // fallback to current value
       try {
@@ -2146,6 +2166,36 @@ const Translator = ({ isActive = true }) => {
 
           setEngineStats(engineRef.current.getEngineStats());
           console.log('✅ Engine reinitialized successfully');
+
+          // ARCHITECTURAL FIX: Validate WASM sync after reload to detect silent failures
+          // 4-layer state sync (React → JS → WASM → Rust) can diverge if WASM sync fails
+          if (
+            engineRef.current?.dictionaryManager?.wasmInitialized &&
+            typeof engineRef.current.dictionaryManager.validateWasmFallback === 'function'
+          ) {
+            try {
+              const syncStatus = engineRef.current.dictionaryManager.validateWasmFallback();
+              if (syncStatus.status === 'PASS') {
+                console.log('✅ WASM dictionary sync validated successfully');
+              } else if (syncStatus.status === 'SKIPPED') {
+                console.log('⚠️ WASM validation skipped:', syncStatus.reason);
+              } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
+                console.error('❌ WASM sync validation failed - differences detected:', syncStatus);
+                toast.error(
+                  `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
+                  { duration: 8000 }
+                );
+              } else if (syncStatus.status === 'FAIL_ERRORS') {
+                console.error('❌ WASM sync validation failed - errors:', syncStatus);
+                toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
+                  duration: 8000,
+                });
+              }
+            } catch (validationError) {
+              console.error('❌ WASM validation error:', validationError);
+              // Don't block reload on validation errors
+            }
+          }
 
           // Step 8: Restore translation if there's input text
           if (inputText.trim()) {
