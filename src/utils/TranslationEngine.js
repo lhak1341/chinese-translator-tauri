@@ -157,6 +157,12 @@ export class TranslationEngine {
     this.debugLevel =
       process.env.NODE_ENV === 'production' ? DEBUG_LEVELS.ERROR : DEBUG_LEVELS.DEBUG; // Production: errors only, Development: debug messages
     this.punctuationDict = {}; // Store punctuation translation dictionary
+
+    // MEMORY MANAGEMENT: Bounded collection limits for stats
+    this.MAX_TOKEN_STATS = 500; // Most frequently used token types
+    this.MAX_PATTERN_STATS = 200; // Pattern statistics
+    this.MAX_PROPER_NOUN_TRANSLATIONS = 10000; // Maximum proper noun cache size (prevents unbounded growth)
+
     this.stats = {
       totalTranslations: 0,
       totalTime: 0,
@@ -748,6 +754,7 @@ export class TranslationEngine {
 
       // Cache proper noun translations for capitalization preservation
       this.properNounTranslations = new Map(); // Maps lowercase translation -> original capitalization
+      let properNounCount = 0;
       this.activeProperNouns.forEach((dictionaryName) => {
         const dictionary = dictionaries[dictionaryName];
         if (dictionary) {
@@ -757,7 +764,21 @@ export class TranslationEngine {
           );
           Object.entries(dictionary).forEach(([chinese, vietnamese]) => {
             if (typeof vietnamese === 'string') {
+              // MEMORY MANAGEMENT: Enforce size limit to prevent unbounded growth
+              if (this.properNounTranslations.size >= this.MAX_PROPER_NOUN_TRANSLATIONS) {
+                if (properNounCount === this.MAX_PROPER_NOUN_TRANSLATIONS) {
+                  // Only log once when limit is reached
+                  this.log(
+                    DEBUG_LEVELS.WARN,
+                    `⚠️ Proper noun translation cache limit reached (${this.MAX_PROPER_NOUN_TRANSLATIONS}). Additional entries will be ignored.`
+                  );
+                }
+                properNounCount++;
+                return; // Skip this entry
+              }
+
               this.properNounTranslations.set(vietnamese.toLowerCase(), vietnamese);
+              properNounCount++;
               this.log(
                 DEBUG_LEVELS.VERBOSE,
                 `🏛️ Cached proper noun: "${chinese}" -> "${vietnamese}" (lowercase: "${vietnamese.toLowerCase()}")`
@@ -768,6 +789,12 @@ export class TranslationEngine {
           this.log(DEBUG_LEVELS.ERROR, `❌ Dictionary ${dictionaryName} is missing or empty!`);
         }
       });
+
+      // Log final count
+      this.log(
+        DEBUG_LEVELS.DEBUG,
+        `🏛️ Loaded ${this.properNounTranslations.size} proper noun translations into cache`
+      );
 
       // Initialize semantic pattern processor
       if (dictionaries.patterns) {
@@ -3676,12 +3703,23 @@ export class TranslationEngine {
   }
 
   /**
-   * Update token statistics
+   * Update token statistics with bounded collection (LRU eviction)
    * @param {Token[]} tokens - Array of tokens
    */
   updateTokenStats(tokens) {
     tokens.forEach((token) => {
       const count = this.stats.tokenStats.get(token.type) || 0;
+
+      // MEMORY MANAGEMENT: Enforce size limit with LRU eviction
+      if (
+        !this.stats.tokenStats.has(token.type) &&
+        this.stats.tokenStats.size >= this.MAX_TOKEN_STATS
+      ) {
+        // Remove oldest entry (first key in Map = oldest due to insertion order)
+        const firstKey = this.stats.tokenStats.keys().next().value;
+        this.stats.tokenStats.delete(firstKey);
+      }
+
       this.stats.tokenStats.set(token.type, count + 1);
     });
   }
@@ -4289,9 +4327,6 @@ export class TranslationEngine {
     // PHASE 4: Memory-efficient streaming for long texts
     this.processedBatchCache = new Map();
     this.maxCachedBatches = 3; // Keep only recent batches in memory
-
-    // Store final semantic array building until the end
-    this.deferredSemanticData = [];
 
     // Step 1: Split text into chunks by punctuation boundaries
     const chunks = this.textChunker.chunkText(text);

@@ -38,7 +38,9 @@ export async function initializeWasmNumberProcessor() {
     return initializationPromise;
   }
 
-  initializationPromise = (async () => {
+  // RACE CONDITION FIX: Assign promise synchronously before async work
+  // This prevents concurrent calls from creating multiple initialization attempts
+  return (initializationPromise = (async () => {
     try {
       console.log('🔢 Initializing WASM NumberProcessor...');
 
@@ -59,9 +61,7 @@ export async function initializeWasmNumberProcessor() {
       initializationFailed = true;
       return false;
     }
-  })();
-
-  return initializationPromise;
+  })());
 }
 
 /**

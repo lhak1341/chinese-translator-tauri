@@ -43,7 +43,9 @@ export async function initializeWasmPatternProcessor(patternsDict) {
     return initializationPromise;
   }
 
-  initializationPromise = (async () => {
+  // RACE CONDITION FIX: Assign promise synchronously before async work
+  // This prevents concurrent calls from creating multiple initialization attempts
+  return (initializationPromise = (async () => {
     try {
       // Dynamically import the WASM module
       wasmModule = await import('../wasm/translation_wasm_core.js');
@@ -73,9 +75,7 @@ export async function initializeWasmPatternProcessor(patternsDict) {
       initializationFailed = true;
       return false;
     }
-  })();
-
-  return initializationPromise;
+  })());
 }
 
 /**

@@ -71,6 +71,7 @@ export function validateWasmToken(token: unknown): WasmToken {
 /**
  * Safe copy of WASM tokens to JavaScript tokens
  * Handles Option::None → undefined → null conversion
+ * Uses two-phase validation to prevent partial failures
  */
 export function copyWasmTokens(source: WasmToken[], target: any[]): void {
   if (source.length !== target.length) {
@@ -79,8 +80,24 @@ export function copyWasmTokens(source: WasmToken[], target: any[]): void {
     );
   }
 
+  // PHASE 1: Validate all tokens before modifying target
+  // This prevents partial corruption if validation fails mid-array
+  const validatedTokens: WasmToken[] = [];
   for (let i = 0; i < source.length; i++) {
-    const processed = validateWasmToken(source[i]);
+    try {
+      const processed = validateWasmToken(source[i]);
+      validatedTokens.push(processed);
+    } catch (error) {
+      // If validation fails, throw with context but don't leave target partially modified
+      throw new Error(
+        `Token validation failed at index ${i}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  // PHASE 2: Copy validated tokens to target (safe since all are validated)
+  for (let i = 0; i < validatedTokens.length; i++) {
+    const processed = validatedTokens[i];
 
     // Only copy if WASM actually modified the token
     // Check for null (not undefined) since validateWasmToken converts undefined → null

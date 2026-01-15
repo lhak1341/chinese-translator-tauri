@@ -302,6 +302,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
       setDictionaries((prevDictionaries) => {
+        // Validate dictionary exists before operations
+        if (!prevDictionaries[dictionaryId]) {
+          throw new Error(`Dictionary '${dictionaryId}' does not exist`);
+        }
+
         oldData = { ...prevDictionaries[dictionaryId] };
 
         // Handle new format with metadata for phrases and patterns dictionaries
@@ -363,6 +368,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
       setDictionaries((prevDictionaries) => {
+        // Validate dictionary exists before operations
+        if (!prevDictionaries[dictionaryId]) {
+          throw new Error(`Dictionary '${dictionaryId}' does not exist`);
+        }
+
         oldData = { ...prevDictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
 
@@ -423,6 +433,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
       setDictionaries((prevDictionaries) => {
+        // Validate dictionary exists before operations
+        if (!prevDictionaries[dictionaryId]) {
+          throw new Error(`Dictionary '${dictionaryId}' does not exist`);
+        }
+
         oldData = { ...prevDictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
         delete updatedDictionary[source];
