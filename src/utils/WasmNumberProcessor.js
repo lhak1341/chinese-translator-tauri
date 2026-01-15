@@ -12,10 +12,13 @@
  * Fallback: If WASM fails to load, returns tokens unchanged (numbers translated character-by-character)
  */
 
+import toast from 'react-hot-toast';
+
 let wasmModule = null;
 let wasmNumberProcessor = null;
 let initializationPromise = null;
 let initializationFailed = false;
+let showedNumberWarning = false;
 
 /**
  * Initialize the WASM NumberProcessor
@@ -71,6 +74,15 @@ export async function processNumbersWasm(tokens) {
   if (!wasmNumberProcessor) {
     const success = await initializeWasmNumberProcessor();
     if (!success) {
+      // One-time notification for initialization failure
+      if (!showedNumberWarning) {
+        toast.warning(
+          'Number processing unavailable. Numbers will translate character-by-character.',
+          { duration: 5000 }
+        );
+        showedNumberWarning = true;
+      }
+
       // WASM failed - return tokens unchanged
       return tokens;
     }
@@ -82,6 +94,15 @@ export async function processNumbersWasm(tokens) {
     return processedTokens;
   } catch (error) {
     console.error('❌ Error in WASM number processing:', error);
+
+    // One-time notification for processing errors
+    if (!showedNumberWarning) {
+      toast.warning('Number processing error. Numbers will translate character-by-character.', {
+        duration: 5000,
+      });
+      showedNumberWarning = true;
+    }
+
     // Fallback: return tokens unchanged
     return tokens;
   }

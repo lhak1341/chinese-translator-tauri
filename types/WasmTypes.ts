@@ -44,23 +44,28 @@ export interface WasmNumberProcessorResult {
 /**
  * Runtime validation for WASM token responses
  *
- * Throws if WASM returned undefined instead of null,
+ * Returns a new token object with undefined converted to null,
  * preventing "undefined" from appearing as literal text in translations.
+ * Does NOT mutate the input token.
  */
 export function validateWasmToken(token: unknown): WasmToken {
   const t = token as WasmToken;
 
   // Critical: undefined MUST be converted to null
+  const translated = t.translated === undefined ? null : t.translated;
+  const translationSource = t.translationSource === undefined ? null : t.translationSource;
+
+  // Warn if conversion was needed
   if (t.translated === undefined) {
     console.warn('⚠️ WASM token has undefined translated value, converting to null');
-    t.translated = null;
   }
 
-  if (t.translationSource === undefined) {
-    t.translationSource = null;
-  }
-
-  return t;
+  // Return new object without mutating input
+  return {
+    ...t,
+    translated,
+    translationSource,
+  };
 }
 
 /**

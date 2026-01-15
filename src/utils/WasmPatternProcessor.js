@@ -16,10 +16,13 @@
  * Fallback: If WASM fails to load, uses JavaScript SemanticPatternProcessor
  */
 
+import toast from 'react-hot-toast';
+
 let wasmModule = null;
 let wasmPatternProcessor = null;
 let initializationPromise = null;
 let initializationFailed = false;
+let showedPatternWarning = false;
 
 /**
  * Initialize the WASM Pattern Processor
@@ -87,6 +90,15 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   if (!wasmPatternProcessor) {
     console.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
     console.warn('Translation will continue with lower quality (no pattern matching)');
+
+    // One-time notification to prevent console spam
+    if (!showedPatternWarning) {
+      toast.warning('Pattern matching unavailable. Translation quality may be reduced.', {
+        duration: 5000,
+      });
+      showedPatternWarning = true;
+    }
+
     // Return empty results to skip pattern phase gracefully
     return [];
   }
@@ -97,6 +109,15 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     return results;
   } catch (error) {
     console.error('❌ Error in WASM pattern processing, skipping patterns:', error);
+
+    // One-time notification to prevent console spam
+    if (!showedPatternWarning) {
+      toast.warning('Pattern matching error. Translation quality may be reduced.', {
+        duration: 5000,
+      });
+      showedPatternWarning = true;
+    }
+
     // Log error but don't block translation - patterns are quality enhancement
     // Translation can continue without patterns (proper nouns + phrases + characters still work)
     return [];
@@ -146,6 +167,7 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
   wasmPatternProcessor = null;
   initializationPromise = null;
   initializationFailed = false;
+  showedPatternWarning = false; // Reset warning flag to allow new notifications
 
   // Re-initialize
   return initializeWasmPatternProcessor(patternsDict);

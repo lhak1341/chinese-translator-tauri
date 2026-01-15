@@ -645,6 +645,56 @@ export class TranslationEngine {
     }
   }
 
+  /**
+   * Destroy the translation engine and cleanup all resources
+   * Call this when the engine is no longer needed to prevent memory leaks
+   */
+  destroy() {
+    // Shutdown smart memory management (intervals, profilers)
+    this.shutdownSmartMemoryManagement();
+
+    // Clear batch processing cache
+    if (this.processedBatchCache) {
+      this.processedBatchCache.clear();
+      this.processedBatchCache = null;
+    }
+
+    // Clear semantic array builder cache
+    if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
+      this.semanticArrayBuilder.clearCache();
+    }
+
+    // Clear pattern processor variable cache
+    if (this.semanticPatternProcessor && this.semanticPatternProcessor.variableCache) {
+      this.semanticPatternProcessor.variableCache.clear();
+    }
+
+    // Clear dictionary manager caches
+    if (this.dictionaryManager && typeof this.dictionaryManager.clearCaches === 'function') {
+      this.dictionaryManager.clearCaches();
+    }
+
+    // Clear translation segments
+    if (this.translationSegments) {
+      this.translationSegments = [];
+    }
+
+    // Clear cached semantic tokens
+    this.cachedSemanticTokens = null;
+
+    // Clear proper noun translations map
+    if (this.properNounTranslations) {
+      this.properNounTranslations.clear();
+      this.properNounTranslations = null;
+    }
+
+    // Reset initialization state
+    this.isInitialized = false;
+    this.initializationError = null;
+
+    console.log('🧹 Translation engine destroyed and all resources cleaned up');
+  }
+
   // ============================================================================
   // SECTION 5: ENGINE INITIALIZATION
   // ============================================================================
@@ -3432,9 +3482,6 @@ export class TranslationEngine {
     // At 35 segments: ~1-2ms overhead (negligible for real-time UI).
     // OPTIMIZATION: Defer cleanup to idle time to avoid blocking translation
     if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
-      const segmentsToKeep = MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP;
-      const removedCount = this.translationSegments.length - segmentsToKeep;
-
       // MEMORY PROFILING FIX: Log warning if segments exceed emergency threshold
       if (this.translationSegments.length > 100) {
         console.warn(
@@ -3447,13 +3494,16 @@ export class TranslationEngine {
         // Re-check threshold before cleanup to prevent race condition
         // (new segments may have been added while cleanup was queued)
         if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
-          const actualRemoved = this.translationSegments.length - segmentsToKeep;
+          const segmentsToKeep = MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP;
+          const segmentsBefore = this.translationSegments.length;
+          const actualRemoved = segmentsBefore - segmentsToKeep;
+
           this.translationSegments = this.translationSegments.slice(-segmentsToKeep);
 
           // MEMORY PROFILING FIX: Always log cleanup trigger for verification
           // This helps verify cleanup executes reliably in production
           console.log(
-            `🧹 Segment cleanup triggered: ${actualRemoved} segments removed (${this.translationSegments.length + actualRemoved} → ${this.translationSegments.length})`
+            `🧹 Segment cleanup triggered: ${actualRemoved} segments removed (${segmentsBefore} → ${this.translationSegments.length})`
           );
         }
       };

@@ -151,7 +151,7 @@ describe('validateWasmToken', () => {
       expect(validated.translationSource).toBeNull();
     });
 
-    test('should mutate original token (in-place modification)', () => {
+    test('should NOT mutate original token (returns new object)', () => {
       const token: any = {
         type: 'chinese_char',
         value: '在',
@@ -161,11 +161,14 @@ describe('validateWasmToken', () => {
 
       const validated = validateWasmToken(token);
 
-      // Should be same reference
-      expect(validated).toBe(token);
-      // Original should be mutated
-      expect(token.translated).toBeNull();
-      expect(token.translationSource).toBeNull();
+      // Should be a different reference (new object)
+      expect(validated).not.toBe(token);
+      // Original should NOT be mutated
+      expect(token.translated).toBeUndefined();
+      expect(token.translationSource).toBeUndefined();
+      // Validated should have null values
+      expect(validated.translated).toBeNull();
+      expect(validated.translationSource).toBeNull();
     });
   });
 });

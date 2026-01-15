@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 /**
  * Dictionary configuration hook
@@ -24,23 +24,6 @@ export function useDictionaryConfig() {
   const [activeProperNouns, setActiveProperNouns] = useState(['properNouns']);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddDictionary, setQuickAddDictionary] = useState('properNouns');
-  const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState(null);
-
-  // Load default Cmd-5 dictionary on mount and when active proper nouns change
-  // (cache it for instant access during Cmd-5)
-  useEffect(() => {
-    const loadDefaultDictionary = async () => {
-      try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data?.defaultQuickAddDictionary) {
-          setDefaultQuickAddDictionary(configResult.data.defaultQuickAddDictionary);
-        }
-      } catch (error) {
-        console.error('Error loading default Cmd-5 dictionary:', error);
-      }
-    };
-    loadDefaultDictionary();
-  }, [activeProperNouns]); // Reload when active dictionaries change
 
   /**
    * Open Quick Add modal for character dictionary
@@ -76,18 +59,27 @@ export function useDictionaryConfig() {
 
   /**
    * Open Quick Add modal for custom proper noun dictionary
-   * Uses cached default from configuration, or falls back to first active custom proper noun alphabetically
+   * Loads configuration at operation time (not cached) to avoid stale config
+   * Falls back to first active custom proper noun alphabetically
    */
-  const openQuickAddCustomProperNoun = useCallback(() => {
-    // If there's a cached default and it's active, use it
-    if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
-      setQuickAddDictionary(defaultQuickAddDictionary);
-      setShowQuickAdd(true);
-      return;
+  const openQuickAddCustomProperNoun = useCallback(async () => {
+    // Load configuration at operation time (CRITICAL: do not cache in state)
+    try {
+      const configResult = await window.electronAPI.loadConfiguration();
+      const defaultQuickAddDictionary = configResult.data?.defaultQuickAddDictionary;
+
+      // If there's a configured default and it's active, use it
+      if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
+        setQuickAddDictionary(defaultQuickAddDictionary);
+        setShowQuickAdd(true);
+        return;
+      }
+    } catch (error) {
+      console.error('Error loading default Cmd-5 dictionary:', error);
+      // Fall through to fallback behavior
     }
 
-    // Otherwise, fall back to previous behavior
-    // Filter active proper nouns to find custom ones (properNouns-*)
+    // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
     const customProperNouns = activeProperNouns.filter((dict) => dict.startsWith('properNouns-'));
 
     if (customProperNouns.length === 0) {
@@ -100,7 +92,7 @@ export function useDictionaryConfig() {
     }
 
     setShowQuickAdd(true);
-  }, [activeProperNouns, defaultQuickAddDictionary]);
+  }, [activeProperNouns]);
 
   /**
    * Close Quick Add modal
