@@ -2275,7 +2275,7 @@ const Translator = ({ isActive = true }) => {
       display: 'flex',
       flexDirection: 'column',
       overflow: 'auto',
-      padding: '2rem 2rem 2rem 1.5rem',
+      padding: '1rem 2rem 2rem 1.5rem',
     }),
     []
   );

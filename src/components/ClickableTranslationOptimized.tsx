@@ -32,11 +32,10 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
 
       if (segment.isClickable) {
         baseStyles.cursor = 'pointer';
-        baseStyles.borderRadius = '2px';
 
         if (isHighlighted) {
-          baseStyles.backgroundColor = 'var(--highlight-bg)';
-          baseStyles.color = 'var(--highlight-text)';
+          baseStyles.color = 'var(--primary-color)';
+          baseStyles.fontWeight = 600;
         }
       }
 
@@ -51,12 +50,12 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
         style={styles}
         onMouseEnter={(e) => {
           if (segment.isClickable && !isHighlighted) {
-            (e.target as HTMLElement).style.backgroundColor = 'var(--hover-bg)';
+            (e.target as HTMLElement).style.color = 'var(--primary-color)';
           }
         }}
         onMouseLeave={(e) => {
           if (segment.isClickable && !isHighlighted) {
-            (e.target as HTMLElement).style.backgroundColor = 'transparent';
+            (e.target as HTMLElement).style.color = 'inherit';
           }
         }}
         title={

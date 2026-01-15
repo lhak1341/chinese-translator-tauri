@@ -96,7 +96,7 @@ export default function TranslatorControls({
       style={{
         display: 'flex',
         gap: '0.5rem',
-        marginBottom: '1rem',
+        marginBottom: '0.75rem',
         flexWrap: 'wrap',
         alignItems: 'center',
       }}

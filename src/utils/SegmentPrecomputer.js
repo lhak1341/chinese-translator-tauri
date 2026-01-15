@@ -412,8 +412,8 @@ export class SegmentPrecomputer {
   static getSegmentStyles(isHighlighted) {
     if (isHighlighted) {
       return {
-        backgroundColor: 'var(--highlight-bg, #ddd6fe)',
-        color: 'var(--highlight-text, #581c87)',
+        color: 'var(--primary-color)',
+        fontWeight: 600,
       };
     }
 

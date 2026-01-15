@@ -1015,8 +1015,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 display: 'flex',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
-                backgroundColor:
-                  actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+                backgroundColor: selectedEntries.has(source)
+                  ? 'rgba(59, 130, 246, 0.18)'
+                  : actualIndex % 2 === 0
+                    ? 'var(--background-color)'
+                    : 'var(--secondary-bg)',
                 willChange: isScrolling ? 'transform' : 'auto',
               }}
             >
@@ -1163,8 +1166,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 display: 'flex',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
-                backgroundColor:
-                  actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+                backgroundColor: selectedEntries.has(source)
+                  ? 'rgba(59, 130, 246, 0.18)'
+                  : actualIndex % 2 === 0
+                    ? 'var(--background-color)'
+                    : 'var(--secondary-bg)',
                 willChange: isScrolling ? 'transform' : 'auto',
               }}
             >
@@ -1305,8 +1311,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               display: 'flex',
               alignItems: 'center',
               borderBottom: '1px solid var(--border-color)',
-              backgroundColor:
-                actualIndex % 2 === 0 ? 'var(--background-color)' : 'var(--secondary-bg)',
+              backgroundColor: selectedEntries.has(source)
+                ? 'rgba(59, 130, 246, 0.18)'
+                : actualIndex % 2 === 0
+                  ? 'var(--background-color)'
+                  : 'var(--secondary-bg)',
               willChange: isScrolling ? 'transform' : 'auto',
             }}
           >

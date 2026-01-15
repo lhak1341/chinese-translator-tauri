@@ -177,21 +177,19 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           onClick={() => handleUnitClick(segment.unitIndex)}
           style={{
             cursor: 'pointer',
-            borderRadius: '2px',
-            transition: 'all 0.1s ease-out',
+            transition: 'color 0.15s ease',
             display: 'inline',
-            backgroundColor: isHighlighted ? 'var(--highlight-bg)' : 'transparent',
-            color: isHighlighted ? 'var(--highlight-text)' : 'inherit',
-            fontWeight: isHighlighted ? 'bold' : 'normal',
+            color: isHighlighted ? 'var(--primary-color)' : 'inherit',
+            fontWeight: isHighlighted ? 600 : 'inherit',
           }}
           onMouseEnter={(e) => {
             if (!isHighlighted) {
-              (e.target as HTMLElement).style.backgroundColor = 'var(--hover-bg)';
+              (e.target as HTMLElement).style.color = 'var(--primary-color)';
             }
           }}
           onMouseLeave={(e) => {
             if (!isHighlighted) {
-              (e.target as HTMLElement).style.backgroundColor = 'transparent';
+              (e.target as HTMLElement).style.color = 'inherit';
             }
           }}
           title={`Click to highlight "${segment.originalText}" (${segment.source})`}

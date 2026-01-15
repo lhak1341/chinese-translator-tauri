@@ -115,21 +115,19 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
           onClick={() => handleUnitClick(segment.unitIndex)}
           style={{
             cursor: 'pointer',
-            borderRadius: '2px',
-            transition: 'background-color 0.2s',
-            backgroundColor: isHighlighted ? 'var(--highlight-bg)' : 'transparent',
-            color: isHighlighted ? 'var(--highlight-text)' : 'inherit',
-            fontWeight: isHighlighted ? 'bold' : 'normal',
+            transition: 'color 0.15s ease',
+            color: isHighlighted ? 'var(--primary-color)' : 'inherit',
+            fontWeight: isHighlighted ? 600 : 'inherit',
             display: 'inline',
           }}
           onMouseEnter={(e) => {
             if (!isHighlighted) {
-              (e.target as HTMLElement).style.backgroundColor = 'var(--hover-bg)';
+              (e.target as HTMLElement).style.color = 'var(--primary-color)';
             }
           }}
           onMouseLeave={(e) => {
             if (!isHighlighted) {
-              (e.target as HTMLElement).style.backgroundColor = 'transparent';
+              (e.target as HTMLElement).style.color = 'inherit';
             }
           }}
           title={`"${segment.originalText}" → "${segment.translatedText}" (${segment.source})`}

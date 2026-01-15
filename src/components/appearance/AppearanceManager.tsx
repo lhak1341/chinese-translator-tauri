@@ -206,13 +206,9 @@ const AppearanceManager: React.FC = () => {
     borderRadius: 'var(--radius-lg)',
   };
 
-  const titleStyle: React.CSSProperties = {
-    marginBottom: '1.5rem',
-  };
-
   const sectionTitleStyle: React.CSSProperties = {
     marginBottom: '0.75rem',
-    fontSize: '0.875rem',
+    fontSize: '0.9375rem',
     fontWeight: 600,
     color: 'var(--text-color)',
   };
@@ -301,22 +297,6 @@ const AppearanceManager: React.FC = () => {
 
   return (
     <div style={containerStyle}>
-      <div style={titleStyle}>
-        <h2
-          style={{
-            fontSize: '0.9375rem',
-            fontWeight: 600,
-            color: 'var(--text-color)',
-            marginBottom: '0.375rem',
-          }}
-        >
-          Appearance Settings
-        </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
-          Customize the font family and size for each text area.
-        </p>
-      </div>
-
       {error && (
         <div
           style={{
