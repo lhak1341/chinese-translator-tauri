@@ -1137,12 +1137,13 @@ npm run tauri:build    # Build production Tauri app
 
 **Current Status:**
 
-- ✅ **22 test files, 472 tests, all passing** (3,833% increase from baseline)
+- ✅ **24 test files, 500 tests, all passing** (4,067% increase from baseline)
 - ✅ **Utility functions covered** - Token helpers, caching, memory monitoring
 - ✅ **WASM boundaries covered** - Type safety, Rust ↔ JS serialization, edge cases
 - ✅ **React components covered** - Error boundary, dictionary dialogs
 - ✅ **Error handling covered** - WASM degradation, Rust fallback, async operations
-- ✅ **Core systems covered** - Phase integration, position mapping (NEW)
+- ✅ **Core systems covered** - Phase integration, position mapping, scalability
+- ✅ **API contracts covered** - Synchronous method enforcement (prevents breaking changes)
 
 **Test Coverage Details:**
 
@@ -1153,7 +1154,9 @@ npm run tauri:build    # Build production Tauri app
 | React Components | 2     | 51    | Error handling, dictionary operations            |
 | Error Handling   | 4     | 43    | WASM degradation, Rust fallback, async ops       |
 | Regression Tests | 6     | 30    | WASM, engine, semantic arrays, dictionary        |
-| Core Systems     | 2     | 34    | Phase integration, position mapping (NEW)        |
+| Core Systems     | 2     | 34    | Phase integration, position mapping              |
+| Scalability      | 1     | 13    | 100K+ entry performance, memory stability        |
+| API Contracts    | 1     | 15    | Synchronous method enforcement                   |
 | Original         | 1     | 12    | Unicode punctuation detection                    |
 
 **Key Test Files:**
@@ -1174,13 +1177,15 @@ npm run tauri:build    # Build production Tauri app
 - `PhaseIntegration.test.js` (16 tests) - 5-phase pipeline token consumption and priority
 - `PositionMapping.test.js` (18 tests) - Position tracking completeness for clickable highlighting
 - `WasmBoundaryEdgeCases.test.js` (30 tests) - WASM-JS boundary edge cases and validation
+- `DictionaryScalability.test.js` (13 tests) - 100K+ entry performance, O(k) lookup verification, memory stability
+- `DictionaryManager.apiContract.test.js` (15 tests) - API contract enforcement, prevents breaking changes
 
 **Test History:**
 
 - **2026-01-07**: Deleted 18 obsolete test files (~3,500 lines) - legacy features, outdated expectations, brittle WASM mocks
 - **2026-01-08**: Added 8 new test files (296 tests) - systematic coverage of critical paths
 - **2026-01-14**: Added 4 error handling test files (43 tests) - comprehensive error recovery coverage
-- **2026-01-16**: Added 3 core system test files (64 tests) - phase integration, position mapping, WASM edge cases
+- **2026-01-16**: Added 5 core system test files (92 tests) - phase integration, position mapping, WASM edge cases, scalability, API contracts
 
 **Philosophy:** Lean test suite focused on critical paths. Write tests when adding new features or fixing bugs.
 
@@ -1190,6 +1195,9 @@ npm run tauri:build    # Build production Tauri app
 - Test components for critical UI flows (translation, dictionary editing)
 - Mock Tauri APIs (automatically mocked in `src/test/setup.ts`)
 - Run `npm test` before committing (enforced by pre-commit hook)
+- **API Contract Testing**: Verify critical methods stay synchronous (e.g., `translate()` must not become async)
+  - Pattern: `expect(result).not.toBeInstanceOf(Promise)` catches breaking changes
+  - See `DictionaryManager.apiContract.test.js` for examples
 - See `TEST_COVERAGE_IMPROVEMENTS.md` for detailed coverage breakdown
 
 ### CI/CD Pipeline

@@ -98,6 +98,8 @@ interface LazyDictionaryContextValue {
   resetSortingStats: () => void;
   /** Set of loaded dictionary IDs (for debugging) */
   loadedDictionaries: Set<string>;
+  /** Refresh dictionary type metadata (MEDIUM-2 FIX) */
+  refreshDictionaryTypes: () => Promise<void>;
 }
 
 /**
@@ -110,7 +112,9 @@ interface LazyDictionaryProviderProps {
 const LazyDictionaryContext = createContext<LazyDictionaryContextValue | undefined>(undefined);
 
 const MAX_HISTORY = 100;
-const PRELOAD_DELAY = 1000; // ms to wait before preloading other dictionaries
+// MEDIUM-1 FIX: Dynamic preload delay calculation
+// Default delay used as fallback if measurement fails
+const DEFAULT_PRELOAD_DELAY = 1000; // ms to wait before preloading other dictionaries
 
 const sortDictionaryEntries = (
   dictionary: DictionaryData,
@@ -152,6 +156,8 @@ export function LazyDictionaryProvider({
   const preloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Track in-flight dictionary loads to prevent race conditions
   const loadingDictionariesRef = useRef<Set<string>>(new Set());
+  // MEDIUM-1 FIX: Track first dictionary load time for dynamic delay calculation
+  const firstLoadTimeRef = useRef<number | null>(null);
 
   // Load a dictionary immediately
   const loadDictionaryImmediate = useCallback(
@@ -168,6 +174,10 @@ export function LazyDictionaryProvider({
       // Mark as loading
       loadingDictionariesRef.current.add(dictionaryId);
 
+      // MEDIUM-1 FIX: Track first dictionary load time
+      const isFirstLoad = firstLoadTimeRef.current === null;
+      const startTime = isFirstLoad ? performance.now() : 0;
+
       try {
         const result = await window.electronAPI.loadDictionary(dictionaryId);
         if (result.success && result.data) {
@@ -179,6 +189,12 @@ export function LazyDictionaryProvider({
           }));
 
           setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+
+          // MEDIUM-1 FIX: Record first load time for dynamic delay calculation
+          if (isFirstLoad) {
+            const loadTime = performance.now() - startTime;
+            firstLoadTimeRef.current = loadTime;
+          }
         } else {
           console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
           setDictionaries((prev) => ({
@@ -204,6 +220,13 @@ export function LazyDictionaryProvider({
         clearTimeout(preloadTimeoutRef.current);
       }
 
+      // MEDIUM-1 FIX: Calculate dynamic delay based on first dictionary load time
+      // Use 2x the first load time, or default if not yet measured
+      const dynamicDelay =
+        firstLoadTimeRef.current !== null
+          ? Math.max(firstLoadTimeRef.current * 2, 500) // At least 500ms, typically 2x load time
+          : DEFAULT_PRELOAD_DELAY; // Fallback to default if not yet measured
+
       preloadTimeoutRef.current = setTimeout(async () => {
         const remainingDicts = allDictionaries.filter(
           (id) => id !== currentDict && !loadedDictionaries.has(id)
@@ -219,7 +242,7 @@ export function LazyDictionaryProvider({
             console.error(`Failed to preload dictionary ${dictId}:`, error);
           }
         }
-      }, PRELOAD_DELAY);
+      }, dynamicDelay);
     },
     [loadedDictionaries, loadDictionaryImmediate]
   );
@@ -317,14 +340,16 @@ export function LazyDictionaryProvider({
   }, [selectedDictionary, isLoading]);
 
   // Helper function to add operations to history
+  // HIGH-1 FIX: Deep copy dictionary data to prevent history corruption
+  // structuredClone creates deep copies, preventing mutations to history entries
   const addToHistory = useCallback(
     (dictionaryId: string, oldData: DictionaryData, newData: DictionaryData): void => {
       setHistory((prevHistory) => {
         const newHistory = prevHistory.slice(0, currentHistoryIndex + 1);
         newHistory.push({
           dictionaryId,
-          oldData,
-          newData,
+          oldData: structuredClone(oldData), // Deep copy prevents mutation
+          newData: structuredClone(newData), // Deep copy prevents mutation
           timestamp: Date.now(),
         });
         if (newHistory.length > MAX_HISTORY) {
@@ -632,6 +657,17 @@ export function LazyDictionaryProvider({
     dictionarySorter.resetStats();
   }, []);
 
+  // MEDIUM-2 FIX: Refresh dictionary type metadata
+  // Call this after creating new dictionaries to update available types
+  const refreshDictionaryTypes = useCallback(async (): Promise<void> => {
+    try {
+      const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
+      setDictionaryTypes(types);
+    } catch (error) {
+      console.error('Failed to refresh dictionary types:', error);
+    }
+  }, []);
+
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -657,6 +693,7 @@ export function LazyDictionaryProvider({
     getSortingStats,
     resetSortingStats,
     loadedDictionaries, // Expose for debugging
+    refreshDictionaryTypes, // MEDIUM-2 FIX: Expose dictionary type refresh
   };
 
   return <LazyDictionaryContext.Provider value={value}>{children}</LazyDictionaryContext.Provider>;

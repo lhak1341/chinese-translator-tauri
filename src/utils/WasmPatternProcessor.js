@@ -112,7 +112,8 @@ export async function processTokensWasm(semanticTokens, variableCache) {
 
     // One-time notification to prevent console spam
     if (!showedPatternWarning) {
-      toast.warning('Pattern matching error. Translation quality may be reduced.', {
+      toast('Pattern matching error. Translation quality may be reduced.', {
+        icon: '⚠️',
         duration: 5000,
       });
       showedPatternWarning = true;

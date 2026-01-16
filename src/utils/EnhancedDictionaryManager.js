@@ -223,7 +223,8 @@ export class EnhancedDictionaryManager extends DictionaryManager {
    * Enhanced translate method with WASM acceleration
    */
   translate(word, dictionaryOrder = null) {
-    // Wait for WASM initialization if still pending
+    // HIGH-2 FIX: Use JavaScript fallback during WASM initialization
+    // This prevents race conditions without breaking synchronous API contract
     if (this.wasmInitPromise && !this.wasmInitialized) {
       // Use JavaScript implementation while WASM initializes
       return this.translateJS(word, dictionaryOrder);
