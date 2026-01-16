@@ -76,30 +76,45 @@ export class SemanticArrayBuilder {
     // This handles cases where multiple semantic units share the same tokenIndex
     // (e.g., pattern match + character fallbacks for the same token)
 
+    // CRITICAL: Collect all matching candidates, prioritize unmapped ones
+    // Why: Multiple units can share same tokenIndex (pattern + character fallback)
+    // Fix: Prevent race where first-matched unit gets position, subsequent updates ignored
+    const candidates = [];
+
     for (let i = 0; i < this.metadata.length; i++) {
       const meta = this.metadata[i];
 
       // Match by tokenIndex and translatedText (case-insensitive)
       if (
         meta.tokenIndex === tokenIndex &&
-        this.translated[i].toLowerCase() === translatedText.toLowerCase() &&
-        meta.translatedStart === -1
+        this.translated[i].toLowerCase() === translatedText.toLowerCase()
       ) {
-        // Only update if not already set
-
-        meta.translatedStart = startPos;
-        meta.translatedEnd = endPos;
-
-        // MEDIUM-2 FIX: Update translated array to match actual casing in final text
-        // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ở")
-        this.translated[i] = translatedText;
-
-        return true;
+        candidates.push({
+          index: i,
+          meta,
+          isMapped: meta.translatedStart !== -1,
+        });
       }
     }
 
-    // No match found - this is expected for punctuation and whitespace added during postProcess
-    return false;
+    if (candidates.length === 0) {
+      // No match found - expected for punctuation/whitespace added during postProcess
+      return false;
+    }
+
+    // Prioritize unmapped candidates (prevents wrong unit from getting position)
+    const unmapped = candidates.find((c) => !c.isMapped);
+    const target = unmapped || candidates[0]; // Use first candidate if all mapped
+
+    // Update the selected candidate's position
+    target.meta.translatedStart = startPos;
+    target.meta.translatedEnd = endPos;
+
+    // MEDIUM-2 FIX: Update translated array to match actual casing in final text
+    // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ở")
+    this.translated[target.index] = translatedText;
+
+    return true;
   }
 
   /**

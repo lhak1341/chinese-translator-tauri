@@ -275,6 +275,8 @@ const Translator = ({ isActive = true }) => {
 
   // New optimized engine
   const engineRef = useRef(null);
+  // Track in-flight initialization to prevent duplicate engine creation (MEDIUM-1 FIX)
+  const isInitializingEngineRef = useRef(false);
 
   // Refs for auto-scrolling to highlighted elements
   const originalTextRef = useRef(null);
@@ -324,8 +326,13 @@ const Translator = ({ isActive = true }) => {
 
   // Initialize engine once when dictionaries are first loaded
   useEffect(() => {
-    if (!isLoading && dictionaries && !engineInitialized) {
+    // MEDIUM-1 FIX: Prevent duplicate engine initialization during dependency changes
+    // If activeProperNouns changes during initialization, this effect fires again
+    // Use ref to track in-flight initialization (synchronous check prevents race)
+    if (!isLoading && dictionaries && !engineInitialized && !isInitializingEngineRef.current) {
       const initializeEngine = async () => {
+        isInitializingEngineRef.current = true; // Set synchronously before async work
+
         try {
           engineRef.current = createTranslationEngine();
 
@@ -389,6 +396,9 @@ const Translator = ({ isActive = true }) => {
           toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
             duration: 10000, // Longer duration for critical errors
           });
+        } finally {
+          // MEDIUM-1 FIX: Reset flag after initialization completes or fails
+          isInitializingEngineRef.current = false;
         }
       };
 
@@ -2005,13 +2015,34 @@ const Translator = ({ isActive = true }) => {
     try {
       console.log('🔄 Starting Reload Dictionary sequence...');
 
-      // Step 1: Stop any ongoing translations
+      // Step 1: Stop any ongoing translations and wait for them to finish
       console.log('Step 1: Stopping ongoing translations...');
       const activeControllers = Array.from(activeTranslationControllers.current.values());
       if (activeControllers.length > 0) {
         console.log(`🛑 Cancelling ${activeControllers.length} active translations...`);
         activeControllers.forEach((controller) => controller.abort());
-        activeTranslationControllers.current.clear();
+
+        // CRITICAL: Wait for translations to actually finish before destroying engine
+        // Why: Abort signal doesn't immediately stop async operations
+        // Race condition: Translation's finally block may try to access engineRef.current.getEngineStats()
+        // Fix: Wait up to 5 seconds for translations to complete cleanup
+        const maxWaitMs = 5000;
+        const startWait = Date.now();
+        while (
+          activeTranslationControllers.current.size > 0 &&
+          Date.now() - startWait < maxWaitMs
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+
+        if (activeTranslationControllers.current.size > 0) {
+          console.warn(
+            `⚠️ ${activeTranslationControllers.current.size} translations did not complete in time - proceeding with reload`
+          );
+          activeTranslationControllers.current.clear();
+        } else {
+          console.log('✅ All translations completed cleanup successfully');
+        }
       }
       setIsTranslating(false);
       setProgressInfo(null);

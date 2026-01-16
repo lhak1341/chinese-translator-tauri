@@ -412,41 +412,29 @@ export class TranslationEngine {
    * Improves cache hit rates by recognizing similar translation patterns
    */
   async findAllMatchesWithSemanticCache(fullText, textPosition, dictionaryTypes) {
-    // OPTIMIZATION FIX: Phase-aware semantic caching
-    // Cache must respect 5-phase processing order: Pattern → Proper Noun → Number → Phrase → Character
-    // Lower phases (proper nouns) take priority over higher phases (phrases, characters)
+    // MEDIUM-3 FIX: Semantic caching removed for translation quality
+    //
+    // HISTORY: This method previously used semantic caching with phase priority validation
+    // PROBLEM: Cache served stale translations violating 5-phase priority order
+    //          (lower phases like proper nouns must override higher phases like characters)
+    // SOLUTION: Caching removed entirely - translation quality over performance
+    //
+    // If re-enabling caching in the future, MUST validate phase priority:
+    // - Phase 1 (patterns) = priority 1 (highest)
+    // - Phase 2 (proper nouns) = priority 2
+    // - Phase 3 (numbers) = priority 3
+    // - Phase 4 (phrases) = priority 4
+    // - Phase 5 (characters) = priority 5 (lowest)
+    // Cache entries from higher priority phases must override lower priority cached results.
+    //
+    // See git history for phase priority validation code (removed for simplicity)
 
-    const lookupText = fullText.substring(textPosition, textPosition + 20);
-    // FIXED: Include phase info in cache key to prevent cross-phase contamination
-    const dictionarySource = dictionaryTypes.join(',');
-    const phaseInfo = dictionaryTypes.includes('phrases')
-      ? 'phrase'
-      : dictionaryTypes.includes('characters')
-        ? 'character'
-        : dictionaryTypes.some((d) => d.includes('properNoun'))
-          ? 'properNoun'
-          : 'other';
-
-    // Define phase priority (lower number = higher priority)
-    const getPhasePriority = (dictionaryType) => {
-      if (dictionaryType.includes('pattern')) return 1;
-      if (dictionaryType.includes('properNouns') || dictionaryType.includes('properNoun')) return 2;
-      if (dictionaryType.includes('number')) return 3;
-      if (dictionaryType.includes('phrase')) return 4;
-      if (dictionaryType.includes('character')) return 5;
-      return 6; // Unknown types get lowest priority
-    };
-
-    const currentPhasePriority = Math.min(...dictionaryTypes.map(getPhasePriority));
-
-    // Perform dictionary lookup (semantic caching removed for translation quality)
+    // Perform direct dictionary lookup (no caching)
     const matches = await this.dictionaryManager.findAllMatchesAsync(
       fullText,
       textPosition,
       dictionaryTypes
     );
-
-    // No caching - prioritize translation quality over performance
 
     return matches;
   }
@@ -3221,6 +3209,27 @@ export class TranslationEngine {
         );
         continue;
       } else {
+        // CRITICAL: Validate consumed token contract
+        // Tokens with null translation MUST have translationSource to indicate consumption
+        // If null without source = potential double-processing bug
+        if (
+          token.translated === null &&
+          token.type !== TokenType.CHINESE_CHAR &&
+          token.type !== TokenType.CHINESE_WORD &&
+          token.type !== TokenType.SPACE &&
+          token.type !== TokenType.NEWLINE &&
+          token.type !== TokenType.PUNCTUATION
+        ) {
+          // Suspicious: Non-Chinese token with null translation but no source
+          // This could indicate a phase forgot to set translationSource after consumption
+          console.warn(
+            `⚠️ Suspicious null token without source: "${token.value}" (type: ${token.type})` +
+              ` - treating as consumed to prevent double-processing`
+          );
+          // Treat as consumed (skip) to prevent potential double-processing
+          continue;
+        }
+
         // Handle genuinely untranslated tokens
         switch (token.type) {
           case TokenType.CHINESE_CHAR:

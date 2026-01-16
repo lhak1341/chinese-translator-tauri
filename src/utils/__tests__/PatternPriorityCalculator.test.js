@@ -3,6 +3,12 @@
  *
  * Tests priority calculation for pattern matching competition.
  * When multiple patterns match the same text span, priority determines the winner.
+ *
+ * NOTE: Updated 2026-01-16 for new priority formula:
+ * - Variables: 8 points each (reduced from 10)
+ * - Length: 3 points per token (increased from 1)
+ * - Literal-first: 5 points (unchanged)
+ * - Low priority penalty: -12 points (unchanged)
  */
 
 import {
@@ -19,8 +25,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 0 (variables) + 2 (length) + 5 (literal-first) = 7
-      expect(priority).toBe(7);
+      // Expected: 0 (variables) + 6 (length: 2*3) + 5 (literal-first) = 11
+      expect(priority).toBe(11);
     });
 
     test('should calculate priority for pattern with one variable', () => {
@@ -29,8 +35,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 10 (1 variable) + 2 (length) + 0 (no literal-first) = 12
-      expect(priority).toBe(12);
+      // Expected: 8 (1 variable: 1*8) + 6 (length: 2*3) + 0 (no literal-first) = 14
+      expect(priority).toBe(14);
     });
 
     test('should calculate priority for pattern with multiple variables', () => {
@@ -39,8 +45,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 20 (2 variables) + 3 (length) + 0 (no literal-first) = 23
-      expect(priority).toBe(23);
+      // Expected: 16 (2 variables: 2*8) + 9 (length: 3*3) + 0 (no literal-first) = 25
+      expect(priority).toBe(25);
     });
   });
 
@@ -51,8 +57,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 10 (1 variable) + 2 (length) + 5 (literal-first) = 17
-      expect(priority).toBe(17);
+      // Expected: 8 (1 variable: 1*8) + 6 (length: 2*3) + 5 (literal-first) = 19
+      expect(priority).toBe(19);
     });
 
     test('should not add bonus for patterns starting with variable', () => {
@@ -61,8 +67,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 10 (1 variable) + 2 (length) + 0 (no literal-first) = 12
-      expect(priority).toBe(12);
+      // Expected: 8 (1 variable: 1*8) + 6 (length: 2*3) + 0 (no literal-first) = 14
+      expect(priority).toBe(14);
     });
   });
 
@@ -73,8 +79,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, true);
 
-      // Expected: 10 (1 variable) + 2 (length) + 0 (no literal-first) - 12 (penalty) = 0
-      expect(priority).toBe(0);
+      // Expected: 8 (1 variable: 1*8) + 6 (length: 2*3) + 0 (no literal-first) - 12 (penalty) = 2
+      expect(priority).toBe(2);
     });
 
     test('should not apply penalty without lowPriority flag', () => {
@@ -83,7 +89,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      expect(priority).toBe(12); // No penalty
+      // Expected: 8 (1 variable: 1*8) + 6 (length: 2*3) + 0 (no literal-first) = 14
+      expect(priority).toBe(14); // No penalty
     });
 
     test('lowPriority flag can result in negative priority', () => {
@@ -92,13 +99,13 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, true);
 
-      // Expected: 0 (variables) + 1 (length) + 5 (literal-first) - 12 (penalty) = -6
-      expect(priority).toBe(-6);
+      // Expected: 0 (variables) + 3 (length: 1*3) + 5 (literal-first) - 12 (penalty) = -4
+      expect(priority).toBe(-4);
     });
   });
 
   describe('pattern competition examples from docs', () => {
-    test('pattern "在XY中" should have priority 29', () => {
+    test('pattern "在XY中" should have priority 33', () => {
       // Pattern: 在XY中 (2 variables, 4 tokens, literal-first)
       // Tokens: 在(literal), X(variable), Y(variable), 中(literal)
       const tokens = [
@@ -111,11 +118,11 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 20 (2 variables) + 4 (length) + 5 (literal-first) = 29
-      expect(priority).toBe(29);
+      // Expected: 16 (2 variables: 2*8) + 12 (length: 4*3) + 5 (literal-first) = 33
+      expect(priority).toBe(33);
     });
 
-    test('pattern "在XY中" with lowPriority should have priority 17', () => {
+    test('pattern "在XY中" with lowPriority should have priority 21', () => {
       // Same pattern but with lowPriority flag
       const tokens = [
         { type: 'literal', value: '在' },
@@ -127,11 +134,11 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, true);
 
-      // Expected: 29 - 12 (penalty) = 17
-      expect(priority).toBe(17);
+      // Expected: 33 - 12 (penalty) = 21
+      expect(priority).toBe(21);
     });
 
-    test('pattern "在X眼中" should have priority 19', () => {
+    test('pattern "在X眼中" should have priority 25', () => {
       // Pattern: 在X眼中 (1 variable, 4 tokens, literal-first)
       // Tokens: 在(literal), X(variable), 眼(literal), 中(literal)
       const tokens = [
@@ -144,8 +151,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 10 (1 variable) + 4 (length) + 5 (literal-first) = 19
-      expect(priority).toBe(19);
+      // Expected: 8 (1 variable: 1*8) + 12 (length: 4*3) + 5 (literal-first) = 25
+      expect(priority).toBe(25);
     });
 
     test('"在X眼中" should win over "在XY中" with lowPriority', () => {
@@ -184,8 +191,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 0 (variables) + 1 (length) + 5 (literal-first) = 6
-      expect(priority).toBe(6);
+      // Expected: 0 (variables) + 3 (length: 1*3) + 5 (literal-first) = 8
+      expect(priority).toBe(8);
     });
 
     test('should handle pattern with only one variable token', () => {
@@ -194,7 +201,7 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 10 (1 variable) + 1 (length) + 0 (no literal-first) = 11
+      // Expected: 8 (1 variable: 1*8) + 3 (length: 1*3) + 0 (no literal-first) = 11
       expect(priority).toBe(11);
     });
 
@@ -214,8 +221,8 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 0 (variables) + 20 (length) + 5 (literal-first) = 25
-      expect(priority).toBe(25);
+      // Expected: 0 (variables) + 60 (length: 20*3) + 5 (literal-first) = 65
+      expect(priority).toBe(65);
     });
 
     test('should handle many variables', () => {
@@ -224,7 +231,7 @@ describe('calculatePatternPriority', () => {
 
       const priority = calculatePatternPriority(tokens, variables, false);
 
-      // Expected: 100 (10 variables) + 10 (length) + 0 (no literal-first) = 110
+      // Expected: 80 (10 variables: 10*8) + 30 (length: 10*3) + 0 (no literal-first) = 110
       expect(priority).toBe(110);
     });
   });
@@ -239,10 +246,10 @@ describe('calculatePriorityBreakdown', () => {
 
     expect(breakdown).toEqual({
       variableScore: 0,
-      lengthScore: 2,
+      lengthScore: 6, // 2*3
       literalFirstBonus: 5,
       lowPriorityPenalty: 0,
-      totalPriority: 7,
+      totalPriority: 11, // 0 + 6 + 5 + 0
     });
   });
 
@@ -253,11 +260,11 @@ describe('calculatePriorityBreakdown', () => {
     const breakdown = calculatePriorityBreakdown(tokens, variables, false);
 
     expect(breakdown).toEqual({
-      variableScore: 10,
-      lengthScore: 2,
+      variableScore: 8, // 1*8
+      lengthScore: 6, // 2*3
       literalFirstBonus: 5,
       lowPriorityPenalty: 0,
-      totalPriority: 17,
+      totalPriority: 19, // 8 + 6 + 5
     });
   });
 
@@ -268,11 +275,11 @@ describe('calculatePriorityBreakdown', () => {
     const breakdown = calculatePriorityBreakdown(tokens, variables, true);
 
     expect(breakdown).toEqual({
-      variableScore: 10,
-      lengthScore: 2,
+      variableScore: 8, // 1*8
+      lengthScore: 6, // 2*3
       literalFirstBonus: 0,
       lowPriorityPenalty: -12,
-      totalPriority: 0,
+      totalPriority: 2, // 8 + 6 + 0 - 12
     });
   });
 
@@ -288,11 +295,11 @@ describe('calculatePriorityBreakdown', () => {
     const breakdown = calculatePriorityBreakdown(tokens, variables, false);
 
     expect(breakdown).toEqual({
-      variableScore: 20,
-      lengthScore: 4,
+      variableScore: 16, // 2*8
+      lengthScore: 12, // 4*3
       literalFirstBonus: 5,
       lowPriorityPenalty: 0,
-      totalPriority: 29,
+      totalPriority: 33, // 16 + 12 + 5
     });
   });
 
@@ -320,8 +327,8 @@ describe('calculatePriorityBreakdown', () => {
 describe('PRIORITY_WEIGHTS constants', () => {
   test('should export priority weight constants', () => {
     expect(PRIORITY_WEIGHTS).toEqual({
-      VARIABLE: 10,
-      LENGTH: 1,
+      VARIABLE: 8,
+      LENGTH: 3,
       LITERAL_FIRST: 5,
       LOW_PRIORITY_PENALTY: -12,
     });

@@ -156,6 +156,8 @@ export function LazyDictionaryProvider({
   const preloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Track in-flight dictionary loads to prevent race conditions
   const loadingDictionariesRef = useRef<Set<string>>(new Set());
+  // Track loading promises to share between concurrent calls (prevents duplicate fetches)
+  const loadingPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
   // MEDIUM-1 FIX: Track first dictionary load time for dynamic delay calculation
   const firstLoadTimeRef = useRef<number | null>(null);
 
@@ -166,49 +168,65 @@ export function LazyDictionaryProvider({
         return; // Already loaded
       }
 
-      // RACE CONDITION FIX: Check if already loading to prevent duplicate loads
+      // CRITICAL: Atomic check-and-set to prevent race conditions
+      // If already loading, wait for existing promise instead of creating duplicate load
       if (loadingDictionariesRef.current.has(dictionaryId)) {
-        return; // Already loading
-      }
-
-      // Mark as loading
-      loadingDictionariesRef.current.add(dictionaryId);
-
-      // MEDIUM-1 FIX: Track first dictionary load time
-      const isFirstLoad = firstLoadTimeRef.current === null;
-      const startTime = isFirstLoad ? performance.now() : 0;
-
-      try {
-        const result = await window.electronAPI.loadDictionary(dictionaryId);
-        if (result.success && result.data) {
-          const sortedDict = sortDictionaryEntries(result.data, dictionaryId);
-
-          setDictionaries((prev) => ({
-            ...prev,
-            [dictionaryId]: sortedDict,
-          }));
-
-          setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
-
-          // MEDIUM-1 FIX: Record first load time for dynamic delay calculation
-          if (isFirstLoad) {
-            const loadTime = performance.now() - startTime;
-            firstLoadTimeRef.current = loadTime;
-          }
-        } else {
-          console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
-          setDictionaries((prev) => ({
-            ...prev,
-            [dictionaryId]: {},
-          }));
-          setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+        const existingPromise = loadingPromisesRef.current.get(dictionaryId);
+        if (existingPromise) {
+          // Wait for existing load to complete
+          return existingPromise;
         }
-      } catch (error) {
-        console.error(`Error loading dictionary ${dictionaryId}:`, error);
-      } finally {
-        // Always remove from loading set when done
-        loadingDictionariesRef.current.delete(dictionaryId);
+        // Shouldn't happen (promise should exist if loading), but safe fallback
+        return;
       }
+
+      // Create promise BEFORE async work (ensures atomicity)
+      const loadPromise = (async () => {
+        // Mark as loading synchronously
+        loadingDictionariesRef.current.add(dictionaryId);
+
+        // MEDIUM-1 FIX: Track first dictionary load time
+        const isFirstLoad = firstLoadTimeRef.current === null;
+        const startTime = isFirstLoad ? performance.now() : 0;
+
+        try {
+          const result = await window.electronAPI.loadDictionary(dictionaryId);
+          if (result.success && result.data) {
+            const sortedDict = sortDictionaryEntries(result.data, dictionaryId);
+
+            setDictionaries((prev) => ({
+              ...prev,
+              [dictionaryId]: sortedDict,
+            }));
+
+            setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+
+            // MEDIUM-1 FIX: Record first load time for dynamic delay calculation
+            if (isFirstLoad) {
+              const loadTime = performance.now() - startTime;
+              firstLoadTimeRef.current = loadTime;
+            }
+          } else {
+            console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
+            setDictionaries((prev) => ({
+              ...prev,
+              [dictionaryId]: {},
+            }));
+            setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+          }
+        } catch (error) {
+          console.error(`Error loading dictionary ${dictionaryId}:`, error);
+        } finally {
+          // Always remove from loading set and promise map when done
+          loadingDictionariesRef.current.delete(dictionaryId);
+          loadingPromisesRef.current.delete(dictionaryId);
+        }
+      })();
+
+      // Store promise synchronously before async work
+      loadingPromisesRef.current.set(dictionaryId, loadPromise);
+
+      return loadPromise;
     },
     [loadedDictionaries]
   );

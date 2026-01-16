@@ -10,26 +10,32 @@
  *
  * Priority Calculation Formula:
  * - Base priority: 0
- * - Variables: +10 per variable (more variables = more specific pattern)
- * - Length: +1 per token (longer patterns = more context)
+ * - Variables: +8 per variable (more variables = more specific pattern)
+ * - Length: +3 per token (longer patterns = more context, increased from +1)
  * - Literal-first: +5 if pattern starts with literal (more efficient matching)
  * - Low priority flag: -12 (allows same-length patterns to compete)
+ *
+ * PRIORITY FIX (2026-01-16):
+ * Increased length weight from +1 to +3, reduced variable weight from +10 to +8.
+ * Why: Longer patterns provide more context and should be prioritized over shorter
+ * patterns with more variables. Prevents generic short patterns from overriding
+ * specific long patterns.
  *
  * Example Priority Calculations:
  *
  * 1. Pattern "在XY中" (2 variables, 3 tokens):
- *    - Variables: 2 * 10 = 20
- *    - Length: 3
+ *    - Variables: 2 * 8 = 16
+ *    - Length: 3 * 3 = 9
  *    - Literal-first: No (starts with variable)
- *    - Total: 20 + 3 = 23 (becomes 11 with lowPriority flag)
+ *    - Total: 16 + 9 = 25 (becomes 13 with lowPriority flag)
  *
  * 2. Pattern "在X眼中" (1 variable, 3 tokens):
- *    - Variables: 1 * 10 = 10
- *    - Length: 3
+ *    - Variables: 1 * 8 = 8
+ *    - Length: 3 * 3 = 9
  *    - Literal-first: Yes (starts with "在")
- *    - Total: 10 + 3 + 5 = 18
+ *    - Total: 8 + 9 + 5 = 22
  *
- * With lowPriority=true on first pattern, pattern 2 wins (18 > 11).
+ * With lowPriority=true on first pattern, pattern 2 wins (22 > 13).
  *
  * Usage:
  *
@@ -87,10 +93,12 @@ export function calculatePatternPriority(tokens, variables, lowPriority = false)
   let priority = 0;
 
   // More variables = higher priority (more specific patterns)
-  priority += variables.length * 10;
+  // Weight: 8 (reduced from 10 to balance with pattern length)
+  priority += variables.length * 8;
 
   // Longer patterns = higher priority (more context)
-  priority += tokens.length;
+  // Weight: 3 (increased from 1 to prioritize context over variables)
+  priority += tokens.length * 3;
 
   // Literal-starting patterns = higher priority (more efficient)
   if (tokens[0]?.type === 'literal') {
@@ -110,8 +118,8 @@ export function calculatePatternPriority(tokens, variables, lowPriority = false)
  * These constants are NOT used in the calculation - they're for reference only
  */
 export const PRIORITY_WEIGHTS = {
-  VARIABLE: 10, // Points per variable in pattern
-  LENGTH: 1, // Points per token in pattern
+  VARIABLE: 8, // Points per variable in pattern (reduced from 10)
+  LENGTH: 3, // Points per token in pattern (increased from 1)
   LITERAL_FIRST: 5, // Bonus for patterns starting with literal
   LOW_PRIORITY_PENALTY: -12, // Penalty for low priority flag
 };
@@ -139,8 +147,8 @@ export const PRIORITY_WEIGHTS = {
  * // }
  */
 export function calculatePriorityBreakdown(tokens, variables, lowPriority = false) {
-  const variableScore = variables.length * 10;
-  const lengthScore = tokens.length;
+  const variableScore = variables.length * 8; // Updated weight: 8 (was 10)
+  const lengthScore = tokens.length * 3; // Updated weight: 3 (was 1)
   const literalFirstBonus = tokens[0]?.type === 'literal' ? 5 : 0;
   const lowPriorityPenalty = lowPriority ? -12 : 0;
 

@@ -24,8 +24,13 @@ export class TranslationSegmentCache {
   constructor(options = {}) {
     this.maxCacheSize = options.maxCacheSize || 1000; // Maximum cached segments
     this.maxCacheAge = options.maxCacheAge || 7 * 24 * 60 * 60 * 1000; // 7 days in ms
-    this.cacheKeyPrefix = 'translation-cache-';
-    this.metadataKey = 'translation-cache-metadata';
+
+    // MEDIUM-2 FIX: Window-specific cache prefix to prevent multi-tab conflicts
+    // Each browser window/tab gets unique cache namespace
+    // Why: Multiple windows writing to same localStorage keys causes last-write-wins corruption
+    this.windowId = `w${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    this.cacheKeyPrefix = `translation-cache-${this.windowId}-`;
+    this.metadataKey = `translation-cache-metadata-${this.windowId}`;
 
     // Performance tracking
     this.stats = {
