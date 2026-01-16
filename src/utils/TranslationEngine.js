@@ -1149,6 +1149,14 @@ export class TranslationEngine {
           }
         }
 
+        // Add space after NUMBER tokens before Chinese characters
+        if (token.type === TokenType.NUMBER && i < tokens.length - 1) {
+          const nextToken = tokens[i + 1];
+          if (nextToken.type === 'chinese_char') {
+            translatedText += ' ';
+          }
+        }
+
         // Debug what we're adding (semantic arrays already populated by processCharacterOnlyTokens)
         if (process.env.NODE_ENV === 'development' && tokens.indexOf(token) % 300 === 0) {
           console.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
@@ -3373,6 +3381,27 @@ export class TranslationEngine {
       if (
         next &&
         current.tokenType === TokenType.LATIN_WORD &&
+        (next.tokenType === TokenType.CHINESE_CHAR || next.tokenType === TokenType.CHINESE_WORD)
+      ) {
+        result += ' ';
+        currentPosition += 1;
+      }
+
+      // Add space between Chinese segments and NUMBER tokens
+      if (
+        next &&
+        (current.tokenType === TokenType.CHINESE_CHAR ||
+          current.tokenType === TokenType.CHINESE_WORD) &&
+        next.tokenType === TokenType.NUMBER
+      ) {
+        result += ' ';
+        currentPosition += 1;
+      }
+
+      // Add space between NUMBER tokens and Chinese segments
+      if (
+        next &&
+        current.tokenType === TokenType.NUMBER &&
         (next.tokenType === TokenType.CHINESE_CHAR || next.tokenType === TokenType.CHINESE_WORD)
       ) {
         result += ' ';
