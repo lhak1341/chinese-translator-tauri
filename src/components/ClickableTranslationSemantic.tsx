@@ -19,7 +19,8 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       return [];
     }
 
-    // For character-only translation, use a simpler direct mapping approach
+    // For character-only translation, use position metadata when available (more reliable than indexOf)
+    // CRITICAL-2 FIX: Use position metadata to handle duplicate units correctly
     if (direction === 'character-only-to-original') {
       const directSegments = [];
       let currentPosition = 0;
@@ -27,41 +28,63 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       for (let i = 0; i < semanticArrays.translated.length; i++) {
         const translatedUnit = semanticArrays.translated[i];
         const originalUnit = semanticArrays.original[i];
+        const metadata = semanticArrays.metadata[i];
 
-        // Find this unit in the translated text starting from current position
-        const remainingText = translatedText!.substring(currentPosition);
-        const unitPosition = remainingText.indexOf(translatedUnit);
+        // CRITICAL-2 FIX: Prefer position metadata over indexOf() search
+        // Position metadata is more reliable and handles duplicate units correctly
+        let actualPosition;
+        let unitLength;
 
-        if (unitPosition !== -1) {
-          const actualPosition = currentPosition + unitPosition;
+        if (
+          metadata &&
+          metadata.translatedStart !== undefined &&
+          metadata.translatedStart !== -1 &&
+          metadata.translatedEnd !== undefined &&
+          metadata.translatedEnd !== -1
+        ) {
+          // Use position metadata (set during translation)
+          actualPosition = metadata.translatedStart;
+          unitLength = metadata.translatedEnd - metadata.translatedStart;
+        } else {
+          // Fallback to indexOf() search if position metadata not available
+          const remainingText = translatedText!.substring(currentPosition);
+          const unitPosition = remainingText.indexOf(translatedUnit);
 
-          // Add any non-semantic text before this unit
-          if (unitPosition > 0) {
-            const nonSemanticText = remainingText.substring(0, unitPosition);
-            directSegments.push({
-              type: 'text' as const,
-              text: nonSemanticText,
-              start: currentPosition,
-              end: actualPosition,
-              unitIndex: -1,
-              isClickable: false as const,
-            });
+          if (unitPosition === -1) {
+            // Unit not found, skip
+            continue;
           }
 
-          // Add the semantic unit
-          directSegments.push({
-            type: 'semantic' as const,
-            text: translatedUnit,
-            start: actualPosition,
-            end: actualPosition + translatedUnit.length,
-            unitIndex: i,
-            originalText: originalUnit,
-            translatedText: translatedUnit,
-            isClickable: true as const,
-          });
-
-          currentPosition = actualPosition + translatedUnit.length;
+          actualPosition = currentPosition + unitPosition;
+          unitLength = translatedUnit.length;
         }
+
+        // Add any non-semantic text before this unit
+        if (actualPosition > currentPosition) {
+          const nonSemanticText = translatedText!.substring(currentPosition, actualPosition);
+          directSegments.push({
+            type: 'text' as const,
+            text: nonSemanticText,
+            start: currentPosition,
+            end: actualPosition,
+            unitIndex: -1,
+            isClickable: false as const,
+          });
+        }
+
+        // Add the semantic unit
+        directSegments.push({
+          type: 'semantic' as const,
+          text: translatedUnit,
+          start: actualPosition,
+          end: actualPosition + unitLength,
+          unitIndex: i,
+          originalText: originalUnit,
+          translatedText: translatedUnit,
+          isClickable: true as const,
+        });
+
+        currentPosition = actualPosition + unitLength;
       }
 
       // Add any remaining text
@@ -132,7 +155,16 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
   // Handle click on a semantic unit
   const handleUnitClick = (unitIndex: number) => {
-    if (!semanticArrays || unitIndex >= semanticArrays.original.length) {
+    // LOW-PRIORITY FIX: Add error messaging for invalid indices
+    if (!semanticArrays) {
+      console.error('❌ handleUnitClick called with no semantic arrays');
+      return;
+    }
+
+    if (unitIndex < 0 || unitIndex >= semanticArrays.original.length) {
+      console.error(
+        `❌ handleUnitClick: unitIndex ${unitIndex} out of bounds (length: ${semanticArrays.original.length})`
+      );
       return;
     }
 

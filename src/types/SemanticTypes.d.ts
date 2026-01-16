@@ -40,6 +40,12 @@ export interface SemanticMetadata {
       originalPattern: string;
     };
   };
+
+  /** Position mapping: Start position in translated text (set by setPositionByMatch) */
+  translatedStart?: number;
+
+  /** Position mapping: End position in translated text (set by setPositionByMatch) */
+  translatedEnd?: number;
 }
 
 /**

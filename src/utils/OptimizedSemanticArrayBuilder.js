@@ -143,6 +143,10 @@ export class OptimizedSemanticArrayBuilder {
         meta.translatedStart = startPos;
         meta.translatedEnd = endPos;
 
+        // MEDIUM-2 FIX: Update translated array to match actual casing in final text
+        // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ở")
+        this.translated[i] = translatedText;
+
         return true;
       }
     }

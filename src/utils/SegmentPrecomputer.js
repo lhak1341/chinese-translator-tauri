@@ -117,9 +117,6 @@ export class SegmentPrecomputer {
     // Track used indices to ensure duplicate units map to correct sequential occurrences
     const usedIndices = new Set();
 
-    // Track usage count for each unique unit text to ensure proper sequential mapping
-    const _unitUsageCount = new Map();
-
     while (currentPosition < text.length) {
       let bestMatch = null;
       let bestLength = 0;
