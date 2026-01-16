@@ -1,6 +1,112 @@
 /**
  * Optimized Translation Engine
  * Single-pass, token-based translation with efficient dictionary lookups and pattern matching
+ *
+ * =============================================================================
+ * FILE STRUCTURE (7,507 lines)
+ * =============================================================================
+ *
+ * This file coordinates all 5 translation phases with shared token state.
+ * Large size is intentional - tight coupling prevents phase conflicts.
+ *
+ * SECTIONS:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. Memory Management Utilities        (Lines 68-81)    [EXTRACTED]
+ *    - Memory leak detection (now in MemoryLeakDetector.js)
+ *
+ * 2. Core Engine Class - Constructor     (Lines 91-702)   [COUPLED]
+ *    - Constructor & configuration       (Lines 100-196)
+ *    - Logging & device memory           (Lines 198-293)
+ *    - Critical: Initializes all subsystems
+ *
+ * 3. Dictionary Operations               (Lines 295-357)  [COUPLED]
+ *    - Semantic caching with phase priority
+ *    - Critical: Cache timing affects phase order
+ *
+ * 4. Smart Memory Management             (Lines 358-702)  [COUPLED]
+ *    - Memory pressure detection         (Lines 370-416)
+ *    - Smart cleanup handlers            (Lines 419-550)
+ *    - Critical: Cleanup must not interfere with translation
+ *
+ * 5. Engine Initialization               (Lines 703-865)  [COUPLED]
+ *    - Dictionary loading & WASM setup
+ *    - Critical: Initialization order matters
+ *
+ * 6. Main Translation Entry Points       (Lines 866-1961) [COUPLED]
+ *    - translateWithSegments()           (Lines 866-1100)
+ *    - translateWithChunking()           (Lines 1100-1500)
+ *    - Character-only mode               (Lines 1500-1800)
+ *    - translateDirect()                 (Lines 1800-1961)
+ *
+ * 7. Phase 1 - Pattern Processing        (Lines 1962-2135) [COUPLED]
+ *    - Hierarchical two-phase patterns
+ *    - WASM pattern processor integration
+ *    - Critical: Must run first (highest priority)
+ *
+ * 8. Phase 4 - Phrase Processing         (Lines 2136-2856) [COUPLED]
+ *    - Sequential & parallel phrase matching
+ *    - Critical: Must run after proper nouns
+ *
+ * 9. Phase 5 - Character Processing      (Lines 2857-3071) [COUPLED]
+ *    - Character dictionary fallback
+ *    - Rust lookup index integration
+ *    - Critical: Must run last (lowest priority)
+ *
+ * 10. Post-Processing                    (Lines 3072-5556) [COUPLED]
+ *     - Semantic array generation         (Lines 3082-3480)
+ *     - Position mapping for highlighting (Lines 3480-4500)
+ *     - Text assembly & formatting        (Lines 4500-5556)
+ *     - Critical: Position precision for clickable highlighting
+ *
+ * 11. Core 5-Phase Translation Pipeline  (Lines 5557-6848) [COUPLED]
+ *     - translateSinglePass()             (Lines 5580-5733)
+ *       • Phase 1: Patterns               (Lines 5589-5592)
+ *       • Phase 2: Proper Nouns           (Lines 5594-5601)
+ *       • Phase 3: Numbers (WASM)         (Lines 5607-5699)
+ *       • Phase 4: Phrases                (Lines 5702-5705)
+ *       • Phase 5: Characters             (Lines 5717-5720)
+ *     - Helper methods for each phase     (Lines 5734-6848)
+ *     - Critical: Phase order is IMMUTABLE
+ *
+ * 12. Cache Management                   (Lines 6849-6908) [EXTENSION]
+ *     - invalidateAllCaches()             (Lines 6849-6908)
+ *     - Unified API for 6 cache systems
+ *     - Can be called externally
+ *
+ * 13. Utility Methods                    (Lines 6909-7503) [MIXED]
+ *     - Segment building for highlighting (Lines 6909-7100)
+ *     - Performance analysis              (Lines 7400-7503)
+ *     - WASM Core Engine stubs (removed)  (Lines 7401-7422)
+ *
+ * 14. Factory Function                   (Lines 7504-7507) [SAFE]
+ *     - createTranslationEngine()
+ *
+ * =============================================================================
+ * ARCHITECTURAL NOTES
+ * =============================================================================
+ *
+ * WHY THIS FILE CANNOT BE SPLIT:
+ * - 5-phase processing requires shared token state (synchronous coordination)
+ * - Phase order is immutable (Pattern → Proper Noun → Number → Phrase → Character)
+ * - Token consumption tracking prevents double-processing conflicts
+ * - Position mapping depends on exact post-processing assembly order
+ * - Cache invalidation timing is phase-critical
+ *
+ * WHAT CAN BE EXTRACTED:
+ * ✅ Pure utilities with zero `this.*` references (e.g., formatBytes)
+ * ✅ Self-contained classes with no engine state (e.g., MemoryLeakDetector)
+ * ✅ Pure functions taking all data as parameters
+ * ❌ Accessor methods that read `this.*` properties
+ * ❌ Methods that call `this.*` instance methods
+ * ❌ Phase implementations (require token state coordination)
+ *
+ * SUCCESSFUL EXTRACTIONS (2026):
+ * - MemoryLeakDetector.js (343 lines) - Zero engine dependencies
+ * - TokenHelpers.js (6 pure functions) - No state modification
+ * - PatternPriorityCalculator.js - Pure calculation function
+ *
+ * See: docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md
+ * =============================================================================
  */
 
 import { TextTokenizer, TokenType } from './TextTokenizer.js';

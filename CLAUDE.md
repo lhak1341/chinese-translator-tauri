@@ -502,9 +502,10 @@ window.printMatcherProfilingReport();
 **✅ System Extension Pattern** (proven successful):
 
 - **Monitoring systems**: Performance tracking, memory analysis, validation (例: `MemoryLeakDetector.js`, `PerformanceThresholds.ts`)
-- **Utility functions**: Pure helpers with no state dependencies (例: `TokenHelpers.js`, `PatternPriorityCalculator.js`)
+- **Utility functions**: Pure helpers with no state dependencies (例: `TokenHelpers.js`, `PatternPriorityCalculator.js`, `ByteFormatter.js`, `ValidationHelpers.js`)
 - **Configuration management**: Settings persistence, import/export
 - **Development tooling**: Debugging aids, test utilities
+- **Type contracts**: WASM boundary validation (例: `WasmTypes.ts` with validation functions)
 
 **Pattern**:
 
@@ -523,6 +524,12 @@ class TranslationEngine {
 ```
 
 **Archive**: See `docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md` for 5 successful extractions (~680 lines) with zero risk.
+
+**Recent Extractions** (2026-01-16):
+
+- `ByteFormatter.js` (180 lines) - Byte formatting utilities with automatic unit selection
+- `ValidationHelpers.js` (340 lines) - 19 pure validation functions for common patterns
+- Enhanced `WasmTypes.ts` - Added contracts for all 4 WASM systems with validation functions
 
 ### Active vs Dead Code
 
@@ -588,9 +595,12 @@ window.translationEngine.dictionaryManager.getWasmStatus();
 **Example comparison:**
 
 ```javascript
-// ✅ Extractable: Pure formatter
-export function formatBytes(bytes) {
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+// ✅ Extractable: Pure formatter (see ByteFormatter.js)
+export function formatBytes(bytes, decimals = 2) {
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
 }
 
 // ❌ Not extractable: Accessor method
@@ -1127,21 +1137,23 @@ npm run tauri:build    # Build production Tauri app
 
 **Current Status:**
 
-- ✅ **19 test files, 408 tests, all passing** (3,300% increase from baseline)
+- ✅ **22 test files, 472 tests, all passing** (3,833% increase from baseline)
 - ✅ **Utility functions covered** - Token helpers, caching, memory monitoring
-- ✅ **WASM boundaries covered** - Type safety, Rust ↔ JS serialization
+- ✅ **WASM boundaries covered** - Type safety, Rust ↔ JS serialization, edge cases
 - ✅ **React components covered** - Error boundary, dictionary dialogs
 - ✅ **Error handling covered** - WASM degradation, Rust fallback, async operations
+- ✅ **Core systems covered** - Phase integration, position mapping (NEW)
 
 **Test Coverage Details:**
 
 | Category         | Files | Tests | Coverage                                         |
 | ---------------- | ----- | ----- | ------------------------------------------------ |
 | Utilities        | 5     | 245   | Token helpers, caching, pattern priority, memory |
-| WASM Boundaries  | 1     | 27    | Type contracts, undefined → null conversion      |
+| WASM Boundaries  | 2     | 57    | Type contracts, undefined → null, edge cases     |
 | React Components | 2     | 51    | Error handling, dictionary operations            |
 | Error Handling   | 4     | 43    | WASM degradation, Rust fallback, async ops       |
 | Regression Tests | 6     | 30    | WASM, engine, semantic arrays, dictionary        |
+| Core Systems     | 2     | 34    | Phase integration, position mapping (NEW)        |
 | Original         | 1     | 12    | Unicode punctuation detection                    |
 
 **Key Test Files:**
@@ -1159,12 +1171,16 @@ npm run tauri:build    # Build production Tauri app
 - `RustLookupIndexManager.errorHandling.test.js` (10 tests) - Fallback notifications
 - `WasmDictionaryManager.errorHandling.test.js` (12 tests) - WASM fallback handling
 - `UnicodePunctuationDetector.test.js` (12 tests) - Original test file
+- `PhaseIntegration.test.js` (16 tests) - 5-phase pipeline token consumption and priority
+- `PositionMapping.test.js` (18 tests) - Position tracking completeness for clickable highlighting
+- `WasmBoundaryEdgeCases.test.js` (30 tests) - WASM-JS boundary edge cases and validation
 
 **Test History:**
 
 - **2026-01-07**: Deleted 18 obsolete test files (~3,500 lines) - legacy features, outdated expectations, brittle WASM mocks
 - **2026-01-08**: Added 8 new test files (296 tests) - systematic coverage of critical paths
 - **2026-01-14**: Added 4 error handling test files (43 tests) - comprehensive error recovery coverage
+- **2026-01-16**: Added 3 core system test files (64 tests) - phase integration, position mapping, WASM edge cases
 
 **Philosophy:** Lean test suite focused on critical paths. Write tests when adding new features or fixing bugs.
 
@@ -1266,7 +1282,7 @@ window.translationEngine.invalidateAllCaches('properNouns'); // Clear specific d
 
 | Purpose           | File                                                                      | Lines | Why Coupled                |
 | ----------------- | ------------------------------------------------------------------------- | ----- | -------------------------- |
-| Translation Core  | `TranslationEngine.js`                                                    | 6,299 | 5-phase state coordination |
+| Translation Core  | `TranslationEngine.js` (with table of contents)                           | 7,507 | 5-phase state coordination |
 | Dictionary System | `DictionaryManager.js`, `EnhancedDictionaryManager.js`                    | -     | Performance + memory unity |
 | UI Coordination   | `Translator.jsx`                                                          | 2,352 | Cross-mode synchronization |
 | WASM Number       | `wasm-core/src/number_processor.rs`, `WasmNumberProcessor.js`             | -     | Native performance         |
@@ -1391,6 +1407,36 @@ if (token.translated !== null) {
 ```
 
 **Critical**: Consumed tokens MUST have `translated: null`, otherwise processed instead of skipped.
+
+### WASM Boundary Type Contracts (Enhanced 2026-01-16)
+
+**Location**: `types/WasmTypes.ts`
+
+**Comprehensive validation** for all 4 WASM systems:
+
+1. **WasmToken** - Number processor tokens with undefined → null conversion
+2. **WasmPatternMatch** - Pattern processor results with validation
+3. **WasmDictionaryMatch** - Dictionary engine results with defaults
+4. **RustLookupMatch** - Lookup index results with type enforcement
+
+**Validation functions**:
+
+- `validateWasmToken()` - Converts undefined to null, logs warnings
+- `validateWasmPatternMatch()` - Ensures required fields, provides defaults
+- `validateWasmDictionaryMatch()` - Infers length from word, default priority
+- `validateRustLookupMatch()` - Enforces dictionary type, infers length
+- `copyWasmTokens()` - Two-phase validation prevents partial corruption
+
+**Safety rules documented**:
+
+- undefined → null conversion (Rule 1)
+- Array length preservation (Rule 2)
+- In-place modification (Rule 3)
+- Consumed token pattern (Rule 4)
+- Two-phase validation (Rule 5)
+- Error propagation (Rule 6)
+
+**Test coverage**: 57 tests across WasmTypes.test.ts and WasmBoundaryEdgeCases.test.js
 
 ---
 
