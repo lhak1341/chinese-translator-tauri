@@ -54,6 +54,10 @@ export async function initializeWasmNumberProcessor() {
       wasmNumberProcessor = new wasmModule.NumberProcessor();
 
       console.log('✅ WASM NumberProcessor initialized successfully');
+
+      // Reset warning flag on successful initialization
+      showedNumberWarning = false;
+
       return true;
     } catch (error) {
       console.warn('⚠️ Failed to initialize WASM NumberProcessor:', error);
@@ -134,6 +138,21 @@ export function getWasmNumberProcessorStatus() {
     failed: initializationFailed,
     initializing: initializationPromise !== null && wasmNumberProcessor === null,
   };
+}
+
+/**
+ * Re-initialize WASM NumberProcessor
+ * @returns {Promise<boolean>} True if re-initialization succeeded
+ */
+export async function reinitializeWasmNumberProcessor() {
+  // Clear existing state
+  wasmNumberProcessor = null;
+  initializationPromise = null;
+  initializationFailed = false;
+  showedNumberWarning = false; // Reset warning flag to allow new notifications
+
+  // Re-initialize
+  return initializeWasmNumberProcessor();
 }
 
 // Auto-initialize on import (non-blocking)

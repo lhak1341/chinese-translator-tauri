@@ -5809,6 +5809,18 @@ export class TranslationEngine {
         );
         try {
           const processedTokens = await processNumbersWasm(tokens);
+
+          // Pre-validate array length invariance before copying
+          if (processedTokens.length !== tokens.length) {
+            this.log(
+              DEBUG_LEVELS.ERROR,
+              `WASM number processor corrupted token array: expected ${tokens.length}, got ${processedTokens.length}`
+            );
+            throw new Error(
+              `WASM number processor violated array length invariance: ${tokens.length} → ${processedTokens.length}`
+            );
+          }
+
           // Copy WASM results with proper undefined → null conversion
           copyWasmTokens(processedTokens, tokens);
 
@@ -7039,13 +7051,19 @@ export class TranslationEngine {
           typeof rustLookupIndexManager.invalidateCache === 'function'
         ) {
           rustLookupIndexManager.invalidateCache();
+          this.log(DEBUG_LEVELS.DEBUG, '✅ Rust lookup index cache invalidated');
         }
       } catch (error) {
-        // Rust lookup index manager not available - safe to ignore
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          '⚠️ Rust lookup index manager not available for cache invalidation'
-        );
+        // Distinguish between "not available" (expected) and "failed to load" (unexpected)
+        if (error.code === 'MODULE_NOT_FOUND') {
+          this.log(DEBUG_LEVELS.DEBUG, 'Rust lookup index not available (expected if not used)');
+        } else {
+          this.log(
+            DEBUG_LEVELS.WARN,
+            `⚠️ Failed to invalidate Rust lookup index cache: ${error.message}`
+          );
+          console.warn('Cache invalidation incomplete - Rust index failed to load:', error);
+        }
       }
 
       // 5. Translation Segments (for highlighting)

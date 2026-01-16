@@ -68,6 +68,9 @@ export async function initializeWasmPatternProcessor(patternsDict) {
       console.log('✅ WASM Pattern Processor initialized successfully');
       // Note: stats is already logged by WASM side, JavaScript side just confirms success
 
+      // Reset warning flag on successful initialization
+      showedPatternWarning = false;
+
       return true;
     } catch (error) {
       console.error('❌ Failed to initialize WASM Pattern Processor:', error);
@@ -87,6 +90,12 @@ export async function initializeWasmPatternProcessor(patternsDict) {
 export async function processTokensWasm(semanticTokens, variableCache) {
   // CRITICAL-2 FIX: Degrade gracefully instead of throwing
   // Patterns enhance translation quality but aren't essential - allow basic translation to continue
+
+  // Wait for in-progress initialization before degrading
+  if (initializationPromise && !wasmPatternProcessor) {
+    await initializationPromise;
+  }
+
   if (!wasmPatternProcessor) {
     console.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
     console.warn('Translation will continue with lower quality (no pattern matching)');

@@ -404,8 +404,8 @@ const Translator = ({ isActive = true }) => {
 
       initializeEngine();
     }
-    // Note: getFilteredDictionaries has empty deps and never changes, so excluded from dependencies
-  }, [isLoading, dictionaries, engineInitialized, activeProperNouns]);
+    // Include getFilteredDictionaries to satisfy React exhaustive-deps rule (function is stable but should be listed)
+  }, [isLoading, dictionaries, engineInitialized, activeProperNouns, getFilteredDictionaries]);
 
   // Monitor WASM status changes
   useEffect(() => {

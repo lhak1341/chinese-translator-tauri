@@ -198,9 +198,14 @@ export class TranslationSegmentCache {
       }
 
       // Update hit count and last access time
-      cachedData.hitCount = (cachedData.hitCount || 0) + 1;
-      cachedData.lastAccess = now;
-      localStorage.setItem(cacheKey, JSON.stringify(cachedData));
+      try {
+        cachedData.hitCount = (cachedData.hitCount || 0) + 1;
+        cachedData.lastAccess = now;
+        localStorage.setItem(cacheKey, JSON.stringify(cachedData));
+      } catch (error) {
+        // Failed to update hit count - non-critical, just log
+        console.warn('Failed to update cache hit count:', error);
+      }
 
       this.stats.hits++;
       this.updateHitRate();
