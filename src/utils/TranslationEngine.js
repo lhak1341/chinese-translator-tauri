@@ -3212,15 +3212,18 @@ export class TranslationEngine {
         // CRITICAL: Validate consumed token contract
         // Tokens with null translation MUST have translationSource to indicate consumption
         // If null without source = potential double-processing bug
+        // EXCEPTION: NUMBER and LATIN_WORD tokens naturally have null translation (pass-through)
         if (
           token.translated === null &&
           token.type !== TokenType.CHINESE_CHAR &&
           token.type !== TokenType.CHINESE_WORD &&
           token.type !== TokenType.SPACE &&
           token.type !== TokenType.NEWLINE &&
-          token.type !== TokenType.PUNCTUATION
+          token.type !== TokenType.PUNCTUATION &&
+          token.type !== TokenType.NUMBER &&
+          token.type !== TokenType.LATIN_WORD
         ) {
-          // Suspicious: Non-Chinese token with null translation but no source
+          // Suspicious: Non-pass-through token with null translation but no source
           // This could indicate a phase forgot to set translationSource after consumption
           console.warn(
             `⚠️ Suspicious null token without source: "${token.value}" (type: ${token.type})` +
@@ -3239,6 +3242,18 @@ export class TranslationEngine {
             output = charTranslation ? charTranslation.translation : token.value;
             break;
           }
+          case TokenType.NUMBER:
+          case TokenType.LATIN_WORD:
+            // Pass-through tokens: keep original value and add to semantic array
+            output = token.value;
+            // Add to semantic array for clickable highlighting (original = translated for pass-through)
+            this.semanticArrayBuilder.addUnit(
+              token.value, // original
+              token.value, // translated (same as original for pass-through)
+              'passthrough', // source type
+              i + (options.chunkOffset || 0) // global token index
+            );
+            break;
           default:
             output = token.value;
         }
