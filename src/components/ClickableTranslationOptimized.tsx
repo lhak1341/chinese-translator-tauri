@@ -7,6 +7,7 @@ import type {
   ClickableTranslationOptimizedProps,
   SegmentComponentProps,
 } from '../types/ClickableTypes';
+import styles from '../styles/ClickableTranslationOptimized.module.css';
 
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
@@ -24,22 +25,15 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
       }
     }, [segment, onClick]);
 
-    const styles = useMemo(() => {
-      const baseStyles: React.CSSProperties = {
-        display: 'inline',
-        transition: 'all 0.1s ease-out',
-      };
-
+    const className = useMemo(() => {
+      const classes = [styles.segment];
       if (segment.isClickable) {
-        baseStyles.cursor = 'pointer';
-
+        classes.push(styles.clickableSegment);
         if (isHighlighted) {
-          baseStyles.color = 'var(--primary-color)';
-          baseStyles.fontWeight = 600;
+          classes.push(styles.clickableSegmentHighlighted);
         }
       }
-
-      return baseStyles;
+      return classes.join(' ');
     }, [segment.isClickable, isHighlighted]);
 
     return (
@@ -47,17 +41,7 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
         key={segment.key}
         data-unit-index={segment.unitIndex}
         onClick={handleClick}
-        style={styles}
-        onMouseEnter={(e) => {
-          if (segment.isClickable && !isHighlighted) {
-            (e.target as HTMLElement).style.color = 'var(--primary-color)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (segment.isClickable && !isHighlighted) {
-            (e.target as HTMLElement).style.color = 'inherit';
-          }
-        }}
+        className={className}
         title={
           segment.isClickable
             ? `"${segment.text}" ← translation (${segment.source || 'unknown'})`
@@ -157,21 +141,21 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
 
   // Fallback for when no semantic arrays are available
   if (!semanticArrays || renderSegments.length === 0) {
-    return <span style={{ lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>{translatedText}</span>;
+    return <span className={styles.fallback}>{translatedText}</span>;
   }
 
   // Render optimized segments grouped into paragraphs
   return (
-    <div style={{ lineHeight: 1.4 }}>
+    <div className={styles.container}>
       {paragraphs.map((paragraphSegments, paragraphIndex) => (
         <div
           key={`paragraph-${paragraphIndex}`}
+          className={styles.paragraph}
           style={{
             marginBottom:
               paragraphIndex < paragraphs.length - 1
                 ? 'var(--full-translation-paragraph-spacing, 1rem)'
                 : '0',
-            whiteSpace: 'pre-wrap',
           }}
         >
           {paragraphSegments.map((segment: any) => (

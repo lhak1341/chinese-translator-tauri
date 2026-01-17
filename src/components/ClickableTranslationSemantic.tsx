@@ -5,6 +5,7 @@
 import React, { useMemo } from 'react';
 import type { ClickableTranslationSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
+import styles from '../styles/ClickableTranslationSemantic.module.css';
 
 const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> = ({
   translatedText,
@@ -207,23 +208,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           key={`segment-${segment.unitIndex}-${segment.start}-${index}`}
           data-unit-index={segment.unitIndex}
           onClick={() => handleUnitClick(segment.unitIndex)}
-          style={{
-            cursor: 'pointer',
-            transition: 'color 0.15s ease',
-            display: 'inline',
-            color: isHighlighted ? 'var(--primary-color)' : 'inherit',
-            fontWeight: isHighlighted ? 600 : 'inherit',
-          }}
-          onMouseEnter={(e) => {
-            if (!isHighlighted) {
-              (e.target as HTMLElement).style.color = 'var(--primary-color)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isHighlighted) {
-              (e.target as HTMLElement).style.color = 'inherit';
-            }
-          }}
+          className={`${styles.clickableSegment} ${isHighlighted ? styles.clickableSegmentHighlighted : ''}`}
           title={`Click to highlight "${segment.originalText}" (${segment.source})`}
         >
           {segment.text}
@@ -234,7 +219,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       return (
         <span
           key={`text-${index}-${segment.start}`}
-          className={segment.type === 'space' ? '' : 'text-gray-600 dark:text-gray-300'}
+          className={segment.type === 'space' ? '' : styles.nonClickableText}
         >
           {segment.text}
         </span>
@@ -252,12 +237,12 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
     return paragraphs.map((paragraphSegments, paragraphIndex) => (
       <div
         key={`paragraph-${paragraphIndex}`}
+        className={styles.paragraph}
         style={{
           marginBottom:
             paragraphIndex < paragraphs.length - 1
               ? 'var(--character-only-paragraph-spacing, 1rem)'
               : '0',
-          whiteSpace: 'pre-wrap',
         }}
       >
         {paragraphSegments.map((segment: any, segmentIndex: number) =>
@@ -267,7 +252,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
     ));
   };
 
-  return <div style={{ lineHeight: '1.4' }}>{renderSegments()}</div>;
+  return <div className={styles.container}>{renderSegments()}</div>;
 };
 
 export default React.memo(ClickableTranslationSemantic);

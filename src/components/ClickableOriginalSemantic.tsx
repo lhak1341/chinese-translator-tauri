@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import type { ClickableOriginalSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
+import styles from '../styles/ClickableOriginalSemantic.module.css';
 
 const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   originalText,
@@ -113,23 +114,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
           key={`segment-${segment.unitIndex}-${segment.start}-${index}`}
           data-unit-index={segment.unitIndex}
           onClick={() => handleUnitClick(segment.unitIndex)}
-          style={{
-            cursor: 'pointer',
-            transition: 'color 0.15s ease',
-            color: isHighlighted ? 'var(--primary-color)' : 'inherit',
-            fontWeight: isHighlighted ? 600 : 'inherit',
-            display: 'inline',
-          }}
-          onMouseEnter={(e) => {
-            if (!isHighlighted) {
-              (e.target as HTMLElement).style.color = 'var(--primary-color)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isHighlighted) {
-              (e.target as HTMLElement).style.color = 'inherit';
-            }
-          }}
+          className={`${styles.clickableSegment} ${isHighlighted ? styles.clickableSegmentHighlighted : ''}`}
           title={`"${segment.originalText}" → "${segment.translatedText}" (${segment.source})`}
         >
           {segment.text}
@@ -138,7 +123,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
     } else {
       // Non-clickable text (characters, punctuation, etc.)
       return (
-        <span key={`text-${index}-${segment.start}`} style={{ color: 'var(--muted-text)' }}>
+        <span key={`text-${index}-${segment.start}`} className={styles.nonClickableText}>
           {segment.text}
         </span>
       );
@@ -152,19 +137,19 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
     }
 
     if (segments.length === 0) {
-      return <div style={{ whiteSpace: 'pre-wrap' }}>{originalText}</div>;
+      return <div className={styles.fallback}>{originalText}</div>;
     }
 
     // Render each paragraph with custom spacing
     return paragraphs.map((paragraphSegments, paragraphIndex) => (
       <div
         key={`paragraph-${paragraphIndex}`}
+        className={styles.paragraph}
         style={{
           marginBottom:
             paragraphIndex < paragraphs.length - 1
               ? 'var(--chinese-text-paragraph-spacing, 1rem)'
               : '0',
-          whiteSpace: 'pre-wrap',
         }}
       >
         {paragraphSegments.map((segment: any, segmentIndex: number) =>
@@ -174,7 +159,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
     ));
   };
 
-  return <div style={{ lineHeight: '1.6' }}>{renderSegments()}</div>;
+  return <div className={styles.container}>{renderSegments()}</div>;
 };
 
 export default ClickableOriginalSemantic;

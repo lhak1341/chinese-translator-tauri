@@ -1,0 +1,38 @@
+/* ClickableTranslationOptimized Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Container */
+.container {
+  line-height: 1.4;
+}
+
+/* Paragraph */
+.paragraph {
+  white-space: pre-wrap;
+}
+
+/* Segment Base */
+.segment {
+  display: inline;
+  transition: all 0.1s ease-out;
+}
+
+/* Clickable Segment */
+.clickableSegment {
+  cursor: pointer;
+}
+
+.clickableSegment:hover {
+  color: var(--primary-color);
+}
+
+.clickableSegmentHighlighted {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* Fallback */
+.fallback {
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
