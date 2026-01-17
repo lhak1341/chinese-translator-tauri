@@ -316,50 +316,19 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
 
       {/* Error display */}
       {deleteError && (
-        <div
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'var(--danger-button-bg)',
-            color: 'var(--danger-button-text)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}
-        >
+        <div className={styles.errorBar}>
           <AlertCircle size={16} />
           {deleteError}
         </div>
       )}
 
       {/* Virtualized table container */}
-      <div ref={tableContainerRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div ref={tableContainerRef} className={styles.tableContainer}>
         {/* Table header (fixed) */}
-        <div
-          style={{
-            display: 'flex',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: 'var(--background-color)',
-            position: 'sticky',
-            top: 0,
-            zIndex: 1,
-          }}
-        >
-          <div style={{ width: '40%', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>
-            Source Text
-          </div>
-          <div style={{ width: '40%', padding: '0.5rem 0.75rem', fontWeight: 'bold' }}>
-            Translation
-          </div>
-          <div
-            style={{
-              width: '20%',
-              padding: '0.5rem 0.75rem',
-              fontWeight: 'bold',
-              textAlign: 'right',
-            }}
-          >
-            Actions
-          </div>
+        <div className={styles.headerRow}>
+          <div className={`${styles.headerCell} ${styles.headerCellWide}`}>Source Text</div>
+          <div className={`${styles.headerCell} ${styles.headerCellWide}`}>Translation</div>
+          <div className={`${styles.headerCell} ${styles.headerCellActions}`}>Actions</div>
         </div>
 
         {/* Scrollable content */}
