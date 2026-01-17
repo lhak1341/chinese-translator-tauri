@@ -26,7 +26,9 @@ const mockDictionaryEngine = {
 
 vi.mock('../../wasm/translation_wasm_core.js', () => ({
   default: vi.fn(() => Promise.resolve()),
-  DictionaryEngine: vi.fn(() => mockDictionaryEngine),
+  DictionaryEngine: vi.fn(function () {
+    return mockDictionaryEngine;
+  }),
 }));
 
 // Mock memory pool
