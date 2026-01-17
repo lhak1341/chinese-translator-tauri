@@ -1,0 +1,140 @@
+/* VirtualizedDictionaryTable Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+}
+
+.container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.searchBar {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  fontsize: 0.875rem;
+}
+
+.scrollControls {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.scrollButton {
+  padding: 0.5rem;
+}
+
+.errorBar {
+  padding: 0.5rem 1rem;
+  background-color: var(--danger-button-bg);
+  color: var(--danger-button-text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.entryCountBar {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--muted-text);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.entryCount {
+  margin-left: 1rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.tableContainer {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.virtualContainer {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.headerRow {
+  display: flex;
+  border-bottom: 2px solid var(--border-color);
+  background: var(--background-color);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.headerCell {
+  padding: 0.5rem 0.75rem;
+  font-weight: bold;
+}
+
+.headerCellWide {
+  width: 40%;
+}
+
+.headerCellActions {
+  flex: 1;
+  text-align: right;
+}
+
+.row {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cell {
+  padding: 0.5rem 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellWide {
+  width: 40%;
+}
+
+.cellActions {
+  flex: 1;
+  text-align: right;
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.badge {
+  margin-left: 0.5rem;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
+.badgeVariable {
+  color: var(--accent-color);
+}
+
+.badgeLowPriority {
+  color: #ff8c00;
+}

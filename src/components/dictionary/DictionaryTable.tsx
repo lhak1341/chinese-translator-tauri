@@ -11,6 +11,7 @@ import {
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
+import styles from '../../styles/DictionaryTable.module.css';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -148,15 +149,7 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
   // Loading state display
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          gap: '1rem',
-        }}
-      >
+      <div className={styles.loadingContainer}>
         <Loader size={24} className="animate-spin" />
         <span>Loading dictionary...</span>
       </div>
@@ -165,60 +158,31 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
 
   // Main component render
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className={styles.container}>
       {/* Search bar and scroll controls container */}
-      <div
-        style={{
-          padding: '1rem',
-          borderBottom: '1px solid var(--border-color)',
-          display: 'flex',
-          gap: '0.5rem',
-          alignItems: 'center',
-        }}
-      >
+      <div className={styles.searchBar}>
         {/* Search input */}
         <input
           type="text"
           placeholder="Search entries..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: '0.5rem 1rem',
-            borderRadius: '6px',
-            border: '1px solid var(--border-color)',
-            backgroundColor: 'var(--background-color)',
-            color: 'var(--text-color)',
-            fontSize: '0.875rem',
-          }}
+          className={styles.searchInput}
         />
 
         {/* Scroll controls */}
-        <div style={{ display: 'flex', gap: '0.25rem' }}>
+        <div className={styles.scrollControls}>
           <button
             onClick={scrollToTop}
-            className="icon"
+            className={`icon ${styles.scrollButton}`}
             title="Scroll to top"
-            style={{
-              padding: '0.5rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
           >
             <ChevronsUp size={16} />
           </button>
           <button
             onClick={scrollToBottom}
-            className="icon"
+            className={`icon ${styles.scrollButton}`}
             title="Scroll to bottom"
-            style={{
-              padding: '0.5rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
           >
             <ChevronsDown size={16} />
           </button>
@@ -227,52 +191,20 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
 
       {/* Error message display */}
       {deleteError && (
-        <div
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'var(--danger-button-bg)',
-            color: 'var(--danger-button-text)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}
-        >
+        <div className={styles.error}>
           <AlertCircle size={16} />
           {deleteError}
         </div>
       )}
 
       {/* Table container */}
-      <div
-        ref={tableContainerRef}
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          position: 'relative',
-        }}
-      >
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div ref={tableContainerRef} className={styles.tableContainer}>
+        <table className={styles.table}>
           <thead>
             <tr>
-              <th
-                style={{
-                  width: '40%',
-                  padding: '0.75rem 1rem',
-                  textAlign: 'left',
-                }}
-              >
-                Source Text
-              </th>
-              <th
-                style={{
-                  width: '40%',
-                  padding: '0.75rem 1rem',
-                  textAlign: 'left',
-                }}
-              >
-                Translation
-              </th>
-              <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+              <th className={`${styles.headerCell} ${styles.headerCellWide}`}>Source Text</th>
+              <th className={`${styles.headerCell} ${styles.headerCellWide}`}>Translation</th>
+              <th className={styles.headerCellActions}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -293,35 +225,17 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
 
               return (
                 <tr key={source}>
-                  <td style={{ padding: '0.5rem 1rem' }}>{source}</td>
-                  <td style={{ padding: '0.5rem 1rem' }}>
+                  <td className={styles.cell}>{source}</td>
+                  <td className={styles.cell}>
                     {translationText}
                     {allowAsPatternVariable && (
-                      <span
-                        style={{
-                          marginLeft: '0.5rem',
-                          fontSize: '0.8em',
-                          color: 'var(--accent-color)',
-                          fontWeight: 'bold',
-                        }}
-                      >
-                        [X]
-                      </span>
+                      <span className={`${styles.badge} ${styles.badgeVariable}`}>[X]</span>
                     )}
                     {lowPriority && (
-                      <span
-                        style={{
-                          marginLeft: '0.5rem',
-                          fontSize: '0.8em',
-                          color: '#ff8c00',
-                          fontWeight: 'bold',
-                        }}
-                      >
-                        [LP]
-                      </span>
+                      <span className={`${styles.badge} ${styles.badgeLowPriority}`}>[LP]</span>
                     )}
                   </td>
-                  <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>
+                  <td className={styles.cellActions}>
                     <button
                       onClick={() =>
                         setEditingEntry({

@@ -12,6 +12,7 @@ import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
+import styles from '../../styles/VirtualizedDictionaryTable.module.css';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -266,15 +267,7 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          gap: '1rem',
-        }}
-      >
+      <div className={styles.loadingContainer}>
         <Loader size={24} className="animate-spin" />
         <span>Loading dictionary...</span>
       </div>
@@ -282,48 +275,29 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className={styles.container}>
       {/* Search bar and controls */}
-      <div
-        style={{
-          padding: '1rem',
-          borderBottom: '1px solid var(--border-color)',
-          display: 'flex',
-          gap: '0.5rem',
-          alignItems: 'center',
-        }}
-      >
+      <div className={styles.searchBar}>
         <input
           ref={searchRef}
           type="text"
           placeholder="Search entries..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: '0.5rem 1rem',
-            borderRadius: '6px',
-            border: '1px solid var(--border-color)',
-            backgroundColor: 'var(--background-color)',
-            color: 'var(--text-color)',
-            fontSize: '0.875rem',
-          }}
+          className={styles.searchInput}
         />
-        <div style={{ display: 'flex', gap: '0.25rem' }}>
+        <div className={styles.scrollControls}>
           <button
             onClick={scrollToTop}
-            className="icon"
+            className={`icon ${styles.scrollButton}`}
             title="Scroll to top"
-            style={{ padding: '0.5rem' }}
           >
             <ChevronsUp size={16} />
           </button>
           <button
             onClick={scrollToBottom}
-            className="icon"
+            className={`icon ${styles.scrollButton}`}
             title="Scroll to bottom"
-            style={{ padding: '0.5rem' }}
           >
             <ChevronsDown size={16} />
           </button>
@@ -331,17 +305,10 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
       </div>
 
       {/* Entry count indicator */}
-      <div
-        style={{
-          padding: '0.5rem 1rem',
-          fontSize: '0.875rem',
-          color: 'var(--muted-text)',
-          borderBottom: '1px solid var(--border-color)',
-        }}
-      >
+      <div className={styles.entryCountBar}>
         Showing {visibleEntries.length} of {filteredEntries.length} entries
         {/* OPTIMIZATION: Adaptive buffer debug info (always visible for testing) */}
-        <span style={{ marginLeft: '1rem', fontSize: '0.75rem', opacity: 0.7 }}>
+        <span className={styles.entryCount}>
           • Buffer: {bufferSize} • Velocity: {Math.abs(scrollVelocity).toFixed(1)}px/ms
           {isScrolling && ' • Scrolling'}
         </span>
