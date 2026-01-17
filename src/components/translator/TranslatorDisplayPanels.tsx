@@ -4,6 +4,7 @@ import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
 import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
 import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
+import styles from '../../styles/TranslatorDisplayPanels.module.css';
 
 /**
  * Individual semantic unit mapping original to translated text
@@ -61,35 +62,6 @@ interface TranslatorDisplayPanelsProps {
 }
 
 /**
- * Panel base styles - flat card appearance
- */
-const panelBase: React.CSSProperties = {
-  background: 'var(--surface-color)',
-  borderRadius: 'var(--radius-lg)',
-  border: '1px solid var(--border-color)',
-  position: 'relative',
-  overflow: 'hidden',
-};
-
-/**
- * Placeholder styles
- */
-const placeholderStyle: React.CSSProperties = {
-  height: '100%',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const placeholderTextStyle: React.CSSProperties = {
-  color: 'var(--text-muted)',
-  textAlign: 'center',
-  fontSize: '0.875rem',
-  lineHeight: 1.6,
-  padding: '0 2rem',
-};
-
-/**
  * TranslatorDisplayPanels Component
  *
  * Three-panel translation display:
@@ -117,34 +89,13 @@ export default function TranslatorDisplayPanels({
   characterOnlyTextRef,
 }: TranslatorDisplayPanelsProps): React.ReactElement {
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '0.75rem',
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
+    <div className={styles.container}>
       {/* Left Column */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          flex: '1 0 35%',
-          minWidth: 0,
-        }}
-      >
+      <div className={styles.leftColumn}>
         {/* Original Chinese Panel */}
         <div
-          style={{
-            ...panelBase,
-            ...inputTextStyle,
-            flex: '1 0 50%',
-            minHeight: 0,
-            overflowY: inputText ? 'auto' : 'hidden',
-            padding: '1rem',
-          }}
+          className={`${styles.panel} ${styles.panelHalf} ${inputText ? styles.panelScrollable : styles.panelHidden}`}
+          style={inputTextStyle}
           ref={originalTextRef}
         >
           {inputText ? (
@@ -156,8 +107,8 @@ export default function TranslatorDisplayPanels({
               onSegmentClick={handleSemanticSegmentClick}
             />
           ) : (
-            <div style={placeholderStyle}>
-              <div style={placeholderTextStyle}>
+            <div className={styles.placeholder}>
+              <div className={styles.placeholderText}>
                 Paste Chinese text or click <strong>Translate</strong>
               </div>
             </div>
@@ -166,14 +117,8 @@ export default function TranslatorDisplayPanels({
 
         {/* Character-only Panel */}
         <div
-          style={{
-            ...panelBase,
-            ...characterOnlyTextStyle,
-            flex: '1 0 50%',
-            minHeight: 0,
-            overflowY: characterOnlyText ? 'auto' : 'hidden',
-            padding: '1rem',
-          }}
+          className={`${styles.panel} ${styles.panelHalf} ${characterOnlyText ? styles.panelScrollable : styles.panelHidden}`}
+          style={characterOnlyTextStyle}
           ref={characterOnlyTextRef}
         >
           {characterOnlyText ? (
@@ -185,8 +130,8 @@ export default function TranslatorDisplayPanels({
               direction="character-only-to-original"
             />
           ) : (
-            <div style={placeholderStyle}>
-              <div style={placeholderTextStyle}>Character-by-character translation</div>
+            <div className={styles.placeholder}>
+              <div className={styles.placeholderText}>Character-by-character translation</div>
             </div>
           )}
         </div>
@@ -194,31 +139,13 @@ export default function TranslatorDisplayPanels({
 
       {/* Right Column - Main Translation */}
       <div
-        style={{
-          ...panelBase,
-          ...outputTextStyle,
-          flex: '2 0 65%',
-          minWidth: 0,
-          overflowY: translatedText ? 'auto' : 'hidden',
-          padding: '1rem',
-        }}
+        className={`${styles.panel} ${styles.rightColumn} ${translatedText ? styles.panelScrollable : styles.panelHidden}`}
+        style={{ ...outputTextStyle, padding: '1rem' }}
         ref={translationTextRef}
       >
         {/* Streaming Overlay */}
         {throttledStreamingState.isStreaming && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'var(--surface-color)',
-              zIndex: 10,
-              overflow: 'hidden',
-              borderRadius: 'var(--radius-lg)',
-            }}
-          >
+          <div className={styles.streamingOverlay}>
             {React.createElement(StreamingTranslationDisplay as any, {
               streamingState: throttledStreamingState,
               finalText: translatedText,
@@ -233,10 +160,7 @@ export default function TranslatorDisplayPanels({
         {/* Translation Content */}
         {translatedText ? (
           <div
-            style={{
-              opacity: throttledStreamingState.isStreaming ? 0.2 : 1,
-              transition: 'opacity 0.15s ease',
-            }}
+            className={`${styles.translationContent} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
           >
             <ClickableTranslationOptimized
               translatedText={translatedText}
@@ -248,12 +172,9 @@ export default function TranslatorDisplayPanels({
           </div>
         ) : (
           <div
-            style={{
-              ...placeholderStyle,
-              opacity: throttledStreamingState.isStreaming ? 0.2 : 1,
-            }}
+            className={`${styles.placeholder} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
           >
-            <div style={placeholderTextStyle}>Translation will appear here</div>
+            <div className={styles.placeholderText}>Translation will appear here</div>
           </div>
         )}
       </div>

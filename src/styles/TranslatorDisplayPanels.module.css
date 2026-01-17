@@ -1,0 +1,89 @@
+/* TranslatorDisplayPanels Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Main Container */
+.container {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Columns */
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1 0 35%;
+  min-width: 0;
+}
+
+.rightColumn {
+  flex: 2 0 65%;
+  min-width: 0;
+}
+
+/* Panel Base */
+.panel {
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.panelHalf {
+  flex: 1 0 50%;
+  min-height: 0;
+  padding: 1rem;
+}
+
+.panelScrollable {
+  overflow-y: auto;
+}
+
+.panelHidden {
+  overflow-y: hidden;
+}
+
+/* Placeholder */
+.placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholderText {
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  padding: 0 2rem;
+}
+
+/* Streaming Overlay */
+.streamingOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--surface-color);
+  z-index: 10;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+
+/* Translation Content */
+.translationContent {
+  transition: opacity 0.15s ease;
+}
+
+.translationContentVisible {
+  opacity: 1;
+}
+
+.translationContentHidden {
+  opacity: 0.2;
+}
