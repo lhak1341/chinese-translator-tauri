@@ -1,0 +1,124 @@
+/* AppearanceManager Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Loading State */
+.loadingContainer {
+  display: flex;
+  align-items: center;
+  justifycontent: center;
+  height: 100%;
+  gap: 0.75rem;
+}
+
+.loadingSpinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loadingText {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Main Container */
+.container {
+  padding: 1.5rem;
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: var(--background-color);
+}
+
+/* Error Display */
+.error {
+  padding: 0.625rem 0.75rem;
+  background-color: var(--error-subtle);
+  color: var(--error-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  font-size: 0.8125rem;
+}
+
+/* Section */
+.section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.sectionTitle {
+  margin-bottom: 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+/* Control Group */
+.controlGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.controlRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Label */
+.label {
+  min-width: 120px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Input */
+.input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  font-size: 0.8125rem;
+  transition: border-color 0.15s ease;
+}
+
+/* Reset Button */
+.resetButton {
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  transition: all 0.15s ease;
+}
+
+.resetButton:hover {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+/* Preview */
+.preview {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--background-color);
+  margin-top: 0.75rem;
+  color: var(--text-color);
+}

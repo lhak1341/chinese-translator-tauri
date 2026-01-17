@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RotateCcw } from 'lucide-react';
 import type { AppearanceSettings } from '../../types/ComponentTypes';
+import styles from '../../styles/AppearanceManager.module.css';
 
 /**
  * Type for appearance section keys
@@ -189,181 +190,71 @@ const AppearanceManager: React.FC = () => {
     }
   };
 
-  // Styles
-  const containerStyle: React.CSSProperties = {
-    padding: '1.5rem',
-    height: '100%',
-    overflowY: 'auto',
-    boxSizing: 'border-box',
-    background: 'var(--background-color)',
-  };
-
-  const sectionStyle: React.CSSProperties = {
-    marginBottom: '1.5rem',
-    padding: '1rem',
-    background: 'var(--surface-color)',
-    border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-lg)',
-  };
-
-  const sectionTitleStyle: React.CSSProperties = {
-    marginBottom: '0.75rem',
-    fontSize: '0.9375rem',
-    fontWeight: 600,
-    color: 'var(--text-color)',
-  };
-
-  const controlGroupStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.625rem',
-  };
-
-  const controlRowStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    minWidth: '120px',
-    fontSize: '0.8125rem',
-    fontWeight: 500,
-    color: 'var(--text-secondary)',
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex: 1,
-    padding: '0.5rem 0.75rem',
-    border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--background-color)',
-    color: 'var(--text-color)',
-    fontSize: '0.8125rem',
-    transition: 'border-color 0.15s ease',
-  };
-
-  const resetButtonStyle: React.CSSProperties = {
-    padding: '0.5rem',
-    border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--surface-color)',
-    color: 'var(--text-muted)',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '2rem',
-    height: '2rem',
-    transition: 'all 0.15s ease',
-  };
-
-  const previewStyle: React.CSSProperties = {
-    padding: '0.75rem 1rem',
-    border: '1px solid var(--border-color)',
-    borderRadius: 'var(--radius-md)',
-    backgroundColor: 'var(--background-color)',
-    marginTop: '0.75rem',
-    color: 'var(--text-color)',
-  };
-
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          gap: '0.75rem',
-        }}
-      >
-        <div
-          style={{
-            width: '20px',
-            height: '20px',
-            border: '2px solid var(--border-color)',
-            borderTopColor: 'var(--primary-color)',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }}
-        />
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-          Loading appearance settings...
-        </span>
+      <div className={styles.loadingContainer}>
+        <div className={styles.loadingSpinner} />
+        <span className={styles.loadingText}>Loading appearance settings...</span>
       </div>
     );
   }
 
   return (
-    <div style={containerStyle}>
-      {error && (
-        <div
-          style={{
-            padding: '0.625rem 0.75rem',
-            backgroundColor: 'var(--error-subtle)',
-            color: 'var(--error-color)',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: '1rem',
-            fontSize: '0.8125rem',
-          }}
-        >
-          {error}
-        </div>
-      )}
+    <div className={styles.container}>
+      {error && <div className={styles.error}>{error}</div>}
 
       {/* Chinese Text Box Settings */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>Chinese Text Box</h3>
-        <div style={controlGroupStyle}>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Font:</label>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Chinese Text Box</h3>
+        <div className={styles.controlGroup}>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Font:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.chineseText.fontFamily}
               onChange={(e) => handleFontChange('chineseText', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
               placeholder='e.g., "Noto Sans CJK SC", Arial, sans-serif'
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('chineseText', 'fontFamily')}
               title="Reset font to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Size:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Size:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.chineseText.fontSize}
               onChange={(e) => handleFontChange('chineseText', 'fontSize', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., 1.25rem, 20px, 14pt"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('chineseText', 'fontSize')}
               title="Reset size to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Letter Spacing:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Letter Spacing:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.chineseText.letterSpacing}
               onChange={(e) => handleFontChange('chineseText', 'letterSpacing', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('chineseText', 'letterSpacing')}
               title="Reset letter spacing to default"
             >
@@ -371,8 +262,8 @@ const AppearanceManager: React.FC = () => {
             </button>
           </div>
           <div
+            className={styles.preview}
             style={{
-              ...previewStyle,
               fontFamily: appearance.chineseText.fontFamily,
               fontSize: appearance.chineseText.fontSize,
               letterSpacing: appearance.chineseText.letterSpacing,
@@ -384,68 +275,68 @@ const AppearanceManager: React.FC = () => {
       </div>
 
       {/* Full Translation Box Settings */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>Full Translation Box</h3>
-        <div style={controlGroupStyle}>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Font:</label>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Full Translation Box</h3>
+        <div className={styles.controlGroup}>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Font:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.fullTranslation.fontFamily}
               onChange={(e) => handleFontChange('fullTranslation', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
               placeholder='e.g., Bookerly, "Times New Roman", serif'
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('fullTranslation', 'fontFamily')}
               title="Reset font to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Size:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Size:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.fullTranslation.fontSize}
               onChange={(e) => handleFontChange('fullTranslation', 'fontSize', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., 1.25rem, 20px, 14pt"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('fullTranslation', 'fontSize')}
               title="Reset size to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Letter Spacing:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Letter Spacing:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.fullTranslation.letterSpacing}
               onChange={(e) => handleFontChange('fullTranslation', 'letterSpacing', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('fullTranslation', 'letterSpacing')}
               title="Reset letter spacing to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Paragraph Spacing:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Paragraph Spacing:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.fullTranslation.paragraphSpacing || '1rem'}
               onChange={(e) =>
                 handleFontChange('fullTranslation', 'paragraphSpacing', e.target.value)
@@ -454,7 +345,7 @@ const AppearanceManager: React.FC = () => {
               placeholder="e.g., 1rem, 16px, 1.5em"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('fullTranslation', 'paragraphSpacing')}
               title="Reset paragraph spacing to default"
             >
@@ -462,8 +353,8 @@ const AppearanceManager: React.FC = () => {
             </button>
           </div>
           <div
+            className={styles.preview}
             style={{
-              ...previewStyle,
               fontFamily: appearance.fullTranslation.fontFamily,
               fontSize: appearance.fullTranslation.fontSize,
               letterSpacing: appearance.fullTranslation.letterSpacing,
@@ -475,57 +366,57 @@ const AppearanceManager: React.FC = () => {
       </div>
 
       {/* Character Only Box Settings */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>Character Only Box</h3>
-        <div style={controlGroupStyle}>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Font:</label>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>Character Only Box</h3>
+        <div className={styles.controlGroup}>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Font:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.characterOnly.fontFamily}
               onChange={(e) => handleFontChange('characterOnly', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., Bookerly, Arial, sans-serif"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('characterOnly', 'fontFamily')}
               title="Reset font to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Size:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Size:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.characterOnly.fontSize}
               onChange={(e) => handleFontChange('characterOnly', 'fontSize', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., 1.25rem, 20px, 14pt"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('characterOnly', 'fontSize')}
               title="Reset size to default"
             >
               <RotateCcw size={14} />
             </button>
           </div>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Letter Spacing:</label>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Letter Spacing:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.characterOnly.letterSpacing}
               onChange={(e) => handleFontChange('characterOnly', 'letterSpacing', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('characterOnly', 'letterSpacing')}
               title="Reset letter spacing to default"
             >
@@ -533,8 +424,8 @@ const AppearanceManager: React.FC = () => {
             </button>
           </div>
           <div
+            className={styles.preview}
             style={{
-              ...previewStyle,
               fontFamily: appearance.characterOnly.fontFamily,
               fontSize: appearance.characterOnly.fontSize,
               letterSpacing: appearance.characterOnly.letterSpacing,
@@ -546,21 +437,21 @@ const AppearanceManager: React.FC = () => {
       </div>
 
       {/* UI Font Settings */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>UI Font</h3>
-        <div style={controlGroupStyle}>
-          <div style={controlRowStyle}>
-            <label style={labelStyle}>Font:</label>
+      <div className={styles.section}>
+        <h3 className={styles.sectionTitle}>UI Font</h3>
+        <div className={styles.controlGroup}>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Font:</label>
             <input
               type="text"
-              style={inputStyle}
+              className={styles.input}
               value={appearance.uiFont.fontFamily}
               onChange={(e) => handleFontChange('uiFont', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., Inter, system-ui, Arial, sans-serif"
             />
             <button
-              style={resetButtonStyle}
+              className={styles.resetButton}
               onClick={() => resetToDefault('uiFont', 'fontFamily')}
               title="Reset UI font to default"
             >
