@@ -18,6 +18,7 @@ import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryT
 import DictionaryEntry from './DictionaryEntry';
 import HotkeyHandler from '../HotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
+import styles from '../../styles/DictionaryManager.module.css';
 
 /**
  * Selection state for bulk operations in Enhanced table
@@ -277,110 +278,19 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   }, [filteredDictionaryTypes]);
 
   // Style definitions for consistent layout
-  const containerStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    background: 'var(--background-color)',
-    overflow: 'hidden',
-  };
-
-  const headerStyle: React.CSSProperties = {
-    padding: '0.75rem 1rem',
-    borderBottom: '1px solid var(--border-color)',
-    background: 'var(--background-color)',
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  };
-
-  const selectStyle: React.CSSProperties = {
-    padding: '0.5rem 2rem 0.5rem 0.75rem',
-    borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border-color)',
-    fontSize: '0.8125rem',
-    background: 'var(--surface-color)',
-    appearance: 'none',
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: 'right 0.5rem center',
-    minWidth: '180px',
-    color: 'var(--text-color)',
-    cursor: 'pointer',
-    transition: 'border-color 0.15s ease',
-  };
-
-  const controlsStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    marginLeft: 'auto',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.375rem',
-    padding: '0.5rem 0.875rem',
-    borderRadius: 'var(--radius-md)',
-    fontSize: '0.8125rem',
-    fontWeight: 500,
-    cursor: 'pointer',
-    border: 'none',
-    transition: 'all 0.15s ease',
-  };
-
-  const iconButtonStyle: React.CSSProperties = {
-    padding: '0.5rem',
-    borderRadius: 'var(--radius-md)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    border: '1px solid var(--border-color)',
-    background: 'var(--surface-color)',
-    color: 'var(--text-color)',
-    transition: 'all 0.15s ease',
-  };
-
-  const errorStyle: React.CSSProperties = {
-    padding: '0.5rem 1rem',
-    background: 'var(--danger-button-bg)',
-    color: 'var(--danger-button-text)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    fontSize: '0.875rem',
-    marginBottom: '0.5rem',
-  };
-
   // Show loading state while dictionaries are being loaded
   if (isLoading) {
     return (
-      <div
-        style={{
-          ...containerStyle,
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '0.75rem',
-        }}
-      >
-        <Loader size={20} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-          Loading dictionary...
-        </span>
+      <div className={`${styles.container} ${styles.loadingContainer}`}>
+        <Loader size={20} className={`animate-spin ${styles.loadingSpinner}`} />
+        <span className={styles.loadingText}>Loading dictionary...</span>
       </div>
     );
   }
 
   // Main component render
   return (
-    <div style={containerStyle}>
+    <div className={styles.container}>
       {React.createElement(HotkeyHandler as any, {
         onUndo: handleUndo,
         onRedo: handleRedo,
@@ -389,9 +299,9 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         canRedo,
         activeTab: 'dictionary',
       })}
-      <div style={headerStyle}>
+      <div className={styles.header}>
         <select
-          style={selectStyle}
+          className={styles.select}
           value={selectedDictionary}
           onChange={(e) => setSelectedDictionary(e.target.value)}
           disabled={isLoadingDictionary}
@@ -404,31 +314,22 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         </select>
 
         <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.375rem',
-            fontSize: '0.8125rem',
-            cursor: 'pointer',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            color: 'var(--text-secondary)',
-          }}
+          className={styles.filterLabel}
           title="Show all proper nouns dictionaries, including inactive ones"
         >
           <input
             type="checkbox"
             checked={showAllDictionaries}
             onChange={(e) => setShowAllDictionaries(e.target.checked)}
-            style={{ cursor: 'pointer', accentColor: 'var(--primary-color)' }}
+            className={styles.filterCheckbox}
           />
           Show all
         </label>
 
-        <div style={controlsStyle}>
+        <div className={styles.controls}>
           <button
             onClick={handleUndo}
-            style={iconButtonStyle}
+            className={styles.iconButton}
             disabled={!canUndo || isLoadingDictionary}
             title="Undo last change"
           >
@@ -436,7 +337,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           </button>
           <button
             onClick={handleRedo}
-            style={iconButtonStyle}
+            className={styles.iconButton}
             disabled={!canRedo || isLoadingDictionary}
             title="Redo last change"
           >
@@ -445,8 +346,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
           <button
             onClick={() => setShowAddEntry(true)}
-            className="primary"
-            style={buttonStyle}
+            className={`primary ${styles.button}`}
             disabled={isLoadingDictionary}
             title="Add new entry"
           >
@@ -462,8 +362,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                     selectionState.onBulkMove();
                   }
                 }}
-                className="secondary"
-                style={buttonStyle}
+                className={`secondary ${styles.button}`}
                 disabled={selectionState.isMoving}
                 title={`Move ${selectionState.selectedCount} selected entries to another dictionary`}
               >
@@ -483,8 +382,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                     selectionState.setShowBulkDeleteConfirm(true);
                   }
                 }}
-                className="danger"
-                style={buttonStyle}
+                className={`danger ${styles.button}`}
                 disabled={selectionState.isDeleting}
                 title={
                   selectionState.showBulkDeleteConfirm
@@ -506,8 +404,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
           <button
             onClick={handleExportDictionaries}
-            className="secondary"
-            style={buttonStyle}
+            className={`secondary ${styles.button}`}
             title="Export all dictionaries to ZIP file"
             disabled={isLoadingDictionary}
           >
@@ -517,8 +414,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
           <button
             onClick={handleImportDictionaries}
-            className="secondary"
-            style={buttonStyle}
+            className={`secondary ${styles.button}`}
             title="Import dictionaries from ZIP file"
             disabled={isLoadingDictionary}
           >
@@ -528,8 +424,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
           <button
             onClick={handleOpenFolder}
-            className="secondary"
-            style={buttonStyle}
+            className={`secondary ${styles.button}`}
             title="Show dictionaries folder in Finder"
           >
             <Folder size={15} />
@@ -539,19 +434,19 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       </div>
 
       {error && (
-        <div style={errorStyle}>
+        <div className={styles.error}>
           <AlertCircle size={15} />
           {error}
         </div>
       )}
       {updateError && (
-        <div style={errorStyle}>
+        <div className={styles.error}>
           <AlertCircle size={15} />
           {updateError}
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      <div className={styles.tableContainer}>
         {useEnhancedVirtualization
           ? React.createElement(EnhancedVirtualizedDictionaryTable as any, {
               selectedDictionary,

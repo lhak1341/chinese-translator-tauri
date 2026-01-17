@@ -28,7 +28,8 @@
       "Bash(git ls-tree:*)",
       "Bash(cargo bench:*)",
       "Bash(npx prettier:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm outdated:*)"
     ],
     "deny": [],
     "ask": []
