@@ -40,3 +40,6 @@ src/wasm-core
 
 # Tauri generated files
 src-tauri/gen
+
+# Test coverage reports
+coverage
