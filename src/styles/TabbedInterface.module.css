@@ -1,0 +1,90 @@
+/* TabbedInterface Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Main Container */
+.container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-color);
+  overflow: hidden;
+}
+
+/* Navigation Bar */
+.nav {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--nav-bg-solid);
+  padding: 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Tab Button Base */
+.tabButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0.875rem 1.75rem;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: auto;
+  border-radius: 0;
+}
+
+.tabButtonActive {
+  border-bottom: 2px solid var(--nav-active-border);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.tabButtonInactive {
+  border-bottom: 2px solid transparent;
+  font-weight: 500;
+  color: var(--nav-text);
+}
+
+.tabIcon {
+  margin-right: 0.5rem;
+}
+
+/* Content Area */
+.content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--background-color);
+}
+
+/* Component Wrapper */
+.componentWrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.componentWrapperVisible {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.componentWrapperHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.componentWrapperScroll {
+  overflow: auto;
+}
