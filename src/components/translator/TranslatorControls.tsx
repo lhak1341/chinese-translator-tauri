@@ -1,5 +1,6 @@
 import React from 'react';
 import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Database, Activity } from 'lucide-react';
+import styles from '../../styles/TranslatorControls.module.css';
 
 /**
  * Performance statistics for translation operations
@@ -92,35 +93,14 @@ export default function TranslatorControls({
         : 'var(--success-color)';
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '0.75rem',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-      }}
-    >
+    <div className={styles.container}>
       {/* Primary Action - Translate */}
       <button
         onClick={handleTranslateFromClipboard}
         disabled={isLoading || isTranslating}
         title="Translate from Clipboard (Ctrl/Cmd + Shift + V)"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.375rem',
-          padding: '0.5rem 0.875rem',
-          fontSize: '0.8125rem',
-          fontWeight: 500,
-          borderRadius: 'var(--radius-md)',
-          cursor: isLoading || isTranslating ? 'not-allowed' : 'pointer',
-          border: 'none',
-          background: 'var(--primary-color)',
-          color: 'white',
-          opacity: isLoading || isTranslating ? 0.6 : 1,
-          transition: 'all 0.15s ease',
-        }}
+        className={`${styles.button} ${styles.buttonPrimary} ${isLoading || isTranslating ? styles.buttonDisabled : styles.buttonEnabled}`}
+        style={{ opacity: isLoading || isTranslating ? 0.6 : 1 }}
       >
         <ClipboardPaste size={15} />
         {isLoading ? 'Loading...' : isTranslating ? 'Translating...' : 'Translate'}
@@ -130,20 +110,7 @@ export default function TranslatorControls({
       <button
         onClick={handleQuickAddProperNoun}
         title="Quick Add Entry (Cmd/Ctrl + 1-5)"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.375rem',
-          padding: '0.5rem 0.875rem',
-          fontSize: '0.8125rem',
-          fontWeight: 500,
-          borderRadius: 'var(--radius-md)',
-          cursor: 'pointer',
-          border: '1px solid var(--border-color)',
-          background: 'var(--surface-color)',
-          color: 'var(--text-color)',
-          transition: 'all 0.15s ease',
-        }}
+        className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonEnabled}`}
       >
         <PlusCircle size={15} />
         Add Entry
@@ -154,76 +121,31 @@ export default function TranslatorControls({
         onClick={handleForceReload}
         disabled={isLoading}
         title="Reload Dictionary"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.375rem',
-          padding: '0.5rem 0.875rem',
-          fontSize: '0.8125rem',
-          fontWeight: 500,
-          borderRadius: 'var(--radius-md)',
-          cursor: isLoading ? 'not-allowed' : 'pointer',
-          border: 'none',
-          background: 'var(--error-subtle)',
-          color: 'var(--error-color)',
-          opacity: isLoading ? 0.6 : 1,
-          transition: 'all 0.15s ease',
-        }}
+        className={`${styles.button} ${styles.buttonReload} ${isLoading ? styles.buttonDisabled : styles.buttonEnabled}`}
+        style={{ opacity: isLoading ? 0.6 : 1 }}
       >
         <RotateCcw size={15} />
         Reload
       </button>
 
       {/* Spacer */}
-      <div style={{ flex: 1 }} />
+      <div className={styles.spacer} />
 
       {/* Progress or Stats */}
       {progressInfo ? (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 0.75rem',
-            background: 'var(--success-subtle)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '0.75rem',
-            fontWeight: 500,
-            color: 'var(--success-color)',
-          }}
-        >
-          <div
-            style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: 'currentColor',
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
-          />
+        <div className={styles.progressIndicator}>
+          <div className={styles.pulseDot} />
           Batch {progressInfo.currentBatch}/{progressInfo.totalBatches}
         </div>
       ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className={styles.statsContainer}>
           {/* Stats chip */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.625rem',
-              padding: '0.5rem 0.75rem',
-              background: 'var(--surface-color)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '0.75rem',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <div className={styles.statsChip}>
+            <span className={styles.statItem}>
               <Zap size={12} style={{ color: 'var(--warning-color)' }} />
               {Math.round(performanceStats.avgTime)}ms
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span className={styles.statItem}>
               <Database
                 size={12}
                 style={{
@@ -237,51 +159,26 @@ export default function TranslatorControls({
             </span>
             {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
               <span
+                className={styles.wasmStatus}
                 style={{
                   color: wasmStatus.fallbackMode ? 'var(--warning-color)' : 'var(--primary-color)',
-                  fontFamily: 'var(--font-mono)',
                 }}
               >
                 {wasmStatus.fallbackMode ? 'JS' : 'WASM'}
               </span>
             )}
-            <span
-              style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: healthColor }}
-            >
+            <span className={styles.statItem} style={{ color: healthColor }}>
               <Activity size={12} />
             </span>
           </div>
 
           {/* Streaming progress */}
           {throttledStreamingState.isStreaming && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.5rem 0.75rem',
-                background: 'var(--primary-subtle)',
-                borderRadius: 'var(--radius-md)',
-                fontSize: '0.75rem',
-                color: 'var(--primary-color)',
-              }}
-            >
-              <div
-                style={{
-                  width: '40px',
-                  height: '4px',
-                  background: 'var(--border-color)',
-                  borderRadius: '2px',
-                  overflow: 'hidden',
-                }}
-              >
+            <div className={styles.streamingProgress}>
+              <div className={styles.progressBar}>
                 <div
-                  style={{
-                    width: `${throttledStreamingState.progress}%`,
-                    height: '100%',
-                    background: 'var(--primary-color)',
-                    transition: 'width 0.15s ease',
-                  }}
+                  className={styles.progressBarFill}
+                  style={{ width: `${throttledStreamingState.progress}%` }}
                 />
               </div>
               {Math.round(throttledStreamingState.progress)}%
@@ -293,27 +190,9 @@ export default function TranslatorControls({
       {/* Active badge */}
       {activeTranslations > 0 && (
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            padding: '0.25rem 0.5rem',
-            background: activeTranslations > 1 ? 'var(--warning-subtle)' : 'var(--success-subtle)',
-            borderRadius: 'var(--radius-full)',
-            fontSize: '0.6875rem',
-            fontWeight: 600,
-            color: activeTranslations > 1 ? 'var(--warning-color)' : 'var(--success-color)',
-          }}
+          className={`${styles.activeBadge} ${activeTranslations > 1 ? styles.activeBadgeMultiple : styles.activeBadgeSingle}`}
         >
-          <div
-            style={{
-              width: '5px',
-              height: '5px',
-              borderRadius: '50%',
-              background: 'currentColor',
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }}
-          />
+          <div className={styles.activeBadgeDot} />
           {activeTranslations} active
         </div>
       )}

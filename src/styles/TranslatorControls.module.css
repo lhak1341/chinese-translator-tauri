@@ -1,0 +1,171 @@
+/* TranslatorControls Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Container */
+.container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+}
+
+.buttonPrimary {
+  border: none;
+  background: var(--primary-color);
+  color: white;
+}
+
+.buttonSecondary {
+  border: 1px solid var(--border-color);
+  background: var(--surface-color);
+  color: var(--text-color);
+}
+
+.buttonReload {
+  border: none;
+  background: var(--error-subtle);
+  color: var(--error-color);
+}
+
+.buttonDisabled {
+  cursor: not-allowed;
+}
+
+.buttonEnabled {
+  cursor: pointer;
+}
+
+/* Spacer */
+.spacer {
+  flex: 1;
+}
+
+/* Progress Indicator */
+.progressIndicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--success-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--success-color);
+}
+
+.pulseDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Stats Container */
+.statsContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Stats Chip */
+.statsChip {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.wasmStatus {
+  font-family: var(--font-mono);
+}
+
+/* Streaming Progress */
+.streamingProgress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--primary-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--primary-color);
+}
+
+.progressBar {
+  width: 40px;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.15s ease;
+}
+
+/* Active Badge */
+.activeBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.activeBadgeSingle {
+  background: var(--success-subtle);
+  color: var(--success-color);
+}
+
+.activeBadgeMultiple {
+  background: var(--warning-subtle);
+  color: var(--warning-color);
+}
+
+.activeBadgeDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Pulse Animation */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
