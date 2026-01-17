@@ -12,6 +12,7 @@
 
 import React, { memo, useMemo, useRef, useEffect } from 'react';
 import '../styles/streaming-animations.css';
+import styles from '../styles/StreamingTranslationDisplay.module.css';
 
 /**
  * Streaming state for progress bar
@@ -156,17 +157,7 @@ const StreamingTextRenderer = memo<StreamingTextRendererProps>(
     return (
       <div
         ref={containerRef}
-        className="streaming-text-container"
-        style={{
-          whiteSpace: 'pre-wrap',
-          wordWrap: 'break-word',
-          maxHeight: isStreaming ? '400px' : 'none',
-          overflowY: isStreaming ? 'auto' : 'visible',
-          padding: '12px',
-          lineHeight: '1.5',
-          fontSize: '14px',
-          backgroundColor: 'transparent',
-        }}
+        className={`streaming-text-container ${styles.textContainer} ${isStreaming ? styles.textContainerStreaming : styles.textContainerStatic}`}
       >
         {visibleLines.map((line, index) => (
           <div key={index} className="streaming-text-line">
@@ -180,15 +171,7 @@ const StreamingTextRenderer = memo<StreamingTextRendererProps>(
 
         {/* Show line truncation notice if applicable */}
         {lines.length > maxVisibleLines && (
-          <div
-            style={{
-              padding: '8px',
-              color: 'var(--streaming-text-primary)',
-              fontStyle: 'italic',
-              borderTop: '1px solid var(--streaming-border)',
-              marginTop: '8px',
-            }}
-          >
+          <div className={styles.truncationNotice}>
             ... showing last {maxVisibleLines} lines of {lines.length} total
           </div>
         )}
@@ -228,16 +211,7 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
     if (!shouldUpdate) {
       return (
         <div className={className} style={style}>
-          <div
-            style={{
-              padding: '20px',
-              color: 'var(--streaming-text-primary)',
-              textAlign: 'center',
-              backgroundColor: 'transparent',
-            }}
-          >
-            Ready for translation...
-          </div>
+          <div className={styles.readyMessage}>Ready for translation...</div>
         </div>
       );
     }
@@ -249,14 +223,7 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
 
         {/* Main text display */}
         <div
-          className="translation-content"
-          style={{
-            border: showStreamingUI ? '1px solid var(--streaming-border)' : 'none',
-            borderRadius: showStreamingUI ? '4px' : '0',
-            backgroundColor: showStreamingUI ? 'var(--streaming-bg-secondary)' : 'transparent',
-            position: 'relative',
-            minHeight: '100px',
-          }}
+          className={`translation-content ${styles.translationContent} ${showStreamingUI ? styles.translationContentStreaming : styles.translationContentStatic}`}
         >
           <StreamingTextRenderer
             text={displayText}
@@ -267,31 +234,8 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
 
           {/* Streaming indicator overlay */}
           {showStreamingUI && (
-            <div
-              style={{
-                position: 'absolute',
-                top: '8px',
-                right: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '4px 8px',
-                backgroundColor: 'var(--streaming-accent-light)',
-                borderRadius: '12px',
-                fontSize: '11px',
-                color: 'var(--streaming-accent)',
-                fontWeight: '500',
-              }}
-            >
-              <div
-                style={{
-                  width: '6px',
-                  height: '6px',
-                  backgroundColor: 'var(--streaming-accent)',
-                  borderRadius: '50%',
-                  marginRight: '6px',
-                  animation: 'pulse 1.5s infinite',
-                }}
-              />
+            <div className={styles.streamingIndicator}>
+              <div className={styles.streamingIndicatorDot} />
               Streaming...
             </div>
           )}
@@ -299,17 +243,7 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
 
         {/* Debug info (development only) */}
         {process.env.NODE_ENV === 'development' && showStreamingUI && (
-          <div
-            style={{
-              marginTop: '8px',
-              padding: '8px',
-              backgroundColor: 'var(--streaming-bg-primary)',
-              borderRadius: '4px',
-              fontSize: '11px',
-              fontFamily: 'monospace',
-              color: 'var(--streaming-text-primary)',
-            }}
-          >
+          <div className={styles.debugInfo}>
             <strong>Debug:</strong> Chunks: {streamingState.completedChunks}/
             {streamingState.totalChunks}, Text: {displayText.length} chars, Semantic:{' '}
             {partialSemanticArrays?.original?.length || 0} segments

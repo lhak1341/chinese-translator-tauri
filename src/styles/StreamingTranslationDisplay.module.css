@@ -1,0 +1,103 @@
+/* StreamingTranslationDisplay Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Text Container */
+.textContainer {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: 12px;
+  line-height: 1.5;
+  font-size: 14px;
+  background-color: transparent;
+}
+
+.textContainerStreaming {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.textContainerStatic {
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* Truncation Notice */
+.truncationNotice {
+  padding: 8px;
+  color: var(--streaming-text-primary);
+  font-style: italic;
+  border-top: 1px solid var(--streaming-border);
+  margin-top: 8px;
+}
+
+/* Ready Message */
+.readyMessage {
+  padding: 20px;
+  color: var(--streaming-text-primary);
+  text-align: center;
+  background-color: transparent;
+}
+
+/* Translation Content */
+.translationContent {
+  position: relative;
+  min-height: 100px;
+}
+
+.translationContentStreaming {
+  border: 1px solid var(--streaming-border);
+  border-radius: 4px;
+  background-color: var(--streaming-bg-secondary);
+}
+
+.translationContentStatic {
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+/* Streaming Indicator */
+.streamingIndicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: var(--streaming-accent-light);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--streaming-accent);
+  font-weight: 500;
+}
+
+.streamingIndicatorDot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--streaming-accent);
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: pulse 1.5s infinite;
+}
+
+/* Debug Info */
+.debugInfo {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: var(--streaming-bg-primary);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--streaming-text-primary);
+}
+
+/* Pulse Animation (for streaming indicator) */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
