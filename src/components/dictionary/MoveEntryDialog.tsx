@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
 import { Loader } from 'lucide-react';
+import styles from '../../styles/MoveEntryDialog.module.css';
 
 /**
  * Dictionary entry to be moved
@@ -100,60 +101,20 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-        zIndex: 1000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: 'var(--background-color)',
-          borderRadius: '8px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-          width: '100%',
-          maxWidth: '400px',
-          position: 'relative',
-          border: '1px solid var(--border-color)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         {/* Simple Header */}
-        <div
-          style={{
-            padding: '1rem',
-            borderBottom: '1px solid var(--border-color)',
-            textAlign: 'center',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '1.25rem' }}>Move Entry</h2>
+        <div className={styles.header}>
+          <h2 className={styles.title}>Move Entry</h2>
         </div>
 
         {/* Minimal Content */}
-        <div style={{ padding: '1rem' }}>
+        <div className={styles.content}>
           <select
             value={selectedDictionary}
             onChange={(e) => setSelectedDictionary(e.target.value)}
             disabled={isMoving}
-            style={{
-              width: '100%',
-              padding: '0.5rem',
-              borderRadius: '6px',
-              border: '1px solid var(--border-color)',
-              backgroundColor: 'var(--background-color)',
-              color: 'var(--text-color)',
-              marginBottom: error ? '0.75rem' : 0,
-            }}
+            className={`${styles.select} ${error ? styles.selectWithError : ''}`}
           >
             <option value="">Select a dictionary...</option>
             {availableDictionaries.map(({ id, label }) => (
@@ -163,29 +124,11 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
             ))}
           </select>
 
-          {error && (
-            <div
-              style={{
-                color: 'var(--danger-button-text)',
-                fontSize: '0.875rem',
-                marginTop: '0.5rem',
-              }}
-            >
-              {error}
-            </div>
-          )}
+          {error && <div className={styles.error}>{error}</div>}
         </div>
 
         {/* Footer with Buttons */}
-        <div
-          style={{
-            padding: '1rem',
-            borderTop: '1px solid var(--border-color)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '0.75rem',
-          }}
-        >
+        <div className={styles.footer}>
           <button onClick={onClose} disabled={isMoving}>
             Cancel
           </button>

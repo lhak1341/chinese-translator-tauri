@@ -1,0 +1,75 @@
+/* MoveEntryDialog Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Overlay */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+/* Modal Container */
+.modal {
+  background-color: var(--background-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  border: 1px solid var(--border-color);
+}
+
+/* Header */
+.header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+/* Content */
+.content {
+  padding: 1rem;
+}
+
+/* Select Dropdown */
+.select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.selectWithError {
+  margin-bottom: 0.75rem;
+}
+
+/* Error Message */
+.error {
+  color: var(--danger-button-text);
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+/* Footer */
+.footer {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
