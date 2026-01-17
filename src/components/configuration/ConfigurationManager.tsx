@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark, Zap } from 'lucide-react';
+import styles from '../../styles/ConfigurationManager.module.css';
 
 /**
  * ConfigurationManager Component
@@ -285,26 +286,10 @@ const ConfigurationManager: React.FC = () => {
     };
 
     return (
-      <div
-        key={dictionaryId}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0.5rem 0.625rem',
-          borderRadius: 'var(--radius-sm)',
-          transition: 'background-color 0.15s ease',
-          backgroundColor: 'transparent',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--background-color)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'transparent';
-        }}
-      >
+      <div key={dictionaryId} className={styles.dictionaryRow}>
         {isRenaming ? (
           // Rename mode
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+          <div className={styles.renameContainer}>
             <input
               type="text"
               value={renameValue}
@@ -314,44 +299,18 @@ const ConfigurationManager: React.FC = () => {
                 if (e.key === 'Escape') handleCancelRename();
               }}
               autoFocus
-              style={{
-                flex: 1,
-                padding: '0.375rem 0.5rem',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.875rem',
-                background: 'var(--background-color)',
-                color: 'var(--text-color)',
-              }}
+              className={styles.renameInput}
             />
             <button
               onClick={handleConfirmRename}
-              style={{
-                padding: '0.375rem',
-                background: 'var(--success-color)',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                color: 'white',
-              }}
+              className={styles.confirmButton}
               title="Confirm rename"
             >
               <Check size={14} />
             </button>
             <button
               onClick={handleCancelRename}
-              style={{
-                padding: '0.375rem',
-                background: 'var(--error-color)',
-                border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                color: 'white',
-              }}
+              className={styles.cancelButton}
               title="Cancel rename"
             >
               <X size={14} />
@@ -361,15 +320,10 @@ const ConfigurationManager: React.FC = () => {
           // Normal mode
           <>
             <label
+              className={`${styles.dictionaryLabel} ${isChecked ? styles.dictionaryLabelActive : styles.dictionaryLabelInactive}`}
               style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                cursor: 'pointer',
                 color: isChecked ? 'var(--primary-color)' : 'var(--text-color)',
                 fontWeight: isChecked ? 500 : 'normal',
-                fontSize: '0.875rem',
               }}
             >
               <input
@@ -383,16 +337,7 @@ const ConfigurationManager: React.FC = () => {
             {isChecked && isCustomProperNoun && (
               <button
                 onClick={() => handleSetDefaultQuickAdd(dictionaryId)}
-                style={{
-                  padding: '0.25rem',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: isDefaultQuickAdd ? 'var(--error-color)' : 'var(--text-muted)',
-                  transition: 'color 0.15s ease',
-                }}
+                className={`${styles.bookmarkButton} ${isDefaultQuickAdd ? styles.bookmarkButtonDefault : styles.bookmarkButtonInactive}`}
                 title={
                   isDefaultQuickAdd
                     ? 'Default Cmd-5 dictionary (click to unset)'
@@ -405,16 +350,7 @@ const ConfigurationManager: React.FC = () => {
             {canRename && (
               <button
                 onClick={() => handleStartRename(dictionaryId)}
-                style={{
-                  padding: '0.25rem',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  color: 'var(--text-muted)',
-                  transition: 'color 0.15s ease',
-                }}
+                className={styles.renameButton}
                 title="Rename dictionary"
               >
                 <Pencil size={14} />
@@ -428,75 +364,27 @@ const ConfigurationManager: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          gap: '0.75rem',
-        }}
-      >
-        <Loader size={20} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
-        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9375rem' }}>
-          Loading configuration...
-        </span>
+      <div className={styles.loadingContainer}>
+        <Loader size={20} className={`animate-spin ${styles.loadingSpinner}`} />
+        <span className={styles.loadingText}>Loading configuration...</span>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        padding: '1.5rem',
-        height: '100%',
-        overflowY: 'auto',
-        boxSizing: 'border-box',
-        background: 'var(--background-color)',
-      }}
-    >
+    <div className={styles.container}>
       {/* WASM Configuration Section */}
-      <div
-        style={{
-          marginBottom: '1.5rem',
-          padding: '1rem',
-          backgroundColor: 'var(--surface-color)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-lg)',
-        }}
-      >
-        <h2
-          style={{
-            fontSize: '0.9375rem',
-            fontWeight: 600,
-            color: 'var(--text-color)',
-            margin: 0,
-            marginBottom: '1rem',
-          }}
-        >
-          Performance
-        </h2>
+      <div className={styles.wasmSection}>
+        <h2 className={styles.sectionHeading}>Performance</h2>
 
         <div>
           {/* Toggle row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: wasmEnabled ? '1rem' : 0,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-              <Zap
-                size={15}
-                style={{ color: wasmEnabled ? 'var(--warning-color)' : 'var(--text-muted)' }}
-              />
+          <div className={`${styles.toggleRow} ${wasmEnabled ? styles.toggleRowWithMargin : ''}`}>
+            <div className={styles.labelContainer}>
+              <Zap size={15} className={wasmEnabled ? styles.zapIcon : styles.zapIconMuted} />
               <div>
-                <div style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-color)' }}>
-                  WASM Acceleration
-                </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <div className={styles.labelText}>WASM Acceleration</div>
+                <div className={styles.labelDescription}>
                   {wasmEnabled ? 'Rust-powered dictionary lookups' : 'JavaScript fallback mode'}
                 </div>
               </div>
@@ -506,31 +394,12 @@ const ConfigurationManager: React.FC = () => {
               onClick={() => handleWasmToggle(!wasmEnabled)}
               aria-pressed={wasmEnabled}
               aria-label="Toggle WASM Acceleration"
-              style={{
-                width: '44px',
-                height: '24px',
-                borderRadius: '12px',
-                border: 'none',
-                padding: 0,
-                cursor: 'pointer',
-                background: wasmEnabled ? 'var(--primary-color)' : 'var(--border-color)',
-                transition: 'background 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                flexShrink: 0,
-                position: 'relative',
-              }}
+              className={`${styles.toggleSwitch} ${wasmEnabled ? styles.toggleSwitchEnabled : styles.toggleSwitchDisabled}`}
             >
               <div
+                className={styles.toggleKnob}
                 style={{
-                  width: '18px',
-                  height: '18px',
-                  borderRadius: '50%',
-                  background: 'white',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                  position: 'absolute',
                   left: wasmEnabled ? '23px' : '3px',
-                  transition: 'left 0.2s ease',
                 }}
               />
             </button>
@@ -538,44 +407,14 @@ const ConfigurationManager: React.FC = () => {
 
           {/* Memory slider - only show when enabled */}
           {wasmEnabled && (
-            <div
-              style={{
-                padding: '0.75rem',
-                background: 'var(--background-color)',
-                borderRadius: 'var(--radius-md)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '0.5rem',
-                }}
-              >
-                <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                  Memory Limit
-                </span>
-                <span
-                  style={{
-                    fontSize: '0.8125rem',
-                    fontWeight: 600,
-                    color: 'var(--primary-color)',
-                    fontFamily: 'var(--font-mono)',
-                  }}
-                >
-                  {wasmMemoryLimit}MB
-                </span>
+            <div className={styles.memorySlider}>
+              <div className={styles.memorySliderHeader}>
+                <span className={styles.memorySliderLabel}>Memory Limit</span>
+                <span className={styles.memorySliderValue}>{wasmMemoryLimit}MB</span>
               </div>
               {/* Custom slider track */}
               <div
-                style={{
-                  position: 'relative',
-                  height: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                }}
+                className={styles.sliderTrack}
                 onClick={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect();
                   const percent = (e.clientX - rect.left) / rect.width;
@@ -584,39 +423,19 @@ const ConfigurationManager: React.FC = () => {
                 }}
               >
                 {/* Track background */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    right: 0,
-                    height: '4px',
-                    background: 'var(--border-color)',
-                    borderRadius: '2px',
-                  }}
-                />
+                <div className={styles.trackBackground} />
                 {/* Track fill */}
                 <div
+                  className={styles.trackFill}
                   style={{
-                    position: 'absolute',
-                    left: 0,
                     width: `${((wasmMemoryLimit - 10) / 40) * 100}%`,
-                    height: '4px',
-                    background: 'var(--primary-color)',
-                    borderRadius: '2px',
                   }}
                 />
                 {/* Thumb */}
                 <div
+                  className={styles.sliderThumb}
                   style={{
-                    position: 'absolute',
                     left: `calc(${((wasmMemoryLimit - 10) / 40) * 100}% - 8px)`,
-                    width: '16px',
-                    height: '16px',
-                    background: 'white',
-                    border: '2px solid var(--primary-color)',
-                    borderRadius: '50%',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                    cursor: 'grab',
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -640,15 +459,7 @@ const ConfigurationManager: React.FC = () => {
                   }}
                 />
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  marginTop: '0.25rem',
-                }}
-              >
+              <div className={styles.sliderLabels}>
                 <span>10MB</span>
                 <span>30MB</span>
                 <span>50MB</span>
@@ -659,45 +470,16 @@ const ConfigurationManager: React.FC = () => {
       </div>
 
       {/* Dictionaries Section */}
-      <div
-        style={{
-          marginBottom: '1rem',
-          padding: '1rem',
-          backgroundColor: 'var(--surface-color)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--radius-lg)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '1rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-            <h2
-              style={{
-                fontSize: '0.9375rem',
-                fontWeight: 600,
-                color: 'var(--text-color)',
-                margin: 0,
-              }}
-            >
-              Proper Nouns Dictionaries
-            </h2>
-            <span
-              style={{
-                fontSize: '0.8125rem',
-                color: 'var(--text-muted)',
-              }}
-            >
+      <div className={styles.dictionariesSection}>
+        <div className={styles.dictionariesHeader}>
+          <div className={styles.headerLeft}>
+            <h2 className={styles.dictionariesTitle}>Proper Nouns Dictionaries</h2>
+            <span className={styles.dictionariesCount}>
               {activeDictionaries.length} active
               {defaultQuickAddDictionary && (
                 <>
                   {' • Quick Add defaults to '}
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  <span className={styles.quickAddDefault}>
                     {defaultQuickAddDictionary.replace('properNouns-', '')}
                   </span>
                 </>
@@ -706,12 +488,7 @@ const ConfigurationManager: React.FC = () => {
           </div>
           <button
             onClick={() => setShowNewDictionaryModal(true)}
-            className="primary"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-            }}
+            className={`primary ${styles.newButton}`}
           >
             <PlusCircle size={14} />
             New
@@ -719,126 +496,50 @@ const ConfigurationManager: React.FC = () => {
         </div>
 
         {error && (
-          <div
-            style={{
-              padding: '0.625rem 0.75rem',
-              marginBottom: '0.75rem',
-              backgroundColor: 'var(--error-subtle)',
-              borderRadius: 'var(--radius-md)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              fontSize: '0.875rem',
-              color: 'var(--error-color)',
-            }}
-          >
+          <div className={styles.error}>
             <AlertCircle size={15} />
             {error}
           </div>
         )}
 
         {/* 2-Column Layout: Left 25% (Base + Generic stacked) | Right 75% (Fiction in 3 cols) */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '2rem',
-          }}
-        >
+        <div className={styles.layoutContainer}>
           {/* Left Column: Base + Generic stacked (25% width) */}
-          <div style={{ flex: '0 0 25%', minWidth: 0 }}>
+          <div className={styles.leftColumn}>
             {/* Base Section */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div
-                style={{
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  marginBottom: '0.75rem',
-                  paddingBottom: '0.5rem',
-                  borderBottom: '1px solid var(--border-color)',
-                }}
-              >
-                Base
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div className={styles.categorySection}>
+              <div className={styles.categoryHeader}>Base</div>
+              <div className={styles.dictionaryList}>
                 {categorizedDictionaries.base.map((dictionaryId) =>
                   renderDictionaryRow(dictionaryId)
                 )}
                 {categorizedDictionaries.base.length === 0 && (
-                  <div
-                    style={{
-                      fontSize: '0.875rem',
-                      color: 'var(--text-muted)',
-                      padding: '0.5rem 0',
-                    }}
-                  >
-                    No dictionaries
-                  </div>
+                  <div className={styles.noDictionaries}>No dictionaries</div>
                 )}
               </div>
             </div>
 
             {/* Generic Section */}
             <div>
-              <div
-                style={{
-                  fontSize: '0.8125rem',
-                  fontWeight: 600,
-                  color: 'var(--text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  marginBottom: '0.75rem',
-                  paddingBottom: '0.5rem',
-                  borderBottom: '1px solid var(--border-color)',
-                }}
-              >
-                Generic
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              <div className={styles.categoryHeader}>Generic</div>
+              <div className={styles.dictionaryList}>
                 {categorizedDictionaries.generic.map((dictionaryId) =>
                   renderDictionaryRow(dictionaryId)
                 )}
                 {categorizedDictionaries.generic.length === 0 && (
-                  <div
-                    style={{
-                      fontSize: '0.875rem',
-                      color: 'var(--text-muted)',
-                      padding: '0.5rem 0',
-                    }}
-                  >
-                    No dictionaries
-                  </div>
+                  <div className={styles.noDictionaries}>No dictionaries</div>
                 )}
               </div>
             </div>
           </div>
 
           {/* Right Column: Fiction in 3 columns (75% width, column-first ordering) */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: '0.8125rem',
-                fontWeight: 600,
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                marginBottom: '0.75rem',
-                paddingBottom: '0.5rem',
-                borderBottom: '1px solid var(--border-color)',
-              }}
-            >
-              Fiction
-            </div>
+          <div className={styles.rightColumn}>
+            <div className={styles.categoryHeader}>Fiction</div>
             {categorizedDictionaries.fiction.length === 0 ? (
-              <div
-                style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}
-              >
-                No dictionaries
-              </div>
+              <div className={styles.noDictionaries}>No dictionaries</div>
             ) : (
-              <div style={{ display: 'flex', gap: '1rem' }}>
+              <div className={styles.fictionColumns}>
                 {/* Split fiction into 3 columns for A-Z column-first ordering */}
                 {(() => {
                   const fiction = categorizedDictionaries.fiction;
@@ -849,34 +550,13 @@ const ConfigurationManager: React.FC = () => {
 
                   return (
                     <>
-                      <div
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.25rem',
-                        }}
-                      >
+                      <div className={styles.fictionColumn}>
                         {col1.map((dictionaryId) => renderDictionaryRow(dictionaryId))}
                       </div>
-                      <div
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.25rem',
-                        }}
-                      >
+                      <div className={styles.fictionColumn}>
                         {col2.map((dictionaryId) => renderDictionaryRow(dictionaryId))}
                       </div>
-                      <div
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.25rem',
-                        }}
-                      >
+                      <div className={styles.fictionColumn}>
                         {col3.map((dictionaryId) => renderDictionaryRow(dictionaryId))}
                       </div>
                     </>
@@ -889,113 +569,35 @@ const ConfigurationManager: React.FC = () => {
       </div>
 
       {showNewDictionaryModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem',
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--surface-color)',
-              padding: '1.5rem',
-              borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border-color)',
-              width: '100%',
-              maxWidth: '400px',
-              boxShadow: 'var(--shadow-lg)',
-            }}
-          >
-            <h3
-              style={{
-                marginBottom: '1rem',
-                fontSize: '0.9375rem',
-                fontWeight: 600,
-                color: 'var(--text-color)',
-              }}
-            >
-              Create New Dictionary
-            </h3>
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContainer}>
+            <h3 className={styles.modalHeading}>Create New Dictionary</h3>
             <form onSubmit={handleCreateDictionary}>
-              <div style={{ marginBottom: '1rem' }}>
-                <label
-                  style={{
-                    display: 'block',
-                    marginBottom: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    color: 'var(--text-color)',
-                  }}
-                >
-                  Dictionary Name
-                </label>
+              <div className={styles.formGroup}>
+                <label className={styles.formLabel}>Dictionary Name</label>
                 <input
                   type="text"
                   value={newDictionaryName}
                   onChange={(e) => setNewDictionaryName(e.target.value)}
                   placeholder="e.g., HarryPotter, JourneyToTheWest"
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '0.875rem',
-                    background: 'var(--background-color)',
-                    color: 'var(--text-color)',
-                    boxSizing: 'border-box',
-                  }}
+                  className={styles.formInput}
                 />
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: '0.5rem',
-                }}
-              >
+              <div className={styles.buttonContainer}>
                 <button
                   type="button"
                   onClick={() => setShowNewDictionaryModal(false)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '0.5rem 0.875rem',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    border: '1px solid var(--border-color)',
-                    background: 'var(--surface-color)',
-                    color: 'var(--text-color)',
-                    transition: 'all 0.15s ease',
-                  }}
+                  className={styles.modalCancelButton}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="primary"
+                  className={`primary ${styles.modalSubmitButton}`}
                   disabled={!newDictionaryName.trim()}
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '0.5rem 0.875rem',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '0.875rem',
-                    fontWeight: 500,
                     cursor: newDictionaryName.trim() ? 'pointer' : 'not-allowed',
-                    border: 'none',
                     opacity: newDictionaryName.trim() ? 1 : 0.6,
-                    transition: 'all 0.15s ease',
                   }}
                 >
                   Create
