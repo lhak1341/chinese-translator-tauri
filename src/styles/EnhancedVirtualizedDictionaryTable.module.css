@@ -1,0 +1,180 @@
+/* EnhancedVirtualizedDictionaryTable Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* MetadataBadge Component */
+.metadataBadge {
+  display: inline-block;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  user-select: none;
+  border: 1px solid transparent;
+}
+
+.metadataBadge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.metadataBadgeActive {
+  color: white;
+}
+
+.metadataBadgeInactive {
+  background: transparent;
+}
+
+.metadataBadgeVariable {
+  background: #059669;
+  border-color: #059669;
+}
+
+.metadataBadgeLowPriority {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+/* Bulk Move Dialog */
+.bulkMoveOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 1000;
+}
+
+.bulkMoveModal {
+  background-color: var(--background-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  border: 1px solid var(--border-color);
+}
+
+.bulkMoveHeader {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.bulkMoveTitle {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.bulkMoveContent {
+  padding: 1rem;
+}
+
+.bulkMoveSelect {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.bulkMoveSelectWithError {
+  margin-bottom: 0.75rem;
+}
+
+.bulkMoveError {
+  color: var(--danger-button-text);
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.bulkMoveActions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* Inline Edit Input */
+.inlineEditInput {
+  width: 100%;
+  border: 1px solid var(--accent-color);
+  border-radius: 2px;
+  padding: 2px 4px;
+  font-size: inherit;
+  font-family: inherit;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+/* Clickable Text */
+.clickableText {
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Column Cells */
+.checkboxCell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 0.25rem 0.75rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.checkboxInput {
+  cursor: pointer;
+}
+
+.cell {
+  padding: 0.25rem 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellEditable {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+}
+
+.cellContent {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Badge Container */
+.badgeContainer {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Action Buttons Container */
+.actionButtons {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Pattern Variable Highlighting */
+.patternVariable {
+  font-weight: 700;
+}

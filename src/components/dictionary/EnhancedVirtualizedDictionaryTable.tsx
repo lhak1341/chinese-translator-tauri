@@ -13,6 +13,7 @@ import { getDictionaryTypes } from './DictionaryTypes';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
+import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -114,13 +115,7 @@ const highlightPatternVariables = (text: string): React.ReactNode => {
     if (part.length === 1 && /[A-Z]/.test(part)) {
       const color = variableColors[part] || '#059669'; // Default to green if not in palette
       return (
-        <span
-          key={index}
-          style={{
-            color: color,
-            fontWeight: 700,
-          }}
-        >
+        <span key={index} className={styles.patternVariable} style={{ color: color }}>
           {part}
         </span>
       );
@@ -161,26 +156,11 @@ const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
         onClick();
       }}
       title={config.title}
+      className={styles.metadataBadge}
       style={{
-        display: 'inline-block',
-        cursor: 'pointer',
-        transition: 'all 0.15s',
-        padding: '2px 6px',
-        borderRadius: '3px',
-        fontSize: '0.65rem',
-        fontWeight: 600,
-        userSelect: 'none',
         background: active ? config.activeColor : 'transparent',
         color: active ? 'white' : config.inactiveColor,
         border: active ? 'none' : `1px solid ${config.inactiveColor}`,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'scale(1.05)';
-        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'scale(1)';
-        e.currentTarget.style.boxShadow = 'none';
       }}
     >
       {active && (type === 'variable' ? '✓ ' : '⬇ ')}
@@ -772,60 +752,20 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     };
 
     return (
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem',
-          zIndex: 1000,
-        }}
-        onClick={() => setShowBulkMoveDialog(false)}
-      >
-        <div
-          style={{
-            backgroundColor: 'var(--background-color)',
-            borderRadius: '8px',
-            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-            width: '100%',
-            maxWidth: '400px',
-            position: 'relative',
-            border: '1px solid var(--border-color)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div
-            style={{
-              padding: '1rem',
-              borderBottom: '1px solid var(--border-color)',
-              textAlign: 'center',
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: '1.25rem' }}>
+      <div className={styles.bulkMoveOverlay} onClick={() => setShowBulkMoveDialog(false)}>
+        <div className={styles.bulkMoveModal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.bulkMoveHeader}>
+            <h2 className={styles.bulkMoveTitle}>
               Move {selectedEntries.size} {selectedEntries.size === 1 ? 'Entry' : 'Entries'}
             </h2>
           </div>
 
-          <div style={{ padding: '1rem' }}>
+          <div className={styles.bulkMoveContent}>
             <select
               value={selectedTargetDict}
               onChange={(e) => setSelectedTargetDict(e.target.value)}
               disabled={isMoving}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color)',
-                backgroundColor: 'var(--background-color)',
-                color: 'var(--text-color)',
-                marginBottom: error ? '0.75rem' : 0,
-              }}
+              className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
             >
               <option value="">Select target dictionary...</option>
               {availableDictionaries.map((id) => (
@@ -839,28 +779,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               ))}
             </select>
 
-            {error && (
-              <div
-                style={{
-                  color: 'var(--danger-button-text)',
-                  fontSize: '0.875rem',
-                  marginTop: '0.5rem',
-                }}
-              >
-                {error}
-              </div>
-            )}
+            {error && <div className={styles.bulkMoveError}>{error}</div>}
           </div>
 
-          <div
-            style={{
-              padding: '1rem',
-              borderTop: '1px solid var(--border-color)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '0.75rem',
-            }}
-          >
+          <div className={styles.bulkMoveActions}>
             <button onClick={() => setShowBulkMoveDialog(false)} disabled={isMoving}>
               Cancel
             </button>
@@ -1024,36 +946,18 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               }}
             >
               {/* Selection Checkbox - 40px */}
-              <div
-                style={{
-                  width: '40px',
-                  minWidth: '40px',
-                  maxWidth: '40px',
-                  padding: '0.25rem 0.75rem',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
+              <div className={styles.checkboxCell}>
                 <input
                   type="checkbox"
                   checked={selectedEntries.has(source)}
                   onChange={(e) => handleSelectEntry(source, e.target.checked)}
-                  style={{ cursor: 'pointer' }}
+                  className={styles.checkboxInput}
                   title="Select for deletion"
                 />
               </div>
 
               {/* Source Text - calc(35% - 20px) with variable highlighting */}
-              <div
-                style={{
-                  width: 'calc(35% - 20px)',
-                  padding: '0.25rem 0.75rem',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <div className={styles.cell} style={{ width: 'calc(35% - 20px)' }}>
                 {editingSource ? (
                   <input
                     type="text"
@@ -1062,27 +966,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     onBlur={() => handleTextSave('source')}
                     onKeyDown={(e) => handleKeyDown(e, 'source')}
                     autoFocus
-                    style={{
-                      width: '100%',
-                      border: '1px solid var(--accent-color)',
-                      borderRadius: '2px',
-                      padding: '2px 4px',
-                      fontSize: 'inherit',
-                      fontFamily: 'inherit',
-                      backgroundColor: 'var(--background-color)',
-                      color: 'var(--text-color)',
-                    }}
+                    className={styles.inlineEditInput}
                   />
                 ) : (
                   <span
                     onClick={() => setEditingSource(true)}
-                    style={{
-                      cursor: 'pointer',
-                      display: 'block',
-                      width: '100%',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
+                    className={styles.clickableText}
                     title="Click to edit"
                   >
                     {highlightPatternVariables(source)}
@@ -1091,16 +980,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               </div>
 
               {/* Translation - calc(65% - 20px) with metadata badges */}
-              <div
-                style={{
-                  width: 'calc(65% - 20px)',
-                  padding: '0.25rem 0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  overflow: 'hidden',
-                }}
-              >
+              <div className={styles.cellEditable} style={{ width: 'calc(65% - 20px)' }}>
                 {editingTranslation ? (
                   <input
                     type="text"
@@ -1109,33 +989,18 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     onBlur={() => handleTextSave('translation')}
                     onKeyDown={(e) => handleKeyDown(e, 'translation')}
                     autoFocus
-                    style={{
-                      flex: 1,
-                      border: '1px solid var(--accent-color)',
-                      borderRadius: '2px',
-                      padding: '2px 4px',
-                      fontSize: 'inherit',
-                      fontFamily: 'inherit',
-                      backgroundColor: 'var(--background-color)',
-                      color: 'var(--text-color)',
-                    }}
+                    className={styles.inlineEditInput}
                   />
                 ) : (
                   <>
                     <span
                       onClick={() => setEditingTranslation(true)}
-                      style={{
-                        cursor: 'pointer',
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className={styles.clickableText}
                       title="Click to edit"
                     >
                       {highlightPatternVariables(translationText)}
                     </span>
-                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <div className={styles.badgeContainer}>
                       <MetadataBadge
                         type="variable"
                         active={allowAsPatternVariable}
@@ -1175,22 +1040,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               }}
             >
               {/* Selection Checkbox - 40px */}
-              <div
-                style={{
-                  width: '40px',
-                  minWidth: '40px',
-                  maxWidth: '40px',
-                  padding: '0.25rem 0.75rem',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
+              <div className={styles.checkboxCell}>
                 <input
                   type="checkbox"
                   checked={selectedEntries.has(source)}
                   onChange={(e) => handleSelectEntry(source, e.target.checked)}
-                  style={{ cursor: 'pointer' }}
+                  className={styles.checkboxInput}
                   title="Select for deletion"
                 />
               </div>
@@ -1213,27 +1068,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     onBlur={() => handleTextSave('source')}
                     onKeyDown={(e) => handleKeyDown(e, 'source')}
                     autoFocus
-                    style={{
-                      width: '100%',
-                      border: '1px solid var(--accent-color)',
-                      borderRadius: '2px',
-                      padding: '2px 4px',
-                      fontSize: 'inherit',
-                      fontFamily: 'inherit',
-                      backgroundColor: 'var(--background-color)',
-                      color: 'var(--text-color)',
-                    }}
+                    className={styles.inlineEditInput}
                   />
                 ) : (
                   <span
                     onClick={() => setEditingSource(true)}
-                    style={{
-                      cursor: 'pointer',
-                      display: 'block',
-                      width: '100%',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
+                    className={styles.clickableText}
                     title="Click to edit"
                   >
                     {source}
@@ -1260,33 +1100,18 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     onBlur={() => handleTextSave('translation')}
                     onKeyDown={(e) => handleKeyDown(e, 'translation')}
                     autoFocus
-                    style={{
-                      flex: 1,
-                      border: '1px solid var(--accent-color)',
-                      borderRadius: '2px',
-                      padding: '2px 4px',
-                      fontSize: 'inherit',
-                      fontFamily: 'inherit',
-                      backgroundColor: 'var(--background-color)',
-                      color: 'var(--text-color)',
-                    }}
+                    className={styles.inlineEditInput}
                   />
                 ) : (
                   <>
                     <span
                       onClick={() => setEditingTranslation(true)}
-                      style={{
-                        cursor: 'pointer',
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className={styles.clickableText}
                       title="Click to edit"
                     >
                       {translationText}
                     </span>
-                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <div className={styles.badgeContainer}>
                       <MetadataBadge
                         type="variable"
                         active={allowAsPatternVariable}
@@ -1341,15 +1166,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             </div>
 
             {/* Source Text - calc(35% - 20px) */}
-            <div
-              style={{
-                width: 'calc(35% - 20px)',
-                padding: '0.25rem 0.75rem',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
+            <div className={styles.cell} style={{ width: 'calc(35% - 20px)' }}>
               {editingSource ? (
                 <input
                   type="text"
@@ -1387,15 +1204,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             </div>
 
             {/* Translation - calc(65% - 20px) */}
-            <div
-              style={{
-                width: 'calc(65% - 20px)',
-                padding: '0.25rem 0.75rem',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
+            <div className={styles.cell} style={{ width: 'calc(65% - 20px)' }}>
               {editingTranslation ? (
                 <input
                   type="text"
