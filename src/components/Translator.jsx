@@ -324,15 +324,34 @@ const Translator = ({ isActive = true }) => {
     loadInitialConfig();
   }, []);
 
+  // Cleanup timers on component unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Clean up translation segment cache timer
+      if (translationSegmentCache && typeof translationSegmentCache.destroy === 'function') {
+        translationSegmentCache.destroy();
+        console.log('🧹 Translation segment cache timer cleaned up');
+      }
+
+      // Clean up system performance monitor timer
+      if (systemPerformanceMonitor && typeof systemPerformanceMonitor.destroy === 'function') {
+        systemPerformanceMonitor.destroy();
+        console.log('🧹 System performance monitor timer cleaned up');
+      }
+    };
+  }, []);
+
   // Initialize engine once when dictionaries are first loaded
   useEffect(() => {
     // MEDIUM-1 FIX: Prevent duplicate engine initialization during dependency changes
     // If activeProperNouns changes during initialization, this effect fires again
     // Use ref to track in-flight initialization (synchronous check prevents race)
     if (!isLoading && dictionaries && !engineInitialized && !isInitializingEngineRef.current) {
-      const initializeEngine = async () => {
-        isInitializingEngineRef.current = true; // Set synchronously before async work
+      // CRITICAL: Set flag synchronously BEFORE calling async function to prevent race condition
+      // If we set it inside the async function, another effect could start before the flag is set
+      isInitializingEngineRef.current = true;
 
+      const initializeEngine = async () => {
         try {
           engineRef.current = createTranslationEngine();
 

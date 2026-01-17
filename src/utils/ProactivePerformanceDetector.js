@@ -74,6 +74,33 @@ export class PerformanceBaselineTracker {
   }
 
   /**
+   * TRUE LRU: Get baseline and move to end (mark as recently used)
+   * Maps maintain insertion order, so deleting and re-inserting moves to end
+   */
+  _getBaselineLRU(operationType) {
+    const baseline = this.baselines.get(operationType);
+    if (baseline) {
+      // Move to end by deleting and re-inserting (marks as recently used)
+      this.baselines.delete(operationType);
+      this.baselines.set(operationType, baseline);
+    }
+    return baseline;
+  }
+
+  /**
+   * TRUE LRU: Get trend and move to end (mark as recently used)
+   */
+  _getTrendLRU(operationType) {
+    const trend = this.trends.get(operationType);
+    if (trend) {
+      // Move to end by deleting and re-inserting (marks as recently used)
+      this.trends.delete(operationType);
+      this.trends.set(operationType, trend);
+    }
+    return trend;
+  }
+
+  /**
    * Record performance data point
    */
   recordPerformance(operationType, metrics) {
@@ -106,7 +133,7 @@ export class PerformanceBaselineTracker {
    */
   updateBaselinesIfNeeded(operationType, dataPoint) {
     const now = Date.now();
-    const baseline = this.baselines.get(operationType);
+    const baseline = this._getBaselineLRU(operationType);
 
     // Establish initial baseline after sufficient data
     if (!baseline && this.getOperationHistory(operationType).length >= 10) {
@@ -155,10 +182,14 @@ export class PerformanceBaselineTracker {
       operationsPerSecond: durations.length > 0 ? 1000 / this.calculateMean(durations) : 0,
     };
 
-    // MEMORY LEAK FIX: Enforce baselines Map size limit
+    // MEMORY LEAK FIX: Enforce baselines Map size limit with TRUE LRU eviction
+    // Delete least recently used entry (first entry in Map maintains insertion order)
     if (this.baselines.size >= this.MAX_BASELINES) {
       const firstKey = this.baselines.keys().next().value;
       this.baselines.delete(firstKey);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🗑️ Evicted LRU baseline: ${firstKey}`);
+      }
     }
 
     this.baselines.set(operationType, baseline);
@@ -177,7 +208,7 @@ export class PerformanceBaselineTracker {
    * Update existing baseline with recent performance data
    */
   updateBaseline(operationType) {
-    const baseline = this.baselines.get(operationType);
+    const baseline = this._getBaselineLRU(operationType);
     if (!baseline) return;
 
     // Use exponential moving average to update baseline (gives more weight to recent data)
@@ -215,7 +246,7 @@ export class PerformanceBaselineTracker {
    * Check for immediate performance alerts
    */
   checkImmediateAlerts(operationType, dataPoint) {
-    const baseline = this.baselines.get(operationType);
+    const baseline = this._getBaselineLRU(operationType);
     if (!baseline) return;
 
     const alerts = [];
@@ -450,10 +481,14 @@ export class PerformanceBaselineTracker {
     for (const operationType of operationTypes) {
       const trends = this.analyzeTrends(operationType);
       if (trends) {
-        // MEMORY LEAK FIX: Enforce trends Map size limit
+        // MEMORY LEAK FIX: Enforce trends Map size limit with TRUE LRU eviction
+        // Delete least recently used entry (first entry in Map maintains insertion order)
         if (this.trends.size >= this.MAX_TRENDS) {
           const firstKey = this.trends.keys().next().value;
           this.trends.delete(firstKey);
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`🗑️ Evicted LRU trend: ${firstKey}`);
+          }
         }
 
         this.trends.set(operationType, {
@@ -556,7 +591,7 @@ export class PerformanceBaselineTracker {
    */
   logBasicMemoryDebug(operationType, alert) {
     console.group(`🔍 Basic Memory Debug: ${operationType}`);
-    const baseline = this.baselines.get(operationType);
+    const baseline = this._getBaselineLRU(operationType);
     console.log(`📋 Baseline:`, baseline);
     console.log(`⚠️ Alert:`, alert);
 

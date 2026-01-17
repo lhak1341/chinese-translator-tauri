@@ -49,6 +49,18 @@ export class TranslationSegmentCache {
     // MEMORY LEAK FIX: Store interval ID for cleanup
     this.cleanupIntervalId = null;
 
+    // PERFORMANCE FIX: Incremental size tracking to avoid O(n) quota checks
+    // Track approximate localStorage size in bytes (updated incrementally)
+    this.approximateSize = 0;
+    this.writesSinceRecalculation = 0;
+    this.RECALCULATION_INTERVAL = 100; // Recalculate full size every 100 writes
+
+    // Calculate initial size
+    this._recalculateSize();
+
+    // MEMORY LEAK FIX: Clean up orphaned cache entries from previous sessions
+    this._cleanupOrphanedEntries();
+
     // Periodic cleanup (every 5 minutes when active)
     this.setupPeriodicCleanup();
   }
@@ -160,8 +172,7 @@ export class TranslationSegmentCache {
       } catch (parseError) {
         // Corrupted cache entry - remove and treat as miss
         console.warn(`Corrupted cache entry removed: ${cacheKey}`, parseError.message);
-        localStorage.removeItem(cacheKey);
-        this.removeFromMetadata(cacheKey);
+        this._removeEntry(cacheKey);
         this.stats.misses++;
         this.stats.evictions++;
         this.updateHitRate();
@@ -177,8 +188,7 @@ export class TranslationSegmentCache {
         typeof cachedData.timestamp !== 'number'
       ) {
         console.warn(`Invalid cache data structure, removing: ${cacheKey}`);
-        localStorage.removeItem(cacheKey);
-        this.removeFromMetadata(cacheKey);
+        this._removeEntry(cacheKey);
         this.stats.misses++;
         this.stats.evictions++;
         this.updateHitRate();
@@ -189,8 +199,7 @@ export class TranslationSegmentCache {
 
       // Check if cache entry is expired
       if (now - cachedData.timestamp > this.maxCacheAge) {
-        localStorage.removeItem(cacheKey);
-        this.removeFromMetadata(cacheKey);
+        this._removeEntry(cacheKey);
         this.stats.misses++;
         this.stats.evictions++;
         this.updateHitRate();
@@ -262,8 +271,13 @@ export class TranslationSegmentCache {
       // Check if we need to evict old entries before storing
       this.ensureCacheSpace();
 
-      localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+      const serializedEntry = JSON.stringify(cacheEntry);
+      localStorage.setItem(cacheKey, serializedEntry);
       this.addToMetadata(cacheKey, now);
+
+      // PERFORMANCE FIX: Track size incrementally
+      this.approximateSize += this._estimateEntrySize(cacheKey, serializedEntry);
+      this.writesSinceRecalculation++;
 
       this.stats.stores++;
 
@@ -283,8 +297,14 @@ export class TranslationSegmentCache {
         this.aggressiveCleanup();
         // Retry once after cleanup
         try {
-          localStorage.setItem(cacheKey, JSON.stringify(cacheEntry));
+          const serializedEntry = JSON.stringify(cacheEntry);
+          localStorage.setItem(cacheKey, serializedEntry);
           this.addToMetadata(cacheKey, now);
+
+          // PERFORMANCE FIX: Track size incrementally on retry too
+          this.approximateSize += this._estimateEntrySize(cacheKey, serializedEntry);
+          this.writesSinceRecalculation++;
+
           this.stats.stores++;
         } catch (retryError) {
           console.warn('Cache store failed after cleanup:', retryError);
@@ -330,8 +350,7 @@ export class TranslationSegmentCache {
 
       for (let i = 0; i < entriesToRemove; i++) {
         if (keyStats[i]) {
-          localStorage.removeItem(keyStats[i].key);
-          this.removeFromMetadata(keyStats[i].key);
+          this._removeEntry(keyStats[i].key);
           this.stats.evictions++;
         }
       }
@@ -349,9 +368,12 @@ export class TranslationSegmentCache {
    * MEMORY PROFILING FIX: Check if localStorage is approaching quota limit
    * @returns {boolean} True if localStorage usage > 80% of typical 5MB quota
    */
-  isApproachingQuota() {
+  /**
+   * PERFORMANCE FIX: Recalculate actual localStorage size
+   * Only called periodically (every 100 writes) to correct drift
+   */
+  _recalculateSize() {
     try {
-      // Estimate localStorage usage by summing all values
       let totalBytes = 0;
       const cacheKeys = this.metadata.keys || [];
 
@@ -369,12 +391,37 @@ export class TranslationSegmentCache {
         totalBytes += (this.metadataKey.length + metadataStr.length) * 2;
       }
 
-      const totalMB = totalBytes / 1024 / 1024;
+      this.approximateSize = totalBytes;
+      return totalBytes;
+    } catch (error) {
+      console.warn('Failed to recalculate localStorage size:', error);
+      return this.approximateSize; // Keep current approximation on error
+    }
+  }
+
+  /**
+   * PERFORMANCE FIX: Estimate entry size for incremental tracking
+   */
+  _estimateEntrySize(key, value) {
+    const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+    return (key.length + valueStr.length) * 2; // UTF-16 encoding
+  }
+
+  isApproachingQuota() {
+    try {
+      // PERFORMANCE FIX: Use incremental size tracking instead of O(n) loop
+      // Periodically recalculate to correct drift
+      if (this.writesSinceRecalculation >= this.RECALCULATION_INTERVAL) {
+        this._recalculateSize();
+        this.writesSinceRecalculation = 0;
+      }
+
+      const totalMB = this.approximateSize / 1024 / 1024;
       const quotaLimitMB = 4; // 80% of typical 5MB quota
 
       if (totalMB > quotaLimitMB) {
         console.warn(
-          `⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB (${((totalMB / 5) * 100).toFixed(1)}%)`
+          `⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB (${((totalMB / 5) * 100).toFixed(1)}%) [${this.writesSinceRecalculation === 0 ? 'exact' : 'approximate'}]`
         );
         return true;
       }
@@ -383,6 +430,44 @@ export class TranslationSegmentCache {
     } catch (error) {
       console.warn('Failed to check localStorage quota:', error);
       return false; // Don't trigger cleanup on errors
+    }
+  }
+
+  /**
+   * MEMORY LEAK FIX: Clean up orphaned cache entries from previous sessions
+   * Removes entries with different window IDs that were created in previous app runs
+   */
+  _cleanupOrphanedEntries() {
+    try {
+      let removedCount = 0;
+      const currentPrefix = this.cacheKeyPrefix;
+      const currentMetadataKey = this.metadataKey;
+
+      // Scan all localStorage keys for translation cache entries
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+
+        // Check if it's a translation cache key but not from current session
+        if (key.startsWith('translation-cache-') && !key.startsWith(currentPrefix)) {
+          // Skip metadata keys from other sessions (will be cleaned with their entries)
+          if (key.includes('-metadata-')) {
+            localStorage.removeItem(key);
+            removedCount++;
+            continue;
+          }
+
+          // It's an orphaned cache entry from a previous session
+          localStorage.removeItem(key);
+          removedCount++;
+        }
+      }
+
+      if (removedCount > 0) {
+        console.log(`🧹 Cleaned up ${removedCount} orphaned cache entries from previous sessions`);
+      }
+    } catch (error) {
+      console.warn('Failed to clean up orphaned cache entries:', error);
     }
   }
 
@@ -401,14 +486,12 @@ export class TranslationSegmentCache {
         const data = JSON.parse(localStorage.getItem(key) || '{}');
         if (now - (data.timestamp || 0) > 3 * 24 * 60 * 60 * 1000) {
           // 3 days
-          localStorage.removeItem(key);
-          this.removeFromMetadata(key);
+          this._removeEntry(key);
           removedCount++;
         }
       } catch (_error) {
         // Remove corrupted entries
-        localStorage.removeItem(key);
-        this.removeFromMetadata(key);
+        this._removeEntry(key);
         removedCount++;
       }
     });
@@ -432,14 +515,12 @@ export class TranslationSegmentCache {
         const data = JSON.parse(localStorage.getItem(key) || '{}');
         if (now - (data.timestamp || 0) > 24 * 60 * 60 * 1000) {
           // 1 day
-          localStorage.removeItem(key);
-          this.removeFromMetadata(key);
+          this._removeEntry(key);
           removedCount++;
         }
       } catch (_error) {
         // Remove corrupted entries
-        localStorage.removeItem(key);
-        this.removeFromMetadata(key);
+        this._removeEntry(key);
         removedCount++;
       }
     });
@@ -497,6 +578,32 @@ export class TranslationSegmentCache {
   }
 
   /**
+   * PERFORMANCE FIX: Remove cache entry and update size tracking
+   * Helper to ensure size tracking stays in sync with removals
+   */
+  _removeEntry(key) {
+    try {
+      // Get entry size before removing
+      const value = localStorage.getItem(key);
+      if (value) {
+        const entrySize = this._estimateEntrySize(key, value);
+        localStorage.removeItem(key);
+        this.removeFromMetadata(key);
+
+        // Update approximate size
+        this.approximateSize = Math.max(0, this.approximateSize - entrySize);
+      } else {
+        // Entry doesn't exist, just clean up metadata
+        this.removeFromMetadata(key);
+      }
+    } catch (error) {
+      console.warn('Error removing cache entry:', error);
+      // Still try to remove from metadata
+      this.removeFromMetadata(key);
+    }
+  }
+
+  /**
    * Update hit rate statistics
    */
   updateHitRate() {
@@ -541,6 +648,10 @@ export class TranslationSegmentCache {
       hitRate: 0,
       averageLookupTime: 0,
     };
+
+    // PERFORMANCE FIX: Reset size tracking
+    this.approximateSize = 0;
+    this.writesSinceRecalculation = 0;
 
     console.log('🧹 Translation cache cleared');
   }
@@ -590,8 +701,7 @@ export class TranslationSegmentCache {
         if (data) {
           const parsedData = JSON.parse(data);
           if (now - parsedData.timestamp > this.maxCacheAge) {
-            localStorage.removeItem(key);
-            this.removeFromMetadata(key);
+            this._removeEntry(key);
             cleanedCount++;
           }
         } else {
@@ -600,8 +710,7 @@ export class TranslationSegmentCache {
         }
       } catch (_error) {
         // Remove corrupted entries
-        localStorage.removeItem(key);
-        this.removeFromMetadata(key);
+        this._removeEntry(key);
         cleanedCount++;
       }
     });

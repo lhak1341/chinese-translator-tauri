@@ -236,6 +236,21 @@ export class WasmDictionaryManager {
     }
   }
 
+  /**
+   * Safely parse JSON metadata with fallback to null
+   * Prevents metadata corruption from crashing WASM lookups
+   */
+  _safeParseMetadata(metadataString) {
+    if (!metadataString) return null;
+
+    try {
+      return JSON.parse(metadataString);
+    } catch (error) {
+      console.warn('⚠️ Corrupted metadata encountered, using null:', error.message);
+      return null;
+    }
+  }
+
   findMatches(dictionaryName, text, startPos = 0) {
     if (!this.initialized || this.fallbackMode) {
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
@@ -244,13 +259,13 @@ export class WasmDictionaryManager {
     try {
       const matches = this.engine.find_matches(dictionaryName, text, startPos);
 
-      // Convert results to expected format
+      // Convert results to expected format with safe metadata parsing
       return matches.map((match) => ({
         word: match.word,
         translation: match.translation,
         startPos: match.start_pos,
         endPos: match.end_pos,
-        metadata: match.metadata ? JSON.parse(match.metadata) : null,
+        metadata: this._safeParseMetadata(match.metadata),
       }));
     } catch (error) {
       console.error('❌ WASM lookup failed:', error);
@@ -274,7 +289,7 @@ export class WasmDictionaryManager {
         translation: match.translation,
         startPos: match.start_pos,
         endPos: match.end_pos,
-        metadata: match.metadata ? JSON.parse(match.metadata) : null,
+        metadata: this._safeParseMetadata(match.metadata),
       };
     } catch (error) {
       console.error('❌ WASM longest match failed:', error);
