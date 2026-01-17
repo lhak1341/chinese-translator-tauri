@@ -1,0 +1,109 @@
+/* ErrorBoundary Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: var(--background, #f5f5f5);
+  color: var(--text, #333);
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.errorCard {
+  max-width: 600px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: #dc2626;
+}
+
+.description {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.errorDetails {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background-color: #fef2f2;
+  border-radius: 4px;
+  border: 1px solid #fecaca;
+}
+
+.errorSummary {
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.errorContent {
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-family: monospace;
+  white-space: pre-wrap;
+  color: #991b1b;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tryAgainButton {
+  padding: 0.5rem 1rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tryAgainButton:hover {
+  background-color: #2563eb;
+}
+
+.reloadButton {
+  padding: 0.5rem 1rem;
+  background-color: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.reloadButton:hover {
+  background-color: #059669;
+}
+
+.troubleshooting {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #f0f9ff;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.troubleshootingList {
+  margin-top: 0.5rem;
+  margin-left: 1.5rem;
+}

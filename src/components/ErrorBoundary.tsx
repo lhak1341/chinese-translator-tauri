@@ -1,4 +1,5 @@
 import React from 'react';
+import styles from '../styles/ErrorBoundary.module.css';
 
 /**
  * ErrorBoundary Component
@@ -95,73 +96,20 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       // Fallback UI when error occurs
       return (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh',
-            padding: '2rem',
-            backgroundColor: 'var(--background, #f5f5f5)',
-            color: 'var(--text, #333)',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-          }}
-        >
-          <div
-            style={{
-              maxWidth: '600px',
-              backgroundColor: 'white',
-              borderRadius: '8px',
-              padding: '2rem',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-            }}
-          >
-            <h1
-              style={{
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                marginBottom: '1rem',
-                color: '#dc2626',
-              }}
-            >
-              ⚠️ Something went wrong
-            </h1>
+        <div className={styles.container}>
+          <div className={styles.errorCard}>
+            <h1 className={styles.title}>⚠️ Something went wrong</h1>
 
-            <p style={{ marginBottom: '1rem', lineHeight: '1.6' }}>
+            <p className={styles.description}>
               The application encountered an unexpected error. This is likely a bug that needs to be
               fixed.
             </p>
 
             {/* Error details */}
             {this.state.error && (
-              <details
-                style={{
-                  marginBottom: '1.5rem',
-                  padding: '1rem',
-                  backgroundColor: '#fef2f2',
-                  borderRadius: '4px',
-                  border: '1px solid #fecaca',
-                }}
-              >
-                <summary
-                  style={{
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    marginBottom: '0.5rem',
-                  }}
-                >
-                  Error Details
-                </summary>
-                <div
-                  style={{
-                    marginTop: '0.5rem',
-                    fontSize: '0.875rem',
-                    fontFamily: 'monospace',
-                    whiteSpace: 'pre-wrap',
-                    color: '#991b1b',
-                  }}
-                >
+              <details className={styles.errorDetails}>
+                <summary className={styles.errorSummary}>Error Details</summary>
+                <div className={styles.errorContent}>
                   <strong>Message:</strong>{' '}
                   {this.state.error.message || this.state.error.toString()}
                   {this.state.error.stack && (
@@ -188,59 +136,20 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             )}
 
             {/* Recovery options */}
-            <div
-              style={{
-                display: 'flex',
-                gap: '1rem',
-                flexWrap: 'wrap',
-              }}
-            >
-              <button
-                onClick={this.handleReset}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#3b82f6',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                }}
-              >
+            <div className={styles.actions}>
+              <button onClick={this.handleReset} className={styles.tryAgainButton}>
                 Try Again
               </button>
 
-              <button
-                onClick={this.handleReload}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#10b981',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={this.handleReload} className={styles.reloadButton}>
                 Reload Application
               </button>
             </div>
 
             {/* Additional help */}
-            <div
-              style={{
-                marginTop: '1.5rem',
-                padding: '1rem',
-                backgroundColor: '#f0f9ff',
-                borderRadius: '4px',
-                fontSize: '0.875rem',
-                lineHeight: '1.6',
-              }}
-            >
+            <div className={styles.troubleshooting}>
               <strong>💡 Troubleshooting tips:</strong>
-              <ul style={{ marginTop: '0.5rem', marginLeft: '1.5rem' }}>
+              <ul className={styles.troubleshootingList}>
                 <li>Try clicking "Reload Dictionary" button (Cmd/Ctrl+R) to clear caches</li>
                 <li>Check the browser console for more detailed error information</li>
                 <li>If the error persists, try clearing browser cache and restarting</li>

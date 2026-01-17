@@ -23,6 +23,7 @@ import { systemPerformanceMonitor } from '../utils/ProactivePerformanceDetector.
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/UIResponsiveness.js';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
+import styles from '../styles/Translator.module.css';
 import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
 import { runAllParityTests } from '../utils/PatternParityTest.js';
 import {
@@ -2366,21 +2367,6 @@ const Translator = ({ isActive = true }) => {
   ]);
 
   // Memoized style definitions to prevent re-creation on every render
-  const containerStyle = useMemo(
-    () => ({
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'auto',
-      padding: '1rem 2rem 2rem 1.5rem',
-    }),
-    []
-  );
-
   const sharedTextStyle = useMemo(
     () => ({
       padding: '1.5rem',
@@ -2450,21 +2436,10 @@ const Translator = ({ isActive = true }) => {
     const paragraphs = text.split(/\n\n+/);
 
     return paragraphs.map((paragraph, index) => (
-      <div
-        key={index}
-        style={{
-          marginBottom:
-            index < paragraphs.length - 1 ? 'var(--chinese-text-paragraph-spacing, 1rem)' : '0',
-        }}
-      >
+      <div key={index} className={styles.paragraph}>
         {/* Split each paragraph into lines and preserve single line breaks */}
         {paragraph.split('\n').map((line, lineIndex) => (
-          <div
-            key={`${index}-${lineIndex}`}
-            style={{
-              marginBottom: '0.5rem',
-            }}
-          >
+          <div key={`${index}-${lineIndex}`} className={styles.textLine}>
             {line || '\u00A0'} {/* Use non-breaking space for empty lines */}
           </div>
         ))}
@@ -2478,20 +2453,9 @@ const Translator = ({ isActive = true }) => {
     const paragraphs = text.split(/\n\n+/); // Split by one or more blank lines
 
     return paragraphs.map((paragraph, index) => (
-      <div
-        key={index}
-        style={{
-          marginBottom:
-            index < paragraphs.length - 1 ? 'var(--full-translation-paragraph-spacing, 1rem)' : '0',
-        }}
-      >
+      <div key={index} className={styles.translatedParagraph}>
         {paragraph.split('\n').map((line, lineIndex) => (
-          <div
-            key={`${index}-${lineIndex}`}
-            style={{
-              marginBottom: '0.5rem',
-            }}
-          >
+          <div key={`${index}-${lineIndex}`} className={styles.textLine}>
             {line || '\u00A0'} {/* Use non-breaking space for empty lines */}
           </div>
         ))}
@@ -2500,7 +2464,7 @@ const Translator = ({ isActive = true }) => {
   };
 
   return (
-    <div style={containerStyle}>
+    <div className={styles.container}>
       <HotkeyHandler
         onTranslateFromClipboard={handleTranslateFromClipboard}
         onQuickAdd={handleQuickAddProperNoun}
@@ -2515,47 +2479,18 @@ const Translator = ({ isActive = true }) => {
 
       {/* CRITICAL-3 FIX: Show initialization error banner */}
       {initializationError && (
-        <div
-          style={{
-            backgroundColor: '#fef2f2',
-            borderLeft: '4px solid #dc2626',
-            padding: '1rem',
-            marginBottom: '1rem',
-            borderRadius: '4px',
-          }}
-        >
-          <div
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}
-          >
-            <strong style={{ color: '#dc2626' }}>⚠️ Translation Engine Error</strong>
+        <div className={styles.errorBanner}>
+          <div className={styles.errorHeader}>
+            <strong className={styles.errorTitle}>⚠️ Translation Engine Error</strong>
           </div>
-          <div style={{ color: '#991b1b', marginBottom: '0.75rem' }}>{initializationError}</div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              onClick={handleForceReload}
-              style={{
-                backgroundColor: '#dc2626',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: '500',
-              }}
-            >
+          <div className={styles.errorMessage}>{initializationError}</div>
+          <div className={styles.errorActions}>
+            <button onClick={handleForceReload} className={styles.errorButton}>
               Reload Dictionaries
             </button>
             <button
               onClick={() => window.location.reload()}
-              style={{
-                backgroundColor: '#6b7280',
-                color: 'white',
-                border: 'none',
-                padding: '0.5rem 1rem',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: '500',
-              }}
+              className={styles.errorButtonSecondary}
             >
               Reload App
             </button>

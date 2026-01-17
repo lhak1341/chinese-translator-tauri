@@ -1,0 +1,138 @@
+/* Translator Component Styles */
+/* Extracted from inline styles for CSP hardening */
+
+/* Error Banner Styles */
+.errorBanner {
+  background-color: #fef2f2;
+  border-left: 4px solid #dc2626;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+}
+
+.errorHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.errorTitle {
+  color: #dc2626;
+}
+
+.errorMessage {
+  color: #991b1b;
+  margin-bottom: 0.75rem;
+}
+
+.errorActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.errorButton {
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.errorButton:hover {
+  background-color: #b91c1c;
+}
+
+.errorButtonSecondary {
+  background-color: #9ca3af;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.errorButtonSecondary:hover {
+  background-color: #6b7280;
+}
+
+/* Container Styles */
+.translatorContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+  background-color: white;
+}
+
+/* Stats Container */
+.statsContainer {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.statItem {
+  padding: 0.75rem;
+  background-color: white;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.statValue {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+/* Text Display Styles */
+.paragraph {
+  margin-bottom: var(--chinese-text-paragraph-spacing, 1rem);
+}
+
+.paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.translatedParagraph {
+  margin-bottom: var(--full-translation-paragraph-spacing, 1rem);
+}
+
+.translatedParagraph:last-child {
+  margin-bottom: 0;
+}
+
+.textLine {
+  margin-bottom: 0.5rem;
+}
+
+/* Main Container */
+.container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  padding: 1rem 2rem 2rem 1.5rem;
+}
