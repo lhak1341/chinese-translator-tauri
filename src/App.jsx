@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
+import 'react-hot-toast/dist/react-hot-toast.css';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
