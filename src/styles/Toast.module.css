@@ -29,7 +29,8 @@
   font-family: var(--ui-font);
   font-size: 0.875rem;
   font-weight: 500;
-  min-width: 300px;
+  width: fit-content;
+  min-width: 200px;
   max-width: 500px;
   pointer-events: auto;
   opacity: 0;
