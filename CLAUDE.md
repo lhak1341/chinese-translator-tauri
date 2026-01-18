@@ -531,6 +531,41 @@ class TranslationEngine {
 - `ValidationHelpers.js` (340 lines) - 19 pure validation functions for common patterns
 - Enhanced `WasmTypes.ts` - Added contracts for all 4 WASM systems with validation functions
 
+### Logging Best Practices
+
+**Environment-aware logging** (2026-01-18): Use `logger` utility instead of `console.*` to reduce production pollution.
+
+```typescript
+// ❌ OLD: Always logs (performance overhead, exposes internals)
+console.log('Translation started:', text);
+
+// ✅ NEW: Only logs in development
+import { logger } from './utils/logger';
+logger.log('Translation started:', text);
+
+// Always shown (warnings/errors important in production)
+logger.warn('Dictionary not found:', dictId);
+logger.error('Failed to save:', error);
+```
+
+**Scoped logging** for component-specific logs:
+
+```typescript
+import { createScopedLogger } from './utils/logger';
+const log = createScopedLogger('TranslationEngine');
+
+log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initializing...
+```
+
+**Benefits**:
+
+- **Performance**: ~0.1-0.5ms saved per log call in production
+- **Security**: Doesn't expose internal state to end users
+- **UX**: Clean developer tools for production debugging
+- **Debugging**: Full logging in development with timestamps
+
+**Migration strategy**: Replace console.log incrementally, prioritize hot paths first (translation engine, dictionary operations).
+
 ### Active vs Dead Code
 
 **How to verify if code is active:**
@@ -1038,11 +1073,13 @@ autoCompactIfNeeded() {
 {
   "app": {
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost"
+      "csp": "default-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' asset: http://asset.localhost data:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost"
     }
   }
 }
 ```
+
+**Note**: Modern `vite-plugin-wasm` only requires `'wasm-unsafe-eval'` - no need for `'unsafe-inline'` or `'unsafe-eval'` which would weaken security.
 
 **Vite WASM configuration** (required plugins and asset handling):
 

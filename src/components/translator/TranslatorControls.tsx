@@ -99,10 +99,17 @@ export default function TranslatorControls({
         onClick={handleTranslateFromClipboard}
         disabled={isLoading || isTranslating}
         title="Translate from Clipboard (Ctrl/Cmd + Shift + V)"
+        aria-label={
+          isLoading
+            ? 'Loading dictionaries'
+            : isTranslating
+              ? 'Translation in progress'
+              : 'Translate text from clipboard'
+        }
         className={`${styles.button} ${styles.buttonPrimary} ${isLoading || isTranslating ? styles.buttonDisabled : styles.buttonEnabled}`}
         style={{ opacity: isLoading || isTranslating ? 0.6 : 1 }}
       >
-        <ClipboardPaste size={15} />
+        <ClipboardPaste size={15} aria-hidden="true" />
         {isLoading ? 'Loading...' : isTranslating ? 'Translating...' : 'Translate'}
       </button>
 
@@ -110,9 +117,10 @@ export default function TranslatorControls({
       <button
         onClick={handleQuickAddProperNoun}
         title="Quick Add Entry (Cmd/Ctrl + 1-5)"
+        aria-label="Quick add dictionary entry"
         className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonEnabled}`}
       >
-        <PlusCircle size={15} />
+        <PlusCircle size={15} aria-hidden="true" />
         Add Entry
       </button>
 
@@ -121,10 +129,13 @@ export default function TranslatorControls({
         onClick={handleForceReload}
         disabled={isLoading}
         title="Reload Dictionary"
+        aria-label={
+          isLoading ? 'Reload disabled while loading' : 'Reload dictionaries from storage'
+        }
         className={`${styles.button} ${styles.buttonReload} ${isLoading ? styles.buttonDisabled : styles.buttonEnabled}`}
         style={{ opacity: isLoading ? 0.6 : 1 }}
       >
-        <RotateCcw size={15} />
+        <RotateCcw size={15} aria-hidden="true" />
         Reload
       </button>
 
@@ -140,9 +151,13 @@ export default function TranslatorControls({
       ) : (
         <div className={styles.statsContainer}>
           {/* Stats chip */}
-          <div className={styles.statsChip}>
+          <div
+            className={styles.statsChip}
+            role="status"
+            aria-label="Translation performance statistics"
+          >
             <span className={styles.statItem}>
-              <Zap size={12} style={{ color: 'var(--warning-color)' }} />
+              <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
               {Math.round(performanceStats.avgTime)}ms
             </span>
             <span className={styles.statItem}>
@@ -154,6 +169,7 @@ export default function TranslatorControls({
                       ? 'var(--success-color)'
                       : 'var(--text-muted)',
                 }}
+                aria-hidden="true"
               />
               {Math.round(performanceStats.cacheHitRate)}%
             </span>
@@ -163,12 +179,17 @@ export default function TranslatorControls({
                 style={{
                   color: wasmStatus.fallbackMode ? 'var(--warning-color)' : 'var(--primary-color)',
                 }}
+                aria-label={
+                  wasmStatus.fallbackMode
+                    ? 'Using JavaScript fallback'
+                    : 'Using WebAssembly acceleration'
+                }
               >
                 {wasmStatus.fallbackMode ? 'JS' : 'WASM'}
               </span>
             )}
             <span className={styles.statItem} style={{ color: healthColor }}>
-              <Activity size={12} />
+              <Activity size={12} aria-hidden="true" />
             </span>
           </div>
 

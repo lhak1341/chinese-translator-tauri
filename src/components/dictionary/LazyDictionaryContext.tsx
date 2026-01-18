@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
+import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 
 /**
@@ -390,7 +391,16 @@ export function LazyDictionaryProvider({
     ): Promise<void> => {
       // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
       try {
-        const validationError = validateDictionaryEntry(dictionaryId, source, translation);
+        // SECURITY FIX: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
+        const sanitized = sanitizeDictionaryEntry(source, translation);
+        const cleanSource = sanitized.source;
+        const cleanTranslation = sanitized.translation;
+
+        const validationError = validateDictionaryEntry(
+          dictionaryId,
+          cleanSource,
+          cleanTranslation
+        );
         if (validationError) {
           toast.error(`Invalid entry: ${validationError}`);
           throw new Error(validationError);
@@ -398,16 +408,20 @@ export function LazyDictionaryProvider({
 
         const oldData = { ...dictionaries[dictionaryId] };
 
-        let targetValue: string | DictionaryEntryValue = translation;
+        let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (dictionaryId === 'phrases' && metadata.allowAsPatternVariable !== undefined) {
           targetValue = {
-            translation: translation,
+            translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
           };
         }
 
-        const updatedDictionary = { ...oldData, [source]: targetValue };
-        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
+        const updatedDictionary = { ...oldData, [cleanSource]: targetValue };
+        const sortedDictionary = sortDictionaryEntries(
+          updatedDictionary,
+          dictionaryId,
+          cleanSource
+        );
 
         // Optimistic update
         setDictionaries((prev) => ({
@@ -461,7 +475,16 @@ export function LazyDictionaryProvider({
     ): Promise<void> => {
       // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
       try {
-        const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
+        // SECURITY FIX: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
+        const sanitized = sanitizeDictionaryEntry(newSource, translation);
+        const cleanNewSource = sanitized.source;
+        const cleanTranslation = sanitized.translation;
+
+        const validationError = validateDictionaryEntry(
+          dictionaryId,
+          cleanNewSource,
+          cleanTranslation
+        );
         if (validationError) {
           toast.error(`Invalid entry: ${validationError}`);
           throw new Error(validationError);
@@ -470,28 +493,28 @@ export function LazyDictionaryProvider({
         const oldData = { ...dictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
 
-        if (oldSource !== newSource) {
+        if (oldSource !== cleanNewSource) {
           delete updatedDictionary[oldSource];
         }
 
-        let targetValue: string | DictionaryEntryValue = translation;
+        let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
           (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
           (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
         ) {
           targetValue = {
-            translation: translation,
+            translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
           };
         }
 
-        updatedDictionary[newSource] = targetValue;
+        updatedDictionary[cleanNewSource] = targetValue;
 
         const sortedDictionary = sortDictionaryEntries(
           updatedDictionary,
           dictionaryId,
-          newSource,
+          cleanNewSource,
           oldSource
         );
 

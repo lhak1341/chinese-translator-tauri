@@ -550,12 +550,31 @@ export class TranslationSegmentCache {
 
   /**
    * Save cache metadata
+   * CRITICAL: Metadata must be saved to track cache keys, without it cache becomes inconsistent
    */
   saveMetadata() {
     try {
       localStorage.setItem(this.metadataKey, JSON.stringify(this.metadata));
     } catch (error) {
-      console.warn('Failed to save cache metadata:', error);
+      // Handle localStorage quota exceeded
+      if (error.name === 'QuotaExceededError') {
+        console.warn('Metadata storage quota exceeded, cleaning up old entries');
+        this.aggressiveCleanup();
+        // Retry once after cleanup
+        try {
+          localStorage.setItem(this.metadataKey, JSON.stringify(this.metadata));
+        } catch (retryError) {
+          console.error('CRITICAL: Metadata save failed after cleanup:', retryError);
+          // Metadata loss is critical - cache tracking will be inconsistent
+          // Consider clearing entire cache to prevent orphaned entries
+          if (retryError.name === 'QuotaExceededError') {
+            console.error('Clearing entire cache due to quota issues');
+            this.clear();
+          }
+        }
+      } else {
+        console.warn('Failed to save cache metadata:', error);
+      }
     }
   }
 
