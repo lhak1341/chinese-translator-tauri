@@ -1,0 +1,146 @@
+/* Toast Notification System Styles */
+/* CSP-compliant toast notifications using CSS modules */
+
+/* Container for all toasts */
+.toastContainer {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+/* Individual toast */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--background-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 4px 6px rgba(0, 0, 0, 0.1),
+    0 2px 4px rgba(0, 0, 0, 0.06);
+  font-family: var(--ui-font);
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-width: 300px;
+  max-width: 500px;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateX(100%);
+  transition: all 0.3s ease;
+}
+
+.toastVisible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toastExiting {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+/* Toast types */
+.toastDefault {
+  border-left: 4px solid var(--primary-color);
+}
+
+.toastSuccess {
+  border-left: 4px solid var(--success-bg);
+}
+
+.toastError {
+  border-left: 4px solid var(--error-bg);
+}
+
+.toastWarning {
+  border-left: 4px solid #f59e0b;
+}
+
+/* Icon container */
+.toastIcon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.iconSuccess {
+  background: var(--success-bg);
+  color: white;
+}
+
+.iconError {
+  background: var(--error-bg);
+  color: white;
+}
+
+.iconWarning {
+  background: #f59e0b;
+  color: white;
+}
+
+.iconDefault {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* Message */
+.toastMessage {
+  flex: 1;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Close button */
+.toastClose {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.toastClose:hover {
+  background: var(--surface-color);
+  color: var(--text-color);
+}
+
+/* Progress bar */
+.toastProgress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: var(--primary-color);
+  border-radius: 0 0 0 var(--radius-md);
+  transition: width linear;
+}
+
+.progressSuccess {
+  background: var(--success-bg);
+}
+
+.progressError {
+  background: var(--error-bg);
+}
+
+.progressWarning {
+  background: #f59e0b;
+}

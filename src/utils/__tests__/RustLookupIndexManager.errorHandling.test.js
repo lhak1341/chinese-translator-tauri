@@ -7,10 +7,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import toast from 'react-hot-toast';
+import toast from '../toast';
 
 // Mock react-hot-toast
-vi.mock('react-hot-toast', () => ({
+vi.mock('../toast', () => ({
   default: {
     warning: vi.fn(),
   },

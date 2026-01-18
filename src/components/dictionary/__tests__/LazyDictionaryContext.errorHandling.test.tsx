@@ -9,10 +9,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { LazyDictionaryProvider, useLazyDictionary } from '../LazyDictionaryContext';
-import toast from 'react-hot-toast';
+import toast from '../../../utils/toast';
 
-// Mock react-hot-toast
-vi.mock('react-hot-toast', () => ({
+// Mock our custom toast
+vi.mock('../../../utils/toast', () => ({
   default: {
     success: vi.fn(),
     error: vi.fn(),

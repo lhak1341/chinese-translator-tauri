@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
-import { Toaster } from 'react-hot-toast';
-import 'react-hot-toast/dist/react-hot-toast.css';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
+import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
 
 function App() {
@@ -338,38 +337,26 @@ function App() {
   }, []);
 
   return (
-    <DictionaryProvider>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: 'var(--background-color)',
-            color: 'var(--text-color)',
-            border: '1px solid var(--border-color)',
-            fontFamily: 'var(--ui-font)',
-            fontSize: '0.875rem',
-            fontWeight: 500,
-          },
-          success: {
-            iconTheme: {
-              primary: 'var(--success-bg)',
-              secondary: 'white',
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: 'var(--error-bg)',
-              secondary: 'white',
-            },
-            duration: 5000,
-          },
-        }}
-      />
-      <div style={{ height: '100vh', width: '100vw' }}>
-        <TabbedInterface />
-      </div>
-    </DictionaryProvider>
+    <ToastProvider>
+      <DictionaryProvider>
+        <AppContent />
+      </DictionaryProvider>
+    </ToastProvider>
+  );
+}
+
+// Inner component to register global toast API
+function AppContent() {
+  const toast = useToast();
+
+  useEffect(() => {
+    setGlobalToast(toast);
+  }, [toast]);
+
+  return (
+    <div style={{ height: '100vh', width: '100vw' }}>
+      <TabbedInterface />
+    </div>
   );
 }
 

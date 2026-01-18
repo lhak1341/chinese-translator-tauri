@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock react-hot-toast
-vi.mock('react-hot-toast', () => ({
+vi.mock('../toast', () => ({
   default: {
     warning: vi.fn(),
   },

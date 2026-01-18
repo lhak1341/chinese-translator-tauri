@@ -16,7 +16,7 @@
  * Fallback: If WASM fails to load, uses JavaScript SemanticPatternProcessor
  */
 
-import toast from 'react-hot-toast';
+import toast from './toast';
 
 let wasmModule = null;
 let wasmPatternProcessor = null;

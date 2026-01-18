@@ -10,7 +10,7 @@
  */
 
 import tauriAPI from '../tauriAPI.js';
-import toast from 'react-hot-toast';
+import toast from './toast';
 
 class RustLookupIndexManager {
   constructor() {

@@ -12,7 +12,7 @@
  * Fallback: If WASM fails to load, returns tokens unchanged (numbers translated character-by-character)
  */
 
-import toast from 'react-hot-toast';
+import toast from './toast';
 
 let wasmModule = null;
 let wasmNumberProcessor = null;

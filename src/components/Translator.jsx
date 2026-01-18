@@ -7,7 +7,7 @@ import {
   useReducer,
   startTransition,
 } from 'react';
-import toast from 'react-hot-toast';
+import toast from '../utils/toast';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';

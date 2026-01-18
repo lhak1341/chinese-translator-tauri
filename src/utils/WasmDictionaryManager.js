@@ -19,7 +19,7 @@
 
 import init, { DictionaryEngine } from '../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
-import toast from 'react-hot-toast';
+import toast from './toast';
 
 export class WasmDictionaryManager {
   constructor() {
