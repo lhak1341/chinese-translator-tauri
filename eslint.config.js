@@ -37,6 +37,18 @@ export default [
           argsIgnorePattern: '^_',
         },
       ],
+
+      // Enforce logger usage instead of console.* (except in logger.ts itself)
+      // Prevents production log pollution and improves performance
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector:
+            "CallExpression[callee.object.name='console'][callee.property.name=/^(log|info|debug|warn|error)$/]",
+          message:
+            'Use logger from src/utils/logger instead of console.* for environment-aware logging. See CLAUDE.md for migration guide.',
+        },
+      ],
     },
   },
   // Prettier config (disables conflicting ESLint rules)

@@ -17,6 +17,7 @@
  */
 
 import toast from './toast';
+import { logger } from './logger';
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
@@ -65,7 +66,7 @@ export async function initializeWasmPatternProcessor(patternsDict) {
 
       // Get statistics
       const stats = wasmPatternProcessor.getStatistics();
-      console.log('✅ WASM Pattern Processor initialized successfully');
+      logger.log('✅ WASM Pattern Processor initialized successfully');
       // Note: stats is already logged by WASM side, JavaScript side just confirms success
 
       // Reset warning flag on successful initialization
@@ -73,8 +74,8 @@ export async function initializeWasmPatternProcessor(patternsDict) {
 
       return true;
     } catch (error) {
-      console.error('❌ Failed to initialize WASM Pattern Processor:', error);
-      console.error('Pattern matching will not be available. Please check WASM configuration.');
+      logger.error('❌ Failed to initialize WASM Pattern Processor:', error);
+      logger.error('Pattern matching will not be available. Please check WASM configuration.');
       initializationFailed = true;
       return false;
     }
@@ -97,8 +98,8 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   }
 
   if (!wasmPatternProcessor) {
-    console.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
-    console.warn('Translation will continue with lower quality (no pattern matching)');
+    logger.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
+    logger.warn('Translation will continue with lower quality (no pattern matching)');
 
     // One-time notification to prevent console spam
     if (!showedPatternWarning) {
@@ -117,7 +118,7 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     const results = wasmPatternProcessor.processTokens(semanticTokens, variableCache);
     return results;
   } catch (error) {
-    console.error('❌ Error in WASM pattern processing, skipping patterns:', error);
+    logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
 
     // One-time notification to prevent console spam
     if (!showedPatternWarning) {
@@ -162,7 +163,7 @@ export function getWasmPatternProcessorStats() {
   try {
     return wasmPatternProcessor.getStatistics();
   } catch (error) {
-    console.error('❌ Error getting WASM pattern processor stats:', error);
+    logger.error('❌ Error getting WASM pattern processor stats:', error);
     return null;
   }
 }
@@ -188,15 +189,15 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
  */
 export function enableMatcherProfiling() {
   if (!wasmModule) {
-    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    logger.warn('⚠️ WASM module not loaded yet. Profiling not available.');
     return;
   }
 
   try {
     wasmModule.enable_matcher_profiling();
-    console.log('🦀 Rust-side pattern matching profiling enabled');
+    logger.log('🦀 Rust-side pattern matching profiling enabled');
   } catch (error) {
-    console.error('❌ Error enabling matcher profiling:', error);
+    logger.error('❌ Error enabling matcher profiling:', error);
   }
 }
 
@@ -205,15 +206,15 @@ export function enableMatcherProfiling() {
  */
 export function disableMatcherProfiling() {
   if (!wasmModule) {
-    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    logger.warn('⚠️ WASM module not loaded yet. Profiling not available.');
     return;
   }
 
   try {
     wasmModule.disable_matcher_profiling();
-    console.log('🦀 Rust-side pattern matching profiling disabled');
+    logger.log('🦀 Rust-side pattern matching profiling disabled');
   } catch (error) {
-    console.error('❌ Error disabling matcher profiling:', error);
+    logger.error('❌ Error disabling matcher profiling:', error);
   }
 }
 
@@ -222,15 +223,15 @@ export function disableMatcherProfiling() {
  */
 export function resetMatcherProfiling() {
   if (!wasmModule) {
-    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    logger.warn('⚠️ WASM module not loaded yet. Profiling not available.');
     return;
   }
 
   try {
     wasmModule.reset_matcher_profiling();
-    console.log('🦀 Rust-side pattern matching profiling data reset');
+    logger.log('🦀 Rust-side pattern matching profiling data reset');
   } catch (error) {
-    console.error('❌ Error resetting matcher profiling:', error);
+    logger.error('❌ Error resetting matcher profiling:', error);
   }
 }
 
@@ -239,14 +240,14 @@ export function resetMatcherProfiling() {
  */
 export function printMatcherProfilingReport() {
   if (!wasmModule) {
-    console.warn('⚠️ WASM module not loaded yet. Profiling not available.');
+    logger.warn('⚠️ WASM module not loaded yet. Profiling not available.');
     return;
   }
 
   try {
     wasmModule.print_matcher_profiling_report();
   } catch (error) {
-    console.error('❌ Error printing matcher profiling report:', error);
+    logger.error('❌ Error printing matcher profiling report:', error);
   }
 }
 

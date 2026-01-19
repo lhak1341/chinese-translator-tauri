@@ -6,7 +6,7 @@
  * when WASM fails to initialize or encounters processing errors
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock react-hot-toast
 vi.mock('../toast', () => ({
@@ -15,24 +15,25 @@ vi.mock('../toast', () => ({
   },
 }));
 
+// Mock logger
+vi.mock('../logger', () => ({
+  logger: {
+    log: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 import {
   processTokensWasm,
   isWasmPatternProcessorAvailable,
   hasWasmPatternProcessorFailed,
 } from '../WasmPatternProcessor.js';
+import { logger } from '../logger';
 
 describe('WASM Pattern Processor Error Handling', () => {
-  let consoleWarnSpy;
-  let consoleErrorSpy;
-
   beforeEach(() => {
-    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    consoleWarnSpy.mockRestore();
-    consoleErrorSpy.mockRestore();
+    vi.clearAllMocks();
   });
 
   describe('CRITICAL-2: Graceful degradation when WASM not initialized', () => {
@@ -55,11 +56,11 @@ describe('WASM Pattern Processor Error Handling', () => {
       expect(results).toEqual([]);
       expect(Array.isArray(results)).toBe(true);
 
-      // Assert: Warning was logged
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      // Assert: Warning was logged via logger
+      expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('WASM Pattern Processor not initialized')
       );
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Translation will continue with lower quality')
       );
     });
@@ -111,8 +112,8 @@ describe('WASM Pattern Processor Error Handling', () => {
       // Action: Process tokens
       const results = await processTokensWasm(semanticTokens, variableCache);
 
-      // Assert: Warning logged but no exception
-      expect(consoleWarnSpy).toHaveBeenCalled();
+      // Assert: Warning logged via logger but no exception
+      expect(logger.warn).toHaveBeenCalled();
       expect(results).toEqual([]);
     });
   });

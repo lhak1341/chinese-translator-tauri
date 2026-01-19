@@ -8,6 +8,7 @@ import {
   startTransition,
 } from 'react';
 import toast from '../utils/toast';
+import { logger } from '../utils/logger';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
@@ -227,11 +228,11 @@ const Translator = ({ isActive = true }) => {
   const restoreScrollPositions = useCallback(
     (positions = savedScrollPositions) => {
       if (!positions) {
-        console.log('📍 No saved positions to restore');
+        logger.log('📍 No saved positions to restore');
         return;
       }
 
-      console.log('📍 Attempting to restore positions:', positions);
+      logger.log('📍 Attempting to restore positions:', positions);
 
       // Recursive retry with early termination on success
       const attemptRestore = (attemptsLeft = 5, delay = 0) => {
@@ -258,13 +259,13 @@ const Translator = ({ isActive = true }) => {
             characterOnlyTextRef.current.scrollTop = positions.characterOnly.scrollTop;
             characterOnlyTextRef.current.scrollLeft = positions.characterOnly.scrollLeft;
           }
-          console.log('📍 Scroll positions restored successfully');
+          logger.log('📍 Scroll positions restored successfully');
         } else if (attemptsLeft > 0) {
           // Retry with exponential backoff
           const nextDelay = delay === 0 ? 50 : Math.min(delay * 2, 500);
           setTimeout(() => attemptRestore(attemptsLeft - 1, nextDelay), nextDelay);
         } else {
-          console.warn('📍 Failed to restore scroll positions after 5 attempts');
+          logger.warn('📍 Failed to restore scroll positions after 5 attempts');
         }
       };
 
@@ -316,7 +317,7 @@ const Translator = ({ isActive = true }) => {
           }
         }
       } catch (error) {
-        console.error('Failed to load initial configuration:', error);
+        logger.error('Failed to load initial configuration:', error);
         // HIGH-3 FIX: Notify user of unexpected configuration errors
         toast.error('Error loading settings. Using defaults.');
       }
@@ -331,13 +332,13 @@ const Translator = ({ isActive = true }) => {
       // Clean up translation segment cache timer
       if (translationSegmentCache && typeof translationSegmentCache.destroy === 'function') {
         translationSegmentCache.destroy();
-        console.log('🧹 Translation segment cache timer cleaned up');
+        logger.log('🧹 Translation segment cache timer cleaned up');
       }
 
       // Clean up system performance monitor timer
       if (systemPerformanceMonitor && typeof systemPerformanceMonitor.destroy === 'function') {
         systemPerformanceMonitor.destroy();
-        console.log('🧹 System performance monitor timer cleaned up');
+        logger.log('🧹 System performance monitor timer cleaned up');
       }
     };
   }, []);
@@ -359,7 +360,7 @@ const Translator = ({ isActive = true }) => {
           // Phase 8: Expose engine to window for testing
           if (process.env.NODE_ENV === 'development') {
             window.translationEngine = engineRef.current;
-            console.log('🧪 TranslationEngine exposed to window.translationEngine for testing');
+            logger.log('🧪 TranslationEngine exposed to window.translationEngine for testing');
           }
 
           // Filter dictionaries to only include active ones
@@ -386,12 +387,12 @@ const Translator = ({ isActive = true }) => {
             window.runPatternParityTests = async () => {
               const processor = engineRef.current?.twoPhasePatternProcessor;
               if (!processor) {
-                console.error('❌ TwoPhasePatternProcessor not available');
+                logger.error('❌ TwoPhasePatternProcessor not available');
                 return;
               }
               return await runAllParityTests(processor);
             };
-            console.log('🧪 Run window.runPatternParityTests() to verify Rust WASM parity');
+            logger.log('🧪 Run window.runPatternParityTests() to verify Rust WASM parity');
           }
 
           setEngineStats(engineRef.current.getEngineStats());
@@ -407,7 +408,7 @@ const Translator = ({ isActive = true }) => {
           // CRITICAL-3 FIX: Clear error on successful initialization
           setInitializationError(null);
         } catch (error) {
-          console.error('Failed to initialize engine:', error);
+          logger.error('Failed to initialize engine:', error);
           setEngineInitialized(false);
 
           // CRITICAL-3 FIX: Show error to user with actionable guidance
@@ -504,7 +505,7 @@ const Translator = ({ isActive = true }) => {
             }
           });
 
-          console.log(
+          logger.log(
             `🔍 Found ${allMatches.length} matches for "${targetCharacter}" in Chinese Text:`,
             allMatches
           );
@@ -529,7 +530,7 @@ const Translator = ({ isActive = true }) => {
               }
             }
 
-            console.log(
+            logger.log(
               `📍 Position mapping: Character Only index ${segmentInfo.unitIndex} (relative ${relativePosition.toFixed(2)}) → Chinese Text index ${bestMatch.index} "${bestMatch.segment}"`
             );
 
@@ -545,7 +546,7 @@ const Translator = ({ isActive = true }) => {
               scrollToHighlightedElement(translationTextRef, bestMatch.index);
             }, 10);
           } else {
-            console.warn(
+            logger.warn(
               `⚠️ No matches found for "${targetCharacter}" in Chinese Text - using position fallback`
             );
 
@@ -558,7 +559,7 @@ const Translator = ({ isActive = true }) => {
               Math.min(targetIndex, semanticArrays.original.length - 1)
             );
 
-            console.log(
+            logger.log(
               `📍 Fallback position mapping: Character Only index ${segmentInfo.unitIndex} → relative ${relativePosition.toFixed(2)} → Chinese Text index ${clampedIndex}`
             );
 
@@ -613,7 +614,7 @@ const Translator = ({ isActive = true }) => {
 
     // Skip this mapping if the highlight change originated from Character Only
     if (isCharacterOnlyClick) {
-      console.log(
+      logger.log(
         '🚫 Skipping Chinese Text → Character Only mapping (Character Only click in progress)'
       );
       return;
@@ -629,7 +630,7 @@ const Translator = ({ isActive = true }) => {
       // Full Translation is highlighted
       targetSegment = semanticArrays.original[highlightedTranslationUnitIndex];
       sourceType = `Full Translation[${highlightedTranslationUnitIndex}]`;
-      console.log('🎯 Detected Full Translation highlight:', { targetSegment, sourceType });
+      logger.log('🎯 Detected Full Translation highlight:', { targetSegment, sourceType });
     } else if (highlightedUnitIndex !== -1 && semanticArrays.original) {
       // Chinese Text is highlighted (same semantic arrays as Full Translation)
       targetSegment = semanticArrays.original[highlightedUnitIndex];
@@ -684,7 +685,7 @@ const Translator = ({ isActive = true }) => {
         }
       }
 
-      console.log(`  Found ${allMatches.length} matches for "${targetSegment}":`, allMatches);
+      logger.log(`  Found ${allMatches.length} matches for "${targetSegment}":`, allMatches);
 
       if (allMatches.length > 0) {
         // For single occurrence, use it directly
@@ -792,18 +793,18 @@ const Translator = ({ isActive = true }) => {
             // Use a different heuristic: lower activeIndex → earlier occurrence
             const matchIndex = activeIndex < 10 ? 0 : 1;
             bestMatch = allMatches[Math.min(matchIndex, allMatches.length - 1)];
-            console.log(
+            logger.log(
               `  No context match, using position heuristic: match ${Math.min(matchIndex, allMatches.length - 1)}`
             );
           } else {
-            console.log(`  Best context match: score ${bestScore}`);
+            logger.log(`  Best context match: score ${bestScore}`);
           }
 
-          console.log(`  Selected match at indices:`, bestMatch.indices);
+          logger.log(`  Selected match at indices:`, bestMatch.indices);
           dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: bestMatch.indices });
         }
       } else {
-        console.warn(`⚠️ No matches found for "${targetSegment}" in Character Only`);
+        logger.warn(`⚠️ No matches found for "${targetSegment}" in Character Only`);
         dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
       }
     } else {
@@ -923,7 +924,7 @@ const Translator = ({ isActive = true }) => {
       if (engineRef.current && engineRef.current.isReady()) {
         const result = await engineRef.current.translateWithCharactersOnly(text);
         if (result) {
-          console.log(
+          logger.log(
             `🎯 CHARACTER ONLY TRANSLATION END: ${charOnlyId} - Arrays length: ${result.semanticArrays.original?.length || 0}`
           );
           // Use requestAnimationFrame for smooth UI updates during parallel processing
@@ -934,7 +935,7 @@ const Translator = ({ isActive = true }) => {
         }
       }
     } catch (error) {
-      console.error('Character-only translation failed:', error);
+      logger.error('Character-only translation failed:', error);
     }
     return Promise.resolve();
   }, []);
@@ -1091,7 +1092,7 @@ const Translator = ({ isActive = true }) => {
               timeoutId = setTimeout(
                 () => {
                   if (!abortController.signal.aborted) {
-                    console.error(`⏰ Optimized engine timeout for translation ${translationId}`);
+                    logger.error(`⏰ Optimized engine timeout for translation ${translationId}`);
                     setProgressInfo(null);
                     reject(new Error('Optimized engine timeout'));
                   }
@@ -1119,7 +1120,7 @@ const Translator = ({ isActive = true }) => {
           return result;
         } else {
           // Engine not ready - return original text with message
-          console.error(`❌ Translation ${translationId} failed: Engine not ready`);
+          logger.error(`❌ Translation ${translationId} failed: Engine not ready`);
           return 'Engine not ready. Please wait for engine initialization.';
         }
       } finally {
@@ -1136,7 +1137,7 @@ const Translator = ({ isActive = true }) => {
 
         setActiveTranslations((prev) => {
           const newCount = prev - 1;
-          console.log(`🏁 Translation ${translationId} finished - Active: ${newCount}`);
+          logger.log(`🏁 Translation ${translationId} finished - Active: ${newCount}`);
           return newCount;
         });
       }
@@ -1159,7 +1160,7 @@ const Translator = ({ isActive = true }) => {
 
   const _convertChineseNumbers = (_text, _enabledSteps = null) => {
     // Add initial debug log
-    console.log('Input text:', _text);
+    logger.log('Input text:', _text);
 
     // Configuration objects
     const numberMap = {
@@ -1636,10 +1637,10 @@ const Translator = ({ isActive = true }) => {
       if (steps[step]) {
         const before = result;
         result = steps[step](result);
-        console.log(`After ${step}:`, result);
+        logger.log(`After ${step}:`, result);
         // Log if any change occurred
         if (before !== result) {
-          console.log(`${step} made changes`);
+          logger.log(`${step} made changes`);
         }
       }
     }
@@ -1671,7 +1672,7 @@ const Translator = ({ isActive = true }) => {
           return a.localeCompare(b); // alphabetical order for others
         });
 
-        console.log('Dictionary loading order:', sortedDictIds);
+        logger.log('Dictionary loading order:', sortedDictIds);
 
         // Load dictionaries in order and merge
         mergedDict = {};
@@ -1694,9 +1695,9 @@ const Translator = ({ isActive = true }) => {
 
         // Cache the result
         dictionaryCache.set(cacheKey, mergedDict);
-        console.log('Created and cached merged dictionary');
+        logger.log('Created and cached merged dictionary');
       } else {
-        console.log('Using cached merged dictionary');
+        logger.log('Using cached merged dictionary');
       }
 
       // Sort entries by length (longest first) for overlapping handling
@@ -1718,7 +1719,7 @@ const Translator = ({ isActive = true }) => {
         });
       }
     } catch (_error) {
-      console.error('Error in translateProperNouns:', _error);
+      logger.error('Error in translateProperNouns:', _error);
     }
     return result;
   };
@@ -1784,7 +1785,7 @@ const Translator = ({ isActive = true }) => {
       return string.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
     };
 
-    console.log('Initial text:', _text);
+    logger.log('Initial text:', _text);
 
     let result = _text;
 
@@ -1800,12 +1801,12 @@ const Translator = ({ isActive = true }) => {
       }
     });
 
-    console.log('After all punctuation:', result);
+    logger.log('After all punctuation:', result);
     return result;
   };
 
   const _cleanupFormatting = (_text) => {
-    console.log('Starting cleanupFormatting with:', _text);
+    logger.log('Starting cleanupFormatting with:', _text);
 
     // Split the text into lines while preserving empty lines for formatting
     const lines = _text.split(/\r?\n/);
@@ -1816,7 +1817,7 @@ const Translator = ({ isActive = true }) => {
         if (!line.trim()) return '';
 
         let processedLine = line;
-        console.log('Processing line:', processedLine);
+        logger.log('Processing line:', processedLine);
 
         // STEP 1: Protect decimal numbers first
         // This prevents decimal numbers like "3.14" from being affected by punctuation handling
@@ -1877,17 +1878,17 @@ const Translator = ({ isActive = true }) => {
           .replace(/__ELLIPSIS__/g, '...')
           // Remove any spaces that might have gotten between text and ellipsis
           .replace(/\s*\.\.\.\s*/g, '...');
-        console.log('After ellipsis:', processedLine);
+        logger.log('After ellipsis:', processedLine);
 
         // STEP 9: Capitalize first word of each sentence
         // Split the line into sentences, handling both spaced and non-spaced punctuation
         const sentences = processedLine.split(/(?<=[.!?])\s*/);
-        console.log('Split sentences:', sentences);
+        logger.log('Split sentences:', sentences);
 
         processedLine = sentences
           .map((sentence) => {
             if (!sentence.trim()) return sentence;
-            console.log('Processing sentence:', sentence);
+            logger.log('Processing sentence:', sentence);
 
             // Only capitalize if the sentence doesn't start with a number
             if (!/^\d/.test(sentence.trim())) {
@@ -1895,7 +1896,7 @@ const Translator = ({ isActive = true }) => {
               return sentence.replace(
                 /^(-?\s*)([^a-zà-ỹ\s]*)([a-zà-ỹ]+)/i,
                 (match, hyphen, prefix, word) => {
-                  console.log('Capitalization match:', {
+                  logger.log('Capitalization match:', {
                     match,
                     hyphen,
                     prefix,
@@ -1917,7 +1918,7 @@ const Translator = ({ isActive = true }) => {
             return sentence;
           })
           .join(' ');
-        console.log('Final processed line:', processedLine);
+        logger.log('Final processed line:', processedLine);
 
         return processedLine;
       })
@@ -1951,7 +1952,7 @@ const Translator = ({ isActive = true }) => {
             // PROGRESSIVE: Use progressive translation for immediate responsiveness
             // Use sequential translation approach for reliability
             const newTranslation = await translateText(inputText);
-            console.log(`📝 Translation completed: ${newTranslation.length} chars`);
+            logger.log(`📝 Translation completed: ${newTranslation.length} chars`);
             setTranslatedText(newTranslation);
 
             // Run character-only translation after main completes (non-blocking for better UX)
@@ -1974,7 +1975,7 @@ const Translator = ({ isActive = true }) => {
           }
         }
       } catch (_error) {
-        console.error('Failed to load configuration:', _error);
+        logger.error('Failed to load configuration:', _error);
       }
     };
 
@@ -2012,14 +2013,14 @@ const Translator = ({ isActive = true }) => {
         }
       }, 50); // Small delay to ensure content has been updated
     } catch (_err) {
-      console.error('Failed to read clipboard:', _err);
+      logger.error('Failed to read clipboard:', _err);
     }
   }, []); // No dependencies - only uses setters which are stable
 
   // Reload Dictionary handler to clear all caches, reload dictionaries from storage, and reinitialize engine
   const handleForceReload = useCallback(async () => {
-    console.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
-    console.log('Current state before reload:', {
+    logger.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
+    logger.log('Current state before reload:', {
       translatedText: translatedText?.substring(0, 50),
       inputText: inputText?.substring(0, 50),
       isLoading,
@@ -2030,16 +2031,16 @@ const Translator = ({ isActive = true }) => {
     // Save current scroll positions before starting reload
     const savedPositions = saveScrollPositions();
     setIsDictionaryReloading(true);
-    console.log('📍 Saved scroll positions:', savedPositions);
+    logger.log('📍 Saved scroll positions:', savedPositions);
 
     try {
-      console.log('🔄 Starting Reload Dictionary sequence...');
+      logger.log('🔄 Starting Reload Dictionary sequence...');
 
       // Step 1: Stop any ongoing translations and wait for them to finish
-      console.log('Step 1: Stopping ongoing translations...');
+      logger.log('Step 1: Stopping ongoing translations...');
       const activeControllers = Array.from(activeTranslationControllers.current.values());
       if (activeControllers.length > 0) {
-        console.log(`🛑 Cancelling ${activeControllers.length} active translations...`);
+        logger.log(`🛑 Cancelling ${activeControllers.length} active translations...`);
         activeControllers.forEach((controller) => controller.abort());
 
         // CRITICAL: Wait for translations to actually finish before destroying engine
@@ -2056,26 +2057,26 @@ const Translator = ({ isActive = true }) => {
         }
 
         if (activeTranslationControllers.current.size > 0) {
-          console.warn(
+          logger.warn(
             `⚠️ ${activeTranslationControllers.current.size} translations did not complete in time - proceeding with reload`
           );
           activeTranslationControllers.current.clear();
         } else {
-          console.log('✅ All translations completed cleanup successfully');
+          logger.log('✅ All translations completed cleanup successfully');
         }
       }
       setIsTranslating(false);
       setProgressInfo(null);
 
       // Step 2: Clear engine and caches
-      console.log('Step 2: Clearing engine and translation caches...');
+      logger.log('Step 2: Clearing engine and translation caches...');
 
       // Clear translation segment cache (prevents formatting corruption from cached results)
       try {
         translationSegmentCache.clear();
-        console.log('✅ Translation segment cache cleared');
+        logger.log('✅ Translation segment cache cleared');
       } catch (_cacheError) {
-        console.error('❌ Error clearing translation cache:', _cacheError);
+        logger.error('❌ Error clearing translation cache:', _cacheError);
       }
 
       // Semantic translation cache removed - no longer used
@@ -2085,56 +2086,56 @@ const Translator = ({ isActive = true }) => {
           // Clear JavaScript caches
           if (engineRef.current.dictionaryManager?.clearAllCaches) {
             engineRef.current.dictionaryManager.clearAllCaches();
-            console.log('✅ Dictionary manager caches cleared');
+            logger.log('✅ Dictionary manager caches cleared');
           }
           if (engineRef.current.semanticPatternProcessor?.variableCache) {
             engineRef.current.semanticPatternProcessor.variableCache.clear();
-            console.log('✅ Semantic pattern variable cache cleared');
+            logger.log('✅ Semantic pattern variable cache cleared');
           }
 
           // WASM Core Engine removed - cache clearing no longer needed
 
           engineRef.current = null;
-          console.log('✅ Engine cleared successfully');
+          logger.log('✅ Engine cleared successfully');
         } catch (_engineError) {
-          console.error('❌ Error clearing engine:', _engineError);
+          logger.error('❌ Error clearing engine:', _engineError);
         }
       }
 
       // Step 3: Cleanup (benchmark removed - was unused)
 
       // Step 4: Force reload all dictionaries from storage to pick up new entries
-      console.log('Step 4: Force reloading all dictionaries from storage...');
+      logger.log('Step 4: Force reloading all dictionaries from storage...');
       const allDictionaryIds = Object.keys(dictionaries || {});
       const freshDictionaries = {};
 
       for (const dictId of allDictionaryIds) {
         try {
-          console.log(`Force loading dictionary from storage: ${dictId}`);
+          logger.log(`Force loading dictionary from storage: ${dictId}`);
           const result = await window.electronAPI.loadDictionary(dictId);
           if (result.success) {
             freshDictionaries[dictId] = result.data;
-            console.log(`✅ Loaded ${dictId}: ${Object.keys(result.data || {}).length} entries`);
+            logger.log(`✅ Loaded ${dictId}: ${Object.keys(result.data || {}).length} entries`);
           } else {
-            console.error(`Failed to load dictionary ${dictId}:`, result.error);
+            logger.error(`Failed to load dictionary ${dictId}:`, result.error);
           }
         } catch (_error) {
-          console.error(`Failed to reload dictionary ${dictId}:`, _error);
+          logger.error(`Failed to reload dictionary ${dictId}:`, _error);
         }
       }
 
       // Update context with fresh data from storage
       if (Object.keys(freshDictionaries).length > 0) {
-        console.log('📥 Updating context with fresh dictionary data from storage...');
+        logger.log('📥 Updating context with fresh dictionary data from storage...');
         // We need to access the context's setDictionaries function
         // Since we don't have direct access, we'll rely on the engine reload to pick up the fresh data
       }
 
       // Step 5: Clear UI state and show status
-      console.log('Step 5: Updating UI state...');
+      logger.log('Step 5: Updating UI state...');
       const reloadMessage =
         '🔄 Reload Dictionary in progress...\n\nCaches cleared, dictionaries reloaded from storage.\nReinitializing engine...';
-      console.log('📝 Showing reload status message');
+      logger.log('📝 Showing reload status message');
       setTranslatedText(reloadMessage);
       setSemanticArrays({ original: [], translated: [], metadata: [] });
       setCharacterOnlySemanticArrays(null);
@@ -2164,26 +2165,26 @@ const Translator = ({ isActive = true }) => {
       // }, []); // No config in dependencies
       //
       // See CLAUDE.md "Configuration Loading" section for detailed rationale
-      console.log('Step 6: Loading fresh configuration...');
+      logger.log('Step 6: Loading fresh configuration...');
       let freshActiveProperNouns = activeProperNouns; // fallback to current value
       try {
         const configResult = await window.electronAPI.loadConfiguration();
         if (configResult.success && configResult.data.activeProperNouns) {
           freshActiveProperNouns = configResult.data.activeProperNouns;
-          console.log('✅ Fresh configuration loaded:', freshActiveProperNouns);
+          logger.log('✅ Fresh configuration loaded:', freshActiveProperNouns);
 
           // Update state with fresh configuration
           setActiveProperNouns(freshActiveProperNouns);
         } else {
-          console.log('⚠️  Using current configuration (no changes detected)');
+          logger.log('⚠️  Using current configuration (no changes detected)');
         }
       } catch (configError) {
-        console.error('❌ Failed to load fresh configuration:', configError);
-        console.log('⚠️  Using current configuration as fallback');
+        logger.error('❌ Failed to load fresh configuration:', configError);
+        logger.log('⚠️  Using current configuration as fallback');
       }
 
       // Step 7: Reinitialize engine with fresh dictionaries and configuration
-      console.log('Step 7: Reinitializing engine with fresh dictionaries and configuration...');
+      logger.log('Step 7: Reinitializing engine with fresh dictionaries and configuration...');
       const dictionariesToUse =
         Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
 
@@ -2216,7 +2217,7 @@ const Translator = ({ isActive = true }) => {
           }
 
           setEngineStats(engineRef.current.getEngineStats());
-          console.log('✅ Engine reinitialized successfully');
+          logger.log('✅ Engine reinitialized successfully');
 
           // ARCHITECTURAL FIX: Validate WASM sync after reload to detect silent failures
           // 4-layer state sync (React → JS → WASM → Rust) can diverge if WASM sync fails
@@ -2227,30 +2228,30 @@ const Translator = ({ isActive = true }) => {
             try {
               const syncStatus = engineRef.current.dictionaryManager.validateWasmFallback();
               if (syncStatus.status === 'PASS') {
-                console.log('✅ WASM dictionary sync validated successfully');
+                logger.log('✅ WASM dictionary sync validated successfully');
               } else if (syncStatus.status === 'SKIPPED') {
-                console.log('⚠️ WASM validation skipped:', syncStatus.reason);
+                logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
               } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
-                console.error('❌ WASM sync validation failed - differences detected:', syncStatus);
+                logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
                 toast.error(
                   `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
                   { duration: 8000 }
                 );
               } else if (syncStatus.status === 'FAIL_ERRORS') {
-                console.error('❌ WASM sync validation failed - errors:', syncStatus);
+                logger.error('❌ WASM sync validation failed - errors:', syncStatus);
                 toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
                   duration: 8000,
                 });
               }
             } catch (validationError) {
-              console.error('❌ WASM validation error:', validationError);
+              logger.error('❌ WASM validation error:', validationError);
               // Don't block reload on validation errors
             }
           }
 
           // Step 8: Restore translation if there's input text
           if (inputText.trim()) {
-            console.log('Step 8: Retranslating current text...');
+            logger.log('Step 8: Retranslating current text...');
             const retranslateMessage = '🔄 Engine ready - retranslating text...';
             setTranslatedText(retranslateMessage);
 
@@ -2259,7 +2260,7 @@ const Translator = ({ isActive = true }) => {
 
             // Double-check engine is ready before translating
             if (!engineRef.current?.isReady()) {
-              console.log('⚠️ Engine not ready after initialization, waiting longer...');
+              logger.log('⚠️ Engine not ready after initialization, waiting longer...');
               await new Promise((resolve) => setTimeout(resolve, 500));
             }
 
@@ -2279,7 +2280,7 @@ const Translator = ({ isActive = true }) => {
                   // Update statistics after dictionary reload (optimized)
                   updateAllStats();
                 } catch (_optimizedError) {
-                  console.error(
+                  logger.error(
                     '🔄 Optimized reload translation failed, falling back to sequential:',
                     _optimizedError
                   );
@@ -2300,10 +2301,10 @@ const Translator = ({ isActive = true }) => {
                 setTimeout(() => translateCharacterOnly(inputText), 0);
               }
 
-              console.log('✅ Retranslation completed successfully');
+              logger.log('✅ Retranslation completed successfully');
               toast.success('Dictionary reloaded and text retranslated');
             } catch (_retranslateError) {
-              console.error('❌ Retranslation failed:', _retranslateError);
+              logger.error('❌ Retranslation failed:', _retranslateError);
               const errorMessage =
                 '❌ Retranslation failed!\n\nError: ' + _retranslateError.message;
               setTranslatedText(errorMessage);
@@ -2316,23 +2317,23 @@ const Translator = ({ isActive = true }) => {
             toast.success('Dictionary reloaded successfully');
           }
         } catch (_engineError) {
-          console.error('❌ Error reinitializing engine:', _engineError);
+          logger.error('❌ Error reinitializing engine:', _engineError);
           const engineErrorMessage =
             '❌ Reload Dictionary failed!\n\nError reinitializing engine: ' + _engineError.message;
           setTranslatedText(engineErrorMessage);
           toast.error(`Failed to reinitialize engine: ${_engineError.message}`);
         }
       } else {
-        console.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
+        logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
         const warningMessage =
           '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.';
         setTranslatedText(warningMessage);
         toast.error('Dictionaries not ready - please try again');
       }
 
-      console.log('✅ Reload Dictionary sequence completed');
+      logger.log('✅ Reload Dictionary sequence completed');
     } catch (_error) {
-      console.error('❌ Reload Dictionary failed:', _error);
+      logger.error('❌ Reload Dictionary failed:', _error);
       const unexpectedErrorMessage =
         '❌ Reload Dictionary failed!\n\nUnexpected error: ' + _error.message;
       setTranslatedText(unexpectedErrorMessage);
@@ -2340,11 +2341,11 @@ const Translator = ({ isActive = true }) => {
     } finally {
       // Always reset the reloading flag (positions cleared in setTimeout)
       setIsDictionaryReloading(false);
-      console.log('🔄 Dictionary reload flag reset');
+      logger.log('🔄 Dictionary reload flag reset');
 
       // Restore scroll positions after all React state updates have completed
       setTimeout(() => {
-        console.log('📍 Final scroll restoration attempt after reload complete');
+        logger.log('📍 Final scroll restoration attempt after reload complete');
         restoreScrollPositions(savedPositions);
 
         // Clear the saved positions after final restoration

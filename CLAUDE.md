@@ -564,6 +564,12 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 - **UX**: Clean developer tools for production debugging
 - **Debugging**: Full logging in development with timestamps
 
+**Migration progress** (2026-01-19):
+
+- ✅ **Hot paths migrated** (173 calls): `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
+- ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
+- ⏳ **Remaining**: ~450 calls across 62 files (migrate incrementally when editing)
+
 **Migration strategy**: Replace console.log incrementally, prioritize hot paths first (translation engine, dictionary operations).
 
 ### Active vs Dead Code

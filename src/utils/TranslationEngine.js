@@ -148,6 +148,7 @@ import {
   ComponentMemoryProfiler,
 } from './MemoryManagementRefinements.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
+import { logger } from './logger';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './TranslationProfiler.js';
 
@@ -320,9 +321,9 @@ export class TranslationEngine {
     else if (this.debugLevel >= level) {
       if (process.env.NODE_ENV === 'development') {
         if (data !== null) {
-          console.log(message, data);
+          logger.log(message, data);
         } else {
-          console.log(message);
+          logger.log(message);
         }
       }
     }
@@ -790,7 +791,7 @@ export class TranslationEngine {
     this.isInitialized = false;
     this.initializationError = null;
 
-    console.log('🧹 Translation engine destroyed and all resources cleaned up');
+    logger.log('🧹 Translation engine destroyed and all resources cleaned up');
   }
 
   // ============================================================================
@@ -810,7 +811,7 @@ export class TranslationEngine {
   async initialize(dictionaries, options = {}) {
     // Store dictionaries for Core Engine sync
     this.lastLoadedDictionaries = dictionaries;
-    console.log(
+    logger.log(
       `🔧 Stored dictionaries for Core Engine sync: ${Object.keys(dictionaries).join(', ')}`
     );
 
@@ -950,7 +951,7 @@ export class TranslationEngine {
       this.initializationError = error.message || String(error);
 
       if (process.env.NODE_ENV === 'development') {
-        console.error('Failed to initialize Translation Engine:', error);
+        logger.error('Failed to initialize Translation Engine:', error);
       }
       throw error;
     }
@@ -1084,13 +1085,13 @@ export class TranslationEngine {
             options.useSharedLookupIndex = true;
 
             const indexTime = performance.now() - indexStartTime;
-            console.log(
+            logger.log(
               `🦀 Rust lookup index built for character-only: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`
             );
           }
         }
       } catch (error) {
-        console.warn('⚠️ Rust lookup index build failed, using traditional lookup:', error.message);
+        logger.warn('⚠️ Rust lookup index build failed, using traditional lookup:', error.message);
         // Continue without lookup index (traditional dictionary lookup will be used)
       }
     }
@@ -1159,7 +1160,7 @@ export class TranslationEngine {
 
         // Debug what we're adding (semantic arrays already populated by processCharacterOnlyTokens)
         if (process.env.NODE_ENV === 'development' && tokens.indexOf(token) % 300 === 0) {
-          console.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
+          logger.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
         }
       }
 
@@ -1350,7 +1351,7 @@ export class TranslationEngine {
           token.translated = token.value;
           token.translationSource = 'untranslated-chinese';
           if (process.env.NODE_ENV === 'development') {
-            console.log(`⚠️ Chinese char untranslated: "${token.value}"`);
+            logger.log(`⚠️ Chinese char untranslated: "${token.value}"`);
           }
         }
       } else if (token.type === 'punctuation' && punctuationDictionary) {
@@ -2126,7 +2127,7 @@ export class TranslationEngine {
       // CRITICAL-2 FIX: Show warning if pattern processing failed silently
       if (hierarchicalResults.length === 0 && this.semanticPatternProcessor.patterns?.length > 0) {
         if (!this.showedPatternWarning) {
-          console.warn(
+          logger.warn(
             `⚠️ Pattern processing returned no results despite ${this.semanticPatternProcessor.patterns.length} patterns loaded. WASM may have failed - translations will use fallback (lower quality)`
           );
           this.showedPatternWarning = true;
@@ -3233,7 +3234,7 @@ export class TranslationEngine {
         ) {
           // Suspicious: Non-pass-through token with null translation but no source
           // This could indicate a phase forgot to set translationSource after consumption
-          console.warn(
+          logger.warn(
             `⚠️ Suspicious null token without source: "${token.value}" (type: ${token.type})` +
               ` - treating as consumed to prevent double-processing`
           );
@@ -3668,7 +3669,7 @@ export class TranslationEngine {
     if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
       // MEMORY PROFILING FIX: Log warning if segments exceed emergency threshold
       if (this.translationSegments.length > 100) {
-        console.warn(
+        logger.warn(
           `⚠️ Translation segments exceeding safe threshold: ${this.translationSegments.length} segments (emergency threshold: 100). Cleanup may not be triggering reliably.`
         );
       }
@@ -3686,7 +3687,7 @@ export class TranslationEngine {
 
           // MEMORY PROFILING FIX: Always log cleanup trigger for verification
           // This helps verify cleanup executes reliably in production
-          console.log(
+          logger.log(
             `🧹 Segment cleanup triggered: ${actualRemoved} segments removed (${segmentsBefore} → ${this.translationSegments.length})`
           );
         }
@@ -4029,7 +4030,7 @@ export class TranslationEngine {
     if (this.twoPhaseProcessor) {
       this.twoPhaseProcessor.enableInternalProfiling();
     } else {
-      console.warn(
+      logger.warn(
         '⚠️ TwoPhasePatternProcessor not initialized. Translate some text first, then enable profiling.'
       );
     }
@@ -4065,7 +4066,7 @@ export class TranslationEngine {
     if (this.twoPhaseProcessor) {
       this.twoPhaseProcessor.printInternalProfilingReport();
     } else {
-      console.log('TwoPhasePatternProcessor not initialized. Translate some text first.');
+      logger.log('TwoPhasePatternProcessor not initialized. Translate some text first.');
     }
   }
 
@@ -5348,7 +5349,7 @@ export class TranslationEngine {
           currentPosition = position + wordInfo.translated.length;
           // console.log(`✅ Mapped "${wordInfo.original}" → "${wordInfo.translated}" at position ${position} (semantic index ${wordInfo.semanticIndex})`);
         } else {
-          console.warn(`❌ Could not find "${wordInfo.translated}" in output`);
+          logger.warn(`❌ Could not find "${wordInfo.translated}" in output`);
         }
       }
 
@@ -5367,7 +5368,7 @@ export class TranslationEngine {
       this.prebuiltSegments = wordSegments;
     } else {
       this.prebuiltSegments = [];
-      console.log(`⚠️ Progressive: No translated chunks or semantic arrays available`);
+      logger.log(`⚠️ Progressive: No translated chunks or semantic arrays available`);
     }
 
     // Debug logging for semantic array building
@@ -6716,7 +6717,7 @@ export class TranslationEngine {
     } catch (error) {
       // PHASE 4: Progressive error handling - graceful degradation
       this.log(DEBUG_LEVELS.ERROR, `❌ Progressive batch processing failed: ${error.message}`);
-      console.error('Progressive positioning error:', error);
+      logger.error('Progressive positioning error:', error);
 
       // Fallback: Return basic batch info without progressive segments
       const fallbackText = this.textChunker.reconstructText(currentBatch);
@@ -7062,7 +7063,7 @@ export class TranslationEngine {
             DEBUG_LEVELS.WARN,
             `⚠️ Failed to invalidate Rust lookup index cache: ${error.message}`
           );
-          console.warn('Cache invalidation incomplete - Rust index failed to load:', error);
+          logger.warn('Cache invalidation incomplete - Rust index failed to load:', error);
         }
       }
 
@@ -7109,7 +7110,7 @@ export class TranslationEngine {
 
       if (!translatedText || translatedText.trim() === '') {
         if (process.env.NODE_ENV === 'development' && i % 50 === 0) {
-          console.log(`⚠️ Skipping empty translation at index ${i}`);
+          logger.log(`⚠️ Skipping empty translation at index ${i}`);
         }
         continue;
       }
@@ -7134,16 +7135,16 @@ export class TranslationEngine {
         // Update search start position to avoid duplicate matches
         searchStartPosition = position + translatedText.length;
         if (process.env.NODE_ENV === 'development' && i % 50 === 0) {
-          console.log(
+          logger.log(
             `✅ Found "${translatedText}" at position ${position}-${position + translatedText.length}`
           );
         }
       } else {
-        console.warn(
+        logger.warn(
           `⚠️ Could not find "${translatedText}" (original: "${originalText}") in final text starting from position ${searchStartPosition}`
         );
         if (process.env.NODE_ENV === 'development') {
-          console.log(
+          logger.log(
             `🔍 Final text from position ${searchStartPosition}: "${finalText.substring(searchStartPosition, searchStartPosition + 50)}..."`
           );
         }
@@ -7163,7 +7164,7 @@ export class TranslationEngine {
   enhanceSegmentsToWordLevel(chunkSegments, finalText, semanticArrays) {
     const wordLevelSegments = [];
 
-    console.log(
+    logger.log(
       `🔧 Enhancing ${chunkSegments.length} chunk segments to word-level using ${semanticArrays.original.length} semantic entries`
     );
 
@@ -7173,7 +7174,7 @@ export class TranslationEngine {
     );
 
     if (semanticChunkSegments.length === 0) {
-      console.log('⚠️ No semantic chunk segments to enhance');
+      logger.log('⚠️ No semantic chunk segments to enhance');
       return chunkSegments; // Return original if no semantic segments
     }
 
@@ -7193,7 +7194,7 @@ export class TranslationEngine {
         semanticArrays.original.length
       );
 
-      console.log(
+      logger.log(
         `📦 Chunk ${chunkIndex}: Processing semantic entries ${semanticIndex} to ${endSemanticIndex - 1}`
       );
 
@@ -7226,13 +7227,13 @@ export class TranslationEngine {
 
           searchPosition = position + translatedText.length;
           if (process.env.NODE_ENV === 'development' && i % 50 === 0) {
-            console.log(
+            logger.log(
               `✅ Found "${originalText}" → "${translatedText}" at position ${position}-${position + translatedText.length}`
             );
           }
         } else {
           if (process.env.NODE_ENV === 'development') {
-            console.warn(
+            logger.warn(
               `⚠️ Could not find "${translatedText}" (${originalText}) in final text from position ${searchPosition}`
             );
           }
@@ -7249,7 +7250,7 @@ export class TranslationEngine {
     // Sort by position to maintain proper order
     allSegments.sort((a, b) => a.start - b.start);
 
-    console.log(
+    logger.log(
       `🎯 Enhanced to ${wordLevelSegments.length} word-level + ${nonClickableSegments.length} non-clickable = ${allSegments.length} total segments`
     );
     return allSegments;
@@ -7261,7 +7262,7 @@ export class TranslationEngine {
    * @param {Object} semanticArrays - Semantic arrays with word-level entries
    */
   assignSemanticIndicesToChunks(chunks, semanticArrays) {
-    console.log(
+    logger.log(
       `🔗 Assigning semantic indices: ${chunks.length} chunks → ${semanticArrays.original.length} semantic entries`
     );
 
@@ -7269,7 +7270,7 @@ export class TranslationEngine {
     const translatedChunks = chunks.filter((chunk) => chunk.translated && chunk.content.trim());
 
     if (translatedChunks.length === 0) {
-      console.log('⚠️ No translated chunks found');
+      logger.log('⚠️ No translated chunks found');
       return;
     }
 
@@ -7284,7 +7285,7 @@ export class TranslationEngine {
       // Assign the first available semantic index to this chunk
       if (currentSemanticIndex < semanticArrays.original.length) {
         chunk.semanticIndex = currentSemanticIndex;
-        console.log(`📋 Chunk ${i}: "${chunk.content}" → semantic index ${currentSemanticIndex}`);
+        logger.log(`📋 Chunk ${i}: "${chunk.content}" → semantic index ${currentSemanticIndex}`);
 
         // Advance by entries per chunk, or remainder for last chunk
         if (i === translatedChunks.length - 1) {
@@ -7296,7 +7297,7 @@ export class TranslationEngine {
       }
     }
 
-    console.log(`✅ Assigned semantic indices to ${translatedChunks.length} chunks`);
+    logger.log(`✅ Assigned semantic indices to ${translatedChunks.length} chunks`);
   }
 
   /**
@@ -7328,7 +7329,7 @@ export class TranslationEngine {
     };
 
     if (useOptimizedSearch) {
-      console.log(
+      logger.log(
         `🚀 Using optimized position tracking for ${semanticUnitsCount} units in ${finalText.length} chars`
       );
     }
@@ -7340,7 +7341,7 @@ export class TranslationEngine {
 
       if (!translatedText || translatedText.trim() === '') {
         if (process.env.NODE_ENV === 'development' && i % 50 === 0) {
-          console.log(`⏭️ Skipping empty translation at ${i}`);
+          logger.log(`⏭️ Skipping empty translation at ${i}`);
         }
         continue;
       }
@@ -7379,11 +7380,11 @@ export class TranslationEngine {
 
         searchPosition = position + translatedText.length;
         if (process.env.NODE_ENV === 'development' && i % 50 === 0) {
-          console.log(`✅ Found at position ${position}-${position + translatedText.length}`);
+          logger.log(`✅ Found at position ${position}-${position + translatedText.length}`);
         }
       } else {
         if (process.env.NODE_ENV === 'development') {
-          console.warn(`❌ Not found: "${translatedText}" from position ${searchPosition}`);
+          logger.warn(`❌ Not found: "${translatedText}" from position ${searchPosition}`);
         }
       }
     }
@@ -7394,10 +7395,10 @@ export class TranslationEngine {
     operationMetrics.duration = duration;
 
     if (useOptimizedSearch) {
-      console.log(
+      logger.log(
         `🎯 Built ${segments.length} of ${semanticUnitsCount} segments (optimized in ${duration.toFixed(1)}ms)`
       );
-      console.log(
+      logger.log(
         `📊 Cache efficiency: ${operationMetrics.cacheHits} hits, ${operationMetrics.cacheMisses} misses (${((operationMetrics.cacheHits / (operationMetrics.cacheHits + operationMetrics.cacheMisses)) * 100).toFixed(1)}% hit rate)`
       );
 
@@ -7410,7 +7411,7 @@ export class TranslationEngine {
         segmentsBuilt: segments.length,
       });
     } else {
-      console.log(
+      logger.log(
         `🎯 Built ${segments.length} of ${semanticUnitsCount} segments (standard in ${duration.toFixed(1)}ms)`
       );
 
