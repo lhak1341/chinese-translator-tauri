@@ -4,23 +4,33 @@
 /* Main Container */
 .container {
   display: flex;
-  gap: 0.75rem;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  width: 100%;
 }
 
-/* Columns */
-.leftColumn {
+/* React Resizable Panels - Global overrides */
+.container :global([data-panel-group]) {
+  width: 100%;
+  height: 100%;
+}
+
+.container :global([data-panel]) {
+  position: relative;
+  overflow: hidden;
+}
+
+.container :global([data-panel-resize-handle]) {
+  flex-shrink: 0;
+  flex-grow: 0;
+}
+
+/* Panel Wrapper - Applied to react-resizable-panels Panel component */
+.panelWrapper {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.rightColumn {
-  flex: 2;
-  min-width: 0;
 }
 
 /* Panel Base */
@@ -29,29 +39,37 @@
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
   position: relative;
+  box-sizing: border-box;
+  flex: 1 1 0;
+  height: 100%;
   overflow: hidden;
 }
 
-.panelHalf {
-  flex: 1 0 50%;
-  min-height: 0;
-  padding: 1rem;
+/* Scrollable content wrapper */
+.scrollableContent {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
 }
 
-.panelScrollable {
-  overflow-y: auto;
-}
-
-.panelHidden {
-  overflow-y: hidden;
+.emptyContent {
+  overflow-y: hidden !important;
 }
 
 /* Placeholder */
 .placeholder {
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .placeholderText {
@@ -59,7 +77,11 @@
   text-align: center;
   font-size: 0.875rem;
   line-height: 1.6;
-  padding: 0 2rem;
+  padding: 1rem;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
 }
 
 /* Streaming Overlay */
@@ -86,4 +108,65 @@
 
 .translationContentHidden {
   opacity: 0.2;
+}
+
+/* Resize Handles */
+.resizeHandleVertical {
+  width: 8px;
+  background: transparent;
+  cursor: col-resize;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.resizeHandleVertical:hover {
+  background: var(--border-color);
+}
+
+.resizeHandleVertical::after {
+  content: '';
+  position: absolute;
+  width: 2px;
+  height: 32px;
+  background: var(--border-color);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.resizeHandleVertical:hover::after {
+  opacity: 0.6;
+}
+
+.resizeHandleHorizontal {
+  height: 8px;
+  background: transparent;
+  cursor: row-resize;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.resizeHandleHorizontal:hover {
+  background: var(--border-color);
+}
+
+.resizeHandleHorizontal::after {
+  content: '';
+  position: absolute;
+  height: 2px;
+  width: 32px;
+  background: var(--border-color);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.resizeHandleHorizontal:hover::after {
+  opacity: 0.6;
 }

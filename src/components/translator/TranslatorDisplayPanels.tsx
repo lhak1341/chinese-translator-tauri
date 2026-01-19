@@ -1,4 +1,5 @@
 import React from 'react';
+import { Panel, Group, Separator } from 'react-resizable-panels';
 import ClickableOriginalSemantic from '../ClickableOriginalSemantic';
 import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
 import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
@@ -88,96 +89,147 @@ export default function TranslatorDisplayPanels({
   translationTextRef,
   characterOnlyTextRef,
 }: TranslatorDisplayPanelsProps): React.ReactElement {
+  // Debug: Log when component mounts
+  React.useEffect(() => {
+    console.log('TranslatorDisplayPanels mounted');
+    // Check for and CLEAR any saved layout in localStorage that might override defaults
+    const keys = Object.keys(localStorage).filter(
+      (key) =>
+        key.includes('panel') ||
+        key.includes('layout') ||
+        key.includes('Group') ||
+        key.includes('main-layout') ||
+        key.includes('left-column')
+    );
+    if (keys.length > 0) {
+      console.log('Found and clearing localStorage keys that might affect layout:', keys);
+      keys.forEach((key) => localStorage.removeItem(key));
+    }
+  }, []);
+
   return (
     <div className={styles.container}>
-      {/* Left Column */}
-      <div className={styles.leftColumn}>
-        {/* Original Chinese Panel */}
-        <div
-          className={`${styles.panel} ${styles.panelHalf} ${inputText ? styles.panelScrollable : styles.panelHidden}`}
-          style={inputTextStyle}
-          ref={originalTextRef}
-        >
-          {inputText ? (
-            <ClickableOriginalSemantic
-              originalText={inputText}
-              semanticArrays={semanticArrays}
-              highlightedUnitIndex={highlightedUnitIndex ?? undefined}
-              highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
-              onSegmentClick={handleSemanticSegmentClick}
-            />
-          ) : (
-            <div className={styles.placeholder}>
-              <div className={styles.placeholderText}>
-                Paste Chinese text or click <strong>Translate</strong>
+      <Group orientation="horizontal" id="main-layout">
+        {/* Left Column - Original + Character-only */}
+        <Panel id="left-column" defaultSize={33} minSize={15} className={styles.panelWrapper}>
+          <Group orientation="vertical" id="left-column-vertical">
+            {/* Original Chinese Panel */}
+            <Panel
+              id="original-chinese"
+              defaultSize={50}
+              minSize={15}
+              className={styles.panelWrapper}
+            >
+              <div className={styles.panel} style={inputTextStyle}>
+                <div
+                  className={`${styles.scrollableContent} ${inputText ? '' : styles.emptyContent}`}
+                  ref={originalTextRef}
+                >
+                  {inputText ? (
+                    <ClickableOriginalSemantic
+                      originalText={inputText}
+                      semanticArrays={semanticArrays}
+                      highlightedUnitIndex={highlightedUnitIndex ?? undefined}
+                      highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
+                      onSegmentClick={handleSemanticSegmentClick}
+                    />
+                  ) : (
+                    <div className={styles.placeholder}>
+                      <div className={styles.placeholderText}>
+                        Paste Chinese text or click <strong>Translate</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
+            </Panel>
+
+            {/* Horizontal Resize Handle */}
+            <Separator className={styles.resizeHandleHorizontal} />
+
+            {/* Character-only Panel */}
+            <Panel
+              id="character-only"
+              defaultSize={50}
+              minSize={15}
+              className={styles.panelWrapper}
+            >
+              <div className={styles.panel} style={characterOnlyTextStyle}>
+                <div
+                  className={`${styles.scrollableContent} ${characterOnlyText ? '' : styles.emptyContent}`}
+                  ref={characterOnlyTextRef}
+                >
+                  {characterOnlyText ? (
+                    <ClickableTranslationSemantic
+                      translatedText={characterOnlyText}
+                      semanticArrays={characterOnlySemanticArrays}
+                      onSegmentClick={handleSemanticSegmentClick}
+                      highlightedTranslationUnitIndex={
+                        highlightedCharacterOnlyUnitIndex ?? undefined
+                      }
+                      direction="character-only-to-original"
+                    />
+                  ) : (
+                    <div className={styles.placeholder}>
+                      <div className={styles.placeholderText}>
+                        Character-by-character translation
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Panel>
+          </Group>
+        </Panel>
+
+        {/* Vertical Resize Handle */}
+        <Separator className={styles.resizeHandleVertical} />
+
+        {/* Right Column - Main Translation */}
+        <Panel id="main-translation" defaultSize={67} className={styles.panelWrapper}>
+          <div className={styles.panel} style={outputTextStyle}>
+            {/* Streaming Overlay */}
+            {throttledStreamingState.isStreaming && (
+              <div className={styles.streamingOverlay}>
+                {React.createElement(StreamingTranslationDisplay as any, {
+                  streamingState: throttledStreamingState,
+                  finalText: translatedText,
+                  isComplete: false,
+                  semanticArrays: semanticArrays,
+                  partialSemanticArrays: partialSemanticArrays,
+                  style: { height: '100%', padding: '1rem' },
+                })}
+              </div>
+            )}
+
+            {/* Translation Content */}
+            <div
+              className={`${styles.scrollableContent} ${translatedText ? '' : styles.emptyContent}`}
+              ref={translationTextRef}
+            >
+              {translatedText ? (
+                <div
+                  className={`${styles.translationContent} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
+                >
+                  <ClickableTranslationOptimized
+                    translatedText={translatedText}
+                    semanticArrays={semanticArrays}
+                    prebuiltSegments={prebuiltSegments as any}
+                    onSegmentClick={handleSemanticSegmentClick}
+                    highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
+                  />
+                </div>
+              ) : (
+                <div
+                  className={`${styles.placeholder} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
+                >
+                  <div className={styles.placeholderText}>Translation will appear here</div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-
-        {/* Character-only Panel */}
-        <div
-          className={`${styles.panel} ${styles.panelHalf} ${characterOnlyText ? styles.panelScrollable : styles.panelHidden}`}
-          style={characterOnlyTextStyle}
-          ref={characterOnlyTextRef}
-        >
-          {characterOnlyText ? (
-            <ClickableTranslationSemantic
-              translatedText={characterOnlyText}
-              semanticArrays={characterOnlySemanticArrays}
-              onSegmentClick={handleSemanticSegmentClick}
-              highlightedTranslationUnitIndex={highlightedCharacterOnlyUnitIndex ?? undefined}
-              direction="character-only-to-original"
-            />
-          ) : (
-            <div className={styles.placeholder}>
-              <div className={styles.placeholderText}>Character-by-character translation</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right Column - Main Translation */}
-      <div
-        className={`${styles.panel} ${styles.rightColumn} ${translatedText ? styles.panelScrollable : styles.panelHidden}`}
-        style={{ ...outputTextStyle, padding: '1rem' }}
-        ref={translationTextRef}
-      >
-        {/* Streaming Overlay */}
-        {throttledStreamingState.isStreaming && (
-          <div className={styles.streamingOverlay}>
-            {React.createElement(StreamingTranslationDisplay as any, {
-              streamingState: throttledStreamingState,
-              finalText: translatedText,
-              isComplete: false,
-              semanticArrays: semanticArrays,
-              partialSemanticArrays: partialSemanticArrays,
-              style: { height: '100%', padding: '1rem' },
-            })}
           </div>
-        )}
-
-        {/* Translation Content */}
-        {translatedText ? (
-          <div
-            className={`${styles.translationContent} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
-          >
-            <ClickableTranslationOptimized
-              translatedText={translatedText}
-              semanticArrays={semanticArrays}
-              prebuiltSegments={prebuiltSegments as any}
-              onSegmentClick={handleSemanticSegmentClick}
-              highlightedTranslationUnitIndex={highlightedTranslationUnitIndex ?? undefined}
-            />
-          </div>
-        ) : (
-          <div
-            className={`${styles.placeholder} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
-          >
-            <div className={styles.placeholderText}>Translation will appear here</div>
-          </div>
-        )}
-      </div>
+        </Panel>
+      </Group>
     </div>
   );
 }
