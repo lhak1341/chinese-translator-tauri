@@ -20,6 +20,7 @@
 import init, { DictionaryEngine } from '../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
 import toast from './toast';
+import { logger } from './logger';
 
 export class WasmDictionaryManager {
   constructor() {
@@ -79,7 +80,7 @@ export class WasmDictionaryManager {
 
   async _doInitialize(fallbackManager, _config) {
     try {
-      console.log('🦀 Initializing WASM Dictionary Engine...');
+      logger.log('🦀 Initializing WASM Dictionary Engine...');
 
       // Initialize the WASM module
       await init();
@@ -94,10 +95,10 @@ export class WasmDictionaryManager {
       this.initialized = true;
       this.fallbackMode = false;
 
-      console.log('✅ WASM Dictionary Engine initialized successfully');
+      logger.log('✅ WASM Dictionary Engine initialized successfully');
       return true;
     } catch (error) {
-      console.error('❌ WASM initialization failed:', error);
+      logger.error('❌ WASM initialization failed:', error);
       this.initialized = false;
       this.fallbackMode = true;
       return false;
@@ -115,7 +116,7 @@ export class WasmDictionaryManager {
     this.syncFailureTracking.lastSyncAttempt = Date.now();
 
     if (!this.initialized || this.fallbackMode) {
-      console.log('🔄 Using fallback for batch loading (WASM not available)');
+      logger.log('🔄 Using fallback for batch loading (WASM not available)');
       this._recordSyncFailure('WASM not initialized or in fallback mode', 'batch');
       // Fall back to sequential loading (tracked separately)
       let successCount = 0;
@@ -123,14 +124,14 @@ export class WasmDictionaryManager {
         const success = await this.loadDictionary(name, entries);
         if (success) successCount++;
       }
-      console.log(
+      logger.log(
         `✅ Sequential fallback loaded ${successCount}/${dictionaries.length} dictionaries`
       );
       return true;
     }
 
     try {
-      console.log(`🚀 Memory pool batch loading ${dictionaries.length} dictionaries...`);
+      logger.log(`🚀 Memory pool batch loading ${dictionaries.length} dictionaries...`);
 
       // Estimate memory requirements for batch operation
       const totalEntries = dictionaries.reduce((sum, dict) => sum + dict.entries.length, 0);
@@ -159,7 +160,7 @@ export class WasmDictionaryManager {
         if (success) {
           // Update performance stats with memory pool usage
           this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
-          console.log(
+          logger.log(
             `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
           );
           this.consecutiveFailures = 0;
@@ -169,7 +170,7 @@ export class WasmDictionaryManager {
 
           return true;
         } else {
-          console.log('⚠️ Memory pool batch loading returned false, using sequential fallback');
+          logger.log('⚠️ Memory pool batch loading returned false, using sequential fallback');
           this._recordSyncFailure('Batch loading returned false', 'batch');
           return false; // Trigger fallback to sequential loading
         }
@@ -178,14 +179,14 @@ export class WasmDictionaryManager {
         this.memoryPool.returnBuffer(buffer);
       }
     } catch (error) {
-      console.error('❌ Batch dictionary loading failed:', error);
+      logger.error('❌ Batch dictionary loading failed:', error);
       this.consecutiveFailures++;
 
       // ARCHITECTURAL FIX: Record sync failure with reason
       this._recordSyncFailure(error.message || 'Unknown error', 'batch');
 
       if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-        console.log('🔄 Too many failures, switching to fallback mode');
+        logger.log('🔄 Too many failures, switching to fallback mode');
         this.fallbackMode = true;
       }
 
@@ -198,7 +199,7 @@ export class WasmDictionaryManager {
     this.syncFailureTracking.sequentialAttempts++;
 
     if (!this.initialized || this.fallbackMode) {
-      console.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
+      logger.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
       this._recordSyncFailure(`Sequential: WASM not available for ${name}`, 'sequential');
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
     }
@@ -214,7 +215,7 @@ export class WasmDictionaryManager {
       const success = this.engine.load_dictionary(name, wasmEntries);
 
       if (success) {
-        console.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
+        logger.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
         this.consecutiveFailures = 0; // Reset failure counter
         this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
 
@@ -229,7 +230,7 @@ export class WasmDictionaryManager {
 
       return success;
     } catch (error) {
-      console.error(`❌ WASM dictionary loading failed for ${name}:`, error);
+      logger.error(`❌ WASM dictionary loading failed for ${name}:`, error);
       this._recordSyncFailure(`Sequential: ${error.message} for ${name}`, 'sequential');
       this.handleFailure();
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
@@ -246,7 +247,7 @@ export class WasmDictionaryManager {
     try {
       return JSON.parse(metadataString);
     } catch (error) {
-      console.warn('⚠️ Corrupted metadata encountered, using null:', error.message);
+      logger.warn('⚠️ Corrupted metadata encountered, using null:', error.message);
       return null;
     }
   }
@@ -268,7 +269,7 @@ export class WasmDictionaryManager {
         metadata: this._safeParseMetadata(match.metadata),
       }));
     } catch (error) {
-      console.error('❌ WASM lookup failed:', error);
+      logger.error('❌ WASM lookup failed:', error);
       this.handleFailure();
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
@@ -292,7 +293,7 @@ export class WasmDictionaryManager {
         metadata: this._safeParseMetadata(match.metadata),
       };
     } catch (error) {
-      console.error('❌ WASM longest match failed:', error);
+      logger.error('❌ WASM longest match failed:', error);
       this.handleFailure();
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
@@ -301,7 +302,7 @@ export class WasmDictionaryManager {
   handleFailure() {
     this.consecutiveFailures++;
     if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-      console.warn('🚨 WASM engine entering fallback mode after repeated failures');
+      logger.warn('🚨 WASM engine entering fallback mode after repeated failures');
       this.fallbackMode = true;
 
       // HIGH-4 FIX: Show one-time notification when entering fallback mode
@@ -554,6 +555,6 @@ export class WasmDictionaryManager {
     this.engine = null;
     this.initialized = false;
 
-    console.log('🧠 WASM Dictionary Manager with Memory Pool cleaned up');
+    logger.log('🧠 WASM Dictionary Manager with Memory Pool cleaned up');
   }
 }

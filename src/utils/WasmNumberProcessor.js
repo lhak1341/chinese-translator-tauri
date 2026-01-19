@@ -13,6 +13,7 @@
  */
 
 import toast from './toast';
+import { logger } from './logger';
 
 let wasmModule = null;
 let wasmNumberProcessor = null;
@@ -42,7 +43,7 @@ export async function initializeWasmNumberProcessor() {
   // This prevents concurrent calls from creating multiple initialization attempts
   return (initializationPromise = (async () => {
     try {
-      console.log('🔢 Initializing WASM NumberProcessor...');
+      logger.log('🔢 Initializing WASM NumberProcessor...');
 
       // Dynamically import the WASM module
       wasmModule = await import('../wasm/translation_wasm_core.js');
@@ -53,15 +54,15 @@ export async function initializeWasmNumberProcessor() {
       // Create NumberProcessor instance
       wasmNumberProcessor = new wasmModule.NumberProcessor();
 
-      console.log('✅ WASM NumberProcessor initialized successfully');
+      logger.log('✅ WASM NumberProcessor initialized successfully');
 
       // Reset warning flag on successful initialization
       showedNumberWarning = false;
 
       return true;
     } catch (error) {
-      console.warn('⚠️ Failed to initialize WASM NumberProcessor:', error);
-      console.warn('Falling back to character-by-character translation for numbers');
+      logger.warn('⚠️ Failed to initialize WASM NumberProcessor:', error);
+      logger.warn('Falling back to character-by-character translation for numbers');
       initializationFailed = true;
       return false;
     }
@@ -97,7 +98,7 @@ export async function processNumbersWasm(tokens) {
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (error) {
-    console.error('❌ Error in WASM number processing:', error);
+    logger.error('❌ Error in WASM number processing:', error);
 
     // One-time notification for processing errors
     if (!showedNumberWarning) {
@@ -157,6 +158,6 @@ export async function reinitializeWasmNumberProcessor() {
 
 // Auto-initialize on import (non-blocking)
 initializeWasmNumberProcessor().catch((err) => {
-  console.warn('Background WASM NumberProcessor initialization failed:', err);
+  logger.warn('Background WASM NumberProcessor initialization failed:', err);
   initializationFailed = true; // Mark initialization as failed to prevent retries
 });

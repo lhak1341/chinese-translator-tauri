@@ -251,8 +251,8 @@ export function printMatcherProfilingReport() {
   }
 }
 
-// Expose profiling functions on window for easy console access
-if (typeof window !== 'undefined') {
+// Expose profiling functions on window for easy console access (development only)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   window.enableMatcherProfiling = enableMatcherProfiling;
   window.disableMatcherProfiling = disableMatcherProfiling;
   window.resetMatcherProfiling = resetMatcherProfiling;

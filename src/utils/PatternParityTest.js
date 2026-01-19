@@ -293,8 +293,8 @@ export async function runAllParityTests(processor) {
   };
 }
 
-// Export for console access
-if (typeof window !== 'undefined') {
+// Export for console access (development only)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   window.testPatternParity = testPatternParity;
   window.runAllParityTests = runAllParityTests;
   window.comparePatternResults = comparePatternResults;

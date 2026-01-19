@@ -1030,8 +1030,8 @@ export class SystemPerformanceMonitor {
 // Export singleton instance
 export const systemPerformanceMonitor = new SystemPerformanceMonitor();
 
-// Expose checkRealMemory utility to window for easy debugging
-if (typeof window !== 'undefined') {
+// Expose checkRealMemory utility to window for easy debugging (development only)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   window.checkRealMemory = () => systemPerformanceMonitor.checkRealMemory();
   window.systemPerformanceMonitor = systemPerformanceMonitor; // Also expose the full monitor
 }

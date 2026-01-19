@@ -566,11 +566,15 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 
 **Migration progress** (2026-01-19):
 
-- ✅ **Hot paths migrated** (173 calls): `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
+- ✅ **Complete** (270+ calls migrated): All WASM wrappers, hot paths, and performance dashboards
+  - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
+  - `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
+  - `App.jsx` performance dashboard (90+ calls)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
-- ⏳ **Remaining**: ~450 calls across 62 files (migrate incrementally when editing)
+- ✅ **Production security**: All `window.*` API exposures now guarded by `NODE_ENV` checks
+- ⏳ **Remaining**: ~360 calls in non-critical files (tests, utilities, UI components)
 
-**Migration strategy**: Replace console.log incrementally, prioritize hot paths first (translation engine, dictionary operations).
+**Migration strategy**: Core migration complete. Remaining calls can be migrated incrementally when editing those files.
 
 ### Active vs Dead Code
 
@@ -1305,6 +1309,32 @@ npm run format:check  # Check if files are formatted (CI)
 ### Development Debugging Tools
 
 **Access**: Browser console when `NODE_ENV === 'development'`
+
+**⚠️ SECURITY WARNING** (2026-01-19):
+
+All `window.*` debugging APIs MUST be wrapped in `if (process.env.NODE_ENV === 'development')` checks to prevent production exposure.
+
+- **Why this matters**: Exposing internal APIs in production enables reverse engineering, leaks proprietary algorithms, prevents garbage collection, and creates security vulnerabilities.
+- **Fixed files**: `ProactivePerformanceDetector.js`, `WasmPatternProcessor.js`, `PatternParityTest.js`
+- **Already guarded**: `App.jsx`, `Translator.jsx`
+
+**Never do this**:
+
+```javascript
+// ❌ BAD: Exposes in production
+if (typeof window !== 'undefined') {
+  window.translationEngine = engineRef.current;
+}
+```
+
+**Always do this**:
+
+```javascript
+// ✅ GOOD: Development only
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  window.translationEngine = engineRef.current;
+}
+```
 
 ```javascript
 // System performance monitoring

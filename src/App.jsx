@@ -3,6 +3,7 @@ import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
+import { logger } from './utils/logger';
 
 function App() {
   // Load and apply appearance settings on app start
@@ -26,7 +27,7 @@ function App() {
           }
         }
       } catch (error) {
-        console.error('Failed to load appearance settings:', error);
+        logger.error('Failed to load appearance settings:', error);
       }
     };
 
@@ -36,7 +37,7 @@ function App() {
 
       // Log initial health status
       const healthReport = systemPerformanceMonitor.getSystemHealthReport();
-      console.log('📊 Performance monitoring initialized:', {
+      logger.log('📊 Performance monitoring initialized:', {
         status: healthReport.status,
         integrations: systemPerformanceMonitor.integrations.size,
         memoryPressure: (healthReport.systemMetrics.memory.pressure * 100).toFixed(1) + '%',
@@ -55,56 +56,56 @@ function App() {
             // ARCHITECTURAL FIX: Expose WASM sync failure tracking
             try {
               if (!window.translationEngine?.dictionaryManager?.wasmManager) {
-                console.log('⚠️ WASM Dictionary Manager not available');
+                logger.log('⚠️ WASM Dictionary Manager not available');
                 return null;
               }
 
               const metrics =
                 window.translationEngine.dictionaryManager.wasmManager.getSyncMetrics();
 
-              console.log('🦀 WASM Dictionary Sync Metrics:');
-              console.log(`   Status: ${metrics.currentStatus}`);
-              console.log(
+              logger.log('🦀 WASM Dictionary Sync Metrics:');
+              logger.log(`   Status: ${metrics.currentStatus}`);
+              logger.log(
                 `   Overall Success Rate: ${metrics.successRate}% (${metrics.successfulSyncs}/${metrics.totalAttempts} operations)`
               );
-              console.log(`   Failed Syncs: ${metrics.failedSyncs}`);
-              console.log(`   Consecutive Failures: ${metrics.consecutiveFailures}`);
+              logger.log(`   Failed Syncs: ${metrics.failedSyncs}`);
+              logger.log(`   Consecutive Failures: ${metrics.consecutiveFailures}`);
 
               // Show batch vs sequential breakdown
-              console.log('\n   📦 Batch Loading:');
-              console.log(`      Attempts: ${metrics.batch.attempts}`);
-              console.log(`      Successes: ${metrics.batch.successes}`);
-              console.log(
+              logger.log('\n   📦 Batch Loading:');
+              logger.log(`      Attempts: ${metrics.batch.attempts}`);
+              logger.log(`      Successes: ${metrics.batch.successes}`);
+              logger.log(
                 `      Success Rate: ${metrics.batch.successRate}${metrics.batch.successRate !== 'N/A' ? '%' : ''}`
               );
 
-              console.log('\n   📝 Sequential Loading:');
-              console.log(`      Attempts: ${metrics.sequential.attempts}`);
-              console.log(`      Successes: ${metrics.sequential.successes}`);
-              console.log(
+              logger.log('\n   📝 Sequential Loading:');
+              logger.log(`      Attempts: ${metrics.sequential.attempts}`);
+              logger.log(`      Successes: ${metrics.sequential.successes}`);
+              logger.log(
                 `      Success Rate: ${metrics.sequential.successRate}${metrics.sequential.successRate !== 'N/A' ? '%' : ''}`
               );
 
               if (metrics.lastSyncAttempt) {
-                console.log(
+                logger.log(
                   `\n   Last Sync Attempt: ${new Date(metrics.lastSyncAttempt).toLocaleString()}`
                 );
               }
 
               if (metrics.lastSyncSuccess) {
-                console.log(
+                logger.log(
                   `   Last Success: ${new Date(metrics.lastSyncSuccess).toLocaleString()}`
                 );
               }
 
               if (metrics.lastSyncFailure) {
-                console.log(
+                logger.log(
                   `   Last Failure: ${new Date(metrics.lastSyncFailure).toLocaleString()}`
                 );
               }
 
               if (metrics.recentFailures && metrics.recentFailures.length > 0) {
-                console.log('\n   Recent Failures:');
+                logger.log('\n   Recent Failures:');
                 metrics.recentFailures.forEach((failure, index) => {
                   const methodLabel =
                     failure.method === 'batch'
@@ -112,14 +113,14 @@ function App() {
                       : failure.method === 'sequential'
                         ? '📝'
                         : '❓';
-                  console.log(
+                  logger.log(
                     `   ${index + 1}. ${methodLabel} ${new Date(failure.timestamp).toLocaleTimeString()} - ${failure.reason}`
                   );
                 });
               }
 
               if (metrics.currentStatus === 'FALLBACK_MODE') {
-                console.log(
+                logger.log(
                   '\n⚠️ WARNING: WASM in fallback mode. Dictionary operations using slower JavaScript implementation.'
                 );
               }
@@ -129,7 +130,7 @@ function App() {
                 metrics.batch.successRate === '0.0' &&
                 metrics.sequential.successRate === '100.0'
               ) {
-                console.log(
+                logger.log(
                   '\n💡 INFO: Batch loading failed but sequential fallback succeeded. All dictionaries loaded successfully.'
                 );
               }
@@ -147,15 +148,15 @@ function App() {
             ); // Last hour
 
             if (memoryAlerts.length === 0) {
-              console.log('🟢 No recent memory alerts found');
+              logger.log('🟢 No recent memory alerts found');
               return;
             }
 
-            console.log(`🔍 Found ${memoryAlerts.length} memory alerts in the last hour:`);
+            logger.log(`🔍 Found ${memoryAlerts.length} memory alerts in the last hour:`);
             memoryAlerts.forEach((alert, index) => {
-              console.log(`\n${index + 1}. ${alert.level.toUpperCase()}: ${alert.message}`);
+              logger.log(`\n${index + 1}. ${alert.level.toUpperCase()}: ${alert.message}`);
               if (alert.investigation) {
-                alert.investigation.forEach((suggestion) => console.log(`   ${suggestion}`));
+                alert.investigation.forEach((suggestion) => logger.log(`   ${suggestion}`));
               }
             });
           },
@@ -179,37 +180,35 @@ function App() {
               );
 
               if (positionCache) {
-                console.log('📊 Position Cache Performance:');
-                console.log(`   Hit Rate: ${positionCache.hitRate}%`);
-                console.log(`   Total Hits: ${positionCache.totalHits || 0}`);
-                console.log(`   Estimated Time Saved: ${positionCache.estimatedTimeSaved || 0}ms`);
+                logger.log('📊 Position Cache Performance:');
+                logger.log(`   Hit Rate: ${positionCache.hitRate}%`);
+                logger.log(`   Total Hits: ${positionCache.totalHits || 0}`);
+                logger.log(`   Estimated Time Saved: ${positionCache.estimatedTimeSaved || 0}ms`);
 
                 if (positionCache.hitRate < 70) {
-                  console.log('\n💡 Position Cache Suggestions:');
-                  console.log('   - Lower similarity threshold from 85% to 80%');
-                  console.log('   - Increase cache size from 500 to 750 entries');
-                  console.log('   - Check if content varies significantly between translations');
+                  logger.log('\n💡 Position Cache Suggestions:');
+                  logger.log('   - Lower similarity threshold from 85% to 80%');
+                  logger.log('   - Increase cache size from 500 to 750 entries');
+                  logger.log('   - Check if content varies significantly between translations');
                 }
               }
 
               // Show semantic cache from either direct metrics or baseline data
               if (semanticCache || semanticCacheBaseline) {
-                console.log('\n🔍 Semantic Translation Cache Performance:');
+                logger.log('\n🔍 Semantic Translation Cache Performance:');
 
                 if (semanticCache) {
-                  console.log(`   Hit Rate: ${semanticCache.hitRate}%`);
-                  console.log(`   Exact Hits: ${semanticCache.exactHits || 0}`);
-                  console.log(`   Semantic Hits: ${semanticCache.semanticHits || 0}`);
-                  console.log(`   Cache Size: ${semanticCache.cacheSize || 0} entries`);
-                  console.log(
-                    `   Estimated Time Saved: ${semanticCache.estimatedTimeSaved || 0}ms`
-                  );
+                  logger.log(`   Hit Rate: ${semanticCache.hitRate}%`);
+                  logger.log(`   Exact Hits: ${semanticCache.exactHits || 0}`);
+                  logger.log(`   Semantic Hits: ${semanticCache.semanticHits || 0}`);
+                  logger.log(`   Cache Size: ${semanticCache.cacheSize || 0} entries`);
+                  logger.log(`   Estimated Time Saved: ${semanticCache.estimatedTimeSaved || 0}ms`);
                 } else if (semanticCacheBaseline) {
-                  console.log(
+                  logger.log(
                     `   Baseline Hit Rate: ${(semanticCacheBaseline.avgCacheHitRate * 100).toFixed(1)}%`
                   );
-                  console.log(`   Sample Count: ${semanticCacheBaseline.sampleCount}`);
-                  console.log(
+                  logger.log(`   Sample Count: ${semanticCacheBaseline.sampleCount}`);
+                  logger.log(
                     `   Last Update: ${new Date(semanticCacheBaseline.lastUpdate).toLocaleTimeString()}`
                   );
                 }
@@ -217,40 +216,40 @@ function App() {
                 const hitRate =
                   semanticCache?.hitRate || semanticCacheBaseline?.avgCacheHitRate * 100 || 0;
                 if (hitRate < 60) {
-                  console.log('\n💡 Semantic Cache Suggestions:');
-                  console.log('   - Lower similarity threshold from 80% to 75%');
-                  console.log('   - Increase cache size from 1000 to 1500 entries');
-                  console.log('   - Check semantic matching effectiveness in debug logs');
+                  logger.log('\n💡 Semantic Cache Suggestions:');
+                  logger.log('   - Lower similarity threshold from 80% to 75%');
+                  logger.log('   - Increase cache size from 1000 to 1500 entries');
+                  logger.log('   - Check semantic matching effectiveness in debug logs');
                 } else if (hitRate > 0) {
-                  console.log('\n✅ Semantic cache performing well!');
+                  logger.log('\n✅ Semantic cache performing well!');
                 }
               }
 
               // Show WASM memory pool metrics
               if (wasmMemoryPool || wasmMemoryPoolBaseline) {
-                console.log('\n🧠 WASM Memory Pool Performance:');
+                logger.log('\n🧠 WASM Memory Pool Performance:');
 
                 if (wasmMemoryPool) {
-                  console.log(
+                  logger.log(
                     `   Recycling Efficiency: ${wasmMemoryPool.recyclingEfficiency?.toFixed(1) || 0}%`
                   );
-                  console.log(`   Pool Hits: ${wasmMemoryPool.poolHits || 0}`);
-                  console.log(`   Pool Misses: ${wasmMemoryPool.poolMisses || 0}`);
-                  console.log(
+                  logger.log(`   Pool Hits: ${wasmMemoryPool.poolHits || 0}`);
+                  logger.log(`   Pool Misses: ${wasmMemoryPool.poolMisses || 0}`);
+                  logger.log(
                     `   Total Memory Usage: ${((wasmMemoryPool.totalMemoryUsage || 0) / 1024).toFixed(1)}KB`
                   );
-                  console.log(
+                  logger.log(
                     `   Memory Reused: ${((wasmMemoryPool.memoryReused || 0) / 1024).toFixed(1)}KB`
                   );
-                  console.log(
+                  logger.log(
                     `   Avg Allocation Time: ${(wasmMemoryPool.averageAllocationTime || 0).toFixed(2)}ms`
                   );
                 } else if (wasmMemoryPoolBaseline) {
-                  console.log(
+                  logger.log(
                     `   Baseline Recycling Efficiency: ${(wasmMemoryPoolBaseline.recyclingEfficiency * 100).toFixed(1)}%`
                   );
-                  console.log(`   Sample Count: ${wasmMemoryPoolBaseline.sampleCount}`);
-                  console.log(
+                  logger.log(`   Sample Count: ${wasmMemoryPoolBaseline.sampleCount}`);
+                  logger.log(
                     `   Last Update: ${new Date(wasmMemoryPoolBaseline.lastUpdate).toLocaleTimeString()}`
                   );
                 }
@@ -260,32 +259,32 @@ function App() {
                   wasmMemoryPoolBaseline?.recyclingEfficiency * 100 ||
                   0;
                 if (recyclingEfficiency < 70) {
-                  console.log('\n💡 WASM Memory Pool Suggestions:');
-                  console.log('   - Increase pool sizes for better recycling');
-                  console.log('   - Check if memory pressure is forcing frequent cleanup');
-                  console.log('   - Consider optimizing allocation patterns');
+                  logger.log('\n💡 WASM Memory Pool Suggestions:');
+                  logger.log('   - Increase pool sizes for better recycling');
+                  logger.log('   - Check if memory pressure is forcing frequent cleanup');
+                  logger.log('   - Consider optimizing allocation patterns');
                 } else if (recyclingEfficiency > 0) {
-                  console.log('\n✅ WASM memory pool performing efficiently!');
+                  logger.log('\n✅ WASM memory pool performing efficiently!');
                 }
 
                 // Show recommendations if available
                 if (wasmMemoryPool?.recommendations?.length > 0) {
-                  console.log('\n📋 WASM Memory Pool Recommendations:');
+                  logger.log('\n📋 WASM Memory Pool Recommendations:');
                   wasmMemoryPool.recommendations.forEach((rec, i) => {
-                    console.log(`   ${i + 1}. [${rec.priority.toUpperCase()}] ${rec.message}`);
+                    logger.log(`   ${i + 1}. [${rec.priority.toUpperCase()}] ${rec.message}`);
                   });
                 }
               }
 
               if (!positionCache && !semanticCache && !wasmMemoryPool) {
-                console.log('⚠️ Cache and memory pool metrics not available');
+                logger.log('⚠️ Cache and memory pool metrics not available');
               }
             } catch (error) {
               console.error('Error checking cache performance:', error);
             }
           },
           help: () =>
-            console.log(`
+            logger.log(`
 📊 Performance Dashboard Commands:
 - performanceDashboard.getHealthReport() - Current system health
 - performanceDashboard.getBaselines() - Performance baselines
@@ -299,7 +298,7 @@ function App() {
           `),
         };
 
-        console.log('🛠️ Development performance dashboard available: window.performanceDashboard');
+        logger.log('🛠️ Development performance dashboard available: window.performanceDashboard');
 
         // Also expose system monitor for enhanced debugging
         window.systemPerformanceMonitor = systemPerformanceMonitor;
@@ -308,16 +307,16 @@ function App() {
         window.checkRealMemory = () => {
           if (performance.memory) {
             const memory = performance.memory;
-            console.log('🧠 Real JavaScript Memory Usage:');
-            console.log(`   Used: ${(memory.usedJSHeapSize / 1024 / 1024).toFixed(1)}MB`);
-            console.log(`   Total: ${(memory.totalJSHeapSize / 1024 / 1024).toFixed(1)}MB`);
-            console.log(`   Limit: ${(memory.jsHeapSizeLimit / 1024 / 1024).toFixed(1)}MB`);
-            console.log(
+            logger.log('🧠 Real JavaScript Memory Usage:');
+            logger.log(`   Used: ${(memory.usedJSHeapSize / 1024 / 1024).toFixed(1)}MB`);
+            logger.log(`   Total: ${(memory.totalJSHeapSize / 1024 / 1024).toFixed(1)}MB`);
+            logger.log(`   Limit: ${(memory.jsHeapSizeLimit / 1024 / 1024).toFixed(1)}MB`);
+            logger.log(
               `   Usage: ${((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100).toFixed(1)}%`
             );
             return memory;
           } else {
-            console.log('⚠️ performance.memory not available');
+            logger.log('⚠️ performance.memory not available');
             return null;
           }
         };
@@ -326,7 +325,7 @@ function App() {
       // Set up cleanup on unmount
       return () => {
         systemPerformanceMonitor.stopMonitoring();
-        console.log('🔍 Performance monitoring stopped');
+        logger.log('🔍 Performance monitoring stopped');
       };
     };
 

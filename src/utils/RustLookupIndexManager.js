@@ -11,6 +11,7 @@
 
 import tauriAPI from '../tauriAPI.js';
 import toast from './toast';
+import { logger } from './logger';
 
 class RustLookupIndexManager {
   constructor() {
@@ -66,7 +67,7 @@ class RustLookupIndexManager {
 
       // Debug: Log what dictionaries are being indexed
       if (process.env.NODE_ENV === 'development') {
-        console.log(
+        logger.log(
           `📚 Building Rust index with ${dictionaries.length} dictionaries:`,
           dictionaries.map((d) => `${d.name} (${d.entries.length} entries)`).join(', ')
         );
@@ -96,7 +97,7 @@ class RustLookupIndexManager {
         return result;
       }
     } catch (error) {
-      console.error('❌ Rust lookup index build failed:', error);
+      logger.error('❌ Rust lookup index build failed:', error);
       this.handleFailure(error.message);
 
       return {
@@ -162,7 +163,7 @@ class RustLookupIndexManager {
     const traverse = (node, currentWord, depth = 0) => {
       // Prevent infinite recursion from circular references or corrupted data
       if (depth > MAX_DEPTH) {
-        console.error(
+        logger.error(
           `Trie traversal depth exceeded ${MAX_DEPTH}, possible cycle or corrupted trie at word: "${currentWord}"`
         );
         return;
@@ -209,7 +210,7 @@ class RustLookupIndexManager {
     this.stats.failures++;
 
     if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-      console.warn('🚨 Too many Rust lookup index failures, disabling Rust implementation');
+      logger.warn('🚨 Too many Rust lookup index failures, disabling Rust implementation');
       this.enabled = false;
 
       // HIGH-2 FIX: Show user-facing warning when entering fallback mode (first time only)
@@ -221,7 +222,7 @@ class RustLookupIndexManager {
       }
     }
 
-    console.error(
+    logger.error(
       `Rust lookup index failure (${this.consecutiveFailures}/${this.maxFailuresBeforeFallback}):`,
       error
     );
