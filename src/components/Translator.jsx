@@ -234,10 +234,14 @@ const Translator = ({ isActive = true }) => {
 
       logger.log('📍 Attempting to restore positions:', positions);
 
-      // Clear any existing timeout
+      // Clear any existing timeout and rAF (MEDIUM-1 FIX: Prevent race condition)
       if (scrollRestorationTimeoutRef.current !== null) {
         clearTimeout(scrollRestorationTimeoutRef.current);
         scrollRestorationTimeoutRef.current = null;
+      }
+      if (scrollRestorationRafRef.current !== null) {
+        cancelAnimationFrame(scrollRestorationRafRef.current);
+        scrollRestorationRafRef.current = null;
       }
 
       // Recursive retry with early termination on success
@@ -281,7 +285,11 @@ const Translator = ({ isActive = true }) => {
       };
 
       // Start restoration with requestAnimationFrame for immediate attempt
-      requestAnimationFrame(() => attemptRestore());
+      // Store rAF ID to allow cancellation (MEDIUM-1 FIX)
+      scrollRestorationRafRef.current = requestAnimationFrame(() => {
+        scrollRestorationRafRef.current = null; // Clear after execution
+        attemptRestore();
+      });
     },
     [savedScrollPositions]
   );
@@ -296,8 +304,9 @@ const Translator = ({ isActive = true }) => {
   const translationTextRef = useRef(null);
   const characterOnlyTextRef = useRef(null);
 
-  // Track scroll restoration timeout for cleanup
+  // Track scroll restoration timeout and rAF for cleanup (MEDIUM-1 FIX)
   const scrollRestorationTimeoutRef = useRef(null);
+  const scrollRestorationRafRef = useRef(null);
 
   // Helper function to filter dictionaries based on active configuration
   const getFilteredDictionaries = useCallback((allDictionaries, activeProperNouns) => {
@@ -343,10 +352,14 @@ const Translator = ({ isActive = true }) => {
   // Cleanup timers on component unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      // Clean up scroll restoration timeout
+      // Clean up scroll restoration timeout and rAF (MEDIUM-1 FIX)
       if (scrollRestorationTimeoutRef.current !== null) {
         clearTimeout(scrollRestorationTimeoutRef.current);
         scrollRestorationTimeoutRef.current = null;
+      }
+      if (scrollRestorationRafRef.current !== null) {
+        cancelAnimationFrame(scrollRestorationRafRef.current);
+        scrollRestorationRafRef.current = null;
       }
 
       // Clean up translation segment cache timer
