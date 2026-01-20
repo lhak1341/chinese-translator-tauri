@@ -137,7 +137,7 @@ function App() {
 
               return metrics;
             } catch (error) {
-              console.error('Error getting WASM sync metrics:', error);
+              logger.error('Error getting WASM sync metrics:', error);
               return null;
             }
           },
@@ -280,7 +280,7 @@ function App() {
                 logger.log('⚠️ Cache and memory pool metrics not available');
               }
             } catch (error) {
-              console.error('Error checking cache performance:', error);
+              logger.error('Error checking cache performance:', error);
             }
           },
           help: () =>
@@ -324,8 +324,8 @@ function App() {
 
       // Set up cleanup on unmount
       return () => {
-        systemPerformanceMonitor.stopMonitoring();
-        logger.log('🔍 Performance monitoring stopped');
+        systemPerformanceMonitor.destroy();
+        logger.log('🔍 Performance monitoring destroyed');
       };
     };
 

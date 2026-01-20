@@ -25,6 +25,7 @@
  * } from '../types/PerformanceMonitoringTypes'
  */
 
+import { logger } from './logger';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import { contentAwarePositionCache } from './ContentAwarePositionCache.js';
 import { adaptiveBufferCalculator } from './AdaptiveVirtualScrolling.js';
@@ -188,12 +189,12 @@ export class PerformanceBaselineTracker {
       const firstKey = this.baselines.keys().next().value;
       this.baselines.delete(firstKey);
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🗑️ Evicted LRU baseline: ${firstKey}`);
+        logger.log(`🗑️ Evicted LRU baseline: ${firstKey}`);
       }
     }
 
     this.baselines.set(operationType, baseline);
-    console.log(`📊 Performance baseline established for '${operationType}':`, {
+    logger.log(`📊 Performance baseline established for '${operationType}':`, {
       avgDuration: baseline.avgDuration.toFixed(1) + 'ms',
       avgMemory: baseline.avgMemoryUsed
         ? (baseline.avgMemoryUsed / 1024 / 1024).toFixed(1) + 'MB'
@@ -239,7 +240,7 @@ export class PerformanceBaselineTracker {
     }
 
     baseline.lastUpdate = Date.now();
-    console.log(`📈 Performance baseline updated for '${operationType}'`);
+    logger.log(`📈 Performance baseline updated for '${operationType}'`);
   }
 
   /**
@@ -346,7 +347,7 @@ export class PerformanceBaselineTracker {
       this.alerts.push(alert);
 
       if (alert.level === 'critical') {
-        console.error('🚨 CRITICAL Performance Regression:', alert.message);
+        logger.error('🚨 CRITICAL Performance Regression:', alert.message);
 
         // ENHANCED DEBUG: Show detailed memory breakdown for critical alerts
         if (window.systemPerformanceMonitor) {
@@ -355,7 +356,7 @@ export class PerformanceBaselineTracker {
           this.logBasicMemoryDebug(operationType, alert);
         }
       } else {
-        console.warn('⚠️ Performance Warning:', alert.message);
+        logger.warn('⚠️ Performance Warning:', alert.message);
       }
     }
 
@@ -487,7 +488,7 @@ export class PerformanceBaselineTracker {
           const firstKey = this.trends.keys().next().value;
           this.trends.delete(firstKey);
           if (process.env.NODE_ENV === 'development') {
-            console.log(`🗑️ Evicted LRU trend: ${firstKey}`);
+            logger.log(`🗑️ Evicted LRU trend: ${firstKey}`);
           }
         }
 
@@ -503,7 +504,7 @@ export class PerformanceBaselineTracker {
           longerTermTrend.direction === 'degrading' &&
           longerTermTrend.change > 10
         ) {
-          console.warn(
+          logger.warn(
             `📉 Performance trend warning: ${operationType} degrading over time (+${longerTermTrend.change.toFixed(1)}ms)`
           );
         }
@@ -590,33 +591,31 @@ export class PerformanceBaselineTracker {
    * Log basic memory information for critical alerts
    */
   logBasicMemoryDebug(operationType, alert) {
-    console.group(`🔍 Basic Memory Debug: ${operationType}`);
+    logger.group(`🔍 Basic Memory Debug: ${operationType}`);
     const baseline = this._getBaselineLRU(operationType);
-    console.log(`📋 Baseline:`, baseline);
-    console.log(`⚠️ Alert:`, alert);
+    logger.log(`📋 Baseline:`, baseline);
+    logger.log(`⚠️ Alert:`, alert);
 
     // Show current memory if available
     if (window.performanceDashboard) {
-      console.log(
-        `📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`
-      );
+      logger.log(`📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`);
     }
 
     // Show quick recommendations
-    console.log(`💡 Likely causes:`);
+    logger.log(`💡 Likely causes:`);
     if (operationType === 'semantic_translation_cache') {
-      console.log(`   • Cache entries growing beyond 1000 limit`);
-      console.log(`   • Similarity cache not being cleaned properly`);
-      console.log(`   • Memory per entry has increased`);
+      logger.log(`   • Cache entries growing beyond 1000 limit`);
+      logger.log(`   • Similarity cache not being cleaned properly`);
+      logger.log(`   • Memory per entry has increased`);
     } else if (operationType === 'position_cache') {
-      console.log(`   • Position mappings accumulating`);
-      console.log(`   • Large text processing increasing cache size`);
+      logger.log(`   • Position mappings accumulating`);
+      logger.log(`   • Large text processing increasing cache size`);
     } else if (operationType === 'translation_engine') {
-      console.log(`   • Translation segment array not being cleaned`);
-      console.log(`   • Token arrays growing unbounded`);
+      logger.log(`   • Translation segment array not being cleaned`);
+      logger.log(`   • Token arrays growing unbounded`);
     }
 
-    console.groupEnd();
+    logger.groupEnd();
   }
 
   /**
@@ -686,7 +685,7 @@ export class SystemPerformanceMonitor {
       });
     }
 
-    console.log(
+    logger.log(
       `🔍 System Performance Monitor initialized with ${this.integrations.size} integrations`
     );
   }
@@ -711,7 +710,7 @@ export class SystemPerformanceMonitor {
           systemMetrics.integrations[key] = integration.collectMetrics();
         }
       } catch (error) {
-        console.warn(`⚠️ Failed to collect metrics from ${integration.name}:`, error);
+        logger.warn(`⚠️ Failed to collect metrics from ${integration.name}:`, error);
       }
     }
 
@@ -807,7 +806,7 @@ export class SystemPerformanceMonitor {
    */
   checkRealMemory() {
     if (!performance.memory) {
-      console.warn('⚠️ performance.memory API not available');
+      logger.warn('⚠️ performance.memory API not available');
       return null;
     }
 
@@ -820,31 +819,31 @@ export class SystemPerformanceMonitor {
     const totalMB = (total / 1024 / 1024).toFixed(1);
     const limitMB = (limit / 1024 / 1024).toFixed(1);
 
-    console.log('📊 Real Memory Usage Analysis:');
-    console.log(`   Heap Used: ${usedMB} MB / ${limitMB} MB (${usagePercent}%)`);
-    console.log(`   Heap Total: ${totalMB} MB`);
+    logger.log('📊 Real Memory Usage Analysis:');
+    logger.log(`   Heap Used: ${usedMB} MB / ${limitMB} MB (${usagePercent}%)`);
+    logger.log(`   Heap Total: ${totalMB} MB`);
 
     if (usagePercent < 20) {
-      console.log('   ✅ Status: HEALTHY - Memory usage is low');
+      logger.log('   ✅ Status: HEALTHY - Memory usage is low');
     } else if (usagePercent < 30) {
-      console.log('   ⚠️  Status: WATCH - Memory usage is moderate');
+      logger.log('   ⚠️  Status: WATCH - Memory usage is moderate');
     } else if (usagePercent < 50) {
-      console.log('   ⚠️  Status: ELEVATED - Memory usage is getting high');
+      logger.log('   ⚠️  Status: ELEVATED - Memory usage is getting high');
     } else {
-      console.log('   🔴 Status: CRITICAL - Memory usage is very high');
+      logger.log('   🔴 Status: CRITICAL - Memory usage is very high');
     }
 
     // Translation segment count analysis
     if (window.translationEngine && window.translationEngine.translationSegments) {
       const segmentCount = window.translationEngine.translationSegments.length;
-      console.log(`   Translation Segments: ${segmentCount}`);
+      logger.log(`   Translation Segments: ${segmentCount}`);
 
       if (segmentCount > 75) {
-        console.log('   ⚠️  Segment count high - cleanup threshold should trigger soon');
+        logger.log('   ⚠️  Segment count high - cleanup threshold should trigger soon');
       } else if (segmentCount > 35) {
-        console.log('   ℹ️  Segment count normal - within expected range');
+        logger.log('   ℹ️  Segment count normal - within expected range');
       } else {
-        console.log('   ✅ Segment count low - plenty of headroom');
+        logger.log('   ✅ Segment count low - plenty of headroom');
       }
     }
 
@@ -877,7 +876,7 @@ export class SystemPerformanceMonitor {
       this.collectSystemMetrics();
     }, intervalMs);
 
-    console.log(`🔍 System performance monitoring started (${intervalMs / 1000}s intervals)`);
+    logger.log(`🔍 System performance monitoring started (${intervalMs / 1000}s intervals)`);
   }
 
   /**
@@ -888,7 +887,7 @@ export class SystemPerformanceMonitor {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-    console.log('⏹️ System performance monitoring stopped');
+    logger.log('⏹️ System performance monitoring stopped');
   }
 
   /**
@@ -900,7 +899,7 @@ export class SystemPerformanceMonitor {
     this.stopMonitoring();
     this.baselineTracker.destroy();
     this.integrations.clear();
-    console.log('🗑️ System performance monitor destroyed');
+    logger.log('🗑️ System performance monitor destroyed');
   }
 
   /**
@@ -970,7 +969,7 @@ export class SystemPerformanceMonitor {
    */
   logDetailedMemoryDebug(operationType, alert) {
     try {
-      console.group(`🔍 Memory Debug: ${operationType}`);
+      logger.group(`🔍 Memory Debug: ${operationType}`);
 
       // Get current memory metrics
       const integration = this.integrations.get(operationType);
@@ -978,12 +977,12 @@ export class SystemPerformanceMonitor {
         const currentMetrics = integration.collectMetrics();
         const baseline = this.baselineTracker.baselines.get(operationType);
 
-        console.log(`📊 Current Memory Usage:`, currentMetrics);
-        console.log(`📋 Baseline:`, baseline);
+        logger.log(`📊 Current Memory Usage:`, currentMetrics);
+        logger.log(`📋 Baseline:`, baseline);
 
         // Calculate specific growth areas
         if (currentMetrics && baseline) {
-          console.log(`🔺 Memory Growth Analysis:`);
+          logger.log(`🔺 Memory Growth Analysis:`);
           Object.keys(currentMetrics).forEach((key) => {
             if (key.includes('memory') || key.includes('cache') || key.includes('size')) {
               const current = currentMetrics[key] || 0;
@@ -992,7 +991,7 @@ export class SystemPerformanceMonitor {
               if (baselineVal > 0) {
                 const ratio = current / baselineVal;
                 if (ratio > 1.2) {
-                  console.log(
+                  logger.log(
                     `   ${key}: ${current} (${ratio.toFixed(1)}x baseline: ${baselineVal})`
                   );
                 }
@@ -1003,26 +1002,26 @@ export class SystemPerformanceMonitor {
 
         // Add specific cache size information
         if (operationType === 'semantic_translation_cache') {
-          console.log(`🧠 Semantic Cache Details:`);
+          logger.log(`🧠 Semantic Cache Details:`);
           if (currentMetrics.cacheSize)
-            console.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
+            logger.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
           if (currentMetrics.similarityCacheSize)
-            console.log(`   Similarity Cache: ${currentMetrics.similarityCacheSize} entries`);
-          if (currentMetrics.hitRate) console.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
+            logger.log(`   Similarity Cache: ${currentMetrics.similarityCacheSize} entries`);
+          if (currentMetrics.hitRate) logger.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
         }
 
         if (operationType === 'position_cache') {
-          console.log(`📍 Position Cache Details:`);
-          if (currentMetrics.totalHits) console.log(`   Total Hits: ${currentMetrics.totalHits}`);
-          if (currentMetrics.hitRate) console.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
+          logger.log(`📍 Position Cache Details:`);
+          if (currentMetrics.totalHits) logger.log(`   Total Hits: ${currentMetrics.totalHits}`);
+          if (currentMetrics.hitRate) logger.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
           if (currentMetrics.cacheSize)
-            console.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
+            logger.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
         }
       }
 
-      console.groupEnd();
+      logger.groupEnd();
     } catch (error) {
-      console.error('Error in memory debug logging:', error);
+      logger.error('Error in memory debug logging:', error);
     }
   }
 }

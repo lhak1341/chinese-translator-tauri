@@ -566,21 +566,27 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 
 **Migration progress** (2026-01-20):
 
-- ✅ **Complete** (270+ calls migrated): All WASM wrappers, hot paths, and performance dashboards
+- ✅ **Complete** (320+ calls migrated, 51% of original 632): All WASM wrappers, hot paths, and monitoring systems
   - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
   - `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
-  - `App.jsx` performance dashboard (90+ calls)
+  - `App.jsx` performance dashboard (92 calls)
+  - `ProactivePerformanceDetector.js` (48 calls - console.log/warn/error/group/groupEnd)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
 - ✅ **Production security**: All `window.*` API exposures now guarded by `NODE_ENV` checks
-- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments
+- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments + fixed memory leak
   - Consolidated `window.translationEngine` to single location (Translator.jsx line 362)
   - Removed duplicate performance monitor assignments (ProactivePerformanceDetector.js)
   - Added initialization flag cleanup to prevent race conditions
-- ⏳ **Remaining**: ~360 calls in non-critical files (tests, utilities, UI components)
+  - Fixed App.jsx cleanup to call `destroy()` instead of `stopMonitoring()` (memory leak fix)
+- ⏳ **Remaining**: ~310 calls in non-critical files (tests, utilities, UI components)
 
-**Migration strategy**: Core migration complete. Remaining calls can be migrated incrementally when editing those files.
+**Migration strategy**: Core migration complete (51%). Remaining calls can be migrated incrementally when editing those files.
 
-**Code maintenance** (2026-01-20): Regular code reviews identified and fixed duplicate window API assignments that caused maintenance overhead and bundle bloat. All debugging APIs now centralized in App.jsx for easier management.
+**Code maintenance** (2026-01-20): Regular code reviews identified and fixed:
+
+- Duplicate window API assignments (maintenance overhead, bundle bloat)
+- Memory leak in App.jsx cleanup (baselineTracker interval not cleared)
+- Console.\* usage in ProactivePerformanceDetector.js (48 calls migrated)
 
 ### Active vs Dead Code
 
