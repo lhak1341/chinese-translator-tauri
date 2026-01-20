@@ -591,9 +591,14 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
     - `BatchLogger.js`: Added destroy() method (base class for PerformanceLogger)
   - Fixed unbounded array growth in ProactivePerformanceDetector.js (performanceHistory)
   - Removed dead code in PerformanceBaselineTracker.destroy() (monitoringInterval)
-- ⏳ **Remaining**: ~295 calls in non-critical files (tests, utilities, UI components)
+  - Round 8: Fixed CRITICAL memory leak + reliability improvements (6 fixes):
+    - `WasmMemoryPoolManager.ts`: Added interval cleanup in destroy() (prevents 30s interval leak)
+    - `SegmentWorkerManager.js`: Added per-task timeout (30s) to prevent Map leak
+    - `SegmentPrecomputer.js`: Added trimPools() method (reduces memory waste during idle)
+    - `WasmMemoryPoolManager.ts`: Added error handling in performBatchLookup() (better WASM error visibility)
+- ⏳ **Remaining**: ~278 calls in non-critical files (tests, utilities, UI components)
 
-**Migration strategy**: Core migration complete (53%). Remaining calls can be migrated incrementally when editing those files.
+**Migration strategy**: Core migration complete (56%). Remaining calls can be migrated incrementally when editing those files.
 
 **Code maintenance** (2026-01-20): Regular code reviews identified and fixed:
 
