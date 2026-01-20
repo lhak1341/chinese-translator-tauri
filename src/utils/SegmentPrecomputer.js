@@ -68,6 +68,21 @@ export class SegmentPrecomputer {
   }
 
   /**
+   * Trim pools to reasonable size to prevent memory waste during idle periods
+   * Call this periodically (e.g., after large translations complete)
+   */
+  static trimPools() {
+    const targetSize = 100; // Keep only 100 in reserve
+
+    if (this.segmentPool.length > targetSize) {
+      this.segmentPool.length = targetSize;
+    }
+    if (this.unitDataPool.length > targetSize) {
+      this.unitDataPool.length = targetSize;
+    }
+  }
+
+  /**
    * Get object pool statistics
    * @returns {Object} Pool statistics
    */

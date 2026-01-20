@@ -669,6 +669,9 @@ export interface OperationStats {
 
   /** Average operation time in milliseconds */
   averageOperationTime: number;
+
+  /** Number of errors encountered */
+  errors?: number;
 }
 
 /**
@@ -729,6 +732,10 @@ export class WasmDictionaryOperationHelper {
       this.operationStats.totalDataTransferred += buffer.byteLength;
 
       return results;
+    } catch (error) {
+      logger.error('WASM batch lookup failed:', error);
+      this.operationStats.errors = (this.operationStats.errors || 0) + 1;
+      throw error; // Re-throw after logging
     } finally {
       // Always return buffer to pool
       this.memoryPool.returnBuffer(buffer);

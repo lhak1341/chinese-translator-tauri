@@ -566,7 +566,7 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 
 **Migration progress** (2026-01-20):
 
-- ✅ **Complete** (340+ calls migrated, 54% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
+- ✅ **Complete** (354+ calls migrated, 56% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
   - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
   - `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
   - `App.jsx` performance dashboard (92 calls)
@@ -574,6 +574,7 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
   - `ContentAwarePositionCache.js` (7 calls - console.log/warn)
   - `TranslationSegmentCache.js` (10 calls - console.warn)
   - Round 7: `usePerformanceMonitoring.js` (1 call - console.warn), `TranslationSegmentCache.js` (1 call - console.log)
+  - Round 8: `WasmMemoryPoolManager.ts` (9 calls - console.log/warn), `TranslationSegmentCache.js` (5 calls - console.log/error)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
 - ✅ **Production security**: All `window.*` API exposures guarded by `NODE_ENV` checks (critical fix in round 6)
   - Added guards to 3 window API accesses in ProactivePerformanceDetector.js (lines 353, 600, 837)

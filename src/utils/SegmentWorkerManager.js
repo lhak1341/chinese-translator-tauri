@@ -163,7 +163,26 @@ export class SegmentWorkerManager {
       const id = ++this.taskIdCounter;
       const startTime = performance.now();
 
-      this.pendingTasks.set(id, { resolve, reject, startTime });
+      // Timeout after 30 seconds to prevent Map leak
+      const timeout = setTimeout(() => {
+        if (this.pendingTasks.has(id)) {
+          this.pendingTasks.delete(id);
+          this.stats.errors++;
+          reject(new Error(`Worker task timeout: ${type}`));
+        }
+      }, 30000);
+
+      this.pendingTasks.set(id, {
+        resolve: (result) => {
+          clearTimeout(timeout);
+          resolve(result);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+        startTime,
+      });
 
       this.worker.postMessage({
         type,
