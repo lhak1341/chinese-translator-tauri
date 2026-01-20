@@ -26,6 +26,7 @@
 
 import { DictionaryManager } from './DictionaryManager.js';
 import { WasmDictionaryManager } from './WasmDictionaryManager.js';
+import { logger } from './logger.js';
 
 export class EnhancedDictionaryManager extends DictionaryManager {
   constructor(options = {}) {
@@ -90,11 +91,11 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         await this.syncDictionariesToWasm();
 
         this.log(1, '✅ WASM integration initialized successfully');
-        console.log('✅ [EnhancedDictionaryManager] WASM DictionaryEngine active');
+        logger.log('✅ [EnhancedDictionaryManager] WASM DictionaryEngine active');
         return true;
       } else {
         this.log(1, '⚠️ WASM initialization failed, using JavaScript fallback');
-        console.warn(
+        logger.warn(
           '⚠️ [EnhancedDictionaryManager] WASM initialization returned false, using JavaScript fallback'
         );
         return false;
@@ -102,9 +103,9 @@ export class EnhancedDictionaryManager extends DictionaryManager {
     } catch (error) {
       this.log(0, '❌ WASM initialization error:', error);
 
-      // ALWAYS log critical WASM failures to console (bypass log filtering)
-      console.error('❌ [EnhancedDictionaryManager] WASM initialization failed:', error);
-      console.error('   Falling back to JavaScript dictionary manager');
+      // ALWAYS log critical WASM failures (bypass log filtering)
+      logger.error('❌ [EnhancedDictionaryManager] WASM initialization failed:', error);
+      logger.error('   Falling back to JavaScript dictionary manager');
 
       this.wasmInitialized = false;
       return false;

@@ -20,6 +20,7 @@
  */
 
 import { calculatePatternPriority } from './PatternPriorityCalculator.js';
+import { logger } from './logger.js';
 
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
@@ -209,7 +210,7 @@ export class SemanticPatternProcessor {
         this.log(options.debugLevel, 5, '⚠️ WASM pattern matching unavailable, using JavaScript');
       }
     } catch (error) {
-      console.warn('Failed to initialize WASM pattern processor:', error);
+      logger.warn('Failed to initialize WASM pattern processor:', error);
       this.wasmAvailable = false;
       this.wasmInitialized = false;
     }
@@ -623,9 +624,7 @@ export class SemanticPatternProcessor {
       this.dictionaryManager?.translate(pattern.originalPattern, ['patterns'])?.translation;
 
     if (!template) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`No template found for pattern: ${pattern.originalPattern}`);
-      }
+      logger.warn(`No template found for pattern: ${pattern.originalPattern}`);
       return null;
     }
 
@@ -1498,9 +1497,9 @@ export class SemanticPatternProcessor {
       // Only log in development for performance
       if (process.env.NODE_ENV === 'development') {
         if (data !== null) {
-          console.log(message, data);
+          logger.log(message, data);
         } else {
-          console.log(message);
+          logger.log(message);
         }
       }
     }
@@ -1512,7 +1511,7 @@ export class SemanticPatternProcessor {
    */
   setStringOptimization(enabled) {
     this.enableStringOptimization = enabled;
-    console.log(`⚡ String pre-computation optimization ${enabled ? 'ENABLED' : 'DISABLED'}`);
+    logger.log(`⚡ String pre-computation optimization ${enabled ? 'ENABLED' : 'DISABLED'}`);
   }
 
   /**
