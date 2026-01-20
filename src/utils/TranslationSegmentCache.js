@@ -499,7 +499,7 @@ export class TranslationSegmentCache {
     });
 
     if (removedCount > 0) {
-      console.log(`🧹 Proactive quota cleanup removed ${removedCount} entries older than 3 days`);
+      logger.log(`🧹 Proactive quota cleanup removed ${removedCount} entries older than 3 days`);
     }
   }
 
@@ -527,7 +527,7 @@ export class TranslationSegmentCache {
       }
     });
 
-    console.log(`🔥 Aggressive cleanup removed ${removedCount} old cache entries`);
+    logger.log(`🔥 Aggressive cleanup removed ${removedCount} old cache entries`);
   }
 
   /**
@@ -566,11 +566,11 @@ export class TranslationSegmentCache {
         try {
           localStorage.setItem(this.metadataKey, JSON.stringify(this.metadata));
         } catch (retryError) {
-          console.error('CRITICAL: Metadata save failed after cleanup:', retryError);
+          logger.error('CRITICAL: Metadata save failed after cleanup:', retryError);
           // Metadata loss is critical - cache tracking will be inconsistent
           // Consider clearing entire cache to prevent orphaned entries
           if (retryError.name === 'QuotaExceededError') {
-            console.error('Clearing entire cache due to quota issues');
+            logger.error('Clearing entire cache due to quota issues');
             this.clear();
           }
         }
@@ -674,7 +674,7 @@ export class TranslationSegmentCache {
     this.approximateSize = 0;
     this.writesSinceRecalculation = 0;
 
-    console.log('🧹 Translation cache cleared');
+    logger.log('🧹 Translation cache cleared');
   }
 
   /**

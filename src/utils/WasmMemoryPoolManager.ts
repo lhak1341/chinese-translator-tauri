@@ -14,6 +14,7 @@
 
 import { SmartMemoryPressureDetector, MemoryPressure } from './MemoryManagementRefinements.js';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
+import { logger } from './logger';
 
 /**
  * Pool size category
@@ -192,6 +193,7 @@ export class WasmMemoryPool {
   };
   private bufferMetadata?: WeakMap<ArrayBuffer, BufferMetadata>;
   private memoryPressureDetector?: SmartMemoryPressureDetector;
+  private optimizationIntervalId: number | null = null;
 
   constructor(options: WasmMemoryPoolOptions = {}) {
     this.options = {
@@ -286,7 +288,7 @@ export class WasmMemoryPool {
         poolConfig.available.push(buffer);
       }
 
-      console.log(
+      logger.log(
         `🔧 Initialized ${poolName} pool with ${initialCount} buffers (${poolConfig.bufferSize} bytes each)`
       );
     }
@@ -351,7 +353,7 @@ export class WasmMemoryPool {
         // Pool at capacity - fall back to direct allocation
         buffer = new ArrayBuffer(Math.max(estimatedSizeBytes, pool.bufferSize));
         this.stats.poolMisses++;
-        console.warn(`⚠️ WASM Memory Pool: ${poolName} pool at capacity, using direct allocation`);
+        logger.warn(`⚠️ WASM Memory Pool: ${poolName} pool at capacity, using direct allocation`);
       }
     }
 
@@ -399,7 +401,7 @@ export class WasmMemoryPool {
         this.stats.memoryReused += buffer.byteLength;
       } else {
         // Memory pressure - don't keep excess buffers
-        console.log(`🧹 WASM Memory Pool: Released ${poolName} buffer due to memory pressure`);
+        logger.log(`🧹 WASM Memory Pool: Released ${poolName} buffer due to memory pressure`);
       }
     }
 
@@ -409,7 +411,7 @@ export class WasmMemoryPool {
     // Performance tracking (lightweight logging)
     if (this.options.enablePerformanceTracking && deallocationTime > 5.0) {
       // Only log slow deallocations (>5ms) to avoid spam
-      console.log(
+      logger.log(
         `🧠 Slow WASM memory deallocation: ${deallocationTime.toFixed(2)}ms for ${poolName} pool (${buffer.byteLength} bytes)`
       );
     }
@@ -470,7 +472,7 @@ export class WasmMemoryPool {
         }
       }
 
-      console.log(`🔧 Optimized ${poolName} pool: ${pool.available.length} available buffers`);
+      logger.log(`🔧 Optimized ${poolName} pool: ${pool.available.length} available buffers`);
     }
   }
 
@@ -478,7 +480,7 @@ export class WasmMemoryPool {
    * Emergency cleanup during critical memory pressure
    */
   private emergencyCleanup(): void {
-    console.log('🚨 WASM Memory Pool: Emergency cleanup initiated');
+    logger.log('🚨 WASM Memory Pool: Emergency cleanup initiated');
 
     let totalFreed = 0;
 
@@ -487,11 +489,11 @@ export class WasmMemoryPool {
       totalFreed += freedBuffers * pool.bufferSize;
 
       pool.available.length = 0; // Clear all available buffers
-      console.log(`🧹 Emergency cleanup: Freed ${freedBuffers} buffers from ${poolName} pool`);
+      logger.log(`🧹 Emergency cleanup: Freed ${freedBuffers} buffers from ${poolName} pool`);
     }
 
     this.stats.totalMemoryAllocated -= totalFreed;
-    console.log(`🧹 Emergency cleanup completed: ${(totalFreed / 1024 / 1024).toFixed(2)}MB freed`);
+    logger.log(`🧹 Emergency cleanup completed: ${(totalFreed / 1024 / 1024).toFixed(2)}MB freed`);
   }
 
   /**
@@ -536,9 +538,9 @@ export class WasmMemoryPool {
    */
   private setupPeriodicOptimization(): void {
     // Optimize every 30 seconds
-    setInterval(() => {
+    this.optimizationIntervalId = setInterval(() => {
       this.optimizePoolUtilization();
-    }, 30 * 1000);
+    }, 30 * 1000) as unknown as number;
   }
 
   /**
@@ -558,7 +560,7 @@ export class WasmMemoryPool {
           }
         }
 
-        console.log(
+        logger.log(
           `🔧 Pool optimization: Reduced ${poolName} pool by ${toRemove} buffers (low utilization: ${(utilizationRatio * 100).toFixed(1)}%)`
         );
       }
@@ -633,6 +635,12 @@ export class WasmMemoryPool {
    * Clean up all resources
    */
   cleanup(): void {
+    // Clear optimization interval
+    if (this.optimizationIntervalId !== null) {
+      clearInterval(this.optimizationIntervalId);
+      this.optimizationIntervalId = null;
+    }
+
     // Clear all pools
     for (const pool of Object.values(this.pools)) {
       pool.available.length = 0;
