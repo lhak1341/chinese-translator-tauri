@@ -564,7 +564,7 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 - **UX**: Clean developer tools for production debugging
 - **Debugging**: Full logging in development with timestamps
 
-**Migration progress** (2026-01-19):
+**Migration progress** (2026-01-20):
 
 - ✅ **Complete** (270+ calls migrated): All WASM wrappers, hot paths, and performance dashboards
   - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
@@ -572,9 +572,15 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
   - `App.jsx` performance dashboard (90+ calls)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
 - ✅ **Production security**: All `window.*` API exposures now guarded by `NODE_ENV` checks
+- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments
+  - Consolidated `window.translationEngine` to single location (Translator.jsx line 362)
+  - Removed duplicate performance monitor assignments (ProactivePerformanceDetector.js)
+  - Added initialization flag cleanup to prevent race conditions
 - ⏳ **Remaining**: ~360 calls in non-critical files (tests, utilities, UI components)
 
 **Migration strategy**: Core migration complete. Remaining calls can be migrated incrementally when editing those files.
+
+**Code maintenance** (2026-01-20): Regular code reviews identified and fixed duplicate window API assignments that caused maintenance overhead and bundle bloat. All debugging APIs now centralized in App.jsx for easier management.
 
 ### Active vs Dead Code
 

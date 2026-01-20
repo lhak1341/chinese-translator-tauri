@@ -340,6 +340,9 @@ const Translator = ({ isActive = true }) => {
         systemPerformanceMonitor.destroy();
         logger.log('🧹 System performance monitor timer cleaned up');
       }
+
+      // Reset initialization flag to prevent blocked re-initialization if component unmounts during init
+      isInitializingEngineRef.current = false;
     };
   }, []);
 
@@ -379,11 +382,9 @@ const Translator = ({ isActive = true }) => {
             debugLevel: DEBUG_LEVELS.ERROR, // PERFORMANCE: Reduce console spam
           });
 
-          // DEBUG: Expose translation engine for memory debugging
+          // DEBUG: Expose parity test for Rust vs JavaScript verification
+          // (window.translationEngine already exposed at line 362)
           if (process.env.NODE_ENV === 'development') {
-            window.translationEngine = engineRef.current;
-
-            // Expose parity test for Rust vs JavaScript verification
             window.runPatternParityTests = async () => {
               const processor = engineRef.current?.twoPhasePatternProcessor;
               if (!processor) {
@@ -2211,11 +2212,7 @@ const Translator = ({ isActive = true }) => {
             debugLevel: DEBUG_LEVELS.ERROR, // PERFORMANCE: Reduce console spam
           });
 
-          // DEBUG: Expose translation engine for memory debugging
-          if (process.env.NODE_ENV === 'development') {
-            window.translationEngine = engineRef.current;
-          }
-
+          // Note: window.translationEngine already exposed during initial engine creation
           setEngineStats(engineRef.current.getEngineStats());
           logger.log('✅ Engine reinitialized successfully');
 
