@@ -1082,6 +1082,12 @@ autoCompactIfNeeded() {
 
 **Implementation**: `OptimizedSemanticArrayBuilder.js:autoCompactIfNeeded()`
 
+**Additional Bounded Collection Examples** (Code Review Round 9, 2026-01-20):
+
+- **SmoothLoadingManager** (`UIResponsiveness.ts`): 2 Maps with limits (loadingStates=50, callbacks=30)
+- **IncrementalDictionarySorter** (`IncrementalDictionarySorter.js`): sortedCache Map limit=15
+- **Translator Component** (`Translator.jsx`): Timer cleanup for scrollRestorationTimeoutRef
+
 **Test Coverage**: 60 tests in `MemoryLeakDetector.test.js` verify memory monitoring and leak prevention.
 
 ### Failed Patterns (Avoid)
