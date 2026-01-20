@@ -234,6 +234,12 @@ const Translator = ({ isActive = true }) => {
 
       logger.log('📍 Attempting to restore positions:', positions);
 
+      // Clear any existing timeout
+      if (scrollRestorationTimeoutRef.current !== null) {
+        clearTimeout(scrollRestorationTimeoutRef.current);
+        scrollRestorationTimeoutRef.current = null;
+      }
+
       // Recursive retry with early termination on success
       const attemptRestore = (attemptsLeft = 5, delay = 0) => {
         // Check if all refs are ready with content
@@ -260,12 +266,17 @@ const Translator = ({ isActive = true }) => {
             characterOnlyTextRef.current.scrollLeft = positions.characterOnly.scrollLeft;
           }
           logger.log('📍 Scroll positions restored successfully');
+          scrollRestorationTimeoutRef.current = null;
         } else if (attemptsLeft > 0) {
           // Retry with exponential backoff
           const nextDelay = delay === 0 ? 50 : Math.min(delay * 2, 500);
-          setTimeout(() => attemptRestore(attemptsLeft - 1, nextDelay), nextDelay);
+          scrollRestorationTimeoutRef.current = setTimeout(
+            () => attemptRestore(attemptsLeft - 1, nextDelay),
+            nextDelay
+          );
         } else {
           logger.warn('📍 Failed to restore scroll positions after 5 attempts');
+          scrollRestorationTimeoutRef.current = null;
         }
       };
 
@@ -284,6 +295,9 @@ const Translator = ({ isActive = true }) => {
   const originalTextRef = useRef(null);
   const translationTextRef = useRef(null);
   const characterOnlyTextRef = useRef(null);
+
+  // Track scroll restoration timeout for cleanup
+  const scrollRestorationTimeoutRef = useRef(null);
 
   // Helper function to filter dictionaries based on active configuration
   const getFilteredDictionaries = useCallback((allDictionaries, activeProperNouns) => {
@@ -329,6 +343,12 @@ const Translator = ({ isActive = true }) => {
   // Cleanup timers on component unmount to prevent memory leaks
   useEffect(() => {
     return () => {
+      // Clean up scroll restoration timeout
+      if (scrollRestorationTimeoutRef.current !== null) {
+        clearTimeout(scrollRestorationTimeoutRef.current);
+        scrollRestorationTimeoutRef.current = null;
+      }
+
       // Clean up translation segment cache timer
       if (translationSegmentCache && typeof translationSegmentCache.destroy === 'function') {
         translationSegmentCache.destroy();
@@ -816,7 +836,7 @@ const Translator = ({ isActive = true }) => {
   // Auto-scroll Character Only text when highlighting changes
   useEffect(() => {
     if (highlightedCharacterOnlyUnitIndex && highlightedCharacterOnlyUnitIndex !== -1) {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         // Handle both single index and array of indices
         const firstIndex = Array.isArray(highlightedCharacterOnlyUnitIndex)
           ? highlightedCharacterOnlyUnitIndex[0]
@@ -826,6 +846,8 @@ const Translator = ({ isActive = true }) => {
           scrollToHighlightedElement(characterOnlyTextRef, firstIndex);
         }
       }, 10);
+
+      return () => clearTimeout(timeoutId);
     }
   }, [highlightedCharacterOnlyUnitIndex]);
 

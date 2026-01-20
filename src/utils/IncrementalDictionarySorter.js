@@ -12,6 +12,7 @@ export class IncrementalDictionarySorter {
   constructor() {
     // Cache of sorted entries for each dictionary
     this.sortedCache = new Map();
+    this.MAX_CACHE_SIZE = 15; // Max 15 dictionaries cached
     // Performance metrics
     this.stats = {
       fullSorts: 0,
@@ -84,6 +85,11 @@ export class IncrementalDictionarySorter {
     });
 
     // Cache sorted entries for future incremental updates
+    // Enforce size limit with LRU eviction
+    if (this.sortedCache.size >= this.MAX_CACHE_SIZE) {
+      const firstKey = this.sortedCache.keys().next().value;
+      this.sortedCache.delete(firstKey);
+    }
     this.sortedCache.set(dictionaryId, entries);
 
     return Object.fromEntries(entries);

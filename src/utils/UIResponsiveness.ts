@@ -169,6 +169,8 @@ export class DebouncedProgressHandler {
 export class SmoothLoadingManager {
   private loadingStates: Map<string, LoadingState>;
   private callbacks: Map<string, LoadingCallback>;
+  private readonly MAX_LOADING_STATES = 50;
+  private readonly MAX_CALLBACKS = 30;
 
   constructor() {
     this.loadingStates = new Map();
@@ -191,6 +193,14 @@ export class SmoothLoadingManager {
       progress: 0,
       isIndeterminate: estimatedDuration === null,
     };
+
+    // Enforce size limit with LRU eviction
+    if (this.loadingStates.size >= this.MAX_LOADING_STATES) {
+      const firstKey = this.loadingStates.keys().next().value;
+      if (firstKey !== undefined) {
+        this.loadingStates.delete(firstKey);
+      }
+    }
 
     this.loadingStates.set(key, loadingState);
 
@@ -248,6 +258,14 @@ export class SmoothLoadingManager {
    * Register callback for loading state changes
    */
   onLoadingChange(key: string, callback: LoadingCallback): void {
+    // Enforce size limit with LRU eviction
+    if (this.callbacks.size >= this.MAX_CALLBACKS) {
+      const firstKey = this.callbacks.keys().next().value;
+      if (firstKey !== undefined) {
+        this.callbacks.delete(firstKey);
+      }
+    }
+
     this.callbacks.set(key, callback);
   }
 
