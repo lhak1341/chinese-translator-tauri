@@ -77,6 +77,9 @@ class DebugObjectPoolManager {
     // Only enable in development
     this.enabled = process.env.NODE_ENV === 'development';
 
+    // Track cleanup interval ID
+    this.cleanupIntervalId = null;
+
     if (!this.enabled) {
       // Provide no-op methods for production
       this.getPerformanceMetric = () => ({});
@@ -261,7 +264,7 @@ class DebugObjectPoolManager {
     if (!this.enabled) return;
 
     // Clean up pools every 5 minutes to prevent memory leaks
-    setInterval(
+    this.cleanupIntervalId = setInterval(
       () => {
         // Only keep half the objects in each pool to prevent accumulation
         [
@@ -281,6 +284,16 @@ class DebugObjectPoolManager {
       },
       5 * 60 * 1000
     );
+  }
+
+  /**
+   * Clean up resources including periodic cleanup timer
+   */
+  destroy() {
+    if (this.cleanupIntervalId !== null) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
   }
 
   // Get comprehensive pool statistics

@@ -239,6 +239,17 @@ export class BatchLogger {
       overhead: 0,
     };
   }
+
+  /**
+   * Cleanup resources including flush timer
+   */
+  destroy() {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+    this.clear();
+  }
 }
 
 /**

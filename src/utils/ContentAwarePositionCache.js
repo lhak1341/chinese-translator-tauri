@@ -18,6 +18,7 @@
  * } from '../types/CacheTypes'
  */
 
+import { logger } from './logger';
 import { LRUCache } from './LRUCache.ts';
 
 export class ContentAwarePositionCache {
@@ -48,6 +49,7 @@ export class ContentAwarePositionCache {
     };
 
     // Cleanup interval
+    this.cleanupIntervalId = null;
     this.setupPeriodicCleanup();
   }
 
@@ -58,12 +60,12 @@ export class ContentAwarePositionCache {
     try {
       const storedVersion = localStorage.getItem('positionCacheVersion');
       if (storedVersion !== String(this.cacheVersion)) {
-        console.log(`🗑️ Clearing old position cache (v${storedVersion} → v${this.cacheVersion})`);
+        logger.log(`🗑️ Clearing old position cache (v${storedVersion} → v${this.cacheVersion})`);
         this.clear();
         localStorage.setItem('positionCacheVersion', String(this.cacheVersion));
       }
     } catch (error) {
-      console.warn('⚠️ Could not check cache version:', error);
+      logger.warn('⚠️ Could not check cache version:', error);
     }
   }
 
@@ -144,7 +146,7 @@ export class ContentAwarePositionCache {
       this.stats.exactHits++;
       this.updateHitRate();
 
-      console.log(`🎯 Position cache exact hit for content hash: ${contentHash}`);
+      logger.log(`🎯 Position cache exact hit for content hash: ${contentHash}`);
       return exactMatch.positionMapping;
     }
 
@@ -162,7 +164,7 @@ export class ContentAwarePositionCache {
     this.updateHitRate();
 
     const elapsed = performance.now() - startTime;
-    console.log(
+    logger.log(
       `❌ Position cache miss for content hash: ${contentHash} (lookup took ${elapsed.toFixed(1)}ms)`
     );
 
@@ -196,7 +198,7 @@ export class ContentAwarePositionCache {
     this.stats.stores++;
     this.stats.avgComputeTimeSaved = (this.stats.avgComputeTimeSaved + computeTime) / 2;
 
-    console.log(
+    logger.log(
       `💾 Cached position mapping for hash: ${contentHash} (${text.length} chars, ${computeTime.toFixed(1)}ms compute time)`
     );
   }
@@ -259,19 +261,31 @@ export class ContentAwarePositionCache {
       avgComputeTimeSaved: 0,
     };
 
-    console.log('🧹 Content-aware position cache cleared');
+    logger.log('🧹 Content-aware position cache cleared');
   }
 
   /**
    * Set up periodic cleanup of expired entries
    */
   setupPeriodicCleanup() {
-    setInterval(
+    this.cleanupIntervalId = setInterval(
       () => {
         this.cleanupExpiredEntries();
       },
       5 * 60 * 1000
     ); // Every 5 minutes
+  }
+
+  /**
+   * Clean up resources including periodic cleanup timer
+   */
+  destroy() {
+    if (this.cleanupIntervalId !== null) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+    this.exactCache.clear();
+    this.similarityCache.clear();
   }
 
   /**
@@ -289,7 +303,7 @@ export class ContentAwarePositionCache {
     }
 
     if (removedCount > 0) {
-      console.log(`🧹 Cleaned up ${removedCount} expired similarity cache entries`);
+      logger.log(`🧹 Cleaned up ${removedCount} expired similarity cache entries`);
     }
   }
 }

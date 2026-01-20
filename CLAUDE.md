@@ -566,27 +566,37 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 
 **Migration progress** (2026-01-20):
 
-- ✅ **Complete** (320+ calls migrated, 51% of original 632): All WASM wrappers, hot paths, and monitoring systems
+- ✅ **Complete** (327+ calls migrated, 52% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
   - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
   - `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
   - `App.jsx` performance dashboard (92 calls)
   - `ProactivePerformanceDetector.js` (48 calls - console.log/warn/error/group/groupEnd)
+  - `ContentAwarePositionCache.js` (7 calls - console.log/warn)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
 - ✅ **Production security**: All `window.*` API exposures now guarded by `NODE_ENV` checks
-- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments + fixed memory leak
+- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments + fixed memory leaks
   - Consolidated `window.translationEngine` to single location (Translator.jsx line 362)
   - Removed duplicate performance monitor assignments (ProactivePerformanceDetector.js)
   - Added initialization flag cleanup to prevent race conditions
   - Fixed App.jsx cleanup to call `destroy()` instead of `stopMonitoring()` (memory leak fix)
-- ⏳ **Remaining**: ~310 calls in non-critical files (tests, utilities, UI components)
+  - Fixed CRITICAL memory leaks in singleton classes (3 fixes):
+    - `ContentAwarePositionCache.js`: Added destroy() method with interval cleanup
+    - `DebugObjectPool.js`: Added destroy() method with interval cleanup
+    - `BatchLogger.js`: Added destroy() method (base class for PerformanceLogger)
+- ⏳ **Remaining**: ~305 calls in non-critical files (tests, utilities, UI components)
 
-**Migration strategy**: Core migration complete (51%). Remaining calls can be migrated incrementally when editing those files.
+**Migration strategy**: Core migration complete (52%). Remaining calls can be migrated incrementally when editing those files.
 
 **Code maintenance** (2026-01-20): Regular code reviews identified and fixed:
 
 - Duplicate window API assignments (maintenance overhead, bundle bloat)
 - Memory leak in App.jsx cleanup (baselineTracker interval not cleared)
 - Console.\* usage in ProactivePerformanceDetector.js (48 calls migrated)
+- **CRITICAL memory leaks** in singleton classes (setInterval never cleared):
+  - ContentAwarePositionCache (5-minute cleanup interval)
+  - DebugObjectPool (5-minute cleanup interval)
+  - BatchLogger (flush timer)
+- Console.\* usage in ContentAwarePositionCache.js (7 calls migrated)
 
 ### Active vs Dead Code
 
