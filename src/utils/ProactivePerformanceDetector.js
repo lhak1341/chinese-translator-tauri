@@ -115,12 +115,12 @@ export class PerformanceBaselineTracker {
       sessionAge: timestamp - this.monitoringStartTime,
     };
 
-    this.performanceHistory.push(dataPoint);
-
-    // Maintain history size
-    if (this.performanceHistory.length > this.options.maxHistorySize) {
-      this.performanceHistory = this.performanceHistory.slice(-this.options.maxHistorySize);
+    // Maintain history size - check BEFORE push to prevent unbounded growth
+    if (this.performanceHistory.length >= this.options.maxHistorySize) {
+      this.performanceHistory.shift(); // Remove oldest entry
     }
+
+    this.performanceHistory.push(dataPoint);
 
     // Update baseline if needed
     this.updateBaselinesIfNeeded(operationType, dataPoint);
@@ -350,7 +350,7 @@ export class PerformanceBaselineTracker {
         logger.error('🚨 CRITICAL Performance Regression:', alert.message);
 
         // ENHANCED DEBUG: Show detailed memory breakdown for critical alerts
-        if (window.systemPerformanceMonitor) {
+        if (process.env.NODE_ENV === 'development' && window.systemPerformanceMonitor) {
           window.systemPerformanceMonitor.logDetailedMemoryDebug(operationType, alert);
         } else {
           this.logBasicMemoryDebug(operationType, alert);
@@ -465,10 +465,7 @@ export class PerformanceBaselineTracker {
       this.analysisIntervalId = null;
     }
 
-    if (this.monitoringInterval !== null) {
-      clearInterval(this.monitoringInterval);
-      this.monitoringInterval = null;
-    }
+    // Note: monitoringInterval belongs to SystemPerformanceMonitor, not this class
   }
 
   /**
@@ -597,7 +594,7 @@ export class PerformanceBaselineTracker {
     logger.log(`⚠️ Alert:`, alert);
 
     // Show current memory if available
-    if (window.performanceDashboard) {
+    if (process.env.NODE_ENV === 'development' && window.performanceDashboard) {
       logger.log(`📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`);
     }
 
@@ -834,7 +831,7 @@ export class SystemPerformanceMonitor {
     }
 
     // Translation segment count analysis
-    if (window.translationEngine && window.translationEngine.translationSegments) {
+    if (process.env.NODE_ENV === 'development' && window.translationEngine?.translationSegments) {
       const segmentCount = window.translationEngine.translationSegments.length;
       logger.log(`   Translation Segments: ${segmentCount}`);
 

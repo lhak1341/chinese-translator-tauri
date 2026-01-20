@@ -20,6 +20,8 @@
  * } from '../types/CacheTypes'
  */
 
+import { logger } from './logger';
+
 export class TranslationSegmentCache {
   constructor(options = {}) {
     this.maxCacheSize = options.maxCacheSize || 1000; // Maximum cached segments
@@ -142,7 +144,7 @@ export class TranslationSegmentCache {
 
       return this.simpleHash(dictionaryVersions);
     } catch (error) {
-      console.warn('Failed to generate dictionary fingerprint:', error);
+      logger.warn('Failed to generate dictionary fingerprint:', error);
       return 'fingerprint-error';
     }
   }
@@ -171,7 +173,7 @@ export class TranslationSegmentCache {
         cachedData = JSON.parse(cachedDataStr);
       } catch (parseError) {
         // Corrupted cache entry - remove and treat as miss
-        console.warn(`Corrupted cache entry removed: ${cacheKey}`, parseError.message);
+        logger.warn(`Corrupted cache entry removed: ${cacheKey}`, parseError.message);
         this._removeEntry(cacheKey);
         this.stats.misses++;
         this.stats.evictions++;
@@ -187,7 +189,7 @@ export class TranslationSegmentCache {
         !cachedData.semanticArrays ||
         typeof cachedData.timestamp !== 'number'
       ) {
-        console.warn(`Invalid cache data structure, removing: ${cacheKey}`);
+        logger.warn(`Invalid cache data structure, removing: ${cacheKey}`);
         this._removeEntry(cacheKey);
         this.stats.misses++;
         this.stats.evictions++;
@@ -213,7 +215,7 @@ export class TranslationSegmentCache {
         localStorage.setItem(cacheKey, JSON.stringify(cachedData));
       } catch (error) {
         // Failed to update hit count - non-critical, just log
-        console.warn('Failed to update cache hit count:', error);
+        logger.warn('Failed to update cache hit count:', error);
       }
 
       this.stats.hits++;
@@ -234,7 +236,7 @@ export class TranslationSegmentCache {
         semanticArrays: cachedData.semanticArrays,
       };
     } catch (error) {
-      console.warn('Cache get error:', error);
+      logger.warn('Cache get error:', error);
       this.stats.misses++;
       this.updateHitRate();
       return null;
@@ -293,7 +295,7 @@ export class TranslationSegmentCache {
     } catch (error) {
       // Handle localStorage quota exceeded
       if (error.name === 'QuotaExceededError') {
-        console.warn('Cache storage quota exceeded, cleaning up old entries');
+        logger.warn('Cache storage quota exceeded, cleaning up old entries');
         this.aggressiveCleanup();
         // Retry once after cleanup
         try {
@@ -307,10 +309,10 @@ export class TranslationSegmentCache {
 
           this.stats.stores++;
         } catch (retryError) {
-          console.warn('Cache store failed after cleanup:', retryError);
+          logger.warn('Cache store failed after cleanup:', retryError);
         }
       } else {
-        console.warn('Cache set error:', error);
+        logger.warn('Cache set error:', error);
       }
     }
   }
@@ -394,7 +396,7 @@ export class TranslationSegmentCache {
       this.approximateSize = totalBytes;
       return totalBytes;
     } catch (error) {
-      console.warn('Failed to recalculate localStorage size:', error);
+      logger.warn('Failed to recalculate localStorage size:', error);
       return this.approximateSize; // Keep current approximation on error
     }
   }
@@ -420,7 +422,7 @@ export class TranslationSegmentCache {
       const quotaLimitMB = 4; // 80% of typical 5MB quota
 
       if (totalMB > quotaLimitMB) {
-        console.warn(
+        logger.warn(
           `⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB (${((totalMB / 5) * 100).toFixed(1)}%) [${this.writesSinceRecalculation === 0 ? 'exact' : 'approximate'}]`
         );
         return true;
@@ -428,7 +430,7 @@ export class TranslationSegmentCache {
 
       return false;
     } catch (error) {
-      console.warn('Failed to check localStorage quota:', error);
+      logger.warn('Failed to check localStorage quota:', error);
       return false; // Don't trigger cleanup on errors
     }
   }
@@ -467,7 +469,7 @@ export class TranslationSegmentCache {
         console.log(`🧹 Cleaned up ${removedCount} orphaned cache entries from previous sessions`);
       }
     } catch (error) {
-      console.warn('Failed to clean up orphaned cache entries:', error);
+      logger.warn('Failed to clean up orphaned cache entries:', error);
     }
   }
 
@@ -538,7 +540,7 @@ export class TranslationSegmentCache {
         return JSON.parse(metadataStr);
       }
     } catch (error) {
-      console.warn('Failed to load cache metadata:', error);
+      logger.warn('Failed to load cache metadata:', error);
     }
 
     return {
@@ -558,7 +560,7 @@ export class TranslationSegmentCache {
     } catch (error) {
       // Handle localStorage quota exceeded
       if (error.name === 'QuotaExceededError') {
-        console.warn('Metadata storage quota exceeded, cleaning up old entries');
+        logger.warn('Metadata storage quota exceeded, cleaning up old entries');
         this.aggressiveCleanup();
         // Retry once after cleanup
         try {
@@ -573,7 +575,7 @@ export class TranslationSegmentCache {
           }
         }
       } else {
-        console.warn('Failed to save cache metadata:', error);
+        logger.warn('Failed to save cache metadata:', error);
       }
     }
   }
@@ -616,7 +618,7 @@ export class TranslationSegmentCache {
         this.removeFromMetadata(key);
       }
     } catch (error) {
-      console.warn('Error removing cache entry:', error);
+      logger.warn('Error removing cache entry:', error);
       // Still try to remove from metadata
       this.removeFromMetadata(key);
     }

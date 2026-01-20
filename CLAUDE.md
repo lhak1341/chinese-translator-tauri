@@ -566,14 +566,17 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 
 **Migration progress** (2026-01-20):
 
-- ✅ **Complete** (327+ calls migrated, 52% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
+- ✅ **Complete** (337+ calls migrated, 53% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
   - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
   - `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
   - `App.jsx` performance dashboard (92 calls)
   - `ProactivePerformanceDetector.js` (48 calls - console.log/warn/error/group/groupEnd)
   - `ContentAwarePositionCache.js` (7 calls - console.log/warn)
+  - `TranslationSegmentCache.js` (10 calls - console.warn)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
-- ✅ **Production security**: All `window.*` API exposures now guarded by `NODE_ENV` checks
+- ✅ **Production security**: All `window.*` API exposures guarded by `NODE_ENV` checks (critical fix in round 6)
+  - Added guards to 3 window API accesses in ProactivePerformanceDetector.js (lines 353, 600, 837)
+  - Prevents TypeError crashes in production when window.performanceDashboard/systemPerformanceMonitor are undefined
 - ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments + fixed memory leaks
   - Consolidated `window.translationEngine` to single location (Translator.jsx line 362)
   - Removed duplicate performance monitor assignments (ProactivePerformanceDetector.js)
@@ -583,9 +586,11 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
     - `ContentAwarePositionCache.js`: Added destroy() method with interval cleanup
     - `DebugObjectPool.js`: Added destroy() method with interval cleanup
     - `BatchLogger.js`: Added destroy() method (base class for PerformanceLogger)
-- ⏳ **Remaining**: ~305 calls in non-critical files (tests, utilities, UI components)
+  - Fixed unbounded array growth in ProactivePerformanceDetector.js (performanceHistory)
+  - Removed dead code in PerformanceBaselineTracker.destroy() (monitoringInterval)
+- ⏳ **Remaining**: ~295 calls in non-critical files (tests, utilities, UI components)
 
-**Migration strategy**: Core migration complete (52%). Remaining calls can be migrated incrementally when editing those files.
+**Migration strategy**: Core migration complete (53%). Remaining calls can be migrated incrementally when editing those files.
 
 **Code maintenance** (2026-01-20): Regular code reviews identified and fixed:
 
@@ -597,6 +602,11 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
   - DebugObjectPool (5-minute cleanup interval)
   - BatchLogger (flush timer)
 - Console.\* usage in ContentAwarePositionCache.js (7 calls migrated)
+- Console.warn usage in TranslationSegmentCache.js (10 calls migrated)
+- **CRITICAL production safety**: Unsafe window API access (3 locations fixed)
+  - ProactivePerformanceDetector.js accessed window.performanceDashboard/systemPerformanceMonitor without guards
+  - Would cause TypeError crashes in production builds
+- Unbounded array growth in performanceHistory (fixed to check before push)
 
 ### Active vs Dead Code
 
