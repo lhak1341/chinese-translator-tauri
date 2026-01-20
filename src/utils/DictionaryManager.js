@@ -34,6 +34,7 @@
  */
 
 import { TranslationCache } from './TranslationCache.js';
+import { logger } from './logger.js';
 
 class TrieNode {
   constructor() {
@@ -652,9 +653,9 @@ export class DictionaryManager {
 
       if (isCritical || isDevelopment) {
         if (data !== null) {
-          console.log(message, data);
+          logger.log(message, data);
         } else {
-          console.log(message);
+          logger.log(message);
         }
       }
     }
@@ -955,9 +956,7 @@ export class DictionaryManager {
           return { dictionaryName, matches: enrichedMatches, success: true };
         } catch (error) {
           // Log error but don't fail entire lookup
-          if (typeof console !== 'undefined') {
-            console.error(`Dictionary lookup failed for ${dictionaryName}:`, error);
-          }
+          logger.error(`Dictionary lookup failed for ${dictionaryName}:`, error);
           return { dictionaryName, matches: [], success: false, error };
         }
       });
@@ -968,11 +967,9 @@ export class DictionaryManager {
       // Check for any failures
       const failures = lookupResults.filter((result) => !result.success);
       if (failures.length > 0) {
-        if (typeof console !== 'undefined') {
-          console.warn(
-            `${failures.length} dictionary lookups failed, proceeding with available results`
-          );
-        }
+        logger.warn(
+          `${failures.length} dictionary lookups failed, proceeding with available results`
+        );
       }
 
       // Combine successful results
@@ -999,9 +996,7 @@ export class DictionaryManager {
 
       return sortedMatches;
     } catch (error) {
-      if (typeof console !== 'undefined') {
-        console.error('Parallel dictionary lookup failed, falling back to sequential:', error);
-      }
+      logger.error('Parallel dictionary lookup failed, falling back to sequential:', error);
 
       // Record fallback
       if (this.parallelLookupStats) {
@@ -1042,9 +1037,7 @@ export class DictionaryManager {
 
         allMatches.push(...matches);
       } catch (error) {
-        if (typeof console !== 'undefined') {
-          console.error(`Dictionary ${dictionaryName} lookup failed:`, error);
-        }
+        logger.error(`Dictionary ${dictionaryName} lookup failed:`, error);
         // Continue with other dictionaries
       }
     }
@@ -1148,9 +1141,7 @@ export class DictionaryManager {
 
     // Skip indexing for very short texts (overhead not worth it)
     if (!enableLookupIndexing || text.length < 50) {
-      if (typeof console !== 'undefined' && process.env.NODE_ENV === 'development') {
-        console.log('⚡ Skipping lookup indexing for short text or disabled feature');
-      }
+      logger.log('⚡ Skipping lookup indexing for short text or disabled feature');
       return lookupIndex;
     }
 
@@ -1202,9 +1193,7 @@ export class DictionaryManager {
 
       return lookupIndex;
     } catch (error) {
-      if (typeof console !== 'undefined') {
-        console.error('🚨 Lookup index building failed:', error);
-      }
+      logger.error('🚨 Lookup index building failed:', error);
 
       // Return empty index on failure - phases will fall back to individual lookups
       return new Map();
