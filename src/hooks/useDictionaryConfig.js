@@ -70,41 +70,60 @@ export function useDictionaryConfig() {
    * Open Quick Add modal for custom proper noun dictionary
    * Loads configuration at operation time (not cached) to avoid stale config
    * Falls back to first active custom proper noun alphabetically
+   *
+   * CRITICAL FIX (2026-01-20): Set clipboard text AFTER determining dictionary
+   * to avoid React state timing issue. The async config loading caused clipboardText
+   * to be set but not yet rendered when setShowQuickAdd(true) was called, resulting
+   * in empty dialog fields for Cmd-5 while Cmd-1/2/3/4 worked correctly.
+   *
    * @param {string} text - Optional pre-populated text from clipboard
    */
   const openQuickAddCustomProperNoun = useCallback(
     async (text = '') => {
-      setClipboardText(text);
+      // CRITICAL: Do NOT call setClipboardText here - it will be batched with setShowQuickAdd
+      // causing the dialog to render with the OLD (empty) clipboardText value
 
       // Load configuration at operation time (CRITICAL: do not cache in state)
+      let selectedDictionary = 'properNouns'; // Default fallback
+
       try {
         const configResult = await window.electronAPI.loadConfiguration();
         const defaultQuickAddDictionary = configResult.data?.defaultQuickAddDictionary;
 
         // If there's a configured default and it's active, use it
         if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
-          setQuickAddDictionary(defaultQuickAddDictionary);
-          setShowQuickAdd(true);
-          return;
+          selectedDictionary = defaultQuickAddDictionary;
+        } else {
+          // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
+          const customProperNouns = activeProperNouns.filter((dict) =>
+            dict.startsWith('properNouns-')
+          );
+
+          if (customProperNouns.length > 0) {
+            // Choose the first one alphabetically if multiple are active
+            selectedDictionary = customProperNouns.sort()[0];
+          }
         }
       } catch (error) {
         console.error('Error loading default Cmd-5 dictionary:', error);
-        // Fall through to fallback behavior
+        // Fall through to default fallback behavior
+
+        // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
+        const customProperNouns = activeProperNouns.filter((dict) =>
+          dict.startsWith('properNouns-')
+        );
+
+        if (customProperNouns.length > 0) {
+          // Choose the first one alphabetically if multiple are active
+          selectedDictionary = customProperNouns.sort()[0];
+        }
       }
 
-      // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
-      const customProperNouns = activeProperNouns.filter((dict) => dict.startsWith('properNouns-'));
-
-      if (customProperNouns.length === 0) {
-        // No custom proper nouns are active, fallback to general properNouns
-        setQuickAddDictionary('properNouns');
-      } else {
-        // Choose the first one alphabetically if multiple are active
-        const selectedDict = customProperNouns.sort()[0];
-        setQuickAddDictionary(selectedDict);
-      }
-
-      setShowQuickAdd(true);
+      // CRITICAL: Set ALL state together in correct order to ensure React batches them properly
+      // This guarantees clipboardText is set BEFORE the dialog renders
+      setQuickAddDictionary(selectedDictionary);
+      setClipboardText(text); // Set clipboard text AFTER determining dictionary
+      setShowQuickAdd(true); // Show dialog LAST
     },
     [activeProperNouns]
   );
