@@ -152,6 +152,47 @@ const operation = useCallback(() => {
 
 **Archive**: See `docs/archive/refactoring-2026/` for attempted extractions and why they failed.
 
+**React State Timing with Async Operations** (Critical Pattern - 2026-01-20):
+
+- **Issue**: Setting state BEFORE async operations causes modal/dialog to render with OLD state values
+- **Why it breaks**: React batches state updates - async operations delay the batch, modal renders with previous state
+- **Example**: Cmd-5 dialog opened empty while Cmd-1/2/3/4 auto-populated correctly
+
+```javascript
+// ❌ WRONG: State set BEFORE async operation
+const openDialog = useCallback(async (text = '') => {
+  setDialogText(text); // State update (async)
+
+  // Async operation delays React's batch update
+  const config = await loadConfiguration();
+  setDialogConfig(config);
+
+  setShowDialog(true); // Modal renders with OLD (empty) dialogText
+}, []);
+
+// ✅ CORRECT: Set ALL state AFTER async operations
+const openDialog = useCallback(async (text = '') => {
+  // 1. Complete ALL async operations first
+  const config = await loadConfiguration();
+
+  // 2. Set ALL state together in correct order
+  setDialogConfig(config);
+  setDialogText(text); // Set AFTER async operations
+  setShowDialog(true); // Show dialog LAST
+}, []);
+```
+
+**Key principles:**
+
+- Complete all async operations BEFORE setting any state
+- Set all state together in a single synchronous block
+- Always set modal visibility (setShowDialog) LAST
+- Add CRITICAL comments explaining the order requirement
+
+**Real example**: `useDictionaryConfig.js:openQuickAddCustomProperNoun()` (lines 81-129)
+
+**Archive**: See commit 9016437 for full fix and explanation.
+
 ### DO NOT Modify Dictionaries Without Permission
 
 **Why**: Entries are curated for translation quality, protected by file editing hooks.
