@@ -1307,11 +1307,6 @@ export class TranslationEngine {
         continue;
       }
 
-      // Debug logging for character-only processing (disabled for performance)
-      // if (process.env.NODE_ENV === 'development' && i % 400 === 0) {
-      //   console.log(`🔍 Character-only processing: token ${i}/${tokens.length}`);
-      // }
-
       // Handle different token types - ensure ALL tokens get processed
       if (token.type === 'chinese_char') {
         // OPTIMIZATION: Use shared lookup index for character dictionary when available
@@ -5180,16 +5175,8 @@ export class TranslationEngine {
     // Store prebuilt segments like the original method
     this.prebuiltSegments = reconstructed.segments;
 
-    // console.log(`📝 Progressive result (no redundant processing): "${cleanedFinalResult}"`);
-
     // Get semantic arrays built during progressive processing
     const semanticArrays = this.semanticArrayBuilder.getArrays();
-
-    // Debug: Let's see what's in the semantic arrays
-    // console.log(`🔍 Semantic arrays debug (${semanticArrays.original.length} total):`);
-    // for (let i = 0; i < semanticArrays.original.length; i++) {
-    //   console.log(`  ${i}: "${semanticArrays.original[i]}" → "${semanticArrays.translated[i]}"`);
-    // }
 
     // Find the original chunk that was translated
     const translatedChunk = chunks.find((chunk) => chunk.translated && chunk.content.trim());
@@ -5256,7 +5243,6 @@ export class TranslationEngine {
                 start: position,
                 end: position + candidate.translated.length,
               });
-              // console.log(`✅ Found "${candidate.original}" → "${candidate.translated}" at position ${position}`);
               break;
             } else {
               // This position overlaps, try next occurrence
@@ -5264,13 +5250,6 @@ export class TranslationEngine {
             }
           }
         } while (position >= 0);
-
-        // Debug logging disabled for performance (creates 50ms+ delay)
-        // if (position < 0 && process.env.NODE_ENV === 'development') {
-        //   console.log(`❌ NOT FOUND "${candidate.original}" → "${candidate.translated}"`);
-        //   console.log(`   Searching in: "${cleanedFinalResult.substring(0, 100)}..."`);
-        //   console.log(`   Looking for: "${candidate.translated}" (${lowerCandidate})`);
-        // }
       }
 
       // Sort by position in output text to get the correct order
@@ -5314,7 +5293,6 @@ export class TranslationEngine {
                 text: cleanedSpaceText,
                 isClickable: false,
               });
-              // console.log(`📍 Added spacing (quote-cleaned): "${cleanedSpaceText}" at position ${currentPosition}-${position}`);
             } else {
               // Normal spacing without quotes
               wordSegments.push({
@@ -5324,7 +5302,6 @@ export class TranslationEngine {
                 text: spaceText,
                 isClickable: false,
               });
-              // console.log(`📍 Added spacing: "${spaceText}" at position ${currentPosition}-${position}`);
             }
           }
 
@@ -5347,7 +5324,6 @@ export class TranslationEngine {
           });
 
           currentPosition = position + wordInfo.translated.length;
-          // console.log(`✅ Mapped "${wordInfo.original}" → "${wordInfo.translated}" at position ${position} (semantic index ${wordInfo.semanticIndex})`);
         } else {
           logger.warn(`❌ Could not find "${wordInfo.translated}" in output`);
         }
@@ -7096,10 +7072,6 @@ export class TranslationEngine {
    * @returns {Array} Array of positioned segments for clickable highlighting
    */
   buildSegmentsFromSemanticArrays(finalText, semanticArrays) {
-    // Debug logging disabled for performance
-    // console.log(`🔍 Building segments from final text: "${finalText}"`);
-    // console.log(`🔍 Semantic arrays contain ${semanticArrays.original.length} entries`);
-
     const segments = [];
     let searchStartPosition = 0;
 

@@ -1160,11 +1160,6 @@ export class DictionaryManager {
       const totalPositions = text.length;
       let positionsWithMatches = 0;
 
-      // PERFORMANCE: Disable lookup index logging for speed
-      // if (typeof console !== 'undefined' && process.env.NODE_ENV === 'development') {
-      //   console.log(`🚀 Building lookup index for ${totalPositions} positions across ${searchOrder.length} dictionaries`);
-      // }
-
       // Build index for each text position
       for (let pos = 0; pos < totalPositions; pos++) {
         // Find all matches starting at this position
@@ -1191,21 +1186,10 @@ export class DictionaryManager {
             positionsWithMatches++;
           }
         }
-
-        // PERFORMANCE: Disable progress logging
-        // if (typeof console !== 'undefined' && process.env.NODE_ENV === 'development' &&
-        //     pos > 0 && pos % 1000 === 0) {
-        //   console.log(`🔍 Lookup index progress: ${pos}/${totalPositions} positions (${positionsWithMatches} with matches)`);
-        // }
       }
 
       const indexTime = performance.now() - startTime;
       const _avgTimePerPosition = indexTime / totalPositions;
-
-      // PERFORMANCE: Disable completion logging
-      // if (typeof console !== 'undefined' && process.env.NODE_ENV === 'development') {
-      //   console.log(`✅ Lookup index built: ${positionsWithMatches}/${totalPositions} positions with matches in ${indexTime.toFixed(1)}ms (${avgTimePerPosition.toFixed(2)}ms/pos)`);
-      // }
 
       // Record performance metrics
       if (this.lookupIndexStats) {

@@ -350,8 +350,12 @@ export class PerformanceBaselineTracker {
         logger.error('🚨 CRITICAL Performance Regression:', alert.message);
 
         // ENHANCED DEBUG: Show detailed memory breakdown for critical alerts
-        if (process.env.NODE_ENV === 'development' && window.systemPerformanceMonitor) {
-          window.systemPerformanceMonitor.logDetailedMemoryDebug(operationType, alert);
+        if (process.env.NODE_ENV === 'development') {
+          if (window.systemPerformanceMonitor) {
+            window.systemPerformanceMonitor.logDetailedMemoryDebug(operationType, alert);
+          } else {
+            this.logBasicMemoryDebug(operationType, alert);
+          }
         } else {
           this.logBasicMemoryDebug(operationType, alert);
         }
@@ -594,8 +598,12 @@ export class PerformanceBaselineTracker {
     logger.log(`⚠️ Alert:`, alert);
 
     // Show current memory if available
-    if (process.env.NODE_ENV === 'development' && window.performanceDashboard) {
-      logger.log(`📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`);
+    if (process.env.NODE_ENV === 'development') {
+      if (window.performanceDashboard) {
+        logger.log(
+          `📊 Current Performance: Try window.performanceDashboard.checkCachePerformance()`
+        );
+      }
     }
 
     // Show quick recommendations
@@ -831,16 +839,18 @@ export class SystemPerformanceMonitor {
     }
 
     // Translation segment count analysis
-    if (process.env.NODE_ENV === 'development' && window.translationEngine?.translationSegments) {
-      const segmentCount = window.translationEngine.translationSegments.length;
-      logger.log(`   Translation Segments: ${segmentCount}`);
+    if (process.env.NODE_ENV === 'development') {
+      if (window.translationEngine?.translationSegments) {
+        const segmentCount = window.translationEngine.translationSegments.length;
+        logger.log(`   Translation Segments: ${segmentCount}`);
 
-      if (segmentCount > 75) {
-        logger.log('   ⚠️  Segment count high - cleanup threshold should trigger soon');
-      } else if (segmentCount > 35) {
-        logger.log('   ℹ️  Segment count normal - within expected range');
-      } else {
-        logger.log('   ✅ Segment count low - plenty of headroom');
+        if (segmentCount > 75) {
+          logger.log('   ⚠️  Segment count high - cleanup threshold should trigger soon');
+        } else if (segmentCount > 35) {
+          logger.log('   ℹ️  Segment count normal - within expected range');
+        } else {
+          logger.log('   ✅ Segment count low - plenty of headroom');
+        }
       }
     }
 

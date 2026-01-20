@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { globalPerformanceMonitor } from '../utils/PerformanceMonitor';
 import { systemPerformanceMonitor } from '../utils/ProactivePerformanceDetector';
 
@@ -77,7 +78,7 @@ export function usePerformanceMonitoring() {
           baselines: healthReport.totalBaselines,
         });
       } catch (error) {
-        console.warn('Failed to update regression health:', error);
+        logger.warn('Failed to update regression health:', error);
       }
     };
 

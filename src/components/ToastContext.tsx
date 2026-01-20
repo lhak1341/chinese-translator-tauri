@@ -129,16 +129,14 @@ const ToastItem: React.FC<{
   const startTimeRef = useRef(Date.now());
 
   React.useEffect(() => {
-    if (toast.duration === 0) return;
+    // Return empty cleanup function for infinite duration toasts
+    if (toast.duration === 0) return () => {};
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current;
       const remaining = Math.max(0, 100 - (elapsed / toast.duration) * 100);
       setProgress(remaining);
-
-      if (remaining === 0) {
-        clearInterval(interval);
-      }
+      // Don't self-clear interval - let cleanup function handle it
     }, 50);
 
     const timeout = setTimeout(() => {

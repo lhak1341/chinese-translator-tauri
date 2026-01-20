@@ -566,21 +566,23 @@ log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initi
 
 **Migration progress** (2026-01-20):
 
-- ✅ **Complete** (337+ calls migrated, 53% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
+- ✅ **Complete** (340+ calls migrated, 54% of original 632): All WASM wrappers, hot paths, monitoring systems, and caching
   - `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `RustLookupIndexManager.js`
   - `WasmPatternProcessor.js`, `TranslationEngine.js`, `Translator.jsx`
   - `App.jsx` performance dashboard (92 calls)
   - `ProactivePerformanceDetector.js` (48 calls - console.log/warn/error/group/groupEnd)
   - `ContentAwarePositionCache.js` (7 calls - console.log/warn)
   - `TranslationSegmentCache.js` (10 calls - console.warn)
+  - Round 7: `usePerformanceMonitoring.js` (1 call - console.warn), `TranslationSegmentCache.js` (1 call - console.log)
 - ✅ **ESLint rule added**: Warns on new `console.*` usage (see `eslint.config.js`)
 - ✅ **Production security**: All `window.*` API exposures guarded by `NODE_ENV` checks (critical fix in round 6)
   - Added guards to 3 window API accesses in ProactivePerformanceDetector.js (lines 353, 600, 837)
   - Prevents TypeError crashes in production when window.performanceDashboard/systemPerformanceMonitor are undefined
-- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments + fixed memory leaks
+- ✅ **Code cleanup** (2026-01-20): Removed duplicate window API assignments + fixed memory leaks + removed dead debug code
   - Consolidated `window.translationEngine` to single location (Translator.jsx line 362)
   - Removed duplicate performance monitor assignments (ProactivePerformanceDetector.js)
   - Added initialization flag cleanup to prevent race conditions
+  - Round 7: Removed 31 commented console.log calls (visual clutter in TranslationEngine.js, Translator.jsx, SemanticArrayBuilder.js, SegmentPrecomputer.js, DictionaryManager.js)
   - Fixed App.jsx cleanup to call `destroy()` instead of `stopMonitoring()` (memory leak fix)
   - Fixed CRITICAL memory leaks in singleton classes (3 fixes):
     - `ContentAwarePositionCache.js`: Added destroy() method with interval cleanup

@@ -466,7 +466,7 @@ export class TranslationSegmentCache {
       }
 
       if (removedCount > 0) {
-        console.log(`🧹 Cleaned up ${removedCount} orphaned cache entries from previous sessions`);
+        logger.log(`🧹 Cleaned up ${removedCount} orphaned cache entries from previous sessions`);
       }
     } catch (error) {
       logger.warn('Failed to clean up orphaned cache entries:', error);

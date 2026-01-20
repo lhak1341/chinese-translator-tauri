@@ -22,9 +22,6 @@ export class SemanticArrayBuilder {
    * Reset the builder for a new translation
    */
   reset() {
-    // if (process.env.NODE_ENV === 'development') {
-    //   console.log(`🔄 SemanticArrayBuilder.reset() - Previous arrays had ${this.original?.length || 0} elements`);
-    // }
     this.original = [];
     this.translated = [];
     this.metadata = [];
@@ -56,11 +53,6 @@ export class SemanticArrayBuilder {
     };
 
     this.metadata.push(metadata);
-
-    // Debug logging for development (disabled for normal use)
-    // if (process.env.NODE_ENV === 'development') {
-    //   console.log(`📋 SemanticArrayBuilder.addUnit [${index}]: "${originalText}" → "${translatedText}" (${source}) [total: ${this.original.length}]`);
-    // }
   }
 
   /**

@@ -725,14 +725,10 @@ const Translator = ({ isActive = true }) => {
                 segmentsBefore.slice(-2).join('') + segmentsAfter.slice(0, 2).join('');
 
               if (immediateContext.includes(charBefore)) {
-                // Debug logging disabled
-                // console.log(`    Match ${matchIndex}: char before "${charBefore}" found in immediate context`);
                 score += 10; // Higher weight for immediate context
               } else {
                 const fullContext = segmentsBefore.join('') + segmentsAfter.join('');
                 if (fullContext.includes(charBefore)) {
-                  // Debug logging disabled
-                  // console.log(`    Match ${matchIndex}: char before "${charBefore}" found in full context`);
                   score += 2; // Lower weight for distant context
                 }
               }
@@ -746,14 +742,10 @@ const Translator = ({ isActive = true }) => {
                 segmentsBefore.slice(-2).join('') + segmentsAfter.slice(0, 2).join('');
 
               if (immediateContext.includes(charAfter)) {
-                // Debug logging disabled
-                // console.log(`    Match ${matchIndex}: char after "${charAfter}" found in immediate context`);
                 score += 10; // Higher weight for immediate context
               } else {
                 const fullContext = segmentsBefore.join('') + segmentsAfter.join('');
                 if (fullContext.includes(charAfter)) {
-                  // Debug logging disabled
-                  // console.log(`    Match ${matchIndex}: char after "${charAfter}" found in full context`);
                   score += 2; // Lower weight for distant context
                 }
               }
@@ -960,22 +952,11 @@ const Translator = ({ isActive = true }) => {
       });
 
       // Translation tracking for development
-      // Debug logging disabled
-      // console.log(`🔄 Translation ${translationId} started with streaming`);
-
       // Register this translation for potential cancellation
       activeTranslationControllers.current.set(translationId, abortController);
 
       setActiveTranslations((prev) => {
         const newCount = prev + 1;
-        // Debug logging disabled
-        // console.log(`🔄 Translation ${translationId} - Active: ${newCount}`);
-        // if (newCount > 1) {
-        //   console.warn(`⚠️ Multiple translations running simultaneously! Count: ${newCount}`);
-        // }
-        // if (newCount > 3) {
-        //   console.error(`🚨 Too many simultaneous translations! Blocking new translation.`);
-        // }
         if (newCount > 3) {
           throw new Error('Too many translations running - please wait');
         }
@@ -984,8 +965,6 @@ const Translator = ({ isActive = true }) => {
 
       try {
         if (isLoading) {
-          // Debug logging disabled
-          // console.log('Dictionaries still loading...');
           return text;
         }
 
@@ -1041,9 +1020,6 @@ const Translator = ({ isActive = true }) => {
                     if (batchData.partialSemanticArrays) {
                       setPartialSemanticArrays(batchData.partialSemanticArrays);
                     }
-
-                    // Debug logging disabled
-                    // console.log(`📊 Streaming batch ${batchData.batchNumber}: ${batchData.progress}% complete`);
                   });
                 },
                 dictionaryOrder: [

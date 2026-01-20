@@ -266,9 +266,6 @@ export class SegmentPrecomputer {
 
     const { original, translated, metadata } = semanticArrays;
 
-    // console.log(`🔧 SegmentPrecomputer: Processing original text: "${text}"`);
-    // console.log(`🔧 SegmentPrecomputer: Semantic units to find:`, original.map((unit, i) => `${i}: "${unit}"`));
-
     // New approach: Use simple text search but prioritize longer matches
     const segments = [];
     let currentPosition = 0;
@@ -328,8 +325,6 @@ export class SegmentPrecomputer {
           metadata: bestMatch.metadata,
           isClickable: true,
         });
-
-        // console.log(`🔧 Created segment: unitIndex=${bestMatch.index} "${bestMatch.unit}" at position ${bestStartPos}-${bestStartPos + bestMatch.unit.length}`);
 
         usedIndices.add(bestMatch.index);
         currentPosition = bestStartPos + bestMatch.unit.length;
