@@ -441,7 +441,13 @@ export function LazyDictionaryProvider({
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
           ) {
-            await window.translationEngine.invalidateAllCaches(dictionaryId);
+            try {
+              await window.translationEngine.invalidateAllCaches(dictionaryId);
+            } catch (cacheError) {
+              // Don't fail the operation if cache invalidation fails
+              // Dictionary was saved successfully - cache will be invalidated on reload
+              console.warn('Cache invalidation failed (non-critical):', cacheError);
+            }
           }
         } else {
           // Rollback optimistic update
@@ -536,7 +542,13 @@ export function LazyDictionaryProvider({
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
           ) {
-            await window.translationEngine.invalidateAllCaches(dictionaryId);
+            try {
+              await window.translationEngine.invalidateAllCaches(dictionaryId);
+            } catch (cacheError) {
+              // Don't fail the operation if cache invalidation fails
+              // Dictionary was saved successfully - cache will be invalidated on reload
+              console.warn('Cache invalidation failed (non-critical):', cacheError);
+            }
           }
         } else {
           // Rollback optimistic update
@@ -587,7 +599,13 @@ export function LazyDictionaryProvider({
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
           ) {
-            await window.translationEngine.invalidateAllCaches(dictionaryId);
+            try {
+              await window.translationEngine.invalidateAllCaches(dictionaryId);
+            } catch (cacheError) {
+              // Don't fail the operation if cache invalidation fails
+              // Dictionary was saved successfully - cache will be invalidated on reload
+              console.warn('Cache invalidation failed (non-critical):', cacheError);
+            }
           }
         } else {
           // Rollback optimistic update
@@ -634,7 +652,13 @@ export function LazyDictionaryProvider({
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
           ) {
-            await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+            try {
+              await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+            } catch (cacheError) {
+              // Don't fail the operation if cache invalidation fails
+              // Dictionary was saved successfully - cache will be invalidated on reload
+              console.warn('Cache invalidation failed (non-critical):', cacheError);
+            }
           }
 
           return true;
@@ -674,7 +698,13 @@ export function LazyDictionaryProvider({
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
           ) {
-            await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+            try {
+              await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+            } catch (cacheError) {
+              // Don't fail the operation if cache invalidation fails
+              // Dictionary was saved successfully - cache will be invalidated on reload
+              console.warn('Cache invalidation failed (non-critical):', cacheError);
+            }
           }
 
           return true;
