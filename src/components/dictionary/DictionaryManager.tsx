@@ -19,6 +19,7 @@ import DictionaryEntry from './DictionaryEntry';
 import HotkeyHandler from '../HotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
+import { logger } from '../../utils/logger';
 
 /**
  * Selection state for bulk operations in Enhanced table
@@ -116,7 +117,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           setSelectedDictionary(Object.keys(types)[0]);
         }
       } catch (error) {
-        console.error('Failed to load dictionary types:', error);
+        logger.error('Failed to load dictionary types:', error);
         setError('Failed to load dictionary types. Please try again.');
       }
     };
@@ -143,7 +144,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
             setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
           }
         } catch (error) {
-          console.error('Failed to reload configuration:', error);
+          logger.error('Failed to reload configuration:', error);
         }
       };
       reloadConfig();
@@ -158,7 +159,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         try {
           await loadDictionary(selectedDictionary);
         } catch (error) {
-          console.error('Failed to load dictionary:', error);
+          logger.error('Failed to load dictionary:', error);
           setError('Failed to load dictionary. Please try again.');
         } finally {
           setIsLoadingDictionary(false);
@@ -176,7 +177,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       await undo();
     } catch (error) {
       setError('Failed to undo last change. Please try again.');
-      console.error('Undo error:', error);
+      logger.error('Undo error:', error);
     }
   };
 
@@ -187,7 +188,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       await redo();
     } catch (error) {
       setError('Failed to redo change. Please try again.');
-      console.error('Redo error:', error);
+      logger.error('Redo error:', error);
     }
   };
 
@@ -196,10 +197,10 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     try {
       const result = await window.electronAPI.openDictionaryFolder();
       if (!result.success) {
-        console.error('Failed to open folder:', result.error);
+        logger.error('Failed to open folder:', result.error);
       }
     } catch (error) {
-      console.error('Error opening dictionary folder:', error);
+      logger.error('Error opening dictionary folder:', error);
     }
   };
 
@@ -217,7 +218,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       }
     } catch (error) {
       setError(`Export error: ${(error as Error).message}`);
-      console.error('Error exporting dictionaries:', error);
+      logger.error('Error exporting dictionaries:', error);
     }
   };
 
@@ -240,7 +241,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       }
     } catch (error) {
       setError(`Import error: ${(error as Error).message}`);
-      console.error('Error importing dictionaries:', error);
+      logger.error('Error importing dictionaries:', error);
     }
   };
 
