@@ -5,6 +5,8 @@
  * legacy system removal. Enables/disables legacy systems with <1 minute recovery time.
  */
 
+import { logger } from './logger.js';
+
 /**
  * Master feature flags controlling legacy system availability
  *
@@ -76,7 +78,7 @@ export function initializePerformanceBaselines() {
   };
 
   rollbackMonitoring.monitoringActive = true;
-  console.log('🎯 Performance baseline monitoring initialized for legacy removal validation');
+  logger.log('🎯 Performance baseline monitoring initialized for legacy removal validation');
 }
 
 /**
@@ -189,9 +191,9 @@ export function executeEmergencyRollback(triggers = []) {
   rollbackMonitoring.lastRollbackTime = rollbackTime;
   rollbackMonitoring.consecutiveFailures = 0; // Reset failure count
 
-  console.error('🚨 EMERGENCY ROLLBACK EXECUTED - Legacy systems restored');
-  console.error('📋 Rollback triggers:', triggers);
-  console.error('⏰ Rollback completed in <1 minute');
+  logger.error('🚨 EMERGENCY ROLLBACK EXECUTED - Legacy systems restored');
+  logger.error('📋 Rollback triggers:', triggers);
+  logger.error('⏰ Rollback completed in <1 minute');
 
   return {
     success: true,

@@ -3,6 +3,8 @@
  * Centralized configuration for parallel chunk processing and dictionary lookups
  */
 
+import { logger } from './logger.js';
+
 export class ParallelConfig {
   constructor() {
     this.defaultConfig = {
@@ -311,7 +313,7 @@ export class ParallelConfig {
       if (imported.config) {
         const validation = this.validateConfig(imported.config);
         if (!validation.isValid) {
-          console.error('Invalid configuration:', validation.errors);
+          logger.error('Invalid configuration:', validation.errors);
           return false;
         }
 
@@ -326,7 +328,7 @@ export class ParallelConfig {
 
       return false;
     } catch (error) {
-      console.error('Failed to import configuration:', error);
+      logger.error('Failed to import configuration:', error);
       return false;
     }
   }
