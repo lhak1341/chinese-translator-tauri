@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { logger } from '../utils/logger';
 
 /**
  * Dictionary configuration hook
@@ -105,7 +106,7 @@ export function useDictionaryConfig() {
           }
         }
       } catch (error) {
-        console.error('Error loading default Cmd-5 dictionary:', error);
+        logger.error('Error loading default Cmd-5 dictionary:', error);
         // Fall through to default fallback behavior
 
         // Fallback: Filter active proper nouns to find custom ones (properNouns-*)

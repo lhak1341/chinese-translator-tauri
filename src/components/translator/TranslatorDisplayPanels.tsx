@@ -5,6 +5,7 @@ import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
 import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
 import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
+import { logger } from '../../utils/logger';
 import styles from '../../styles/TranslatorDisplayPanels.module.css';
 
 /**
@@ -91,7 +92,9 @@ export default function TranslatorDisplayPanels({
 }: TranslatorDisplayPanelsProps): React.ReactElement {
   // Debug: Log when component mounts
   React.useEffect(() => {
-    console.log('TranslatorDisplayPanels mounted');
+    let mounted = true;
+
+    logger.log('TranslatorDisplayPanels mounted');
     // Check for and CLEAR any saved layout in localStorage that might override defaults
     const keys = Object.keys(localStorage).filter(
       (key) =>
@@ -101,10 +104,14 @@ export default function TranslatorDisplayPanels({
         key.includes('main-layout') ||
         key.includes('left-column')
     );
-    if (keys.length > 0) {
-      console.log('Found and clearing localStorage keys that might affect layout:', keys);
+    if (keys.length > 0 && mounted) {
+      logger.log('Found and clearing localStorage keys that might affect layout:', keys);
       keys.forEach((key) => localStorage.removeItem(key));
     }
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (

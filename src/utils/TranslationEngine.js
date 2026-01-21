@@ -124,6 +124,7 @@ import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './QuoteProcessor';
 import { SemanticArrayBuilder } from './SemanticArrayBuilder.js';
 import { OptimizedSemanticArrayBuilder } from './OptimizedSemanticArrayBuilder.js';
+import { SegmentPrecomputer } from './SegmentPrecomputer.js';
 import { performanceProfiler } from './PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
 import { parallelConfig } from './ParallelConfig.js';
@@ -1016,6 +1017,10 @@ export class TranslationEngine {
         useChunking: options.useChunking !== false,
         useRustEngine: false, // WASM Core Engine removed
       });
+
+      // MEMORY OPTIMIZATION: Trim object pools after translation completes
+      // Reduces memory waste during idle periods (keeps only 100 objects instead of 1000+)
+      SegmentPrecomputer.trimPools();
     }
   }
 
@@ -1237,6 +1242,9 @@ export class TranslationEngine {
     } catch (error) {
       this.log(DEBUG_LEVELS.ERROR, `🚨 Character-only translation failed:`, error);
       throw error;
+    } finally {
+      // MEMORY OPTIMIZATION: Trim object pools after translation completes
+      SegmentPrecomputer.trimPools();
     }
   }
 
