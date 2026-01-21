@@ -3,6 +3,7 @@ import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
+import { logger } from '../../utils/logger';
 
 /**
  * Dictionary data structure (key-value pairs)
@@ -178,11 +179,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         const endTime = performance.now();
         const loadTime = (endTime - startTime).toFixed(2);
 
-        console.log(
+        logger.log(
           `📚 Parallel dictionary loading: ${batchResult.successful}/${batchResult.total} dictionaries loaded in ${loadTime}ms`
         );
         if (batchResult.failed > 0) {
-          console.warn(`⚠️ ${batchResult.failed} dictionaries failed to load`);
+          logger.warn(`⚠️ ${batchResult.failed} dictionaries failed to load`);
         }
 
         // Process results and sort dictionaries
@@ -193,7 +194,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
               result.dictionary_id
             );
           } else {
-            console.error(`Failed to load dictionary ${result.dictionary_id}:`, result.error);
+            logger.error(`Failed to load dictionary ${result.dictionary_id}:`, result.error);
             // Initialize with empty dictionary if load fails
             loadedDictionaries[result.dictionary_id] = {};
           }
@@ -201,7 +202,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
         setDictionaries(loadedDictionaries);
       } catch (error) {
-        console.error('Failed to load initial state:', error);
+        logger.error('Failed to load initial state:', error);
       } finally {
         setIsLoading(false);
       }
@@ -228,11 +229,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         if (!isMounted) return;
 
         if (!saveResult.success) {
-          console.error('Failed to save selected dictionary:', saveResult.error);
+          logger.error('Failed to save selected dictionary:', saveResult.error);
         }
       } catch (error) {
         if (isMounted) {
-          console.error('Failed to save selected dictionary:', error);
+          logger.error('Failed to save selected dictionary:', error);
         }
       }
     };
@@ -258,7 +259,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }));
       }
     } catch (error) {
-      console.error(`Error loading dictionary ${dictionaryId}:`, error);
+      logger.error(`Error loading dictionary ${dictionaryId}:`, error);
     }
   }, []);
 
