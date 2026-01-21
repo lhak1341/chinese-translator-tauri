@@ -4,6 +4,8 @@
  * Enables user-configurable separator rules for better text chunking
  */
 
+import { logger } from './logger.js';
+
 /**
  * Unicode punctuation category codes
  */
@@ -180,7 +182,7 @@ export class UnicodePunctuationDetector {
       new RegExp('\\p{P}', 'u');
       return true;
     } catch (_e) {
-      console.warn('Unicode property escapes not supported, falling back to custom separator list');
+      logger.warn('Unicode property escapes not supported, falling back to custom separator list');
       return false;
     }
   }

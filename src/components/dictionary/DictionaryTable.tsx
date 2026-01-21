@@ -11,6 +11,7 @@ import {
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
+import { logger } from '../../utils/logger';
 import styles from '../../styles/DictionaryTable.module.css';
 
 /**
@@ -137,7 +138,7 @@ const DictionaryTable: React.FC<DictionaryTableProps> = ({ selectedDictionary })
         setShowConfirmDelete(null);
       } catch (err) {
         setDeleteError(`Failed to delete entry: ${source}`);
-        console.error('Error deleting entry:', err);
+        logger.error('Error deleting entry:', err);
       } finally {
         setIsDeleting(false);
       }
