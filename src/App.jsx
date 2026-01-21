@@ -3,6 +3,7 @@ import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
+import { wasmMemoryPoolManager } from './utils/WasmMemoryPoolManager';
 import { logger } from './utils/logger';
 
 function App() {
@@ -325,7 +326,9 @@ function App() {
       // Set up cleanup on unmount
       return () => {
         systemPerformanceMonitor.destroy();
+        wasmMemoryPoolManager.cleanup();
         logger.log('🔍 Performance monitoring destroyed');
+        logger.log('🧠 WASM Memory Pool cleanup completed');
       };
     };
 

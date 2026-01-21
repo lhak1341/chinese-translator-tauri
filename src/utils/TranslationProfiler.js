@@ -10,6 +10,8 @@
  *   window.translationEngine.getProfilingReport()
  */
 
+import { logger } from './logger.js';
+
 export class TranslationProfiler {
   constructor() {
     this.enabled = false;
@@ -31,13 +33,13 @@ export class TranslationProfiler {
   enable() {
     this.enabled = true;
     this.reset();
-    console.log('🔬 Translation profiling enabled');
-    console.log('💡 Translate some text, then run: window.translationEngine.getProfilingReport()');
+    logger.log('🔬 Translation profiling enabled');
+    logger.log('💡 Translate some text, then run: window.translationEngine.getProfilingReport()');
   }
 
   disable() {
     this.enabled = false;
-    console.log('🔬 Translation profiling disabled');
+    logger.log('🔬 Translation profiling disabled');
   }
 
   /**
@@ -216,32 +218,32 @@ export class TranslationProfiler {
     const report = this.getReport();
 
     if (!report.enabled) {
-      console.log(report.message);
+      logger.log(report.message);
       return;
     }
 
-    console.log('\n' + '='.repeat(80));
-    console.log('📊 TRANSLATION PROFILING REPORT');
-    console.log('='.repeat(80));
-    console.log(`Total Time: ${report.totalTimeMs}ms over ${report.totalCalls} translation(s)\n`);
+    logger.log('\n' + '='.repeat(80));
+    logger.log('📊 TRANSLATION PROFILING REPORT');
+    logger.log('='.repeat(80));
+    logger.log(`Total Time: ${report.totalTimeMs}ms over ${report.totalCalls} translation(s)\n`);
 
-    console.log('Phase Breakdown:');
-    console.log('-'.repeat(80));
-    console.table(report.phases);
+    logger.log('Phase Breakdown:');
+    logger.log('-'.repeat(80));
+    logger.table(report.phases);
 
     if (report.recommendations.length > 0) {
-      console.log('\n' + '='.repeat(80));
-      console.log('💡 RECOMMENDATIONS:');
-      console.log('='.repeat(80));
-      report.recommendations.forEach((rec) => console.log(rec));
+      logger.log('\n' + '='.repeat(80));
+      logger.log('💡 RECOMMENDATIONS:');
+      logger.log('='.repeat(80));
+      report.recommendations.forEach((rec) => logger.log(rec));
     }
 
-    console.log('\n' + '='.repeat(80));
-    console.log('Next Steps:');
-    console.log('- Review phase breakdown above');
-    console.log('- Follow recommendations if dictionary phases >40%');
-    console.log('- Reset profiling: window.translationEngine.resetProfiling()');
-    console.log('='.repeat(80) + '\n');
+    logger.log('\n' + '='.repeat(80));
+    logger.log('Next Steps:');
+    logger.log('- Review phase breakdown above');
+    logger.log('- Follow recommendations if dictionary phases >40%');
+    logger.log('- Reset profiling: window.translationEngine.resetProfiling()');
+    logger.log('='.repeat(80) + '\n');
   }
 }
 

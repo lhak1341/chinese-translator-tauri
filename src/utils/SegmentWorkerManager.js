@@ -26,6 +26,9 @@ export class SegmentWorkerManager {
     this.initializationPromise = null;
     this.fallbackMode = false;
 
+    // MEMORY MANAGEMENT: Prevent unbounded Map growth during heavy load
+    this.MAX_PENDING_TASKS = 100;
+
     // Performance tracking
     this.stats = {
       workerTasks: 0,
@@ -33,6 +36,7 @@ export class SegmentWorkerManager {
       totalWorkerTime: 0,
       totalFallbackTime: 0,
       errors: 0,
+      rejectedTasks: 0, // Track tasks rejected due to queue full
     };
   }
 
@@ -162,6 +166,20 @@ export class SegmentWorkerManager {
 
     // Use worker
     return new Promise((resolve, reject) => {
+      // CRITICAL: Check pending task limit to prevent unbounded Map growth
+      if (this.pendingTasks.size >= this.MAX_PENDING_TASKS) {
+        this.stats.rejectedTasks++;
+        logger.warn(
+          `⚠️ Worker task queue full (${this.pendingTasks.size}/${this.MAX_PENDING_TASKS}). Rejecting task: ${type}`
+        );
+        reject(
+          new Error(
+            `Worker task queue full (${this.pendingTasks.size}/${this.MAX_PENDING_TASKS}). Please wait for current tasks to complete.`
+          )
+        );
+        return;
+      }
+
       const id = ++this.taskIdCounter;
       const startTime = performance.now();
 

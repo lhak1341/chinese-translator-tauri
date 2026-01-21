@@ -10,6 +10,7 @@
  */
 
 import { isWasmPatternProcessorAvailable } from './WasmPatternProcessor.js';
+import { logger } from './logger.js';
 
 /**
  * Test cases covering critical pattern matching scenarios
@@ -181,7 +182,7 @@ export async function testPatternParity(input, processor) {
     throw new Error('TwoPhasePatternProcessor instance required');
   }
 
-  console.log(`\n🧪 Testing parity for: "${input}"`);
+  logger.log(`\n🧪 Testing parity for: "${input}"`);
 
   // Get tokens (simplified - in real app, use proper tokenization)
   const tokens = input.split('').map((char, i) => ({
@@ -199,25 +200,24 @@ export async function testPatternParity(input, processor) {
     // Run with WASM
     processor.options.enableWasm = true;
     const wasmResults = await processor.processTokens([...tokens], {});
-    console.log(`🦀 WASM: ${wasmResults.length} results`);
+    logger.log(`🦀 WASM: ${wasmResults.length} results`);
 
     // Run with JavaScript
     processor.options.enableWasm = false;
     const jsResults = await processor.processTokens([...tokens], {});
-    console.log(`📝 JavaScript: ${jsResults.length} results`);
+    logger.log(`📝 JavaScript: ${jsResults.length} results`);
 
     // Compare results
     const comparison = comparePatternResults(wasmResults, jsResults);
-    console.log(comparison.summary);
+    logger.log(comparison.summary);
 
     if (!comparison.identical) {
-      console.group('Differences:');
+      logger.log('Differences:');
       comparison.differences.forEach((diff) => {
-        console.log(`  ${diff.message}`);
-        console.log(`    WASM: ${JSON.stringify(diff.wasm)}`);
-        console.log(`    JS:   ${JSON.stringify(diff.js)}`);
+        logger.log(`  ${diff.message}`);
+        logger.log(`    WASM: ${JSON.stringify(diff.wasm)}`);
+        logger.log(`    JS:   ${JSON.stringify(diff.js)}`);
       });
-      console.groupEnd();
     }
 
     return {
@@ -240,20 +240,20 @@ export async function testPatternParity(input, processor) {
  */
 export async function runAllParityTests(processor) {
   if (!isWasmPatternProcessorAvailable()) {
-    console.error('❌ WASM Pattern Processor not available - cannot run parity tests');
+    logger.error('❌ WASM Pattern Processor not available - cannot run parity tests');
     return { success: false, error: 'WASM not available' };
   }
 
-  console.log('🧪 Running Pattern Processing Parity Tests...\n');
-  console.log('='.repeat(60));
+  logger.log('🧪 Running Pattern Processing Parity Tests...\n');
+  logger.log('='.repeat(60));
 
   const results = [];
   let passCount = 0;
   let failCount = 0;
 
   for (const testCase of PARITY_TEST_CASES) {
-    console.log(`\nTest: ${testCase.name}`);
-    console.log(`Description: ${testCase.description}`);
+    logger.log(`\nTest: ${testCase.name}`);
+    logger.log(`Description: ${testCase.description}`);
 
     try {
       const result = await testPatternParity(testCase.input, processor);
@@ -261,27 +261,27 @@ export async function runAllParityTests(processor) {
 
       if (result.passed) {
         passCount++;
-        console.log('✅ PASS');
+        logger.log('✅ PASS');
       } else {
         failCount++;
-        console.log('❌ FAIL');
+        logger.log('❌ FAIL');
       }
     } catch (error) {
-      console.error(`❌ ERROR: ${error.message}`);
+      logger.error(`❌ ERROR: ${error.message}`);
       results.push({ testCase, error: error.message, passed: false });
       failCount++;
     }
 
-    console.log('-'.repeat(60));
+    logger.log('-'.repeat(60));
   }
 
-  console.log('\n' + '='.repeat(60));
-  console.log(`\n📊 Test Summary: ${passCount}/${PARITY_TEST_CASES.length} passed`);
+  logger.log('\n' + '='.repeat(60));
+  logger.log(`\n📊 Test Summary: ${passCount}/${PARITY_TEST_CASES.length} passed`);
 
   if (failCount === 0) {
-    console.log('✅ All tests passed - Rust WASM and JavaScript implementations are equivalent!');
+    logger.log('✅ All tests passed - Rust WASM and JavaScript implementations are equivalent!');
   } else {
-    console.log(`⚠️  ${failCount} test(s) failed - implementations differ!`);
+    logger.log(`⚠️  ${failCount} test(s) failed - implementations differ!`);
   }
 
   return {

@@ -440,24 +440,24 @@ class TwoPhasePatternProcessor {
     const report = this.getInternalProfilingReport();
 
     if (!report.enabled) {
-      console.log(report.message);
+      logger.log(report.message);
       return;
     }
 
-    console.log('\n' + '='.repeat(80));
-    console.log('📊 TWO-PHASE PATTERN PROCESSOR - INTERNAL PROFILING');
-    console.log('='.repeat(80));
-    console.log(`Total Time: ${report.totalTimeMs}ms over ${report.totalCalls} call(s)\n`);
+    logger.log('\n' + '='.repeat(80));
+    logger.log('📊 TWO-PHASE PATTERN PROCESSOR - INTERNAL PROFILING');
+    logger.log('='.repeat(80));
+    logger.log(`Total Time: ${report.totalTimeMs}ms over ${report.totalCalls} call(s)\n`);
 
-    console.log('Internal Breakdown:');
-    console.log('-'.repeat(80));
+    logger.log('Internal Breakdown:');
+    logger.log('-'.repeat(80));
     console.table(report.breakdown);
 
-    console.log('\n' + '='.repeat(80));
-    console.log('Next Steps:');
-    console.log('- Review breakdown above to identify bottlenecks');
-    console.log('- Reset profiling: twoPhaseProcessor.resetInternalProfiling()');
-    console.log('='.repeat(80) + '\n');
+    logger.log('\n' + '='.repeat(80));
+    logger.log('Next Steps:');
+    logger.log('- Review breakdown above to identify bottlenecks');
+    logger.log('- Reset profiling: twoPhaseProcessor.resetInternalProfiling()');
+    logger.log('='.repeat(80) + '\n');
   }
 
   /**
