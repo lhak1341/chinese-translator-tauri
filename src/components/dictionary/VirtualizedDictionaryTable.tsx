@@ -12,6 +12,7 @@ import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
+import { logger } from '../../utils/logger';
 import styles from '../../styles/VirtualizedDictionaryTable.module.css';
 
 /**
@@ -155,7 +156,7 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
           setBufferSize(optimalSize);
         }
       } catch (error) {
-        console.warn('Buffer size calculation failed:', error);
+        logger.warn('Buffer size calculation failed:', error);
         // Keep current buffer size on error
       }
     };
@@ -170,7 +171,7 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
     const trackPerformance = (): void => {
       const stats = adaptiveBufferCalculator.getScrollingStats();
       if (stats && !stats.isPerformant) {
-        console.warn('🐌 Virtual scrolling performance degradation detected:', stats);
+        logger.warn('🐌 Virtual scrolling performance degradation detected:', stats);
       }
     };
 
@@ -256,7 +257,7 @@ const VirtualizedDictionaryTable: React.FC<VirtualizedDictionaryTableProps> = ({
         setShowConfirmDelete(null);
       } catch (err) {
         setDeleteError(`Failed to delete entry: ${source}`);
-        console.error('Error deleting entry:', err);
+        logger.error('Error deleting entry:', err);
       } finally {
         setIsDeleting(false);
       }
