@@ -4,6 +4,8 @@
  * Replaces ~90 lines of scattered number conversion with unified approach
  */
 
+import { logger } from './logger.js';
+
 export class NumberProcessor {
   constructor() {
     // Single centralized number mapping (eliminates 5 duplicates)
@@ -147,7 +149,7 @@ export class NumberProcessor {
     const debugLevel = options.debugLevel || 0;
     const log = (level, message, data = null) => {
       if (process.env.NODE_ENV === 'development' && debugLevel >= level) {
-        console.log(message, data || '');
+        logger.log(message, data || '');
       }
     };
 

@@ -13,6 +13,7 @@
  */
 
 import { LRUCache } from './LRUCache.js';
+import { logger } from './logger.js';
 
 export class TranslationCache {
   constructor(options = {}) {
@@ -472,7 +473,7 @@ export class TranslationCache {
           }
         }
       } catch (error) {
-        console.warn(`Failed to pre-warm vocabulary from ${dictionaryName}:`, error.message);
+        logger.warn(`Failed to pre-warm vocabulary from ${dictionaryName}:`, error.message);
       }
     }
 
