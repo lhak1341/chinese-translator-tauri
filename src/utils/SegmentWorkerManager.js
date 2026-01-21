@@ -15,6 +15,8 @@
  * } from '../types/WorkerTypes'
  */
 
+import { logger } from './logger.js';
+
 export class SegmentWorkerManager {
   constructor() {
     this.worker = null;
@@ -51,7 +53,7 @@ export class SegmentWorkerManager {
     try {
       // Check if Web Workers are supported
       if (typeof Worker === 'undefined') {
-        console.warn('🚨 Web Workers not supported, using fallback mode');
+        logger.warn('🚨 Web Workers not supported, using fallback mode');
         this.fallbackMode = true;
         return false;
       }
@@ -76,7 +78,7 @@ export class SegmentWorkerManager {
             clearTimeout(timeout);
             this.worker.removeEventListener('message', messageHandler);
             this.isInitialized = true;
-            console.log('✅ SegmentPositionWorker initialized successfully');
+            logger.log('✅ SegmentPositionWorker initialized successfully');
             resolve();
           }
         };
@@ -86,7 +88,7 @@ export class SegmentWorkerManager {
 
       return true;
     } catch (error) {
-      console.warn('⚠️ Failed to initialize SegmentPositionWorker, using fallback:', error.message);
+      logger.warn('⚠️ Failed to initialize SegmentPositionWorker, using fallback:', error.message);
       this.fallbackMode = true;
       this.stats.errors++;
 
@@ -130,7 +132,7 @@ export class SegmentWorkerManager {
    * Handle worker errors
    */
   _handleWorkerError(error) {
-    console.error('🚨 SegmentPositionWorker error:', error);
+    logger.error('🚨 SegmentPositionWorker error:', error);
     this.stats.errors++;
 
     // Reject all pending tasks
