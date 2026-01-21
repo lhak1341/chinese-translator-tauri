@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { RotateCcw } from 'lucide-react';
 import type { AppearanceSettings } from '../../types/ComponentTypes';
 import styles from '../../styles/AppearanceManager.module.css';
+import { logger } from '../../utils/logger';
 
 /**
  * Type for appearance section keys
@@ -89,7 +90,7 @@ const AppearanceManager: React.FC = () => {
       }
       setError(null);
     } catch (err) {
-      console.error('Failed to load appearance settings:', err);
+      logger.error('Failed to load appearance settings:', err);
       setError('Failed to load appearance settings');
     } finally {
       setIsLoading(false);
@@ -154,7 +155,7 @@ const AppearanceManager: React.FC = () => {
         throw new Error(result.error || 'Failed to save appearance settings');
       }
     } catch (err) {
-      console.error('Failed to auto-save appearance settings:', err);
+      logger.error('Failed to auto-save appearance settings:', err);
       setError('Failed to save appearance settings');
     }
   };
@@ -185,7 +186,7 @@ const AppearanceManager: React.FC = () => {
         setError(null);
       }
     } catch (err) {
-      console.error('Failed to save after reset:', err);
+      logger.error('Failed to save after reset:', err);
       setError('Failed to save appearance settings');
     }
   };

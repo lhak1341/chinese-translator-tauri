@@ -6,6 +6,7 @@ import React, { useMemo } from 'react';
 import type { ClickableTranslationSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
+import { logger } from '../utils/logger';
 
 const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> = ({
   translatedText,
@@ -158,12 +159,12 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   const handleUnitClick = (unitIndex: number) => {
     // LOW-PRIORITY FIX: Add error messaging for invalid indices
     if (!semanticArrays) {
-      console.error('❌ handleUnitClick called with no semantic arrays');
+      logger.error('❌ handleUnitClick called with no semantic arrays');
       return;
     }
 
     if (unitIndex < 0 || unitIndex >= semanticArrays.original.length) {
-      console.error(
+      logger.error(
         `❌ handleUnitClick: unitIndex ${unitIndex} out of bounds (length: ${semanticArrays.original.length})`
       );
       return;
@@ -175,7 +176,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
     // Debug: Log which component is handling the click
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🎯 ClickableTranslationSemantic (${direction}) handling click:`, {
+      logger.log(`🎯 ClickableTranslationSemantic (${direction}) handling click:`, {
         unitIndex,
         originalText,
         translatedText,

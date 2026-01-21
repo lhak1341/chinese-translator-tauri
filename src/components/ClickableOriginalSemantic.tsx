@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import type { ClickableOriginalSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 import styles from '../styles/ClickableOriginalSemantic.module.css';
+import { logger } from '../utils/logger';
 
 const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   originalText,
@@ -18,7 +19,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   const handleUnitClick = (unitIndex: number) => {
     if (!semanticArrays || unitIndex >= semanticArrays.original.length) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('Invalid unit index or no semantic arrays:', unitIndex);
+        logger.warn('Invalid unit index or no semantic arrays:', unitIndex);
       }
       return;
     }
@@ -29,7 +30,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
 
     // Debug: Log which component is handling the click
     if (process.env.NODE_ENV === 'development') {
-      console.log(`🎯 ClickableOriginalSemantic (original-to-translation) handling click:`, {
+      logger.log(`🎯 ClickableOriginalSemantic (original-to-translation) handling click:`, {
         unitIndex,
         originalText,
         translatedText,
