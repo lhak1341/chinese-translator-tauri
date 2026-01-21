@@ -3,6 +3,7 @@ import { useDictionary } from './DictionaryContext';
 import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
+import { logger } from '../../utils/logger';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -98,7 +99,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   // Debug: Log what entry object we received
   useEffect(() => {
     if (entry) {
-      console.log('🔍 DictionaryEntry: Received entry for editing:', {
+      logger.log('🔍 DictionaryEntry: Received entry for editing:', {
         source: entry.source,
         translation: entry.translation,
         translationType: typeof entry.translation,
@@ -255,7 +256,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           }
         }
       } catch (error) {
-        console.error('Error reading clipboard:', error);
+        logger.error('Error reading clipboard:', error);
       }
 
       // Fallback: focus source field if clipboard fails
@@ -279,7 +280,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           setActiveProperNouns(configResult.data.activeProperNouns || ['properNouns']);
         }
       } catch (error) {
-        console.error('Failed to load active proper nouns:', error);
+        logger.error('Failed to load active proper nouns:', error);
       }
     };
 
@@ -300,7 +301,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
         }, {} as DictionaryTypesCollection);
         setAllDictionaryTypes(filteredTypes);
       } catch (error) {
-        console.error('Failed to load dictionary types:', error);
+        logger.error('Failed to load dictionary types:', error);
       }
     };
 
@@ -360,7 +361,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
         setExistingEntry(null);
         setShowExistingEntryNotification(false);
       } catch (error) {
-        console.error('Error in checkForExistingEntry:', error);
+        logger.error('Error in checkForExistingEntry:', error);
         setExistingEntry(null);
         setShowExistingEntryNotification(false);
       }
@@ -531,7 +532,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     setError('');
 
     try {
-      console.log('Attempting to save entry:', {
+      logger.log('Attempting to save entry:', {
         dictionary: selectedDictionary,
         source: source.trim(),
         translation: translation.trim(),
@@ -544,7 +545,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           : {};
 
       // Debug: Log metadata construction
-      console.log('🔍 DictionaryEntry: Saving with metadata:', {
+      logger.log('🔍 DictionaryEntry: Saving with metadata:', {
         activeDictionary,
         allowAsPatternVariable,
         lowPriority,
@@ -552,7 +553,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       });
 
       if (entry) {
-        console.log('Updating existing entry:', {
+        logger.log('Updating existing entry:', {
           oldSource: entry.source,
           newSource: source.trim(),
           translation: translation.trim(),
@@ -566,17 +567,17 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           metadata
         );
       } else {
-        console.log('Adding new entry:', {
+        logger.log('Adding new entry:', {
           source: source.trim(),
           translation: translation.trim(),
           metadata: metadata,
         });
         await addEntry(activeDictionary, source.trim(), translation.trim(), metadata);
       }
-      console.log('Save operation completed successfully');
+      logger.log('Save operation completed successfully');
       onClose();
     } catch (err) {
-      console.error('Error details:', err);
+      logger.error('Error details:', err);
       setError(`Failed to save changes: ${(err as Error).message || 'Unknown error'}`);
     } finally {
       setIsSaving(false);
