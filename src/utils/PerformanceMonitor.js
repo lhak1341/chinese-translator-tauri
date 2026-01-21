@@ -12,6 +12,8 @@
  * } from '../types/PerformanceMonitoringTypes'
  */
 
+import { logger } from './logger.js';
+
 export class PerformanceMonitor {
   constructor(options = {}) {
     this.isProduction = process.env.NODE_ENV === 'production';
@@ -154,7 +156,7 @@ export class PerformanceMonitor {
     // ULTRA-AGGRESSIVE PERFORMANCE OPTIMIZATION: Disable almost all logging
     // Only show actual errors (level 0) to prevent console spam completely
     if (level === 0) {
-      console.error('🚨 ERROR:', message, ...args);
+      logger.error('🚨 ERROR:', message, ...args);
     }
     // Everything else (warnings, info, debug, verbose) is completely silenced
   }

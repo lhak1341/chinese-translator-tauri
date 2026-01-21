@@ -10,6 +10,8 @@
  * Replaces fixed BUFFER_SIZE with adaptive calculations
  */
 
+import { logger } from './logger.js';
+
 /**
  * Device performance detector for virtual scrolling optimization
  */
@@ -82,7 +84,7 @@ export class DevicePerformanceDetector {
         memory.pressure = 'medium';
       }
     } catch (error) {
-      console.warn('Memory detection failed:', error);
+      logger.warn('Memory detection failed:', error);
       // Conservative fallback
       memory.total = 1024 * 1024 * 1024; // 1GB
       memory.available = 512 * 1024 * 1024; // 512MB
@@ -123,7 +125,7 @@ export class DevicePerformanceDetector {
       // Score based on operations per second (normalize to 0-100)
       cpu.benchmarkScore = Math.min(100, cpu.operationsPerSecond / 10000);
     } catch (error) {
-      console.warn('CPU benchmark failed:', error);
+      logger.warn('CPU benchmark failed:', error);
       cpu.benchmarkScore = 50; // Average score
       cpu.operationsPerSecond = 500000;
     }
@@ -174,7 +176,7 @@ export class DevicePerformanceDetector {
         graphics.canvasScore = Math.max(0, 100 - elapsed); // Faster = higher score
       }
     } catch (error) {
-      console.warn('Graphics detection failed:', error);
+      logger.warn('Graphics detection failed:', error);
       graphics.canvasScore = 50;
     }
 
@@ -202,7 +204,7 @@ export class DevicePerformanceDetector {
         network.saveData = conn.saveData || false;
       }
     } catch (error) {
-      console.warn('Network detection failed:', error);
+      logger.warn('Network detection failed:', error);
     }
 
     return network;
@@ -373,7 +375,7 @@ export class AdaptiveBufferCalculator {
       memoryPressure: capabilities.memory.pressure,
     };
 
-    console.log(
+    logger.log(
       `📊 Adaptive buffer size: ${bufferSize} (tier: ${capabilities.tier}, memory: ${capabilities.memory.pressure}, visible: ${visibleItems})`
     );
 
