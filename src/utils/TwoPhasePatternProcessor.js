@@ -1,5 +1,6 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorAvailable } from './WasmPatternProcessor.js';
+import { logger } from './logger.js';
 
 /**
  * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
@@ -276,7 +277,7 @@ class TwoPhasePatternProcessor {
 
       return wasmResults;
     } catch (error) {
-      console.error('❌ WASM pattern processing failed:', error);
+      logger.error('❌ WASM pattern processing failed:', error);
       throw error;
     }
   }
@@ -286,7 +287,7 @@ class TwoPhasePatternProcessor {
    */
   enableInternalProfiling() {
     this.internalProfiling.enabled = true;
-    console.log('🔬 TwoPhasePatternProcessor internal profiling enabled');
+    logger.log('🔬 TwoPhasePatternProcessor internal profiling enabled');
   }
 
   /**
@@ -294,7 +295,7 @@ class TwoPhasePatternProcessor {
    */
   disableInternalProfiling() {
     this.internalProfiling.enabled = false;
-    console.log('🔬 TwoPhasePatternProcessor internal profiling disabled');
+    logger.log('🔬 TwoPhasePatternProcessor internal profiling disabled');
   }
 
   /**
@@ -307,7 +308,7 @@ class TwoPhasePatternProcessor {
         this.internalProfiling[key].calls = 0;
       }
     }
-    console.log('🔬 TwoPhasePatternProcessor profiling data reset');
+    logger.log('🔬 TwoPhasePatternProcessor profiling data reset');
   }
 
   /**
