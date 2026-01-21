@@ -14,6 +14,7 @@ import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
+import { logger } from '../../utils/logger';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -362,7 +363,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           setBufferSize(optimalSize);
         }
       } catch (error) {
-        console.warn('Buffer size calculation failed:', error);
+        logger.warn('Buffer size calculation failed:', error);
         // Keep current buffer size on error
       }
     };
@@ -584,7 +585,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       setShowBulkDeleteConfirm(false);
     } catch (error) {
       setDeleteError(`Failed to delete ${selectedEntries.size} entries`);
-      console.error('Bulk delete error:', error);
+      logger.error('Bulk delete error:', error);
     } finally {
       setIsDeleting(false);
     }
@@ -679,7 +680,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             });
           setAvailableDictionaries(dictionaryList);
         } catch (error) {
-          console.error('Failed to load dictionaries:', error);
+          logger.error('Failed to load dictionaries:', error);
           setError('Failed to load available dictionaries');
         }
       };
@@ -745,7 +746,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         setShowBulkMoveDialog(false);
       } catch (error) {
         setError(`Failed to move entries: ${(error as Error).message}`);
-        console.error('Bulk move error:', error);
+        logger.error('Bulk move error:', error);
       } finally {
         setIsMoving(false);
       }
@@ -853,7 +854,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               metadata
             );
           } catch (error) {
-            console.error(`Failed to update ${field}:`, error);
+            logger.error(`Failed to update ${field}:`, error);
           }
         };
 
@@ -890,7 +891,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               setEditingTranslation(false);
             }
           } catch (error) {
-            console.error(`Failed to update ${field}:`, error);
+            logger.error(`Failed to update ${field}:`, error);
             // Reset to original value on error
             if (field === 'source') {
               setTempSource(source);
