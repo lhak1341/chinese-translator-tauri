@@ -4,6 +4,7 @@ import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
+import { logger } from '../../utils/logger';
 
 /**
  * Dictionary data structure (key-value pairs)
@@ -208,7 +209,7 @@ export function LazyDictionaryProvider({
               firstLoadTimeRef.current = loadTime;
             }
           } else {
-            console.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
+            logger.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
             setDictionaries((prev) => ({
               ...prev,
               [dictionaryId]: {},
@@ -216,7 +217,7 @@ export function LazyDictionaryProvider({
             setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
           }
         } catch (error) {
-          console.error(`Error loading dictionary ${dictionaryId}:`, error);
+          logger.error(`Error loading dictionary ${dictionaryId}:`, error);
         } finally {
           // Always remove from loading set and promise map when done
           loadingDictionariesRef.current.delete(dictionaryId);
@@ -258,7 +259,7 @@ export function LazyDictionaryProvider({
             // Small delay between loads to keep UI responsive
             await new Promise<void>((resolve) => setTimeout(resolve, 100));
           } catch (error) {
-            console.error(`Failed to preload dictionary ${dictId}:`, error);
+            logger.error(`Failed to preload dictionary ${dictId}:`, error);
           }
         }
       }, dynamicDelay);
@@ -294,7 +295,7 @@ export function LazyDictionaryProvider({
         // Schedule preloading of other dictionaries
         schedulePreload(initialDictionary, Object.keys(types));
       } catch (error) {
-        console.error('Failed to load initial state:', error);
+        logger.error('Failed to load initial state:', error);
       } finally {
         setIsLoading(false);
       }
@@ -346,10 +347,10 @@ export function LazyDictionaryProvider({
         } as any);
 
         if (!saveResult.success) {
-          console.error('Failed to save selected dictionary:', saveResult.error);
+          logger.error('Failed to save selected dictionary:', saveResult.error);
         }
       } catch (error) {
-        console.error('Failed to save selected dictionary:', error);
+        logger.error('Failed to save selected dictionary:', error);
       }
     };
 
@@ -446,7 +447,7 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
-              console.warn('Cache invalidation failed (non-critical):', cacheError);
+              logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
         } else {
@@ -460,7 +461,7 @@ export function LazyDictionaryProvider({
           throw new Error(errorMsg);
         }
       } catch (error) {
-        console.error('Error adding dictionary entry:', error);
+        logger.error('Error adding dictionary entry:', error);
         // Only show toast if not already shown above
         if (error instanceof Error && !error.message.includes('Invalid entry')) {
           toast.error(`Could not add entry: ${error.message}`);
@@ -547,7 +548,7 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
-              console.warn('Cache invalidation failed (non-critical):', cacheError);
+              logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
         } else {
@@ -561,7 +562,7 @@ export function LazyDictionaryProvider({
           throw new Error(errorMsg);
         }
       } catch (error) {
-        console.error('Error updating dictionary entry:', error);
+        logger.error('Error updating dictionary entry:', error);
         // Only show toast if not already shown above
         if (error instanceof Error && !error.message.includes('Invalid entry')) {
           toast.error(`Could not update entry: ${error.message}`);
@@ -604,7 +605,7 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
-              console.warn('Cache invalidation failed (non-critical):', cacheError);
+              logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
         } else {
@@ -618,7 +619,7 @@ export function LazyDictionaryProvider({
           throw new Error(errorMsg);
         }
       } catch (error) {
-        console.error('Error deleting dictionary entry:', error);
+        logger.error('Error deleting dictionary entry:', error);
         toast.error(
           `Could not delete entry: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
@@ -657,7 +658,7 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
-              console.warn('Cache invalidation failed (non-critical):', cacheError);
+              logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
 
@@ -666,7 +667,7 @@ export function LazyDictionaryProvider({
           toast.error(`Could not undo: ${result.error || 'Unknown error'}`);
         }
       } catch (error) {
-        console.error('Error during undo:', error);
+        logger.error('Error during undo:', error);
         toast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
@@ -703,7 +704,7 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
-              console.warn('Cache invalidation failed (non-critical):', cacheError);
+              logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
 
@@ -712,7 +713,7 @@ export function LazyDictionaryProvider({
           toast.error(`Could not redo: ${result.error || 'Unknown error'}`);
         }
       } catch (error) {
-        console.error('Error during redo:', error);
+        logger.error('Error during redo:', error);
         toast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
@@ -735,7 +736,7 @@ export function LazyDictionaryProvider({
       const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
       setDictionaryTypes(types);
     } catch (error) {
-      console.error('Failed to refresh dictionary types:', error);
+      logger.error('Failed to refresh dictionary types:', error);
     }
   }, []);
 
