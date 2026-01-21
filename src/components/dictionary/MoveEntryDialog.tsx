@@ -3,6 +3,7 @@ import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
 import { Loader } from 'lucide-react';
 import styles from '../../styles/MoveEntryDialog.module.css';
+import { logger } from '../../utils/logger';
 
 /**
  * Dictionary entry to be moved
@@ -72,7 +73,7 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
           });
         setAvailableDictionaries(dictionaryList);
       } catch (error) {
-        console.error('Failed to load dictionaries:', error);
+        logger.error('Failed to load dictionaries:', error);
         setError('Failed to load available dictionaries');
       }
     };

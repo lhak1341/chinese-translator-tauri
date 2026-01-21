@@ -14,6 +14,8 @@
  * ```
  */
 
+import { logger } from './logger.js';
+
 export class PositionMappingValidator {
   /**
    * Validate position mapping for semantic arrays
@@ -260,12 +262,12 @@ export function validatePositionMapping(translatedText, semanticArrays) {
   const report = validator.validate(translatedText, semanticArrays);
 
   if (!report.isValid) {
-    console.warn(validator.formatReport(report));
+    logger.warn(validator.formatReport(report));
 
     const suggestions = validator.getSuggestions(report);
     if (suggestions.length > 0) {
-      console.warn('\n💡 Suggestions:');
-      suggestions.forEach((s) => console.warn(`  - ${s}`));
+      logger.warn('\n💡 Suggestions:');
+      suggestions.forEach((s) => logger.warn(`  - ${s}`));
     }
   }
 
