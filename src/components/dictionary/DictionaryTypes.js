@@ -4,6 +4,7 @@ import phrasesDict from '../../dictionaries/phrases.json';
 import charactersDict from '../../dictionaries/characters.json';
 import conversionDict from '../../dictionaries/conversion.json';
 import punctuationDict from '../../dictionaries/punctuation.json';
+import { logger } from '../../utils/logger.js';
 
 // Basic validation for all dictionary entries
 const baseValidation = (source, translation) => {
@@ -127,7 +128,7 @@ export const getDictionaryTypes = async () => {
       ...baseDictionaryTypes,
     };
   } catch (error) {
-    console.error('Error loading dictionary types:', error);
+    logger.error('Error loading dictionary types:', error);
     return baseDictionaryTypes;
   }
 };
