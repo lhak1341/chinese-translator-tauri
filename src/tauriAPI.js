@@ -7,6 +7,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
+import { logger } from './utils/logger.js';
 
 // Create the API object that mimics window.electronAPI
 const tauriAPI = {
@@ -19,7 +20,7 @@ const tauriAPI = {
       const text = await invoke('read_clipboard');
       return text;
     } catch (error) {
-      console.error('Error reading clipboard:', error);
+      logger.error('Error reading clipboard:', error);
       throw error;
     }
   },
@@ -37,11 +38,11 @@ const tauriAPI = {
         data,
       });
       if (!result.success && result.error) {
-        console.error('Save dictionary failed:', result.error);
+        logger.error('Save dictionary failed:', result.error);
       }
       return result;
     } catch (error) {
-      console.error('Error in saveDictionary:', error);
+      logger.error('Error in saveDictionary:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -55,11 +56,11 @@ const tauriAPI = {
     try {
       const result = await invoke('load_dictionary', { dictionaryId });
       if (!result.success && result.error !== 'File not found') {
-        console.error('Load dictionary failed:', result.error);
+        logger.error('Load dictionary failed:', result.error);
       }
       return result;
     } catch (error) {
-      console.error('Error in loadDictionary:', error);
+      logger.error('Error in loadDictionary:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -74,7 +75,7 @@ const tauriAPI = {
       const result = await invoke('load_dictionaries_parallel', { dictionaryIds });
       return result;
     } catch (error) {
-      console.error('Error in loadDictionariesParallel:', error);
+      logger.error('Error in loadDictionariesParallel:', error);
       return {
         total: dictionaryIds.length,
         successful: 0,
@@ -96,7 +97,7 @@ const tauriAPI = {
     try {
       return await invoke('open_dictionary_folder');
     } catch (error) {
-      console.error('Error in openDictionaryFolder:', error);
+      logger.error('Error in openDictionaryFolder:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -109,7 +110,7 @@ const tauriAPI = {
     try {
       return await invoke('list_proper_nouns_dictionaries');
     } catch (error) {
-      console.error('Error in listProperNounsDictionaries:', error);
+      logger.error('Error in listProperNounsDictionaries:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -123,7 +124,7 @@ const tauriAPI = {
     try {
       return await invoke('create_proper_nouns_dictionary', { dictionaryId });
     } catch (error) {
-      console.error('Error in createProperNounsDictionary:', error);
+      logger.error('Error in createProperNounsDictionary:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -141,7 +142,7 @@ const tauriAPI = {
         newDictionaryId,
       });
     } catch (error) {
-      console.error('Error in renameProperNounsDictionary:', error);
+      logger.error('Error in renameProperNounsDictionary:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -154,7 +155,7 @@ const tauriAPI = {
     try {
       return await invoke('load_configuration');
     } catch (error) {
-      console.error('Error in loadConfiguration:', error);
+      logger.error('Error in loadConfiguration:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -168,7 +169,7 @@ const tauriAPI = {
     try {
       return await invoke('save_configuration', { config });
     } catch (error) {
-      console.error('Error in saveConfiguration:', error);
+      logger.error('Error in saveConfiguration:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -181,7 +182,7 @@ const tauriAPI = {
     try {
       return await invoke('load_appearance_settings');
     } catch (error) {
-      console.error('Error in loadAppearanceSettings:', error);
+      logger.error('Error in loadAppearanceSettings:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -197,7 +198,7 @@ const tauriAPI = {
         appearanceSettings: settings,
       });
     } catch (error) {
-      console.error('Error in saveAppearanceSettings:', error);
+      logger.error('Error in saveAppearanceSettings:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -210,7 +211,7 @@ const tauriAPI = {
     try {
       return await invoke('export_dictionaries');
     } catch (error) {
-      console.error('Error in exportDictionaries:', error);
+      logger.error('Error in exportDictionaries:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -223,7 +224,7 @@ const tauriAPI = {
     try {
       return await invoke('import_dictionaries');
     } catch (error) {
-      console.error('Error in importDictionaries:', error);
+      logger.error('Error in importDictionaries:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -237,7 +238,7 @@ const tauriAPI = {
     try {
       return await invoke('reset_dictionaries', { options });
     } catch (error) {
-      console.error('Error in resetDictionaries:', error);
+      logger.error('Error in resetDictionaries:', error);
       return { success: false, error: error.toString() };
     }
   },
@@ -247,7 +248,7 @@ const tauriAPI = {
    * Note: Not yet implemented in Tauri version
    */
   updateDefaultDictionaries: async (dictionaries) => {
-    console.warn('updateDefaultDictionaries: Not yet implemented in Tauri version');
+    logger.warn('updateDefaultDictionaries: Not yet implemented in Tauri version');
     return { success: false, error: 'Not yet implemented' };
   },
 
@@ -275,14 +276,14 @@ const tauriAPI = {
       });
 
       if (result.success && result.buildTimeMs && process.env.NODE_ENV === 'development') {
-        console.log(
+        logger.log(
           `🦀 Lookup index built in ${result.buildTimeMs}ms (${result.positionsIndexed} positions, ${result.indexSize} matches)`
         );
       }
 
       return result;
     } catch (error) {
-      console.error('Error in buildLookupIndex:', error);
+      logger.error('Error in buildLookupIndex:', error);
       return {
         success: false,
         index: {},
