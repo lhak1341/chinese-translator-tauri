@@ -17,6 +17,7 @@
 import { PunctuationProcessor } from './PunctuationProcessor.js';
 import { QuoteProcessor, QUOTE_CATEGORIES, QUOTE_TYPES } from './QuoteProcessor';
 import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
+import { logger } from './logger.js';
 
 export class TextChunk {
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
@@ -103,7 +104,7 @@ export class TextChunker {
         this.chunkRegex = new RegExp(`([^\\p{P}]*?)([${categoryPattern}]*)`, 'gu');
 
         if (process.env.NODE_ENV === 'development') {
-          console.log(
+          logger.log(
             `🔧 TextChunker: Using Unicode punctuation categories: ${enabledCategories.join(', ')}`
           );
         }
@@ -123,7 +124,7 @@ export class TextChunker {
     );
 
     if (process.env.NODE_ENV === 'development') {
-      console.log(
+      logger.log(
         `🔧 TextChunker: Using legacy punctuation separators (${this.legacyChunkSeparators.length} characters)`
       );
     }
@@ -695,18 +696,18 @@ export class TextChunker {
     const reconstructed = this.reconstructText(chunks);
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('📝 Testing chunking system with:', text);
-      console.log('📊 Chunks created:', chunks.length);
+      logger.log('📝 Testing chunking system with:', text);
+      logger.log('📊 Chunks created:', chunks.length);
 
       chunks.forEach((chunk, index) => {
-        console.log(
+        logger.log(
           `  ${index + 1}. "${chunk.content}"${chunk.punctuation ? ` + "${chunk.punctuation}"` : ''}`
         );
       });
 
-      console.log('📈 Analysis:', analysis);
-      console.log('🔄 Reconstructed:', reconstructed);
-      console.log('✅ Match original:', reconstructed === text);
+      logger.log('📈 Analysis:', analysis);
+      logger.log('🔄 Reconstructed:', reconstructed);
+      logger.log('✅ Match original:', reconstructed === text);
     }
 
     return {
@@ -727,15 +728,15 @@ export const testChunker = () => {
     const chunker = new TextChunker();
 
     // Test with your example
-    console.log('🧪 Testing with example: ABC,DE.FG"HIJ"KL!MNOP.');
+    logger.log('🧪 Testing with example: ABC,DE.FG"HIJ"KL!MNOP.');
     chunker.testChunking('ABC,DE.FG"HIJ"KL!MNOP.');
 
     // Test with Chinese text
-    console.log('\n🧪 Testing with Chinese text:');
+    logger.log('\n🧪 Testing with Chinese text:');
     chunker.testChunking('她的目光忽然落在陈暮的脸上，当看到陈暮闭上的双眼时，她的眼睛腾地红了。');
 
     // Test with mixed punctuation
-    console.log('\n🧪 Testing with mixed punctuation:');
+    logger.log('\n🧪 Testing with mixed punctuation:');
     chunker.testChunking('Hello, 世界！How are you? 你好吗？');
   }
 };
