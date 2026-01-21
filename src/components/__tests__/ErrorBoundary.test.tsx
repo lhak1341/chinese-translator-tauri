@@ -112,10 +112,14 @@ describe('ErrorBoundary', () => {
       );
 
       expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'ErrorBoundary caught an error:',
-        expect.any(Error)
+      // Logger adds timestamp prefix, so check that the error message is included in the call
+      const errorCalls = consoleErrorSpy.mock.calls;
+      const hasErrorMessage = errorCalls.some((call: any[]) =>
+        call.some(
+          (arg: any) => typeof arg === 'string' && arg.includes('ErrorBoundary caught an error:')
+        )
       );
+      expect(hasErrorMessage).toBe(true);
     });
 
     test('should catch errors from nested components', () => {
@@ -360,7 +364,12 @@ describe('ErrorBoundary', () => {
       );
 
       // Component stack is shown via componentDidCatch
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Component stack:', expect.any(String));
+      // Logger adds timestamp prefix, so check that the component stack message is included
+      const errorCalls = consoleErrorSpy.mock.calls;
+      const hasComponentStack = errorCalls.some((call: any[]) =>
+        call.some((arg: any) => typeof arg === 'string' && arg.includes('Component stack:'))
+      );
+      expect(hasComponentStack).toBe(true);
 
       // Restore
       process.env.NODE_ENV = originalEnv;
