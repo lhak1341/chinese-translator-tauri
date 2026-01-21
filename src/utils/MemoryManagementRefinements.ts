@@ -11,6 +11,8 @@
  * - Non-intrusive operation that preserves translation quality
  */
 
+import { logger } from './logger.js';
+
 /**
  * Chrome-specific performance.memory API
  * Extends standard Performance interface
@@ -266,7 +268,7 @@ export class SmartMemoryPressureDetector {
         try {
           callback({ pressure, growthRate, shouldCleanup });
         } catch (error) {
-          console.warn('Memory pressure callback error:', error);
+          logger.warn('Memory pressure callback error:', error);
         }
       });
     };
@@ -320,7 +322,7 @@ export class SmartMemoryPressureDetector {
         try {
           callback(cleanupEvent);
         } catch (error) {
-          console.warn('Cleanup callback error:', error);
+          logger.warn('Cleanup callback error:', error);
         }
       }
     });
@@ -496,7 +498,7 @@ export class BackgroundCleanupManager {
 
           // Log success for urgent tasks
           if (task.priority === 'urgent') {
-            console.log(
+            logger.log(
               `🧹 Background cleanup: ${task.id} completed in ${taskDuration.toFixed(1)}ms`
             );
           }
@@ -508,7 +510,7 @@ export class BackgroundCleanupManager {
             task.priority = 'low';
             this.cleanupQueue.push(task);
           } else {
-            console.warn(`🚨 Background cleanup failed after ${task.maxAttempts} attempts:`, error);
+            logger.warn(`🚨 Background cleanup failed after ${task.maxAttempts} attempts:`, error);
           }
         }
       }
@@ -564,7 +566,7 @@ export class BackgroundCleanupManager {
           this.cleanupQueue.splice(index, 1);
         }
       } catch (error) {
-        console.warn('Urgent cleanup task failed:', error);
+        logger.warn('Urgent cleanup task failed:', error);
       }
     });
   }
