@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from '../styles/ErrorBoundary.module.css';
+import { logger } from '../utils/logger';
 
 /**
  * ErrorBoundary Component
@@ -62,8 +63,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
    */
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     // Log to console in development
-    console.error('ErrorBoundary caught an error:', error);
-    console.error('Component stack:', errorInfo.componentStack);
+    logger.error('ErrorBoundary caught an error:', error);
+    logger.error('Component stack:', errorInfo.componentStack);
 
     // Store error info in state for display
     this.setState({

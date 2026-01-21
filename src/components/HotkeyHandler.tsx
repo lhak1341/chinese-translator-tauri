@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { TabId } from '../types/ComponentTypes';
+import { logger } from '../utils/logger';
 
 /**
  * Props for HotkeyHandler component
@@ -67,7 +68,7 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
           return true;
         }
       } catch (error) {
-        console.warn('Failed to copy selected text to clipboard:', error);
+        logger.warn('Failed to copy selected text to clipboard:', error);
       }
       return false;
     };
