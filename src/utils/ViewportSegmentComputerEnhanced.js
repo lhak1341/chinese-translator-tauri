@@ -8,6 +8,7 @@
  */
 
 import { segmentWorkerManager } from './SegmentWorkerManager.js';
+import { logger } from './logger.js';
 
 export class ViewportSegmentComputerEnhanced {
   constructor(options = {}) {
@@ -64,11 +65,11 @@ export class ViewportSegmentComputerEnhanced {
         result.stats.usedWorker = true;
         result.stats.workerTime = performance.now() - workerStartTime;
 
-        console.log(
+        logger.log(
           `🚀 Worker position mapping: ${result.semanticRanges.length} ranges in ${result.stats.computeTime.toFixed(1)}ms (worker overhead: ${result.stats.workerTime.toFixed(1)}ms)`
         );
       } catch (error) {
-        console.warn('⚠️ Worker failed, falling back to main thread:', error.message);
+        logger.warn('⚠️ Worker failed, falling back to main thread:', error.message);
         result = this._createTextPositionMappingMainThread(text, semanticArrays);
         result.stats.usedWorker = false;
         result.stats.fallbackReason = error.message;
@@ -144,7 +145,7 @@ export class ViewportSegmentComputerEnhanced {
    */
   async computeSegmentsForTextRange(textStart, textEnd) {
     if (!this.semanticRangeMap) {
-      console.warn('⚠️ No semantic range map available - call createTextPositionMapping first');
+      logger.warn('⚠️ No semantic range map available - call createTextPositionMapping first');
       return [];
     }
 
@@ -176,7 +177,7 @@ export class ViewportSegmentComputerEnhanced {
         );
         this.cacheStats.workerHits++;
       } catch (error) {
-        console.warn('⚠️ Worker segment computation failed, using main thread:', error.message);
+        logger.warn('⚠️ Worker segment computation failed, using main thread:', error.message);
         segmentResult = {
           segments: this._computeSegmentsMainThread(textStart, textEnd),
           stats: { computeTime: performance.now() - startTime },
@@ -213,7 +214,7 @@ export class ViewportSegmentComputerEnhanced {
 
     // Validate inputs
     if (!semanticRanges || !fullText) {
-      console.error('⚠️ _computeSegmentsMainThread: Missing semanticRanges or fullText', {
+      logger.error('⚠️ _computeSegmentsMainThread: Missing semanticRanges or fullText', {
         hasSemanticRanges: !!semanticRanges,
         hasFullText: !!fullText,
         semanticRangeMap: this.semanticRangeMap,
@@ -226,7 +227,7 @@ export class ViewportSegmentComputerEnhanced {
       const firstChar = fullText.charAt(0);
       const isCapitalized =
         firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase();
-      console.log(
+      logger.log(
         `🔍 Segment computation fullText capitalization check: "${fullText.substring(0, 50)}" - First char capitalized: ${isCapitalized}`
       );
     }
@@ -314,7 +315,7 @@ export class ViewportSegmentComputerEnhanced {
       { textStart: Math.max(0, textLength - viewportSize), textEnd: textLength },
     ];
 
-    console.log('🔄 Pre-warming viewport cache with Web Workers...');
+    logger.log('🔄 Pre-warming viewport cache with Web Workers...');
 
     try {
       if (this.useWorkers) {
@@ -329,7 +330,7 @@ export class ViewportSegmentComputerEnhanced {
           this.segmentCache.set(cacheKey, result.segments);
         }
 
-        console.log(
+        logger.log(
           `✅ Batch cache pre-warmed: ${Object.keys(batchResult.results).length} ranges in ${batchResult.batchStats.totalTime.toFixed(1)}ms`
         );
       } else {
@@ -337,10 +338,10 @@ export class ViewportSegmentComputerEnhanced {
         for (const pos of positions) {
           await this.computeSegmentsForTextRange(pos.textStart, pos.textEnd);
         }
-        console.log(`✅ Cache pre-warmed with ${this.segmentCache.size} ranges (main thread)`);
+        logger.log(`✅ Cache pre-warmed with ${this.segmentCache.size} ranges (main thread)`);
       }
     } catch (error) {
-      console.warn('⚠️ Cache pre-warming failed:', error.message);
+      logger.warn('⚠️ Cache pre-warming failed:', error.message);
     }
   }
 
@@ -453,7 +454,7 @@ export class ViewportSegmentComputerEnhanced {
    */
   setWorkerEnabled(enabled) {
     this.useWorkers = enabled;
-    console.log(`🔧 Web Workers ${enabled ? 'enabled' : 'disabled'} for ViewportSegmentComputer`);
+    logger.log(`🔧 Web Workers ${enabled ? 'enabled' : 'disabled'} for ViewportSegmentComputer`);
   }
 
   /**
