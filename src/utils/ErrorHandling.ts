@@ -10,6 +10,8 @@
  * some are silently swallowed, and some provide helpful context.
  */
 
+import { logger } from './logger.js';
+
 /**
  * Error context for additional information
  */
@@ -152,7 +154,7 @@ export function handleError<T = any>(
     try {
       onError(err, operation, context);
     } catch (callbackError) {
-      console.error('Error in custom error callback:', callbackError);
+      logger.error('Error in custom error callback:', callbackError);
     }
   }
 
@@ -167,13 +169,13 @@ export function handleError<T = any>(
               originalError: err.name,
             });
 
-      console.error(`❌ ${operation} failed:`, translationError.getDetailedMessage());
+      logger.error(`❌ ${operation} failed:`, translationError.getDetailedMessage());
       throw translationError;
     }
 
     case ErrorStrategy.FALLBACK: {
       // Fallback operations: warn and return alternative
-      console.warn(`⚠️ ${operation} failed, using fallback:`, err.message, context);
+      logger.warn(`⚠️ ${operation} failed, using fallback:`, err.message, context);
       return fallbackValue;
     }
 
@@ -186,7 +188,7 @@ export function handleError<T = any>(
     }
 
     default: {
-      console.error(`Unknown error strategy: ${strategy}, defaulting to THROW`);
+      logger.error(`Unknown error strategy: ${strategy}, defaulting to THROW`);
       throw err;
     }
   }
