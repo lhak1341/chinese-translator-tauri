@@ -1,101 +1,15 @@
 /**
  * Segment Precomputation for Optimized Clickable Text Rendering
  * Pre-computes all segment data during translation to avoid runtime calculations
+ *
+ * MEMORY MANAGEMENT NOTE (2026-01-22):
+ * Object pooling removed - segments are small objects (~10 properties, <1KB each).
+ * Modern V8 optimizes object literals efficiently, pooling added complexity without
+ * measurable benefit. Segments have lifecycle tied to React rendering (can't be
+ * released until component unmount), making caller-managed pooling impractical.
  */
 
 export class SegmentPrecomputer {
-  // Object pools to reduce garbage collection pressure
-  static segmentPool = [];
-  static unitDataPool = [];
-  static poolHits = 0;
-  static poolMisses = 0;
-
-  /**
-   * Get a segment object from the pool or create a new one
-   * @returns {Object} Segment object
-   */
-  static getSegment() {
-    if (this.segmentPool.length > 0) {
-      this.poolHits++;
-      return this.segmentPool.pop();
-    }
-    this.poolMisses++;
-    return {};
-  }
-
-  /**
-   * Return a segment object to the pool for reuse
-   * @param {Object} segment - Segment to return to pool
-   */
-  static releaseSegment(segment) {
-    // Reset all properties to avoid memory leaks
-    for (const key in segment) {
-      delete segment[key];
-    }
-
-    // Only keep pool size reasonable to avoid excessive memory usage
-    if (this.segmentPool.length < 1000) {
-      this.segmentPool.push(segment);
-    }
-  }
-
-  /**
-   * Get a unit data object from the pool or create a new one
-   * @returns {Object} Unit data object
-   */
-  static getUnitData() {
-    if (this.unitDataPool.length > 0) {
-      this.poolHits++;
-      return this.unitDataPool.pop();
-    }
-    this.poolMisses++;
-    return {};
-  }
-
-  /**
-   * Return a unit data object to the pool for reuse
-   * @param {Object} unitData - Unit data to return to pool
-   */
-  static releaseUnitData(unitData) {
-    // Reset all properties
-    for (const key in unitData) {
-      delete unitData[key];
-    }
-
-    if (this.unitDataPool.length < 500) {
-      this.unitDataPool.push(unitData);
-    }
-  }
-
-  /**
-   * Trim pools to reasonable size to prevent memory waste during idle periods
-   * Call this periodically (e.g., after large translations complete)
-   */
-  static trimPools() {
-    const targetSize = 100; // Keep only 100 in reserve
-
-    if (this.segmentPool.length > targetSize) {
-      this.segmentPool.length = targetSize;
-    }
-    if (this.unitDataPool.length > targetSize) {
-      this.unitDataPool.length = targetSize;
-    }
-  }
-
-  /**
-   * Get object pool statistics
-   * @returns {Object} Pool statistics
-   */
-  static getPoolStats() {
-    return {
-      segmentPoolSize: this.segmentPool.length,
-      unitDataPoolSize: this.unitDataPool.length,
-      poolHits: this.poolHits,
-      poolMisses: this.poolMisses,
-      hitRate: this.poolHits / Math.max(this.poolHits + this.poolMisses, 1),
-    };
-  }
-
   // Enhanced with punctuation handling for proper noun highlighting
   /**
    * Pre-compute clickable segments from semantic arrays
@@ -114,15 +28,12 @@ export class SegmentPrecomputer {
     let currentPosition = 0;
 
     // Create a lookup map for faster unit matching - don't use keys, use direct comparison
-    // Use object pool for unit data objects to reduce GC pressure
-    const allUnits = translated.map((unit, index) => {
-      const unitData = this.getUnitData();
-      unitData.index = index;
-      unitData.unit = unit;
-      unitData.original = original[index];
-      unitData.metadata = metadata[index];
-      return unitData;
-    });
+    const allUnits = translated.map((unit, index) => ({
+      index,
+      unit,
+      original: original[index],
+      metadata: metadata[index],
+    }));
 
     // Sort units by their tokenIndex to ensure text-order processing for duplicates
     const filteredUnits = allUnits.sort(
@@ -187,20 +98,19 @@ export class SegmentPrecomputer {
           currentPosition + bestMatch.unit.length
         );
 
-        // Use object pool for segment creation
-        const segment = this.getSegment();
-        segment.type = 'semantic';
-        segment.text = originalCaseText;
-        segment.start = currentPosition;
-        segment.end = currentPosition + bestMatch.unit.length;
-        segment.unitIndex = bestMatch.index;
-        segment.originalText = bestMatch.original;
-        segment.translatedText = originalCaseText;
-        segment.source = bestMatch.metadata.source;
-        segment.metadata = bestMatch.metadata;
-        segment.isClickable = true;
-
-        segments.push(segment);
+        // Create semantic segment
+        segments.push({
+          type: 'semantic',
+          text: originalCaseText,
+          start: currentPosition,
+          end: currentPosition + bestMatch.unit.length,
+          unitIndex: bestMatch.index,
+          originalText: bestMatch.original,
+          translatedText: originalCaseText,
+          source: bestMatch.metadata.source,
+          metadata: bestMatch.metadata,
+          isClickable: true,
+        });
 
         currentPosition += bestMatch.unit.length;
       } else {
@@ -209,14 +119,14 @@ export class SegmentPrecomputer {
 
         if (char === ' ') {
           // Handle spaces separately
-          const spaceSegment = this.getSegment();
-          spaceSegment.type = 'space';
-          spaceSegment.text = ' ';
-          spaceSegment.start = currentPosition;
-          spaceSegment.end = currentPosition + 1;
-          spaceSegment.unitIndex = -1;
-          spaceSegment.isClickable = false;
-          segments.push(spaceSegment);
+          segments.push({
+            type: 'space',
+            text: ' ',
+            start: currentPosition,
+            end: currentPosition + 1,
+            unitIndex: -1,
+            isClickable: false,
+          });
           currentPosition++;
         } else if (/[\r\n]/.test(char)) {
           // Handle line breaks
@@ -225,14 +135,14 @@ export class SegmentPrecomputer {
             lineBreakEnd++;
           }
 
-          const lineBreakSegment = this.getSegment();
-          lineBreakSegment.type = 'text';
-          lineBreakSegment.text = text.substring(currentPosition, lineBreakEnd);
-          lineBreakSegment.start = currentPosition;
-          lineBreakSegment.end = lineBreakEnd;
-          lineBreakSegment.unitIndex = -1;
-          lineBreakSegment.isClickable = false;
-          segments.push(lineBreakSegment);
+          segments.push({
+            type: 'text',
+            text: text.substring(currentPosition, lineBreakEnd),
+            start: currentPosition,
+            end: lineBreakEnd,
+            unitIndex: -1,
+            isClickable: false,
+          });
           currentPosition = lineBreakEnd;
         } else {
           // Handle single character - but check if the next few characters might form a match
@@ -246,23 +156,18 @@ export class SegmentPrecomputer {
           }
 
           const nonSemanticText = text.substring(currentPosition, nextBoundary);
-          const textSegment = this.getSegment();
-          textSegment.type = 'text';
-          textSegment.text = nonSemanticText;
-          textSegment.start = currentPosition;
-          textSegment.end = nextBoundary;
-          textSegment.unitIndex = -1;
-          textSegment.isClickable = false;
-          segments.push(textSegment);
+          segments.push({
+            type: 'text',
+            text: nonSemanticText,
+            start: currentPosition,
+            end: nextBoundary,
+            unitIndex: -1,
+            isClickable: false,
+          });
 
           currentPosition = nextBoundary;
         }
       }
-    }
-
-    // Release unit data objects back to the pool to reduce memory pressure
-    for (const unitData of allUnits) {
-      this.releaseUnitData(unitData);
     }
 
     return segments;
@@ -484,8 +389,18 @@ export class SegmentPrecomputer {
 
   /**
    * Normalize text for more reliable matching
+   *
+   * CRITICAL: This method is ONLY used for text comparison (case-insensitive matching),
+   * NOT for position calculation. Position offsets are always calculated from the
+   * original, non-normalized text to ensure accurate click highlighting.
+   *
+   * Why this is safe:
+   * - findUnitMatch() calculates offset from raw text (lines 365-379)
+   * - normalizeText() only used in startsWith() comparison (lines 359, 383)
+   * - Positions stored use original text length, not normalized length
+   *
    * @param {string} text - Text to normalize
-   * @returns {string} Normalized text
+   * @returns {string} Normalized text (lowercase, whitespace collapsed, zero-width removed)
    */
   static normalizeText(text) {
     return (

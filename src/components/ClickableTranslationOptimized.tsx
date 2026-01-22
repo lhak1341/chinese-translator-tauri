@@ -12,18 +12,28 @@ import styles from '../styles/ClickableTranslationOptimized.module.css';
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
   ({ segment, onClick, isHighlighted }) => {
+    // PERFORMANCE FIX: Extract primitive values to prevent closure recreation
+    // Using segment object as dependency causes handleClick to recreate on every highlight
+    // change (100+ closures per click). Instead, depend only on primitive values.
+    const isClickable = segment.isClickable;
+    const unitIndex = segment.unitIndex;
+    const originalText = segment.originalText;
+    const translatedText = segment.translatedText;
+    const source = segment.source;
+    const metadata = segment.metadata;
+
     const handleClick = useCallback(() => {
-      if (segment.isClickable) {
+      if (isClickable) {
         (onClick as any)({
-          unitIndex: segment.unitIndex,
-          originalText: segment.originalText,
-          translatedText: segment.translatedText,
-          source: segment.source,
-          metadata: segment.metadata!,
+          unitIndex,
+          originalText,
+          translatedText,
+          source,
+          metadata: metadata!,
           direction: 'translation-to-original',
         });
       }
-    }, [segment, onClick]);
+    }, [isClickable, unitIndex, originalText, translatedText, source, metadata, onClick]);
 
     const className = useMemo(() => {
       const classes = [styles.segment];

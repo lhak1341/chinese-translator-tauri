@@ -200,9 +200,13 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   const renderSegment = (segment: any, index: number) => {
     if (segment.isClickable) {
       // Handle both single index and array of indices for highlighting
-      const isHighlighted = Array.isArray(highlightedTranslationUnitIndex)
-        ? highlightedTranslationUnitIndex.includes(segment.unitIndex)
-        : highlightedTranslationUnitIndex === segment.unitIndex;
+      // SAFETY: Guard against null/undefined (default param is -1, but explicit null bypasses it)
+      const isHighlighted =
+        highlightedTranslationUnitIndex !== null &&
+        highlightedTranslationUnitIndex !== undefined &&
+        (Array.isArray(highlightedTranslationUnitIndex)
+          ? highlightedTranslationUnitIndex.includes(segment.unitIndex)
+          : highlightedTranslationUnitIndex === segment.unitIndex);
 
       return (
         <span
