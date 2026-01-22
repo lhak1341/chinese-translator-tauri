@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { TabId } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
+import toast from '../utils/toast';
 
 /**
  * Props for HotkeyHandler component
@@ -119,45 +120,70 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
               // Quick Add Character - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                const copied = await copySelectedText();
-                const text = copied ? await navigator.clipboard.readText() : '';
-                onQuickAddCharacter?.(text);
+                try {
+                  const copied = await copySelectedText();
+                  const text = copied ? await navigator.clipboard.readText() : '';
+                  onQuickAddCharacter?.(text);
+                } catch (error) {
+                  toast.error('Failed to open Quick Add');
+                  logger.error('Quick Add Character error:', error);
+                }
               }
               break;
             case '2':
               // Quick Add Phrase - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                const copied = await copySelectedText();
-                const text = copied ? await navigator.clipboard.readText() : '';
-                onQuickAddPhrase?.(text);
+                try {
+                  const copied = await copySelectedText();
+                  const text = copied ? await navigator.clipboard.readText() : '';
+                  onQuickAddPhrase?.(text);
+                } catch (error) {
+                  toast.error('Failed to open Quick Add');
+                  logger.error('Quick Add Phrase error:', error);
+                }
               }
               break;
             case '3':
               // Quick Add Proper Noun - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                const copied = await copySelectedText();
-                const text = copied ? await navigator.clipboard.readText() : '';
-                onQuickAddProperNoun?.(text);
+                try {
+                  const copied = await copySelectedText();
+                  const text = copied ? await navigator.clipboard.readText() : '';
+                  onQuickAddProperNoun?.(text);
+                } catch (error) {
+                  toast.error('Failed to open Quick Add');
+                  logger.error('Quick Add Proper Noun error:', error);
+                }
               }
               break;
             case '4':
               // Quick Add Pattern - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                const copied = await copySelectedText();
-                const text = copied ? await navigator.clipboard.readText() : '';
-                onQuickAddPattern?.(text);
+                try {
+                  const copied = await copySelectedText();
+                  const text = copied ? await navigator.clipboard.readText() : '';
+                  onQuickAddPattern?.(text);
+                } catch (error) {
+                  toast.error('Failed to open Quick Add');
+                  logger.error('Quick Add Pattern error:', error);
+                }
               }
               break;
             case '5':
               // Quick Add Custom Proper Noun - only works in Translator tab
               if (activeTab === 'translator') {
                 event.preventDefault();
-                const copied = await copySelectedText();
-                const text = copied ? await navigator.clipboard.readText() : '';
-                await onQuickAddCustomProperNoun?.(text);
+                try {
+                  const copied = await copySelectedText();
+                  const text = copied ? await navigator.clipboard.readText() : '';
+                  await onQuickAddCustomProperNoun?.(text);
+                } catch (error) {
+                  toast.error('Failed to open Quick Add');
+                  logger.error('Quick Add Custom Proper Noun error:', error);
+                }
               }
               break;
             case 'l':

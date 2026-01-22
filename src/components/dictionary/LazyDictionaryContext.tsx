@@ -444,6 +444,7 @@ export function LazyDictionaryProvider({
           ) {
             try {
               await window.translationEngine.invalidateAllCaches(dictionaryId);
+              logger.log('✅ Caches cleared after adding entry');
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
@@ -545,6 +546,7 @@ export function LazyDictionaryProvider({
           ) {
             try {
               await window.translationEngine.invalidateAllCaches(dictionaryId);
+              logger.log('✅ Caches cleared after updating entry');
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
@@ -602,6 +604,7 @@ export function LazyDictionaryProvider({
           ) {
             try {
               await window.translationEngine.invalidateAllCaches(dictionaryId);
+              logger.log('✅ Caches cleared after deleting entry');
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
@@ -655,6 +658,7 @@ export function LazyDictionaryProvider({
           ) {
             try {
               await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+              logger.log('✅ Caches cleared after undo');
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
@@ -701,6 +705,7 @@ export function LazyDictionaryProvider({
           ) {
             try {
               await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+              logger.log('✅ Caches cleared after redo');
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload

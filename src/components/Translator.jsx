@@ -12,6 +12,7 @@ import { logger } from '../utils/logger';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
+import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
@@ -2348,34 +2349,45 @@ const Translator = ({ isActive = true }) => {
           setEngineStats(engineRef.current.getEngineStats());
           logger.log('✅ Engine reinitialized successfully');
 
-          // ARCHITECTURAL FIX: Validate WASM sync after reload to detect silent failures
-          // 4-layer state sync (React → JS → WASM → Rust) can diverge if WASM sync fails
+          // HIGH-6 FIX: Run WASM validation asynchronously without blocking reload
+          // This prevents UI freezes during validation of large test sets
           if (
             engineRef.current?.dictionaryManager?.wasmInitialized &&
             typeof engineRef.current.dictionaryManager.validateWasmFallback === 'function'
           ) {
-            try {
-              const syncStatus = engineRef.current.dictionaryManager.validateWasmFallback();
-              if (syncStatus.status === 'PASS') {
-                logger.log('✅ WASM dictionary sync validated successfully');
-              } else if (syncStatus.status === 'SKIPPED') {
-                logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
-              } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
-                logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
-                toast.error(
-                  `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
-                  { duration: 8000 }
-                );
-              } else if (syncStatus.status === 'FAIL_ERRORS') {
-                logger.error('❌ WASM sync validation failed - errors:', syncStatus);
-                toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
-                  duration: 8000,
-                });
+            // Run validation in background (non-blocking)
+            setTimeout(() => {
+              try {
+                const syncStatus = engineRef.current?.dictionaryManager?.validateWasmFallback();
+                if (!syncStatus) {
+                  logger.warn('⚠️ WASM validation skipped - engine no longer available');
+                  return;
+                }
+
+                if (syncStatus.status === 'PASS') {
+                  logger.log('✅ WASM dictionary sync validated successfully');
+                } else if (syncStatus.status === 'SKIPPED') {
+                  logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
+                } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
+                  logger.error(
+                    '❌ WASM sync validation failed - differences detected:',
+                    syncStatus
+                  );
+                  toast.error(
+                    `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
+                    { duration: 8000 }
+                  );
+                } else if (syncStatus.status === 'FAIL_ERRORS') {
+                  logger.error('❌ WASM sync validation failed - errors:', syncStatus);
+                  toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
+                    duration: 8000,
+                  });
+                }
+              } catch (validationError) {
+                logger.error('❌ WASM validation error:', validationError);
+                // Don't block reload on validation errors
               }
-            } catch (validationError) {
-              logger.error('❌ WASM validation error:', validationError);
-              // Don't block reload on validation errors
-            }
+            }, 100); // Run after reload completes (non-blocking)
           }
 
           // Step 8: Restore translation if there's input text
@@ -2663,13 +2675,15 @@ const Translator = ({ isActive = true }) => {
       />
       {/* Add Quick Add Entry modal */}
       {showQuickAdd && (
-        <DictionaryEntry
-          onClose={closeQuickAdd}
-          selectedDictionary={quickAddDictionary}
-          allowDictionarySelection={true}
-          onDictionaryChange={handleQuickAddDictionaryChange}
-          initialSource={clipboardText}
-        />
+        <ModalErrorBoundary onClose={closeQuickAdd}>
+          <DictionaryEntry
+            onClose={closeQuickAdd}
+            selectedDictionary={quickAddDictionary}
+            allowDictionarySelection={true}
+            onDictionaryChange={handleQuickAddDictionaryChange}
+            initialSource={clipboardText}
+          />
+        </ModalErrorBoundary>
       )}
     </div>
   );

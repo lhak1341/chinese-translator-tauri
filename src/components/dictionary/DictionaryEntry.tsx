@@ -77,6 +77,10 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   onDictionaryChange,
   initialSource,
 }) => {
+  // Local state for active dictionary, initialized from prop
+  // We keep this as local state to prevent the auto-populate useEffect from running
+  // multiple times when the prop changes (e.g., during Cmd-5's async config loading)
+  // The local state is updated via handleDictionaryChange when user changes the dropdown
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
   const { updateEntry, addEntry, dictionaries } = useDictionary();
   const [source, setSource] = useState<string>(entry?.source || '');
@@ -209,34 +213,47 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
   // Auto-paste clipboard and generate rough translation on mount
   useEffect(() => {
+    // HIGH-4 FIX: Track mount status to prevent setState on unmounted component
+    let isMounted = true;
+    let focusTimeout: NodeJS.Timeout | null = null;
+
     const handleAutoSetup = async (): Promise<void> => {
       try {
         // Only auto-paste if this is a new entry (not editing)
         if (entry?.source) {
-          sourceInputRef.current?.focus();
+          if (isMounted) {
+            sourceInputRef.current?.focus();
+          }
           return;
         }
 
         // Priority 1: Use initialSource prop if provided (from keyboard shortcut)
         if (initialSource && initialSource.trim()) {
-          setSource(initialSource.trim());
+          if (isMounted) {
+            setSource(initialSource.trim());
 
-          // Generate rough translation using character dictionary
-          const roughTranslation = generateRoughTranslation(initialSource.trim(), activeDictionary);
-          setTranslation(roughTranslation);
+            // Generate rough translation using character dictionary
+            const roughTranslation = generateRoughTranslation(
+              initialSource.trim(),
+              activeDictionary
+            );
+            setTranslation(roughTranslation);
 
-          // Focus translation field for immediate editing
-          setTimeout(() => {
-            translationInputRef.current?.focus();
-            translationInputRef.current?.select(); // Select all text for easy replacement
-          }, 100);
+            // Focus translation field for immediate editing
+            focusTimeout = setTimeout(() => {
+              if (isMounted) {
+                translationInputRef.current?.focus();
+                translationInputRef.current?.select(); // Select all text for easy replacement
+              }
+            }, 100);
+          }
           return;
         }
 
         // Priority 2: Fallback to reading clipboard if no initialSource
         if (navigator.clipboard && navigator.clipboard.readText) {
           const clipboardText = await navigator.clipboard.readText();
-          if (clipboardText.trim()) {
+          if (clipboardText.trim() && isMounted) {
             // Set source text from clipboard
             setSource(clipboardText.trim());
 
@@ -248,22 +265,36 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             setTranslation(roughTranslation);
 
             // Focus translation field for immediate editing
-            setTimeout(() => {
-              translationInputRef.current?.focus();
-              translationInputRef.current?.select(); // Select all text for easy replacement
+            focusTimeout = setTimeout(() => {
+              if (isMounted) {
+                translationInputRef.current?.focus();
+                translationInputRef.current?.select(); // Select all text for easy replacement
+              }
             }, 100);
             return;
           }
         }
       } catch (error) {
-        logger.error('Error reading clipboard:', error);
+        if (isMounted) {
+          logger.error('Error reading clipboard:', error);
+        }
       }
 
       // Fallback: focus source field if clipboard fails
-      sourceInputRef.current?.focus();
+      if (isMounted) {
+        sourceInputRef.current?.focus();
+      }
     };
 
     handleAutoSetup();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (focusTimeout) {
+        clearTimeout(focusTimeout);
+      }
+    };
   }, [activeDictionary, entry?.source, generateRoughTranslation, initialSource]);
 
   // Validate form when source or translation changes
@@ -271,41 +302,72 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     validateForm();
   }, [source, translation, validateForm]);
 
+  // HIGH-5 FIX: Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedValidateRef.current) {
+        clearTimeout(debouncedValidateRef.current);
+      }
+    };
+  }, []);
+
   // Load active proper nouns dictionaries from configuration
   useEffect(() => {
+    // HIGH-4 FIX: Track mount status to prevent setState on unmounted component
+    let isMounted = true;
+
     const loadActiveProperNouns = async (): Promise<void> => {
       try {
         const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data) {
+        if (configResult.success && configResult.data && isMounted) {
           setActiveProperNouns(configResult.data.activeProperNouns || ['properNouns']);
         }
       } catch (error) {
-        logger.error('Failed to load active proper nouns:', error);
+        if (isMounted) {
+          logger.error('Failed to load active proper nouns:', error);
+        }
       }
     };
 
     loadActiveProperNouns();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Load all dictionary types including custom ones
   useEffect(() => {
+    // HIGH-4 FIX: Track mount status to prevent setState on unmounted component
+    let isMounted = true;
+
     const loadAllDictionaries = async (): Promise<void> => {
       try {
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
-        // Filter dictionary types to only include active proper nouns
-        const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
-          if (!id.startsWith('properNouns') || activeProperNouns.includes(id)) {
-            acc[id] = info;
-          }
-          return acc;
-        }, {} as DictionaryTypesCollection);
-        setAllDictionaryTypes(filteredTypes);
+        if (isMounted) {
+          // Filter dictionary types to only include active proper nouns
+          const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
+            if (!id.startsWith('properNouns') || activeProperNouns.includes(id)) {
+              acc[id] = info;
+            }
+            return acc;
+          }, {} as DictionaryTypesCollection);
+          setAllDictionaryTypes(filteredTypes);
+        }
       } catch (error) {
-        logger.error('Failed to load dictionary types:', error);
+        if (isMounted) {
+          logger.error('Failed to load dictionary types:', error);
+        }
       }
     };
 
     loadAllDictionaries();
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+    };
   }, [activeProperNouns]);
 
   // Get available dictionaries for the dropdown
@@ -372,18 +434,23 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   // Update the dictionary change handler
   const handleDictionaryChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     const newDictionary = e.target.value;
-    setActiveDictionary(newDictionary);
-    onDictionaryChange?.(newDictionary); // Call the callback if provided
+    setActiveDictionary(newDictionary); // Update local state
+    onDictionaryChange?.(newDictionary); // Notify parent
 
-    // Re-check for existing entries when dictionary changes
-    if (source.trim()) {
-      checkForExistingEntry(source);
-    }
+    // MEDIUM-8 FIX: Clear source and translation when dictionary changes
+    // This prevents inappropriate text from being used in the wrong dictionary type
+    setSource('');
+    setTranslation('');
+    setExistingEntry(null);
+    setShowExistingEntryNotification(false);
 
-    // Re-validate character and pattern entries when dictionary changes
-    validateCharacterEntry(source);
-    validatePatternEntry(source);
+    // Clear validation states
+    setShowCharacterValidation(false);
+    setShowPatternValidation(false);
   };
+
+  // HIGH-5 FIX: Debounce validation to reduce unnecessary computation
+  const debouncedValidateRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handler for source text changes
   const handleSourceChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -396,9 +463,15 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       setExistingEntry(null);
     }
 
-    // Validate character and pattern entries as user types
-    validateCharacterEntry(newSource);
-    validatePatternEntry(newSource);
+    // HIGH-5 FIX: Debounce validation - wait 300ms after user stops typing
+    if (debouncedValidateRef.current) {
+      clearTimeout(debouncedValidateRef.current);
+    }
+
+    debouncedValidateRef.current = setTimeout(() => {
+      validateCharacterEntry(newSource);
+      validatePatternEntry(newSource);
+    }, 300);
   };
 
   // Handler for when translation field gains focus
