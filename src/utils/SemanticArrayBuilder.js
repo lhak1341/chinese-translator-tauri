@@ -3,6 +3,8 @@
  * Captures 1:1 semantic relationships during translation for accurate highlighting
  */
 
+import { logger } from './logger';
+
 export class SemanticArrayBuilder {
   constructor() {
     // Metadata object pool for performance optimization
@@ -25,6 +27,9 @@ export class SemanticArrayBuilder {
     this.original = [];
     this.translated = [];
     this.metadata = [];
+
+    // Track position mapping order (CRITICAL-2: Detect out-of-order calls)
+    this.lastPositionSet = -1;
   }
 
   /**
@@ -98,9 +103,26 @@ export class SemanticArrayBuilder {
     const unmapped = candidates.find((c) => !c.isMapped);
     const target = unmapped || candidates[0]; // Use first candidate if all mapped
 
+    // CRITICAL-2: Verify call order matches text order to prevent position swapping
+    // setPositionByMatch should be called in ascending position order during postProcess
+    if (this.lastPositionSet !== -1 && startPos < this.lastPositionSet) {
+      logger.error('❌ setPositionByMatch called out of order!', {
+        tokenIndex,
+        translatedText,
+        expectedOrder: 'ascending positions',
+        previousPos: this.lastPositionSet,
+        currentPos: startPos,
+        violation: 'Position decreased',
+        impact: 'May cause incorrect bidirectional highlighting',
+      });
+    }
+
     // Update the selected candidate's position
     target.meta.translatedStart = startPos;
     target.meta.translatedEnd = endPos;
+
+    // Track last position for order validation
+    this.lastPositionSet = endPos;
 
     // MEDIUM-2 FIX: Update translated array to match actual casing in final text
     // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ở")

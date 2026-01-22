@@ -106,9 +106,14 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   // Render a single segment with highlighting
   const renderSegment = (segment: any, index: number) => {
     if (segment.isClickable) {
+      // CRITICAL-3: Guard against null/undefined to prevent highlight bugs
       const isHighlighted =
-        highlightedUnitIndex === segment.unitIndex ||
-        highlightedTranslationUnitIndex === segment.unitIndex;
+        (highlightedUnitIndex !== null &&
+          highlightedUnitIndex !== undefined &&
+          highlightedUnitIndex === segment.unitIndex) ||
+        (highlightedTranslationUnitIndex !== null &&
+          highlightedTranslationUnitIndex !== undefined &&
+          highlightedTranslationUnitIndex === segment.unitIndex);
 
       return (
         <span

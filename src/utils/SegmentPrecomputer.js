@@ -9,6 +9,8 @@
  * released until component unmount), making caller-managed pooling impractical.
  */
 
+import { logger } from './logger';
+
 export class SegmentPrecomputer {
   // Enhanced with punctuation handling for proper noun highlighting
   /**
@@ -74,6 +76,25 @@ export class SegmentPrecomputer {
         }
       }
 
+      // IMPORTANT-6: Validate greedy match selection
+      // Ensure selected match can actually be extracted from remaining text
+      if (bestMatch) {
+        const remainingLength = text.length - (currentPosition + bestOffset);
+        if (bestMatch.unit.length > remainingLength) {
+          logger.error('❌ Greedy matching validation failed: match exceeds remaining text', {
+            matchLength: bestMatch.unit.length,
+            remainingLength,
+            currentPosition,
+            bestOffset,
+            unit: bestMatch.unit,
+            impact: 'Incomplete segment would be created',
+          });
+          // Skip this match and advance by 1 character to avoid infinite loop
+          currentPosition++;
+          continue;
+        }
+      }
+
       if (bestMatch) {
         // Handle any punctuation before the match
         if (bestOffset > 0) {
@@ -92,18 +113,28 @@ export class SegmentPrecomputer {
         // Found a semantic unit match - mark as used to handle duplicates correctly
         usedIndices.add(bestMatch.index);
 
+        // CRITICAL: Bounds checking to prevent reading beyond text length
+        const endPosition = Math.min(currentPosition + bestMatch.unit.length, text.length);
+
+        if (endPosition - currentPosition !== bestMatch.unit.length) {
+          logger.error('Segment length mismatch (array out-of-bounds prevented):', {
+            expected: bestMatch.unit.length,
+            actual: endPosition - currentPosition,
+            position: currentPosition,
+            textLength: text.length,
+            unit: bestMatch.unit,
+          });
+        }
+
         // Preserve original case from the full text
-        const originalCaseText = text.substring(
-          currentPosition,
-          currentPosition + bestMatch.unit.length
-        );
+        const originalCaseText = text.substring(currentPosition, endPosition);
 
         // Create semantic segment
         segments.push({
           type: 'semantic',
           text: originalCaseText,
           start: currentPosition,
-          end: currentPosition + bestMatch.unit.length,
+          end: endPosition,
           unitIndex: bestMatch.index,
           originalText: bestMatch.original,
           translatedText: originalCaseText,
@@ -112,7 +143,7 @@ export class SegmentPrecomputer {
           isClickable: true,
         });
 
-        currentPosition += bestMatch.unit.length;
+        currentPosition = endPosition;
       } else {
         // No semantic unit matches - advance carefully to avoid consuming potential matches
         const char = text[currentPosition];
@@ -380,6 +411,18 @@ export class SegmentPrecomputer {
     if (offset > 0) {
       const textAfterPunctuation = this.normalizeText(remainingText.substring(offset));
       if (textAfterPunctuation.startsWith(unit)) {
+        // IMPORTANT-5: Runtime enforcement - validate offset uses original text length
+        // Catch bugs where normalized length might accidentally be used for positions
+        if (offset >= remainingText.length) {
+          logger.error('❌ normalizeText safety violation: offset exceeds original text length', {
+            offset,
+            originalLength: remainingText.length,
+            normalizedLength: remaining.length,
+            unitText,
+            impact: 'Would cause array out-of-bounds in position calculation',
+          });
+          return { found: false, offset: 0 };
+        }
         return { found: true, offset };
       }
     }

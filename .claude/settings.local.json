@@ -6,7 +6,9 @@
       "Bash(cargo bench:*)",
       "Bash(wasm-pack:*)",
       "Bash(npx:*)",
-      "Bash(npm outdated:*)"
+      "Bash(npm outdated:*)",
+      "Bash(done)",
+      "Skill(commit-commands:commit)"
     ],
     "deny": [],
     "ask": []

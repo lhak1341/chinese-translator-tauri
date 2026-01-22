@@ -171,6 +171,15 @@ const Translator = ({ isActive = true }) => {
   const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
 
+  // IMPORTANT-4 FIX: Clear stale highlight state when semantic arrays change
+  // Prevents highlighting indices from previous translation causing errors or wrong highlighting
+  useEffect(() => {
+    if (semanticArrays !== null) {
+      // New translation completed - clear any stale highlighting from previous translation
+      dispatchHighlighting({ type: 'CLEAR_ALL' });
+    }
+  }, [semanticArrays]);
+
   // Simplified performance monitoring state
   const [_showAdvancedStats, _setShowAdvancedStats] = useState(false);
   // performanceStats and regressionHealth now managed by usePerformanceMonitoring hook

@@ -12,6 +12,7 @@
 
 import { getMemorySnapshot, releaseMemorySnapshot } from './DebugObjectPool.js';
 import { batchLog } from './BatchLogger.js';
+import { logger } from './logger';
 
 export class OptimizedSemanticArrayBuilder {
   constructor(estimatedCapacity = 100) {
@@ -69,6 +70,9 @@ export class OptimizedSemanticArrayBuilder {
 
     // Track actual usage
     this.length = 0;
+
+    // Track position mapping order (CRITICAL-2: Detect out-of-order calls)
+    this.lastPositionSet = -1;
 
     // Clear regex cache periodically to prevent memory leaks
     if (this.regexCache.size > this.maxCacheSize) {
@@ -160,9 +164,26 @@ export class OptimizedSemanticArrayBuilder {
     const unmapped = candidates.find((c) => !c.isMapped);
     const target = unmapped || candidates[0]; // Use first candidate if all mapped
 
+    // CRITICAL-2: Verify call order matches text order to prevent position swapping
+    // setPositionByMatch should be called in ascending position order during postProcess
+    if (this.lastPositionSet !== -1 && startPos < this.lastPositionSet) {
+      logger.error('❌ setPositionByMatch called out of order!', {
+        tokenIndex,
+        translatedText,
+        expectedOrder: 'ascending positions',
+        previousPos: this.lastPositionSet,
+        currentPos: startPos,
+        violation: 'Position decreased',
+        impact: 'May cause incorrect bidirectional highlighting',
+      });
+    }
+
     // Update the selected candidate's position
     target.meta.translatedStart = startPos;
     target.meta.translatedEnd = endPos;
+
+    // Track last position for order validation
+    this.lastPositionSet = endPos;
 
     // MEDIUM-2 FIX: Update translated array to match actual casing in final text
     // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ở")
