@@ -214,6 +214,27 @@ const Translator = ({ isActive = true }) => {
   const [isDictionaryReloading, setIsDictionaryReloading] = useState(false);
   const [savedScrollPositions, setSavedScrollPositions] = useState(null);
 
+  // MEDIUM-8 FIX: Timing constants for scroll restoration (eliminates magic numbers)
+  const SCROLL_RESTORATION_DELAYS = {
+    INITIAL_ATTEMPT: 50, // Single DOM update cycle (16.67ms frame time)
+    MAX_RETRY_DELAY: 1000, // Increased from 500ms for large texts (IMPORTANT-4)
+    MAX_RETRY_ATTEMPTS: 10, // Increased from 5 for large texts (IMPORTANT-4)
+    POST_RELOAD_DELAY: 100, // Allow React state updates to flush
+    CLEANUP_DELAY: 200, // Ensure scroll restoration completed before clearing state
+  };
+
+  // MEDIUM-7 FIX: Shared cleanup function to eliminate duplication
+  const cleanupScrollRestoration = useCallback(() => {
+    if (scrollRestorationTimeoutRef.current !== null) {
+      clearTimeout(scrollRestorationTimeoutRef.current);
+      scrollRestorationTimeoutRef.current = null;
+    }
+    if (scrollRestorationRafRef.current !== null) {
+      cancelAnimationFrame(scrollRestorationRafRef.current);
+      scrollRestorationRafRef.current = null;
+    }
+  }, []);
+
   // Functions to save and restore scroll positions
   const saveScrollPositions = useCallback(() => {
     const positions = {
@@ -235,72 +256,129 @@ const Translator = ({ isActive = true }) => {
   }, []);
 
   const restoreScrollPositions = useCallback(
-    (positions = savedScrollPositions) => {
+    (positions) => {
+      // CRITICAL-2 FIX: Positions parameter is now required (no default to stale state)
       if (!positions) {
-        logger.log('📍 No saved positions to restore');
-        return;
+        logger.warn('📍 restoreScrollPositions called without positions');
+        return Promise.resolve(); // Return resolved promise for consistency
       }
 
       logger.log('📍 Attempting to restore positions:', positions);
 
-      // Clear any existing timeout and rAF (MEDIUM-1 FIX: Prevent race condition)
-      if (scrollRestorationTimeoutRef.current !== null) {
-        clearTimeout(scrollRestorationTimeoutRef.current);
-        scrollRestorationTimeoutRef.current = null;
-      }
-      if (scrollRestorationRafRef.current !== null) {
-        cancelAnimationFrame(scrollRestorationRafRef.current);
-        scrollRestorationRafRef.current = null;
-      }
+      // MEDIUM-7 FIX: Use shared cleanup function
+      cleanupScrollRestoration();
 
-      // Recursive retry with early termination on success
-      const attemptRestore = (attemptsLeft = 5, delay = 0) => {
-        // Check if all refs are ready with content
-        const allRefsReady =
-          (!positions.original ||
-            (originalTextRef.current && originalTextRef.current.scrollHeight > 0)) &&
-          (!positions.translation ||
-            (translationTextRef.current && translationTextRef.current.scrollHeight > 0)) &&
-          (!positions.characterOnly ||
-            (characterOnlyTextRef.current && characterOnlyTextRef.current.scrollHeight > 0));
+      // Return a Promise that resolves when restoration completes
+      return new Promise((resolve) => {
+        // Recursive retry with early termination on success
+        // IMPORTANT-4 FIX: Increased max attempts (5→10) and delay (500ms→1000ms) for large texts
+        const attemptRestore = (
+          attemptsLeft = SCROLL_RESTORATION_DELAYS.MAX_RETRY_ATTEMPTS,
+          delay = 0
+        ) => {
+          // Check if all refs are ready with content
+          const allRefsReady =
+            (!positions.original ||
+              (originalTextRef.current && originalTextRef.current.scrollHeight > 0)) &&
+            (!positions.translation ||
+              (translationTextRef.current && translationTextRef.current.scrollHeight > 0)) &&
+            (!positions.characterOnly ||
+              (characterOnlyTextRef.current && characterOnlyTextRef.current.scrollHeight > 0));
 
-        if (allRefsReady) {
-          // Restore positions
-          if (originalTextRef.current && positions.original) {
-            originalTextRef.current.scrollTop = positions.original.scrollTop;
-            originalTextRef.current.scrollLeft = positions.original.scrollLeft;
+          if (allRefsReady) {
+            // CRITICAL-3 FIX: Wrap DOM manipulation in try-catch
+            // IMPORTANT-5 FIX: Clamp scroll positions to valid bounds
+            try {
+              if (originalTextRef.current && positions.original) {
+                const maxScrollTop = Math.max(
+                  0,
+                  originalTextRef.current.scrollHeight - originalTextRef.current.clientHeight
+                );
+                const maxScrollLeft = Math.max(
+                  0,
+                  originalTextRef.current.scrollWidth - originalTextRef.current.clientWidth
+                );
+                originalTextRef.current.scrollTop = Math.min(
+                  positions.original.scrollTop,
+                  maxScrollTop
+                );
+                originalTextRef.current.scrollLeft = Math.min(
+                  positions.original.scrollLeft,
+                  maxScrollLeft
+                );
+              }
+              if (translationTextRef.current && positions.translation) {
+                const maxScrollTop = Math.max(
+                  0,
+                  translationTextRef.current.scrollHeight - translationTextRef.current.clientHeight
+                );
+                const maxScrollLeft = Math.max(
+                  0,
+                  translationTextRef.current.scrollWidth - translationTextRef.current.clientWidth
+                );
+                translationTextRef.current.scrollTop = Math.min(
+                  positions.translation.scrollTop,
+                  maxScrollTop
+                );
+                translationTextRef.current.scrollLeft = Math.min(
+                  positions.translation.scrollLeft,
+                  maxScrollLeft
+                );
+              }
+              if (characterOnlyTextRef.current && positions.characterOnly) {
+                const maxScrollTop = Math.max(
+                  0,
+                  characterOnlyTextRef.current.scrollHeight -
+                    characterOnlyTextRef.current.clientHeight
+                );
+                const maxScrollLeft = Math.max(
+                  0,
+                  characterOnlyTextRef.current.scrollWidth -
+                    characterOnlyTextRef.current.clientWidth
+                );
+                characterOnlyTextRef.current.scrollTop = Math.min(
+                  positions.characterOnly.scrollTop,
+                  maxScrollTop
+                );
+                characterOnlyTextRef.current.scrollLeft = Math.min(
+                  positions.characterOnly.scrollLeft,
+                  maxScrollLeft
+                );
+              }
+              logger.log('📍 Scroll positions restored successfully');
+            } catch (error) {
+              logger.error('❌ Failed to restore scroll positions:', error);
+            }
+            scrollRestorationTimeoutRef.current = null;
+            resolve(); // Resolve promise when restoration completes
+          } else if (attemptsLeft > 0) {
+            // Retry with exponential backoff (using named constants)
+            const nextDelay =
+              delay === 0
+                ? SCROLL_RESTORATION_DELAYS.INITIAL_ATTEMPT
+                : Math.min(delay * 2, SCROLL_RESTORATION_DELAYS.MAX_RETRY_DELAY);
+            scrollRestorationTimeoutRef.current = setTimeout(
+              () => attemptRestore(attemptsLeft - 1, nextDelay),
+              nextDelay
+            );
+          } else {
+            logger.warn(
+              `📍 Failed to restore scroll positions after ${SCROLL_RESTORATION_DELAYS.MAX_RETRY_ATTEMPTS} attempts`
+            );
+            scrollRestorationTimeoutRef.current = null;
+            resolve(); // Resolve promise even if restoration failed (don't block cleanup)
           }
-          if (translationTextRef.current && positions.translation) {
-            translationTextRef.current.scrollTop = positions.translation.scrollTop;
-            translationTextRef.current.scrollLeft = positions.translation.scrollLeft;
-          }
-          if (characterOnlyTextRef.current && positions.characterOnly) {
-            characterOnlyTextRef.current.scrollTop = positions.characterOnly.scrollTop;
-            characterOnlyTextRef.current.scrollLeft = positions.characterOnly.scrollLeft;
-          }
-          logger.log('📍 Scroll positions restored successfully');
-          scrollRestorationTimeoutRef.current = null;
-        } else if (attemptsLeft > 0) {
-          // Retry with exponential backoff
-          const nextDelay = delay === 0 ? 50 : Math.min(delay * 2, 500);
-          scrollRestorationTimeoutRef.current = setTimeout(
-            () => attemptRestore(attemptsLeft - 1, nextDelay),
-            nextDelay
-          );
-        } else {
-          logger.warn('📍 Failed to restore scroll positions after 5 attempts');
-          scrollRestorationTimeoutRef.current = null;
-        }
-      };
+        };
 
-      // Start restoration with requestAnimationFrame for immediate attempt
-      // Store rAF ID to allow cancellation (MEDIUM-1 FIX)
-      scrollRestorationRafRef.current = requestAnimationFrame(() => {
-        scrollRestorationRafRef.current = null; // Clear after execution
-        attemptRestore();
+        // Start restoration with requestAnimationFrame for immediate attempt
+        // Store rAF ID to allow cancellation (MEDIUM-1 FIX)
+        scrollRestorationRafRef.current = requestAnimationFrame(() => {
+          scrollRestorationRafRef.current = null; // Clear after execution
+          attemptRestore();
+        });
       });
     },
-    [savedScrollPositions]
+    [cleanupScrollRestoration, SCROLL_RESTORATION_DELAYS]
   );
 
   // New optimized engine
@@ -316,6 +394,9 @@ const Translator = ({ isActive = true }) => {
   // Track scroll restoration timeout and rAF for cleanup (MEDIUM-1 FIX)
   const scrollRestorationTimeoutRef = useRef(null);
   const scrollRestorationRafRef = useRef(null);
+
+  // Track previous isDictionaryReloading value to detect reload completion (CRITICAL-1 FIX)
+  const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
 
   // Helper function to filter dictionaries based on active configuration
   const getFilteredDictionaries = useCallback((allDictionaries, activeProperNouns) => {
@@ -361,15 +442,8 @@ const Translator = ({ isActive = true }) => {
   // Cleanup timers on component unmount to prevent memory leaks
   useEffect(() => {
     return () => {
-      // Clean up scroll restoration timeout and rAF (MEDIUM-1 FIX)
-      if (scrollRestorationTimeoutRef.current !== null) {
-        clearTimeout(scrollRestorationTimeoutRef.current);
-        scrollRestorationTimeoutRef.current = null;
-      }
-      if (scrollRestorationRafRef.current !== null) {
-        cancelAnimationFrame(scrollRestorationRafRef.current);
-        scrollRestorationRafRef.current = null;
-      }
+      // MEDIUM-7 FIX: Use shared cleanup function (eliminates duplication)
+      cleanupScrollRestoration();
 
       // Clean up translation segment cache timer
       if (translationSegmentCache && typeof translationSegmentCache.destroy === 'function') {
@@ -386,7 +460,7 @@ const Translator = ({ isActive = true }) => {
       // Reset initialization flag to prevent blocked re-initialization if component unmounts during init
       isInitializingEngineRef.current = false;
     };
-  }, []);
+  }, [cleanupScrollRestoration]);
 
   // Initialize engine once when dictionaries are first loaded
   useEffect(() => {
@@ -1950,6 +2024,26 @@ const Translator = ({ isActive = true }) => {
   useEffect(() => {
     const loadAndTranslate = async () => {
       try {
+        // CRITICAL-1 ADDITIONAL FIX: Skip if dictionary reload just completed
+        // Prevents duplicate translation when isDictionaryReloading changes from true to false
+        const wasReloading = prevIsDictionaryReloadingRef.current;
+        const isReloading = isDictionaryReloading;
+
+        // Update ref for next run
+        prevIsDictionaryReloadingRef.current = isReloading;
+
+        if (wasReloading && !isReloading) {
+          logger.log(
+            '⏭️ Skipping translation - dictionary reload just completed (already retranslated)'
+          );
+          return;
+        }
+
+        if (isReloading) {
+          logger.log('⏭️ Skipping translation - dictionary reload in progress');
+          return;
+        }
+
         // Clear highlighting when input changes
         dispatchHighlighting({ type: 'CLEAR_ALL' });
 
@@ -2056,6 +2150,10 @@ const Translator = ({ isActive = true }) => {
 
     try {
       logger.log('🔄 Starting Reload Dictionary sequence...');
+      // IMPORTANT-6 FIX: Show initial progress message
+      setTranslatedText(
+        '🔄 Starting dictionary reload...\n\nStep 1: Stopping active translations...'
+      );
 
       // Step 1: Stop any ongoing translations and wait for them to finish
       logger.log('Step 1: Stopping ongoing translations...');
@@ -2091,6 +2189,8 @@ const Translator = ({ isActive = true }) => {
 
       // Step 2: Clear engine and caches
       logger.log('Step 2: Clearing engine and translation caches...');
+      // IMPORTANT-6 FIX: Show progress
+      setTranslatedText('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
 
       // Clear translation segment cache (prevents formatting corruption from cached results)
       try {
@@ -2127,11 +2227,19 @@ const Translator = ({ isActive = true }) => {
 
       // Step 4: Force reload all dictionaries from storage to pick up new entries
       logger.log('Step 4: Force reloading all dictionaries from storage...');
+      // IMPORTANT-6 FIX: Show progress with dictionary count
       const allDictionaryIds = Object.keys(dictionaries || {});
+      setTranslatedText(
+        `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries from storage...`
+      );
       const freshDictionaries = {};
 
       for (const dictId of allDictionaryIds) {
         try {
+          // IMPORTANT-6 FIX: Show which dictionary is loading
+          setTranslatedText(
+            `🔄 Dictionary reload in progress...\n\nStep 3: Loading dictionaries...\n\nCurrently loading: ${dictId}...`
+          );
           logger.log(`Force loading dictionary from storage: ${dictId}`);
           const result = await window.electronAPI.loadDictionary(dictId);
           if (result.success) {
@@ -2206,6 +2314,10 @@ const Translator = ({ isActive = true }) => {
 
       // Step 7: Reinitialize engine with fresh dictionaries and configuration
       logger.log('Step 7: Reinitializing engine with fresh dictionaries and configuration...');
+      // IMPORTANT-6 FIX: Show progress
+      setTranslatedText(
+        '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
+      );
       const dictionariesToUse =
         Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
 
@@ -2356,20 +2468,19 @@ const Translator = ({ isActive = true }) => {
       setTranslatedText(unexpectedErrorMessage);
       toast.error(`Dictionary reload failed: ${_error.message}`);
     } finally {
-      // Always reset the reloading flag (positions cleared in setTimeout)
-      setIsDictionaryReloading(false);
-      logger.log('🔄 Dictionary reload flag reset');
-
+      // CRITICAL-1 FIX: Keep isDictionaryReloading=true until AFTER scroll restoration
+      // Prevents auto-scroll from overriding saved positions during reload
       // Restore scroll positions after all React state updates have completed
-      setTimeout(() => {
+      setTimeout(async () => {
         logger.log('📍 Final scroll restoration attempt after reload complete');
-        restoreScrollPositions(savedPositions);
+        // CRITICAL-1 ENHANCEMENT: Await scroll restoration to complete before resetting flag
+        await restoreScrollPositions(savedPositions);
 
-        // Clear the saved positions after final restoration
-        setTimeout(() => {
-          setSavedScrollPositions(null);
-        }, 200);
-      }, 100);
+        // Reset reloading flag AFTER restoration definitely completes
+        setIsDictionaryReloading(false);
+        setSavedScrollPositions(null);
+        logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
+      }, SCROLL_RESTORATION_DELAYS.POST_RELOAD_DELAY);
     }
   }, [
     inputText,
