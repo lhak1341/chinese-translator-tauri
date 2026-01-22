@@ -224,6 +224,10 @@ const Translator = ({ isActive = true }) => {
     CLEANUP_DELAY: 200, // Ensure scroll restoration completed before clearing state
   };
 
+  // ISSUE-4 FIX: Timing constant for highlight scroll delay (eliminates magic number)
+  // Wait for React state update to complete before scrolling to highlighted element
+  const HIGHLIGHT_SCROLL_DELAY_MS = 10;
+
   // MEDIUM-7 FIX: Shared cleanup function to eliminate duplication
   const cleanupScrollRestoration = useCallback(() => {
     if (scrollRestorationTimeoutRef.current !== null) {
@@ -598,7 +602,7 @@ const Translator = ({ isActive = true }) => {
         // Auto-scroll to highlighted element in original text after state update
         setTimeout(() => {
           scrollToHighlightedElement(originalTextRef, segmentInfo.unitIndex);
-        }, 10);
+        }, HIGHLIGHT_SCROLL_DELAY_MS);
       } else if (segmentInfo.direction === 'original-to-translation') {
         // Clicked original text, highlight translation text
         dispatchHighlighting({ type: 'HIGHLIGHT_TRANSLATION', unitIndex: segmentInfo.unitIndex });
@@ -606,7 +610,7 @@ const Translator = ({ isActive = true }) => {
         // Auto-scroll to highlighted element in translation text after state update
         setTimeout(() => {
           scrollToHighlightedElement(translationTextRef, segmentInfo.unitIndex);
-        }, 10);
+        }, HIGHLIGHT_SCROLL_DELAY_MS);
       } else if (segmentInfo.direction === 'character-only-to-original') {
         // Clicked character-only text, highlight original text and full translation
         // DEBUG: Character-only click logging removed for performance
@@ -662,7 +666,7 @@ const Translator = ({ isActive = true }) => {
             setTimeout(() => {
               scrollToHighlightedElement(originalTextRef, bestMatch.index);
               scrollToHighlightedElement(translationTextRef, bestMatch.index);
-            }, 10);
+            }, HIGHLIGHT_SCROLL_DELAY_MS);
           } else {
             logger.warn(
               `⚠️ No matches found for "${targetCharacter}" in Chinese Text - using position fallback`
@@ -691,7 +695,7 @@ const Translator = ({ isActive = true }) => {
             setTimeout(() => {
               scrollToHighlightedElement(originalTextRef, clampedIndex);
               scrollToHighlightedElement(translationTextRef, clampedIndex);
-            }, 10);
+            }, HIGHLIGHT_SCROLL_DELAY_MS);
           }
         }
       }

@@ -5,6 +5,7 @@
 import React, { useMemo } from 'react';
 import type { ClickableTranslationSemanticProps } from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
+import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
 import { logger } from '../utils/logger';
 
@@ -111,49 +112,8 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   }, [translatedText, semanticArrays, direction]);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)
-  const paragraphs = useMemo(() => {
-    if (segments.length === 0) return [];
-
-    const result = [];
-    let currentParagraph: any[] = [];
-
-    for (const segment of segments) {
-      // Split by single newlines to detect indented paragraphs
-      const lines = segment.text.split(/(\n)/);
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        if (line === '\n') {
-          // Check if next line (if exists) starts with indentation or is empty
-          const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
-
-          if (nextLine === '\n' || nextLine.match(/^[\u3000\s　]+/)) {
-            // Next line is blank or starts with indentation - paragraph break
-            if (currentParagraph.length > 0) {
-              result.push(currentParagraph);
-              currentParagraph = [];
-            }
-            // Skip the newline itself
-            continue;
-          } else {
-            // Regular newline within paragraph
-            currentParagraph.push({ ...segment, text: line });
-          }
-        } else if (line) {
-          // Non-empty text
-          currentParagraph.push({ ...segment, text: line });
-        }
-      }
-    }
-
-    // Add final paragraph
-    if (currentParagraph.length > 0) {
-      result.push(currentParagraph);
-    }
-
-    return result;
-  }, [segments]);
+  // ISSUE-1 FIX: Use shared utility to eliminate code duplication
+  const paragraphs = useMemo(() => groupSegmentsIntoParagraphs(segments as any), [segments]);
 
   // Handle click on a semantic unit
   const handleUnitClick = (unitIndex: number) => {
