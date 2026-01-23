@@ -81,6 +81,8 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
 
     // HIGH-4 FIX: Return null (not empty array) to distinguish "no segments yet" from "no segments available"
     // This prevents flash of blank content while segments are being computed
+    // LOW-3 ANALYSIS: This distinction IS used - null means "loading", [] means "no segments"
+    // The fallback check `renderSegments.length === 0` happens AFTER segments are computed
     return prebuiltSegments === undefined ? null : [];
   }, [prebuiltSegments]);
 

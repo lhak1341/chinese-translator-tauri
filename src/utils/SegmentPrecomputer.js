@@ -46,9 +46,12 @@ export class SegmentPrecomputer {
     }));
 
     // Sort units by their tokenIndex to ensure text-order processing for duplicates
-    const filteredUnits = allUnits.sort(
-      (a, b) => (a.metadata.tokenIndex || 0) - (b.metadata.tokenIndex || 0)
-    );
+    // HIGH-3 FIX: Use optional chaining to prevent crash if metadata is null/undefined
+    const filteredUnits = allUnits.sort((a, b) => {
+      const aIndex = a.metadata?.tokenIndex ?? 0;
+      const bIndex = b.metadata?.tokenIndex ?? 0;
+      return aIndex - bIndex;
+    });
 
     // HIGH-3 DOCUMENTATION: Track used indices to ensure duplicate units map correctly
     // Set size: Grows linearly with semantic array length (max = semanticArrays.translated.length)

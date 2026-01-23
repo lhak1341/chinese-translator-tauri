@@ -407,13 +407,16 @@ export class OptimizedSemanticArrayBuilder {
    */
   getArrays(copy = true) {
     if (!copy) {
-      // Return direct references for read-only access (dangerous but faster)
-      return {
-        original: this.original,
-        translated: this.translated,
-        metadata: this.metadata,
+      // CRITICAL-1 FIX: Freeze returned arrays to prevent mutation of internal state
+      // If callers mutate these arrays, it corrupts the builder's internal state
+      // Object.freeze() prevents mutation while maintaining read-only performance benefit
+      // slice(0, this.length) ensures we only return used portion of pre-allocated arrays
+      return Object.freeze({
+        original: Object.freeze(this.original.slice(0, this.length)),
+        translated: Object.freeze(this.translated.slice(0, this.length)),
+        metadata: Object.freeze(this.metadata.slice(0, this.length)),
         length: this.length,
-      };
+      });
     }
 
     // Create properly sized arrays (not pre-allocated size)

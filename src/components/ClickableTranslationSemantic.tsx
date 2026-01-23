@@ -29,6 +29,14 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
     // For character-only translation, use position metadata when available (more reliable than indexOf)
     // CRITICAL-2 FIX: Use position metadata to handle duplicate units correctly
     if (direction === 'character-only-to-original') {
+      // MEDIUM-2 FIX: Validate translatedText before using non-null assertion
+      if (!translatedText) {
+        logger.warn(
+          'translatedText is null/undefined in character-only mode, returning empty segments'
+        );
+        return [];
+      }
+
       const directSegments = [];
       let currentPosition = 0;
 
@@ -128,7 +136,13 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
     }
 
     // For other translations, use the existing SegmentPrecomputer
-    const computedSegments = SegmentPrecomputer.precomputeSegments(translatedText!, semanticArrays);
+    // MEDIUM-2 FIX: Validate translatedText before using non-null assertion
+    if (!translatedText) {
+      logger.warn('translatedText is null/undefined, returning empty segments');
+      return [];
+    }
+
+    const computedSegments = SegmentPrecomputer.precomputeSegments(translatedText, semanticArrays);
     return computedSegments;
   }, [translatedText, semanticArrays, direction]);
 
