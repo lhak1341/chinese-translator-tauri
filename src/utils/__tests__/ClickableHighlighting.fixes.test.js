@@ -277,6 +277,33 @@ describe('MEDIUM-3: Reducer Index Validation', () => {
     expect(result2).toEqual(state); // State unchanged
   });
 
+  test('should accept arrays for SET_CHARACTER_ONLY_INDEX', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+
+    // Array of indices (for multi-character segments)
+    const validAction = { type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: [9, 10, 11] };
+    const result = highlightingReducer(state, validAction);
+    expect(result.characterOnlyUnitIndex).toEqual([9, 10, 11]);
+  });
+
+  test('should reject arrays with invalid indices for SET_CHARACTER_ONLY_INDEX', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+
+    // Array with negative index
+    const invalidAction = { type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: [9, -1, 11] };
+    const result = highlightingReducer(state, invalidAction);
+    expect(result).toEqual(state); // State unchanged
+  });
+
+  test('should reject arrays for non-CHARACTER_ONLY actions', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+
+    // Arrays not allowed for HIGHLIGHT_ORIGINAL
+    const invalidAction = { type: 'HIGHLIGHT_ORIGINAL', unitIndex: [5, 6] };
+    const result = highlightingReducer(state, invalidAction);
+    expect(result).toEqual(state); // State unchanged
+  });
+
   test('should accept valid unit indices', () => {
     const state = INITIAL_HIGHLIGHTING_STATE;
 
@@ -308,6 +335,60 @@ describe('MEDIUM-3: Reducer Index Validation', () => {
       const result = highlightingReducer(state, action);
       expect(result).toEqual(state); // All should reject invalid index
     });
+  });
+});
+
+describe('CRITICAL: Three-Way Highlight Synchronization', () => {
+  test('clicking Full Translation should use HIGHLIGHT_BOTH action', () => {
+    // Simulate clicking Full Translation
+    const state = INITIAL_HIGHLIGHTING_STATE;
+    const action = { type: 'HIGHLIGHT_BOTH', unitIndex: 5 };
+    const result = highlightingReducer(state, action);
+
+    // Verify all three indices are set correctly
+    expect(result.unitIndex).toBe(5); // Original Text
+    expect(result.translationUnitIndex).toBe(5); // Full Translation
+    expect(result.characterOnlyUnitIndex).toBe(-1); // Bridge will set this
+    expect(result.isCharacterOnlyClick).toBe(false);
+  });
+
+  test('HIGHLIGHT_BOTH keeps Full Translation highlighted', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+    const action = { type: 'HIGHLIGHT_BOTH', unitIndex: 3 };
+    const result = highlightingReducer(state, action);
+
+    // Full Translation should stay highlighted (NOT cleared to -1)
+    expect(result.translationUnitIndex).toBe(3);
+    expect(result.translationUnitIndex).not.toBe(-1);
+  });
+
+  test('HIGHLIGHT_ORIGINAL would clear translationUnitIndex (bug behavior)', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+    const action = { type: 'HIGHLIGHT_ORIGINAL', unitIndex: 3 };
+    const result = highlightingReducer(state, action);
+
+    // This is the bug: Full Translation loses highlight
+    expect(result.unitIndex).toBe(3); // Original highlights
+    expect(result.translationUnitIndex).toBe(-1); // Full Translation cleared
+  });
+
+  test('clicking Original should highlight Full Translation', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+    const action = { type: 'HIGHLIGHT_TRANSLATION', unitIndex: 3 };
+    const result = highlightingReducer(state, action);
+
+    expect(result.unitIndex).toBe(-1);
+    expect(result.translationUnitIndex).toBe(3); // Full Translation highlights
+  });
+
+  test('clicking Character-only should highlight both Original and Full Translation', () => {
+    const state = INITIAL_HIGHLIGHTING_STATE;
+    const action = { type: 'HIGHLIGHT_FROM_CHARACTER_ONLY', unitIndex: 7 };
+    const result = highlightingReducer(state, action);
+
+    expect(result.unitIndex).toBe(7); // Original highlights
+    expect(result.translationUnitIndex).toBe(7); // Full Translation highlights
+    expect(result.isCharacterOnlyClick).toBe(true); // Prevents circular updates
   });
 });
 

@@ -599,8 +599,10 @@ const Translator = ({ isActive = true }) => {
       // DEBUG: Segment click logging removed for cleaner console
 
       if (segmentInfo.direction === 'translation-to-original') {
-        // Clicked translation text, highlight original text
-        dispatchHighlighting({ type: 'HIGHLIGHT_ORIGINAL', unitIndex: segmentInfo.unitIndex });
+        // Clicked translation text, highlight original text AND keep translation highlighted
+        // CRITICAL FIX: Use HIGHLIGHT_BOTH to keep Full Translation highlighted
+        // while also highlighting Original and Character-only (via bridge useEffect)
+        dispatchHighlighting({ type: 'HIGHLIGHT_BOTH', unitIndex: segmentInfo.unitIndex });
 
         // Auto-scroll to highlighted element in original text after state update
         setTimeout(() => {

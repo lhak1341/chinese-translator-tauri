@@ -53,10 +53,22 @@
 
 /**
  * MEDIUM-3 FIX: Validate unit index before updating state
- * @param {number} unitIndex - Unit index to validate
+ * @param {number|number[]} unitIndex - Unit index to validate (can be array for Character-only)
+ * @param {string} actionType - Action type (affects validation rules)
  * @returns {boolean} True if index is valid
  */
-function isValidUnitIndex(unitIndex) {
+function isValidUnitIndex(unitIndex, actionType) {
+  // SET_CHARACTER_ONLY_INDEX can accept arrays (for multi-character segments)
+  if (actionType === 'SET_CHARACTER_ONLY_INDEX') {
+    if (Array.isArray(unitIndex)) {
+      // Array of indices: all must be numbers >= 0
+      return unitIndex.every((idx) => typeof idx === 'number' && idx >= 0);
+    }
+    // Single index: must be number >= -1
+    return typeof unitIndex === 'number' && unitIndex >= -1;
+  }
+
+  // All other actions: must be single number >= -1
   return typeof unitIndex === 'number' && unitIndex >= -1;
 }
 
@@ -67,8 +79,8 @@ function isValidUnitIndex(unitIndex) {
  * @returns {HighlightingState} New state
  */
 export function highlightingReducer(state, action) {
-  // MEDIUM-3 FIX: Validate indices in all actions
-  if (action.unitIndex !== undefined && !isValidUnitIndex(action.unitIndex)) {
+  // MEDIUM-3 FIX: Validate indices in all actions (action-specific validation)
+  if (action.unitIndex !== undefined && !isValidUnitIndex(action.unitIndex, action.type)) {
     console.warn(`Invalid unitIndex in ${action.type}:`, action.unitIndex, '- ignoring action');
     return state; // Don't update state with invalid index
   }
