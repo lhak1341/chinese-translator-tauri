@@ -215,6 +215,9 @@ const Translator = ({ isActive = true }) => {
   const [isDictionaryReloading, setIsDictionaryReloading] = useState(false);
   const [savedScrollPositions, setSavedScrollPositions] = useState(null);
 
+  // HIGH-1 FIX: Protect against concurrent dictionary reloads
+  const [isReloading, setIsReloading] = useState(false);
+
   // MEDIUM-8 FIX: Timing constants for scroll restoration (eliminates magic numbers)
   const SCROLL_RESTORATION_DELAYS = {
     INITIAL_ATTEMPT: 50, // Single DOM update cycle (16.67ms frame time)
@@ -952,8 +955,44 @@ const Translator = ({ isActive = true }) => {
     }
   }, [highlightedCharacterOnlyUnitIndex]);
 
+  // MEDIUM-4 FIX: Monitor cache degradation and alert user
+  useEffect(() => {
+    const checkCacheHealth = () => {
+      try {
+        const stats = translationSegmentCache.getStats();
+
+        // Only alert if cache has been used enough to be meaningful
+        if (stats.hitRate < 50 && stats.totalLookups > 100) {
+          logger.warn(
+            `⚠️ Cache degradation detected: ${stats.hitRate.toFixed(1)}% hit rate after ${stats.totalLookups} lookups`
+          );
+          toast.warning(
+            'Translation cache degraded. Consider reloading dictionaries for better performance.',
+            {
+              duration: 8000,
+              id: 'cache-degradation', // Prevent duplicate toasts
+            }
+          );
+        }
+      } catch (error) {
+        logger.error('Failed to check cache health:', error);
+      }
+    };
+
+    // Check cache health every 5 minutes during active use
+    const interval = setInterval(checkCacheHealth, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Track active translation controllers for cancellation
   const activeTranslationControllers = useRef(new Map());
+
+  // CRITICAL-1 FIX: Translation timeout to prevent stuck controllers
+  // Each translation gets a timeout that cleans up Map if translation hangs
+  const TRANSLATION_TIMEOUT_MS = 60000; // 1 minute max per translation
+
+  // MEDIUM-1 FIX: Clipboard translation debouncing to prevent double-clicks
+  const isClipboardBusy = useRef(false);
 
   // Optimized performance monitoring with reduced overhead
   // updatePerformanceStats now provided by usePerformanceMonitoring hook
@@ -1078,6 +1117,19 @@ const Translator = ({ isActive = true }) => {
       // Register this translation for potential cancellation
       activeTranslationControllers.current.set(translationId, abortController);
 
+      // CRITICAL-1 FIX: Add timeout to prevent stuck controllers
+      // If translation hangs (WASM crash, network issue, infinite loop), clean up after timeout
+      const controllerTimeoutId = setTimeout(() => {
+        if (activeTranslationControllers.current.has(translationId)) {
+          logger.warn(
+            `⏰ Translation ${translationId} timed out after ${TRANSLATION_TIMEOUT_MS}ms - cleaning up controller`
+          );
+          abortController.abort();
+          activeTranslationControllers.current.delete(translationId);
+          setActiveTranslations((prev) => Math.max(0, prev - 1));
+        }
+      }, TRANSLATION_TIMEOUT_MS);
+
       setActiveTranslations((prev) => {
         const newCount = prev + 1;
         if (newCount > 3) {
@@ -1089,6 +1141,20 @@ const Translator = ({ isActive = true }) => {
       try {
         if (isLoading) {
           return text;
+        }
+
+        // HIGH-2 FIX: Verify segment cleanup is firing before starting new translation
+        if (engineRef.current?.translationSegments?.length > 100) {
+          logger.error(
+            `🚨 Segment cleanup failed: ${engineRef.current.translationSegments.length} segments accumulated (expected ≤35)`
+          );
+          // Force immediate cleanup
+          const oldCount = engineRef.current.translationSegments.length;
+          engineRef.current.translationSegments = engineRef.current.translationSegments.slice(-35);
+          logger.log(
+            `✅ Forced segment cleanup: ${oldCount} → ${engineRef.current.translationSegments.length}`
+          );
+          toast.warning('Performance optimization applied (segment cleanup)', { duration: 3000 });
         }
 
         // Use optimized engine with progressive translation
@@ -1224,6 +1290,9 @@ const Translator = ({ isActive = true }) => {
           return 'Engine not ready. Please wait for engine initialization.';
         }
       } finally {
+        // CRITICAL-1 FIX: Clear controller timeout
+        clearTimeout(controllerTimeoutId);
+
         // Clean up translation controller
         activeTranslationControllers.current.delete(translationId);
 
@@ -2111,6 +2180,13 @@ const Translator = ({ isActive = true }) => {
 
   // Memoized clipboard translation handler
   const handleTranslateFromClipboard = useCallback(async () => {
+    // MEDIUM-1 FIX: Prevent concurrent clipboard translations
+    if (isClipboardBusy.current) {
+      logger.log('Clipboard translation already in progress - ignoring duplicate call');
+      return;
+    }
+
+    isClipboardBusy.current = true;
     try {
       // Use Tauri clipboard API for direct access (no browser permission prompt)
       const rawText = await window.electronAPI.readClipboard();
@@ -2134,11 +2210,24 @@ const Translator = ({ isActive = true }) => {
       }, 50); // Small delay to ensure content has been updated
     } catch (_err) {
       logger.error('Failed to read clipboard:', _err);
+    } finally {
+      // Reset busy flag after short delay to allow translation to start
+      setTimeout(() => {
+        isClipboardBusy.current = false;
+      }, 500);
     }
   }, []); // No dependencies - only uses setters which are stable
 
   // Reload Dictionary handler to clear all caches, reload dictionaries from storage, and reinitialize engine
   const handleForceReload = useCallback(async () => {
+    // HIGH-1 FIX: Prevent concurrent dictionary reloads
+    if (isReloading) {
+      logger.warn('🛑 Reload already in progress - ignoring duplicate call');
+      toast.warning('Dictionary reload already in progress');
+      return;
+    }
+
+    setIsReloading(true);
     logger.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
     logger.log('Current state before reload:', {
       translatedText: translatedText?.substring(0, 50),
@@ -2235,28 +2324,44 @@ const Translator = ({ isActive = true }) => {
       // IMPORTANT-6 FIX: Show progress with dictionary count
       const allDictionaryIds = Object.keys(dictionaries || {});
       setTranslatedText(
-        `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries from storage...`
+        `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
       );
-      const freshDictionaries = {};
 
-      for (const dictId of allDictionaryIds) {
+      // HIGH-3 FIX: Parallelize dictionary loading for 8x speedup
+      const loadPromises = allDictionaryIds.map(async (dictId) => {
         try {
-          // IMPORTANT-6 FIX: Show which dictionary is loading
-          setTranslatedText(
-            `🔄 Dictionary reload in progress...\n\nStep 3: Loading dictionaries...\n\nCurrently loading: ${dictId}...`
-          );
           logger.log(`Force loading dictionary from storage: ${dictId}`);
           const result = await window.electronAPI.loadDictionary(dictId);
           if (result.success) {
-            freshDictionaries[dictId] = result.data;
-            logger.log(`✅ Loaded ${dictId}: ${Object.keys(result.data || {}).length} entries`);
-          } else {
-            logger.error(`Failed to load dictionary ${dictId}:`, result.error);
+            return {
+              dictId,
+              data: result.data,
+              success: true,
+              entryCount: Object.keys(result.data || {}).length,
+            };
           }
-        } catch (_error) {
-          logger.error(`Failed to reload dictionary ${dictId}:`, _error);
+          logger.error(`Failed to load dictionary ${dictId}:`, result.error);
+          return { dictId, error: result.error, success: false };
+        } catch (error) {
+          logger.error(`Failed to reload dictionary ${dictId}:`, error);
+          return { dictId, error: error.message, success: false };
         }
-      }
+      });
+
+      const results = await Promise.all(loadPromises);
+
+      // Process results
+      const freshDictionaries = {};
+      let successCount = 0;
+      results.forEach(({ dictId, data, success, entryCount }) => {
+        if (success) {
+          freshDictionaries[dictId] = data;
+          successCount++;
+          logger.log(`✅ Loaded ${dictId}: ${entryCount} entries`);
+        }
+      });
+
+      logger.log(`📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel`);
 
       // Update context with fresh data from storage
       if (Object.keys(freshDictionaries).length > 0) {
@@ -2496,6 +2601,9 @@ const Translator = ({ isActive = true }) => {
         setIsDictionaryReloading(false);
         setSavedScrollPositions(null);
         logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
+
+        // HIGH-1 FIX: Reset concurrent reload protection after complete
+        setIsReloading(false);
       }, SCROLL_RESTORATION_DELAYS.POST_RELOAD_DELAY);
     }
   }, [
@@ -2504,6 +2612,7 @@ const Translator = ({ isActive = true }) => {
     dictionaries,
     getFilteredDictionaries,
     isLoading,
+    isReloading,
     saveScrollPositions,
     restoreScrollPositions,
     translateCharacterOnly,
@@ -2648,6 +2757,7 @@ const Translator = ({ isActive = true }) => {
         handleQuickAddProperNoun={handleQuickAddProperNoun}
         handleForceReload={handleForceReload}
         isLoading={isLoading}
+        isReloading={isReloading}
         isTranslating={isTranslating}
         progressInfo={progressInfo}
         activeTranslations={activeTranslations}

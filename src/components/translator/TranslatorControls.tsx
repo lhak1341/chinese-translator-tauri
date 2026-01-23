@@ -58,6 +58,7 @@ interface TranslatorControlsProps {
   handleQuickAddProperNoun: () => void;
   handleForceReload: () => Promise<void>;
   isLoading: boolean;
+  isReloading: boolean;
   isTranslating: boolean;
   progressInfo: ProgressInfo | null;
   activeTranslations: number;
@@ -77,6 +78,7 @@ export default function TranslatorControls({
   handleQuickAddProperNoun,
   handleForceReload,
   isLoading,
+  isReloading,
   isTranslating,
   progressInfo,
   activeTranslations,
@@ -127,16 +129,20 @@ export default function TranslatorControls({
       {/* Reload */}
       <button
         onClick={handleForceReload}
-        disabled={isLoading}
-        title="Reload Dictionary"
+        disabled={isLoading || isReloading}
+        title={isReloading ? 'Reload in progress...' : 'Reload Dictionary'}
         aria-label={
-          isLoading ? 'Reload disabled while loading' : 'Reload dictionaries from storage'
+          isReloading
+            ? 'Reload in progress'
+            : isLoading
+              ? 'Reload disabled while loading'
+              : 'Reload dictionaries from storage'
         }
-        className={`${styles.button} ${styles.buttonReload} ${isLoading ? styles.buttonDisabled : styles.buttonEnabled}`}
-        style={{ opacity: isLoading ? 0.6 : 1 }}
+        className={`${styles.button} ${styles.buttonReload} ${isLoading || isReloading ? styles.buttonDisabled : styles.buttonEnabled}`}
+        style={{ opacity: isLoading || isReloading ? 0.6 : 1 }}
       >
         <RotateCcw size={15} aria-hidden="true" />
-        Reload
+        {isReloading ? 'Reloading...' : 'Reload'}
       </button>
 
       {/* Spacer */}

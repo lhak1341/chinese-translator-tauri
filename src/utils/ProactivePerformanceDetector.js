@@ -115,8 +115,12 @@ export class PerformanceBaselineTracker {
       sessionAge: timestamp - this.monitoringStartTime,
     };
 
+    // MEDIUM-3 FIX: Use immutable constant instead of mutable option
+    // Prevents unbounded growth if maxHistorySize changes at runtime
+    const MAX_PERFORMANCE_HISTORY = 1000;
+
     // Maintain history size - check BEFORE push to prevent unbounded growth
-    if (this.performanceHistory.length >= this.options.maxHistorySize) {
+    if (this.performanceHistory.length >= MAX_PERFORMANCE_HISTORY) {
       this.performanceHistory.shift(); // Remove oldest entry
     }
 

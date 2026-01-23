@@ -736,6 +736,13 @@ export class TranslationSegmentCache {
       }
     });
 
+    // MEDIUM-2 FIX: Add periodic quota monitoring during cleanup
+    // Proactively monitor quota even when no new writes are happening
+    if (this.isApproachingQuota()) {
+      logger.log('📊 Periodic quota check: approaching limit, triggering proactive cleanup');
+      this.proactiveCleanup();
+    }
+
     this.metadata.lastCleanup = now;
     this.saveMetadata();
 
