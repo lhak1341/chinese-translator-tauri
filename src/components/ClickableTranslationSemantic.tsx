@@ -40,7 +40,21 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       const directSegments = [];
       let currentPosition = 0;
 
+      // HIGH-3 FIX: Track performance to detect expensive iterations
+      const startTime = performance.now();
+      const maxIterations = 10000; // Safety limit for runaway loops
+
       for (let i = 0; i < semanticArrays.translated.length; i++) {
+        // HIGH-3 FIX: Safety check for runaway iteration
+        if (i >= maxIterations) {
+          logger.error('❌ Character-only iteration exceeded safety limit - aborting', {
+            iterationCount: i,
+            maxIterations,
+            arrayLength: semanticArrays.translated.length,
+            elapsedMs: performance.now() - startTime,
+          });
+          break;
+        }
         const translatedUnit = semanticArrays.translated[i];
         const originalUnit = semanticArrays.original[i];
         const metadata = semanticArrays.metadata[i];
@@ -56,13 +70,46 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           metadata.translatedStart !== undefined &&
           metadata.translatedStart !== -1 &&
           metadata.translatedEnd !== undefined &&
-          metadata.translatedEnd !== -1
+          metadata.translatedEnd !== -1 &&
+          // MEDIUM-2 FIX: Validate position metadata is within text bounds
+          metadata.translatedStart >= 0 &&
+          metadata.translatedStart < translatedText!.length &&
+          metadata.translatedEnd > metadata.translatedStart &&
+          metadata.translatedEnd <= translatedText!.length
         ) {
           // Use position metadata (set during translation)
           actualPosition = metadata.translatedStart;
           unitLength = metadata.translatedEnd - metadata.translatedStart;
           usingMetadata = true;
         } else {
+          // MEDIUM-2 FIX: Log metadata validation failure in development
+          if (
+            process.env.NODE_ENV === 'development' &&
+            metadata &&
+            metadata.translatedStart !== undefined &&
+            metadata.translatedStart !== -1 &&
+            metadata.translatedEnd !== undefined &&
+            metadata.translatedEnd !== -1
+          ) {
+            logger.warn('⚠️ Position metadata failed bounds validation - using indexOf fallback', {
+              unitIndex: i,
+              translatedUnit,
+              metadataStart: metadata.translatedStart,
+              metadataEnd: metadata.translatedEnd,
+              textLength: translatedText!.length,
+              reason:
+                metadata.translatedStart < 0
+                  ? 'Negative start position'
+                  : metadata.translatedStart >= translatedText!.length
+                    ? 'Start position beyond text length'
+                    : metadata.translatedEnd <= metadata.translatedStart
+                      ? 'End position not after start'
+                      : metadata.translatedEnd > translatedText!.length
+                        ? 'End position beyond text length'
+                        : 'Unknown validation failure',
+            });
+          }
+
           // Fallback to indexOf() search if position metadata not available
           const remainingText = translatedText!.substring(currentPosition);
           const unitPosition = remainingText.indexOf(translatedUnit);
@@ -117,6 +164,17 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         });
 
         currentPosition = actualPosition + unitLength;
+      }
+
+      // HIGH-3 FIX: Log performance warning if iteration took too long
+      const elapsedMs = performance.now() - startTime;
+      if (elapsedMs > 10) {
+        logger.warn('⚠️ Character-only segment computation took longer than expected', {
+          elapsedMs: elapsedMs.toFixed(2),
+          iterationCount: semanticArrays.translated.length,
+          segmentCount: directSegments.length,
+          impact: 'May cause UI jank during rapid mode switching',
+        });
       }
 
       // Add any remaining text

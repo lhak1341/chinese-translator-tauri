@@ -145,6 +145,18 @@ export class SegmentPrecomputer {
         // CRITICAL: Bounds checking to prevent reading beyond text length
         const endPosition = Math.min(currentPosition + bestMatch.unit.length, text.length);
 
+        // CRITICAL-1 FIX: Prevent infinite loop from zero-length segments
+        if (endPosition === currentPosition) {
+          logger.error('❌ Zero-length segment detected - skipping to prevent infinite loop', {
+            unitIndex: bestMatch.index,
+            unit: bestMatch.unit,
+            unitLength: bestMatch.unit.length,
+            position: currentPosition,
+          });
+          currentPosition++; // Force progress
+          continue;
+        }
+
         if (endPosition - currentPosition !== bestMatch.unit.length) {
           logger.error('Segment length mismatch (array out-of-bounds prevented):', {
             expected: bestMatch.unit.length,
@@ -222,6 +234,20 @@ export class SegmentPrecomputer {
             isClickable: false,
           });
 
+          // CRITICAL-1 FIX: Ensure forward progress to prevent infinite loop
+          // If nextBoundary equals currentPosition (shouldn't happen but safety check),
+          // force at least 1 character advance to prevent infinite loop
+          if (nextBoundary === currentPosition) {
+            logger.error('❌ Zero progress detected in SegmentPrecomputer - forcing advance', {
+              currentPosition,
+              nextBoundary,
+              remainingText: text.substring(
+                currentPosition,
+                Math.min(currentPosition + 20, text.length)
+              ),
+            });
+            nextBoundary = currentPosition + 1;
+          }
           currentPosition = nextBoundary;
         }
       }

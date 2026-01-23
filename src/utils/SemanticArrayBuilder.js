@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import { validatePosition } from './PositionValidationHelpers.js';
 
 export class SemanticArrayBuilder {
   constructor() {
@@ -106,31 +107,11 @@ export class SemanticArrayBuilder {
     const unmapped = candidates.find((c) => !c.isMapped);
     const target = unmapped || candidates[0]; // Use first candidate if all mapped
 
+    // MEDIUM-3 FIX: Use shared validation logic (extracted from duplicate code)
     // CRITICAL-1 FIX: Reject out-of-order positions to prevent corruption
-    // setPositionByMatch MUST be called in ascending position order during postProcess
-    if (this.lastPositionSet !== -1 && startPos < this.lastPositionSet) {
-      logger.error('❌ setPositionByMatch called out of order - REJECTING!', {
-        tokenIndex,
-        translatedText,
-        expectedOrder: 'ascending positions',
-        previousPos: this.lastPositionSet,
-        currentPos: startPos,
-        violation: 'Position decreased',
-        impact: 'Rejected to prevent bidirectional highlighting corruption',
-      });
-      return false; // ✅ Reject out-of-order positions
-    }
-
-    // Validate position range
-    if (startPos < 0 || endPos <= startPos) {
-      logger.error('❌ Invalid position range - REJECTING!', {
-        tokenIndex,
-        translatedText,
-        startPos,
-        endPos,
-        violation: 'startPos must be >= 0 and endPos must be > startPos',
-      });
-      return false;
+    // HIGH-1 FIX: Prevent overlapping positions by requiring startPos > lastPositionSet (not >=)
+    if (!validatePosition(startPos, endPos, this.lastPositionSet, tokenIndex, translatedText)) {
+      return false; // ✅ Reject invalid positions (out-of-order, overlapping, or invalid range)
     }
 
     // Update the selected candidate's position
@@ -306,7 +287,9 @@ export class SemanticArrayBuilder {
     if (!finalText) return;
 
     // MEDIUM-2 FIX: Cache regex patterns to avoid recompilation in loop
+    // HIGH-2 FIX: Add LRU eviction to prevent unbounded cache growth (50K+ entries after 100 translations)
     const regexCache = new Map();
+    const MAX_REGEX_CACHE_SIZE = 100;
 
     for (let i = 0; i < this.translated.length; i++) {
       const originalTranslation = this.translated[i];
@@ -317,6 +300,11 @@ export class SemanticArrayBuilder {
       // Get cached regex or create new one
       let regex = regexCache.get(originalTranslation);
       if (!regex) {
+        // HIGH-2 FIX: Evict oldest entry if cache is full (LRU eviction)
+        if (regexCache.size >= MAX_REGEX_CACHE_SIZE) {
+          const firstKey = regexCache.keys().next().value;
+          regexCache.delete(firstKey);
+        }
         regex = new RegExp(this.escapeRegex(originalTranslation), 'gi');
         regexCache.set(originalTranslation, regex);
       }

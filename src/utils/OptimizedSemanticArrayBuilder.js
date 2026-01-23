@@ -13,6 +13,7 @@
 import { getMemorySnapshot, releaseMemorySnapshot } from './DebugObjectPool.js';
 import { batchLog } from './BatchLogger.js';
 import { logger } from './logger';
+import { validatePosition } from './PositionValidationHelpers.js';
 
 export class OptimizedSemanticArrayBuilder {
   constructor(estimatedCapacity = 100) {
@@ -167,31 +168,11 @@ export class OptimizedSemanticArrayBuilder {
     const unmapped = candidates.find((c) => !c.isMapped);
     const target = unmapped || candidates[0]; // Use first candidate if all mapped
 
+    // MEDIUM-3 FIX: Use shared validation logic (extracted from duplicate code)
     // CRITICAL-1 FIX: Reject out-of-order positions to prevent corruption
-    // setPositionByMatch MUST be called in ascending position order during postProcess
-    if (this.lastPositionSet !== -1 && startPos < this.lastPositionSet) {
-      logger.error('❌ setPositionByMatch called out of order - REJECTING!', {
-        tokenIndex,
-        translatedText,
-        expectedOrder: 'ascending positions',
-        previousPos: this.lastPositionSet,
-        currentPos: startPos,
-        violation: 'Position decreased',
-        impact: 'Rejected to prevent bidirectional highlighting corruption',
-      });
-      return false; // ✅ Reject out-of-order positions
-    }
-
-    // Validate position range
-    if (startPos < 0 || endPos <= startPos) {
-      logger.error('❌ Invalid position range - REJECTING!', {
-        tokenIndex,
-        translatedText,
-        startPos,
-        endPos,
-        violation: 'startPos must be >= 0 and endPos must be > startPos',
-      });
-      return false;
+    // HIGH-1 FIX: Prevent overlapping positions by requiring startPos > lastPositionSet (not >=)
+    if (!validatePosition(startPos, endPos, this.lastPositionSet, tokenIndex, translatedText)) {
+      return false; // ✅ Reject invalid positions (out-of-order, overlapping, or invalid range)
     }
 
     // Update the selected candidate's position
