@@ -79,17 +79,27 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
       return prebuiltSegments;
     }
 
-    // Fallback to empty if no prebuilt segments available
-    return [];
+    // HIGH-4 FIX: Return null (not empty array) to distinguish "no segments yet" from "no segments available"
+    // This prevents flash of blank content while segments are being computed
+    return prebuiltSegments === undefined ? null : [];
   }, [prebuiltSegments]);
 
   // Create render segments only when highlight changes
   const renderSegments = useMemo(() => {
+    // HIGH-4 FIX: Handle null precomputedSegments (still loading)
+    if (!precomputedSegments) return [];
+
     return precomputedSegments.map((segment, index) => ({
       ...segment,
       key: `segment-${index}-${segment.unitIndex || 'na'}`,
       text: segment.translatedText || segment.text,
-      isHighlighted: highlightedTranslationUnitIndex === segment.unitIndex,
+      // CRITICAL-4 FIX: Explicit null/undefined guards before comparison
+      // Prevents silent failures if state corruption occurs
+      isHighlighted:
+        highlightedTranslationUnitIndex !== null &&
+        highlightedTranslationUnitIndex !== undefined &&
+        highlightedTranslationUnitIndex !== -1 &&
+        highlightedTranslationUnitIndex === segment.unitIndex,
     }));
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 

@@ -277,22 +277,30 @@ describe('MEDIUM-3: Reducer Index Validation', () => {
     expect(result2).toEqual(state); // State unchanged
   });
 
-  test('should accept arrays for SET_CHARACTER_ONLY_INDEX', () => {
+  test('should accept arrays for SET_CHARACTER_ONLY_INDEX and keep them as arrays', () => {
     const state = INITIAL_HIGHLIGHTING_STATE;
 
-    // Array of indices (for multi-character segments)
+    // CRITICAL-1 REVERT: Arrays are kept as arrays for multi-word segments
+    // Bridge useEffect passes arrays for multi-word segments like "ha lợi ba đặc" [0,1,2,3]
+    // ClickableTranslationSemantic uses .includes() to highlight all words in the array
     const validAction = { type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: [9, 10, 11] };
     const result = highlightingReducer(state, validAction);
+    // Should keep array as-is (not normalize)
     expect(result.characterOnlyUnitIndex).toEqual([9, 10, 11]);
   });
 
   test('should reject arrays with invalid indices for SET_CHARACTER_ONLY_INDEX', () => {
     const state = INITIAL_HIGHLIGHTING_STATE;
 
-    // Array with negative index
+    // Array with negative index - validation rejects entire array
     const invalidAction = { type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: [9, -1, 11] };
     const result = highlightingReducer(state, invalidAction);
-    expect(result).toEqual(state); // State unchanged
+    expect(result).toEqual(state); // State unchanged (validation rejected)
+
+    // Array with only valid indices should be kept as array
+    const validAction = { type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: [5, 6, 7] };
+    const validResult = highlightingReducer(state, validAction);
+    expect(validResult.characterOnlyUnitIndex).toEqual([5, 6, 7]); // Kept as array
   });
 
   test('should reject arrays for non-CHARACTER_ONLY actions', () => {

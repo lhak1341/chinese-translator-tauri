@@ -64,11 +64,21 @@ export function groupSegmentsIntoParagraphs(segments: Segment[]): Segment[][] {
           continue;
         } else {
           // Regular newline within paragraph
-          currentParagraph.push({ ...segment, text: line });
+          // HIGH-3 FIX: Deep copy metadata to prevent mutation sharing across paragraphs
+          currentParagraph.push({
+            ...segment,
+            text: line,
+            metadata: segment.metadata ? { ...segment.metadata } : undefined,
+          });
         }
       } else if (line) {
         // Non-empty text
-        currentParagraph.push({ ...segment, text: line });
+        // HIGH-3 FIX: Deep copy metadata to prevent mutation sharing across paragraphs
+        currentParagraph.push({
+          ...segment,
+          text: line,
+          metadata: segment.metadata ? { ...segment.metadata } : undefined,
+        });
       }
     }
   }

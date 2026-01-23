@@ -753,12 +753,33 @@ const Translator = ({ isActive = true }) => {
     // DEBUG: Bridge useEffect logging removed for performance
 
     // Determine which text is highlighted
-    if (highlightedTranslationUnitIndex !== -1 && semanticArrays.original) {
+    // HIGH-1 FIX: Validate array bounds before access to prevent undefined access
+    if (highlightedTranslationUnitIndex !== -1 && semanticArrays?.original) {
+      // Bounds check before accessing array
+      if (highlightedTranslationUnitIndex >= semanticArrays.original.length) {
+        logger.error('❌ Index out of bounds in bridge useEffect:', {
+          index: highlightedTranslationUnitIndex,
+          arrayLength: semanticArrays.original.length,
+          source: 'Full Translation highlight',
+        });
+        dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
+        return;
+      }
       // Full Translation is highlighted
       targetSegment = semanticArrays.original[highlightedTranslationUnitIndex];
       sourceType = `Full Translation[${highlightedTranslationUnitIndex}]`;
       logger.log('🎯 Detected Full Translation highlight:', { targetSegment, sourceType });
-    } else if (highlightedUnitIndex !== -1 && semanticArrays.original) {
+    } else if (highlightedUnitIndex !== -1 && semanticArrays?.original) {
+      // Bounds check before accessing array
+      if (highlightedUnitIndex >= semanticArrays.original.length) {
+        logger.error('❌ Index out of bounds in bridge useEffect:', {
+          index: highlightedUnitIndex,
+          arrayLength: semanticArrays.original.length,
+          source: 'Original Text highlight',
+        });
+        dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
+        return;
+      }
       // Chinese Text is highlighted (same semantic arrays as Full Translation)
       targetSegment = semanticArrays.original[highlightedUnitIndex];
       sourceType = `Chinese Text[${highlightedUnitIndex}]`;
@@ -779,20 +800,27 @@ const Translator = ({ isActive = true }) => {
       // DEBUG: Active segment lookup (removed for performance)
 
       // Find all possible matches for this segment in Character Only
+      // HIGH-2 FIX: Limit matches to prevent memory exhaustion in long documents
+      const MAX_MATCHES = 100; // Reasonable limit for scoring algorithm
       const allMatches = [];
 
       if (targetSegment.length === 1) {
-        // Single character - find all occurrences
-        for (let i = 0; i < characterOnlySemanticArrays.original.length; i++) {
+        // Single character - find all occurrences (with limit)
+        for (
+          let i = 0;
+          i < characterOnlySemanticArrays.original.length && allMatches.length < MAX_MATCHES;
+          i++
+        ) {
           if (characterOnlySemanticArrays.original[i] === targetSegment) {
             allMatches.push({ startIndex: i, indices: [i] });
           }
         }
       } else {
-        // Multi-character segment - find consecutive matches
+        // Multi-character segment - find consecutive matches (with limit)
         for (
           let i = 0;
-          i <= characterOnlySemanticArrays.original.length - targetSegment.length;
+          i <= characterOnlySemanticArrays.original.length - targetSegment.length &&
+          allMatches.length < MAX_MATCHES;
           i++
         ) {
           let isMatch = true;
@@ -810,6 +838,13 @@ const Translator = ({ isActive = true }) => {
             allMatches.push({ startIndex: i, indices });
           }
         }
+      }
+
+      // Warn if limit reached (may affect accuracy)
+      if (allMatches.length === MAX_MATCHES) {
+        logger.warn(
+          `⚠️ Exceeded maximum matches (${MAX_MATCHES}) for "${targetSegment}" - scoring may be incomplete`
+        );
       }
 
       logger.log(`  Found ${allMatches.length} matches for "${targetSegment}":`, allMatches);
@@ -909,11 +944,16 @@ const Translator = ({ isActive = true }) => {
 
           // If no context match found, fall back to position-based heuristic
           if (bestScore === -1) {
-            // Use a different heuristic: lower activeIndex → earlier occurrence
-            const matchIndex = activeIndex < 10 ? 0 : 1;
-            bestMatch = allMatches[Math.min(matchIndex, allMatches.length - 1)];
+            // CRITICAL-2 FIX: Use position ratio instead of arbitrary threshold
+            // Calculate which occurrence based on relative position in translation
+            const totalUnits = semanticArrays.original.length;
+            const positionRatio = totalUnits > 0 ? activeIndex / totalUnits : 0;
+            const estimatedOccurrence = Math.round(positionRatio * (allMatches.length - 1));
+            const matchIndex = Math.max(0, Math.min(estimatedOccurrence, allMatches.length - 1));
+
+            bestMatch = allMatches[matchIndex];
             logger.log(
-              `  No context match, using position heuristic: match ${Math.min(matchIndex, allMatches.length - 1)}`
+              `  No context match, using position ratio (${(positionRatio * 100).toFixed(0)}%): match ${matchIndex}/${allMatches.length - 1}`
             );
           } else {
             logger.log(`  Best context match: score ${bestScore}`);

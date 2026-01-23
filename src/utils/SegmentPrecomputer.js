@@ -84,17 +84,28 @@ export class SegmentPrecomputer {
             bestLength = unitData.unit.length;
             bestOffset = matchResult.offset;
           }
+        } else if (process.env.NODE_ENV === 'development') {
+          // MEDIUM-1 FIX: Log match attempts in development for debugging
+          // Only in development to avoid performance impact in production
+          const preview = remainingText.substring(0, 20).replace(/\n/g, '\\n');
+          logger.debug(
+            `  [No match] "${unitData.unit}" at position ${currentPosition} (remaining: "${preview}...")`
+          );
         }
       }
 
       // CRITICAL-7 FIX: Validate greedy match selection and prevent infinite loop
+      // CRITICAL-3 FIX: Use grapheme-aware length checking for Vietnamese diacritics
       // Ensure selected match can actually be extracted from remaining text
       if (bestMatch) {
-        const remainingLength = text.length - (currentPosition + bestOffset);
-        if (bestMatch.unit.length > remainingLength) {
-          logger.error('❌ Greedy matching validation failed: match exceeds remaining text', {
-            matchLength: bestMatch.unit.length,
-            remainingLength,
+        const remainingText = text.substring(currentPosition + bestOffset);
+        const graphemeRemaining = this.getGraphemeLength(remainingText);
+        const graphemeUnitLength = this.getGraphemeLength(bestMatch.unit);
+
+        if (graphemeUnitLength > graphemeRemaining) {
+          logger.error('❌ Greedy matching validation failed: match exceeds remaining graphemes', {
+            matchGraphemeLength: graphemeUnitLength,
+            remainingGraphemeLength: graphemeRemaining,
             currentPosition,
             bestOffset,
             unit: bestMatch.unit,
@@ -102,9 +113,9 @@ export class SegmentPrecomputer {
           });
           // CRITICAL-7 FIX: Skip to next word boundary instead of advancing 1 char
           // Prevents infinite loop if match repeatedly exceeds remaining text
-          const remainingText = text.substring(currentPosition);
-          const nextBoundaryMatch = remainingText.search(TEXT_BOUNDARY);
-          const skipDistance = nextBoundaryMatch > 0 ? nextBoundaryMatch : remainingLength;
+          const remainingForBoundary = text.substring(currentPosition);
+          const nextBoundaryMatch = remainingForBoundary.search(TEXT_BOUNDARY);
+          const skipDistance = nextBoundaryMatch > 0 ? nextBoundaryMatch : remainingText.length;
           currentPosition += skipDistance;
           continue;
         }
@@ -393,17 +404,9 @@ export class SegmentPrecomputer {
    * @returns {Object} Match result with found flag and offset
    */
   static findUnitMatch(remainingText, unitText) {
-    // Normalize both texts - handle different capitalization and spacing
-    const remaining = this.normalizeText(remainingText);
-    const unit = this.normalizeText(unitText);
-
-    // First try exact match (fastest)
-    if (remaining.startsWith(unit)) {
-      return { found: true, offset: 0 };
-    }
-
-    // Handle punctuation, quotes, and line breaks at the beginning
-    // Skip over opening quotes, punctuation, and whitespace (comprehensive Unicode support)
+    // MEDIUM-3 FIX: Ensure offset calculation happens BEFORE normalization
+    // CRITICAL SEPARATION: Offset uses RAW text, normalization only for comparison
+    // Step 1: Calculate offset from RAW text (BEFORE any normalization)
     let offset = 0;
     while (offset < remainingText.length) {
       const char = remainingText[offset];
@@ -413,6 +416,15 @@ export class SegmentPrecomputer {
       } else {
         break;
       }
+    }
+
+    // Step 2: NOW normalize for comparison (offset already calculated from raw text)
+    const remaining = this.normalizeText(remainingText);
+    const unit = this.normalizeText(unitText);
+
+    // First try exact match at offset 0 (fastest)
+    if (remaining.startsWith(unit)) {
+      return { found: true, offset: 0 };
     }
 
     if (offset > 0) {
@@ -462,6 +474,26 @@ export class SegmentPrecomputer {
         // Remove zero-width characters that might interfere
         .replace(/[\u200B-\u200D\uFEFF]/g, '')
     );
+  }
+
+  /**
+   * CRITICAL-3 FIX: Get grapheme-aware length for Vietnamese text with diacritics
+   * JavaScript .length counts UTF-16 code units, not Unicode graphemes
+   * Vietnamese diacritics (ả, ế, ệ) can be combining characters (2+ code units but 1 character)
+   * Emoji (🌟) = 2 code units but 1 grapheme
+   *
+   * @param {string} text - Text to measure
+   * @returns {number} Number of graphemes (user-perceived characters)
+   */
+  static getGraphemeLength(text) {
+    // Use Intl.Segmenter if available (modern browsers, Node 16+)
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const segmenter = new Intl.Segmenter('vi', { granularity: 'grapheme' });
+      return Array.from(segmenter.segment(text)).length;
+    }
+    // Fallback: Use UTF-16 length (less accurate but safe)
+    // This is acceptable because most Vietnamese text uses precomposed characters
+    return text.length;
   }
 
   /**

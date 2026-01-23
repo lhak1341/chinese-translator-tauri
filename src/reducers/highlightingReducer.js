@@ -8,7 +8,7 @@
  * State Shape:
  * - unitIndex: Currently highlighted unit in original text (-1 = none)
  * - translationUnitIndex: Currently highlighted unit in translation (-1 = none)
- * - characterOnlyUnitIndex: Currently highlighted unit in character-only mode (-1 = none)
+ * - characterOnlyUnitIndex: Currently highlighted unit(s) in character-only mode (-1 = none, array for multi-word segments)
  * - isCharacterOnlyClick: Whether highlight originated from character-only click
  *
  * Actions:
@@ -41,7 +41,7 @@
  * @typedef {Object} HighlightingState
  * @property {number} unitIndex - Currently highlighted unit in original text (-1 = none)
  * @property {number} translationUnitIndex - Currently highlighted unit in translation (-1 = none)
- * @property {number} characterOnlyUnitIndex - Currently highlighted unit in character-only mode (-1 = none)
+ * @property {number|number[]} characterOnlyUnitIndex - Currently highlighted unit(s) in character-only mode (-1 = none, array for multi-word segments)
  * @property {boolean} isCharacterOnlyClick - Whether highlight originated from character-only click
  */
 
@@ -53,16 +53,18 @@
 
 /**
  * MEDIUM-3 FIX: Validate unit index before updating state
- * @param {number|number[]} unitIndex - Unit index to validate (can be array for Character-only)
+ * CRITICAL-1 REVERT: Accept arrays for SET_CHARACTER_ONLY_INDEX and keep them as arrays (multi-word segments need arrays)
+ * @param {number|number[]} unitIndex - Unit index to validate (can be array for Character-only multi-word segments)
  * @param {string} actionType - Action type (affects validation rules)
  * @returns {boolean} True if index is valid
  */
 function isValidUnitIndex(unitIndex, actionType) {
-  // SET_CHARACTER_ONLY_INDEX can accept arrays (for multi-character segments)
+  // SET_CHARACTER_ONLY_INDEX accepts arrays for multi-word segments (e.g., "ha lợi ba đặc" = [0,1,2,3])
+  // Arrays are kept as-is, not normalized - ClickableTranslationSemantic expects arrays
   if (actionType === 'SET_CHARACTER_ONLY_INDEX') {
     if (Array.isArray(unitIndex)) {
-      // Array of indices: all must be numbers >= 0
-      return unitIndex.every((idx) => typeof idx === 'number' && idx >= 0);
+      // Array of indices: all must be numbers >= 0, array must not be empty
+      return unitIndex.length > 0 && unitIndex.every((idx) => typeof idx === 'number' && idx >= 0);
     }
     // Single index: must be number >= -1
     return typeof unitIndex === 'number' && unitIndex >= -1;
@@ -73,12 +75,34 @@ function isValidUnitIndex(unitIndex, actionType) {
 }
 
 /**
+ * MEDIUM-2 FIX: Define required properties for each action type
+ * Validates action structure before processing to prevent state corruption
+ */
+const REQUIRED_PROPERTIES = {
+  HIGHLIGHT_ORIGINAL: ['unitIndex'],
+  HIGHLIGHT_TRANSLATION: ['unitIndex'],
+  HIGHLIGHT_FROM_CHARACTER_ONLY: ['unitIndex'],
+  HIGHLIGHT_BOTH: ['unitIndex'],
+  SET_CHARACTER_ONLY_INDEX: ['unitIndex'],
+  CLEAR_ALL: [], // No required properties
+};
+
+/**
  * Highlighting state reducer
  * @param {HighlightingState} state - Current state
  * @param {HighlightingAction} action - Action to perform
  * @returns {HighlightingState} New state
  */
 export function highlightingReducer(state, action) {
+  // MEDIUM-2 FIX: Validate action structure based on type
+  const required = REQUIRED_PROPERTIES[action.type] || [];
+  for (const prop of required) {
+    if (!(prop in action)) {
+      console.warn(`Invalid action ${action.type}: missing required property "${prop}"`);
+      return state;
+    }
+  }
+
   // MEDIUM-3 FIX: Validate indices in all actions (action-specific validation)
   if (action.unitIndex !== undefined && !isValidUnitIndex(action.unitIndex, action.type)) {
     console.warn(`Invalid unitIndex in ${action.type}:`, action.unitIndex, '- ignoring action');
@@ -124,9 +148,12 @@ export function highlightingReducer(state, action) {
 
     case 'SET_CHARACTER_ONLY_INDEX':
       // Set only the character-only index (for bridge useEffect)
+      // CRITICAL-1 REVERT: Keep arrays for multi-word segments (ClickableTranslationSemantic expects arrays)
+      // Character-only translation needs arrays to highlight multi-word segments like "ha lợi ba đặc"
+      // Example: "Harry Potter" → "哈利波特" (single word) → "ha lợi ba đặc" (4 words, indices [0,1,2,3])
       return {
         ...state,
-        characterOnlyUnitIndex: action.unitIndex,
+        characterOnlyUnitIndex: action.unitIndex, // Keep as-is (array or single)
       };
 
     case 'CLEAR_ALL':
