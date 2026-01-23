@@ -34,6 +34,47 @@ export class SegmentPrecomputer {
 
     const { translated, original, metadata } = semanticArrays;
 
+    // HIGH-2 FIX: Validate position metadata before processing
+    // Check for corrupted metadata that would cause rendering issues
+    if (metadata && metadata.length > 0) {
+      let invalidCount = 0;
+      for (let i = 0; i < metadata.length; i++) {
+        const meta = metadata[i];
+        if (
+          meta &&
+          meta.translatedStart !== undefined &&
+          meta.translatedStart !== -1 &&
+          meta.translatedEnd !== undefined &&
+          meta.translatedEnd !== -1
+        ) {
+          // Validate bounds
+          if (
+            meta.translatedStart < 0 ||
+            meta.translatedStart >= text.length ||
+            meta.translatedEnd > text.length ||
+            meta.translatedEnd <= meta.translatedStart
+          ) {
+            logger.warn('⚠️ Invalid position metadata detected - will use text matching fallback', {
+              unitIndex: i,
+              translatedUnit: translated[i],
+              metadataStart: meta.translatedStart,
+              metadataEnd: meta.translatedEnd,
+              textLength: text.length,
+            });
+            // Reset invalid positions to trigger text matching fallback
+            meta.translatedStart = -1;
+            meta.translatedEnd = -1;
+            invalidCount++;
+          }
+        }
+      }
+      if (invalidCount > 0) {
+        logger.warn(
+          `⚠️ Found ${invalidCount} invalid position metadata entries, using text matching fallback`
+        );
+      }
+    }
+
     const segments = [];
     let currentPosition = 0;
 
@@ -118,7 +159,10 @@ export class SegmentPrecomputer {
           // Prevents infinite loop if match repeatedly exceeds remaining text
           const remainingForBoundary = text.substring(currentPosition);
           const nextBoundaryMatch = remainingForBoundary.search(TEXT_BOUNDARY);
-          const skipDistance = nextBoundaryMatch > 0 ? nextBoundaryMatch : remainingText.length;
+          // MEDIUM-1 FIX: Cap skipDistance to remaining text length to prevent overflow
+          const uncappedSkipDistance =
+            nextBoundaryMatch > 0 ? nextBoundaryMatch : remainingText.length;
+          const skipDistance = Math.min(uncappedSkipDistance, text.length - currentPosition);
           currentPosition += skipDistance;
           continue;
         }

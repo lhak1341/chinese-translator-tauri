@@ -225,9 +225,42 @@ export class OptimizedSemanticArrayBuilder {
   buildPositionMappings(originalText, translatedText) {
     const snapshot = getMemorySnapshot();
 
+    // CRITICAL-2 FIX: Validate text length before allocating typed arrays
+    // Empty text or mismatched length would cause silent data loss
+    if (!originalText || originalText.length === 0) {
+      logger.warn('⚠️ Empty original text in buildPositionMappings');
+      return {
+        originalPositions: new Int32Array(0),
+        translatedPositions: new Int32Array(0),
+      };
+    }
+    if (!translatedText || translatedText.length === 0) {
+      logger.warn('⚠️ Empty translated text in buildPositionMappings');
+      return {
+        originalPositions: new Int32Array(0),
+        translatedPositions: new Int32Array(0),
+      };
+    }
+
     // Use typed arrays for better memory efficiency and performance
     const originalPositions = new Int32Array(originalText.length);
     const translatedPositions = new Int32Array(translatedText.length);
+
+    // CRITICAL-2 FIX: Validate typed array allocation succeeded
+    if (originalPositions.length !== originalText.length) {
+      logger.error('❌ Typed array allocation failed for originalPositions', {
+        expectedLength: originalText.length,
+        actualLength: originalPositions.length,
+        impact: 'Position mapping will be incomplete',
+      });
+    }
+    if (translatedPositions.length !== translatedText.length) {
+      logger.error('❌ Typed array allocation failed for translatedPositions', {
+        expectedLength: translatedText.length,
+        actualLength: translatedPositions.length,
+        impact: 'Position mapping will be incomplete',
+      });
+    }
 
     // Initialize with -1 (no mapping)
     originalPositions.fill(-1);
@@ -261,7 +294,13 @@ export class OptimizedSemanticArrayBuilder {
     // OPTIMIZATION: Build first-character index (40-60% speedup for large texts)
     const firstCharIndex = new Map();
     for (let i = 0; i < this.length; i++) {
-      const firstChar = this.original[i][0];
+      // CRITICAL-1 FIX: Skip empty strings to prevent [0] access crash
+      if (!this.original[i] || this.original[i].length === 0) {
+        continue;
+      }
+      // MEDIUM-2 FIX: Use grapheme-aware first character extraction for Vietnamese diacritics
+      // [0] indexing breaks for combining diacritics (e.g., "ả" = "a" + combining mark)
+      const firstChar = this.getFirstGrapheme(this.original[i]);
       if (!firstCharIndex.has(firstChar)) {
         firstCharIndex.set(firstChar, []);
       }
@@ -275,7 +314,9 @@ export class OptimizedSemanticArrayBuilder {
       let bestLength = 0;
 
       // OPTIMIZATION: Only check units starting with current character
-      const candidateIndices = firstCharIndex.get(originalText[currentPos]) || [];
+      // MEDIUM-2 FIX: Use grapheme-aware lookup for consistency with index building
+      const currentFirstGrapheme = this.getFirstGrapheme(originalText.substring(currentPos));
+      const candidateIndices = firstCharIndex.get(currentFirstGrapheme) || [];
 
       // Find longest unused semantic unit at current position
       for (const i of candidateIndices) {
@@ -325,7 +366,13 @@ export class OptimizedSemanticArrayBuilder {
     // OPTIMIZATION: Build first-character index (case-insensitive, 40-60% speedup)
     const firstCharIndex = new Map();
     for (let i = 0; i < this.length; i++) {
-      const firstChar = this.translated[i][0].toLowerCase();
+      // CRITICAL-1 FIX: Skip empty strings to prevent [0] access crash
+      if (!this.translated[i] || this.translated[i].length === 0) {
+        continue;
+      }
+      // MEDIUM-2 FIX: Use grapheme-aware first character extraction for Vietnamese diacritics
+      // [0] indexing breaks for combining diacritics (e.g., "ả" = "a" + combining mark)
+      const firstChar = this.getFirstGrapheme(this.translated[i]).toLowerCase();
       if (!firstCharIndex.has(firstChar)) {
         firstCharIndex.set(firstChar, []);
       }
@@ -339,8 +386,11 @@ export class OptimizedSemanticArrayBuilder {
       let bestLength = 0;
 
       // OPTIMIZATION: Only check units starting with current character (case-insensitive)
-      const currentCharLower = translatedLower[currentPos];
-      const candidateIndices = firstCharIndex.get(currentCharLower) || [];
+      // MEDIUM-2 FIX: Use grapheme-aware lookup for consistency with index building
+      const currentFirstGrapheme = this.getFirstGrapheme(
+        translatedText.substring(currentPos)
+      ).toLowerCase();
+      const candidateIndices = firstCharIndex.get(currentFirstGrapheme) || [];
 
       // Find longest unused semantic unit at current position (case-insensitive)
       for (const i of candidateIndices) {
@@ -641,6 +691,27 @@ export class OptimizedSemanticArrayBuilder {
       'semantic-compact',
       `Compacted arrays from ${this.original.length} to ${this.length} capacity`
     );
+  }
+
+  /**
+   * MEDIUM-2 FIX: Get first grapheme from text (handles Vietnamese combining diacritics)
+   * JavaScript [0] indexing returns first UTF-16 code unit, not first grapheme
+   * Vietnamese "ả" can be "a" + combining hook = 2 code units but 1 grapheme
+   * @param {string} text - Text to extract first grapheme from
+   * @returns {string} First grapheme (user-perceived character)
+   */
+  getFirstGrapheme(text) {
+    if (!text || text.length === 0) return '';
+
+    // Use Intl.Segmenter if available (modern browsers, Node 16+)
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const segmenter = new Intl.Segmenter('vi', { granularity: 'grapheme' });
+      const segments = Array.from(segmenter.segment(text));
+      return segments.length > 0 ? segments[0].segment : '';
+    }
+
+    // Fallback: Use [0] (less accurate but safe for most text)
+    return text[0];
   }
 }
 

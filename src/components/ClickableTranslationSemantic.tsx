@@ -42,19 +42,20 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
       // HIGH-3 FIX: Track performance to detect expensive iterations
       const startTime = performance.now();
-      const maxIterations = 10000; // Safety limit for runaway loops
+
+      // MEDIUM-3 FIX: Warn about large arrays but don't artificially limit processing
+      // Previous 10K limit silently skipped units without user notification
+      if (semanticArrays.translated.length > 10000) {
+        logger.warn('⚠️ Large semantic array detected - highlighting may be slow', {
+          arrayLength: semanticArrays.translated.length,
+          impact: 'Character-only mode may take longer to render',
+        });
+      }
 
       for (let i = 0; i < semanticArrays.translated.length; i++) {
-        // HIGH-3 FIX: Safety check for runaway iteration
-        if (i >= maxIterations) {
-          logger.error('❌ Character-only iteration exceeded safety limit - aborting', {
-            iterationCount: i,
-            maxIterations,
-            arrayLength: semanticArrays.translated.length,
-            elapsedMs: performance.now() - startTime,
-          });
-          break;
-        }
+        // MEDIUM-3 FIX: Removed redundant iteration limit check
+        // For loop condition already prevents infinite loops
+        // Performance monitoring at end catches actual slowness
         const translatedUnit = semanticArrays.translated[i];
         const originalUnit = semanticArrays.original[i];
         const metadata = semanticArrays.metadata[i];
@@ -115,7 +116,9 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           const unitPosition = remainingText.indexOf(translatedUnit);
 
           if (unitPosition === -1) {
-            // Unit not found, skip
+            // HIGH-1 FIX: Update currentPosition before skipping to prevent overlapping segments
+            // Without this, next unit searches from stale position, causing duplicate mappings
+            currentPosition++;
             continue;
           }
 

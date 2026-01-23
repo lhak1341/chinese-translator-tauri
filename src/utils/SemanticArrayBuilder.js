@@ -145,7 +145,13 @@ export class SemanticArrayBuilder {
     // Maps first character -> array of unit indices starting with that character
     const originalFirstCharIndex = new Map();
     for (let i = 0; i < this.original.length; i++) {
-      const firstChar = this.original[i][0];
+      // CRITICAL-1 FIX: Skip empty strings to prevent [0] access crash
+      if (!this.original[i] || this.original[i].length === 0) {
+        continue;
+      }
+      // MEDIUM-2 FIX: Use grapheme-aware first character extraction for Vietnamese diacritics
+      // [0] indexing breaks for combining diacritics (e.g., "ả" = "a" + combining mark)
+      const firstChar = this.getFirstGrapheme(this.original[i]);
       if (!originalFirstCharIndex.has(firstChar)) {
         originalFirstCharIndex.set(firstChar, []);
       }
@@ -159,7 +165,9 @@ export class SemanticArrayBuilder {
       let bestLength = 0;
 
       // OPTIMIZATION: Only check units starting with current character
-      const candidateIndices = originalFirstCharIndex.get(originalText[currentPos]) || [];
+      // MEDIUM-2 FIX: Use grapheme-aware lookup for consistency with index building
+      const currentFirstGrapheme = this.getFirstGrapheme(originalText.substring(currentPos));
+      const candidateIndices = originalFirstCharIndex.get(currentFirstGrapheme) || [];
 
       // HIGH-4 DOCUMENTATION: Iteration order guarantee
       // JavaScript Map iteration is ordered by insertion order (ES2015 spec)
@@ -207,7 +215,13 @@ export class SemanticArrayBuilder {
     // OPTIMIZATION: Build first-character index for translated text (case-insensitive)
     const translatedFirstCharIndex = new Map();
     for (let i = 0; i < this.translated.length; i++) {
-      const firstChar = this.translated[i][0].toLowerCase();
+      // CRITICAL-1 FIX: Skip empty strings to prevent [0] access crash
+      if (!this.translated[i] || this.translated[i].length === 0) {
+        continue;
+      }
+      // MEDIUM-2 FIX: Use grapheme-aware first character extraction for Vietnamese diacritics
+      // [0] indexing breaks for combining diacritics (e.g., "ả" = "a" + combining mark)
+      const firstChar = this.getFirstGrapheme(this.translated[i]).toLowerCase();
       if (!translatedFirstCharIndex.has(firstChar)) {
         translatedFirstCharIndex.set(firstChar, []);
       }
@@ -221,8 +235,11 @@ export class SemanticArrayBuilder {
       let bestLength = 0;
 
       // OPTIMIZATION: Only check units starting with current character (case-insensitive)
-      const currentCharLower = translatedText[currentPos].toLowerCase();
-      const candidateIndices = translatedFirstCharIndex.get(currentCharLower) || [];
+      // MEDIUM-2 FIX: Use grapheme-aware lookup for consistency with index building
+      const currentFirstGrapheme = this.getFirstGrapheme(
+        translatedText.substring(currentPos)
+      ).toLowerCase();
+      const candidateIndices = translatedFirstCharIndex.get(currentFirstGrapheme) || [];
 
       // Find longest unused semantic unit at current position (case-insensitive)
       for (const i of candidateIndices) {
@@ -468,5 +485,26 @@ export class SemanticArrayBuilder {
         source: this.metadata[i].source,
       })),
     };
+  }
+
+  /**
+   * MEDIUM-2 FIX: Get first grapheme from text (handles Vietnamese combining diacritics)
+   * JavaScript [0] indexing returns first UTF-16 code unit, not first grapheme
+   * Vietnamese "ả" can be "a" + combining hook = 2 code units but 1 grapheme
+   * @param {string} text - Text to extract first grapheme from
+   * @returns {string} First grapheme (user-perceived character)
+   */
+  getFirstGrapheme(text) {
+    if (!text || text.length === 0) return '';
+
+    // Use Intl.Segmenter if available (modern browsers, Node 16+)
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const segmenter = new Intl.Segmenter('vi', { granularity: 'grapheme' });
+      const segments = Array.from(segmenter.segment(text));
+      return segments.length > 0 ? segments[0].segment : '';
+    }
+
+    // Fallback: Use [0] (less accurate but safe for most text)
+    return text[0];
   }
 }
