@@ -11,6 +11,14 @@
 
 import { logger } from './logger';
 
+// MEDIUM-4 FIX: Extract magic regex patterns to named constants
+// Punctuation and whitespace characters used for text boundary detection
+const PUNCTUATION_AND_WHITESPACE =
+  /[\s\r\n\t\u3000\u2000-\u200F\u2028\u2029"'`\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F\u2039\u203A\u00AB\u00BB\u300C\u300D\u300E\u300F\u3008\u3009\u300A\u300B\u3014\u3015\u3016\u3017,，.。!！?？;；:：[\]]/;
+
+// Text boundaries for segment splitting (spaces, punctuation, line breaks)
+const TEXT_BOUNDARY = /[\s\r\n,，.。!！?？;；:：[\]]/;
+
 export class SegmentPrecomputer {
   // Enhanced with punctuation handling for proper noun highlighting
   /**
@@ -42,7 +50,10 @@ export class SegmentPrecomputer {
       (a, b) => (a.metadata.tokenIndex || 0) - (b.metadata.tokenIndex || 0)
     );
 
-    // Track used indices to ensure duplicate units map to correct sequential occurrences
+    // HIGH-3 DOCUMENTATION: Track used indices to ensure duplicate units map correctly
+    // Set size: Grows linearly with semantic array length (max = semanticArrays.translated.length)
+    // Memory: ~1 byte per entry, typical max ~10KB for 10,000 char texts
+    // Lifecycle: Cleared at function end, no unbounded growth risk
     const usedIndices = new Set();
 
     while (currentPosition < text.length) {
@@ -76,7 +87,7 @@ export class SegmentPrecomputer {
         }
       }
 
-      // IMPORTANT-6: Validate greedy match selection
+      // CRITICAL-7 FIX: Validate greedy match selection and prevent infinite loop
       // Ensure selected match can actually be extracted from remaining text
       if (bestMatch) {
         const remainingLength = text.length - (currentPosition + bestOffset);
@@ -87,10 +98,14 @@ export class SegmentPrecomputer {
             currentPosition,
             bestOffset,
             unit: bestMatch.unit,
-            impact: 'Incomplete segment would be created',
+            impact: 'Skipping to next boundary to prevent infinite loop',
           });
-          // Skip this match and advance by 1 character to avoid infinite loop
-          currentPosition++;
+          // CRITICAL-7 FIX: Skip to next word boundary instead of advancing 1 char
+          // Prevents infinite loop if match repeatedly exceeds remaining text
+          const remainingText = text.substring(currentPosition);
+          const nextBoundaryMatch = remainingText.search(TEXT_BOUNDARY);
+          const skipDistance = nextBoundaryMatch > 0 ? nextBoundaryMatch : remainingLength;
+          currentPosition += skipDistance;
           continue;
         }
       }
@@ -179,10 +194,7 @@ export class SegmentPrecomputer {
           // Handle single character - but check if the next few characters might form a match
           // Advance to next logical boundary (space, punctuation, or line break)
           let nextBoundary = currentPosition + 1;
-          while (
-            nextBoundary < text.length &&
-            !/[\s\r\n,，.。!！?？;；:：[\]]/.test(text[nextBoundary])
-          ) {
+          while (nextBoundary < text.length && !TEXT_BOUNDARY.test(text[nextBoundary])) {
             nextBoundary++;
           }
 
@@ -395,13 +407,8 @@ export class SegmentPrecomputer {
     let offset = 0;
     while (offset < remainingText.length) {
       const char = remainingText[offset];
-      // Check for various quote, punctuation, whitespace, line break, and bracket characters
-      // Added \u3000 (full-width space) and other CJK whitespace characters
-      if (
-        /[\s\r\n\t\u3000\u2000-\u200F\u2028\u2029"'`\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F\u2039\u203A\u00AB\u00BB\u300C\u300D\u300E\u300F\u3008\u3009\u300A\u300B\u3014\u3015\u3016\u3017,，.。!！?？;；:：[\]]/.test(
-          char
-        )
-      ) {
+      // MEDIUM-4 FIX: Use named constant instead of magic regex
+      if (PUNCTUATION_AND_WHITESPACE.test(char)) {
         offset++;
       } else {
         break;

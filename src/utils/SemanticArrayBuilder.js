@@ -58,6 +58,9 @@ export class SemanticArrayBuilder {
     };
 
     this.metadata.push(metadata);
+
+    // CRITICAL-4 FIX: Validate arrays stay synchronized after mutation
+    this.validateArrays();
   }
 
   /**
@@ -103,18 +106,31 @@ export class SemanticArrayBuilder {
     const unmapped = candidates.find((c) => !c.isMapped);
     const target = unmapped || candidates[0]; // Use first candidate if all mapped
 
-    // CRITICAL-2: Verify call order matches text order to prevent position swapping
-    // setPositionByMatch should be called in ascending position order during postProcess
+    // CRITICAL-1 FIX: Reject out-of-order positions to prevent corruption
+    // setPositionByMatch MUST be called in ascending position order during postProcess
     if (this.lastPositionSet !== -1 && startPos < this.lastPositionSet) {
-      logger.error('❌ setPositionByMatch called out of order!', {
+      logger.error('❌ setPositionByMatch called out of order - REJECTING!', {
         tokenIndex,
         translatedText,
         expectedOrder: 'ascending positions',
         previousPos: this.lastPositionSet,
         currentPos: startPos,
         violation: 'Position decreased',
-        impact: 'May cause incorrect bidirectional highlighting',
+        impact: 'Rejected to prevent bidirectional highlighting corruption',
       });
+      return false; // ✅ Reject out-of-order positions
+    }
+
+    // Validate position range
+    if (startPos < 0 || endPos <= startPos) {
+      logger.error('❌ Invalid position range - REJECTING!', {
+        tokenIndex,
+        translatedText,
+        startPos,
+        endPos,
+        violation: 'startPos must be >= 0 and endPos must be > startPos',
+      });
+      return false;
     }
 
     // Update the selected candidate's position
@@ -164,6 +180,10 @@ export class SemanticArrayBuilder {
       // OPTIMIZATION: Only check units starting with current character
       const candidateIndices = originalFirstCharIndex.get(originalText[currentPos]) || [];
 
+      // HIGH-4 DOCUMENTATION: Iteration order guarantee
+      // JavaScript Map iteration is ordered by insertion order (ES2015 spec)
+      // usedIndices.add() during iteration is safe - Set maintains insertion order
+      // Modifying Set during iteration only affects future iterations, not current
       // Find longest unused semantic unit at current position
       for (const i of candidateIndices) {
         if (usedIndices.has(i)) continue;
@@ -285,14 +305,23 @@ export class SemanticArrayBuilder {
   updateWithCapitalizedText(finalText) {
     if (!finalText) return;
 
+    // MEDIUM-2 FIX: Cache regex patterns to avoid recompilation in loop
+    const regexCache = new Map();
+
     for (let i = 0; i < this.translated.length; i++) {
       const originalTranslation = this.translated[i];
 
       // Skip if empty
       if (!originalTranslation || originalTranslation.length === 0) continue;
 
+      // Get cached regex or create new one
+      let regex = regexCache.get(originalTranslation);
+      if (!regex) {
+        regex = new RegExp(this.escapeRegex(originalTranslation), 'gi');
+        regexCache.set(originalTranslation, regex);
+      }
+
       // Find all case-insensitive matches in final text
-      const regex = new RegExp(this.escapeRegex(originalTranslation), 'gi');
       const matches = [...finalText.matchAll(regex)];
 
       if (matches.length > 0) {
@@ -308,8 +337,20 @@ export class SemanticArrayBuilder {
           }
         }
 
-        // Update if we found a better (capitalized) version
+        // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
         if (bestMatch !== originalTranslation) {
+          if (bestMatch.length !== originalTranslation.length) {
+            logger.error('❌ Capitalization changed text length - SKIPPING update!', {
+              index: i,
+              original: originalTranslation,
+              capitalized: bestMatch,
+              originalLength: originalTranslation.length,
+              capitalizedLength: bestMatch.length,
+              impact: 'Would corrupt position mapping',
+            });
+            continue; // Skip this update
+          }
+
           this.translated[i] = bestMatch;
           this.metadata[i].translatedText = bestMatch;
         }
@@ -344,6 +385,85 @@ export class SemanticArrayBuilder {
   }
 
   /**
+   * CRITICAL-4 FIX: Validate that semantic arrays stay synchronized
+   * Throws error if arrays are desynchronized to prevent silent failures
+   * @throws {Error} If arrays have different lengths
+   */
+  validateArrays() {
+    const isValid =
+      this.original.length === this.translated.length &&
+      this.original.length === this.metadata.length;
+
+    if (!isValid) {
+      const error = {
+        originalLength: this.original.length,
+        translatedLength: this.translated.length,
+        metadataLength: this.metadata.length,
+        impact: 'All highlighting functionality will break silently',
+      };
+      logger.error('❌ CRITICAL: Semantic arrays desynchronized!', error);
+      throw new Error(
+        `Semantic arrays desynchronized: original=${error.originalLength}, translated=${error.translatedLength}, metadata=${error.metadataLength}`
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * HIGH-5 FIX: Validate that position metadata is valid
+   * @param {Object} metadata - Metadata object to validate
+   * @returns {boolean} True if positions are valid
+   */
+  hasValidPositions(metadata) {
+    return (
+      metadata &&
+      typeof metadata.translatedStart === 'number' &&
+      typeof metadata.translatedEnd === 'number' &&
+      metadata.translatedStart >= 0 &&
+      metadata.translatedEnd > metadata.translatedStart
+    );
+  }
+
+  /**
+   * HIGH-5 FIX: Get validation report for all position metadata
+   * @returns {Object} Validation report with counts and invalid entries
+   */
+  validateAllPositions() {
+    const invalid = [];
+    let validCount = 0;
+
+    for (let i = 0; i < this.metadata.length; i++) {
+      const meta = this.metadata[i];
+      if (this.hasValidPositions(meta)) {
+        validCount++;
+      } else {
+        invalid.push({
+          index: i,
+          original: this.original[i],
+          translated: this.translated[i],
+          translatedStart: meta.translatedStart,
+          translatedEnd: meta.translatedEnd,
+          reason:
+            meta.translatedStart < 0
+              ? 'negative start position'
+              : meta.translatedEnd <= meta.translatedStart
+                ? 'end <= start'
+                : 'missing position data',
+        });
+      }
+    }
+
+    return {
+      total: this.metadata.length,
+      valid: validCount,
+      invalid: invalid.length,
+      invalidEntries: invalid,
+      coverage: (validCount / this.metadata.length) * 100,
+    };
+  }
+
+  /**
    * Get debug information about the semantic arrays
    * @returns {Object} Debug information
    */
@@ -351,6 +471,7 @@ export class SemanticArrayBuilder {
     return {
       totalUnits: this.getLength(),
       isValid: this.isValid(),
+      positionValidation: this.validateAllPositions(),
       sources: this.metadata.map((m) => m.source),
       mappings: this.original.map((orig, i) => ({
         index: i,

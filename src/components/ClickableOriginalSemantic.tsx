@@ -3,7 +3,11 @@
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
  */
 import { useMemo } from 'react';
-import type { ClickableOriginalSemanticProps } from '../types/ClickableTypes';
+import type {
+  ClickableOriginalSemanticProps,
+  SegmentClickPayload,
+  SegmentClickHandler,
+} from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableOriginalSemantic.module.css';
@@ -18,7 +22,8 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
 }) => {
   // Handle click on a semantic unit in original text
   const handleUnitClick = (unitIndex: number) => {
-    if (!semanticArrays || unitIndex >= semanticArrays.original.length) {
+    // HIGH-1 FIX: Add comprehensive null/undefined guards
+    if (!semanticArrays || unitIndex < 0 || unitIndex >= semanticArrays.original.length) {
       if (process.env.NODE_ENV === 'development') {
         logger.warn('Invalid unit index or no semantic arrays:', unitIndex);
       }
@@ -38,16 +43,19 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
       });
     }
 
-    // Call the callback to highlight the corresponding translation
+    // CRITICAL-6 FIX: Use proper SegmentClickPayload type with explicit handler cast
+    // Cast is needed because FlexibleClickHandler is a union type (SegmentClickHandler | SimpleClickHandler)
+    // TypeScript can't infer which one without the cast, but we know we're using SegmentClickHandler
     if (onSegmentClick) {
-      (onSegmentClick as any)({
+      const payload: SegmentClickPayload = {
         unitIndex,
         originalText,
         translatedText,
         source: metadata.source,
         metadata,
         direction: 'original-to-translation',
-      });
+      };
+      (onSegmentClick as SegmentClickHandler)(payload);
     }
   };
 

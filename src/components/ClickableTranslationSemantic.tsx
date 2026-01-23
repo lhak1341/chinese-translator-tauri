@@ -3,7 +3,11 @@
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
  */
 import React, { useMemo } from 'react';
-import type { ClickableTranslationSemanticProps } from '../types/ClickableTypes';
+import type {
+  ClickableTranslationSemanticProps,
+  SegmentClickPayload,
+  SegmentClickHandler,
+} from '../types/ClickableTypes';
 import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
 import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
@@ -37,6 +41,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         // Position metadata is more reliable and handles duplicate units correctly
         let actualPosition;
         let unitLength;
+        let usingMetadata = false;
 
         if (
           metadata &&
@@ -48,6 +53,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           // Use position metadata (set during translation)
           actualPosition = metadata.translatedStart;
           unitLength = metadata.translatedEnd - metadata.translatedStart;
+          usingMetadata = true;
         } else {
           // Fallback to indexOf() search if position metadata not available
           const remainingText = translatedText!.substring(currentPosition);
@@ -60,6 +66,21 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
           actualPosition = currentPosition + unitPosition;
           unitLength = translatedUnit.length;
+        }
+
+        // CRITICAL-3 FIX: Validate position consistency between methods
+        if (process.env.NODE_ENV === 'development' && usingMetadata) {
+          const remainingText = translatedText!.substring(currentPosition);
+          const indexOfPosition = remainingText.indexOf(translatedUnit);
+          if (indexOfPosition !== -1 && actualPosition !== currentPosition + indexOfPosition) {
+            logger.error('❌ Character-only position mismatch detected!', {
+              unitIndex: i,
+              translatedUnit,
+              metadataPosition: actualPosition,
+              indexOfPosition: currentPosition + indexOfPosition,
+              impact: 'Inconsistent highlighting between methods',
+            });
+          }
         }
 
         // Add any non-semantic text before this unit
@@ -117,7 +138,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
   // Handle click on a semantic unit
   const handleUnitClick = (unitIndex: number) => {
-    // LOW-PRIORITY FIX: Add error messaging for invalid indices
+    // HIGH-1 FIX: Add comprehensive null/undefined guards
     if (!semanticArrays) {
       logger.error('❌ handleUnitClick called with no semantic arrays');
       return;
@@ -143,16 +164,19 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       });
     }
 
-    // Call the callback with the semantic unit information
+    // CRITICAL-6 FIX: Use proper SegmentClickPayload type with explicit handler cast
+    // Cast is needed because FlexibleClickHandler is a union type (SegmentClickHandler | SimpleClickHandler)
+    // TypeScript can't infer which one without the cast, but we know we're using SegmentClickHandler
     if (onSegmentClick) {
-      (onSegmentClick as any)({
+      const payload: SegmentClickPayload = {
         unitIndex,
         originalText,
         translatedText,
         source: metadata.source,
         metadata,
         direction: direction,
-      });
+      };
+      (onSegmentClick as SegmentClickHandler)(payload);
     }
   };
 

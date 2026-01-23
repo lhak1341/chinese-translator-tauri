@@ -114,6 +114,9 @@ export class OptimizedSemanticArrayBuilder {
     this.length++;
     this.stats.totalUnits++;
 
+    // CRITICAL-4 FIX: Validate arrays stay synchronized after mutation
+    this.validateArrays();
+
     batchLog.hotVerbose(
       'semantic-add-unit',
       `Added unit ${index}: "${originalText}" → "${translatedText}" (${source})`
@@ -164,18 +167,31 @@ export class OptimizedSemanticArrayBuilder {
     const unmapped = candidates.find((c) => !c.isMapped);
     const target = unmapped || candidates[0]; // Use first candidate if all mapped
 
-    // CRITICAL-2: Verify call order matches text order to prevent position swapping
-    // setPositionByMatch should be called in ascending position order during postProcess
+    // CRITICAL-1 FIX: Reject out-of-order positions to prevent corruption
+    // setPositionByMatch MUST be called in ascending position order during postProcess
     if (this.lastPositionSet !== -1 && startPos < this.lastPositionSet) {
-      logger.error('❌ setPositionByMatch called out of order!', {
+      logger.error('❌ setPositionByMatch called out of order - REJECTING!', {
         tokenIndex,
         translatedText,
         expectedOrder: 'ascending positions',
         previousPos: this.lastPositionSet,
         currentPos: startPos,
         violation: 'Position decreased',
-        impact: 'May cause incorrect bidirectional highlighting',
+        impact: 'Rejected to prevent bidirectional highlighting corruption',
       });
+      return false; // ✅ Reject out-of-order positions
+    }
+
+    // Validate position range
+    if (startPos < 0 || endPos <= startPos) {
+      logger.error('❌ Invalid position range - REJECTING!', {
+        tokenIndex,
+        translatedText,
+        startPos,
+        endPos,
+        violation: 'startPos must be >= 0 and endPos must be > startPos',
+      });
+      return false;
     }
 
     // Update the selected candidate's position
@@ -186,7 +202,7 @@ export class OptimizedSemanticArrayBuilder {
     this.lastPositionSet = endPos;
 
     // MEDIUM-2 FIX: Update translated array to match actual casing in final text
-    // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ở")
+    // This prevents text mismatches when capitalization differs (e.g., "Ở" vs "ø")
     this.translated[target.index] = translatedText;
 
     return true;
@@ -456,8 +472,20 @@ export class OptimizedSemanticArrayBuilder {
           }
         }
 
-        // Update if we found better version
+        // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
         if (bestMatch !== originalTranslation) {
+          if (bestMatch.length !== originalTranslation.length) {
+            logger.error('❌ Capitalization changed text length - SKIPPING update!', {
+              index: i,
+              original: originalTranslation,
+              capitalized: bestMatch,
+              originalLength: originalTranslation.length,
+              capitalizedLength: bestMatch.length,
+              impact: 'Would corrupt position mapping',
+            });
+            continue; // Skip this update
+          }
+
           this.translated[i] = bestMatch;
           // metadata[i] will get updated originalText/translatedText in getArrays()
         }
@@ -469,6 +497,7 @@ export class OptimizedSemanticArrayBuilder {
 
   /**
    * Get cached regex pattern or create and cache new one
+   * HIGH-2 FIX: Uses LRU eviction to prevent unbounded cache growth
    * @param {string} text - Text to create regex for
    * @returns {RegExp} Cached or new regex pattern
    * @private
@@ -476,17 +505,27 @@ export class OptimizedSemanticArrayBuilder {
   getCachedRegex(text) {
     if (this.regexCache.has(text)) {
       this.stats.regexCacheHits++;
-      return this.regexCache.get(text);
+      // LRU: Move to end by deleting and re-adding
+      const regex = this.regexCache.get(text);
+      this.regexCache.delete(text);
+      this.regexCache.set(text, regex);
+      return regex;
+    }
+
+    // HIGH-2 FIX: LRU eviction when cache is full
+    if (this.regexCache.size >= this.maxCacheSize) {
+      // Remove oldest entry (first key in Map = oldest due to insertion order)
+      const firstKey = this.regexCache.keys().next().value;
+      this.regexCache.delete(firstKey);
+      batchLog.hotVerbose('regex-cache-evict', `Evicted oldest regex pattern: "${firstKey}"`);
     }
 
     // Create new regex pattern
     const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escapedText, 'gi');
 
-    // Cache it (with size limit)
-    if (this.regexCache.size < this.maxCacheSize) {
-      this.regexCache.set(text, regex);
-    }
+    // Cache it
+    this.regexCache.set(text, regex);
 
     this.stats.regexCacheMisses++;
     return regex;
@@ -510,6 +549,34 @@ export class OptimizedSemanticArrayBuilder {
       this.length <= this.translated.length &&
       this.length <= this.metadata.length
     );
+  }
+
+  /**
+   * CRITICAL-4 FIX: Validate that semantic arrays stay synchronized
+   * Throws error if arrays are desynchronized to prevent silent failures
+   * @throws {Error} If arrays have different lengths or length exceeds capacity
+   */
+  validateArrays() {
+    const isLengthValid =
+      this.length <= this.original.length &&
+      this.length <= this.translated.length &&
+      this.length <= this.metadata.length;
+
+    if (!isLengthValid) {
+      const error = {
+        actualLength: this.length,
+        originalCapacity: this.original.length,
+        translatedCapacity: this.translated.length,
+        metadataCapacity: this.metadata.length,
+        impact: 'All highlighting functionality will break silently',
+      };
+      logger.error('❌ CRITICAL: Optimized semantic arrays desynchronized!', error);
+      throw new Error(
+        `Optimized semantic arrays desynchronized: length=${error.actualLength}, original=${error.originalCapacity}, translated=${error.translatedCapacity}, metadata=${error.metadataCapacity}`
+      );
+    }
+
+    return true;
   }
 
   /**

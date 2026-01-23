@@ -52,12 +52,27 @@
  */
 
 /**
+ * MEDIUM-3 FIX: Validate unit index before updating state
+ * @param {number} unitIndex - Unit index to validate
+ * @returns {boolean} True if index is valid
+ */
+function isValidUnitIndex(unitIndex) {
+  return typeof unitIndex === 'number' && unitIndex >= -1;
+}
+
+/**
  * Highlighting state reducer
  * @param {HighlightingState} state - Current state
  * @param {HighlightingAction} action - Action to perform
  * @returns {HighlightingState} New state
  */
 export function highlightingReducer(state, action) {
+  // MEDIUM-3 FIX: Validate indices in all actions
+  if (action.unitIndex !== undefined && !isValidUnitIndex(action.unitIndex)) {
+    console.warn(`Invalid unitIndex in ${action.type}:`, action.unitIndex, '- ignoring action');
+    return state; // Don't update state with invalid index
+  }
+
   switch (action.type) {
     case 'HIGHLIGHT_ORIGINAL':
       // User clicked on original text segment
