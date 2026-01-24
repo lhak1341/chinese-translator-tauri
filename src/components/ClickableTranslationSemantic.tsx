@@ -43,6 +43,9 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       // HIGH-3 FIX: Track performance to detect expensive iterations
       const startTime = performance.now();
 
+      // HIGH-2 FIX: Track previous position for overlap detection
+      let previousMetadata: { translatedEnd: number } | null = null;
+
       // MEDIUM-3 FIX: Warn about large arrays but don't artificially limit processing
       // Previous 10K limit silently skipped units without user notification
       if (semanticArrays.translated.length > 10000) {
@@ -62,8 +65,8 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
         // CRITICAL-2 FIX: Prefer position metadata over indexOf() search
         // Position metadata is more reliable and handles duplicate units correctly
-        let actualPosition;
-        let unitLength;
+        let actualPosition: number;
+        let unitLength: number;
         let usingMetadata = false;
 
         if (
@@ -78,11 +81,28 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           metadata.translatedEnd > metadata.translatedStart &&
           metadata.translatedEnd <= translatedText!.length
         ) {
-          // Use position metadata (set during translation)
-          actualPosition = metadata.translatedStart;
-          unitLength = metadata.translatedEnd - metadata.translatedStart;
-          usingMetadata = true;
-        } else {
+          // HIGH-2 FIX: Validate sequential ordering (detect overlapping positions)
+          if (previousMetadata && metadata.translatedStart < previousMetadata.translatedEnd) {
+            logger.error('❌ Overlapping position metadata detected - REJECTING!', {
+              unitIndex: i,
+              translatedUnit,
+              currentStart: metadata.translatedStart,
+              currentEnd: metadata.translatedEnd,
+              previousEnd: previousMetadata.translatedEnd,
+              overlap: previousMetadata.translatedEnd - metadata.translatedStart,
+              impact: 'Using indexOf fallback to prevent duplicate position mappings',
+            });
+            // Fall through to indexOf fallback (don't use overlapping metadata)
+          } else {
+            // Use position metadata (set during translation)
+            actualPosition = metadata.translatedStart;
+            unitLength = metadata.translatedEnd - metadata.translatedStart;
+            usingMetadata = true;
+            previousMetadata = { translatedEnd: metadata.translatedEnd };
+          }
+        }
+
+        if (!usingMetadata) {
           // MEDIUM-2 FIX: Log metadata validation failure in development
           if (
             process.env.NODE_ENV === 'development' &&
@@ -111,9 +131,11 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
             });
           }
 
-          // Fallback to indexOf() search if position metadata not available
-          const remainingText = translatedText!.substring(currentPosition);
-          const unitPosition = remainingText.indexOf(translatedUnit);
+          // CRITICAL-4 FIX: Use offset-based indexOf instead of substring to avoid O(n*m) performance
+          // Previous: substring(currentPosition) creates new string on EVERY iteration (O(m) × n units = O(n*m))
+          // Fixed: indexOf(unit, currentPosition) searches from offset without creating substring (O(m) total)
+          // Impact: 5000 units × 50K chars: 250M → 250K character operations (1000x faster)
+          const unitPosition = translatedText!.indexOf(translatedUnit, currentPosition);
 
           if (unitPosition === -1) {
             // HIGH-1 FIX: Update currentPosition before skipping to prevent overlapping segments
@@ -122,33 +144,36 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
             continue;
           }
 
-          actualPosition = currentPosition + unitPosition;
+          actualPosition = unitPosition;
           unitLength = translatedUnit.length;
         }
 
         // CRITICAL-3 FIX: Validate position consistency between methods
+        // CRITICAL-4 FIX: Use offset-based indexOf to avoid O(n*m) performance in validation
+        // TypeScript note: When usingMetadata is true, actualPosition is guaranteed to be assigned (lines 98-99)
         if (process.env.NODE_ENV === 'development' && usingMetadata) {
-          const remainingText = translatedText!.substring(currentPosition);
-          const indexOfPosition = remainingText.indexOf(translatedUnit);
-          if (indexOfPosition !== -1 && actualPosition !== currentPosition + indexOfPosition) {
+          const indexOfPosition = translatedText!.indexOf(translatedUnit, currentPosition);
+          if (indexOfPosition !== -1 && actualPosition! !== indexOfPosition) {
             logger.error('❌ Character-only position mismatch detected!', {
               unitIndex: i,
               translatedUnit,
-              metadataPosition: actualPosition,
-              indexOfPosition: currentPosition + indexOfPosition,
+              metadataPosition: actualPosition!,
+              indexOfPosition: indexOfPosition,
               impact: 'Inconsistent highlighting between methods',
             });
           }
         }
 
         // Add any non-semantic text before this unit
-        if (actualPosition > currentPosition) {
-          const nonSemanticText = translatedText!.substring(currentPosition, actualPosition);
+        // TypeScript note: actualPosition and unitLength are guaranteed to be assigned here
+        // If metadata/indexOf failed, we would have continued at line 144
+        if (actualPosition! > currentPosition) {
+          const nonSemanticText = translatedText!.substring(currentPosition, actualPosition!);
           directSegments.push({
             type: 'text' as const,
             text: nonSemanticText,
             start: currentPosition,
-            end: actualPosition,
+            end: actualPosition!,
             unitIndex: -1,
             isClickable: false as const,
           });
@@ -158,15 +183,15 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         directSegments.push({
           type: 'semantic' as const,
           text: translatedUnit,
-          start: actualPosition,
-          end: actualPosition + unitLength,
+          start: actualPosition!,
+          end: actualPosition! + unitLength!,
           unitIndex: i,
           originalText: originalUnit,
           translatedText: translatedUnit,
           isClickable: true as const,
         });
 
-        currentPosition = actualPosition + unitLength;
+        currentPosition = actualPosition! + unitLength!;
       }
 
       // HIGH-3 FIX: Log performance warning if iteration took too long

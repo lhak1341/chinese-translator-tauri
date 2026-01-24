@@ -105,8 +105,10 @@ describe('CRITICAL-4: Semantic Array Synchronization', () => {
     builder.original.push('那');
     // translated and metadata not updated - now desynchronized
 
-    // validateArrays should throw
-    expect(() => builder.validateArrays()).toThrow(/desynchronized/);
+    // HIGH-6 FIX: validateArrays now returns false instead of throwing
+    // This allows graceful degradation instead of breaking entire translation
+    expect(builder.validateArrays()).toBe(false);
+    expect(() => builder.validateArrays()).not.toThrow(); // No longer throws
   });
 
   test('should pass validation when arrays are synchronized', () => {

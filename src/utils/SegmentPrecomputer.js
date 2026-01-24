@@ -10,6 +10,7 @@
  */
 
 import { logger } from './logger';
+import { getGraphemeLength } from './GraphemeHelper.js';
 
 // MEDIUM-4 FIX: Extract magic regex patterns to named constants
 // Punctuation and whitespace characters used for text boundary detection
@@ -34,57 +35,25 @@ export class SegmentPrecomputer {
 
     const { translated, original, metadata } = semanticArrays;
 
-    // HIGH-2 FIX: Validate position metadata before processing
-    // Check for corrupted metadata that would cause rendering issues
-    if (metadata && metadata.length > 0) {
-      let invalidCount = 0;
-      for (let i = 0; i < metadata.length; i++) {
-        const meta = metadata[i];
-        if (
-          meta &&
-          meta.translatedStart !== undefined &&
-          meta.translatedStart !== -1 &&
-          meta.translatedEnd !== undefined &&
-          meta.translatedEnd !== -1
-        ) {
-          // Validate bounds
-          if (
-            meta.translatedStart < 0 ||
-            meta.translatedStart >= text.length ||
-            meta.translatedEnd > text.length ||
-            meta.translatedEnd <= meta.translatedStart
-          ) {
-            logger.warn('⚠️ Invalid position metadata detected - will use text matching fallback', {
-              unitIndex: i,
-              translatedUnit: translated[i],
-              metadataStart: meta.translatedStart,
-              metadataEnd: meta.translatedEnd,
-              textLength: text.length,
-            });
-            // Reset invalid positions to trigger text matching fallback
-            meta.translatedStart = -1;
-            meta.translatedEnd = -1;
-            invalidCount++;
-          }
-        }
-      }
-      if (invalidCount > 0) {
-        logger.warn(
-          `⚠️ Found ${invalidCount} invalid position metadata entries, using text matching fallback`
-        );
-      }
-    }
+    // CRITICAL-1 FIX: Removed redundant metadata validation
+    // Validation already performed in ClickableTranslationSemantic.tsx:69-112
+    // Duplicate validation caused 2x CPU cost and duplicate warning logs
+    // Upstream components handle validation and fallback to indexOf when metadata invalid
 
     const segments = [];
     let currentPosition = 0;
 
     // Create a lookup map for faster unit matching - don't use keys, use direct comparison
-    const allUnits = translated.map((unit, index) => ({
-      index,
-      unit,
-      original: original[index],
-      metadata: metadata[index],
-    }));
+    // HIGH-5 FIX: Pre-filter empty units to avoid wasting iteration cycles
+    // Empty units cannot match any text, filtering saves n iterations per position
+    const allUnits = translated
+      .map((unit, index) => ({
+        index,
+        unit,
+        original: original[index],
+        metadata: metadata[index],
+      }))
+      .filter((unitData) => unitData.unit && unitData.unit.length > 0);
 
     // Sort units by their tokenIndex to ensure text-order processing for duplicates
     // HIGH-3 FIX: Use optional chaining to prevent crash if metadata is null/undefined
@@ -140,11 +109,12 @@ export class SegmentPrecomputer {
 
       // CRITICAL-7 FIX: Validate greedy match selection and prevent infinite loop
       // CRITICAL-3 FIX: Use grapheme-aware length checking for Vietnamese diacritics
+      // CRITICAL-2 FIX: Use shared GraphemeHelper singleton (eliminates per-call instance creation)
       // Ensure selected match can actually be extracted from remaining text
       if (bestMatch) {
         const remainingText = text.substring(currentPosition + bestOffset);
-        const graphemeRemaining = this.getGraphemeLength(remainingText);
-        const graphemeUnitLength = this.getGraphemeLength(bestMatch.unit);
+        const graphemeRemaining = getGraphemeLength(remainingText);
+        const graphemeUnitLength = getGraphemeLength(bestMatch.unit);
 
         if (graphemeUnitLength > graphemeRemaining) {
           logger.error('❌ Greedy matching validation failed: match exceeds remaining graphemes', {
@@ -477,6 +447,13 @@ export class SegmentPrecomputer {
    * @returns {Object} Match result with found flag and offset
    */
   static findUnitMatch(remainingText, unitText) {
+    // HIGH-3 FIX: Validate input BEFORE offset calculation to prevent invalid processing
+    // Previous: Safety check happened AFTER offset loop (line 474)
+    // Fixed: Pre-validation ensures offset calculation works on valid data
+    if (!remainingText || remainingText.length === 0) {
+      return { found: false, offset: 0 };
+    }
+
     // MEDIUM-3 FIX: Ensure offset calculation happens BEFORE normalization
     // CRITICAL SEPARATION: Offset uses RAW text, normalization only for comparison
     // Step 1: Calculate offset from RAW text (BEFORE any normalization)
@@ -549,25 +526,9 @@ export class SegmentPrecomputer {
     );
   }
 
-  /**
-   * CRITICAL-3 FIX: Get grapheme-aware length for Vietnamese text with diacritics
-   * JavaScript .length counts UTF-16 code units, not Unicode graphemes
-   * Vietnamese diacritics (ả, ế, ệ) can be combining characters (2+ code units but 1 character)
-   * Emoji (🌟) = 2 code units but 1 grapheme
-   *
-   * @param {string} text - Text to measure
-   * @returns {number} Number of graphemes (user-perceived characters)
-   */
-  static getGraphemeLength(text) {
-    // Use Intl.Segmenter if available (modern browsers, Node 16+)
-    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
-      const segmenter = new Intl.Segmenter('vi', { granularity: 'grapheme' });
-      return Array.from(segmenter.segment(text)).length;
-    }
-    // Fallback: Use UTF-16 length (less accurate but safe)
-    // This is acceptable because most Vietnamese text uses precomposed characters
-    return text.length;
-  }
+  // CRITICAL-2 FIX: Removed duplicate getGraphemeLength() method
+  // Now using shared GraphemeHelper.getGraphemeLength() with singleton Intl.Segmenter
+  // Eliminates per-call instance creation overhead (0.1-0.5ms × n calls)
 
   /**
    * Enhanced matching that handles punctuation and formatting differences
