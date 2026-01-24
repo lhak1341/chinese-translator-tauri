@@ -8,9 +8,21 @@ import { logger } from '../../utils/logger.js';
 
 // Basic validation for all dictionary entries
 const baseValidation = (source, translation) => {
+  // SECURITY FIX: Prevent DoS via huge dictionary entries
+  const MAX_ENTRY_LENGTH = 10000;
+
   if (!source.trim() || !translation.trim()) {
     return 'Both source and translation are required';
   }
+
+  if (source.length > MAX_ENTRY_LENGTH) {
+    return `Source too long (max ${MAX_ENTRY_LENGTH} characters)`;
+  }
+
+  if (translation.length > MAX_ENTRY_LENGTH) {
+    return `Translation too long (max ${MAX_ENTRY_LENGTH} characters)`;
+  }
+
   return null;
 };
 
@@ -22,15 +34,29 @@ const baseDictionaryTypes = {
     description: 'Pattern-based structural translations',
     data: patternsDict,
     validate: (source, translation) => {
-      if (!source.includes('X')) {
-        return 'Pattern must contain at least one variable (X)';
+      // LOW-2 FIX: Enhanced pattern validation to catch variable mismatches
+      // Extract all variables (X, Y, Z) from both source and translation
+      const sourceVars = new Set(source.match(/[XYZ]/g) || []);
+      const translationVars = new Set(translation.match(/[XYZ]/g) || []);
+
+      if (sourceVars.size === 0) {
+        return 'Pattern must contain at least one variable (X, Y, or Z)';
       }
-      if (!translation.includes('X')) {
-        return 'Translation must use all variables from the pattern';
+
+      // Check all source variables are used in translation
+      for (const variable of sourceVars) {
+        if (!translationVars.has(variable)) {
+          return `Translation must use variable ${variable} from the pattern`;
+        }
       }
-      if (source.includes('Y') && !translation.includes('Y')) {
-        return 'Translation must use all variables from the pattern';
+
+      // Check translation doesn't use variables not in source
+      for (const variable of translationVars) {
+        if (!sourceVars.has(variable)) {
+          return `Translation cannot use variable ${variable} not present in source pattern`;
+        }
       }
+
       return baseValidation(source, translation);
     },
   },

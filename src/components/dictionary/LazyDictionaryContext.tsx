@@ -210,6 +210,13 @@ export function LazyDictionaryProvider({
             }
           } else {
             logger.error(`Failed to load dictionary ${dictionaryId}:`, result.error);
+
+            // HIGH-1 FIX: Notify user of load failure instead of silent failure
+            toast.warning(
+              `Failed to load ${dictionaryId} dictionary: ${result.error || 'Unknown error'}. Translation quality may be affected.`,
+              { duration: 7000 }
+            );
+
             setDictionaries((prev) => ({
               ...prev,
               [dictionaryId]: {},
@@ -218,6 +225,15 @@ export function LazyDictionaryProvider({
           }
         } catch (error) {
           logger.error(`Error loading dictionary ${dictionaryId}:`, error);
+
+          // HIGH-1 FIX: Notify user of load error
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(
+            `Error loading ${dictionaryId} dictionary: ${errorMsg}. Please try reloading.`,
+            {
+              duration: 7000,
+            }
+          );
         } finally {
           // Always remove from loading set and promise map when done
           loadingDictionariesRef.current.delete(dictionaryId);
@@ -438,6 +454,7 @@ export function LazyDictionaryProvider({
 
           // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
           // Prevents stale translations from being served after dictionary updates
+          // LOW-3 FIX: Notify user about cache invalidation (non-blocking)
           if (
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
@@ -448,6 +465,9 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
+              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+                duration: 5000,
+              });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
@@ -540,6 +560,7 @@ export function LazyDictionaryProvider({
 
           // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
           // Prevents stale translations from being served after dictionary updates
+          // LOW-3 FIX: Notify user about cache invalidation (non-blocking)
           if (
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
@@ -550,6 +571,9 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
+              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+                duration: 5000,
+              });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
@@ -598,6 +622,7 @@ export function LazyDictionaryProvider({
 
           // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
           // Prevents stale translations from being served after dictionary updates
+          // LOW-3 FIX: Show progress indicator during cache invalidation
           if (
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
@@ -608,6 +633,9 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
+              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+                duration: 5000,
+              });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
@@ -652,6 +680,7 @@ export function LazyDictionaryProvider({
 
           // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
           // Prevents stale translations from being served after undo
+          // LOW-3 FIX: Show progress indicator during cache invalidation
           if (
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
@@ -662,6 +691,9 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
+              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+                duration: 5000,
+              });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }
@@ -699,6 +731,7 @@ export function LazyDictionaryProvider({
 
           // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
           // Prevents stale translations from being served after redo
+          // LOW-3 FIX: Show progress indicator during cache invalidation
           if (
             window.translationEngine &&
             typeof window.translationEngine.invalidateAllCaches === 'function'
@@ -709,6 +742,9 @@ export function LazyDictionaryProvider({
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
+              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+                duration: 5000,
+              });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
           }

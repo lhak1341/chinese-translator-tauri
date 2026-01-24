@@ -146,10 +146,18 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         const elapsed = performance.now() - batchStartTime;
 
         if (batchSuccess) {
-          this.log(
-            1,
-            `✅ Batch loaded ${allDictionaries.length} dictionaries (${totalEntries} entries) in ${elapsed.toFixed(1)}ms`
-          );
+          // MEDIUM-2 FIX: Validate WASM sync integrity to prevent undefined values in translations
+          const validationSuccess = await this.validateWasmSync(allDictionaries);
+
+          if (validationSuccess) {
+            this.log(
+              1,
+              `✅ Batch loaded ${allDictionaries.length} dictionaries (${totalEntries} entries) in ${elapsed.toFixed(1)}ms - validated`
+            );
+          } else {
+            this.log(0, '❌ WASM sync validation failed - falling back to sequential loading');
+            await this.syncDictionariesToWasmSequential();
+          }
         } else {
           this.log(1, '⚠️ Batch loading failed, falling back to sequential loading');
           await this.syncDictionariesToWasmSequential();
@@ -199,6 +207,64 @@ export class EnhancedDictionaryManager extends DictionaryManager {
 
     traverse(trie.root);
     return entries;
+  }
+
+  /**
+   * Validate WASM sync integrity by testing lookups
+   * MEDIUM-2 FIX: Prevents undefined values from appearing in translations
+   *
+   * @param {Array} allDictionaries - Array of {name, entries} objects
+   * @returns {Promise<boolean>} True if validation passes
+   */
+  async validateWasmSync(allDictionaries) {
+    if (!this.wasmManager || allDictionaries.length === 0) {
+      return true; // No validation needed if no WASM or no dictionaries
+    }
+
+    try {
+      // Import validation function
+      const { validateWasmDictionaryMatch } = await import('../../types/WasmTypes.ts');
+
+      // Test each dictionary with its first entry
+      for (const { name, entries } of allDictionaries) {
+        if (entries.length === 0) continue;
+
+        // Test lookup with first entry
+        const testEntry = entries[0];
+        const testWord = testEntry.chinese || testEntry.word || '';
+
+        if (!testWord) continue;
+
+        // Perform test lookup
+        const matches = await this.wasmManager.findMatches(name, testWord, 0);
+
+        // Validate each match result
+        for (const match of matches) {
+          try {
+            validateWasmDictionaryMatch(match);
+
+            // Additional check for undefined values
+            if (match.translation === undefined || match.word === undefined) {
+              this.log(0, `❌ WASM validation failed: undefined values in ${name} dictionary`);
+              return false;
+            }
+          } catch (validationError) {
+            this.log(
+              0,
+              `❌ WASM validation failed for ${name}:`,
+              validationError instanceof Error ? validationError.message : validationError
+            );
+            return false;
+          }
+        }
+      }
+
+      this.log(2, '✅ WASM sync validation passed');
+      return true;
+    } catch (error) {
+      this.log(0, '❌ WASM validation error:', error);
+      return false;
+    }
   }
 
   /**

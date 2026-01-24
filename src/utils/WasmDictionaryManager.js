@@ -260,14 +260,34 @@ export class WasmDictionaryManager {
     try {
       const matches = this.engine.find_matches(dictionaryName, text, startPos);
 
+      // MEDIUM-2 FIX: Validate WASM results to prevent undefined values in translations
       // Convert results to expected format with safe metadata parsing
-      return matches.map((match) => ({
-        word: match.word,
-        translation: match.translation,
-        startPos: match.start_pos,
-        endPos: match.end_pos,
-        metadata: this._safeParseMetadata(match.metadata),
-      }));
+      return matches
+        .map((match) => {
+          // Rust Option<String> serializes to undefined, not null
+          // Explicitly convert undefined → null to prevent "undefined" in output
+          const word = match.word === undefined ? null : match.word;
+          const translation = match.translation === undefined ? null : match.translation;
+
+          // Validation: Ensure required fields are present
+          if (!word || !translation) {
+            logger.warn('⚠️ WASM returned undefined values, falling back to JavaScript', {
+              dictionaryName,
+              match,
+            });
+            this.handleFailure(); // Enter fallback mode after undefined values
+            return null; // Filter out invalid matches
+          }
+
+          return {
+            word,
+            translation,
+            startPos: match.start_pos,
+            endPos: match.end_pos,
+            metadata: this._safeParseMetadata(match.metadata),
+          };
+        })
+        .filter((match) => match !== null); // Remove invalid matches
     } catch (error) {
       logger.error('❌ WASM lookup failed:', error);
       this.handleFailure();
@@ -285,9 +305,24 @@ export class WasmDictionaryManager {
 
       if (!match) return null;
 
+      // MEDIUM-2 FIX: Validate WASM results to prevent undefined values
+      // Rust Option<String> serializes to undefined, not null
+      const word = match.word === undefined ? null : match.word;
+      const translation = match.translation === undefined ? null : match.translation;
+
+      // Validation: Ensure required fields are present
+      if (!word || !translation) {
+        logger.warn('⚠️ WASM findLongestMatch returned undefined values, falling back', {
+          dictionaryName,
+          match,
+        });
+        this.handleFailure(); // Enter fallback mode
+        return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
+      }
+
       return {
-        word: match.word,
-        translation: match.translation,
+        word,
+        translation,
         startPos: match.start_pos,
         endPos: match.end_pos,
         metadata: this._safeParseMetadata(match.metadata),
