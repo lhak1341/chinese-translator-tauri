@@ -106,6 +106,66 @@ npm run tauri:dev  # WASM build (2-3s) → Vite (100-200ms) → Tauri window
 
 **Implementation**: `SemanticArrayBuilder.setPositionByMatch()`, `OptimizedSemanticArrayBuilder.setPositionByMatch()`
 
+**Dual-Path Architecture** (CRITICAL for debugging):
+
+Clickable highlighting has TWO completely separate code paths:
+
+1. **Character-only mode**: `ClickableTranslationSemantic.tsx` → `SegmentPrecomputer.js`
+   - Renders: Bottom-left panel (character-by-character translation)
+   - Segments: Computed on-demand from semantic arrays using `precomputeSegments()`
+   - Direction: `'character-only-to-original'`
+
+2. **Full Translation mode**: `ClickableTranslationOptimized.tsx` → `TranslationEngine.js`
+   - Renders: Right panel (main translation with smart spacing)
+   - Segments: Prebuilt during translation in `translateWithProgressiveBatches()` (line 5184+)
+   - Direction: `'translation-to-original'`
+   - Component: Uses prebuilt segments from `this.prebuiltSegments`, NOT SegmentPrecomputer
+
+**Debugging clickable highlighting bugs**:
+
+**Step 1: Identify which mode has the bug**
+
+- Character-only issue? → Debug `SegmentPrecomputer.js`
+- Full Translation issue? → Debug `TranslationEngine.js:5184-5350` (segment creation)
+
+**Step 2: Verify component rendering**
+
+- Check `TranslatorDisplayPanels.tsx`:
+  - Line 170: Character-only uses `<ClickableTranslationSemantic>`
+  - Line 221: Full Translation uses `<ClickableTranslationOptimized>`
+
+**Step 3: Add diagnostic logging at the RIGHT place**
+
+```javascript
+// For Full Translation bugs, add logging in TranslationEngine.js around line 5280:
+if (position >= 0) {
+  if (wordInfo.translated.includes('problematic-text')) {
+    logger.warn('🔍 Creating segment:', {
+      translated: wordInfo.translated,
+      position,
+      extractedText: cleanedFinalResult.substring(position, position + wordInfo.translated.length),
+    });
+  }
+}
+
+// For Character-only bugs, add logging in SegmentPrecomputer.js around line 165:
+if (bestMatch && bestMatch.unit.includes('problematic-text')) {
+  logger.warn('🔍 Matching unit:', {
+    unit: bestMatch.unit,
+    position: currentPosition,
+    endPosition,
+  });
+}
+```
+
+**Common pitfalls** (lessons from "màu" bug, Jan 2025):
+
+- ❌ Assuming SegmentPrecomputer is used for all modes (it's only character-only)
+- ❌ Adding diagnostics to the wrong component
+- ❌ Not verifying which component renders which panel
+- ✅ Check TranslatorDisplayPanels.tsx first to confirm code path
+- ✅ Add logging early to verify execution path before debugging logic
+
 ---
 
 ## Critical Constraints (What Breaks)
@@ -300,6 +360,78 @@ console.log(
 **Solution**: Use `lowPriority: true` flag on overly generic patterns to allow specific patterns to win (−12 priority penalty).
 
 **Archive**: See `docs/archive/pattern-optimization/PATTERN_MATCHING_*.md` for pattern matching algorithm optimizations and troubleshooting.
+
+### When Clickable Highlighting Is Wrong
+
+**Systematic diagnosis framework:**
+
+**Step 1: Identify Which Mode Has the Bug**
+
+- Character-only (bottom-left panel): Debug `SegmentPrecomputer.js`
+- Full Translation (right panel): Debug `TranslationEngine.js:5184-5350`
+
+**Common symptom**: Word split into clickable + non-clickable parts (e.g., "màu" → "mà" + "u")
+
+**Step 2: Add Diagnostic Logging to Verify Segment Creation**
+
+```javascript
+// For Full Translation, add in TranslationEngine.js around line 5280:
+if (position >= 0) {
+  if (wordInfo.translated.includes('problematic-word')) {
+    logger.warn('🔍 Creating segment:', {
+      translated: wordInfo.translated,
+      translatedLength: wordInfo.translated.length,
+      position,
+      currentPosition,
+      textAtPosition: cleanedFinalResult.substring(position, position + 10),
+      extractedText: cleanedFinalResult.substring(position, position + wordInfo.translated.length),
+    });
+  }
+}
+```
+
+**What to check**:
+
+- `translated`: What's in the semantic array
+- `extractedText`: What's being extracted from the output
+- Mismatch = substring collision or encoding issue
+
+**Step 3: Check Semantic Array Contents**
+
+```javascript
+// Add in SemanticArrayBuilder.js or OptimizedSemanticArrayBuilder.js addUnit():
+if (translatedText && translatedText.includes('problematic-word')) {
+  logger.warn('🔍 addUnit() called:', {
+    originalText,
+    translatedText,
+    translatedLength: translatedText.length,
+    source,
+  });
+}
+```
+
+**What to check**:
+
+- Is the semantic array being populated with the correct value?
+- Multiple entries for similar words? (e.g., "mà" and "màu trắng")
+
+**Real Bug Example** (Jan 2025): "màu" split into "mà" + "u"
+
+**Root cause**: Semantic array had TWO entries:
+
+- "而" → "mà" (2 chars)
+- "白色" → "màu trắng" (9 chars)
+
+When searching the output text, "mà" matched first (inside "màu trắng"), blocking the correct match.
+
+**Fix**: Sort candidate words by length (longest first) before matching:
+
+```javascript
+// TranslationEngine.js:5214
+candidateWords.sort((a, b) => b.translated.length - a.translated.length);
+```
+
+**Pattern**: Always match longer words before shorter words to prevent substring collisions.
 
 ### When Performance Degrades
 

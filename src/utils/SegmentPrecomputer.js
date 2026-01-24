@@ -33,6 +33,12 @@ export class SegmentPrecomputer {
       return [];
     }
 
+    // CRITICAL BUG FIX: Normalize text to NFC for consistent Unicode handling
+    // Vietnamese diacritics can be NFC (precomposed) or NFD (decomposed)
+    // Normalizing ensures .length calculations are consistent across all units
+    // Example: "màu" NFC=3 chars, NFD=4 chars (m+a+combining-grave+u)
+    text = text.normalize('NFC');
+
     const { translated, original, metadata } = semanticArrays;
 
     // CRITICAL-1 FIX: Removed redundant metadata validation
@@ -46,10 +52,11 @@ export class SegmentPrecomputer {
     // Create a lookup map for faster unit matching - don't use keys, use direct comparison
     // HIGH-5 FIX: Pre-filter empty units to avoid wasting iteration cycles
     // Empty units cannot match any text, filtering saves n iterations per position
+    // CRITICAL BUG FIX: Normalize units to NFC for consistent matching with normalized text
     const allUnits = translated
       .map((unit, index) => ({
         index,
-        unit,
+        unit: unit ? unit.normalize('NFC') : unit, // Normalize each unit
         original: original[index],
         metadata: metadata[index],
       }))
@@ -156,7 +163,9 @@ export class SegmentPrecomputer {
         // Found a semantic unit match - mark as used to handle duplicates correctly
         usedIndices.add(bestMatch.index);
 
-        // CRITICAL: Bounds checking to prevent reading beyond text length
+        // CRITICAL BUG FIX: Both text and units are now normalized to NFC (lines 36-37, 56)
+        // This ensures .length calculations are consistent for Vietnamese diacritics
+        // Example: "màu" is always 3 chars in NFC (not 4 chars in NFD decomposed form)
         const endPosition = Math.min(currentPosition + bestMatch.unit.length, text.length);
 
         // CRITICAL-1 FIX: Prevent infinite loop from zero-length segments

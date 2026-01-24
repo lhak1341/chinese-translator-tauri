@@ -5170,7 +5170,12 @@ export class TranslationEngine {
       this.semanticArrayBuilder.getArrays()
     );
     const finalResult = reconstructed.text;
-    const cleanedFinalResult = this.applyFinalCleanup(finalResult);
+    const cleanedFinalResult = this.applyFinalCleanup(finalResult).normalize('NFC');
+
+    // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
+    // Vietnamese "màu" can be NFC (3 chars: m+à+u) or NFD (4 chars: m+a+combining-grave+u)
+    // Without normalization, .length calculations create wrong segment boundaries
+    // causing "màu" to split into "mà" (clickable) + "u" (not clickable)
 
     // Store prebuilt segments like the original method
     this.prebuiltSegments = reconstructed.segments;
@@ -5195,14 +5200,19 @@ export class TranslationEngine {
       const outputOrder = [];
 
       // Create candidate words from semantic arrays
+      // CRITICAL BUG FIX: Normalize translated units to NFC to match normalized cleanedFinalResult
       const candidateWords = [];
       for (let i = 0; i < semanticArrays.original.length; i++) {
         candidateWords.push({
           semanticIndex: i,
           original: semanticArrays.original[i],
-          translated: semanticArrays.translated[i],
+          translated: semanticArrays.translated[i].normalize('NFC'), // Normalize to match output
         });
       }
+
+      // CRITICAL BUG FIX: Sort by length (longest first) to prevent shorter words from
+      // matching inside longer words (e.g., "mà" matching inside "màu trắng")
+      candidateWords.sort((a, b) => b.translated.length - a.translated.length);
 
       // Find each candidate word in the output text and record its position
       // Handle duplicates by searching from different starting positions
@@ -5532,8 +5542,9 @@ export class TranslationEngine {
     );
     let result = reconstructed.text;
 
-    // Step 7: Apply final cleanup (spacing, etc.)
-    result = this.applyFinalCleanup(result);
+    // Step 7: Apply final cleanup (spacing, etc.) and normalize to NFC
+    // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
+    result = this.applyFinalCleanup(result).normalize('NFC');
 
     // Step 8: Store prebuilt segments for instant clickable highlighting
     this.prebuiltSegments = reconstructed.segments;

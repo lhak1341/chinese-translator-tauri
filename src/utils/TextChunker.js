@@ -306,7 +306,10 @@ export class TextChunker {
     let currentPosition = 0;
 
     const textParts = chunks.map((chunk, index) => {
-      const content = chunk.translated || chunk.translatedContent || chunk.content;
+      // CRITICAL BUG FIX: Normalize content to NFC for consistent Vietnamese diacritic handling
+      // Ensures .length calculations match normalized output text (prevents "màu" → "mà" + "u" split)
+      const rawContent = chunk.translated || chunk.translatedContent || chunk.content;
+      const content = rawContent ? rawContent.normalize('NFC') : rawContent;
       const punctuation = chunk.translatedPunctuation || chunk.punctuation;
       const lineBreaks = chunk.lineBreaks || '';
 
