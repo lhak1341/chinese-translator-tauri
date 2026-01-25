@@ -2256,6 +2256,7 @@ const Translator = ({ isActive = true }) => {
             if (inputText.length > 1000) {
               toast.success(`Translation completed: ${inputText.length} characters processed`, {
                 duration: TOAST_DURATIONS.SUCCESS,
+                id: TOAST_IDS.TRANSLATION_COMPLETED,
               });
             }
 

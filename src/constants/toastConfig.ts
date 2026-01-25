@@ -95,6 +95,9 @@ export const TOAST_IDS = {
   /** Translation in progress */
   TRANSLATION_IN_PROGRESS: 'translation-in-progress',
 
+  /** Translation completed successfully */
+  TRANSLATION_COMPLETED: 'translation-completed',
+
   /** Configuration save failure */
   CONFIG_SAVE_FAILED: 'config-save-failed',
 } as const;
