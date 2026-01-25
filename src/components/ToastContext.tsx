@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import styles from '../styles/Toast.module.css';
+import { TOAST_DURATIONS } from '../constants/toastConfig';
 
 /**
  * Toast notification type
@@ -11,6 +12,7 @@ type ToastType = 'default' | 'success' | 'error' | 'warning';
  */
 interface Toast {
   id: string;
+  customId?: string; // Optional custom ID for deduplication
   message: string;
   type: ToastType;
   duration: number;
@@ -22,11 +24,12 @@ interface Toast {
  * Toast context type
  */
 interface ToastContextType {
-  showToast: (message: string, type?: ToastType, duration?: number) => void;
-  success: (message: string, duration?: number) => void;
-  error: (message: string, duration?: number) => void;
-  warning: (message: string, duration?: number) => void;
+  showToast: (message: string, type?: ToastType, duration?: number, customId?: string) => void;
+  success: (message: string, duration?: number, customId?: string) => void;
+  error: (message: string, duration?: number, customId?: string) => void;
+  warning: (message: string, duration?: number, customId?: string) => void;
   removeToast: (id: string) => void;
+  show: (message: string, type?: ToastType, duration?: number, customId?: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -235,10 +238,23 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const idCounterRef = useRef(0);
 
   const showToast = useCallback(
-    (message: string, type: ToastType = 'default', duration: number = 3000) => {
+    (message: string, type: ToastType = 'default', duration: number = 3000, customId?: string) => {
+      // If customId provided, check if toast with same customId already exists
+      if (customId) {
+        setToasts((prev) => {
+          const existing = prev.find((t) => t.customId === customId);
+          if (existing) {
+            // Remove existing toast with same customId (deduplicate)
+            return prev.filter((t) => t.customId !== customId);
+          }
+          return prev;
+        });
+      }
+
       const id = `toast-${++idCounterRef.current}`;
       const newToast: Toast = {
         id,
+        customId,
         message,
         type,
         duration,
@@ -267,22 +283,22 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const success = useCallback(
-    (message: string, duration: number = 3000) => {
-      showToast(message, 'success', duration);
+    (message: string, duration: number = TOAST_DURATIONS.SUCCESS, customId?: string) => {
+      showToast(message, 'success', duration, customId);
     },
     [showToast]
   );
 
   const error = useCallback(
-    (message: string, duration: number = 5000) => {
-      showToast(message, 'error', duration);
+    (message: string, duration: number = TOAST_DURATIONS.ERROR, customId?: string) => {
+      showToast(message, 'error', duration, customId);
     },
     [showToast]
   );
 
   const warning = useCallback(
-    (message: string, duration: number = 4000) => {
-      showToast(message, 'warning', duration);
+    (message: string, duration: number = TOAST_DURATIONS.WARNING, customId?: string) => {
+      showToast(message, 'warning', duration, customId);
     },
     [showToast]
   );
@@ -293,6 +309,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     error,
     warning,
     removeToast,
+    show: showToast, // Alias for showToast
   };
 
   const internalValue = {
@@ -320,16 +337,16 @@ export const setGlobalToast = (toastFn: ToastContextType) => {
 };
 
 export const toast = {
-  success: (message: string, duration?: number) => {
-    if (globalToastFn) globalToastFn.success(message, duration);
+  success: (message: string, duration?: number, customId?: string) => {
+    if (globalToastFn) globalToastFn.success(message, duration, customId);
   },
-  error: (message: string, duration?: number) => {
-    if (globalToastFn) globalToastFn.error(message, duration);
+  error: (message: string, duration?: number, customId?: string) => {
+    if (globalToastFn) globalToastFn.error(message, duration, customId);
   },
-  warning: (message: string, duration?: number) => {
-    if (globalToastFn) globalToastFn.warning(message, duration);
+  warning: (message: string, duration?: number, customId?: string) => {
+    if (globalToastFn) globalToastFn.warning(message, duration, customId);
   },
-  show: (message: string, type?: ToastType, duration?: number) => {
-    if (globalToastFn) globalToastFn.showToast(message, type, duration);
+  show: (message: string, type?: ToastType, duration?: number, customId?: string) => {
+    if (globalToastFn) globalToastFn.showToast(message, type, duration, customId);
   },
 };

@@ -14,6 +14,7 @@
 
 import toast from './toast';
 import { logger } from './logger';
+import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 
 let wasmModule = null;
 let wasmNumberProcessor = null;
@@ -83,7 +84,10 @@ export async function processNumbersWasm(tokens) {
       if (!showedNumberWarning) {
         toast.warning(
           'Number processing unavailable. Numbers will translate character-by-character.',
-          { duration: 5000 }
+          {
+            duration: TOAST_DURATIONS.LOAD_FAILURE,
+            id: TOAST_IDS.WASM_NUMBER_FALLBACK,
+          }
         );
         showedNumberWarning = true;
       }
@@ -103,7 +107,8 @@ export async function processNumbersWasm(tokens) {
     // One-time notification for processing errors
     if (!showedNumberWarning) {
       toast.warning('Number processing error. Numbers will translate character-by-character.', {
-        duration: 5000,
+        duration: TOAST_DURATIONS.LOAD_FAILURE,
+        id: TOAST_IDS.WASM_NUMBER_FALLBACK,
       });
       showedNumberWarning = true;
     }

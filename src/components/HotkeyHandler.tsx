@@ -125,7 +125,8 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
                   const text = copied ? await navigator.clipboard.readText() : '';
                   onQuickAddCharacter?.(text);
                 } catch (error) {
-                  toast.error('Failed to open Quick Add');
+                  const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                  toast.error(`Failed to open Quick Add Character: ${errorMsg}`);
                   logger.error('Quick Add Character error:', error);
                 }
               }
@@ -139,7 +140,8 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
                   const text = copied ? await navigator.clipboard.readText() : '';
                   onQuickAddPhrase?.(text);
                 } catch (error) {
-                  toast.error('Failed to open Quick Add');
+                  const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                  toast.error(`Failed to open Quick Add Phrase: ${errorMsg}`);
                   logger.error('Quick Add Phrase error:', error);
                 }
               }
@@ -153,7 +155,8 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
                   const text = copied ? await navigator.clipboard.readText() : '';
                   onQuickAddProperNoun?.(text);
                 } catch (error) {
-                  toast.error('Failed to open Quick Add');
+                  const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                  toast.error(`Failed to open Quick Add Proper Noun: ${errorMsg}`);
                   logger.error('Quick Add Proper Noun error:', error);
                 }
               }
@@ -167,7 +170,8 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
                   const text = copied ? await navigator.clipboard.readText() : '';
                   onQuickAddPattern?.(text);
                 } catch (error) {
-                  toast.error('Failed to open Quick Add');
+                  const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                  toast.error(`Failed to open Quick Add Pattern: ${errorMsg}`);
                   logger.error('Quick Add Pattern error:', error);
                 }
               }
@@ -181,7 +185,8 @@ const HotkeyHandler: React.FC<HotkeyHandlerProps> = ({
                   const text = copied ? await navigator.clipboard.readText() : '';
                   await onQuickAddCustomProperNoun?.(text);
                 } catch (error) {
-                  toast.error('Failed to open Quick Add');
+                  const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                  toast.error(`Failed to open Quick Add Custom Proper Noun: ${errorMsg}`);
                   logger.error('Quick Add Custom Proper Noun error:', error);
                 }
               }

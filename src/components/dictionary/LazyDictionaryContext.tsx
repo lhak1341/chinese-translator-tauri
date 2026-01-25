@@ -5,6 +5,7 @@ import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
+import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 
 /**
  * Dictionary data structure (key-value pairs)
@@ -214,7 +215,10 @@ export function LazyDictionaryProvider({
             // HIGH-1 FIX: Notify user of load failure instead of silent failure
             toast.warning(
               `Failed to load ${dictionaryId} dictionary: ${result.error || 'Unknown error'}. Translation quality may be affected.`,
-              { duration: 7000 }
+              {
+                duration: TOAST_DURATIONS.MOVE_ERROR,
+                id: TOAST_IDS.DICT_LOAD_FAILED,
+              }
             );
 
             setDictionaries((prev) => ({
@@ -231,7 +235,8 @@ export function LazyDictionaryProvider({
           toast.error(
             `Error loading ${dictionaryId} dictionary: ${errorMsg}. Please try reloading.`,
             {
-              duration: 7000,
+              duration: TOAST_DURATIONS.MOVE_ERROR,
+              id: TOAST_IDS.DICT_LOAD_FAILED,
             }
           );
         } finally {
@@ -466,7 +471,8 @@ export function LazyDictionaryProvider({
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: 5000,
+                duration: TOAST_DURATIONS.LOAD_FAILURE,
+                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
               });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
@@ -572,7 +578,8 @@ export function LazyDictionaryProvider({
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: 5000,
+                duration: TOAST_DURATIONS.LOAD_FAILURE,
+                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
               });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
@@ -634,7 +641,8 @@ export function LazyDictionaryProvider({
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: 5000,
+                duration: TOAST_DURATIONS.LOAD_FAILURE,
+                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
               });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
@@ -692,7 +700,8 @@ export function LazyDictionaryProvider({
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: 5000,
+                duration: TOAST_DURATIONS.LOAD_FAILURE,
+                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
               });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }
@@ -743,7 +752,8 @@ export function LazyDictionaryProvider({
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: 5000,
+                duration: TOAST_DURATIONS.LOAD_FAILURE,
+                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
               });
               logger.warn('Cache invalidation failed (non-critical):', cacheError);
             }

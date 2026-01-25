@@ -9,6 +9,7 @@ import {
 } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
+import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
@@ -545,7 +546,7 @@ const Translator = ({ isActive = true }) => {
           const errorMsg = error instanceof Error ? error.message : 'Unknown initialization error';
           setInitializationError(errorMsg);
           toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
-            duration: 10000, // Longer duration for critical errors
+            duration: TOAST_DURATIONS.CRITICAL, // Longer duration for critical errors
           });
         } finally {
           // MEDIUM-1 FIX: Reset flag after initialization completes or fails
@@ -1059,8 +1060,8 @@ const Translator = ({ isActive = true }) => {
           toast.warning(
             'Translation cache degraded. Consider reloading dictionaries for better performance.',
             {
-              duration: 8000,
-              id: 'cache-degradation', // Prevent duplicate toasts
+              duration: TOAST_DURATIONS.CACHE_WARNING,
+              id: TOAST_IDS.CACHE_DEGRADATION, // Prevent duplicate toasts
             }
           );
         }
@@ -2234,6 +2235,13 @@ const Translator = ({ isActive = true }) => {
             logger.log(`📝 Translation completed: ${newTranslation.length} chars`);
             setTranslatedText(newTranslation);
 
+            // Show success notification for large translations (>1000 chars input)
+            if (inputText.length > 1000) {
+              toast.success(`Translation completed: ${inputText.length} characters processed`, {
+                duration: TOAST_DURATIONS.SUCCESS,
+              });
+            }
+
             // Run character-only translation after main completes (non-blocking for better UX)
             setTimeout(() => translateCharacterOnly(inputText), 0);
 
@@ -2574,12 +2582,12 @@ const Translator = ({ isActive = true }) => {
                   );
                   toast.error(
                     `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
-                    { duration: 8000 }
+                    { duration: TOAST_DURATIONS.CACHE_WARNING }
                   );
                 } else if (syncStatus.status === 'FAIL_ERRORS') {
                   logger.error('❌ WASM sync validation failed - errors:', syncStatus);
                   toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
-                    duration: 8000,
+                    duration: TOAST_DURATIONS.CACHE_WARNING,
                   });
                 }
               } catch (validationError) {

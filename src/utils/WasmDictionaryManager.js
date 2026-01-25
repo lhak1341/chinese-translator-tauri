@@ -21,6 +21,7 @@ import init, { DictionaryEngine } from '../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
 import toast from './toast';
 import { logger } from './logger';
+import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 
 export class WasmDictionaryManager {
   constructor() {
@@ -343,7 +344,8 @@ export class WasmDictionaryManager {
       // HIGH-4 FIX: Show one-time notification when entering fallback mode
       if (!this.notifiedFallbackMode) {
         toast.warning('Dictionary system using slower fallback mode. Performance may be reduced.', {
-          duration: 5000,
+          duration: TOAST_DURATIONS.LOAD_FAILURE,
+          id: TOAST_IDS.WASM_DICT_FALLBACK,
         });
         this.notifiedFallbackMode = true;
       }

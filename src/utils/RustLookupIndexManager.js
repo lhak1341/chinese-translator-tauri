@@ -12,6 +12,7 @@
 import tauriAPI from '../tauriAPI.js';
 import toast from './toast';
 import { logger } from './logger';
+import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 
 class RustLookupIndexManager {
   constructor() {
@@ -216,7 +217,8 @@ class RustLookupIndexManager {
       // HIGH-2 FIX: Show user-facing warning when entering fallback mode (first time only)
       if (!this.showedFallbackWarning) {
         toast.warning('High-performance indexing unavailable. Large texts may translate slower.', {
-          duration: 5000,
+          duration: TOAST_DURATIONS.LOAD_FAILURE,
+          id: TOAST_IDS.RUST_INDEX_UNAVAILABLE,
         });
         this.showedFallbackWarning = true;
       }
