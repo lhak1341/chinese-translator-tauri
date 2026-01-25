@@ -80,7 +80,7 @@ describe('RustLookupIndexManager Error Handling', () => {
       // Assert: Toast warning was shown
       expect(toast.warning).toHaveBeenCalledWith(
         'High-performance indexing unavailable. Large texts may translate slower.',
-        { duration: 5000 }
+        { duration: 5000, id: 'rust-index-unavailable' }
       );
 
       // Assert: Manager disabled
@@ -106,7 +106,7 @@ describe('RustLookupIndexManager Error Handling', () => {
       expect(toast.warning).toHaveBeenCalledTimes(1);
       expect(toast.warning).toHaveBeenCalledWith(
         'High-performance indexing unavailable. Large texts may translate slower.',
-        { duration: 5000 }
+        { duration: 5000, id: 'rust-index-unavailable' }
       );
     });
 

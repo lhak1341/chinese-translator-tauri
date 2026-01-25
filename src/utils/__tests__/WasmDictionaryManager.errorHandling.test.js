@@ -94,7 +94,7 @@ describe('WasmDictionaryManager Error Handling', () => {
       // Assert: Toast warning was shown
       expect(toast.warning).toHaveBeenCalledWith(
         'Dictionary system using slower fallback mode. Performance may be reduced.',
-        { duration: 5000 }
+        { duration: 5000, id: 'wasm-dict-fallback' }
       );
 
       // Assert: Fallback mode enabled
@@ -125,7 +125,7 @@ describe('WasmDictionaryManager Error Handling', () => {
       expect(toast.warning).toHaveBeenCalledTimes(1);
       expect(toast.warning).toHaveBeenCalledWith(
         'Dictionary system using slower fallback mode. Performance may be reduced.',
-        { duration: 5000 }
+        { duration: 5000, id: 'wasm-dict-fallback' }
       );
     });
 
