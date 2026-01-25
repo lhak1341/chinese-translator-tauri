@@ -119,10 +119,13 @@ export class WasmDictionaryManager {
     if (!this.initialized || this.fallbackMode) {
       logger.log('🔄 Using fallback for batch loading (WASM not available)');
       this._recordSyncFailure('WASM not initialized or in fallback mode', 'batch');
-      // Fall back to sequential loading (tracked separately)
+      // CRITICAL FIX: Pass _skipMetrics=true to prevent double-counting
+      // Batch attempt already counted above (line 116), fallback loop shouldn't increment sequential metrics
+      // Without this: batch fail for 12 dicts = 1 batch attempt + 12 sequential attempts (wrong!)
+      // With this: batch fail for 12 dicts = 1 batch attempt + 0 sequential attempts (correct!)
       let successCount = 0;
       for (const { name, entries } of dictionaries) {
-        const success = await this.loadDictionary(name, entries);
+        const success = await this.loadDictionary(name, entries, true); // Skip metrics
         if (success) successCount++;
       }
       logger.log(
@@ -195,9 +198,12 @@ export class WasmDictionaryManager {
     }
   }
 
-  async loadDictionary(name, entries) {
+  async loadDictionary(name, entries, _skipMetrics = false) {
     // ARCHITECTURAL FIX: Track sequential loading attempts
-    this.syncFailureTracking.sequentialAttempts++;
+    // CRITICAL FIX: Skip metrics when called as batch fallback to prevent double-counting
+    if (!_skipMetrics) {
+      this.syncFailureTracking.sequentialAttempts++;
+    }
 
     if (!this.initialized || this.fallbackMode) {
       logger.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);

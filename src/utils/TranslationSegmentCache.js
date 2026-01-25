@@ -55,9 +55,10 @@ export class TranslationSegmentCache {
     // Track approximate localStorage size in bytes (updated incrementally)
     this.approximateSize = 0;
     this.writesSinceRecalculation = 0;
-    // MEDIUM-PRIORITY FIX: Reduced from 100 to 20 writes to prevent quota drift during burst operations
-    // During rapid translations, approximation can drift +2MB before recalculation triggers
-    this.RECALCULATION_INTERVAL = 20; // Recalculate full size every 20 writes
+    // HIGH-PRIORITY FIX: Reduced from 20 to 10 writes to prevent quota drift during burst operations
+    // During rapid translations (10 writes/sec), 20×100KB = +2MB drift before recalculation
+    // Reducing to 10 writes limits drift to +1MB (safer margin)
+    this.RECALCULATION_INTERVAL = 10; // Recalculate full size every 10 writes
 
     // Calculate initial size
     this._recalculateSize();
@@ -421,13 +422,28 @@ export class TranslationSegmentCache {
       }
 
       const totalMB = this.approximateSize / 1024 / 1024;
-      const quotaLimitMB = 4; // 80% of typical 5MB quota
+      // HIGH-PRIORITY FIX: Use 70% safety margin instead of 80%
+      // Protects against quota drift: approximateSize can be +1MB off, so 3.5MB + 1MB = 4.5MB (safe)
+      // Old 4MB threshold + 1MB drift = 5MB (quota exceeded!)
+      const QUOTA_SAFETY_MARGIN = 0.7; // 70% of 5MB = 3.5MB threshold
+      const quotaLimitMB = QUOTA_SAFETY_MARGIN * 5; // 3.5MB
 
       if (totalMB > quotaLimitMB) {
-        logger.warn(
-          `⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB (${((totalMB / 5) * 100).toFixed(1)}%) [${this.writesSinceRecalculation === 0 ? 'exact' : 'approximate'}]`
-        );
-        return true;
+        // HIGH-PRIORITY FIX: Force accurate recalculation when approaching quota
+        // Approximation drift could cause false positives, verify with exact calculation
+        this._recalculateSize();
+        const exactMB = this.approximateSize / 1024 / 1024;
+
+        if (exactMB > quotaLimitMB) {
+          logger.warn(
+            `⚠️ localStorage approaching quota: ${exactMB.toFixed(2)}MB / 5MB (${((exactMB / 5) * 100).toFixed(1)}%) [exact after recalculation]`
+          );
+          return true;
+        } else {
+          // False alarm from drift, reset counter
+          this.writesSinceRecalculation = 0;
+          return false;
+        }
       }
 
       return false;

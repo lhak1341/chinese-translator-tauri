@@ -459,16 +459,20 @@ export function LazyDictionaryProvider({
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry added successfully');
 
-          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
-          // Prevents stale translations from being served after dictionary updates
-          // LOW-3 FIX: Notify user about cache invalidation (non-blocking)
-          if (
-            window.translationEngine &&
-            typeof window.translationEngine.invalidateAllCaches === 'function'
-          ) {
+          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
+          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
+          // Dictionary add/update/delete only needs 3 caches cleared (not all 6)
+          if (window.translationEngine) {
             try {
-              await window.translationEngine.invalidateAllCaches(dictionaryId);
-              logger.log('✅ Caches cleared after adding entry');
+              // Prefer targeted invalidation if available (more efficient)
+              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+                await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
+                logger.log('✅ Dictionary caches cleared after adding entry');
+              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+                // Fallback to full invalidation if targeted method not available
+                await window.translationEngine.invalidateAllCaches(dictionaryId);
+                logger.log('✅ All caches cleared after adding entry');
+              }
             } catch (cacheError) {
               // Don't fail the operation if cache invalidation fails
               // Dictionary was saved successfully - cache will be invalidated on reload
@@ -568,19 +572,18 @@ export function LazyDictionaryProvider({
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry updated successfully');
 
-          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
-          // Prevents stale translations from being served after dictionary updates
-          // LOW-3 FIX: Notify user about cache invalidation (non-blocking)
-          if (
-            window.translationEngine &&
-            typeof window.translationEngine.invalidateAllCaches === 'function'
-          ) {
+          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
+          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
+          if (window.translationEngine) {
             try {
-              await window.translationEngine.invalidateAllCaches(dictionaryId);
-              logger.log('✅ Caches cleared after updating entry');
+              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+                await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
+                logger.log('✅ Dictionary caches cleared after updating entry');
+              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+                await window.translationEngine.invalidateAllCaches(dictionaryId);
+                logger.log('✅ All caches cleared after updating entry');
+              }
             } catch (cacheError) {
-              // Don't fail the operation if cache invalidation fails
-              // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
                 duration: TOAST_DURATIONS.LOAD_FAILURE,
                 id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
@@ -633,19 +636,18 @@ export function LazyDictionaryProvider({
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry deleted successfully');
 
-          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
-          // Prevents stale translations from being served after dictionary updates
-          // LOW-3 FIX: Show progress indicator during cache invalidation
-          if (
-            window.translationEngine &&
-            typeof window.translationEngine.invalidateAllCaches === 'function'
-          ) {
+          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
+          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
+          if (window.translationEngine) {
             try {
-              await window.translationEngine.invalidateAllCaches(dictionaryId);
-              logger.log('✅ Caches cleared after deleting entry');
+              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+                await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
+                logger.log('✅ Dictionary caches cleared after deleting entry');
+              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+                await window.translationEngine.invalidateAllCaches(dictionaryId);
+                logger.log('✅ All caches cleared after deleting entry');
+              }
             } catch (cacheError) {
-              // Don't fail the operation if cache invalidation fails
-              // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
                 duration: TOAST_DURATIONS.LOAD_FAILURE,
                 id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
@@ -692,19 +694,18 @@ export function LazyDictionaryProvider({
           setCurrentHistoryIndex((prev) => prev - 1);
           toast.success('Change undone');
 
-          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
-          // Prevents stale translations from being served after undo
-          // LOW-3 FIX: Show progress indicator during cache invalidation
-          if (
-            window.translationEngine &&
-            typeof window.translationEngine.invalidateAllCaches === 'function'
-          ) {
+          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
+          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
+          if (window.translationEngine) {
             try {
-              await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
-              logger.log('✅ Caches cleared after undo');
+              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+                await window.translationEngine.invalidateDictionaryCaches(operation.dictionaryId);
+                logger.log('✅ Dictionary caches cleared after undo');
+              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+                await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+                logger.log('✅ All caches cleared after undo');
+              }
             } catch (cacheError) {
-              // Don't fail the operation if cache invalidation fails
-              // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
                 duration: TOAST_DURATIONS.LOAD_FAILURE,
                 id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
@@ -744,19 +745,18 @@ export function LazyDictionaryProvider({
           setCurrentHistoryIndex((prev) => prev + 1);
           toast.success('Change redone');
 
-          // ARCHITECTURAL FIX: Invalidate all caches when dictionary changes
-          // Prevents stale translations from being served after redo
-          // LOW-3 FIX: Show progress indicator during cache invalidation
-          if (
-            window.translationEngine &&
-            typeof window.translationEngine.invalidateAllCaches === 'function'
-          ) {
+          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
+          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
+          if (window.translationEngine) {
             try {
-              await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
-              logger.log('✅ Caches cleared after redo');
+              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+                await window.translationEngine.invalidateDictionaryCaches(operation.dictionaryId);
+                logger.log('✅ Dictionary caches cleared after redo');
+              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+                await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
+                logger.log('✅ All caches cleared after redo');
+              }
             } catch (cacheError) {
-              // Don't fail the operation if cache invalidation fails
-              // Dictionary was saved successfully - cache will be invalidated on reload
               toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
                 duration: TOAST_DURATIONS.LOAD_FAILURE,
                 id: TOAST_IDS.CACHE_INVALIDATION_FAILED,

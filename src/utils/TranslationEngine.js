@@ -7064,10 +7064,100 @@ export class TranslationEngine {
         this.properNounTranslations.clear();
       }
 
+      // CRITICAL FIX: Re-sync dictionaries to WASM after cache invalidation
+      // Without this, WASM has stale dictionary state while JavaScript has fresh data
+      // Impact: After Cmd/Ctrl-R reload, translations use stale WASM entries until app restart
+      if (
+        this.dictionaryManager &&
+        typeof this.dictionaryManager.syncDictionariesToWasm === 'function'
+      ) {
+        try {
+          await this.dictionaryManager.syncDictionariesToWasm();
+          this.log(DEBUG_LEVELS.DEBUG, '✅ WASM dictionaries re-synced after cache invalidation');
+        } catch (wasmError) {
+          // Non-critical: WASM sync failure falls back to JavaScript dictionaries
+          this.log(
+            DEBUG_LEVELS.WARN,
+            `⚠️ WASM re-sync failed (fallback to JavaScript): ${wasmError.message}`
+          );
+          logger.warn('WASM dictionary re-sync failed after cache invalidation:', wasmError);
+        }
+      }
+
       const duration = performance.now() - startTime;
       this.log(DEBUG_LEVELS.INFO, `✅ All caches invalidated in ${duration.toFixed(2)}ms`);
     } catch (error) {
       this.log(DEBUG_LEVELS.ERROR, '❌ Error invalidating caches:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * MEDIUM-PRIORITY FIX: Targeted cache invalidation for dictionary operations
+   * Invalidate only caches affected by dictionary add/update/delete operations
+   * More efficient than invalidateAllCaches() which clears all 6 cache systems
+   *
+   * Called when:
+   * - Dictionary entries are added/updated/deleted
+   * - Undo/redo dictionary operations
+   *
+   * Clears:
+   * - DictionaryManager caches (character, phrase, pattern lookups)
+   * - Proper noun translation cache
+   * - WASM dictionary sync (re-sync specific dictionary)
+   *
+   * Does NOT clear (not affected by single dictionary entry changes):
+   * - Semantic array builder cache (capitalization updates)
+   * - Pattern processor variable cache (pattern structure unchanged)
+   * - Rust lookup index cache (character dictionary only)
+   * - Translation segments (position mappings)
+   *
+   * @param {string} dictionaryName - Dictionary that was modified
+   */
+  async invalidateDictionaryCaches(dictionaryName) {
+    const startTime = performance.now();
+    this.log(
+      DEBUG_LEVELS.INFO,
+      `🧹 Invalidating dictionary-specific caches for: ${dictionaryName}`
+    );
+
+    try {
+      // 1. Dictionary Manager Cache (specific dictionary only)
+      if (this.dictionaryManager && typeof this.dictionaryManager.invalidateCache === 'function') {
+        this.dictionaryManager.invalidateCache(dictionaryName);
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          `✅ Dictionary manager cache invalidated for ${dictionaryName}`
+        );
+      }
+
+      // 2. Proper Noun Translation Cache (all proper noun translations)
+      if (this.properNounTranslations) {
+        this.properNounTranslations.clear();
+        this.log(DEBUG_LEVELS.DEBUG, '✅ Proper noun translation cache cleared');
+      }
+
+      // 3. Re-sync specific dictionary to WASM
+      if (
+        this.dictionaryManager &&
+        typeof this.dictionaryManager.syncDictionariesToWasm === 'function'
+      ) {
+        try {
+          await this.dictionaryManager.syncDictionariesToWasm();
+          this.log(DEBUG_LEVELS.DEBUG, `✅ WASM dictionary re-synced for ${dictionaryName}`);
+        } catch (wasmError) {
+          // Non-critical: WASM sync failure falls back to JavaScript dictionaries
+          this.log(
+            DEBUG_LEVELS.WARN,
+            `⚠️ WASM re-sync failed (fallback to JavaScript): ${wasmError.message}`
+          );
+        }
+      }
+
+      const duration = performance.now() - startTime;
+      this.log(DEBUG_LEVELS.INFO, `✅ Dictionary caches invalidated in ${duration.toFixed(2)}ms`);
+    } catch (error) {
+      this.log(DEBUG_LEVELS.ERROR, '❌ Error invalidating dictionary caches:', error);
       throw error;
     }
   }

@@ -161,10 +161,28 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         } else {
           this.log(1, '⚠️ Batch loading failed, falling back to sequential loading');
           await this.syncDictionariesToWasmSequential();
+
+          // HIGH-PRIORITY FIX: Validate sequential loading results
+          // Batch loading validates WASM sync, sequential fallback must too
+          // Without this: sequential loading bypasses undefined value checks → "undefined" in translations
+          const sequentialValidation = await this.validateWasmSync(allDictionaries);
+          if (!sequentialValidation) {
+            this.log(0, '❌ Sequential WASM sync validation failed');
+          } else {
+            this.log(1, '✅ Sequential WASM sync validated successfully');
+          }
         }
       } catch (error) {
         this.log(0, '❌ Batch loading error, falling back to sequential:', error);
         await this.syncDictionariesToWasmSequential();
+
+        // HIGH-PRIORITY FIX: Validate sequential loading results (error path)
+        const sequentialValidation = await this.validateWasmSync(allDictionaries);
+        if (!sequentialValidation) {
+          this.log(0, '❌ Sequential WASM sync validation failed (after error)');
+        } else {
+          this.log(1, '✅ Sequential WASM sync validated successfully (after error)');
+        }
       }
     }
   }
