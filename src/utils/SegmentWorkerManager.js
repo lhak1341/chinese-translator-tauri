@@ -202,6 +202,7 @@ export class SegmentWorkerManager {
           reject(error);
         },
         startTime,
+        timeout, // Store timeout ID for cleanup on termination
       });
 
       this.worker.postMessage({
@@ -318,6 +319,18 @@ export class SegmentWorkerManager {
    * Terminate the worker
    */
   terminate() {
+    // MEMORY FIX: Clear all pending timeouts before terminating worker
+    // Prevents timer leaks if worker terminates unexpectedly
+    for (const [id, task] of this.pendingTasks.entries()) {
+      if (task.timeout) {
+        clearTimeout(task.timeout);
+      }
+      // Reject pending tasks with termination error
+      if (task.reject) {
+        task.reject(new Error('Worker terminated'));
+      }
+    }
+
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;
