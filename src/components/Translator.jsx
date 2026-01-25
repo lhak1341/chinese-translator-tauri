@@ -10,6 +10,7 @@ import {
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
+import { validateElectronResult, validateDictionary } from '../utils/configValidation';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
@@ -1934,15 +1935,31 @@ const Translator = ({ isActive = true }) => {
 
         logger.log('Dictionary loading order:', sortedDictIds);
 
-        // Load dictionaries in order and merge
+        // Load dictionaries in order and merge (SECURITY: validate untrusted file data)
         mergedDict = {};
         for (const dictId of sortedDictIds) {
           let dict;
           if (dictId === 'properNouns') {
-            dict = dictionaries.properNouns || {};
+            // Validate in-memory dictionary
+            dict = validateDictionary(dictionaries.properNouns || {}, dictId);
           } else {
-            const loadResult = await window.electronAPI.loadDictionary(dictId);
-            dict = loadResult.success ? loadResult.data : {};
+            // Load from file and validate
+            try {
+              const rawResult = await window.electronAPI.loadDictionary(dictId);
+              const loadResult = validateElectronResult(rawResult, `loadDictionary(${dictId})`);
+
+              if (loadResult.success && loadResult.data) {
+                dict = validateDictionary(loadResult.data, dictId);
+              } else {
+                logger.warn(
+                  `Failed to load dictionary "${dictId}": ${loadResult.error || 'Unknown error'}, skipping`
+                );
+                dict = {};
+              }
+            } catch (error) {
+              logger.error(`Error loading dictionary "${dictId}":`, error);
+              dict = {};
+            }
           }
 
           // Only add entries that don't already exist

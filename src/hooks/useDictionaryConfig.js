@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
+import { validateElectronResult, validateConfiguration } from '../utils/configValidation';
 
 /**
  * Dictionary configuration hook
@@ -88,22 +89,34 @@ export function useDictionaryConfig() {
       let selectedDictionary = 'properNouns'; // Default fallback
 
       try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        const defaultQuickAddDictionary = configResult.data?.defaultQuickAddDictionary;
+        // Load and validate configuration (SECURITY: validates untrusted file data)
+        const rawResult = await window.electronAPI.loadConfiguration();
+        const configResult = validateElectronResult(rawResult, 'loadConfiguration');
 
-        // If there's a configured default and it's active, use it
-        if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
-          selectedDictionary = defaultQuickAddDictionary;
-        } else {
-          // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
-          const customProperNouns = activeProperNouns.filter((dict) =>
-            dict.startsWith('properNouns-')
-          );
+        if (configResult.success && configResult.data) {
+          const validatedConfig = validateConfiguration(configResult.data);
+          const defaultQuickAddDictionary = validatedConfig.defaultQuickAddDictionary;
 
-          if (customProperNouns.length > 0) {
-            // Choose the first one alphabetically if multiple are active
-            selectedDictionary = customProperNouns.sort()[0];
+          // If there's a configured default and it's active, use it
+          if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
+            selectedDictionary = defaultQuickAddDictionary;
+          } else {
+            // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
+            const customProperNouns = activeProperNouns.filter((dict) =>
+              dict.startsWith('properNouns-')
+            );
+
+            if (customProperNouns.length > 0) {
+              // Choose the first one alphabetically if multiple are active
+              selectedDictionary = customProperNouns.sort()[0];
+            }
           }
+        } else {
+          // Config load failed, use fallback
+          logger.warn(
+            `Configuration load failed: ${configResult.error || 'Unknown error'}, using fallback`
+          );
+          throw new Error(configResult.error || 'Configuration load failed');
         }
       } catch (error) {
         logger.error('Error loading default Cmd-5 dictionary:', error);

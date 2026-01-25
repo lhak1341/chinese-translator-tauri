@@ -1066,9 +1066,68 @@ handleFailure(error) {
 
 **Implementation**: `RustLookupIndexManager.js:handleFailure()`, `WasmDictionaryManager.js:handleFailure()`
 
-**Test Coverage**: 43 tests across 4 test files verify all error handling patterns.
+**Configuration Validation Pattern**:
 
-### Memory Management Patterns
+All external data (configuration files, dictionaries) must be validated before use to prevent crashes from corrupted or malicious input.
+
+```typescript
+// CRITICAL: Configuration loading with validation (January 2026)
+import {
+  validateElectronResult,
+  validateConfiguration,
+  validateDictionary,
+  type AppConfiguration,
+  type Dictionary,
+} from '../utils/configValidation';
+
+// Step 1: Validate ElectronAPI result structure
+const rawResult = await window.electronAPI.loadConfiguration();
+const configResult = validateElectronResult<AppConfiguration>(rawResult, 'loadConfiguration');
+
+// Step 2: Validate configuration data with safe defaults
+if (configResult.success && configResult.data) {
+  const validatedConfig = validateConfiguration(configResult.data);
+
+  // Use validated data (guaranteed safe types, defaults for invalid fields)
+  const selectedDictionary = validatedConfig.defaultQuickAddDictionary;
+} else {
+  // Handle load failure
+  logger.warn(`Configuration load failed: ${configResult.error}`);
+  // Use fallback logic
+}
+
+// Dictionary validation
+const rawDict = await window.electronAPI.loadDictionary(dictId);
+const dictResult = validateElectronResult<Dictionary>(rawDict, `loadDictionary(${dictId})`);
+
+if (dictResult.success && dictResult.data) {
+  const validatedDict = validateDictionary(dictResult.data, dictId);
+  // Use validatedDict (invalid entries omitted, valid entries preserved)
+}
+```
+
+**Key principles:**
+
+- **Two-phase validation**: Validate result structure first, then data contents
+- **Safe defaults**: Invalid fields get sensible defaults instead of crashing
+- **Type safety**: TypeScript interfaces enforce expected structure
+- **Graceful degradation**: Invalid entries skipped, valid entries preserved
+- **Security**: Prevents type confusion, injection attacks, malformed data crashes
+
+**Validation functions:**
+
+- `validateElectronResult()` - Validates result structure (success/data/error fields)
+- `validateConfiguration()` - Validates app config with defaults for invalid fields
+- `validateDictionary()` - Validates entire dictionary, skips invalid entries
+- `validateDictionaryEntry()` - Validates single entry (string or complex metadata)
+- `validateDictionaryList()` - Validates array of dictionary IDs
+- `sanitizeString()` - Removes control characters, limits length
+
+**Implementation**: `configValidation.ts` (validation functions), `useDictionaryConfig.js:90-115` (config loading), `Translator.jsx:1938-1969` (dictionary loading)
+
+**Test Coverage**: 41 tests in `configValidation.test.ts` verify all validation patterns, including security edge cases.
+
+**Test Coverage**: 84 tests across 5 test files verify all error handling patterns.
 
 **Production stability** (January 2025): Eliminated memory leaks causing 50MB+ accumulation over long sessions.
 
@@ -1398,18 +1457,19 @@ npm run tauri:build    # Build production Tauri app
 ### Testing Infrastructure
 
 **Test Runner**: Vitest with React Testing Library
-**Test Files**: 19 files across utilities, types, components, and error handling
+**Test Files**: 25 files across utilities, types, components, error handling, and security
 **Configuration**: `vitest.config.ts`, `src/test/setup.ts`
 
 **Current Status:**
 
-- ✅ **24 test files, 500 tests, all passing** (4,067% increase from baseline)
+- ✅ **25 test files, 541 tests, all passing** (4,408% increase from baseline)
 - ✅ **Utility functions covered** - Token helpers, caching, memory monitoring
 - ✅ **WASM boundaries covered** - Type safety, Rust ↔ JS serialization, edge cases
 - ✅ **React components covered** - Error boundary, dictionary dialogs
 - ✅ **Error handling covered** - WASM degradation, Rust fallback, async operations
 - ✅ **Core systems covered** - Phase integration, position mapping, scalability
 - ✅ **API contracts covered** - Synchronous method enforcement (prevents breaking changes)
+- ✅ **Security covered** - Configuration validation, malformed data handling (NEW)
 
 **Test Coverage Details:**
 
@@ -1419,6 +1479,7 @@ npm run tauri:build    # Build production Tauri app
 | WASM Boundaries  | 2     | 57    | Type contracts, undefined → null, edge cases     |
 | React Components | 2     | 51    | Error handling, dictionary operations            |
 | Error Handling   | 4     | 43    | WASM degradation, Rust fallback, async ops       |
+| Security         | 1     | 41    | Config validation, malformed data, injection     |
 | Regression Tests | 6     | 30    | WASM, engine, semantic arrays, dictionary        |
 | Core Systems     | 2     | 34    | Phase integration, position mapping              |
 | Scalability      | 1     | 13    | 100K+ entry performance, memory stability        |
@@ -1439,6 +1500,7 @@ npm run tauri:build    # Build production Tauri app
 - `WasmPatternProcessor.errorHandling.test.js` (9 tests) - Graceful degradation
 - `RustLookupIndexManager.errorHandling.test.js` (10 tests) - Fallback notifications
 - `WasmDictionaryManager.errorHandling.test.js` (12 tests) - WASM fallback handling
+- `configValidation.test.ts` (41 tests) - Configuration/dictionary validation, security (NEW)
 - `UnicodePunctuationDetector.test.js` (12 tests) - Original test file
 - `PhaseIntegration.test.js` (16 tests) - 5-phase pipeline token consumption and priority
 - `PositionMapping.test.js` (18 tests) - Position tracking completeness for clickable highlighting
@@ -1452,6 +1514,7 @@ npm run tauri:build    # Build production Tauri app
 - **2026-01-08**: Added 8 new test files (296 tests) - systematic coverage of critical paths
 - **2026-01-14**: Added 4 error handling test files (43 tests) - comprehensive error recovery coverage
 - **2026-01-16**: Added 5 core system test files (92 tests) - phase integration, position mapping, WASM edge cases, scalability, API contracts
+- **2026-01-26**: Added configuration validation test file (41 tests) - security coverage for malformed data, injection prevention
 
 **Philosophy:** Lean test suite focused on critical paths. Write tests when adding new features or fixing bugs.
 
