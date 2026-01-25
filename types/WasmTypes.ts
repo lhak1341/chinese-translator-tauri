@@ -324,6 +324,7 @@ export function validateWasmToken(token: unknown): WasmToken {
  * Safe copy of WASM tokens to JavaScript tokens
  * Handles Option::None → undefined → null conversion
  * Uses two-phase validation to prevent partial failures
+ * CRITICAL: Validates array length invariance during copy to detect WASM corruption
  */
 export function copyWasmTokens(source: WasmToken[], target: any[]): void {
   if (source.length !== target.length) {
@@ -332,10 +333,23 @@ export function copyWasmTokens(source: WasmToken[], target: any[]): void {
     );
   }
 
+  // CRITICAL: Track original lengths to detect corruption during copy
+  const originalSourceLength = source.length;
+  const originalTargetLength = target.length;
+
   // PHASE 1: Validate all tokens before modifying target
   // This prevents partial corruption if validation fails mid-array
   const validatedTokens: WasmToken[] = [];
   for (let i = 0; i < source.length; i++) {
+    // CRITICAL: Revalidate array lengths haven't changed mid-validation
+    // Detects WASM corruption that modifies arrays during processing
+    if (source.length !== originalSourceLength || target.length !== originalTargetLength) {
+      throw new Error(
+        `🔴 Token array corrupted during validation at index ${i}: ` +
+          `source ${originalSourceLength}→${source.length}, target ${originalTargetLength}→${target.length}`
+      );
+    }
+
     try {
       const processed = validateWasmToken(source[i]);
       validatedTokens.push(processed);
@@ -349,6 +363,15 @@ export function copyWasmTokens(source: WasmToken[], target: any[]): void {
 
   // PHASE 2: Copy validated tokens to target (safe since all are validated)
   for (let i = 0; i < validatedTokens.length; i++) {
+    // CRITICAL: Revalidate array lengths haven't changed mid-copy
+    // Detects corruption during copy operation itself
+    if (source.length !== originalSourceLength || target.length !== originalTargetLength) {
+      throw new Error(
+        `🔴 Token array corrupted during copy at index ${i}: ` +
+          `source ${originalSourceLength}→${source.length}, target ${originalTargetLength}→${target.length}`
+      );
+    }
+
     const processed = validatedTokens[i];
 
     // Only copy if WASM actually modified the token

@@ -159,10 +159,22 @@ class RustLookupIndexManager {
     const entries = [];
     // SAFETY FIX: Maximum depth to prevent infinite recursion from corrupted tries
     const MAX_DEPTH = 100;
+    // CRITICAL FIX: Track visited nodes to detect circular references immediately
+    const visitedNodes = new WeakSet();
 
     // Traverse the trie using DFS
     const traverse = (node, currentWord, depth = 0) => {
-      // Prevent infinite recursion from circular references or corrupted data
+      // CRITICAL: Detect circular references before depth limit
+      // Corrupted tries with cycles will be caught immediately instead of after 100 calls
+      if (visitedNodes.has(node)) {
+        logger.error(
+          `🔴 Circular reference detected in trie at word: "${currentWord}" (dictionary corruption)`
+        );
+        return;
+      }
+      visitedNodes.add(node);
+
+      // Prevent infinite recursion from corrupted data (secondary protection)
       if (depth > MAX_DEPTH) {
         logger.error(
           `Trie traversal depth exceeded ${MAX_DEPTH}, possible cycle or corrupted trie at word: "${currentWord}"`

@@ -250,6 +250,15 @@ const Translator = ({ isActive = true }) => {
     }
   }, []);
 
+  // CRITICAL FIX: Cleanup timers on component unmount to prevent memory leaks
+  // Pattern from CLAUDE.md: "All setInterval/setTimeout must have corresponding clear* in cleanup"
+  // Impact: Prevents 50MB+ memory accumulation from timer leaks (documented pattern)
+  useEffect(() => {
+    return () => {
+      cleanupScrollRestoration();
+    };
+  }, [cleanupScrollRestoration]);
+
   // Functions to save and restore scroll positions
   const saveScrollPositions = useCallback(() => {
     const positions = {
