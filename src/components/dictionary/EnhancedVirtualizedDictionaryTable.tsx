@@ -659,7 +659,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   // Bulk Move Dialog Component
   const BulkMoveDialog: React.FC = () => {
-    const { loadDictionary } = useDictionary();
+    const { loadDictionary, dictionaries } = useDictionary();
     const [selectedTargetDict, setSelectedTargetDict] = useState<string>('');
     const [error, setError] = useState<string | null>(null);
     const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
@@ -752,6 +752,22 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       }
     };
 
+    // Get dictionary label for display
+    const getSourceDictLabel = (): string => {
+      if (selectedDictionary === 'properNouns') {
+        return 'Proper Nouns (Base)';
+      } else if (selectedDictionary.startsWith('properNouns-')) {
+        return `Proper Nouns - ${selectedDictionary.replace('properNouns-', '')}`;
+      } else {
+        return selectedDictionary.charAt(0).toUpperCase() + selectedDictionary.slice(1);
+      }
+    };
+
+    // Get preview entries (first 3)
+    const previewEntries = Array.from(selectedEntries).slice(0, 3);
+    const hasMore = selectedEntries.size > 3;
+    const currentDict = dictionaries[selectedDictionary];
+
     return (
       <div className={styles.bulkMoveOverlay} onClick={() => setShowBulkMoveDialog(false)}>
         <div className={styles.bulkMoveModal} onClick={(e) => e.stopPropagation()}>
@@ -762,23 +778,58 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           </div>
 
           <div className={styles.bulkMoveContent}>
-            <select
-              value={selectedTargetDict}
-              onChange={(e) => setSelectedTargetDict(e.target.value)}
-              disabled={isMoving}
-              className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
-            >
-              <option value="">Select target dictionary...</option>
-              {availableDictionaries.map((id) => (
-                <option key={id} value={id}>
-                  {id === 'properNouns'
-                    ? 'General Purpose Dictionary'
-                    : id.startsWith('properNouns-')
-                      ? `Proper Nouns - ${id.replace('properNouns-', '')}`
-                      : id.charAt(0).toUpperCase() + id.slice(1)}
-                </option>
-              ))}
-            </select>
+            {/* Entry Preview */}
+            <div className={styles.bulkMovePreview}>
+              <div className={styles.bulkMovePreviewLabel}>Moving:</div>
+              <div className={styles.bulkMovePreviewList}>
+                {previewEntries.map((source) => {
+                  const entry = currentDict?.[source];
+                  const translation = typeof entry === 'string' ? entry : entry?.translation || '';
+                  return (
+                    <div key={source} className={styles.bulkMovePreviewItem}>
+                      <span className={styles.bulkMovePreviewSource}>"{source}"</span>
+                      <span className={styles.bulkMovePreviewArrow}>→</span>
+                      <span className={styles.bulkMovePreviewTranslation}>"{translation}"</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {hasMore && (
+                <div className={styles.bulkMovePreviewMore}>
+                  ...and {selectedEntries.size - 3} more{' '}
+                  {selectedEntries.size - 3 === 1 ? 'entry' : 'entries'}
+                </div>
+              )}
+            </div>
+
+            {/* Source Dictionary */}
+            <div className={styles.bulkMoveFormGroup}>
+              <label className={styles.bulkMoveLabel}>From:</label>
+              <div className={styles.bulkMoveReadOnlyField}>{getSourceDictLabel()}</div>
+            </div>
+
+            {/* Destination Dictionary */}
+            <div className={styles.bulkMoveFormGroup}>
+              <label className={styles.bulkMoveLabel}>To:</label>
+              <select
+                value={selectedTargetDict}
+                onChange={(e) => setSelectedTargetDict(e.target.value)}
+                disabled={isMoving}
+                className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
+                autoFocus
+              >
+                <option value="">Choose destination dictionary...</option>
+                {availableDictionaries.map((id) => (
+                  <option key={id} value={id}>
+                    {id === 'properNouns'
+                      ? 'Proper Nouns (Base)'
+                      : id.startsWith('properNouns-')
+                        ? `Proper Nouns - ${id.replace('properNouns-', '')}`
+                        : id.charAt(0).toUpperCase() + id.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {error && <div className={styles.bulkMoveError}>{error}</div>}
           </div>

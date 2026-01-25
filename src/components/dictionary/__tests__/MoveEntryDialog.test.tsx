@@ -41,11 +41,21 @@ describe('MoveEntryDialog', () => {
     translation: 'xin chào',
   };
 
+  // UPDATED: Mock dictionaries with actual entry data for metadata extraction
   const mockDictionaries = {
-    characters: { entries: [] },
-    phrases: { entries: [] },
-    properNouns: { entries: [] },
-    'properNouns-NovelName': { entries: [] },
+    characters: {
+      你好: 'xin chào',
+    },
+    phrases: {},
+    properNouns: {},
+    'properNouns-NovelName': {},
+    patterns: {
+      '在<X>眼中': {
+        translation: 'trong mắt <X>',
+        allowAsPatternVariable: false,
+        lowPriority: false,
+      },
+    },
   };
 
   const mockAddEntry = vi.fn();
@@ -85,8 +95,8 @@ describe('MoveEntryDialog', () => {
         expect(select).toBeInTheDocument();
       });
 
-      // Should have placeholder
-      expect(screen.getByText('Select a dictionary...')).toBeInTheDocument();
+      // Should have placeholder (updated to match new implementation)
+      expect(screen.getByText('Choose destination dictionary...')).toBeInTheDocument();
     });
 
     test('should exclude current dictionary from options', async () => {
@@ -121,8 +131,8 @@ describe('MoveEntryDialog', () => {
         expect(screen.getByText('Phrases')).toBeInTheDocument();
       });
 
-      // Check label formatting
-      expect(screen.getByText('General Purpose Dictionary')).toBeInTheDocument();
+      // Check label formatting (updated to match new implementation)
+      expect(screen.getByText('Proper Nouns (Base)')).toBeInTheDocument();
       expect(screen.getByText('Proper Nouns - NovelName')).toBeInTheDocument();
     });
 
@@ -212,10 +222,12 @@ describe('MoveEntryDialog', () => {
       fireEvent.click(moveButton);
 
       await waitFor(() => {
+        // UPDATED: Expect 4-parameter call with metadata (empty for simple dictionaries)
         expect(mockAddEntry).toHaveBeenCalledWith(
           'phrases',
           mockEntry.source,
-          mockEntry.translation
+          mockEntry.translation,
+          {} // metadata is empty when moving from characters to phrases
         );
         expect(mockDeleteEntry).toHaveBeenCalledWith('characters', mockEntry.source);
         expect(mockOnClose).toHaveBeenCalled();
@@ -473,10 +485,13 @@ describe('MoveEntryDialog', () => {
         phrases: { label: 'Phrases' },
       } as any);
 
+      // UPDATED: Use proper dictionary structure
       mockUseDictionary.mockReturnValue({
         dictionaries: {
-          characters: { entries: [] },
-          phrases: { entries: [] },
+          characters: {
+            你好: 'xin chào',
+          },
+          phrases: {},
         },
         addEntry: mockAddEntry,
         deleteEntry: mockDeleteEntry,
@@ -527,10 +542,15 @@ describe('MoveEntryDialog', () => {
       fireEvent.click(moveButton);
 
       await waitFor(() => {
+        // UPDATED: Expect 4-parameter call with metadata from patterns dictionary
         expect(mockAddEntry).toHaveBeenCalledWith(
           'phrases',
           specialEntry.source,
-          specialEntry.translation
+          specialEntry.translation,
+          {
+            allowAsPatternVariable: false,
+            lowPriority: false,
+          }
         );
       });
     });

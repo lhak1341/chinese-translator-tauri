@@ -1,5 +1,5 @@
 /* MoveEntryDialog Component Styles */
-/* Extracted from inline styles for CSP hardening */
+/* Enhanced for comprehensive UI polish matching DictionaryEntry */
 
 /* Overlay */
 .overlay {
@@ -8,68 +8,327 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
   z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Modal Container */
 .modal {
   background-color: var(--background-color);
   border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    0 8px 24px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
   position: relative;
   border: 1px solid var(--border-color);
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Header */
 .header {
-  padding: 1rem;
+  padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
-  text-align: center;
 }
 
 .title {
   margin: 0;
   font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
 }
 
 /* Content */
 .content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Entry Preview Section */
+.entryPreview {
+  background-color: var(--secondary-background-color, #f5f5f5);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
   padding: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.previewLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--secondary-text-color, #666);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.5px;
+}
+
+.previewText {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+.previewSource {
+  font-weight: 600;
+  color: var(--primary-color, #4a90e2);
+}
+
+.previewArrow {
+  color: var(--secondary-text-color, #666);
+  font-weight: bold;
+}
+
+.previewTranslation {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.previewMetadata {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.metadataTag {
+  display: inline-block;
+  background-color: var(--primary-color, #4a90e2);
+  color: white;
+  padding: 0.25rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Form Group */
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.readOnlyField {
+  padding: 0.625rem 0.75rem;
+  border-radius: 6px;
+  background-color: var(--secondary-background-color, #f5f5f5);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  font-size: 0.9rem;
 }
 
 /* Select Dropdown */
 .select {
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.625rem 0.75rem;
   border-radius: 6px;
   border: 1px solid var(--border-color);
   background-color: var(--background-color);
   color: var(--text-color);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select:hover:not(:disabled) {
+  border-color: var(--primary-color, #4a90e2);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--primary-color, #4a90e2);
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: var(--secondary-background-color, #f5f5f5);
 }
 
 .selectWithError {
-  margin-bottom: 0.75rem;
+  border-color: var(--danger-button-text, #dc2626);
+}
+
+/* Notification Styles */
+.notification {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.notificationContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+}
+
+.notificationWarning {
+  background-color: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+
+.notificationInfo {
+  background-color: #dbeafe;
+  border: 1px solid #3b82f6;
+  color: #1e3a8a;
+}
+
+.notificationIcon {
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+}
+
+.notificationText {
+  flex: 1;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 /* Error Message */
 .error {
-  color: var(--danger-button-text);
+  color: var(--danger-button-text, #dc2626);
   font-size: 0.875rem;
+  padding: 0.75rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
   margin-top: 0.5rem;
 }
 
 /* Footer */
 .footer {
-  padding: 1rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+  background-color: var(--secondary-background-color, #f9fafb);
+}
+
+/* Buttons */
+.cancelButton,
+.moveButton {
+  padding: 0.625rem 1.25rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cancelButton {
+  background-color: transparent;
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.cancelButton:hover:not(:disabled) {
+  background-color: var(--secondary-background-color, #f5f5f5);
+  border-color: var(--secondary-text-color, #999);
+}
+
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.moveButton {
+  background-color: var(--primary-color, #4a90e2);
+  color: white;
+  border-color: var(--primary-color, #4a90e2);
+}
+
+.moveButton:hover:not(:disabled) {
+  background-color: var(--primary-hover-color, #3a7bc8);
+  border-color: var(--primary-hover-color, #3a7bc8);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.moveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.moveButton:disabled[title] {
+  cursor: help;
+}
+
+/* Loading Spinner */
+.moveButton .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+  .modal {
+    max-width: 100%;
+    margin: 1rem;
+  }
+
+  .previewText {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .footer {
+    flex-direction: column;
+  }
+
+  .cancelButton,
+  .moveButton {
+    width: 100%;
+    justify-content: center;
+  }
 }
