@@ -6,6 +6,7 @@ import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
+import { ValidationError, SaveError, isValidationError } from '../../utils/errors';
 
 /**
  * Dictionary data structure (key-value pairs)
@@ -183,11 +184,12 @@ export function LazyDictionaryProvider({
         return;
       }
 
-      // Create promise BEFORE async work (ensures atomicity)
-      const loadPromise = (async () => {
-        // Mark as loading synchronously
-        loadingDictionariesRef.current.add(dictionaryId);
+      // CRITICAL FIX: Mark as loading BEFORE creating promise to make check-and-set atomic
+      // This prevents race condition where two threads both pass the check above
+      loadingDictionariesRef.current.add(dictionaryId);
 
+      // Create promise AFTER marking as loading (ensures atomicity)
+      const loadPromise = (async () => {
         // MEDIUM-1 FIX: Track first dictionary load time
         const isFirstLoad = firstLoadTimeRef.current === null;
         const startTime = isFirstLoad ? performance.now() : 0;
@@ -425,7 +427,7 @@ export function LazyDictionaryProvider({
         );
         if (validationError) {
           toast.error(`Invalid entry: ${validationError}`);
-          throw new Error(validationError);
+          throw new ValidationError(validationError);
         }
 
         const oldData = { ...dictionaries[dictionaryId] };
@@ -485,13 +487,15 @@ export function LazyDictionaryProvider({
           }));
           const errorMsg = result.error || 'Failed to save dictionary changes';
           toast.error(`Save failed: ${errorMsg}. Changes reverted.`);
-          throw new Error(errorMsg);
+          throw new SaveError(errorMsg);
         }
       } catch (error) {
         logger.error('Error adding dictionary entry:', error);
-        // Only show toast if not already shown above
-        if (error instanceof Error && !error.message.includes('Invalid entry')) {
-          toast.error(`Could not add entry: ${error.message}`);
+        // CODE QUALITY FIX: Use type-safe error checking instead of brittle string matching
+        // Only show toast if not a validation error (validation errors already show toast)
+        if (!isValidationError(error)) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(`Could not add entry: ${errorMsg}`);
         }
         throw error; // Re-throw for caller handling
       }
@@ -521,7 +525,7 @@ export function LazyDictionaryProvider({
         );
         if (validationError) {
           toast.error(`Invalid entry: ${validationError}`);
-          throw new Error(validationError);
+          throw new ValidationError(validationError);
         }
 
         const oldData = { ...dictionaries[dictionaryId] };
@@ -592,13 +596,15 @@ export function LazyDictionaryProvider({
           }));
           const errorMsg = result.error || 'Failed to save dictionary changes';
           toast.error(`Save failed: ${errorMsg}. Changes reverted.`);
-          throw new Error(errorMsg);
+          throw new SaveError(errorMsg);
         }
       } catch (error) {
         logger.error('Error updating dictionary entry:', error);
-        // Only show toast if not already shown above
-        if (error instanceof Error && !error.message.includes('Invalid entry')) {
-          toast.error(`Could not update entry: ${error.message}`);
+        // CODE QUALITY FIX: Use type-safe error checking instead of brittle string matching
+        // Only show toast if not a validation error (validation errors already show toast)
+        if (!isValidationError(error)) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          toast.error(`Could not update entry: ${errorMsg}`);
         }
         throw error; // Re-throw for caller handling
       }
@@ -655,7 +661,7 @@ export function LazyDictionaryProvider({
           }));
           const errorMsg = result.error || 'Failed to delete dictionary entry';
           toast.error(`Delete failed: ${errorMsg}. Changes reverted.`);
-          throw new Error(errorMsg);
+          throw new SaveError(errorMsg);
         }
       } catch (error) {
         logger.error('Error deleting dictionary entry:', error);

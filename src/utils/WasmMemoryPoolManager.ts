@@ -633,9 +633,10 @@ export class WasmMemoryPool {
 
   /**
    * Clean up all resources
+   * CRITICAL: Must clear ALL intervals to prevent memory leaks
    */
   cleanup(): void {
-    // Clear optimization interval
+    // Clear optimization interval (30s periodic optimization)
     if (this.optimizationIntervalId !== null) {
       clearInterval(this.optimizationIntervalId);
       this.optimizationIntervalId = null;
@@ -648,8 +649,10 @@ export class WasmMemoryPool {
     }
 
     // Stop memory pressure monitoring
+    // Note: stop() method clears internal samplingTimer interval (3s sampling)
     if (this.memoryPressureDetector) {
       this.memoryPressureDetector.stop();
+      this.memoryPressureDetector = undefined; // Release reference for GC
     }
   }
 }
@@ -733,9 +736,11 @@ export class WasmDictionaryOperationHelper {
 
       return results;
     } catch (error) {
-      logger.error('WASM batch lookup failed:', error);
+      // CRITICAL: Increment error counter BEFORE logging to guarantee execution
+      // If logger.error throws (e.g., circular reference), counter still increments
       this.operationStats.errors = (this.operationStats.errors || 0) + 1;
-      throw error; // Re-throw after logging
+      logger.error('WASM batch lookup failed:', error);
+      throw error; // Re-throw after logging and counting
     } finally {
       // Always return buffer to pool
       this.memoryPool.returnBuffer(buffer);

@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger';
+
 /**
  * Highlighting State Reducer
  *
@@ -98,7 +100,7 @@ export function highlightingReducer(state, action) {
   const required = REQUIRED_PROPERTIES[action.type] || [];
   for (const prop of required) {
     if (!(prop in action)) {
-      console.warn(`Invalid action ${action.type}: missing required property "${prop}"`);
+      logger.warn(`Invalid action ${action.type}: missing required property "${prop}"`);
       return state;
     }
   }

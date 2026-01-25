@@ -55,7 +55,9 @@ export class TranslationSegmentCache {
     // Track approximate localStorage size in bytes (updated incrementally)
     this.approximateSize = 0;
     this.writesSinceRecalculation = 0;
-    this.RECALCULATION_INTERVAL = 100; // Recalculate full size every 100 writes
+    // MEDIUM-PRIORITY FIX: Reduced from 100 to 20 writes to prevent quota drift during burst operations
+    // During rapid translations, approximation can drift +2MB before recalculation triggers
+    this.RECALCULATION_INTERVAL = 20; // Recalculate full size every 20 writes
 
     // Calculate initial size
     this._recalculateSize();

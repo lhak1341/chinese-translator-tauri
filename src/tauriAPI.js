@@ -297,6 +297,9 @@ const tauriAPI = {
 };
 
 // Expose the API globally to mimic Electron's window.electronAPI
+// NOTE: This is the application's public API (Tauri IPC wrapper), NOT a debug API.
+// Unlike window.translationEngine or window.performanceDashboard (which expose internal
+// state and should be dev-only), window.electronAPI is required for the app to function.
 if (typeof window !== 'undefined') {
   window.electronAPI = tauriAPI;
 }

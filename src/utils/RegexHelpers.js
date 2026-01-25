@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 /**
  * Regex Helper Utilities
  *
@@ -34,7 +36,7 @@ export function precompilePatterns(dictionary, flags = 'g') {
       patterns.set(source, pattern);
     } catch (error) {
       // Skip invalid patterns
-      console.warn(`Failed to compile pattern for "${source}":`, error);
+      logger.warn(`Failed to compile pattern for "${source}":`, error);
     }
   }
 
@@ -59,7 +61,7 @@ export function precompileSortedPatterns(dictionary, flags = 'g') {
       const pattern = new RegExp(escapeRegExp(source), flags);
       return { source, translation, pattern };
     } catch (error) {
-      console.warn(`Failed to compile pattern for "${source}":`, error);
+      logger.warn(`Failed to compile pattern for "${source}":`, error);
       // Return entry with null pattern to skip during processing
       return { source, translation, pattern: null };
     }
