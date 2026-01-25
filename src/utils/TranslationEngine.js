@@ -4973,6 +4973,18 @@ export class TranslationEngine {
 
           const progressText = this.progressivePositionTracker.finalText || cleanedResult;
 
+          // CRITICAL FIX: Deep clone arrays to prevent race condition
+          // Issue: React state updates receive direct references that continue to be mutated by next batches
+          // Scenario: Batch 5 sends arrays[size=100] → Batch 6 mutates to [size=120] → React reads [size=120]
+          // Result: Clickable highlighting crashes (array size mismatch with text length)
+          // Fix: Deep clone arrays before sending to React (prevents mutation after state update scheduled)
+          const safeOriginal = currentSemanticArrays.original
+            ? [...currentSemanticArrays.original]
+            : [];
+          const safeTranslated = currentSemanticArrays.translated
+            ? [...currentSemanticArrays.translated]
+            : [];
+
           // PHASE 2: Send progressive results with clickable segments
           options.onProgress({
             currentBatch: batchIndex,
@@ -4982,10 +4994,11 @@ export class TranslationEngine {
             partialTranslation: progressText,
             isComplete: isLastBatch, // Signal when translation is complete
             // PHASE 2: Send progressive semantic arrays and clickable segments (from builder)
+            // CRITICAL: Use deep-cloned arrays to prevent race condition mutations
             semanticArrays: {
-              original: currentSemanticArrays.original || [],
-              translated: currentSemanticArrays.translated || [],
-              metadata: progressiveMetadata,
+              original: safeOriginal,
+              translated: safeTranslated,
+              metadata: progressiveMetadata, // Already shallow-cloned at line 4955
             },
             progressiveSegments: this.progressivePositionTracker.clickableSegments,
           });

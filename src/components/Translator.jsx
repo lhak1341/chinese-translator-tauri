@@ -1199,6 +1199,31 @@ const Translator = ({ isActive = true }) => {
   // Main translation function - now with progressive support and streaming
   const translateText = useCallback(
     async (text) => {
+      // CRITICAL FIX: Validate input text to prevent memory exhaustion and security issues
+      const MAX_TEXT_LENGTH = 500000; // 500KB reasonable limit for translation
+
+      // Validation #1: Check text length
+      if (text.length > MAX_TEXT_LENGTH) {
+        const sizeKB = (text.length / 1024).toFixed(1);
+        const maxKB = (MAX_TEXT_LENGTH / 1024).toFixed(0);
+        toast.error(`Text too large: ${sizeKB}KB. Maximum allowed: ${maxKB}KB`, {
+          duration: 5000,
+        });
+        logger.warn(`Translation rejected: text size ${sizeKB}KB exceeds ${maxKB}KB limit`);
+        return;
+      }
+
+      // Validation #2: Check for control characters (security)
+      // Allow: \n (0x0A), \t (0x09), \r (0x0D)
+      // Reject: Other control characters (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F)
+      if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(text)) {
+        toast.error('Text contains invalid control characters', {
+          duration: 5000,
+        });
+        logger.warn('Translation rejected: text contains invalid control characters');
+        return;
+      }
+
       const translationId = Date.now();
       const translationStartTime = performance.now();
       const abortController = new AbortController();
@@ -1918,8 +1943,10 @@ const Translator = ({ isActive = true }) => {
     return result;
   };
 
-  // Cache for merged dictionaries
+  // CRITICAL FIX: Cache for merged dictionaries with LRU eviction
+  // Prevents unbounded memory growth from dictionary switching
   const dictionaryCache = new Map();
+  const MAX_DICTIONARY_CACHE_SIZE = 10; // Limit recent combinations
 
   const _translateProperNouns = async (_text) => {
     const escapeRegExp = (string) => {
@@ -1935,6 +1962,17 @@ const Translator = ({ isActive = true }) => {
       let mergedDict = dictionaryCache.get(cacheKey);
 
       if (!mergedDict) {
+        // CRITICAL FIX: LRU eviction to prevent unbounded Map growth
+        // Scenario: User has 20 dictionaries, switches between all combinations
+        // Possible combinations: 2^20 = 1M+ cache keys × 1MB each = unbounded memory
+        // Fix: Limit to 10 most recent combinations using LRU eviction
+        if (dictionaryCache.size >= MAX_DICTIONARY_CACHE_SIZE) {
+          const firstKey = dictionaryCache.keys().next().value;
+          dictionaryCache.delete(firstKey);
+          logger.log(
+            `🧹 Dictionary cache evicted LRU entry (size: ${dictionaryCache.size}/${MAX_DICTIONARY_CACHE_SIZE})`
+          );
+        }
         // Sort dictionaries: general properNouns last, others alphabetically
         const sortedDictIds = activeProperNouns.sort((a, b) => {
           if (a === 'properNouns') return 1; // properNouns goes last

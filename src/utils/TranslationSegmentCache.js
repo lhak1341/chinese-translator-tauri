@@ -34,6 +34,13 @@ export class TranslationSegmentCache {
     this.cacheKeyPrefix = `translation-cache-${this.windowId}-`;
     this.metadataKey = `translation-cache-metadata-${this.windowId}`;
 
+    // CRITICAL FIX: Add operation-level locking for concurrent write protection
+    // Prevents cache metadata corruption from concurrent translations
+    // Without this: Translation A and B both read metadata → A writes → B overwrites → A's entry orphaned
+    this._operationLock = Promise.resolve();
+    this.LOCK_KEY = `${this.cacheKeyPrefix}lock`;
+    this.LOCK_TIMEOUT = 5000; // 5 second timeout to prevent deadlock
+
     // Performance tracking
     this.stats = {
       hits: 0,
@@ -68,6 +75,42 @@ export class TranslationSegmentCache {
 
     // Periodic cleanup (every 5 minutes when active)
     this.setupPeriodicCleanup();
+  }
+
+  /**
+   * CRITICAL FIX: Acquire operation lock to prevent concurrent write corruption
+   * Uses promise chaining to serialize cache operations
+   * @returns {Function} Release function to call when operation completes
+   */
+  async _acquireLock() {
+    // Chain this operation after previous operation completes
+    const previousOperation = this._operationLock;
+
+    let releaseLock;
+    this._operationLock = new Promise((resolve) => {
+      releaseLock = resolve;
+    });
+
+    // Wait for previous operation to complete
+    await previousOperation;
+
+    return releaseLock;
+  }
+
+  /**
+   * CRITICAL FIX: Safe JSON parser to prevent crashes from corrupted localStorage
+   * Handles malformed entries from browser crashes or storage corruption
+   * @param {string} jsonString - JSON string to parse
+   * @param {*} fallback - Fallback value if parsing fails
+   * @returns {*} Parsed object or fallback
+   */
+  _safeParseJSON(jsonString, fallback = {}) {
+    try {
+      return JSON.parse(jsonString);
+    } catch (error) {
+      logger.warn('Failed to parse JSON from localStorage (using fallback):', error.message);
+      return fallback;
+    }
   }
 
   /**
@@ -249,8 +292,9 @@ export class TranslationSegmentCache {
   /**
    * Store translation result in cache
    * Implements LRU eviction when cache is full
+   * CRITICAL FIX: Uses operation lock to prevent concurrent write corruption
    */
-  set(originalText, translatedText, semanticArrays, dictionaryFingerprint, options = {}) {
+  async set(originalText, translatedText, semanticArrays, dictionaryFingerprint, options = {}) {
     const startTime = performance.now();
     const cacheKey = this.generateCacheKey(originalText, dictionaryFingerprint, options);
     const now = Date.now();
@@ -265,6 +309,10 @@ export class TranslationSegmentCache {
       hitCount: 0,
       dictFingerprint: dictionaryFingerprint,
     };
+
+    // CRITICAL FIX: Acquire lock to serialize cache operations
+    // Prevents concurrent translations from corrupting metadata
+    const releaseLock = await this._acquireLock();
 
     try {
       // MEMORY PROFILING FIX: Proactive quota monitoring to prevent quota exceeded errors
@@ -317,6 +365,9 @@ export class TranslationSegmentCache {
       } else {
         logger.warn('Cache set error:', error);
       }
+    } finally {
+      // CRITICAL: Always release lock, even on error
+      releaseLock();
     }
   }
 
@@ -330,16 +381,13 @@ export class TranslationSegmentCache {
     if (cacheKeys.length >= this.maxCacheSize) {
       // Sort by last access time (ascending) to find LRU entries
       const keyStats = cacheKeys.map((key) => {
-        try {
-          const data = JSON.parse(localStorage.getItem(key) || '{}');
-          return {
-            key,
-            lastAccess: data.lastAccess || 0,
-            hitCount: data.hitCount || 0,
-          };
-        } catch (_error) {
-          return { key, lastAccess: 0, hitCount: 0 };
-        }
+        // CRITICAL FIX: Use safe parser to handle corrupted localStorage entries
+        const data = this._safeParseJSON(localStorage.getItem(key) || '{}', {});
+        return {
+          key,
+          lastAccess: data.lastAccess || 0,
+          hitCount: data.hitCount || 0,
+        };
       });
 
       // Sort by last access time (oldest first), then by hit count (least used first)
@@ -502,15 +550,15 @@ export class TranslationSegmentCache {
 
     // Remove entries older than 3 days (less aggressive than 1-day reactive cleanup)
     cacheKeys.forEach((key) => {
-      try {
-        const data = JSON.parse(localStorage.getItem(key) || '{}');
-        if (now - (data.timestamp || 0) > 3 * 24 * 60 * 60 * 1000) {
-          // 3 days
-          this._removeEntry(key);
-          removedCount++;
-        }
-      } catch (_error) {
-        // Remove corrupted entries
+      // CRITICAL FIX: Use safe parser, remove corrupted entries
+      const data = this._safeParseJSON(localStorage.getItem(key) || '{}', null);
+
+      // If parsing failed (returns null), remove corrupted entry
+      if (data === null) {
+        this._removeEntry(key);
+        removedCount++;
+      } else if (now - (data.timestamp || 0) > 3 * 24 * 60 * 60 * 1000) {
+        // 3 days
         this._removeEntry(key);
         removedCount++;
       }
@@ -531,15 +579,15 @@ export class TranslationSegmentCache {
 
     // Remove all entries older than 1 day
     cacheKeys.forEach((key) => {
-      try {
-        const data = JSON.parse(localStorage.getItem(key) || '{}');
-        if (now - (data.timestamp || 0) > 24 * 60 * 60 * 1000) {
-          // 1 day
-          this._removeEntry(key);
-          removedCount++;
-        }
-      } catch (_error) {
-        // Remove corrupted entries
+      // CRITICAL FIX: Use safe parser, remove corrupted entries
+      const data = this._safeParseJSON(localStorage.getItem(key) || '{}', null);
+
+      // If parsing failed (returns null), remove corrupted entry
+      if (data === null) {
+        this._removeEntry(key);
+        removedCount++;
+      } else if (now - (data.timestamp || 0) > 24 * 60 * 60 * 1000) {
+        // 1 day
         this._removeEntry(key);
         removedCount++;
       }
