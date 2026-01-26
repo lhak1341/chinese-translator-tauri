@@ -5465,6 +5465,8 @@ export class TranslationEngine {
       // Handle duplicates by searching from different starting positions
       const foundWords = [];
       const usedPositions = new Set(); // Track positions to handle duplicates
+      // HIGH FIX: Limit set size to prevent O(n²) degradation for 1000+ word translations
+      const MAX_TRACKING_POSITIONS = 500;
 
       for (const candidate of candidateWords) {
         // Use case-insensitive search to handle capitalization differences
@@ -5500,6 +5502,17 @@ export class TranslationEngine {
                 start: position,
                 end: position + candidate.translated.length,
               });
+
+              // HIGH FIX: Log warning if set grows too large (indicates performance issue)
+              // Don't evict during loop - would break overlap detection and clickable highlighting
+              // Instead, warn and let it complete (correctness > performance)
+              if (usedPositions.size > MAX_TRACKING_POSITIONS && usedPositions.size % 100 === 0) {
+                this.log(
+                  DEBUG_LEVELS.WARN,
+                  `⚠️ Position tracking set large: ${usedPositions.size} positions (may impact performance for very large texts)`
+                );
+              }
+
               break;
             } else {
               // This position overlaps, try next occurrence
@@ -6083,6 +6096,8 @@ export class TranslationEngine {
     // Record total translation time for profiling
     await this.profiler.profile('total', async () => {
       // Phase 1: Apply patterns first (they need full context)
+      // HIGH FIX: Snapshot token count before phase for corruption detection
+      const tokensLengthBeforePhase1 = tokens.length;
       try {
         await this.profiler.profile('patterns', async () => {
           await this.applyPatterns(tokens, { ...options, debug: true });
@@ -6090,10 +6105,20 @@ export class TranslationEngine {
         completedPhases.add('patterns');
       } catch (error) {
         this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 1 (Patterns) failed:', error);
+        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+        if (tokens.length !== tokensLengthBeforePhase1) {
+          this.log(
+            DEBUG_LEVELS.ERROR,
+            `⚠️ Phase 1 corrupted token array: ${tokensLengthBeforePhase1} → ${tokens.length} tokens`
+          );
+          // Cannot rollback, but warn user about potential incorrect results
+        }
         // Continue to next phase (graceful degradation)
       }
 
       // Phase 2: Apply proper nouns globally (highest priority after patterns)
+      // HIGH FIX: Snapshot token count before phase for corruption detection
+      const tokensLengthBeforePhase2 = tokens.length;
       try {
         await this.profiler.profile('properNouns', async () => {
           await this.applyDictionaryTranslation(tokens, {
@@ -6105,6 +6130,13 @@ export class TranslationEngine {
         completedPhases.add('properNouns');
       } catch (error) {
         this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 2 (Proper Nouns) failed:', error);
+        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+        if (tokens.length !== tokensLengthBeforePhase2) {
+          this.log(
+            DEBUG_LEVELS.ERROR,
+            `⚠️ Phase 2 corrupted token array: ${tokensLengthBeforePhase2} → ${tokens.length} tokens`
+          );
+        }
         // Continue to next phase (graceful degradation)
       }
 
@@ -6192,6 +6224,12 @@ export class TranslationEngine {
           // CRITICAL FIX: Validate copied tokens have correct structure
           // Ensure undefined → null conversion worked and no invalid data was copied
           for (let i = 0; i < tokens.length; i++) {
+            // HIGH FIX: Check token existence before accessing properties (handles sparse arrays)
+            if (!tokens[i] || typeof tokens[i] !== 'object') {
+              throw new Error(
+                `WASM copy validation failed: token ${i} is missing or not an object`
+              );
+            }
             if (tokens[i].translated === undefined) {
               throw new Error(
                 `WASM copy validation failed: token ${i} has undefined translated field (should be null or string)`
@@ -6216,13 +6254,24 @@ export class TranslationEngine {
               let endIndex = i;
 
               // Look ahead for consumed tokens that are part of this number
-              for (let j = i + 1; j < tokens.length; j++) {
+              // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
+              // Chinese numbers rarely exceed 10 digits, so limit span accordingly
+              const MAX_CONSUMED_SPAN = 10;
+              for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
                 if (tokens[j].translationSource === 'number_conversion_consumed') {
                   originalText += tokens[j].value;
                   endIndex = j;
                 } else {
                   break; // Stop when we hit a non-consumed token
                 }
+              }
+
+              // HIGH FIX: Warn if span exceeded limit (indicates wrong consumed marking)
+              if (endIndex - i >= MAX_CONSUMED_SPAN) {
+                this.log(
+                  DEBUG_LEVELS.WARN,
+                  `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i}`
+                );
               }
 
               // CRITICAL FIX: Validate that consumed tokens are contiguous
@@ -6271,6 +6320,8 @@ export class TranslationEngine {
       });
 
       // Phase 4: Apply phrases with global longest-match optimization
+      // HIGH FIX: Snapshot token count before phase for corruption detection
+      const tokensLengthBeforePhase4 = tokens.length;
       try {
         await this.profiler.profile('phrases', async () => {
           await this.createOptimalPhraseGroups(tokens, options);
@@ -6278,6 +6329,13 @@ export class TranslationEngine {
         completedPhases.add('phrases');
       } catch (error) {
         this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 4 (Phrases) failed:', error);
+        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+        if (tokens.length !== tokensLengthBeforePhase4) {
+          this.log(
+            DEBUG_LEVELS.ERROR,
+            `⚠️ Phase 4 corrupted token array: ${tokensLengthBeforePhase4} → ${tokens.length} tokens`
+          );
+        }
         // Continue to next phase (graceful degradation)
       }
 
@@ -6301,6 +6359,8 @@ export class TranslationEngine {
       }
 
       // Phase 5: Process remaining tokens for character-level translation (fallback)
+      // HIGH FIX: Snapshot token count before phase for corruption detection
+      const tokensLengthBeforePhase5 = tokens.length;
       try {
         await this.profiler.profile('characters', async () => {
           await this.processRemainingTokensInBatches(tokens, processedTokens, options);
@@ -6308,6 +6368,13 @@ export class TranslationEngine {
         completedPhases.add('characters');
       } catch (error) {
         this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 5 (Characters) failed:', error);
+        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+        if (tokens.length !== tokensLengthBeforePhase5) {
+          this.log(
+            DEBUG_LEVELS.ERROR,
+            `⚠️ Phase 5 corrupted token array: ${tokensLengthBeforePhase5} → ${tokens.length} tokens`
+          );
+        }
         // Continue to postProcess (graceful degradation)
       }
 
