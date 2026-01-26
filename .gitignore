@@ -32,7 +32,7 @@ src/wasm-core
 .vscode/*
 !.vscode/extensions.json
 .idea
-.claude
+.claude/
 *.suo
 *.ntvs*
 *.njsproj

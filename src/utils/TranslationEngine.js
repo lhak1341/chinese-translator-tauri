@@ -1484,7 +1484,12 @@ export class TranslationEngine {
       }
 
       // Get semantic arrays
-      semanticArrays = this.semanticArrayBuilder.getArrays();
+      // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+      semanticArrays = this.semanticArrayBuilder?.getArrays() || {
+        original: [],
+        translated: [],
+        metadata: [],
+      };
     }
 
     // Legacy precomputed segments removed - components now compute segments on-demand from semanticArrays
@@ -3017,18 +3022,21 @@ export class TranslationEngine {
         matchEnd
       );
       if (afterMatchTokenIndex < endIndex && afterMatchTokenIndex >= startIndex) {
-        // CRITICAL FIX: Use explicit marker instead of null to prevent double-processing
+        // CRITICAL FIX: Use separate flag to avoid state violation with consumed token contract
+        // isPatternPartialReset indicates token should be re-processed by later phases
         // Pattern wants these tokens re-processed by later phases (phrases, characters)
         // but we need to track that they were partially processed by patterns
         tokens[afterMatchTokenIndex].translated = null;
-        tokens[afterMatchTokenIndex].translationSource = 'pattern_partial_reset'; // Explicit marker
+        tokens[afterMatchTokenIndex].isPatternPartialReset = true; // Separate boolean flag
+        tokens[afterMatchTokenIndex].translationSource = null; // Don't set source (not consumed)
 
         // Also reset subsequent tokens that are part of afterMatch
         for (let k = afterMatchTokenIndex + 1; k < endIndex; k++) {
           const tokenEndPos = this.getTokenPositionInSequence(tokens, startIndex, k);
           if (tokenEndPos <= matchEnd + afterMatch.length) {
             tokens[k].translated = null;
-            tokens[k].translationSource = 'pattern_partial_reset'; // Explicit marker
+            tokens[k].isPatternPartialReset = true; // Separate boolean flag
+            tokens[k].translationSource = null; // Don't set source (not consumed)
           }
         }
       }
@@ -3126,11 +3134,8 @@ export class TranslationEngine {
         const token = tokens[i];
 
         // Skip already translated tokens or tokens consumed by other processes
-        // CRITICAL FIX: Allow pattern_partial_reset to be re-processed by later phases
-        if (
-          token.translated !== null ||
-          (token.translationSource && token.translationSource !== 'pattern_partial_reset')
-        )
+        // CRITICAL FIX: Allow isPatternPartialReset to be re-processed by later phases
+        if (token.translated !== null || (token.translationSource && !token.isPatternPartialReset))
           continue;
 
         // For phrases phase, check if token has a pre-stored phrase match
@@ -4692,7 +4697,15 @@ export class TranslationEngine {
     const translatableChunks = this.textChunker.getTranslatableChunks(chunks);
 
     if (translatableChunks.length === 0) {
-      return { translatedText: text, semanticArrays: this.semanticArrayBuilder.getArrays() };
+      // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+      return {
+        translatedText: text,
+        semanticArrays: this.semanticArrayBuilder?.getArrays() || {
+          original: [],
+          translated: [],
+          metadata: [],
+        },
+      };
     }
 
     const streamingEnabled = translatableChunks.length >= this.minChunksForStreaming;
@@ -5155,7 +5168,12 @@ export class TranslationEngine {
           const estimatedTotalBatches = batchIndex + estimatedRemainingBatches;
 
           // BUGFIX: Use semanticArrayBuilder directly to avoid duplicates
-          const currentSemanticArrays = this.semanticArrayBuilder.getArrays();
+          // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+          const currentSemanticArrays = this.semanticArrayBuilder?.getArrays() || {
+            original: [],
+            translated: [],
+            metadata: [],
+          };
 
           // OPTIMIZED: Reuse existing metadata array, only fill missing entries
           // Optimization #2 & #3: Use array.slice() + reuse default object
@@ -5286,7 +5304,12 @@ export class TranslationEngine {
           // Monitor and clean semantic arrays periodically to prevent memory buildup
           if (batchIndex % 5 === 0 && this.semanticArrayBuilder) {
             const debugInfo = this.semanticArrayBuilder.getDebugInfo?.();
-            const currentArrays = this.semanticArrayBuilder.getArrays();
+            // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+            const currentArrays = this.semanticArrayBuilder?.getArrays() || {
+              original: [],
+              translated: [],
+              metadata: [],
+            };
 
             this.log(
               DEBUG_LEVELS.INFO,
@@ -5388,10 +5411,13 @@ export class TranslationEngine {
     this.applySmartCapitalization(chunks);
 
     // Use the same reconstruction method as original translateWithChunking for identical results
-    const reconstructed = this.textChunker.reconstructTextWithSegments(
-      chunks,
-      this.semanticArrayBuilder.getArrays()
-    );
+    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+    const semanticArrays = this.semanticArrayBuilder?.getArrays() || {
+      original: [],
+      translated: [],
+      metadata: [],
+    };
+    const reconstructed = this.textChunker.reconstructTextWithSegments(chunks, semanticArrays);
     const finalResult = reconstructed.text;
     const cleanedFinalResult = this.applyFinalCleanup(finalResult).normalize('NFC');
 
@@ -5403,9 +5429,7 @@ export class TranslationEngine {
     // Store prebuilt segments like the original method
     this.prebuiltSegments = reconstructed.segments;
 
-    // Get semantic arrays built during progressive processing
-    const semanticArrays = this.semanticArrayBuilder.getArrays();
-
+    // Note: semanticArrays already obtained above (line 5415) - reuse it
     // Find the original chunk that was translated
     const translatedChunk = chunks.find((chunk) => chunk.translated && chunk.content.trim());
 
@@ -5644,7 +5668,12 @@ export class TranslationEngine {
     }
 
     // BUGFIX: Use semanticArrayBuilder directly for final return to avoid duplicates
-    const finalSemanticArrays = this.semanticArrayBuilder.getArrays();
+    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+    const finalSemanticArrays = this.semanticArrayBuilder?.getArrays() || {
+      original: [],
+      translated: [],
+      metadata: [],
+    };
 
     this.log(
       DEBUG_LEVELS.INFO,
@@ -5653,14 +5682,23 @@ export class TranslationEngine {
 
     // BUGFIX: Use existing metadata from builder, fill gaps with defaults
     // CRITICAL FIX: Use explicit missing indicator for better debugging
+    const originalLength = finalSemanticArrays.original?.length || 0;
     const finalMetadata = [];
-    for (let i = 0; i < (finalSemanticArrays.original?.length || 0); i++) {
+    for (let i = 0; i < originalLength; i++) {
       finalMetadata[i] = finalSemanticArrays.metadata?.[i] || {
         source: 'progressive',
         phase: null, // null = missing, not unknown
         dictionary: null, // null = missing, not unknown
         isMissing: true, // Explicit flag for debugging
       };
+    }
+
+    // CRITICAL FIX: Validate metadata array length matches original array
+    // Sparse arrays would cause position misalignment in rendering
+    if (finalMetadata.length !== originalLength) {
+      throw new Error(
+        `Metadata array length mismatch: ${finalMetadata.length} vs ${originalLength} (expected)`
+      );
     }
 
     return {
@@ -5711,15 +5749,25 @@ export class TranslationEngine {
     if (enableParallel) {
       this.log(DEBUG_LEVELS.DEBUG, `🔄 Processing ${translatableChunks.length} chunks in parallel`);
 
-      // Translate chunks in parallel
+      // CRITICAL FIX: Create isolated semantic builders for each chunk to prevent race conditions
+      // Shared semantic builder would corrupt state with concurrent addUnit() calls
+      const isolatedBuilders = translatableChunks.map(() =>
+        this.useOptimizedSemanticBuilder
+          ? new OptimizedSemanticArrayBuilder()
+          : new SemanticArrayBuilder()
+      );
+
+      // Translate chunks in parallel with isolated builders
       // CRITICAL FIX: Deep copy options for parallel processing
       // Each chunk runs in parallel - shared nested objects would cause race conditions
-      const translationPromises = translatableChunks.map((chunk) =>
+      const translationPromises = translatableChunks.map((chunk, idx) =>
         this.translateDirectly(chunk.content, {
           ...options,
           // Deep copy complex nested objects to prevent race conditions
           lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
           segments: options.segments ? [...options.segments] : undefined,
+          // Pass isolated semantic builder for this chunk
+          isolatedSemanticBuilder: isolatedBuilders[idx],
           useChunking: false,
           chunkOffset: chunk.startIndex,
           isParallelChunk: true,
@@ -5732,6 +5780,28 @@ export class TranslationEngine {
       translatableChunks.forEach((chunk, index) => {
         chunk.translated = translatedContents[index];
       });
+
+      // CRITICAL FIX: Merge isolated semantic arrays sequentially into main builder
+      // Must maintain position order for clickable highlighting
+      this.log(
+        DEBUG_LEVELS.DEBUG,
+        `🔀 Merging ${isolatedBuilders.length} isolated semantic arrays`
+      );
+      for (let i = 0; i < isolatedBuilders.length; i++) {
+        const isolatedArrays = isolatedBuilders[i].getArrays();
+        if (isolatedArrays && isolatedArrays.original) {
+          // Merge each semantic unit from isolated builder
+          for (let j = 0; j < isolatedArrays.original.length; j++) {
+            this.semanticArrayBuilder.addUnit(
+              isolatedArrays.original[j],
+              isolatedArrays.translated[j],
+              isolatedArrays.metadata?.[j]?.source || 'unknown',
+              // Token index is already global (includes chunkOffset)
+              isolatedArrays.metadata?.[j]?.tokenIndex || 0
+            );
+          }
+        }
+      }
     } else {
       this.log(
         DEBUG_LEVELS.DEBUG,
@@ -5774,9 +5844,15 @@ export class TranslationEngine {
     this.applySmartCapitalization(chunks);
 
     // Step 6: Reconstruct the final text with segment positions built simultaneously
+    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+    const semanticArraysForReconstruction = this.semanticArrayBuilder?.getArrays() || {
+      original: [],
+      translated: [],
+      metadata: [],
+    };
     const reconstructed = this.textChunker.reconstructTextWithSegments(
       chunks,
-      this.semanticArrayBuilder.getArrays()
+      semanticArraysForReconstruction
     );
     let result = reconstructed.text;
 
@@ -5806,6 +5882,17 @@ export class TranslationEngine {
     // This is the original translate method logic, renamed for chunk-based architecture
     const startTime = performance.now();
     const _translationId = this.stats.totalTranslations++;
+
+    // CRITICAL FIX: Use isolated semantic builder if provided (for parallel chunk processing)
+    // Prevents race conditions when multiple chunks process concurrently
+    const originalSemanticBuilder = this.semanticArrayBuilder;
+    if (options.isolatedSemanticBuilder) {
+      this.semanticArrayBuilder = options.isolatedSemanticBuilder;
+      this.log(
+        DEBUG_LEVELS.DEBUG,
+        '🔒 Using isolated semantic builder for parallel chunk processing'
+      );
+    }
 
     try {
       // CRITICAL FIX: Only reset segments if this is a standalone translation
@@ -5948,6 +6035,12 @@ export class TranslationEngine {
     } catch (_error) {
       this.log(DEBUG_LEVELS.ERROR, `🚨 Translation error:`, _error);
       throw _error;
+    } finally {
+      // CRITICAL FIX: Restore original semantic builder after isolated processing
+      if (options.isolatedSemanticBuilder) {
+        this.semanticArrayBuilder = originalSemanticBuilder;
+        this.log(DEBUG_LEVELS.DEBUG, '🔓 Restored original semantic builder');
+      }
     }
   }
 
@@ -6192,11 +6285,11 @@ export class TranslationEngine {
       const processedTokens = new Set();
 
       // Mark tokens that were already processed by patterns and proper nouns
-      // CRITICAL FIX: Don't mark pattern_partial_reset as processed - allow re-processing
-      // CRITICAL FIX: Grouped tokens with pattern_partial_reset should also be re-processed
+      // CRITICAL FIX: Don't mark isPatternPartialReset as processed - allow re-processing
+      // CRITICAL FIX: Grouped tokens with isPatternPartialReset should also be re-processed
       for (let i = 0; i < tokens.length; i++) {
-        // Allow re-processing if translationSource is pattern_partial_reset (even if grouped)
-        const isPartialReset = tokens[i].translationSource === 'pattern_partial_reset';
+        // Allow re-processing if isPatternPartialReset flag is set (even if grouped)
+        const isPartialReset = tokens[i].isPatternPartialReset === true;
 
         if (
           tokens[i].translated !== null ||
@@ -6349,11 +6442,10 @@ export class TranslationEngine {
    */
   async tryPhrasesAtPosition(tokens, position, options) {
     // Skip if token is already processed
-    // CRITICAL FIX: Allow pattern_partial_reset to be re-processed
+    // CRITICAL FIX: Allow isPatternPartialReset to be re-processed
     if (
       tokens[position].translated !== null ||
-      (tokens[position].translationSource &&
-        tokens[position].translationSource !== 'pattern_partial_reset')
+      (tokens[position].translationSource && !tokens[position].isPatternPartialReset)
     ) {
       return { consumed: 0 };
     }
@@ -6384,11 +6476,10 @@ export class TranslationEngine {
    */
   tryNumberConversionAtPosition(tokens, position, options) {
     // Skip if token is already processed
-    // CRITICAL FIX: Allow pattern_partial_reset to be re-processed
+    // CRITICAL FIX: Allow isPatternPartialReset to be re-processed
     if (
       tokens[position].translated !== null ||
-      (tokens[position].translationSource &&
-        tokens[position].translationSource !== 'pattern_partial_reset')
+      (tokens[position].translationSource && !tokens[position].isPatternPartialReset)
     ) {
       return { consumed: 0 };
     }
@@ -6463,11 +6554,10 @@ export class TranslationEngine {
    */
   async tryCharactersAtPosition(tokens, position, options) {
     // Skip if token is already processed
-    // CRITICAL FIX: Allow pattern_partial_reset to be re-processed
+    // CRITICAL FIX: Allow isPatternPartialReset to be re-processed
     if (
       tokens[position].translated !== null ||
-      (tokens[position].translationSource &&
-        tokens[position].translationSource !== 'pattern_partial_reset')
+      (tokens[position].translationSource && !tokens[position].isPatternPartialReset)
     ) {
       return { consumed: 0 };
     }
@@ -6525,16 +6615,16 @@ export class TranslationEngine {
   /**
    * Check for conflicts with already processed tokens
    * CRITICAL FIX: Must check isGrouped flag to prevent overlapping grouped tokens
-   * CRITICAL FIX: Allow pattern_partial_reset tokens to be re-processed
+   * CRITICAL FIX: Allow isPatternPartialReset tokens to be re-processed
    */
   checkForConflictAtPosition(tokens, position, length) {
     for (let i = position; i < position + length; i++) {
       if (i >= tokens.length) break;
-      // Check grouped, translated, or has source (except pattern_partial_reset)
+      // Check grouped, translated, or has source (except isPatternPartialReset)
       if (
         tokens[i].isGrouped ||
         tokens[i].translated !== null ||
-        (tokens[i].translationSource && tokens[i].translationSource !== 'pattern_partial_reset')
+        (tokens[i].translationSource && !tokens[i].isPatternPartialReset)
       ) {
         return true; // Conflict found
       }
@@ -7110,7 +7200,12 @@ export class TranslationEngine {
    */
   getBatchSemanticArrays(_batchChunks) {
     // Get current semantic arrays from builder
-    const allSemanticArrays = this.semanticArrayBuilder.getArrays();
+    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
+    const allSemanticArrays = this.semanticArrayBuilder?.getArrays() || {
+      original: [],
+      translated: [],
+      metadata: [],
+    };
 
     // BUGFIX: Ensure metadata array has proper objects, not empty array
     const originalCount = allSemanticArrays.original ? allSemanticArrays.original.length : 0;
