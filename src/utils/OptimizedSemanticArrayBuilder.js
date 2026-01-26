@@ -115,9 +115,11 @@ export class OptimizedSemanticArrayBuilder {
    * @param {string} translatedText - Translated text segment
    * @param {string} source - Source dictionary/type
    * @param {number} tokenIndex - Token index (optional)
+   * @param {string} phase - Processing phase (optional, e.g., "patterns", "properNouns", "phrases")
+   * @param {string} dictionary - Dictionary name (optional, e.g., "phrases", "characters", "properNouns-NovelName")
    * @returns {boolean} True if unit added successfully, false if builder corrupted
    */
-  addUnit(originalText, translatedText, source, tokenIndex = -1) {
+  addUnit(originalText, translatedText, source, tokenIndex = -1, phase = null, dictionary = null) {
     // CRITICAL FIX: Block operations on corrupted builder to prevent cascading failures
     if (this.isCorrupted) {
       logger.error('❌ Cannot add unit - optimized semantic array builder is corrupted');
@@ -136,10 +138,13 @@ export class OptimizedSemanticArrayBuilder {
     this.translated[index] = translatedText;
 
     // Optimized metadata: only store essential fields, avoid duplication
+    // MEDIUM FIX: Include phase and dictionary for better debugging/tracking
     this.metadata[index] = {
       index,
       source,
       tokenIndex,
+      phase, // Processing phase (patterns, properNouns, phrases, characters, etc.)
+      dictionary, // Dictionary name for provenance tracking
       translatedStart: -1, // Will be set during postProcess text assembly
       translatedEnd: -1, // Will be set during postProcess text assembly
       // originalText and translatedText removed - accessible via arrays

@@ -3232,8 +3232,17 @@ export class TranslationEngine {
           }
         } else {
           // Fallback: Traditional dictionary lookup
-          const remainingText = reconstructTextFromIndex(tokens, i);
-          matches = await this.findAllMatches(remainingText, 0, dictionaryOrder);
+          // MEDIUM FIX: Validate token index before reconstruction
+          if (i >= tokens.length) {
+            this.log(
+              DEBUG_LEVELS.ERROR,
+              `⚠️ Token index ${i} out of bounds (length: ${tokens.length})`
+            );
+            matches = [];
+          } else {
+            const remainingText = reconstructTextFromIndex(tokens, i);
+            matches = await this.findAllMatches(remainingText, 0, dictionaryOrder);
+          }
         }
 
         // Filter matches based on onlyPatternVariables option
@@ -4378,6 +4387,20 @@ export class TranslationEngine {
       // Store original segments to preserve them during parallel processing
       const _originalSegments = [...this.translationSegments];
 
+      // MEDIUM FIX: Calculate token counts for each chunk upfront
+      // chunk.startIndex is character position; we need token counts for accurate chunkOffset
+      const chunkTokenCounts = batch.map((chunk) => {
+        return getSemanticTokens(chunk.content).length;
+      });
+
+      // Calculate cumulative token offset for each chunk
+      let cumulativeTokenOffset = batchStart; // batchStart should be cumulative token count from previous batches
+      const chunkTokenOffsets = batch.map((_, index) => {
+        const offset = cumulativeTokenOffset;
+        cumulativeTokenOffset += chunkTokenCounts[index];
+        return offset;
+      });
+
       // Process all chunks in parallel
       await Promise.all(
         batch.map(async (chunk, index) => {
@@ -4389,7 +4412,8 @@ export class TranslationEngine {
             lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
             segments: options.segments ? [...options.segments] : undefined,
             useChunking: false,
-            chunkOffset: chunk.startIndex,
+            // MEDIUM FIX: Use token offset, not character position
+            chunkOffset: chunkTokenOffsets[index],
             chunkIndex: batchStart + index,
             isParallelChunk: true, // Prevent semantic array reset in individual chunks
           };
@@ -4909,6 +4933,10 @@ export class TranslationEngine {
     let processedChunks = 0;
     let batchIndex = 0;
 
+    // MEDIUM FIX: Track cumulative token count for accurate batchStart calculation
+    // processedChunks tracks chunk indices (0, 1, 2...); we need token counts for chunkOffset
+    let cumulativeTokenCount = 0;
+
     while (processedChunks < translatableChunks.length) {
       // Adaptive batch sizing: adjust based on performance history
       if (this.batchPerformanceHistory.length >= 2) {
@@ -4956,9 +4984,12 @@ export class TranslationEngine {
         }
       }
 
-      const batchStart = processedChunks;
+      const batchStart = processedChunks; // Chunk index
       const batchEnd = Math.min(batchStart + currentBatchSize, translatableChunks.length);
       const currentBatch = translatableChunks.slice(batchStart, batchEnd);
+
+      // MEDIUM FIX: Calculate token offset for this batch
+      const batchTokenOffset = cumulativeTokenCount;
 
       // Pass current batch number for accurate logging
       this.currentBatchNumber = batchIndex;
@@ -4981,7 +5012,15 @@ export class TranslationEngine {
       }
 
       // Translate current batch (with parallel processing)
-      await this.processChunksInParallel(currentBatch, options, batchStart);
+      // MEDIUM FIX: Pass token offset, not chunk index
+      await this.processChunksInParallel(currentBatch, options, batchTokenOffset);
+
+      // MEDIUM FIX: Update cumulative token count for next batch
+      // Each chunk's token count was calculated inside processChunksInParallel
+      const batchTokenCount = currentBatch.reduce((sum, chunk) => {
+        return sum + getSemanticTokens(chunk.content).length;
+      }, 0);
+      cumulativeTokenCount += batchTokenCount;
 
       // Take memory snapshot after processing (dev only for performance)
       if (process.env.NODE_ENV === 'development') {
@@ -5800,17 +5839,33 @@ export class TranslationEngine {
         DEBUG_LEVELS.DEBUG,
         `🔀 Merging ${isolatedBuilders.length} isolated semantic arrays`
       );
+
+      // MEDIUM FIX: Calculate cumulative token offsets for each chunk during merge
+      // Isolated builders use local token indices (0, 1, 2...); adjust to global indices
+      let cumulativeTokenCount = 0;
+
       for (let i = 0; i < isolatedBuilders.length; i++) {
+        const chunk = translatableChunks[i];
         const isolatedArrays = isolatedBuilders[i].getArrays();
+
+        // Calculate token count for this chunk (for next chunk's offset)
+        const chunkTokens = getSemanticTokens(chunk.content);
+        const chunkTokenOffset = cumulativeTokenCount;
+        cumulativeTokenCount += chunkTokens.length;
+
         if (isolatedArrays && isolatedArrays.original) {
           // Merge each semantic unit from isolated builder
           for (let j = 0; j < isolatedArrays.original.length; j++) {
+            // MEDIUM FIX: Adjust tokenIndex from local (isolated) to global
+            // Isolated builder had indices 0, 1, 2...; convert to global by adding chunk offset
+            const localTokenIndex = isolatedArrays.metadata?.[j]?.tokenIndex || 0;
+            const globalTokenIndex = chunkTokenOffset + localTokenIndex;
+
             this.semanticArrayBuilder.addUnit(
               isolatedArrays.original[j],
               isolatedArrays.translated[j],
               isolatedArrays.metadata?.[j]?.source || 'unknown',
-              // Token index is already global (includes chunkOffset)
-              isolatedArrays.metadata?.[j]?.tokenIndex || 0
+              globalTokenIndex
             );
           }
         }
@@ -5825,6 +5880,11 @@ export class TranslationEngine {
       // Each chunk uses chunkOffset to calculate globalTokenIndex for semantic array tracking.
       // Parallel processing would corrupt position order, breaking clickable highlighting.
       // Time-slicing prevents UI blocking while maintaining sequential position tracking.
+
+      // MEDIUM FIX: Track cumulative token count for accurate chunkOffset
+      // chunkOffset should be token index, not character position (chunk.startIndex is character position)
+      let cumulativeTokenCount = 0;
+
       let lastYieldTime = performance.now();
       for (let i = 0; i < translatableChunks.length; i++) {
         const chunk = translatableChunks[i];
@@ -5837,9 +5897,15 @@ export class TranslationEngine {
           lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
           segments: options.segments ? [...options.segments] : undefined,
           useChunking: false,
-          chunkOffset: chunk.startIndex,
+          // MEDIUM FIX: Use token count offset, not character position
+          chunkOffset: cumulativeTokenCount,
           isParallelChunk: true,
         });
+
+        // MEDIUM FIX: Update cumulative token count for next chunk
+        // Tokenize this chunk to get accurate token count
+        const chunkTokens = getSemanticTokens(chunk.content);
+        cumulativeTokenCount += chunkTokens.length;
 
         // Time-slice: Yield control when processing time exceeds 16ms (60fps threshold)
         const currentTime = performance.now();
@@ -6444,6 +6510,15 @@ export class TranslationEngine {
    * Try proper noun translation at a specific position
    */
   async tryProperNounsAtPosition(tokens, position, options) {
+    // MEDIUM FIX: Validate token index before reconstruction
+    if (position >= tokens.length) {
+      this.log(
+        DEBUG_LEVELS.ERROR,
+        `⚠️ Token position ${position} out of bounds (length: ${tokens.length})`
+      );
+      return { consumed: 0 };
+    }
+
     const _originalToken = tokens[position];
 
     // Use the standard dictionary lookup approach with combined proper noun dictionaries
