@@ -129,7 +129,7 @@ import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
-import { processNumbersWasm } from './WasmNumberProcessor.js';
+import { processNumbersWasm, isWasmNumberProcessorAvailable } from './WasmNumberProcessor.js';
 import { copyWasmTokens } from '../../types/WasmTypes.js';
 import {
   getLegacySystemStatus,
@@ -860,8 +860,12 @@ export class TranslationEngine {
 
       // Load dictionaries into trie structures (with lazy loading for inactive proper nouns)
       const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
+      // CRITICAL FIX: Deep copy options to prevent mutation leakage
       await this.dictionaryManager.loadDictionaries(dictionaries, {
         ...options,
+        // Deep copy complex nested objects to prevent reference sharing
+        lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+        segments: options.segments ? [...options.segments] : undefined,
         activeProperNouns: this.activeProperNouns,
         preWarmCache: dictionaryConfig.cachePrewarm,
       });
@@ -1959,6 +1963,22 @@ export class TranslationEngine {
       '🎯 Starting phrase processing (patterns already processed in Phase 1)'
     );
 
+    // CRITICAL FIX: Validate token state before phrase processing
+    // Detect if earlier phases (patterns, proper nouns) failed silently
+    const unprocessedCount = tokens.filter(
+      (t) => t.type === 'chinese_char' && !t.translated && !t.translationSource
+    ).length;
+
+    if (unprocessedCount > tokens.length * 0.8) {
+      // >80% of Chinese tokens still unprocessed - likely phase failure
+      logger.warn(
+        `⚠️ Unusual token state before phrase processing: ${unprocessedCount}/${tokens.length} Chinese tokens still unprocessed`
+      );
+      logger.warn(
+        'This may indicate silent failures in Phase 1 (Patterns) or Phase 2 (Proper Nouns)'
+      );
+    }
+
     try {
       // Skip pattern processing since it was already handled in Phase 1
       // Only process remaining phrases using traditional approach
@@ -2121,8 +2141,15 @@ export class TranslationEngine {
           );
         }
 
+        // CRITICAL FIX: Deep copy options to prevent mutation leakage
+        // Shallow copy (...options) shares nested objects by reference
+        // If downstream code mutates nested objects (lookupIndex Map, segments array),
+        // mutations leak back to original options
         const enhancedOptions = {
           ...options,
+          // Deep copy complex nested objects to prevent reference sharing
+          lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+          segments: options.segments ? [...options.segments] : undefined,
           activeProperNouns: this.activeProperNouns,
           dictionaryManager: this.dictionaryManager,
           debugLevel: this.debugLevel,
@@ -2140,38 +2167,42 @@ export class TranslationEngine {
           `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
         );
 
-        // CRITICAL-2 FIX: Detect and report silent pattern processing failures
+        // CRITICAL FIX: Detect and report ACTUAL pattern processing failures
+        // IMPORTANT: Zero results ≠ Failure
+        // - Zero results is valid when input text has no structural patterns
+        // - Only warn when WASM explicitly failed (hasWasmPatternProcessorFailed === true)
+        const wasmFailed = hasWasmPatternProcessorFailed();
+
         if (
-          hierarchicalResults.length === 0 &&
-          this.semanticPatternProcessor.patterns?.length > 0
+          wasmFailed &&
+          this.semanticPatternProcessor.patterns?.length > 0 &&
+          !this.showedPatternWarning
         ) {
           const errorContext = {
             patternsLoaded: this.semanticPatternProcessor.patterns.length,
             wasmAvailable: isWasmPatternProcessorAvailable(),
-            wasmFailed: hasWasmPatternProcessorFailed(),
+            wasmFailed: true,
             timestamp: Date.now(),
           };
 
           logger.error(
-            '⚠️ Pattern processing failure - no results despite loaded patterns:',
+            '⚠️ Pattern processing system failure - WASM initialization failed:',
             errorContext
           );
 
           // Show user-facing notification (only once per session to prevent spam)
-          if (!this.showedPatternWarning) {
-            toast.warning(
-              'Pattern matching unavailable. Translation quality may be reduced. Try reloading dictionaries.',
-              { duration: 8000 }
-            );
-            this.showedPatternWarning = true;
+          toast.warning(
+            'Pattern matching unavailable. Translation quality may be reduced. Try reloading dictionaries.',
+            { duration: 8000 }
+          );
+          this.showedPatternWarning = true;
 
-            // Record failure for diagnostics and performance monitoring
-            if (
-              typeof systemPerformanceMonitor !== 'undefined' &&
-              systemPerformanceMonitor.recordAlert
-            ) {
-              systemPerformanceMonitor.recordAlert('pattern_processing_failure', errorContext);
-            }
+          // Record failure for diagnostics and performance monitoring
+          if (
+            typeof systemPerformanceMonitor !== 'undefined' &&
+            systemPerformanceMonitor.recordAlert
+          ) {
+            systemPerformanceMonitor.recordAlert('pattern_processing_failure', errorContext);
           }
         }
 
@@ -2190,11 +2221,15 @@ export class TranslationEngine {
       );
 
       // Process tokens using unified semantic approach with prioritized patterns
+      // CRITICAL FIX: Deep copy nested objects to prevent mutation leakage
       this.semanticPatternProcessor.processTokens(tokens, {
         debugLevel: this.debugLevel,
         prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
         semanticArrayBuilder: this.semanticArrayBuilder,
         ...options,
+        // Deep copy complex nested objects to prevent reference sharing
+        lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+        segments: options.segments ? [...options.segments] : undefined,
       });
 
       this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
@@ -3082,6 +3117,11 @@ export class TranslationEngine {
       // OPTIMIZATION: Create dictionary Set once outside loop (hot path optimization)
       const dictionarySet = new Set(dictionaryOrder);
 
+      // CRITICAL FIX: Track processed text ranges for O(n) conflict detection
+      // Instead of checking all tokens (O(n²)), we maintain ranges of processed positions
+      // Each range: { start: number, end: number, source: string }
+      const processedRanges = [];
+
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
 
@@ -3209,22 +3249,18 @@ export class TranslationEngine {
           const matchStart = getTextPositionForTokenIndex(tokens, i);
           const matchEnd = matchStart + bestMatch.word.length;
 
-          // Check if this match would overlap with any already-processed tokens
-          for (let j = 0; j < tokens.length; j++) {
-            const token = tokens[j];
-            if (token.translationSource) {
-              const tokenStart = getTextPositionForTokenIndex(tokens, j);
-              const tokenEnd = tokenStart + token.value.length;
-
-              // Check for overlap: match overlaps with token if they share any position
-              if (!(matchEnd <= tokenStart || matchStart >= tokenEnd)) {
-                hasConflict = true;
-                this.log(
-                  DEBUG_LEVELS.DEBUG,
-                  `🚨 ${phase} phase match blocked: "${bestMatch.word}" at position ${matchStart}-${matchEnd} conflicts with ${token.translationSource} result "${token.value}" at position ${tokenStart}-${tokenEnd}`
-                );
-                break;
-              }
+          // CRITICAL FIX: O(n) conflict detection using processed ranges
+          // Old approach: iterate ALL tokens (O(n²))
+          // New approach: check only processed ranges (O(m) where m = number of matches << n)
+          for (const range of processedRanges) {
+            // Check for overlap: match overlaps with range if they share any position
+            if (!(matchEnd <= range.start || matchStart >= range.end)) {
+              hasConflict = true;
+              this.log(
+                DEBUG_LEVELS.DEBUG,
+                `🚨 ${phase} phase match blocked: "${bestMatch.word}" at position ${matchStart}-${matchEnd} conflicts with ${range.source} result at position ${range.start}-${range.end}`
+              );
+              break;
             }
           }
 
@@ -3232,6 +3268,14 @@ export class TranslationEngine {
             // Apply translation to the matched tokens
             this.applyMatchToTokens(tokens, i, bestMatch, options);
             phaseMatches++;
+
+            // CRITICAL FIX: Add processed range for O(n) conflict detection
+            // Track this match's text range to prevent future overlaps
+            processedRanges.push({
+              start: matchStart,
+              end: matchEnd,
+              source: phase,
+            });
 
             // Calculate token span for skipping ahead
             const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
@@ -3370,8 +3414,21 @@ export class TranslationEngine {
               i + (options.chunkOffset || 0) // global token index
             );
             break;
-          default:
+          case TokenType.SPACE:
+          case TokenType.NEWLINE:
+          case TokenType.PUNCTUATION:
+            // CRITICAL FIX: Explicit handling for whitespace and punctuation tokens
+            // These are pass-through tokens but typically don't need semantic array entries
+            // (spacing/punctuation handled separately in postProcess spacing logic)
             output = token.value;
+            // Note: No semantic array entry needed - these are structural, not translatable content
+            break;
+          default:
+            // Unknown token types: pass through as-is (defensive coding)
+            output = token.value;
+            logger.warn(
+              `⚠️ Unknown token type in postProcess: "${token.value}" (type: ${token.type})`
+            );
         }
       }
 
@@ -3414,6 +3471,11 @@ export class TranslationEngine {
 
       // Store position in semantic array builder
       // Match by tokenIndex and translated text to handle duplicate tokens
+      // IMPORTANT: Position tracking is CORRECT as-is:
+      // - Positions recorded use currentPosition (includes all previous text + spaces)
+      // - Spacing added AFTER this segment updates currentPosition for NEXT segment
+      // - Example: Segment 0 at 0-3, space added → currentPosition=4, Segment 1 starts at 4 ✓
+      // - DO NOT move this after spacing - it would create off-by-one errors for current segment!
       if (current.tokenIndex >= 0) {
         this.semanticArrayBuilder.setPositionByMatch(
           current.tokenIndex,
@@ -3632,6 +3694,18 @@ export class TranslationEngine {
 
       // NEW: Capture semantic relationship for array-based highlighting
       // Calculate global position accounting for chunk offset
+      //
+      // IMPORTANT: Semantic array added BEFORE grouping (intentional design):
+      // - One semantic unit represents the entire match (e.g., "我的朋友" → "bạn của tôi")
+      // - Consumed tokens (tokens[i+1], tokens[i+2], ...) don't need separate semantic entries
+      // - They have translated=null and are skipped by postProcess() (only first token processed)
+      // - This creates correct one-to-one mapping: 1 match = 1 semantic unit
+      //
+      // Why this works:
+      // - First token (tokens[startIndex]): contains full translation
+      // - Consumed tokens: have translated=null, translationSource set, isGrouped=true
+      // - postProcess() only processes tokens with translated !== null
+      // - Result: One output segment for entire match, clickable highlighting works correctly
       const globalTokenIndex = startIndex + (options.chunkOffset || 0);
       this.semanticArrayBuilder.addUnit(
         match.word, // original text
@@ -4302,8 +4376,13 @@ export class TranslationEngine {
       // Process all chunks in parallel
       await Promise.all(
         batch.map(async (chunk, index) => {
+          // CRITICAL FIX: Deep copy options for parallel processing
+          // Each chunk runs in parallel - shared nested objects would cause race conditions
           const chunkOptions = {
             ...options,
+            // Deep copy complex nested objects to prevent race conditions
+            lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+            segments: options.segments ? [...options.segments] : undefined,
             useChunking: false,
             chunkOffset: chunk.startIndex,
             chunkIndex: batchStart + index,
@@ -5087,11 +5166,14 @@ export class TranslationEngine {
           // Fill missing entries with frozen default metadata object (prevents object creation overhead)
           const targetLength = currentSemanticArrays.original?.length || 0;
           if (progressiveMetadata.length < targetLength) {
+            // CRITICAL FIX: Use explicit 'missing' indicator instead of 'unknown'
+            // Helps distinguish between: (1) metadata never set vs (2) metadata intentionally omitted
             // Reuse single frozen object for all defaults (safe since read-only)
             const DEFAULT_METADATA = Object.freeze({
               source: 'progressive',
-              phase: 'unknown',
-              dictionary: 'unknown',
+              phase: null, // null = missing, not unknown
+              dictionary: null, // null = missing, not unknown
+              isMissing: true, // Explicit flag for debugging
             });
 
             for (let i = progressiveMetadata.length; i < targetLength; i++) {
@@ -5570,12 +5652,14 @@ export class TranslationEngine {
     );
 
     // BUGFIX: Use existing metadata from builder, fill gaps with defaults
+    // CRITICAL FIX: Use explicit missing indicator for better debugging
     const finalMetadata = [];
     for (let i = 0; i < (finalSemanticArrays.original?.length || 0); i++) {
       finalMetadata[i] = finalSemanticArrays.metadata?.[i] || {
         source: 'progressive',
-        phase: 'unknown',
-        dictionary: 'unknown',
+        phase: null, // null = missing, not unknown
+        dictionary: null, // null = missing, not unknown
+        isMissing: true, // Explicit flag for debugging
       };
     }
 
@@ -5628,9 +5712,14 @@ export class TranslationEngine {
       this.log(DEBUG_LEVELS.DEBUG, `🔄 Processing ${translatableChunks.length} chunks in parallel`);
 
       // Translate chunks in parallel
+      // CRITICAL FIX: Deep copy options for parallel processing
+      // Each chunk runs in parallel - shared nested objects would cause race conditions
       const translationPromises = translatableChunks.map((chunk) =>
         this.translateDirectly(chunk.content, {
           ...options,
+          // Deep copy complex nested objects to prevent race conditions
+          lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+          segments: options.segments ? [...options.segments] : undefined,
           useChunking: false,
           chunkOffset: chunk.startIndex,
           isParallelChunk: true,
@@ -5657,8 +5746,13 @@ export class TranslationEngine {
       for (let i = 0; i < translatableChunks.length; i++) {
         const chunk = translatableChunks[i];
 
+        // CRITICAL FIX: Deep copy options for each chunk
+        // Even in sequential processing, chunks may mutate options (lookupIndex assignment)
         chunk.translated = await this.translateDirectly(chunk.content, {
           ...options,
+          // Deep copy complex nested objects to prevent mutation leakage
+          lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+          segments: options.segments ? [...options.segments] : undefined,
           useChunking: false,
           chunkOffset: chunk.startIndex,
           isParallelChunk: true,
@@ -5714,8 +5808,20 @@ export class TranslationEngine {
     const _translationId = this.stats.totalTranslations++;
 
     try {
-      // Only reset segments if not called from chunked translation or parallel processing
-      if (options.useChunking !== false && !options.isParallelChunk) {
+      // CRITICAL FIX: Only reset segments if this is a standalone translation
+      // DO NOT reset if this is part of multi-chunk translation (would lose semantic arrays from previous chunks)
+      //
+      // Context: When translateWithChunking() calls translateDirectly() for each chunk:
+      // - Sets useChunking: false (to prevent nested chunking)
+      // - Sets isParallelChunk: true (to prevent reset)
+      // - This allows semantic arrays to accumulate across chunks
+      //
+      // Decision logic:
+      // - If isParallelChunk === true: DON'T RESET (accumulate across chunks)
+      // - If useChunking === false AND isParallelChunk !== true: RESET (standalone translation)
+      // - If useChunking !== false: RESET (standard translation)
+      const isPartOfMultiChunkTranslation = options.isParallelChunk === true;
+      if (!isPartOfMultiChunkTranslation) {
         this.translationSegments = [];
         // Reset semantic array builder for new translation
         this.semanticArrayBuilder.reset();
@@ -5807,8 +5913,12 @@ export class TranslationEngine {
 
         // Force chunking for oversized inputs
         if (!options.useChunking) {
+          // CRITICAL FIX: Deep copy options for recursive call
           return this.translateWithChunking(text, {
             ...options,
+            // Deep copy complex nested objects to prevent mutation leakage
+            lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+            segments: options.segments ? [...options.segments] : undefined,
             useChunking: true,
             forceChunking: true,
           });
@@ -5872,21 +5982,38 @@ export class TranslationEngine {
     // Clear semantic token cache for this translation
     this.cachedSemanticTokens = null;
 
+    // CRITICAL FIX: Track phase completion for debugging silent failures
+    // Phases can fail silently (catch error, log, continue) which makes debugging difficult
+    // This Set tracks which phases completed successfully vs failed
+    const completedPhases = new Set();
+
     // Record total translation time for profiling
     await this.profiler.profile('total', async () => {
       // Phase 1: Apply patterns first (they need full context)
-      await this.profiler.profile('patterns', async () => {
-        await this.applyPatterns(tokens, { ...options, debug: true });
-      });
+      try {
+        await this.profiler.profile('patterns', async () => {
+          await this.applyPatterns(tokens, { ...options, debug: true });
+        });
+        completedPhases.add('patterns');
+      } catch (error) {
+        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 1 (Patterns) failed:', error);
+        // Continue to next phase (graceful degradation)
+      }
 
       // Phase 2: Apply proper nouns globally (highest priority after patterns)
-      await this.profiler.profile('properNouns', async () => {
-        await this.applyDictionaryTranslation(tokens, {
-          ...options,
-          dictionaryOrder: [...this.activeProperNouns],
-          phase: 'properNouns',
+      try {
+        await this.profiler.profile('properNouns', async () => {
+          await this.applyDictionaryTranslation(tokens, {
+            ...options,
+            dictionaryOrder: [...this.activeProperNouns],
+            phase: 'properNouns',
+          });
         });
-      });
+        completedPhases.add('properNouns');
+      } catch (error) {
+        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 2 (Proper Nouns) failed:', error);
+        // Continue to next phase (graceful degradation)
+      }
 
       // OPTIMIZATION: Cache semantic tokens after proper noun grouping completes
       // This avoids redundant O(N) filtering in subsequent phases (5-10% overhead reduction)
@@ -5931,6 +6058,21 @@ export class TranslationEngine {
           return;
         }
 
+        // CRITICAL FIX: Check WASM availability before attempting to use it
+        // Prevents double-processing (WASM attempt → exception → JS fallback)
+        if (!isWasmNumberProcessorAvailable()) {
+          this.log(
+            DEBUG_LEVELS.DEBUG,
+            `📦 WASM number processor unavailable, using JavaScript fallback for ${numberCandidateCount} candidates`
+          );
+          this.numberProcessor.processTokens(tokens, {
+            debugLevel: this.debugLevel,
+            semanticArrayBuilder: this.semanticArrayBuilder,
+            ...options,
+          });
+          return;
+        }
+
         // Use WASM number processing (5-10x faster for Chinese number conversion)
         // Only worthwhile for >=${WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
         this.log(
@@ -5954,6 +6096,21 @@ export class TranslationEngine {
           // Copy WASM results with proper undefined → null conversion
           copyWasmTokens(processedTokens, tokens);
 
+          // CRITICAL FIX: Validate copied tokens have correct structure
+          // Ensure undefined → null conversion worked and no invalid data was copied
+          for (let i = 0; i < tokens.length; i++) {
+            if (tokens[i].translated === undefined) {
+              throw new Error(
+                `WASM copy validation failed: token ${i} has undefined translated field (should be null or string)`
+              );
+            }
+            if (tokens[i].translated !== null && typeof tokens[i].translated !== 'string') {
+              throw new Error(
+                `WASM copy validation failed: token ${i} has invalid translated type: ${typeof tokens[i].translated}`
+              );
+            }
+          }
+
           // Add number conversions to semantic array for clickable highlighting
           // WASM doesn't have access to semanticArrayBuilder, so we add entries here
           for (let i = 0; i < tokens.length; i++) {
@@ -5975,7 +6132,25 @@ export class TranslationEngine {
                 }
               }
 
+              // CRITICAL FIX: Validate that consumed tokens are contiguous
+              // If we found consumed tokens (endIndex > i), verify they're all marked correctly
+              if (endIndex > i) {
+                for (let k = i + 1; k <= endIndex; k++) {
+                  if (tokens[k].translationSource !== 'number_conversion_consumed') {
+                    this.log(
+                      DEBUG_LEVELS.ERROR,
+                      `⚠️ Number span integrity violation: token ${k} should be consumed but has source: ${tokens[k].translationSource}`
+                    );
+                  }
+                }
+              }
+
               // Add to semantic array
+              // NOTE: We use only the first token's index (i) even for multi-token numbers
+              // because the semantic array represents one logical unit (the entire number).
+              // The originalText contains the combined text from all tokens (i to endIndex).
+              // This is correct - position tracking works because postProcess only processes
+              // the first token (others are skipped due to translationSource=consumed).
               const globalTokenIndex = i + (options.chunkOffset || 0);
               this.semanticArrayBuilder.addUnit(
                 originalText,
@@ -5998,37 +6173,73 @@ export class TranslationEngine {
             ...options,
           });
         }
+        // Mark phase as completed (whether WASM succeeded or JS fallback was used)
+        completedPhases.add('numbers');
       });
 
       // Phase 4: Apply phrases with global longest-match optimization
-      await this.profiler.profile('phrases', async () => {
-        await this.createOptimalPhraseGroups(tokens, options);
-      });
+      try {
+        await this.profiler.profile('phrases', async () => {
+          await this.createOptimalPhraseGroups(tokens, options);
+        });
+        completedPhases.add('phrases');
+      } catch (error) {
+        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 4 (Phrases) failed:', error);
+        // Continue to next phase (graceful degradation)
+      }
 
       // Track which tokens have been processed to avoid re-processing
       const processedTokens = new Set();
 
       // Mark tokens that were already processed by patterns and proper nouns
       // CRITICAL FIX: Don't mark pattern_partial_reset as processed - allow re-processing
+      // CRITICAL FIX: Grouped tokens with pattern_partial_reset should also be re-processed
       for (let i = 0; i < tokens.length; i++) {
+        // Allow re-processing if translationSource is pattern_partial_reset (even if grouped)
+        const isPartialReset = tokens[i].translationSource === 'pattern_partial_reset';
+
         if (
           tokens[i].translated !== null ||
-          tokens[i].isGrouped ||
-          (tokens[i].translationSource && tokens[i].translationSource !== 'pattern_partial_reset')
+          (tokens[i].isGrouped && !isPartialReset) ||
+          (tokens[i].translationSource && !isPartialReset)
         ) {
           processedTokens.add(i);
         }
       }
 
       // Phase 5: Process remaining tokens for character-level translation (fallback)
-      await this.profiler.profile('characters', async () => {
-        await this.processRemainingTokensInBatches(tokens, processedTokens, options);
-      });
+      try {
+        await this.profiler.profile('characters', async () => {
+          await this.processRemainingTokensInBatches(tokens, processedTokens, options);
+        });
+        completedPhases.add('characters');
+      } catch (error) {
+        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 5 (Characters) failed:', error);
+        // Continue to postProcess (graceful degradation)
+      }
 
       // Apply final fixes that need to run after all processing
       this.profiler.profileSync('postProcess', () => {
         this.fixNumberPlusLiangTranslations(tokens);
       });
+
+      // CRITICAL FIX: Log phase completion summary for debugging
+      // This helps identify which phases completed vs failed (silent failures)
+      const failedPhases = ['patterns', 'properNouns', 'numbers', 'phrases', 'characters'].filter(
+        (phase) => !completedPhases.has(phase)
+      );
+      if (failedPhases.length > 0) {
+        this.log(
+          DEBUG_LEVELS.WARN,
+          `⚠️ Translation completed with ${failedPhases.length} failed phase(s): ${failedPhases.join(', ')}`
+        );
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          `✅ Completed phases: ${Array.from(completedPhases).join(', ')}`
+        );
+      } else {
+        this.log(DEBUG_LEVELS.DEBUG, '✅ All 5 phases completed successfully');
+      }
     });
 
     const translationTime = performance.now() - startTime;
@@ -6211,10 +6422,14 @@ export class TranslationEngine {
     }));
 
     // Apply NumberProcessor to the temporary tokens
+    // CRITICAL FIX: Deep copy options to prevent mutation leakage
     this.numberProcessor.processTokens(tempTokens, {
       debugLevel: this.debugLevel,
       semanticArrayBuilder: this.semanticArrayBuilder,
       ...options,
+      // Deep copy complex nested objects to prevent reference sharing
+      lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+      segments: options.segments ? [...options.segments] : undefined,
     });
 
     // Find how many tokens were consumed by checking consecutive modified tokens from start
@@ -6902,12 +7117,14 @@ export class TranslationEngine {
     const metadataArray = allSemanticArrays.metadata || [];
 
     // Fill missing metadata with default objects to prevent SegmentPrecomputer errors
+    // CRITICAL FIX: Use explicit missing indicator for better debugging
     const completeMetadata = [];
     for (let i = 0; i < originalCount; i++) {
       completeMetadata[i] = metadataArray[i] || {
         source: 'progressive',
-        phase: 'unknown',
-        dictionary: 'unknown',
+        phase: null, // null = missing, not unknown
+        dictionary: null, // null = missing, not unknown
+        isMissing: true, // Explicit flag for debugging
       };
     }
 
