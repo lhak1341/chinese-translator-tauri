@@ -6159,6 +6159,15 @@ export class TranslationEngine {
     // This Set tracks which phases completed successfully vs failed
     const completedPhases = new Set();
 
+    // NOTE (LOW-16): Timeout protection not implemented
+    // Reasoning: Phases are expected to take time for large texts (5-10s for 10K+ chars)
+    // - All phases have error handling (try-catch with graceful degradation)
+    // - No infinite loops (all iteration has bounds)
+    // - Profiler already tracks timing for debugging
+    // - Promise.race timeouts can't actually kill async work, just stop waiting
+    // - Arbitrary timeout values would cause false positives on slow machines
+    // If hanging is observed in production, add timeouts then (not worth complexity now)
+
     // Record total translation time for profiling
     await this.profiler.profile('total', async () => {
       // Phase 1: Apply patterns first (they need full context)
@@ -6213,177 +6222,186 @@ export class TranslationEngine {
       // Phase 3: Apply number conversion globally (before phrases to prevent fragmentation)
       // Numbers should be processed before phrases to preserve number sequences like "六十五"
       // This prevents phrase-level matches from breaking up number tokens
-      await this.profiler.profile('numbers', async () => {
-        // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
-        // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
-        let numberCandidateCount = 0;
-        for (const token of tokens) {
-          if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
-            numberCandidateCount++;
-            // Early exit if many candidates (no point counting further)
-            if (numberCandidateCount > WASM_NUMBER_PROCESSING_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK)
-              break;
+      // LOW FIX: Add try-catch for consistency with other phases (Phase 3 was missing error handling)
+      try {
+        await this.profiler.profile('numbers', async () => {
+          // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
+          // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
+          let numberCandidateCount = 0;
+          for (const token of tokens) {
+            if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
+              numberCandidateCount++;
+              // Early exit if many candidates (no point counting further)
+              if (
+                numberCandidateCount > WASM_NUMBER_PROCESSING_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK
+              )
+                break;
+            }
           }
-        }
 
-        // Skip WASM entirely if no number candidates
-        if (numberCandidateCount === 0) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            '⏭️  Skipping WASM number processing (no untranslated chinese_char tokens)'
-          );
-          return;
-        }
-
-        // Use JavaScript fallback for very small counts (serialization overhead > benefit)
-        if (numberCandidateCount < WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
-          );
-          this.numberProcessor.processTokens(tokens, {
-            debugLevel: this.debugLevel,
-            semanticArrayBuilder: this.semanticArrayBuilder,
-            ...options,
-          });
-          return;
-        }
-
-        // CRITICAL FIX: Check WASM availability before attempting to use it
-        // Prevents double-processing (WASM attempt → exception → JS fallback)
-        if (!isWasmNumberProcessorAvailable()) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `📦 WASM number processor unavailable, using JavaScript fallback for ${numberCandidateCount} candidates`
-          );
-          this.numberProcessor.processTokens(tokens, {
-            debugLevel: this.debugLevel,
-            semanticArrayBuilder: this.semanticArrayBuilder,
-            ...options,
-          });
-          return;
-        }
-
-        // Use WASM number processing (5-10x faster for Chinese number conversion)
-        // Only worthwhile for >=${WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
-        );
-        try {
-          const processedTokens = await processNumbersWasm(tokens);
-
-          // Pre-validate array length invariance before copying
-          if (processedTokens.length !== tokens.length) {
+          // Skip WASM entirely if no number candidates
+          if (numberCandidateCount === 0) {
             this.log(
-              DEBUG_LEVELS.ERROR,
-              `WASM number processor corrupted token array: expected ${tokens.length}, got ${processedTokens.length}`
+              DEBUG_LEVELS.DEBUG,
+              '⏭️  Skipping WASM number processing (no untranslated chinese_char tokens)'
             );
-            throw new Error(
-              `WASM number processor violated array length invariance: ${tokens.length} → ${processedTokens.length}`
-            );
+            return;
           }
 
-          // Copy WASM results with proper undefined → null conversion
-          copyWasmTokens(processedTokens, tokens);
-
-          // CRITICAL FIX: Validate copied tokens have correct structure
-          // Ensure undefined → null conversion worked and no invalid data was copied
-          for (let i = 0; i < tokens.length; i++) {
-            // HIGH FIX: Check token existence before accessing properties (handles sparse arrays)
-            if (!tokens[i] || typeof tokens[i] !== 'object') {
-              throw new Error(
-                `WASM copy validation failed: token ${i} is missing or not an object`
-              );
-            }
-            if (tokens[i].translated === undefined) {
-              throw new Error(
-                `WASM copy validation failed: token ${i} has undefined translated field (should be null or string)`
-              );
-            }
-            if (tokens[i].translated !== null && typeof tokens[i].translated !== 'string') {
-              throw new Error(
-                `WASM copy validation failed: token ${i} has invalid translated type: ${typeof tokens[i].translated}`
-              );
-            }
+          // Use JavaScript fallback for very small counts (serialization overhead > benefit)
+          if (numberCandidateCount < WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
+            this.log(
+              DEBUG_LEVELS.DEBUG,
+              `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
+            );
+            this.numberProcessor.processTokens(tokens, {
+              debugLevel: this.debugLevel,
+              semanticArrayBuilder: this.semanticArrayBuilder,
+              ...options,
+            });
+            return;
           }
 
-          // Add number conversions to semantic array for clickable highlighting
-          // WASM doesn't have access to semanticArrayBuilder, so we add entries here
-          for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
+          // CRITICAL FIX: Check WASM availability before attempting to use it
+          // Prevents double-processing (WASM attempt → exception → JS fallback)
+          if (!isWasmNumberProcessorAvailable()) {
+            this.log(
+              DEBUG_LEVELS.DEBUG,
+              `📦 WASM number processor unavailable, using JavaScript fallback for ${numberCandidateCount} candidates`
+            );
+            this.numberProcessor.processTokens(tokens, {
+              debugLevel: this.debugLevel,
+              semanticArrayBuilder: this.semanticArrayBuilder,
+              ...options,
+            });
+            return;
+          }
 
-            // Find number conversion results (main token, not consumed tokens)
-            if (token.translationSource === 'number_conversion' && token.translated) {
-              // Collect original text from this token and any consumed tokens following it
-              let originalText = token.value;
-              let endIndex = i;
+          // Use WASM number processing (5-10x faster for Chinese number conversion)
+          // Only worthwhile for >=${WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
+          this.log(
+            DEBUG_LEVELS.DEBUG,
+            `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
+          );
+          try {
+            const processedTokens = await processNumbersWasm(tokens);
 
-              // Look ahead for consumed tokens that are part of this number
-              // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
-              // Chinese numbers rarely exceed 10 digits, so limit span accordingly
-              const MAX_CONSUMED_SPAN = 10;
-              for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
-                if (tokens[j].translationSource === 'number_conversion_consumed') {
-                  originalText += tokens[j].value;
-                  endIndex = j;
-                } else {
-                  break; // Stop when we hit a non-consumed token
-                }
-              }
+            // Pre-validate array length invariance before copying
+            if (processedTokens.length !== tokens.length) {
+              this.log(
+                DEBUG_LEVELS.ERROR,
+                `WASM number processor corrupted token array: expected ${tokens.length}, got ${processedTokens.length}`
+              );
+              throw new Error(
+                `WASM number processor violated array length invariance: ${tokens.length} → ${processedTokens.length}`
+              );
+            }
 
-              // HIGH FIX: Warn if span exceeded limit (indicates wrong consumed marking)
-              if (endIndex - i >= MAX_CONSUMED_SPAN) {
-                this.log(
-                  DEBUG_LEVELS.WARN,
-                  `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i}`
+            // Copy WASM results with proper undefined → null conversion
+            copyWasmTokens(processedTokens, tokens);
+
+            // CRITICAL FIX: Validate copied tokens have correct structure
+            // Ensure undefined → null conversion worked and no invalid data was copied
+            for (let i = 0; i < tokens.length; i++) {
+              // HIGH FIX: Check token existence before accessing properties (handles sparse arrays)
+              if (!tokens[i] || typeof tokens[i] !== 'object') {
+                throw new Error(
+                  `WASM copy validation failed: token ${i} is missing or not an object`
                 );
               }
+              if (tokens[i].translated === undefined) {
+                throw new Error(
+                  `WASM copy validation failed: token ${i} has undefined translated field (should be null or string)`
+                );
+              }
+              if (tokens[i].translated !== null && typeof tokens[i].translated !== 'string') {
+                throw new Error(
+                  `WASM copy validation failed: token ${i} has invalid translated type: ${typeof tokens[i].translated}`
+                );
+              }
+            }
 
-              // CRITICAL FIX: Validate that consumed tokens are contiguous
-              // If we found consumed tokens (endIndex > i), verify they're all marked correctly
-              if (endIndex > i) {
-                for (let k = i + 1; k <= endIndex; k++) {
-                  if (tokens[k].translationSource !== 'number_conversion_consumed') {
-                    this.log(
-                      DEBUG_LEVELS.ERROR,
-                      `⚠️ Number span integrity violation: token ${k} should be consumed but has source: ${tokens[k].translationSource}`
-                    );
+            // Add number conversions to semantic array for clickable highlighting
+            // WASM doesn't have access to semanticArrayBuilder, so we add entries here
+            for (let i = 0; i < tokens.length; i++) {
+              const token = tokens[i];
+
+              // Find number conversion results (main token, not consumed tokens)
+              if (token.translationSource === 'number_conversion' && token.translated) {
+                // Collect original text from this token and any consumed tokens following it
+                let originalText = token.value;
+                let endIndex = i;
+
+                // Look ahead for consumed tokens that are part of this number
+                // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
+                // Chinese numbers rarely exceed 10 digits, so limit span accordingly
+                const MAX_CONSUMED_SPAN = 10;
+                for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
+                  if (tokens[j].translationSource === 'number_conversion_consumed') {
+                    originalText += tokens[j].value;
+                    endIndex = j;
+                  } else {
+                    break; // Stop when we hit a non-consumed token
                   }
                 }
-              }
 
-              // Add to semantic array
-              // NOTE: We use only the first token's index (i) even for multi-token numbers
-              // because the semantic array represents one logical unit (the entire number).
-              // The originalText contains the combined text from all tokens (i to endIndex).
-              // This is correct - position tracking works because postProcess only processes
-              // the first token (others are skipped due to translationSource=consumed).
-              const globalTokenIndex = i + (options.chunkOffset || 0);
-              this.semanticArrayBuilder.addUnit(
-                originalText,
-                token.translated,
-                'numbers',
-                globalTokenIndex
-              );
+                // HIGH FIX: Warn if span exceeded limit (indicates wrong consumed marking)
+                if (endIndex - i >= MAX_CONSUMED_SPAN) {
+                  this.log(
+                    DEBUG_LEVELS.WARN,
+                    `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i}`
+                  );
+                }
+
+                // CRITICAL FIX: Validate that consumed tokens are contiguous
+                // If we found consumed tokens (endIndex > i), verify they're all marked correctly
+                if (endIndex > i) {
+                  for (let k = i + 1; k <= endIndex; k++) {
+                    if (tokens[k].translationSource !== 'number_conversion_consumed') {
+                      this.log(
+                        DEBUG_LEVELS.ERROR,
+                        `⚠️ Number span integrity violation: token ${k} should be consumed but has source: ${tokens[k].translationSource}`
+                      );
+                    }
+                  }
+                }
+
+                // Add to semantic array
+                // NOTE: We use only the first token's index (i) even for multi-token numbers
+                // because the semantic array represents one logical unit (the entire number).
+                // The originalText contains the combined text from all tokens (i to endIndex).
+                // This is correct - position tracking works because postProcess only processes
+                // the first token (others are skipped due to translationSource=consumed).
+                const globalTokenIndex = i + (options.chunkOffset || 0);
+                this.semanticArrayBuilder.addUnit(
+                  originalText,
+                  token.translated,
+                  'numbers',
+                  globalTokenIndex
+                );
+              }
             }
+          } catch (error) {
+            this.log(
+              DEBUG_LEVELS.WARN,
+              '⚠️ WASM number processing failed, falling back to JavaScript:',
+              error.message
+            );
+            // Fallback to JavaScript number processing
+            this.numberProcessor.processTokens(tokens, {
+              debugLevel: this.debugLevel,
+              semanticArrayBuilder: this.semanticArrayBuilder,
+              ...options,
+            });
           }
-        } catch (error) {
-          this.log(
-            DEBUG_LEVELS.WARN,
-            '⚠️ WASM number processing failed, falling back to JavaScript:',
-            error.message
-          );
-          // Fallback to JavaScript number processing
-          this.numberProcessor.processTokens(tokens, {
-            debugLevel: this.debugLevel,
-            semanticArrayBuilder: this.semanticArrayBuilder,
-            ...options,
-          });
-        }
-        // Mark phase as completed (whether WASM succeeded or JS fallback was used)
-        completedPhases.add('numbers');
-      });
+          // Mark phase as completed (whether WASM succeeded or JS fallback was used)
+          completedPhases.add('numbers');
+        });
+      } catch (error) {
+        // LOW FIX: Standardize error handling for Phase 3 (was missing outer try-catch)
+        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 3 (Numbers) failed:', error);
+        // Continue to next phase (graceful degradation)
+      }
 
       // Phase 4: Apply phrases with global longest-match optimization
       // HIGH FIX: Snapshot token count before phase for corruption detection
