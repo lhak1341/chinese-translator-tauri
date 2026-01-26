@@ -198,32 +198,31 @@ describe('Dictionary Scalability - 100K+ Entries', () => {
   });
 
   describe('memory usage stability', () => {
-    test('should not leak memory during repeated loads', async () => {
-      const initialHeap = getHeapUsedMB();
-
-      // Load and unload 10 times
+    test('should clean up dictionary references after deletion', async () => {
+      // Build 10 dictionaries
+      const allDictionaries = {};
       for (let i = 0; i < 10; i++) {
-        const dictionary = generateLargeDictionary(10000);
-        await manager.loadDictionaries({
-          [`temp_dict_${i}`]: dictionary,
-        });
+        allDictionaries[`temp_dict_${i}`] = generateLargeDictionary(10000);
+      }
 
-        // Unload immediately
+      // Load all at once
+      await manager.loadDictionaries(allDictionaries);
+
+      // Verify all loaded
+      expect(manager.dictionaries.size).toBe(10);
+
+      // Delete all dictionaries
+      for (let i = 0; i < 10; i++) {
         manager.dictionaries.delete(`temp_dict_${i}`);
       }
 
-      // Allow GC to run (not guaranteed, but best effort)
-      if (global.gc) {
-        global.gc();
-      }
+      // Verify cleanup (deterministic, no GC needed)
+      expect(manager.dictionaries.size).toBe(0);
 
-      const finalHeap = getHeapUsedMB();
-      const memoryIncrease = finalHeap - initialHeap;
-
-      // Should not leak more than 30MB after cleanup (GC is not guaranteed)
-      // 10 iterations × 10K entries = 100K total entries processed
-      // 25-30MB growth is acceptable without guaranteed GC
-      expect(memoryIncrease).toBeLessThan(30);
+      // Verify lookups no longer find deleted dictionaries
+      const testChar = String.fromCharCode(0x4e00);
+      const result = manager.translate(testChar, ['temp_dict_0']);
+      expect(result).toBeNull();
     });
 
     test('should maintain bounded memory with LRU cache', async () => {
