@@ -1706,6 +1706,10 @@ export class TranslationEngine {
 
         // Create the group without translating
         tokens[startIndex].isGrouped = true;
+        // CRITICAL FIX: Preserve originalValue before modifying for getTokenSpanForText()
+        if (!tokens[startIndex].originalValue) {
+          tokens[startIndex].originalValue = tokens[startIndex].value;
+        }
         tokens[startIndex].value = match.word; // Update value to grouped text
         tokens[startIndex].phraseMatch = match; // Store match for later translation
 
@@ -2269,9 +2273,10 @@ export class TranslationEngine {
       }
 
       // Mark consumed tokens (if span is longer than 1 token)
+      // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
       for (let i = result.startIndex + 1; i <= result.endIndex; i++) {
         if (tokens[i]) {
-          tokens[i].translated = ''; // Use empty string to prevent number processor double-processing
+          tokens[i].translated = null; // Must be null - postProcess checks !== null
           tokens[i].translationSource = 'hierarchical_pattern_consumed';
         }
       }
@@ -2403,6 +2408,10 @@ export class TranslationEngine {
 
         // Apply phrase translation
         tokens[startIndex].isGrouped = true;
+        // CRITICAL FIX: Preserve originalValue before modifying for getTokenSpanForText()
+        if (!tokens[startIndex].originalValue) {
+          tokens[startIndex].originalValue = tokens[startIndex].value;
+        }
         tokens[startIndex].value = match.word;
         tokens[startIndex].phraseMatch = match;
         tokens[startIndex].translated = match.translation;
@@ -2551,6 +2560,10 @@ export class TranslationEngine {
 
       // Apply phrase translation to tokens (same as sequential method)
       tokens[tokenIndex].isGrouped = true;
+      // CRITICAL FIX: Preserve originalValue before modifying for getTokenSpanForText()
+      if (!tokens[tokenIndex].originalValue) {
+        tokens[tokenIndex].originalValue = tokens[tokenIndex].value;
+      }
       tokens[tokenIndex].value = match.match.word;
       tokens[tokenIndex].phraseMatch = match.match;
       tokens[tokenIndex].translated = match.match.translation;
@@ -2969,17 +2982,18 @@ export class TranslationEngine {
         matchEnd
       );
       if (afterMatchTokenIndex < endIndex && afterMatchTokenIndex >= startIndex) {
-        // CRITICAL: Clear both translated and translationSource to allow later phases to process
-        // These tokens are no longer consumed - they need to be re-translated
+        // CRITICAL FIX: Use explicit marker instead of null to prevent double-processing
+        // Pattern wants these tokens re-processed by later phases (phrases, characters)
+        // but we need to track that they were partially processed by patterns
         tokens[afterMatchTokenIndex].translated = null;
-        tokens[afterMatchTokenIndex].translationSource = null; // Allow re-processing
+        tokens[afterMatchTokenIndex].translationSource = 'pattern_partial_reset'; // Explicit marker
 
         // Also reset subsequent tokens that are part of afterMatch
         for (let k = afterMatchTokenIndex + 1; k < endIndex; k++) {
           const tokenEndPos = this.getTokenPositionInSequence(tokens, startIndex, k);
           if (tokenEndPos <= matchEnd + afterMatch.length) {
             tokens[k].translated = null;
-            tokens[k].translationSource = null; // Allow re-processing
+            tokens[k].translationSource = 'pattern_partial_reset'; // Explicit marker
           }
         }
       }
@@ -3072,7 +3086,12 @@ export class TranslationEngine {
         const token = tokens[i];
 
         // Skip already translated tokens or tokens consumed by other processes
-        if (token.translated !== null || token.translationSource) continue;
+        // CRITICAL FIX: Allow pattern_partial_reset to be re-processed by later phases
+        if (
+          token.translated !== null ||
+          (token.translationSource && token.translationSource !== 'pattern_partial_reset')
+        )
+          continue;
 
         // For phrases phase, check if token has a pre-stored phrase match
         if (phase === 'phrases' && token.phraseMatch) {
@@ -3641,7 +3660,8 @@ export class TranslationEngine {
             tokens[startIndex].groupedWith.push(startIndex + i);
             // Store original value before marking as grouped
             tokens[startIndex + i].originalValue = tokens[startIndex + i].value;
-            tokens[startIndex + i].translated = ''; // Mark as processed to prevent re-processing by later phases
+            // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
+            tokens[startIndex + i].translated = null; // Must be null - postProcess checks !== null
             tokens[startIndex + i].translationSource = match.dictionary;
             tokens[startIndex + i].isGrouped = true;
             tokens[startIndex + i].groupLeader = startIndex;
@@ -4525,10 +4545,26 @@ export class TranslationEngine {
     );
 
     // Apply results and mark consumed tokens
+    // CRITICAL FIX: Validate no overlaps before applying to detect race conditions
     batchResults.forEach(({ index, consumed }) => {
       if (consumed > 0) {
+        // Check for overlapping consumption (race condition detector)
+        let hasOverlap = false;
         for (let j = 0; j < consumed; j++) {
-          processedTokens.add(index + j);
+          if (processedTokens.has(index + j)) {
+            logger.warn(
+              `⚠️ Race condition detected: token ${index + j} already consumed. Skipping overlapping tokens.`
+            );
+            hasOverlap = true;
+            break;
+          }
+        }
+
+        // Only mark tokens if no overlap detected
+        if (!hasOverlap) {
+          for (let j = 0; j < consumed; j++) {
+            processedTokens.add(index + j);
+          }
         }
       }
     });
@@ -5613,7 +5649,10 @@ export class TranslationEngine {
         `🔄 Processing ${translatableChunks.length} chunks sequentially with time-slicing`
       );
 
-      // Translate chunks sequentially with time-slicing to prevent UI blocking
+      // CRITICAL: Chunks must be processed sequentially to maintain semantic array position order
+      // Each chunk uses chunkOffset to calculate globalTokenIndex for semantic array tracking.
+      // Parallel processing would corrupt position order, breaking clickable highlighting.
+      // Time-slicing prevents UI blocking while maintaining sequential position tracking.
       let lastYieldTime = performance.now();
       for (let i = 0; i < translatableChunks.length; i++) {
         const chunk = translatableChunks[i];
@@ -5970,8 +6009,13 @@ export class TranslationEngine {
       const processedTokens = new Set();
 
       // Mark tokens that were already processed by patterns and proper nouns
+      // CRITICAL FIX: Don't mark pattern_partial_reset as processed - allow re-processing
       for (let i = 0; i < tokens.length; i++) {
-        if (tokens[i].translated !== null || tokens[i].translationSource || tokens[i].isGrouped) {
+        if (
+          tokens[i].translated !== null ||
+          tokens[i].isGrouped ||
+          (tokens[i].translationSource && tokens[i].translationSource !== 'pattern_partial_reset')
+        ) {
           processedTokens.add(i);
         }
       }
@@ -6094,7 +6138,12 @@ export class TranslationEngine {
    */
   async tryPhrasesAtPosition(tokens, position, options) {
     // Skip if token is already processed
-    if (tokens[position].translated !== null || tokens[position].translationSource) {
+    // CRITICAL FIX: Allow pattern_partial_reset to be re-processed
+    if (
+      tokens[position].translated !== null ||
+      (tokens[position].translationSource &&
+        tokens[position].translationSource !== 'pattern_partial_reset')
+    ) {
       return { consumed: 0 };
     }
 
@@ -6124,7 +6173,12 @@ export class TranslationEngine {
    */
   tryNumberConversionAtPosition(tokens, position, options) {
     // Skip if token is already processed
-    if (tokens[position].translated !== null || tokens[position].translationSource) {
+    // CRITICAL FIX: Allow pattern_partial_reset to be re-processed
+    if (
+      tokens[position].translated !== null ||
+      (tokens[position].translationSource &&
+        tokens[position].translationSource !== 'pattern_partial_reset')
+    ) {
       return { consumed: 0 };
     }
 
@@ -6194,7 +6248,12 @@ export class TranslationEngine {
    */
   async tryCharactersAtPosition(tokens, position, options) {
     // Skip if token is already processed
-    if (tokens[position].translated !== null || tokens[position].translationSource) {
+    // CRITICAL FIX: Allow pattern_partial_reset to be re-processed
+    if (
+      tokens[position].translated !== null ||
+      (tokens[position].translationSource &&
+        tokens[position].translationSource !== 'pattern_partial_reset')
+    ) {
       return { consumed: 0 };
     }
 
@@ -6250,11 +6309,18 @@ export class TranslationEngine {
 
   /**
    * Check for conflicts with already processed tokens
+   * CRITICAL FIX: Must check isGrouped flag to prevent overlapping grouped tokens
+   * CRITICAL FIX: Allow pattern_partial_reset tokens to be re-processed
    */
   checkForConflictAtPosition(tokens, position, length) {
     for (let i = position; i < position + length; i++) {
       if (i >= tokens.length) break;
-      if (tokens[i].translated !== null || tokens[i].translationSource) {
+      // Check grouped, translated, or has source (except pattern_partial_reset)
+      if (
+        tokens[i].isGrouped ||
+        tokens[i].translated !== null ||
+        (tokens[i].translationSource && tokens[i].translationSource !== 'pattern_partial_reset')
+      ) {
         return true; // Conflict found
       }
     }
