@@ -835,52 +835,38 @@ export class DictionaryManager {
       return cachedResult;
     }
 
+    // MEDIUM-9 FIX: Remove per-dictionary cache checks to eliminate duplicate lookups
+    // Multi-dictionary cache check above is sufficient
     for (const dictionaryName of searchOrder) {
       const dictionary = this.dictionaries.get(dictionaryName);
       if (!dictionary) continue;
 
-      // Check individual dictionary cache
-      let result;
-      if (word.length === 1) {
-        // Character lookup - use character cache
-        result = this.cache.getCharacter(word, dictionaryName);
-        if (!result) {
-          result = dictionary.getWithMetadata(word);
-          if (result) {
-            // Cache the character translation
-            const translationResult = {
-              word,
-              translation: result.translation,
-              dictionary: dictionaryName,
-              metadata: result.metadata,
-            };
-            this.cache.setCharacter(word, dictionaryName, translationResult);
-            result = translationResult;
-          }
-        }
-      } else {
-        // Phrase lookup - use phrase cache
-        result = this.cache.getPhrase(word, dictionaryName);
-        if (!result) {
-          result = dictionary.getWithMetadata(word);
-          if (result) {
-            // Cache the phrase translation
-            const translationResult = {
-              word,
-              translation: result.translation,
-              dictionary: dictionaryName,
-              metadata: result.metadata,
-            };
-            this.cache.setPhrase(word, dictionaryName, translationResult);
-            result = translationResult;
-          }
-        }
-      }
+      // Direct dictionary lookup (no per-dictionary cache check)
+      const result = dictionary.getWithMetadata(word);
 
       if (result) {
-        // Cache the multi-dictionary lookup result
-        this.cache.setLookup(word, searchOrder, result);
-        return result;
+        // Build translation result
+        const translationResult = {
+          word,
+          translation: result.translation,
+          dictionary: dictionaryName,
+          metadata: result.metadata,
+        };
+
+        // Cache based on word length for future lookups
+        if (word.length === 1) {
+          // Cache single character lookups aggressively
+          this.cache.setCharacter(word, dictionaryName, translationResult);
+        } else {
+          // Cache phrase lookups
+          this.cache.setPhrase(word, dictionaryName, translationResult);
+        }
+
+        // Also cache in multi-dictionary lookup cache
+        this.cache.setLookup(word, searchOrder, translationResult);
+
+        // Return the found result
+        return translationResult;
       }
     }
 

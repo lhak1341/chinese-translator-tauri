@@ -1202,6 +1202,20 @@ export class SemanticPatternProcessor {
           pattern.metadata.allowedVariableTypes[patternToken.name]
         ) {
           const allowedTypes = pattern.metadata.allowedVariableTypes[patternToken.name];
+
+          // MEDIUM-7 FIX: Validate allowedTypes is an array before using it
+          if (!Array.isArray(allowedTypes)) {
+            logger.warn(
+              `Invalid allowedTypes for variable ${patternToken.name}: not an array (got ${typeof allowedTypes})`
+            );
+            pattern.usage.cacheMisses++;
+            this.stats.cacheMisses++;
+            return {
+              success: false,
+              reason: `Invalid pattern configuration: allowedTypes must be an array for variable ${patternToken.name}`,
+            };
+          }
+
           const variableType = cachedTranslation.type || 'unknown';
 
           if (!allowedTypes.includes(variableType)) {
@@ -1354,9 +1368,11 @@ export class SemanticPatternProcessor {
     tokens[firstIndex].patternUsed = matchResult.pattern.originalPattern;
 
     // Mark consumed tokens
+    // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
+    // postProcess() checks token.translated !== null to identify consumed tokens
     for (let i = 1; i < matchResult.matchedTokens.length; i++) {
       const tokenIndex = matchResult.matchedTokens[i].originalIndex;
-      tokens[tokenIndex].translated = ''; // Use empty string to prevent number processor double-processing
+      tokens[tokenIndex].translated = null; // Must be null - postProcess checks !== null
       tokens[tokenIndex].translationSource = 'pattern_consumed';
     }
 

@@ -156,6 +156,13 @@ import {
   isWasmPatternProcessorAvailable,
   hasWasmPatternProcessorFailed,
 } from './WasmPatternProcessor.js';
+import {
+  PHRASE_PROCESSING,
+  NUMBER_PROCESSING,
+  DICTIONARY_LOOKUP,
+  MEMORY_MANAGEMENT,
+  WASM_NUMBER_THRESHOLDS,
+} from '../constants/TranslationConstants.js';
 
 /**
  * @import {
@@ -200,17 +207,8 @@ export const DEBUG_LEVELS = {
   VERBOSE: 3, // Ultra-detailed token-by-token logging
 };
 
-// WASM Number Processing Thresholds
-// These thresholds determine when to use WASM vs JavaScript for number processing
-// based on the tradeoff between WASM speedup (5-10x) vs serialization overhead
-const WASM_NUMBER_PROCESSING_THRESHOLDS = {
-  // Stop counting candidates after this many (optimization - we know we'll use WASM anyway)
-  MAX_CANDIDATE_COUNT_CHECK: 50,
-
-  // Minimum candidates to justify WASM serialization overhead
-  // Below this threshold, JavaScript is faster due to serialization cost
-  MIN_CANDIDATES_FOR_WASM: 10,
-};
+// WASM Number Processing Thresholds moved to TranslationConstants.js
+// Import via: import { WASM_NUMBER_THRESHOLDS } from '../constants/TranslationConstants.js';
 
 // ============================================================================
 // SECTION 2: CORE ENGINE CLASS - CONSTRUCTOR & INITIALIZATION
@@ -283,8 +281,8 @@ export class TranslationEngine {
     this.punctuationDict = {}; // Store punctuation translation dictionary
 
     // MEMORY MANAGEMENT: Bounded collection limits for stats
-    this.MAX_TOKEN_STATS = 500; // Most frequently used token types
-    this.MAX_PROPER_NOUN_TRANSLATIONS = 10000; // Maximum proper noun cache size (prevents unbounded growth)
+    this.MAX_TOKEN_STATS = MEMORY_MANAGEMENT.MAX_TOKEN_STATS; // Most frequently used token types
+    this.MAX_PROPER_NOUN_TRANSLATIONS = MEMORY_MANAGEMENT.MAX_PROPER_NOUN_TRANSLATIONS; // Maximum proper noun cache size (prevents unbounded growth)
 
     this.stats = {
       totalTranslations: 0,
@@ -317,6 +315,9 @@ export class TranslationEngine {
 
     // CRITICAL-2 FIX: Track pattern processor warning to show only once
     this.showedPatternWarning = false;
+
+    // CRITICAL-3 FIX: Track pattern processing failures for auto-disable
+    this.patternFailureCount = 0;
   }
 
   /**
@@ -616,6 +617,25 @@ export class TranslationEngine {
     // Clear semantic array builder cache if available
     if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
       this.semanticArrayBuilder.clearCache();
+    }
+  }
+
+  /**
+   * HIGH-5 FIX: Cleanup old translation segments to prevent memory leaks
+   * Keeps only the most recent segments up to MAX_SEGMENTS threshold
+   * Called before each new translation to prevent unbounded growth
+   */
+  cleanupOldSegments() {
+    const maxSegments = MEMORY_MANAGEMENT.MAX_SEGMENTS;
+
+    if (this.translationSegments.length > maxSegments) {
+      const removedCount = this.translationSegments.length - maxSegments;
+      this.translationSegments.splice(0, removedCount);
+
+      this.log(
+        DEBUG_LEVELS.DEBUG,
+        `🧹 Cleaned up ${removedCount} old segments, ${this.translationSegments.length} remaining (threshold: ${maxSegments})`
+      );
     }
   }
 
@@ -1078,7 +1098,7 @@ export class TranslationEngine {
 
     // OPTIMIZATION: Build Rust-powered lookup index for character-only translations (HUGE speedup)
     // Character-only mode benefits even more from pre-computed lookups!
-    if (!options.lookupIndex && text.length >= 50 && options.useSharedLookupIndex !== false) {
+    if (!options.lookupIndex && text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX && options.useSharedLookupIndex !== false) {
       try {
         const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
 
@@ -1260,7 +1280,8 @@ export class TranslationEngine {
 
       return result;
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, `🚨 Character-only translation failed:`, error);
+      // MEDIUM-8 FIX: Standardize error logging with logger.error
+      logger.error('🚨 Character-only translation failed:', error);
       throw error;
     }
   }
@@ -1295,7 +1316,8 @@ export class TranslationEngine {
         characterSemanticArrays,
       };
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '🚨 Parallel semantic building failed:', error);
+      // MEDIUM-8 FIX: Standardize error logging with logger.error
+      logger.error('🚨 Parallel semantic building failed:', error);
 
       // Fallback to sequential building
       this.log(DEBUG_LEVELS.INFO, '📝 Falling back to sequential semantic array building');
@@ -1319,7 +1341,8 @@ export class TranslationEngine {
     const punctuationDictionary = this.dictionaryManager.getDictionary('punctuation');
 
     if (!characterDictionary) {
-      this.log(DEBUG_LEVELS.ERROR, `🚨 Character-only processing - No character dictionary found`);
+      // MEDIUM-8 FIX: Standardize error logging with logger.error
+      logger.error('🚨 Character-only processing - No character dictionary found');
       return;
     }
 
@@ -1418,6 +1441,9 @@ export class TranslationEngine {
     });
 
     // Reset segments for new translation
+    // HIGH-5 FIX: Cleanup old segments before resetting to prevent memory leaks
+    this.cleanupOldSegments();
+
     // MEMORY LEAK FIX: Always start fresh for each new translation
     // This ensures old segments don't accumulate across multiple translations
     this.translationSegments = [];
@@ -2146,15 +2172,13 @@ export class TranslationEngine {
           );
         }
 
-        // CRITICAL FIX: Deep copy options to prevent mutation leakage
-        // Shallow copy (...options) shares nested objects by reference
-        // If downstream code mutates nested objects (lookupIndex Map, segments array),
-        // mutations leak back to original options
+        // LOW-12 FIX: Conditional deep copy to avoid overhead for immutable objects
+        // Only copy if objects exist (avoid creating empty Maps/Arrays unnecessarily)
         const enhancedOptions = {
           ...options,
-          // Deep copy complex nested objects to prevent reference sharing
-          lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-          segments: options.segments ? [...options.segments] : undefined,
+          // Only deep copy if the object exists (reduce allocation overhead)
+          ...(options.lookupIndex && { lookupIndex: new Map(options.lookupIndex) }),
+          ...(options.segments && { segments: [...options.segments] }),
           activeProperNouns: this.activeProperNouns,
           dictionaryManager: this.dictionaryManager,
           debugLevel: this.debugLevel,
@@ -2226,15 +2250,15 @@ export class TranslationEngine {
       );
 
       // Process tokens using unified semantic approach with prioritized patterns
-      // CRITICAL FIX: Deep copy nested objects to prevent mutation leakage
+      // LOW-12 FIX: Conditional deep copy to avoid overhead for immutable objects
       this.semanticPatternProcessor.processTokens(tokens, {
         debugLevel: this.debugLevel,
         prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
         semanticArrayBuilder: this.semanticArrayBuilder,
         ...options,
-        // Deep copy complex nested objects to prevent reference sharing
-        lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
-        segments: options.segments ? [...options.segments] : undefined,
+        // Only deep copy if the object exists (reduce allocation overhead)
+        ...(options.lookupIndex && { lookupIndex: new Map(options.lookupIndex) }),
+        ...(options.segments && { segments: [...options.segments] }),
       });
 
       this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
@@ -2243,24 +2267,39 @@ export class TranslationEngine {
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
 
-      // Show user notification (only once per session)
-      if (!this.showedPatternWarning) {
+      // CRITICAL-3 FIX: Track failure count and auto-disable after threshold
+      this.patternFailureCount++;
+
+      if (this.patternFailureCount >= 3) {
+        // Permanent disable after 3 failures to prevent repeated errors
+        this.settings.enableTwoPhasePatterns = false;
+        toast.error(
+          'Pattern matching permanently disabled due to repeated failures. Please reload dictionaries or restart the app.',
+          { duration: 10000 }
+        );
+        logger.error(
+          `🚨 Pattern processing permanently disabled after ${this.patternFailureCount} failures`
+        );
+      } else if (!this.showedPatternWarning) {
+        // Show warning for first failure
         toast.warning(
-          'Pattern matching failed. Translation quality may be reduced. Try reloading dictionaries.',
+          `Pattern matching failed (attempt ${this.patternFailureCount}/3). Translation quality may be reduced. Try reloading dictionaries.`,
           { duration: 8000 }
         );
         this.showedPatternWarning = true;
+      }
 
-        // Record failure for diagnostics
-        if (
-          typeof systemPerformanceMonitor !== 'undefined' &&
-          systemPerformanceMonitor.recordAlert
-        ) {
-          systemPerformanceMonitor.recordAlert('pattern_processing_error', {
-            error: error.message,
-            timestamp: Date.now(),
-          });
-        }
+      // Record failure for diagnostics
+      if (
+        typeof systemPerformanceMonitor !== 'undefined' &&
+        systemPerformanceMonitor.recordAlert
+      ) {
+        systemPerformanceMonitor.recordAlert('pattern_processing_error', {
+          error: error.message,
+          timestamp: Date.now(),
+          failureCount: this.patternFailureCount,
+          autoDisabled: this.patternFailureCount >= 3,
+        });
       }
 
       // Don't re-throw - allow translation to continue without patterns
@@ -2376,64 +2415,109 @@ export class TranslationEngine {
   }
 
   /**
-   * Process remaining phrases sequentially (original implementation)
+   * Find unprocessed ranges in token array for efficient phrase processing
+   * @param {Array} tokens - Token array
+   * @returns {Array} Array of {start, end} ranges that need processing
+   */
+  findUnprocessedRanges(tokens) {
+    const ranges = [];
+    let rangeStart = null;
+
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      const isProcessed =
+        token.translated !== null ||
+        token.translationSource ||
+        token.isGrouped ||
+        (token.groupLeader !== undefined && token.groupLeader !== null);
+      const isChinese = token.type === 'chinese_char' || token.type === 'chinese_word';
+
+      if (!isProcessed && isChinese) {
+        // Start of unprocessed range
+        if (rangeStart === null) {
+          rangeStart = i;
+        }
+      } else {
+        // End of unprocessed range
+        if (rangeStart !== null) {
+          ranges.push({ start: rangeStart, end: i - 1 });
+          rangeStart = null;
+        }
+      }
+    }
+
+    // Close final range if needed
+    if (rangeStart !== null) {
+      ranges.push({ start: rangeStart, end: tokens.length - 1 });
+    }
+
+    return ranges;
+  }
+
+  /**
+   * Process remaining phrases sequentially (optimized implementation)
    */
   async processRemainingPhrasesSequential(tokens, options, fullText) {
     const allPotentialMatches = [];
 
-    // Collect phrase matches for unprocessed tokens
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
+    // HIGH-4 FIX: Pre-compute unprocessed ranges to avoid redundant checks
+    const unprocessedRanges = this.findUnprocessedRanges(tokens);
 
-      // Skip already processed tokens
-      if (
-        token.translated !== null ||
-        token.translationSource ||
-        token.isGrouped ||
-        (token.groupLeader !== undefined && token.groupLeader !== null)
-      ) {
-        continue;
-      }
+    this.log(
+      DEBUG_LEVELS.DEBUG,
+      `🔍 Found ${unprocessedRanges.length} unprocessed ranges for phrase processing`
+    );
 
-      // Only process Chinese content
-      if (token.type !== 'chinese_char' && token.type !== 'chinese_word') {
-        continue;
-      }
+    // Process only unprocessed ranges
+    for (const range of unprocessedRanges) {
+      for (let i = range.start; i <= range.end; i++) {
+        const token = tokens[i];
 
-      const textPosition = getTextPositionForTokenIndex(tokens, i);
-      const phraseMatches = await this.findAllMatches(fullText, textPosition, ['phrases']);
+        // Double-check token is still unprocessed (may have been grouped in previous iteration)
+        if (
+          token.translated !== null ||
+          token.translationSource ||
+          token.isGrouped ||
+          (token.groupLeader !== undefined && token.groupLeader !== null)
+        ) {
+          continue;
+        }
 
-      // Add matches for remaining phrases
-      for (const match of phraseMatches) {
-        const tokenSpan = getTokenSpanForText(tokens, i, match.word);
+        const textPosition = getTextPositionForTokenIndex(tokens, i);
+        const phraseMatches = await this.findAllMatches(fullText, textPosition, ['phrases']);
 
-        if (tokenSpan >= 1) {
-          // Check if any token in the span is already processed
-          let hasProcessedTokens = false;
-          for (let j = 0; j < tokenSpan; j++) {
-            const checkIndex = i + j;
-            if (checkIndex < tokens.length) {
-              const checkToken = tokens[checkIndex];
-              if (
-                checkToken.translated !== null ||
-                checkToken.translationSource ||
-                checkToken.isGrouped
-              ) {
-                hasProcessedTokens = true;
-                break;
+        // Add matches for remaining phrases
+        for (const match of phraseMatches) {
+          const tokenSpan = getTokenSpanForText(tokens, i, match.word);
+
+          if (tokenSpan >= 1) {
+            // Check if any token in the span is already processed
+            let hasProcessedTokens = false;
+            for (let j = 0; j < tokenSpan; j++) {
+              const checkIndex = i + j;
+              if (checkIndex < tokens.length) {
+                const checkToken = tokens[checkIndex];
+                if (
+                  checkToken.translated !== null ||
+                  checkToken.translationSource ||
+                  checkToken.isGrouped
+                ) {
+                  hasProcessedTokens = true;
+                  break;
+                }
               }
             }
-          }
 
-          if (!hasProcessedTokens) {
-            allPotentialMatches.push({
-              startIndex: i,
-              endIndex: i + tokenSpan - 1,
-              match: match,
-              tokenSpan: tokenSpan,
-              type: 'phrase',
-              length: match.word.length,
-            });
+            if (!hasProcessedTokens) {
+              allPotentialMatches.push({
+                startIndex: i,
+                endIndex: i + tokenSpan - 1,
+                match: match,
+                tokenSpan: tokenSpan,
+                type: 'phrase',
+                length: match.word.length,
+              });
+            }
           }
         }
       }
@@ -2491,7 +2575,8 @@ export class TranslationEngine {
    * Divides unprocessed tokens into batches and processes them concurrently
    */
   async processRemainingPhrasesParallel(tokens, options, fullText) {
-    const BATCH_SIZE = 5; // Process 5 tokens concurrently for optimal performance
+    // LOW-10 FIX: Use constant instead of magic number
+    const BATCH_SIZE = PHRASE_PROCESSING.BATCH_SIZE; // Process tokens concurrently for optimal I/O performance
 
     // Collect unprocessed token indices
     const unprocessedIndices = [];
@@ -2623,9 +2708,10 @@ export class TranslationEngine {
         if (tokenIndex + j < tokens.length) {
           tokens[tokenIndex + j].isGrouped = true;
           tokens[tokenIndex + j].groupLeader = tokenIndex;
-          // CRITICAL: Mark as translated to prevent character-level processing
-          tokens[tokenIndex + j].translated = ''; // Empty string to indicate "consumed but no output"
-          tokens[tokenIndex + j].translationSource = 'phrases';
+          // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
+          // postProcess() checks token.translated !== null to identify consumed tokens
+          tokens[tokenIndex + j].translated = null; // Must be null - postProcess checks !== null
+          tokens[tokenIndex + j].translationSource = 'phrases_consumed';
         }
       }
 
@@ -5995,7 +6081,7 @@ export class TranslationEngine {
 
       // OPTIMIZATION: Build Rust-powered lookup index for large texts (6-50x faster)
       // Only build if not already provided and text is large enough
-      if (!options.lookupIndex && text.length >= 50 && options.useSharedLookupIndex !== false) {
+      if (!options.lookupIndex && text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX && options.useSharedLookupIndex !== false) {
         try {
           const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
 
@@ -6173,45 +6259,51 @@ export class TranslationEngine {
       // Phase 1: Apply patterns first (they need full context)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase1 = tokens.length;
+      // LOW-11 FIX: Narrow try-catch to only applyPatterns (not profiler)
       try {
-        await this.profiler.profile('patterns', async () => {
-          await this.applyPatterns(tokens, { ...options, debug: true });
-        });
+        await this.applyPatterns(tokens, { ...options, debug: true });
         completedPhases.add('patterns');
+        // Record profiling metrics
+        await this.profiler.recordPhaseCompletion('patterns');
       } catch (error) {
-        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 1 (Patterns) failed:', error);
+        // MEDIUM-8 FIX: Standardize error logging with logger.error
+        logger.error('🚨 Phase 1 (Patterns) failed:', error);
         // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
         if (tokens.length !== tokensLengthBeforePhase1) {
-          this.log(
-            DEBUG_LEVELS.ERROR,
+          logger.error(
             `⚠️ Phase 1 corrupted token array: ${tokensLengthBeforePhase1} → ${tokens.length} tokens`
           );
           // Cannot rollback, but warn user about potential incorrect results
         }
+        // HIGH-6 FIX: Clear cached semantic tokens on phase failure to prevent stale cache
+        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
       // Phase 2: Apply proper nouns globally (highest priority after patterns)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase2 = tokens.length;
+      // LOW-11 FIX: Narrow try-catch to only applyDictionaryTranslation (not profiler)
       try {
-        await this.profiler.profile('properNouns', async () => {
-          await this.applyDictionaryTranslation(tokens, {
-            ...options,
-            dictionaryOrder: [...this.activeProperNouns],
-            phase: 'properNouns',
-          });
+        await this.applyDictionaryTranslation(tokens, {
+          ...options,
+          dictionaryOrder: [...this.activeProperNouns],
+          phase: 'properNouns',
         });
         completedPhases.add('properNouns');
+        // Record profiling metrics
+        await this.profiler.recordPhaseCompletion('properNouns');
       } catch (error) {
-        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 2 (Proper Nouns) failed:', error);
+        // MEDIUM-8 FIX: Standardize error logging with logger.error
+        logger.error('🚨 Phase 2 (Proper Nouns) failed:', error);
         // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
         if (tokens.length !== tokensLengthBeforePhase2) {
-          this.log(
-            DEBUG_LEVELS.ERROR,
+          logger.error(
             `⚠️ Phase 2 corrupted token array: ${tokensLengthBeforePhase2} → ${tokens.length} tokens`
           );
         }
+        // HIGH-6 FIX: Clear cached semantic tokens on phase failure to prevent stale cache
+        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
@@ -6233,7 +6325,7 @@ export class TranslationEngine {
               numberCandidateCount++;
               // Early exit if many candidates (no point counting further)
               if (
-                numberCandidateCount > WASM_NUMBER_PROCESSING_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK
+                numberCandidateCount > WASM_NUMBER_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK
               )
                 break;
             }
@@ -6249,7 +6341,7 @@ export class TranslationEngine {
           }
 
           // Use JavaScript fallback for very small counts (serialization overhead > benefit)
-          if (numberCandidateCount < WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
+          if (numberCandidateCount < WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
             this.log(
               DEBUG_LEVELS.DEBUG,
               `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
@@ -6278,7 +6370,7 @@ export class TranslationEngine {
           }
 
           // Use WASM number processing (5-10x faster for Chinese number conversion)
-          // Only worthwhile for >=${WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
+          // Only worthwhile for >=${WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
           this.log(
             DEBUG_LEVELS.DEBUG,
             `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
@@ -6286,7 +6378,8 @@ export class TranslationEngine {
           try {
             const processedTokens = await processNumbersWasm(tokens);
 
-            // Pre-validate array length invariance before copying
+            // CRITICAL FIX: Validate BEFORE copying to prevent partial corruption
+            // Pre-validate array length invariance
             if (processedTokens.length !== tokens.length) {
               this.log(
                 DEBUG_LEVELS.ERROR,
@@ -6297,28 +6390,34 @@ export class TranslationEngine {
               );
             }
 
-            // Copy WASM results with proper undefined → null conversion
+            // Pre-validate token structure BEFORE mutating original tokens array
+            for (let i = 0; i < processedTokens.length; i++) {
+              // Check token existence before accessing properties (handles sparse arrays)
+              if (!processedTokens[i] || typeof processedTokens[i] !== 'object') {
+                throw new Error(
+                  `WASM validation failed: token ${i} is missing or not an object`
+                );
+              }
+              // Check for undefined (should be null or string after WASM processing)
+              if (processedTokens[i].translated === undefined) {
+                throw new Error(
+                  `WASM validation failed: token ${i} has undefined translated field (should be null or string)`
+                );
+              }
+              // Validate translated field type
+              if (processedTokens[i].translated !== null && typeof processedTokens[i].translated !== 'string') {
+                throw new Error(
+                  `WASM validation failed: token ${i} has invalid translated type: ${typeof processedTokens[i].translated}`
+                );
+              }
+            }
+
+            // Only copy AFTER validation passes (prevents partial corruption)
             copyWasmTokens(processedTokens, tokens);
 
-            // CRITICAL FIX: Validate copied tokens have correct structure
-            // Ensure undefined → null conversion worked and no invalid data was copied
-            for (let i = 0; i < tokens.length; i++) {
-              // HIGH FIX: Check token existence before accessing properties (handles sparse arrays)
-              if (!tokens[i] || typeof tokens[i] !== 'object') {
-                throw new Error(
-                  `WASM copy validation failed: token ${i} is missing or not an object`
-                );
-              }
-              if (tokens[i].translated === undefined) {
-                throw new Error(
-                  `WASM copy validation failed: token ${i} has undefined translated field (should be null or string)`
-                );
-              }
-              if (tokens[i].translated !== null && typeof tokens[i].translated !== 'string') {
-                throw new Error(
-                  `WASM copy validation failed: token ${i} has invalid translated type: ${typeof tokens[i].translated}`
-                );
-              }
+            // Post-copy verification (lightweight sanity check)
+            if (tokens.some(t => t.translated === undefined)) {
+              throw new Error('WASM copy failed: undefined values detected after copy');
             }
 
             // Add number conversions to semantic array for clickable highlighting
@@ -6334,8 +6433,8 @@ export class TranslationEngine {
 
                 // Look ahead for consumed tokens that are part of this number
                 // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
-                // Chinese numbers rarely exceed 10 digits, so limit span accordingly
-                const MAX_CONSUMED_SPAN = 10;
+                // LOW-10 FIX: Use constant instead of magic number
+                const MAX_CONSUMED_SPAN = NUMBER_PROCESSING.MAX_CONSUMED_SPAN;
                 for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
                   if (tokens[j].translationSource === 'number_conversion_consumed') {
                     originalText += tokens[j].value;
