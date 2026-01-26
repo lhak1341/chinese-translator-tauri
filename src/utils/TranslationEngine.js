@@ -151,6 +151,11 @@ import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
 import { logger } from './logger';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './TranslationProfiler.js';
+import toast from './toast';
+import {
+  isWasmPatternProcessorAvailable,
+  hasWasmPatternProcessorFailed,
+} from './WasmPatternProcessor.js';
 
 /**
  * @import {
@@ -193,6 +198,18 @@ export const DEBUG_LEVELS = {
   INFO: 1, // Key milestones and results
   DEBUG: 2, // Detailed phase information
   VERBOSE: 3, // Ultra-detailed token-by-token logging
+};
+
+// WASM Number Processing Thresholds
+// These thresholds determine when to use WASM vs JavaScript for number processing
+// based on the tradeoff between WASM speedup (5-10x) vs serialization overhead
+const WASM_NUMBER_PROCESSING_THRESHOLDS = {
+  // Stop counting candidates after this many (optimization - we know we'll use WASM anyway)
+  MAX_CANDIDATE_COUNT_CHECK: 50,
+
+  // Minimum candidates to justify WASM serialization overhead
+  // Below this threshold, JavaScript is faster due to serialization cost
+  MIN_CANDIDATES_FOR_WASM: 10,
 };
 
 // ============================================================================
@@ -408,28 +425,32 @@ export class TranslationEngine {
   // ============================================================================
 
   /**
-   * Semantic Dictionary Lookup with Cache
-   * OPTIMIZATION: Checks semantic translation cache before dictionary lookup
-   * Improves cache hit rates by recognizing similar translation patterns
+   * Dictionary Lookup (Direct - No Caching)
+   *
+   * IMPORTANT: Semantic caching was removed to fix phase priority violations.
+   * This method performs direct dictionary lookups without caching.
+   *
+   * @param {string} fullText - Full text to search
+   * @param {number} textPosition - Position in text
+   * @param {string[]} dictionaryTypes - Dictionary types to search
+   * @returns {Promise<Array>} Array of dictionary matches
+   *
+   * HISTORY: This method previously used semantic caching with phase priority validation
+   * PROBLEM: Cache served stale translations violating 5-phase priority order
+   *          (lower phases like proper nouns must override higher phases like characters)
+   * SOLUTION: Caching removed entirely - translation quality over performance
+   *
+   * If re-enabling caching in the future, MUST validate phase priority:
+   * - Phase 1 (patterns) = priority 1 (highest)
+   * - Phase 2 (proper nouns) = priority 2
+   * - Phase 3 (numbers) = priority 3
+   * - Phase 4 (phrases) = priority 4
+   * - Phase 5 (characters) = priority 5 (lowest)
+   * Cache entries from higher priority phases must override lower priority cached results.
+   *
+   * See git history for phase priority validation code (removed for simplicity)
    */
-  async findAllMatchesWithSemanticCache(fullText, textPosition, dictionaryTypes) {
-    // MEDIUM-3 FIX: Semantic caching removed for translation quality
-    //
-    // HISTORY: This method previously used semantic caching with phase priority validation
-    // PROBLEM: Cache served stale translations violating 5-phase priority order
-    //          (lower phases like proper nouns must override higher phases like characters)
-    // SOLUTION: Caching removed entirely - translation quality over performance
-    //
-    // If re-enabling caching in the future, MUST validate phase priority:
-    // - Phase 1 (patterns) = priority 1 (highest)
-    // - Phase 2 (proper nouns) = priority 2
-    // - Phase 3 (numbers) = priority 3
-    // - Phase 4 (phrases) = priority 4
-    // - Phase 5 (characters) = priority 5 (lowest)
-    // Cache entries from higher priority phases must override lower priority cached results.
-    //
-    // See git history for phase priority validation code (removed for simplicity)
-
+  async findAllMatches(fullText, textPosition, dictionaryTypes) {
     // Perform direct dictionary lookup (no caching)
     const matches = await this.dictionaryManager.findAllMatchesAsync(
       fullText,
@@ -1491,10 +1512,7 @@ export class TranslationEngine {
     const rollbackCheck = checkRollbackTriggers(performanceMetrics);
 
     if (rollbackCheck.rollbackRecommended) {
-      // Rollback monitoring disabled to prevent performance impact
-      // this.log(DEBUG_LEVELS.ERROR, '🚨 ROLLBACK TRIGGERS DETECTED:', rollbackCheck.triggers);
-      // Note: Automatic rollback could be executed here, but for safety we just log
-      // executeEmergencyRollback(rollbackCheck.triggers);
+      // Note: Automatic rollback disabled for safety - operators must manually intervene
     }
 
     // Performance monitoring: End timing and check for bottlenecks
@@ -1542,9 +1560,7 @@ export class TranslationEngine {
       const textPosition = getTextPositionForTokenIndex(tokens, i);
       const _searchText = fullText.substring(textPosition, textPosition + 10); // Show next 10 chars
 
-      const phraseMatches = await this.findAllMatchesWithSemanticCache(fullText, textPosition, [
-        'phrases',
-      ]);
+      const phraseMatches = await this.findAllMatches(fullText, textPosition, ['phrases']);
 
       if (phraseMatches.length > 0) {
         const bestMatch = phraseMatches[0]; // Already sorted by length
@@ -2076,82 +2092,136 @@ export class TranslationEngine {
       return;
     }
 
-    // Use hierarchical two-phase processing if enabled, otherwise use legacy processing
-    // Re-enabled to debug hierarchical path
-    if (
-      this.settings.enableTwoPhasePatterns &&
-      this.semanticPatternProcessor.patterns?.length > 0
-    ) {
-      this.log(
-        DEBUG_LEVELS.INFO,
-        `🎯 Using hierarchical pattern processing in Phase 1 (${this.semanticPatternProcessor.patterns.length} patterns available)`
-      );
-
-      // Apply hierarchical pattern processing here in Phase 1 (before phrases)
-      // Create or reuse TwoPhasePatternProcessor instance
-      if (!this.twoPhaseProcessor) {
-        this.twoPhaseProcessor = new TwoPhasePatternProcessor(
-          this.semanticPatternProcessor.patterns,
-          {
-            debugMode: true, // Enable debug mode
-            maxCompositeDetectionTime: this.settings.maxCompositeDetectionTime,
-            enableFallback: this.settings.fallbackToSinglePhase,
-          }
+    try {
+      // Use hierarchical two-phase processing if enabled, otherwise use legacy processing
+      // Re-enabled to debug hierarchical path
+      if (
+        this.settings.enableTwoPhasePatterns &&
+        this.semanticPatternProcessor.patterns?.length > 0
+      ) {
+        this.log(
+          DEBUG_LEVELS.INFO,
+          `🎯 Using hierarchical pattern processing in Phase 1 (${this.semanticPatternProcessor.patterns.length} patterns available)`
         );
+
+        // Apply hierarchical pattern processing here in Phase 1 (before phrases)
+        // Create or reuse TwoPhasePatternProcessor instance
+        if (!this.twoPhaseProcessor) {
+          this.twoPhaseProcessor = new TwoPhasePatternProcessor(
+            this.semanticPatternProcessor.patterns,
+            {
+              debugMode: true, // Enable debug mode
+              maxCompositeDetectionTime: this.settings.maxCompositeDetectionTime,
+              enableFallback: this.settings.fallbackToSinglePhase,
+            }
+          );
+        }
+
+        const enhancedOptions = {
+          ...options,
+          activeProperNouns: this.activeProperNouns,
+          dictionaryManager: this.dictionaryManager,
+          debugLevel: this.debugLevel,
+        };
+
+        const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
+          tokens,
+          enhancedOptions
+        );
+
+        this.applyHierarchicalResults(tokens, hierarchicalResults, options);
+
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
+        );
+
+        // CRITICAL-2 FIX: Detect and report silent pattern processing failures
+        if (
+          hierarchicalResults.length === 0 &&
+          this.semanticPatternProcessor.patterns?.length > 0
+        ) {
+          const errorContext = {
+            patternsLoaded: this.semanticPatternProcessor.patterns.length,
+            wasmAvailable: isWasmPatternProcessorAvailable(),
+            wasmFailed: hasWasmPatternProcessorFailed(),
+            timestamp: Date.now(),
+          };
+
+          logger.error(
+            '⚠️ Pattern processing failure - no results despite loaded patterns:',
+            errorContext
+          );
+
+          // Show user-facing notification (only once per session to prevent spam)
+          if (!this.showedPatternWarning) {
+            toast.warning(
+              'Pattern matching unavailable. Translation quality may be reduced. Try reloading dictionaries.',
+              { duration: 8000 }
+            );
+            this.showedPatternWarning = true;
+
+            // Record failure for diagnostics and performance monitoring
+            if (
+              typeof systemPerformanceMonitor !== 'undefined' &&
+              systemPerformanceMonitor.recordAlert
+            ) {
+              systemPerformanceMonitor.recordAlert('pattern_processing_failure', errorContext);
+            }
+          }
+        }
+
+        return;
       }
 
-      const enhancedOptions = {
-        ...options,
-        activeProperNouns: this.activeProperNouns,
-        dictionaryManager: this.dictionaryManager,
-        debugLevel: this.debugLevel,
-      };
+      this.log(DEBUG_LEVELS.DEBUG, '🔍 Starting semantic pattern matching phase');
 
-      const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
+      // Build variable cache from current token translations (Phase 2 results)
+      // Include phrases for pattern variables (phrases with allowAsPatternVariable can be pattern variables)
+      const patternVariableDictionaries = [...this.activeProperNouns, 'phrases'];
+      this.semanticPatternProcessor.buildVariableCache(
         tokens,
-        enhancedOptions
+        patternVariableDictionaries,
+        this.dictionaryManager
       );
 
-      this.applyHierarchicalResults(tokens, hierarchicalResults, options);
+      // Process tokens using unified semantic approach with prioritized patterns
+      this.semanticPatternProcessor.processTokens(tokens, {
+        debugLevel: this.debugLevel,
+        prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
+        semanticArrayBuilder: this.semanticArrayBuilder,
+        ...options,
+      });
 
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
-      );
+      this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
+    } catch (error) {
+      // CRITICAL ERROR HANDLING: Pattern processing failures should not crash translation
+      logger.error('❌ Error in pattern processing phase:', error);
+      logger.error('Pattern phase will be skipped - translation quality may be reduced');
 
-      // CRITICAL-2 FIX: Show warning if pattern processing failed silently
-      if (hierarchicalResults.length === 0 && this.semanticPatternProcessor.patterns?.length > 0) {
-        if (!this.showedPatternWarning) {
-          logger.warn(
-            `⚠️ Pattern processing returned no results despite ${this.semanticPatternProcessor.patterns.length} patterns loaded. WASM may have failed - translations will use fallback (lower quality)`
-          );
-          this.showedPatternWarning = true;
+      // Show user notification (only once per session)
+      if (!this.showedPatternWarning) {
+        toast.warning(
+          'Pattern matching failed. Translation quality may be reduced. Try reloading dictionaries.',
+          { duration: 8000 }
+        );
+        this.showedPatternWarning = true;
+
+        // Record failure for diagnostics
+        if (
+          typeof systemPerformanceMonitor !== 'undefined' &&
+          systemPerformanceMonitor.recordAlert
+        ) {
+          systemPerformanceMonitor.recordAlert('pattern_processing_error', {
+            error: error.message,
+            timestamp: Date.now(),
+          });
         }
       }
 
-      return;
+      // Don't re-throw - allow translation to continue without patterns
+      // Proper nouns, phrases, and characters will still work
     }
-
-    this.log(DEBUG_LEVELS.DEBUG, '🔍 Starting semantic pattern matching phase');
-
-    // Build variable cache from current token translations (Phase 2 results)
-    // Include phrases for pattern variables (phrases with allowAsPatternVariable can be pattern variables)
-    const patternVariableDictionaries = [...this.activeProperNouns, 'phrases'];
-    this.semanticPatternProcessor.buildVariableCache(
-      tokens,
-      patternVariableDictionaries,
-      this.dictionaryManager
-    );
-
-    // Process tokens using unified semantic approach with prioritized patterns
-    this.semanticPatternProcessor.processTokens(tokens, {
-      debugLevel: this.debugLevel,
-      prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-      semanticArrayBuilder: this.semanticArrayBuilder,
-      ...options,
-    });
-
-    this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
   }
 
   /**
@@ -2286,9 +2356,7 @@ export class TranslationEngine {
       }
 
       const textPosition = getTextPositionForTokenIndex(tokens, i);
-      const phraseMatches = await this.findAllMatchesWithSemanticCache(fullText, textPosition, [
-        'phrases',
-      ]);
+      const phraseMatches = await this.findAllMatches(fullText, textPosition, ['phrases']);
 
       // Add matches for remaining phrases
       for (const match of phraseMatches) {
@@ -2876,13 +2944,16 @@ export class TranslationEngine {
     matchStart,
     matchEnd
   ) {
-    // Clear all tokens in this sequence first
+    // CRITICAL FIX: Mark all tokens in sequence as consumed by pattern processing
+    // Consumed tokens MUST have translationSource set to prevent double-processing
     for (let j = startIndex; j < endIndex; j++) {
-      tokens[j].translated = null; // Use null to prevent re-processing
+      tokens[j].translated = null;
+      tokens[j].translationSource = 'pattern_consumed'; // REQUIRED for consumption contract
     }
 
     // Put the pattern replacement in the first token
     tokens[startIndex].translated = matchedReplacement;
+    tokens[startIndex].translationSource = 'pattern'; // Main token gets pattern source
 
     // If there's text after the match, we need to preserve it for later translation
     if (afterMatch.length > 0) {
@@ -2898,13 +2969,17 @@ export class TranslationEngine {
         matchEnd
       );
       if (afterMatchTokenIndex < endIndex && afterMatchTokenIndex >= startIndex) {
-        // Reset this token to be untranslated so later phases can handle it
+        // CRITICAL: Clear both translated and translationSource to allow later phases to process
+        // These tokens are no longer consumed - they need to be re-translated
         tokens[afterMatchTokenIndex].translated = null;
+        tokens[afterMatchTokenIndex].translationSource = null; // Allow re-processing
+
         // Also reset subsequent tokens that are part of afterMatch
         for (let k = afterMatchTokenIndex + 1; k < endIndex; k++) {
           const tokenEndPos = this.getTokenPositionInSequence(tokens, startIndex, k);
           if (tokenEndPos <= matchEnd + afterMatch.length) {
             tokens[k].translated = null;
+            tokens[k].translationSource = null; // Allow re-processing
           }
         }
       }
@@ -2989,181 +3064,199 @@ export class TranslationEngine {
     let phaseMatches = 0;
     const startTime = performance.now();
 
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
+    try {
+      // OPTIMIZATION: Create dictionary Set once outside loop (hot path optimization)
+      const dictionarySet = new Set(dictionaryOrder);
 
-      // Skip already translated tokens or tokens consumed by other processes
-      if (token.translated !== null || token.translationSource) continue;
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
 
-      // For phrases phase, check if token has a pre-stored phrase match
-      if (phase === 'phrases' && token.phraseMatch) {
-        // Hot path optimization: Only log if debug level is sufficient
-        if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🔍 Checking phrase match "${token.phraseMatch.word}" at token ${i}`
-          );
-        }
-        // Check if any tokens in the phrase span were already consumed by patterns
-        const tokenSpan = getTokenSpanForText(tokens, i, token.phraseMatch.word);
-        let hasConsumedTokens = false;
+        // Skip already translated tokens or tokens consumed by other processes
+        if (token.translated !== null || token.translationSource) continue;
 
-        for (let j = 0; j < tokenSpan; j++) {
-          if (i + j < tokens.length) {
-            const conflictToken = tokens[i + j];
-            if (conflictToken.translationSource) {
-              hasConsumedTokens = true;
-              const extraInfo =
-                conflictToken.translationSource === 'pattern' && conflictToken.translated
-                  ? ` with result "${conflictToken.translated}"`
-                  : '';
-              // Hot path optimization: Only log if debug level is sufficient
-              if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
-                this.log(
-                  DEBUG_LEVELS.DEBUG,
-                  `🚨 Phrase match blocked: token ${i + j} already consumed by ${conflictToken.translationSource}${extraInfo}`
-                );
-              }
-              break;
-            }
-          }
-        }
-
-        if (!hasConsumedTokens) {
-          // Apply the pre-stored phrase match
-          this.applyMatchToTokens(tokens, i, token.phraseMatch, options);
-          phaseMatches++;
-
-          // Skip past grouped tokens
-          i += tokenSpan - 1;
-          continue;
-        } else {
-          // Skip this phrase match as some tokens were already consumed
+        // For phrases phase, check if token has a pre-stored phrase match
+        if (phase === 'phrases' && token.phraseMatch) {
           // Hot path optimization: Only log if debug level is sufficient
           if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
             this.log(
               DEBUG_LEVELS.DEBUG,
-              `🚫 Skipping phrase match "${token.phraseMatch.word}" - tokens already consumed`
+              `🔍 Checking phrase match "${token.phraseMatch.word}" at token ${i}`
             );
           }
-          // Clear the phraseMatch to prevent future conflicts
-          token.phraseMatch = null;
-        }
-      }
+          // Check if any tokens in the phrase span were already consumed by patterns
+          const tokenSpan = getTokenSpanForText(tokens, i, token.phraseMatch.word);
+          let hasConsumedTokens = false;
 
-      // Only translate Chinese content
-      if (token.type !== TokenType.CHINESE_WORD && token.type !== TokenType.CHINESE_CHAR) {
-        continue;
-      }
-
-      // OPTIMIZATION: Use shared lookup index when available
-      let matches;
-      if (useSharedLookupIndex) {
-        // Get text position for this token to look up in the index
-        const textPosition = getTextPositionForTokenIndex(tokens, i);
-
-        // Map phase to dictionary category for lookup index
-        const categoryMap = {
-          properNouns: 'properNouns',
-          phrases: 'phrases',
-          characters: 'characters',
-          general: 'phrases', // Default fallback
-        };
-        const category = categoryMap[phase] || 'phrases';
-
-        // Get pre-computed matches from lookup index
-        matches = this.dictionaryManager.getIndexedMatches(
-          options.lookupIndex,
-          textPosition,
-          category
-        );
-
-        // Filter matches by the specific dictionaries for this phase (since index contains all matches)
-        const dictionarySet = new Set(dictionaryOrder);
-        matches = matches.filter((match) => dictionarySet.has(match.dictionary));
-
-        if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && matches.length > 0) {
-          this.log(
-            DEBUG_LEVELS.VERBOSE,
-            `📊 Shared index: ${matches.length} matches found for position ${textPosition}, category ${category}`
-          );
-        }
-      } else {
-        // Fallback: Traditional dictionary lookup
-        const remainingText = reconstructTextFromIndex(tokens, i);
-        matches = await this.findAllMatchesWithSemanticCache(remainingText, 0, dictionaryOrder);
-      }
-
-      // Filter matches based on onlyPatternVariables option
-      let filteredMatches = matches;
-      if (options.onlyPatternVariables) {
-        filteredMatches = matches.filter(
-          (match) =>
-            match.dictionary !== 'phrases' ||
-            (match.metadata && match.metadata.allowAsPatternVariable === true)
-        );
-      }
-
-      if (filteredMatches.length > 0) {
-        const bestMatch = filteredMatches[0];
-
-        // Check for conflicts with existing results using position-based detection
-        let hasConflict = false;
-        const matchStart = getTextPositionForTokenIndex(tokens, i);
-        const matchEnd = matchStart + bestMatch.word.length;
-
-        // Check if this match would overlap with any already-processed tokens
-        for (let j = 0; j < tokens.length; j++) {
-          const token = tokens[j];
-          if (token.translationSource) {
-            const tokenStart = getTextPositionForTokenIndex(tokens, j);
-            const tokenEnd = tokenStart + token.value.length;
-
-            // Check for overlap: match overlaps with token if they share any position
-            if (!(matchEnd <= tokenStart || matchStart >= tokenEnd)) {
-              hasConflict = true;
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `🚨 ${phase} phase match blocked: "${bestMatch.word}" at position ${matchStart}-${matchEnd} conflicts with ${token.translationSource} result "${token.value}" at position ${tokenStart}-${tokenEnd}`
-              );
-              break;
+          for (let j = 0; j < tokenSpan; j++) {
+            if (i + j < tokens.length) {
+              const conflictToken = tokens[i + j];
+              if (conflictToken.translationSource) {
+                hasConsumedTokens = true;
+                const extraInfo =
+                  conflictToken.translationSource === 'pattern' && conflictToken.translated
+                    ? ` with result "${conflictToken.translated}"`
+                    : '';
+                // Hot path optimization: Only log if debug level is sufficient
+                if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+                  this.log(
+                    DEBUG_LEVELS.DEBUG,
+                    `🚨 Phrase match blocked: token ${i + j} already consumed by ${conflictToken.translationSource}${extraInfo}`
+                  );
+                }
+                break;
+              }
             }
           }
+
+          if (!hasConsumedTokens) {
+            // Apply the pre-stored phrase match
+            this.applyMatchToTokens(tokens, i, token.phraseMatch, options);
+            phaseMatches++;
+
+            // Skip past grouped tokens
+            i += tokenSpan - 1;
+            continue;
+          } else {
+            // Skip this phrase match as some tokens were already consumed
+            // Hot path optimization: Only log if debug level is sufficient
+            if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
+              this.log(
+                DEBUG_LEVELS.DEBUG,
+                `🚫 Skipping phrase match "${token.phraseMatch.word}" - tokens already consumed`
+              );
+            }
+            // Clear the phraseMatch to prevent future conflicts
+            token.phraseMatch = null;
+          }
         }
 
-        if (!hasConflict) {
-          // Apply translation to the matched tokens
-          this.applyMatchToTokens(tokens, i, bestMatch, options);
-          phaseMatches++;
+        // Only translate Chinese content
+        if (token.type !== TokenType.CHINESE_WORD && token.type !== TokenType.CHINESE_CHAR) {
+          continue;
+        }
 
-          // Calculate token span for skipping ahead
-          const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
+        // OPTIMIZATION: Use shared lookup index when available
+        let matches;
+        if (useSharedLookupIndex) {
+          // Get text position for this token to look up in the index
+          const textPosition = getTextPositionForTokenIndex(tokens, i);
 
-          // Skip ahead past the matched tokens
-          // BUG FIX: Ensure we never go backwards or stay in same place
-          if (tokenSpan > 0) {
-            i += tokenSpan - 1;
+          // Map phase to dictionary category for lookup index
+          const categoryMap = {
+            properNouns: 'properNouns',
+            phrases: 'phrases',
+            characters: 'characters',
+            general: 'phrases', // Default fallback
+          };
+          const category = categoryMap[phase] || 'phrases';
+
+          // Get pre-computed matches from lookup index
+          matches = this.dictionaryManager.getIndexedMatches(
+            options.lookupIndex,
+            textPosition,
+            category
+          );
+
+          // Filter matches by the specific dictionaries for this phase (since index contains all matches)
+          matches = matches.filter((match) => dictionarySet.has(match.dictionary));
+
+          if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && matches.length > 0) {
+            this.log(
+              DEBUG_LEVELS.VERBOSE,
+              `📊 Shared index: ${matches.length} matches found for position ${textPosition}, category ${category}`
+            );
           }
-          // If tokenSpan is 0, just continue to next token (i will increment naturally)
-
-          this.log(
-            DEBUG_LEVELS.VERBOSE,
-            `🔧 ${phase} phase match: "${bestMatch.word}" -> "${bestMatch.translation}" (${bestMatch.dictionary})`
-          );
         } else {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🚫 Skipping ${phase} match "${bestMatch.word}" due to pattern conflict`
+          // Fallback: Traditional dictionary lookup
+          const remainingText = reconstructTextFromIndex(tokens, i);
+          matches = await this.findAllMatches(remainingText, 0, dictionaryOrder);
+        }
+
+        // Filter matches based on onlyPatternVariables option
+        let filteredMatches = matches;
+        if (options.onlyPatternVariables) {
+          filteredMatches = matches.filter(
+            (match) =>
+              match.dictionary !== 'phrases' ||
+              (match.metadata && match.metadata.allowAsPatternVariable === true)
           );
+        }
+
+        if (filteredMatches.length > 0) {
+          const bestMatch = filteredMatches[0];
+
+          // Check for conflicts with existing results using position-based detection
+          let hasConflict = false;
+          const matchStart = getTextPositionForTokenIndex(tokens, i);
+          const matchEnd = matchStart + bestMatch.word.length;
+
+          // Check if this match would overlap with any already-processed tokens
+          for (let j = 0; j < tokens.length; j++) {
+            const token = tokens[j];
+            if (token.translationSource) {
+              const tokenStart = getTextPositionForTokenIndex(tokens, j);
+              const tokenEnd = tokenStart + token.value.length;
+
+              // Check for overlap: match overlaps with token if they share any position
+              if (!(matchEnd <= tokenStart || matchStart >= tokenEnd)) {
+                hasConflict = true;
+                this.log(
+                  DEBUG_LEVELS.DEBUG,
+                  `🚨 ${phase} phase match blocked: "${bestMatch.word}" at position ${matchStart}-${matchEnd} conflicts with ${token.translationSource} result "${token.value}" at position ${tokenStart}-${tokenEnd}`
+                );
+                break;
+              }
+            }
+          }
+
+          if (!hasConflict) {
+            // Apply translation to the matched tokens
+            this.applyMatchToTokens(tokens, i, bestMatch, options);
+            phaseMatches++;
+
+            // Calculate token span for skipping ahead
+            const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
+
+            // Skip ahead past the matched tokens
+            // BUG FIX: Ensure we never go backwards or stay in same place
+            if (tokenSpan > 0) {
+              i += tokenSpan - 1;
+            }
+            // If tokenSpan is 0, just continue to next token (i will increment naturally)
+
+            this.log(
+              DEBUG_LEVELS.VERBOSE,
+              `🔧 ${phase} phase match: "${bestMatch.word}" -> "${bestMatch.translation}" (${bestMatch.dictionary})`
+            );
+          } else {
+            this.log(
+              DEBUG_LEVELS.DEBUG,
+              `🚫 Skipping ${phase} match "${bestMatch.word}" due to pattern conflict`
+            );
+          }
         }
       }
-    }
 
-    const phaseTime = performance.now() - startTime;
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `📊 ${phase} phase completed: ${phaseMatches} matches in ${phaseTime.toFixed(1)}ms`
-    );
+      const phaseTime = performance.now() - startTime;
+      this.log(
+        DEBUG_LEVELS.DEBUG,
+        `📊 ${phase} phase completed: ${phaseMatches} matches in ${phaseTime.toFixed(1)}ms`
+      );
+    } catch (error) {
+      // CRITICAL ERROR HANDLING: Dictionary lookup failures should not crash translation
+      logger.error(`❌ Error in ${phase} phase dictionary translation:`, error);
+      logger.error(`Phase will be skipped - translation quality may be reduced`);
+
+      // Log error for diagnostics but allow translation to continue
+      // Tokens remain untranslated, will fall back to later phases
+      this.log(
+        DEBUG_LEVELS.ERROR,
+        `🚨 ${phase} phase failed: ${error.message} - continuing with remaining phases`
+      );
+
+      // Don't re-throw - allow translation to continue with degraded quality
+      // Better to have partial translation than complete failure
+    }
   }
 
   // ============================================================================
@@ -3483,8 +3576,7 @@ export class TranslationEngine {
 
     const startToken = tokens[startIndex];
     if (startToken.type !== TokenType.CHINESE_CHAR && startToken.type !== TokenType.CHINESE_WORD) {
-      // BUG logging disabled to prevent performance impact
-      // this.log(DEBUG_LEVELS.ERROR, `🚨 BUG: applyMatchToTokens called on non-Chinese token (${startToken.type}) at index ${startIndex}`);
+      // Skip non-Chinese tokens (validation handled by caller)
       return;
     }
 
@@ -5562,9 +5654,6 @@ export class TranslationEngine {
     // Step 8: Store prebuilt segments for instant clickable highlighting
     this.prebuiltSegments = reconstructed.segments;
 
-    // Legacy position calculation no longer needed
-    // this.calculateTranslatedPositions(result);
-
     const translationTime = performance.now() - startTime;
     this.log(
       DEBUG_LEVELS.INFO,
@@ -5723,10 +5812,10 @@ export class TranslationEngine {
   //
   // Phase Execution Order (NEVER CHANGE):
   //   1. Pattern Processing    (applyPatterns)
-  //   2. Proper Noun Processing (createOptimalPhraseGroups)
+  //   2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
   //   3. Number Processing     (processNumbersWasm)
-  //   4. Phrase Processing     (processRemainingPhrases)
-  //   5. Character Processing  (applyDictionaryTranslation)
+  //   4. Phrase Processing     (createOptimalPhraseGroups)
+  //   5. Character Processing  (processRemainingTokensInBatches)
   //
   // Why Sequential: Each phase consumes tokens, preventing double-processing
   // Why Coupled: Shared token state requires synchronous coordination
@@ -5775,7 +5864,8 @@ export class TranslationEngine {
           if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
             numberCandidateCount++;
             // Early exit if many candidates (no point counting further)
-            if (numberCandidateCount > 50) break;
+            if (numberCandidateCount > WASM_NUMBER_PROCESSING_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK)
+              break;
           }
         }
 
@@ -5789,7 +5879,7 @@ export class TranslationEngine {
         }
 
         // Use JavaScript fallback for very small counts (serialization overhead > benefit)
-        if (numberCandidateCount < 10) {
+        if (numberCandidateCount < WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
           this.log(
             DEBUG_LEVELS.DEBUG,
             `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
@@ -5803,7 +5893,7 @@ export class TranslationEngine {
         }
 
         // Use WASM number processing (5-10x faster for Chinese number conversion)
-        // Only worthwhile for >=10 candidates where WASM speedup > serialization overhead
+        // Only worthwhile for >=${WASM_NUMBER_PROCESSING_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
         this.log(
           DEBUG_LEVELS.DEBUG,
           `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
@@ -5945,7 +6035,7 @@ export class TranslationEngine {
     // This automatically handles longest-match-first by using findAllMatches with length sorting
     const remainingText = reconstructTextFromIndex(tokens, position);
 
-    const matches = await this.findAllMatchesWithSemanticCache(
+    const matches = await this.findAllMatches(
       remainingText,
       0,
       this.activeProperNouns // All proper noun dictionaries combined
@@ -6412,9 +6502,7 @@ export class TranslationEngine {
     // Apply punctuation translation to only the current batch chunks
     this.textChunker.translatePunctuation(currentBatch, this.punctuationDict);
 
-    // DISABLED: Apply capitalization with context awareness for opening quotes
-    // this.applyBatchCapitalization(currentBatch, allChunks, batchStartIndex);
-    // Capitalization is handled at the final level
+    // Capitalization is handled at the final level (not per-batch)
   }
 
   /**
@@ -6702,10 +6790,7 @@ export class TranslationEngine {
       this.progressivePositionTracker.runningTextPosition += cleanedBatchText.length;
       this.progressivePositionTracker.clickableSegments.push(...batchSegments);
 
-      // BUGFIX: Don't accumulate duplicate semantic arrays - use the builder's current state
-      // The semanticArrayBuilder already accumulates properly, we don't need to duplicate here
-      // this.progressivePositionTracker.totalOriginalSegments.push(...batchSemanticArrays.original);
-      // this.progressivePositionTracker.totalTranslatedSegments.push(...batchSemanticArrays.translated);
+      // Semantic arrays are accumulated by semanticArrayBuilder (no duplication needed)
 
       return {
         cleanedBatchText: cleanedBatchText,
