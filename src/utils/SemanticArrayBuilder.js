@@ -22,11 +22,19 @@ export class SemanticArrayBuilder {
     // CRITICAL FIX: Track corruption state to prevent cascading failures
     this.isCorrupted = false;
 
+    // CODE REVIEW FIX (CRITICAL-2): Telemetry for corruption tracking
+    this.corruptionTelemetry = {
+      totalCorruptions: 0,
+      corruptionEvents: [], // Last 10 corruption events with timestamps
+      lastCorruptionTime: null,
+    };
+
     this.reset();
   }
 
   /**
    * Reset the builder for a new translation
+   * CODE REVIEW FIX (CRITICAL-2): Preserves corruption telemetry across resets for monitoring
    */
   reset() {
     this.original = [];
@@ -37,6 +45,7 @@ export class SemanticArrayBuilder {
     this.lastPositionSet = -1;
 
     // CRITICAL FIX: Clear corruption flag on reset (new translation = fresh state)
+    // Note: We DON'T reset telemetry - it accumulates across session for monitoring
     this.isCorrupted = false;
   }
 
@@ -81,11 +90,35 @@ export class SemanticArrayBuilder {
 
     // CRITICAL-4 FIX: Validate arrays stay synchronized after mutation
     // HIGH-6 FIX: Check validation result (no longer throws)
-    // CRITICAL FIX: Mark as corrupted and signal failure to caller
+    // CODE REVIEW FIX (CRITICAL-2): Enhanced corruption tracking with telemetry
     if (!this.validateArrays()) {
       // Desync detected - mark builder as corrupted to prevent further operations
       this.isCorrupted = true;
-      logger.error('❌ Semantic arrays corrupted - highlighting will be disabled');
+
+      // Record corruption event for telemetry
+      this.corruptionTelemetry.totalCorruptions++;
+      this.corruptionTelemetry.lastCorruptionTime = Date.now();
+      this.corruptionTelemetry.corruptionEvents.push({
+        timestamp: Date.now(),
+        originalLength: this.original.length,
+        translatedLength: this.translated.length,
+        metadataLength: this.metadata.length,
+        source,
+        phase,
+      });
+      // Keep only last 10 events to prevent memory growth
+      if (this.corruptionTelemetry.corruptionEvents.length > 10) {
+        this.corruptionTelemetry.corruptionEvents.shift();
+      }
+
+      logger.error('❌ Semantic arrays corrupted - highlighting will be disabled', {
+        totalCorruptions: this.corruptionTelemetry.totalCorruptions,
+        arrayLengths: {
+          original: this.original.length,
+          translated: this.translated.length,
+          metadata: this.metadata.length,
+        },
+      });
       return false; // Signal failure to caller
     }
 
@@ -405,6 +438,18 @@ export class SemanticArrayBuilder {
    */
   getLength() {
     return this.original.length;
+  }
+
+  /**
+   * CODE REVIEW FIX (CRITICAL-2): Get corruption telemetry
+   * Returns telemetry data for monitoring corruption frequency
+   * @returns {Object} Corruption telemetry data
+   */
+  getCorruptionTelemetry() {
+    return {
+      ...this.corruptionTelemetry,
+      isCurrentlyCorrupted: this.isCorrupted,
+    };
   }
 
   /**

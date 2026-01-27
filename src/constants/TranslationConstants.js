@@ -52,15 +52,51 @@ export const PATTERN_PROCESSING = {
  * Memory Management Configuration
  */
 export const MEMORY_MANAGEMENT = {
-  // Maximum translation segments to keep in memory
-  MAX_SEGMENTS: 35,
-
   // Maximum token stats to track (bounded collection)
   MAX_TOKEN_STATS: 500,
 
   // Maximum proper noun translations to cache
   MAX_PROPER_NOUN_TRANSLATIONS: 10000,
 };
+
+/**
+ * CODE REVIEW FIX (LOW-3): Position Tracking Configuration
+ * Extracted magic numbers for better maintainability
+ */
+export const POSITION_TRACKING = {
+  // Maximum position entries to track for overlap detection
+  // Prevents O(n²) degradation for 1000+ word translations
+  MAX_TRACKING_POSITIONS: 500,
+
+  // Eviction percentage when max reached (10% = LRU eviction of oldest 10%)
+  EVICTION_PERCENTAGE: 0.1,
+
+  // Warning threshold for logging position tracking size
+  WARNING_INTERVAL: 100, // Log every 100 positions after max
+};
+
+/**
+ * CODE REVIEW FIX (MEDIUM-2): Adaptive segment cleanup threshold based on device memory
+ * Returns appropriate max segments based on available device memory
+ * @returns {number} Maximum segments to keep
+ */
+export function getAdaptiveMaxSegments() {
+  // Use Device Memory API if available (Chrome, Edge)
+  // Falls back to conservative default (4GB) for browsers that don't support it
+  const deviceMemoryGB = navigator.deviceMemory || 4;
+
+  // Adaptive thresholds based on memory:
+  // - ≤2GB (low memory): 10 segments (conservative)
+  // - ≤4GB (medium memory): 20 segments (balanced)
+  // - >4GB (high memory): 35 segments (original default)
+  if (deviceMemoryGB <= 2) {
+    return 10; // Low memory devices - aggressive cleanup
+  } else if (deviceMemoryGB <= 4) {
+    return 20; // Medium memory devices - moderate cleanup
+  } else {
+    return 35; // High memory devices - original threshold
+  }
+}
 
 /**
  * WASM Number Processing Thresholds

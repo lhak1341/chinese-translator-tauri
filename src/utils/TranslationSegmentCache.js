@@ -114,24 +114,43 @@ export class TranslationSegmentCache {
   }
 
   /**
-   * Generate cache key from translation parameters
-   * Uses content hash + dictionary fingerprint for accurate cache addressing
+   * CODE REVIEW FIX (MEDIUM-3): Generate secure cache key with SHA-256
+   * Uses collision-resistant hashing to prevent wrong translations being served
+   * @param {string} originalText - Original text to translate
+   * @param {string} dictionaryFingerprint - Dictionary version fingerprint
+   * @param {Object} options - Translation options
+   * @returns {Promise<string>} Cache key
    */
-  generateCacheKey(originalText, dictionaryFingerprint, options = {}) {
+  async generateCacheKey(originalText, dictionaryFingerprint, options = {}) {
     const startTime = performance.now();
 
     // SECURITY FIX: Sanitize options to prevent cache collisions from unexpected types
     const safeOptions = this.sanitizeOptions(options);
 
-    // Simple but effective hash for cache key generation
+    // CODE REVIEW FIX (MEDIUM-3): Use SHA-256 for collision-resistant hashing
+    // Web Crypto API provides cryptographically secure hashing
     const hashContent =
       originalText + '|' + dictionaryFingerprint + '|' + JSON.stringify(safeOptions);
-    const hash = this.simpleHash(hashContent);
+    const hash = await this.secureHash(hashContent);
 
     this.stats.averageLookupTime =
       (this.stats.averageLookupTime + (performance.now() - startTime)) / 2;
 
     return `${this.cacheKeyPrefix}${hash}`;
+  }
+
+  /**
+   * CODE REVIEW FIX (MEDIUM-3): Secure hash using SHA-256
+   * Provides collision-resistant hashing via Web Crypto API
+   * @param {string} content - Content to hash
+   * @returns {Promise<string>} Hex-encoded SHA-256 hash
+   */
+  async secureHash(content) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(content);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
   /**
@@ -198,13 +217,14 @@ export class TranslationSegmentCache {
   /**
    * Get cached translation result
    * Returns null if not found or expired
+   * CODE REVIEW FIX (MEDIUM-3): Now async to support SHA-256 hashing
    */
-  get(originalText, dictionaryFingerprint, options = {}) {
+  async get(originalText, dictionaryFingerprint, options = {}) {
     const startTime = performance.now();
     this.stats.totalLookups++;
 
     try {
-      const cacheKey = this.generateCacheKey(originalText, dictionaryFingerprint, options);
+      const cacheKey = await this.generateCacheKey(originalText, dictionaryFingerprint, options);
       const cachedDataStr = localStorage.getItem(cacheKey);
 
       if (!cachedDataStr) {
@@ -296,7 +316,7 @@ export class TranslationSegmentCache {
    */
   async set(originalText, translatedText, semanticArrays, dictionaryFingerprint, options = {}) {
     const startTime = performance.now();
-    const cacheKey = this.generateCacheKey(originalText, dictionaryFingerprint, options);
+    const cacheKey = await this.generateCacheKey(originalText, dictionaryFingerprint, options);
     const now = Date.now();
 
     const cacheEntry = {

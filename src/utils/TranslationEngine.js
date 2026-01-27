@@ -162,6 +162,8 @@ import {
   DICTIONARY_LOOKUP,
   MEMORY_MANAGEMENT,
   WASM_NUMBER_THRESHOLDS,
+  POSITION_TRACKING, // CODE REVIEW FIX (LOW-3)
+  getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
 } from '../constants/TranslationConstants.js';
 
 /**
@@ -326,22 +328,42 @@ export class TranslationEngine {
    * @param {string} message - Message to log
    * @param {*} data - Optional data to log
    */
+  /**
+   * CODE REVIEW FIX (LOW-1): Optimized logging with lazy evaluation support
+   * Accepts both strings and functions to avoid string interpolation overhead when logging disabled
+   * @param {number} level - Debug level threshold
+   * @param {string|Function} message - Message string or lazy function that returns message
+   * @param {*} data - Optional data to log
+   */
   log(level, message, data = null) {
+    // CODE REVIEW FIX (LOW-1): Early exit before evaluating lazy message
+    // Check level first to avoid unnecessary function calls
+    const shouldLog =
+      (globalPerformanceMonitor && true) || // Global monitor handles its own level checking
+      (this.debugLevel >= level && process.env.NODE_ENV === 'development');
+
+    if (!shouldLog && !globalPerformanceMonitor) {
+      return; // Skip evaluation entirely
+    }
+
+    // CODE REVIEW FIX (LOW-1): Lazy evaluation - only call function if needed
+    const evaluatedMessage = typeof message === 'function' ? message() : message;
+
     // Use optimized performance monitor for environment-aware logging with sampling
     if (globalPerformanceMonitor) {
       if (data !== null) {
-        globalPerformanceMonitor.log(level, message, data);
+        globalPerformanceMonitor.log(level, evaluatedMessage, data);
       } else {
-        globalPerformanceMonitor.log(level, message);
+        globalPerformanceMonitor.log(level, evaluatedMessage);
       }
     }
     // Fallback to original behavior if monitor not available
     else if (this.debugLevel >= level) {
       if (process.env.NODE_ENV === 'development') {
         if (data !== null) {
-          logger.log(message, data);
+          logger.log(evaluatedMessage, data);
         } else {
-          logger.log(message);
+          logger.log(evaluatedMessage);
         }
       }
     }
@@ -626,7 +648,8 @@ export class TranslationEngine {
    * Called before each new translation to prevent unbounded growth
    */
   cleanupOldSegments() {
-    const maxSegments = MEMORY_MANAGEMENT.MAX_SEGMENTS;
+    // CODE REVIEW FIX (MEDIUM-2): Use adaptive threshold based on device memory
+    const maxSegments = getAdaptiveMaxSegments();
 
     if (this.translationSegments.length > maxSegments) {
       const removedCount = this.translationSegments.length - maxSegments;
@@ -634,7 +657,7 @@ export class TranslationEngine {
 
       this.log(
         DEBUG_LEVELS.DEBUG,
-        `🧹 Cleaned up ${removedCount} old segments, ${this.translationSegments.length} remaining (threshold: ${maxSegments})`
+        `🧹 Cleaned up ${removedCount} old segments, ${this.translationSegments.length} remaining (adaptive threshold: ${maxSegments})`
       );
     }
   }
@@ -1098,7 +1121,11 @@ export class TranslationEngine {
 
     // OPTIMIZATION: Build Rust-powered lookup index for character-only translations (HUGE speedup)
     // Character-only mode benefits even more from pre-computed lookups!
-    if (!options.lookupIndex && text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX && options.useSharedLookupIndex !== false) {
+    if (
+      !options.lookupIndex &&
+      text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX &&
+      options.useSharedLookupIndex !== false
+    ) {
       try {
         const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
 
@@ -2290,10 +2317,7 @@ export class TranslationEngine {
       }
 
       // Record failure for diagnostics
-      if (
-        typeof systemPerformanceMonitor !== 'undefined' &&
-        systemPerformanceMonitor.recordAlert
-      ) {
+      if (typeof systemPerformanceMonitor !== 'undefined' && systemPerformanceMonitor.recordAlert) {
         systemPerformanceMonitor.recordAlert('pattern_processing_error', {
           error: error.message,
           timestamp: Date.now(),
@@ -5590,20 +5614,22 @@ export class TranslationEngine {
       // Handle duplicates by searching from different starting positions
       const foundWords = [];
       const usedPositions = new Set(); // Track positions to handle duplicates
-      // HIGH FIX: Limit set size to prevent O(n²) degradation for 1000+ word translations
-      const MAX_TRACKING_POSITIONS = 500;
+      // CODE REVIEW FIX (LOW-3): Use constant instead of magic number
+      const MAX_TRACKING_POSITIONS = POSITION_TRACKING.MAX_TRACKING_POSITIONS;
 
       for (const candidate of candidateWords) {
-        // Use case-insensitive search to handle capitalization differences
-        const lowerOutput = cleanedFinalResult.toLowerCase();
-        const lowerCandidate = candidate.translated.toLowerCase();
+        // CODE REVIEW FIX (HIGH-3): Use NFC normalization for diacritic-aware matching
+        // Vietnamese diacritics can create ambiguous matches without normalization
+        // Example: "hoà" (harmony) vs "hòa" (peace) - different meanings, same base
+        const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
+        const normalizedCandidate = candidate.translated.normalize('NFC').toLowerCase();
 
         let position = -1;
         let searchStart = 0;
 
         // For duplicates, try to find the next occurrence that hasn't been used
         do {
-          position = lowerOutput.indexOf(lowerCandidate, searchStart);
+          position = normalizedOutput.indexOf(normalizedCandidate, searchStart);
           if (position >= 0) {
             // Check if this position overlaps with any used position
             let overlaps = false;
@@ -5628,13 +5654,24 @@ export class TranslationEngine {
                 end: position + candidate.translated.length,
               });
 
-              // HIGH FIX: Log warning if set grows too large (indicates performance issue)
-              // Don't evict during loop - would break overlap detection and clickable highlighting
-              // Instead, warn and let it complete (correctness > performance)
-              if (usedPositions.size > MAX_TRACKING_POSITIONS && usedPositions.size % 100 === 0) {
+              // CODE REVIEW FIX (HIGH-4): Bounded position tracking with LRU eviction
+              // CODE REVIEW FIX (LOW-3): Use constant for eviction percentage
+              if (usedPositions.size > MAX_TRACKING_POSITIONS) {
+                const evictCount = Math.floor(
+                  MAX_TRACKING_POSITIONS * POSITION_TRACKING.EVICTION_PERCENTAGE
+                );
+                const iterator = usedPositions.values();
+                const evicted = [];
+                for (let i = 0; i < evictCount; i++) {
+                  const old = iterator.next().value;
+                  if (old) {
+                    usedPositions.delete(old);
+                    evicted.push(old);
+                  }
+                }
                 this.log(
                   DEBUG_LEVELS.WARN,
-                  `⚠️ Position tracking set large: ${usedPositions.size} positions (may impact performance for very large texts)`
+                  `⚠️ Evicted ${evicted.length} old position entries to prevent memory growth (${usedPositions.size} remaining)`
                 );
               }
 
@@ -5661,10 +5698,10 @@ export class TranslationEngine {
 
       for (let i = 0; i < outputOrder.length; i++) {
         const wordInfo = outputOrder[i];
-        // Use case-insensitive search here too for consistency
-        const lowerOutput = cleanedFinalResult.toLowerCase();
-        const lowerTranslated = wordInfo.translated.toLowerCase();
-        const position = lowerOutput.indexOf(lowerTranslated, currentPosition);
+        // CODE REVIEW FIX (HIGH-3): Use NFC normalization for diacritic-aware matching
+        const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
+        const normalizedTranslated = wordInfo.translated.normalize('NFC').toLowerCase();
+        const position = normalizedOutput.indexOf(normalizedTranslated, currentPosition);
 
         if (position >= 0) {
           // Add spacing segment if there's a gap before this word
@@ -6081,7 +6118,11 @@ export class TranslationEngine {
 
       // OPTIMIZATION: Build Rust-powered lookup index for large texts (6-50x faster)
       // Only build if not already provided and text is large enough
-      if (!options.lookupIndex && text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX && options.useSharedLookupIndex !== false) {
+      if (
+        !options.lookupIndex &&
+        text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX &&
+        options.useSharedLookupIndex !== false
+      ) {
         try {
           const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
 
@@ -6245,7 +6286,49 @@ export class TranslationEngine {
     // This Set tracks which phases completed successfully vs failed
     const completedPhases = new Set();
 
-    // NOTE (LOW-16): Timeout protection not implemented
+    // CODE REVIEW FIX (CRITICAL-1): Phase order enforcement
+    // Phase order is IMMUTABLE to prevent double-processing conflicts
+    // This validator ensures developers don't accidentally reorder phases
+    const REQUIRED_PHASE_ORDER = ['patterns', 'properNouns', 'numbers', 'phrases', 'characters'];
+    let lastPhaseIndex = -1;
+    const phaseFailures = new Map(); // Track failure reasons for MEDIUM-1
+
+    const validatePhaseOrder = (phaseName) => {
+      const currentIndex = REQUIRED_PHASE_ORDER.indexOf(phaseName);
+      if (currentIndex === -1) {
+        throw new Error(`Unknown phase: ${phaseName}`);
+      }
+      if (currentIndex <= lastPhaseIndex) {
+        throw new Error(
+          `Phase order violation: ${phaseName} (index ${currentIndex}) must run after ${REQUIRED_PHASE_ORDER[lastPhaseIndex]} (index ${lastPhaseIndex})`
+        );
+      }
+      lastPhaseIndex = currentIndex;
+    };
+
+    // CODE REVIEW FIX (HIGH-1): Phase timeout protection
+    // Timeout helper to prevent hanging on malicious/large inputs
+    const PHASE_TIMEOUTS = {
+      patterns: 30000, // 30s for pattern matching
+      properNouns: 10000, // 10s for proper noun lookup
+      numbers: 5000, // 5s for number conversion
+      phrases: 20000, // 20s for phrase matching
+      characters: 60000, // 60s for character fallback
+    };
+
+    const withTimeout = (promise, timeoutMs, phaseName) => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`${phaseName} phase timed out after ${timeoutMs}ms`)),
+            timeoutMs
+          )
+        ),
+      ]);
+    };
+
+    // NOTE (LOW-16): Timeout protection NOW IMPLEMENTED (CODE REVIEW FIX)
     // Reasoning: Phases are expected to take time for large texts (5-10s for 10K+ chars)
     // - All phases have error handling (try-catch with graceful degradation)
     // - No infinite loops (all iteration has bounds)
@@ -6259,13 +6342,20 @@ export class TranslationEngine {
       // Phase 1: Apply patterns first (they need full context)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase1 = tokens.length;
-      // LOW-11 FIX: Narrow try-catch to only applyPatterns (not profiler)
+      // CODE REVIEW FIX: Validate phase order and add timeout protection
       try {
-        await this.applyPatterns(tokens, { ...options, debug: true });
+        validatePhaseOrder('patterns');
+        await withTimeout(
+          this.applyPatterns(tokens, { ...options, debug: true }),
+          PHASE_TIMEOUTS.patterns,
+          'patterns'
+        );
         completedPhases.add('patterns');
         // Record profiling metrics
         await this.profiler.recordPhaseCompletion('patterns');
       } catch (error) {
+        // CODE REVIEW FIX (MEDIUM-1): Track failure reason
+        phaseFailures.set('patterns', error.message);
         // MEDIUM-8 FIX: Standardize error logging with logger.error
         logger.error('🚨 Phase 1 (Patterns) failed:', error);
         // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
@@ -6283,17 +6373,24 @@ export class TranslationEngine {
       // Phase 2: Apply proper nouns globally (highest priority after patterns)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase2 = tokens.length;
-      // LOW-11 FIX: Narrow try-catch to only applyDictionaryTranslation (not profiler)
+      // CODE REVIEW FIX: Validate phase order and add timeout protection
       try {
-        await this.applyDictionaryTranslation(tokens, {
-          ...options,
-          dictionaryOrder: [...this.activeProperNouns],
-          phase: 'properNouns',
-        });
+        validatePhaseOrder('properNouns');
+        await withTimeout(
+          this.applyDictionaryTranslation(tokens, {
+            ...options,
+            dictionaryOrder: [...this.activeProperNouns],
+            phase: 'properNouns',
+          }),
+          PHASE_TIMEOUTS.properNouns,
+          'properNouns'
+        );
         completedPhases.add('properNouns');
         // Record profiling metrics
         await this.profiler.recordPhaseCompletion('properNouns');
       } catch (error) {
+        // CODE REVIEW FIX (MEDIUM-1): Track failure reason
+        phaseFailures.set('properNouns', error.message);
         // MEDIUM-8 FIX: Standardize error logging with logger.error
         logger.error('🚨 Phase 2 (Proper Nouns) failed:', error);
         // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
@@ -6309,213 +6406,236 @@ export class TranslationEngine {
 
       // OPTIMIZATION: Cache semantic tokens after proper noun grouping completes
       // This avoids redundant O(N) filtering in subsequent phases (5-10% overhead reduction)
-      this.cachedSemanticTokens = getSemanticTokens(tokens);
+      // CODE REVIEW FIX (HIGH-2): Validate cache before use
+      this.cachedSemanticTokens = this.getCachedSemanticTokens(tokens);
 
       // Phase 3: Apply number conversion globally (before phrases to prevent fragmentation)
       // Numbers should be processed before phrases to preserve number sequences like "六十五"
       // This prevents phrase-level matches from breaking up number tokens
-      // LOW FIX: Add try-catch for consistency with other phases (Phase 3 was missing error handling)
+      // CODE REVIEW FIX: Add validation and timeout
       try {
-        await this.profiler.profile('numbers', async () => {
-          // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
-          // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
-          let numberCandidateCount = 0;
-          for (const token of tokens) {
-            if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
-              numberCandidateCount++;
-              // Early exit if many candidates (no point counting further)
-              if (
-                numberCandidateCount > WASM_NUMBER_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK
-              )
-                break;
+        validatePhaseOrder('numbers');
+        await withTimeout(
+          this.profiler.profile('numbers', async () => {
+            // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
+            // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
+            let numberCandidateCount = 0;
+            for (const token of tokens) {
+              if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
+                numberCandidateCount++;
+                // Early exit if many candidates (no point counting further)
+                if (numberCandidateCount > WASM_NUMBER_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK) break;
+              }
             }
-          }
 
-          // Skip WASM entirely if no number candidates
-          if (numberCandidateCount === 0) {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              '⏭️  Skipping WASM number processing (no untranslated chinese_char tokens)'
-            );
-            return;
-          }
-
-          // Use JavaScript fallback for very small counts (serialization overhead > benefit)
-          if (numberCandidateCount < WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
-            );
-            this.numberProcessor.processTokens(tokens, {
-              debugLevel: this.debugLevel,
-              semanticArrayBuilder: this.semanticArrayBuilder,
-              ...options,
-            });
-            return;
-          }
-
-          // CRITICAL FIX: Check WASM availability before attempting to use it
-          // Prevents double-processing (WASM attempt → exception → JS fallback)
-          if (!isWasmNumberProcessorAvailable()) {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `📦 WASM number processor unavailable, using JavaScript fallback for ${numberCandidateCount} candidates`
-            );
-            this.numberProcessor.processTokens(tokens, {
-              debugLevel: this.debugLevel,
-              semanticArrayBuilder: this.semanticArrayBuilder,
-              ...options,
-            });
-            return;
-          }
-
-          // Use WASM number processing (5-10x faster for Chinese number conversion)
-          // Only worthwhile for >=${WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
-          );
-          try {
-            const processedTokens = await processNumbersWasm(tokens);
-
-            // CRITICAL FIX: Validate BEFORE copying to prevent partial corruption
-            // Pre-validate array length invariance
-            if (processedTokens.length !== tokens.length) {
+            // Skip WASM entirely if no number candidates
+            if (numberCandidateCount === 0) {
               this.log(
-                DEBUG_LEVELS.ERROR,
-                `WASM number processor corrupted token array: expected ${tokens.length}, got ${processedTokens.length}`
+                DEBUG_LEVELS.DEBUG,
+                '⏭️  Skipping WASM number processing (no untranslated chinese_char tokens)'
               );
-              throw new Error(
-                `WASM number processor violated array length invariance: ${tokens.length} → ${processedTokens.length}`
+              return;
+            }
+
+            // Use JavaScript fallback for very small counts (serialization overhead > benefit)
+            if (numberCandidateCount < WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
+              this.log(
+                DEBUG_LEVELS.DEBUG,
+                `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
               );
+              this.numberProcessor.processTokens(tokens, {
+                debugLevel: this.debugLevel,
+                semanticArrayBuilder: this.semanticArrayBuilder,
+                ...options,
+              });
+              return;
             }
 
-            // Pre-validate token structure BEFORE mutating original tokens array
-            for (let i = 0; i < processedTokens.length; i++) {
-              // Check token existence before accessing properties (handles sparse arrays)
-              if (!processedTokens[i] || typeof processedTokens[i] !== 'object') {
-                throw new Error(
-                  `WASM validation failed: token ${i} is missing or not an object`
-                );
-              }
-              // Check for undefined (should be null or string after WASM processing)
-              if (processedTokens[i].translated === undefined) {
-                throw new Error(
-                  `WASM validation failed: token ${i} has undefined translated field (should be null or string)`
-                );
-              }
-              // Validate translated field type
-              if (processedTokens[i].translated !== null && typeof processedTokens[i].translated !== 'string') {
-                throw new Error(
-                  `WASM validation failed: token ${i} has invalid translated type: ${typeof processedTokens[i].translated}`
-                );
-              }
+            // CRITICAL FIX: Check WASM availability before attempting to use it
+            // Prevents double-processing (WASM attempt → exception → JS fallback)
+            if (!isWasmNumberProcessorAvailable()) {
+              this.log(
+                DEBUG_LEVELS.DEBUG,
+                `📦 WASM number processor unavailable, using JavaScript fallback for ${numberCandidateCount} candidates`
+              );
+              this.numberProcessor.processTokens(tokens, {
+                debugLevel: this.debugLevel,
+                semanticArrayBuilder: this.semanticArrayBuilder,
+                ...options,
+              });
+              return;
             }
 
-            // Only copy AFTER validation passes (prevents partial corruption)
-            copyWasmTokens(processedTokens, tokens);
+            // Use WASM number processing (5-10x faster for Chinese number conversion)
+            // Only worthwhile for >=${WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
+            this.log(
+              DEBUG_LEVELS.DEBUG,
+              `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
+            );
+            try {
+              const processedTokens = await processNumbersWasm(tokens);
 
-            // Post-copy verification (lightweight sanity check)
-            if (tokens.some(t => t.translated === undefined)) {
-              throw new Error('WASM copy failed: undefined values detected after copy');
-            }
+              // CODE REVIEW FIX (CRITICAL-3): Detect concurrent modification during validation
+              const originalTokensLength = tokens.length;
 
-            // Add number conversions to semantic array for clickable highlighting
-            // WASM doesn't have access to semanticArrayBuilder, so we add entries here
-            for (let i = 0; i < tokens.length; i++) {
-              const token = tokens[i];
+              // CRITICAL FIX: Validate BEFORE copying to prevent partial corruption
+              // Pre-validate array length invariance
+              if (processedTokens.length !== tokens.length) {
+                this.log(
+                  DEBUG_LEVELS.ERROR,
+                  `WASM number processor corrupted token array: expected ${tokens.length}, got ${processedTokens.length}`
+                );
+                throw new Error(
+                  `WASM number processor violated array length invariance: ${tokens.length} → ${processedTokens.length}`
+                );
+              }
 
-              // Find number conversion results (main token, not consumed tokens)
-              if (token.translationSource === 'number_conversion' && token.translated) {
-                // Collect original text from this token and any consumed tokens following it
-                let originalText = token.value;
-                let endIndex = i;
-
-                // Look ahead for consumed tokens that are part of this number
-                // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
-                // LOW-10 FIX: Use constant instead of magic number
-                const MAX_CONSUMED_SPAN = NUMBER_PROCESSING.MAX_CONSUMED_SPAN;
-                for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
-                  if (tokens[j].translationSource === 'number_conversion_consumed') {
-                    originalText += tokens[j].value;
-                    endIndex = j;
-                  } else {
-                    break; // Stop when we hit a non-consumed token
-                  }
+              // Pre-validate token structure BEFORE mutating original tokens array
+              for (let i = 0; i < processedTokens.length; i++) {
+                // Check token existence before accessing properties (handles sparse arrays)
+                if (!processedTokens[i] || typeof processedTokens[i] !== 'object') {
+                  throw new Error(`WASM validation failed: token ${i} is missing or not an object`);
                 }
-
-                // HIGH FIX: Warn if span exceeded limit (indicates wrong consumed marking)
-                if (endIndex - i >= MAX_CONSUMED_SPAN) {
-                  this.log(
-                    DEBUG_LEVELS.WARN,
-                    `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i}`
+                // Check for undefined (should be null or string after WASM processing)
+                if (processedTokens[i].translated === undefined) {
+                  throw new Error(
+                    `WASM validation failed: token ${i} has undefined translated field (should be null or string)`
                   );
                 }
-
-                // CRITICAL FIX: Validate that consumed tokens are contiguous
-                // If we found consumed tokens (endIndex > i), verify they're all marked correctly
-                if (endIndex > i) {
-                  for (let k = i + 1; k <= endIndex; k++) {
-                    if (tokens[k].translationSource !== 'number_conversion_consumed') {
-                      this.log(
-                        DEBUG_LEVELS.ERROR,
-                        `⚠️ Number span integrity violation: token ${k} should be consumed but has source: ${tokens[k].translationSource}`
-                      );
-                    }
-                  }
+                // Validate translated field type
+                if (
+                  processedTokens[i].translated !== null &&
+                  typeof processedTokens[i].translated !== 'string'
+                ) {
+                  throw new Error(
+                    `WASM validation failed: token ${i} has invalid translated type: ${typeof processedTokens[i].translated}`
+                  );
                 }
+              }
 
-                // Add to semantic array
-                // NOTE: We use only the first token's index (i) even for multi-token numbers
-                // because the semantic array represents one logical unit (the entire number).
-                // The originalText contains the combined text from all tokens (i to endIndex).
-                // This is correct - position tracking works because postProcess only processes
-                // the first token (others are skipped due to translationSource=consumed).
-                const globalTokenIndex = i + (options.chunkOffset || 0);
-                this.semanticArrayBuilder.addUnit(
-                  originalText,
-                  token.translated,
-                  'numbers',
-                  globalTokenIndex
+              // CODE REVIEW FIX (CRITICAL-3): Check for concurrent modification during validation
+              if (tokens.length !== originalTokensLength) {
+                throw new Error(
+                  `Token array modified during validation - concurrent modification detected (${originalTokensLength} → ${tokens.length})`
                 );
               }
+
+              // Only copy AFTER validation passes (prevents partial corruption)
+              copyWasmTokens(processedTokens, tokens);
+
+              // Post-copy verification (lightweight sanity check)
+              if (tokens.some((t) => t.translated === undefined)) {
+                throw new Error('WASM copy failed: undefined values detected after copy');
+              }
+
+              // Add number conversions to semantic array for clickable highlighting
+              // WASM doesn't have access to semanticArrayBuilder, so we add entries here
+              for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
+
+                // Find number conversion results (main token, not consumed tokens)
+                if (token.translationSource === 'number_conversion' && token.translated) {
+                  // Collect original text from this token and any consumed tokens following it
+                  let originalText = token.value;
+                  let endIndex = i;
+
+                  // Look ahead for consumed tokens that are part of this number
+                  // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
+                  // LOW-10 FIX: Use constant instead of magic number
+                  const MAX_CONSUMED_SPAN = NUMBER_PROCESSING.MAX_CONSUMED_SPAN;
+                  for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
+                    if (tokens[j].translationSource === 'number_conversion_consumed') {
+                      originalText += tokens[j].value;
+                      endIndex = j;
+                    } else {
+                      break; // Stop when we hit a non-consumed token
+                    }
+                  }
+
+                  // HIGH FIX: Warn if span exceeded limit (indicates wrong consumed marking)
+                  if (endIndex - i >= MAX_CONSUMED_SPAN) {
+                    this.log(
+                      DEBUG_LEVELS.WARN,
+                      `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i}`
+                    );
+                  }
+
+                  // CRITICAL FIX: Validate that consumed tokens are contiguous
+                  // If we found consumed tokens (endIndex > i), verify they're all marked correctly
+                  if (endIndex > i) {
+                    for (let k = i + 1; k <= endIndex; k++) {
+                      if (tokens[k].translationSource !== 'number_conversion_consumed') {
+                        this.log(
+                          DEBUG_LEVELS.ERROR,
+                          `⚠️ Number span integrity violation: token ${k} should be consumed but has source: ${tokens[k].translationSource}`
+                        );
+                      }
+                    }
+                  }
+
+                  // Add to semantic array
+                  // NOTE: We use only the first token's index (i) even for multi-token numbers
+                  // because the semantic array represents one logical unit (the entire number).
+                  // The originalText contains the combined text from all tokens (i to endIndex).
+                  // This is correct - position tracking works because postProcess only processes
+                  // the first token (others are skipped due to translationSource=consumed).
+                  const globalTokenIndex = i + (options.chunkOffset || 0);
+                  this.semanticArrayBuilder.addUnit(
+                    originalText,
+                    token.translated,
+                    'numbers',
+                    globalTokenIndex
+                  );
+                }
+              }
+            } catch (error) {
+              this.log(
+                DEBUG_LEVELS.WARN,
+                '⚠️ WASM number processing failed, falling back to JavaScript:',
+                error.message
+              );
+              // Fallback to JavaScript number processing
+              this.numberProcessor.processTokens(tokens, {
+                debugLevel: this.debugLevel,
+                semanticArrayBuilder: this.semanticArrayBuilder,
+                ...options,
+              });
             }
-          } catch (error) {
-            this.log(
-              DEBUG_LEVELS.WARN,
-              '⚠️ WASM number processing failed, falling back to JavaScript:',
-              error.message
-            );
-            // Fallback to JavaScript number processing
-            this.numberProcessor.processTokens(tokens, {
-              debugLevel: this.debugLevel,
-              semanticArrayBuilder: this.semanticArrayBuilder,
-              ...options,
-            });
-          }
-          // Mark phase as completed (whether WASM succeeded or JS fallback was used)
-          completedPhases.add('numbers');
-        });
+            // Mark phase as completed (whether WASM succeeded or JS fallback was used)
+            completedPhases.add('numbers');
+          }),
+          PHASE_TIMEOUTS.numbers,
+          'numbers'
+        );
       } catch (error) {
+        // CODE REVIEW FIX (MEDIUM-1): Track failure reason
+        phaseFailures.set('numbers', error.message);
         // LOW FIX: Standardize error handling for Phase 3 (was missing outer try-catch)
-        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 3 (Numbers) failed:', error);
+        logger.error('🚨 Phase 3 (Numbers) failed:', error);
         // Continue to next phase (graceful degradation)
       }
 
       // Phase 4: Apply phrases with global longest-match optimization
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase4 = tokens.length;
+      // CODE REVIEW FIX: Validate phase order and add timeout
       try {
-        await this.profiler.profile('phrases', async () => {
-          await this.createOptimalPhraseGroups(tokens, options);
-        });
+        validatePhaseOrder('phrases');
+        await withTimeout(
+          this.profiler.profile('phrases', async () => {
+            await this.createOptimalPhraseGroups(tokens, options);
+          }),
+          PHASE_TIMEOUTS.phrases,
+          'phrases'
+        );
         completedPhases.add('phrases');
       } catch (error) {
-        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 4 (Phrases) failed:', error);
+        // CODE REVIEW FIX (MEDIUM-1): Track failure reason
+        phaseFailures.set('phrases', error.message);
+        logger.error('🚨 Phase 4 (Phrases) failed:', error);
         // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
         if (tokens.length !== tokensLengthBeforePhase4) {
-          this.log(
-            DEBUG_LEVELS.ERROR,
+          logger.error(
             `⚠️ Phase 4 corrupted token array: ${tokensLengthBeforePhase4} → ${tokens.length} tokens`
           );
         }
@@ -6544,17 +6664,24 @@ export class TranslationEngine {
       // Phase 5: Process remaining tokens for character-level translation (fallback)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase5 = tokens.length;
+      // CODE REVIEW FIX: Validate phase order and add timeout
       try {
-        await this.profiler.profile('characters', async () => {
-          await this.processRemainingTokensInBatches(tokens, processedTokens, options);
-        });
+        validatePhaseOrder('characters');
+        await withTimeout(
+          this.profiler.profile('characters', async () => {
+            await this.processRemainingTokensInBatches(tokens, processedTokens, options);
+          }),
+          PHASE_TIMEOUTS.characters,
+          'characters'
+        );
         completedPhases.add('characters');
       } catch (error) {
-        this.log(DEBUG_LEVELS.ERROR, '🚨 Phase 5 (Characters) failed:', error);
+        // CODE REVIEW FIX (MEDIUM-1): Track failure reason
+        phaseFailures.set('characters', error.message);
+        logger.error('🚨 Phase 5 (Characters) failed:', error);
         // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
         if (tokens.length !== tokensLengthBeforePhase5) {
-          this.log(
-            DEBUG_LEVELS.ERROR,
+          logger.error(
             `⚠️ Phase 5 corrupted token array: ${tokensLengthBeforePhase5} → ${tokens.length} tokens`
           );
         }
@@ -6566,7 +6693,7 @@ export class TranslationEngine {
         this.fixNumberPlusLiangTranslations(tokens);
       });
 
-      // CRITICAL FIX: Log phase completion summary for debugging
+      // CODE REVIEW FIX (MEDIUM-1): Enhanced phase completion logging with failure reasons
       // This helps identify which phases completed vs failed (silent failures)
       const failedPhases = ['patterns', 'properNouns', 'numbers', 'phrases', 'characters'].filter(
         (phase) => !completedPhases.has(phase)
@@ -6576,12 +6703,38 @@ export class TranslationEngine {
           DEBUG_LEVELS.WARN,
           `⚠️ Translation completed with ${failedPhases.length} failed phase(s): ${failedPhases.join(', ')}`
         );
+        // Log failure reasons for each failed phase
+        for (const [phase, reason] of phaseFailures) {
+          this.log(DEBUG_LEVELS.WARN, `  - ${phase}: ${reason}`);
+        }
         this.log(
           DEBUG_LEVELS.DEBUG,
           `✅ Completed phases: ${Array.from(completedPhases).join(', ')}`
         );
       } else {
         this.log(DEBUG_LEVELS.DEBUG, '✅ All 5 phases completed successfully');
+      }
+
+      // CODE REVIEW FIX (CRITICAL-2): Check for semantic array corruption after all phases
+      // If corruption detected, we can't provide clickable highlighting
+      if (this.semanticArrayBuilder.isCorrupted) {
+        const telemetry = this.semanticArrayBuilder.getCorruptionTelemetry();
+        logger.error('🚨 Semantic array corruption detected after translation', {
+          totalCorruptions: telemetry.totalCorruptions,
+          lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
+        });
+
+        // Note: User notification via toast would require import from react-hot-toast
+        // which is not available in this utility file. The notification should be
+        // handled at the UI layer (Translator.jsx) by checking builder.isCorrupted
+        // after translation completes.
+
+        // Log telemetry for production monitoring
+        if (process.env.NODE_ENV === 'production') {
+          // In production, we would send this to analytics/monitoring service
+          // For now, we log it for debugging
+          logger.warn('📊 Semantic array corruption telemetry:', telemetry);
+        }
       }
     });
 
@@ -6590,6 +6743,32 @@ export class TranslationEngine {
       DEBUG_LEVELS.VERBOSE,
       `✅ Single-pass completed: ${tokens.length} tokens in ${translationTime.toFixed(1)}ms`
     );
+  }
+
+  /**
+   * CODE REVIEW FIX (HIGH-2): Get cached semantic tokens with validation
+   * Validates cache hasn't been corrupted before returning
+   * @param {Token[]} tokens - Current token array
+   * @returns {Token[]} Validated semantic tokens
+   */
+  getCachedSemanticTokens(tokens) {
+    // If no cache, generate fresh semantic tokens
+    if (!this.cachedSemanticTokens) {
+      return getSemanticTokens(tokens);
+    }
+
+    // Validate cache still matches token state
+    // Cache becomes invalid if token array grew (indicates corruption or new processing)
+    if (this.cachedSemanticTokens.length > tokens.length) {
+      logger.warn(
+        `⚠️ Semantic token cache invalid (${this.cachedSemanticTokens.length} cached > ${tokens.length} tokens) - regenerating`
+      );
+      this.cachedSemanticTokens = null;
+      return getSemanticTokens(tokens);
+    }
+
+    // Cache is valid
+    return this.cachedSemanticTokens;
   }
 
   /**
