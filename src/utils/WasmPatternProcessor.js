@@ -82,11 +82,18 @@ export async function initializeWasmPatternProcessor(patternsDict) {
   })());
 }
 
+// MEDIUM FIX: Toast duration constants
+const TOAST_DURATION = {
+  ERROR: 10000,
+  WARNING: 5000,
+  INFO: 3000,
+};
+
 /**
  * Process semantic tokens with two-phase pattern matching
  * @param {Array} semanticTokens - Array of semantic token objects
  * @param {Object} variableCache - Variable translation cache
- * @returns {Promise<Array>} Array of PatternProcessingResult objects
+ * @returns {Promise<Object>} Result object with { success: boolean, results: Array, error?: string }
  */
 export async function processTokensWasm(semanticTokens, variableCache) {
   // CRITICAL-2 FIX: Degrade gracefully instead of throwing
@@ -98,40 +105,54 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   }
 
   if (!wasmPatternProcessor) {
-    logger.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
+    const errorMsg = 'WASM Pattern Processor not initialized - skipping pattern processing';
+    logger.warn(`⚠️ ${errorMsg}`);
     logger.warn('Translation will continue with lower quality (no pattern matching)');
 
     // One-time notification to prevent console spam
     if (!showedPatternWarning) {
       toast.warning('Pattern matching unavailable. Translation quality may be reduced.', {
-        duration: 5000,
+        duration: TOAST_DURATION.WARNING,
       });
       showedPatternWarning = true;
     }
 
-    // Return empty results to skip pattern phase gracefully
-    return [];
+    // MEDIUM FIX: Return structured error object instead of empty array
+    return {
+      success: false,
+      results: [],
+      error: errorMsg,
+    };
   }
 
   try {
     // Call WASM Pattern Processor
     const results = wasmPatternProcessor.processTokens(semanticTokens, variableCache);
-    return results;
+    return {
+      success: true,
+      results: results,
+    };
   } catch (error) {
+    const errorMsg = `WASM pattern processing error: ${error.message}`;
     logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
 
     // One-time notification to prevent console spam
     if (!showedPatternWarning) {
       toast('Pattern matching error. Translation quality may be reduced.', {
         icon: '⚠️',
-        duration: 5000,
+        duration: TOAST_DURATION.WARNING,
       });
       showedPatternWarning = true;
     }
 
+    // MEDIUM FIX: Return structured error object
     // Log error but don't block translation - patterns are quality enhancement
     // Translation can continue without patterns (proper nouns + phrases + characters still work)
-    return [];
+    return {
+      success: false,
+      results: [],
+      error: errorMsg,
+    };
   }
 }
 

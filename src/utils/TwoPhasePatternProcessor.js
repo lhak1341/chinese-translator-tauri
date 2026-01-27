@@ -264,12 +264,19 @@ class TwoPhasePatternProcessor {
 
       // Call WASM pattern processor
       const start3 = performance.now();
-      const wasmResults = await processTokensWasm(semanticTokens, variableCache);
+      const wasmResponse = await processTokensWasm(semanticTokens, variableCache);
       if (this.internalProfiling.enabled) {
         this.internalProfiling.processTokensWasm.time += performance.now() - start3;
         this.internalProfiling.processTokensWasm.calls++;
       }
 
+      // MEDIUM FIX: Handle structured error response from WASM processor
+      if (!wasmResponse.success) {
+        logger.warn(`⚠️ WASM pattern processing failed: ${wasmResponse.error}`);
+        return [];
+      }
+
+      const wasmResults = wasmResponse.results;
       if (!wasmResults || wasmResults.length === 0) {
         // Empty results are valid (e.g., no patterns matched)
         return [];

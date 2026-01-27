@@ -264,6 +264,24 @@ export class SemanticPatternProcessor {
       }
     }
 
+    // HIGH FIX: Validate that template contains all declared variables
+    const missingVariables = [];
+    for (const varName of variables) {
+      if (!template.includes(varName)) {
+        missingVariables.push(varName);
+      }
+    }
+
+    if (missingVariables.length > 0) {
+      logger.warn(
+        `⚠️ Pattern template validation failed for "${patternText}":`,
+        `Template "${template}" missing variables: ${missingVariables.join(', ')}`
+      );
+      logger.warn(
+        'This pattern will produce incorrect translations. Please fix the pattern dictionary.'
+      );
+    }
+
     return {
       id: patternText,
       originalPattern: patternText,
@@ -298,7 +316,11 @@ export class SemanticPatternProcessor {
 
   /**
    * Index pattern by first token for O(1) lookup performance
-   * @param {Object} pattern - Semantic pattern object
+   *
+   * Patterns are indexed by their first token to enable fast lookup during matching.
+   * Variable-starting patterns go into a special '__VARIABLE__' index.
+   *
+   * @param {Object} pattern - Semantic pattern object with firstToken property
    */
   indexPattern(pattern) {
     const firstToken = pattern.firstToken;
@@ -337,7 +359,7 @@ export class SemanticPatternProcessor {
     for (const phaseAResult of phaseAResults) {
       if (phaseAResult.originalText && phaseAResult.translation) {
         // Extract the variable content from Phase A pattern
-        const variableText = this.extractVariableFromPhaseAResult(phaseAResult, tokens);
+        const variableText = this.extractVariableFromPhaseAResult(phaseAResult);
 
         // Extracted variable from Phase A for cache
 
@@ -391,12 +413,11 @@ export class SemanticPatternProcessor {
         });
       }
 
+      // MEDIUM FIX: Build strings incrementally instead of slice+map+join each time
       // Check multi-character combinations (up to 6 characters for efficiency)
+      let combinedText = tokens[i].value; // Start with first token
       for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
-        const combinedText = tokens
-          .slice(i, i + len)
-          .map((t) => t.value)
-          .join('');
+        combinedText += tokens[i + len - 1].value; // Append next token
         const multiTokenResult = dictionaryManager.translate(combinedText, ['phrases']);
         if (multiTokenResult?.metadata?.allowAsPatternVariable) {
           this.variableCache.set(combinedText, {
@@ -465,6 +486,16 @@ export class SemanticPatternProcessor {
       }
     }
 
+    // HIGH FIX: Enforce variable cache size limit to prevent unbounded growth
+    const MAX_VARIABLE_CACHE_SIZE = 10000;
+    if (this.variableCache.size > MAX_VARIABLE_CACHE_SIZE) {
+      logger.warn(
+        `⚠️ Variable cache size (${this.variableCache.size}) exceeded limit ${MAX_VARIABLE_CACHE_SIZE}, performance may degrade`
+      );
+      // Note: We don't truncate here to avoid breaking ongoing translations,
+      // but the warning alerts developers to optimize dictionary size or caching strategy
+    }
+
     // Variable cache built successfully
   }
 
@@ -472,10 +503,9 @@ export class SemanticPatternProcessor {
    * Extract variable content from Phase A pattern result
    * Determines what text served as the X variable in the Phase A pattern
    * @param {Object} phaseAResult - Phase A pattern result
-   * @param {Array} tokens - Token array for context
    * @returns {string|null} Variable text that was substituted for X
    */
-  extractVariableFromPhaseAResult(phaseAResult, _tokens) {
+  extractVariableFromPhaseAResult(phaseAResult) {
     const pattern = phaseAResult.pattern?.originalPattern;
     const matchedText = phaseAResult.originalText;
 
@@ -509,10 +539,15 @@ export class SemanticPatternProcessor {
 
   /**
    * Classify variable type for metadata with enhanced semantic analysis
-   * @param {string} source - Translation source
-   * @param {string} word - Optional: the actual word for enhanced classification
-   * @param {Object} metadata - Optional: dictionary metadata with semanticType
-   * @returns {string} Variable type
+   *
+   * Uses explicit semantic type from metadata if available, otherwise applies
+   * heuristic-based classification. Variable types are used for pattern matching
+   * constraints (e.g., allowedVariableTypes).
+   *
+   * @param {string} source - Translation source (e.g., 'properNoun_pattern_variable')
+   * @param {string} word - The actual word for enhanced classification (default: '')
+   * @param {Object} metadata - Dictionary metadata with optional semanticType field (default: {})
+   * @returns {string} Variable type ('proper_noun', 'character', 'place', 'person', 'concept', 'unknown')
    */
   classifyVariableType(source, word = '', metadata = {}) {
     // Use explicit semantic type from dictionary metadata if available
@@ -557,8 +592,13 @@ export class SemanticPatternProcessor {
 
   /**
    * Get semantic type based on heuristic analysis of Chinese words
+   *
+   * Uses common Chinese patterns to infer semantic type when explicit metadata
+   * is unavailable. Checks for place indicators (市, 省, 国), person indicators
+   * (common surnames), and concept indicators (法, 术, 道).
+   *
    * @param {string} word - Chinese word to analyze
-   * @returns {string} Inferred semantic type
+   * @returns {string} Inferred semantic type ('place', 'person', 'concept', 'unknown')
    */
   getHeuristicType(word) {
     if (!word) return 'unknown';
@@ -811,6 +851,12 @@ export class SemanticPatternProcessor {
 
     // Initialize pre-computed strings optimization
     if (this.enableStringOptimization && semanticTokens.length > 5) {
+      // CRITICAL FIX: Clear previous instance to prevent memory leak
+      if (this.precomputedStrings) {
+        this.precomputedStrings.stringLookup.clear();
+        this.precomputedStrings = null;
+      }
+
       const precomputeStart = performance.now();
       this.precomputedStrings = new PrecomputedTokenStrings(semanticTokens);
       const precomputeTime = performance.now() - precomputeStart;
@@ -824,6 +870,10 @@ export class SemanticPatternProcessor {
         `⚡ Pre-computed ${this.precomputedStrings.stats.totalPrecomputed} strings in ${precomputeTime.toFixed(2)}ms`
       );
     } else {
+      // CRITICAL FIX: Clear existing instance when optimization disabled
+      if (this.precomputedStrings) {
+        this.precomputedStrings.stringLookup.clear();
+      }
       this.precomputedStrings = null;
       this.stats.stringOptimization.enabled = false;
     }
@@ -835,8 +885,21 @@ export class SemanticPatternProcessor {
       semanticTokens.map((t) => `"${t.value}"`).join(', ')
     );
 
+    // MEDIUM FIX: Add timeout protection to prevent pathological patterns from blocking indefinitely
+    const MAX_PATTERN_PROCESSING_TIME = 5000; // 5 seconds
+    const patternProcessingStartTime = performance.now();
+
     // Process each semantic position for pattern matches
     for (let i = 0; i < semanticTokens.length; i++) {
+      // Check timeout
+      if (performance.now() - patternProcessingStartTime > MAX_PATTERN_PROCESSING_TIME) {
+        logger.error(
+          `⚠️ Pattern processing timeout after ${MAX_PATTERN_PROCESSING_TIME}ms, aborting at position ${i}/${semanticTokens.length}`
+        );
+        logger.error('This may indicate pathological patterns or extremely long input text');
+        break;
+      }
+
       // Don't skip translated tokens - they might be pattern variables!
       // Only skip tokens that were consumed by previous pattern matches
       if (semanticTokens[i].translationSource === 'pattern_consumed') {

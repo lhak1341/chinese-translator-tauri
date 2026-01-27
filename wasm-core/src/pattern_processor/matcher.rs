@@ -542,11 +542,13 @@ impl<'a> PatternMatcher<'a> {
             None
         };
 
+        // MEDIUM FIX: Define magic number as named constant
         // OPTIMIZATION: Limit max_span to 6 based on dictionary analysis
         // Longest variable in patterns.json is 5 chars ("X的脖子上")
         // Most variables are 2-3 chars (30/38 entries)
         // Using 6 for safety margin while eliminating impossible spans 7-10
-        let max_span = std::cmp::min(semantic_tokens.len() - current_position, 6);
+        const MAX_VARIABLE_SPAN: usize = 6;
+        let max_span = std::cmp::min(semantic_tokens.len() - current_position, MAX_VARIABLE_SPAN);
 
         // Pre-allocate string buffer with estimated capacity
         let mut buffer = String::with_capacity(max_span * 2);  // Estimate 2 bytes per char

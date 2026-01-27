@@ -11,7 +11,7 @@
  */
 
 use super::index::PatternIndex;
-use super::matcher::{find_best_pattern_match, PatternMatchResult, SemanticToken, VariableCacheEntry};
+use super::matcher::{find_best_pattern_match, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern};
 use super::pattern::SemanticPattern;
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
@@ -241,16 +241,27 @@ impl TwoPhasePatternProcessor {
     }
 
     /// Mark tokens consumed by Phase A as protected from Phase B
+    ///
+    /// CRITICAL FIX: Store Phase A result reference on tokens for hierarchical composition detection.
+    /// This enables JavaScript override detection logic to access phase A pattern information.
     fn mark_tokens_as_protected(
         semantic_tokens: &mut [SemanticToken],
         phase_a_results: &[PatternProcessingResult],
     ) {
         for result in phase_a_results {
+            // Create minimal Phase A result reference for token storage
+            let phase_a_ref = PhaseAResult {
+                original_text: result.original_text.clone(),
+                pattern: result.pattern.as_ref().map(|p| PhaseAPattern {
+                    original_pattern: p.original_pattern.clone(),
+                }),
+            };
+
             for i in result.start_index..=result.end_index {
                 if i < semantic_tokens.len() {
                     semantic_tokens[i].protected_by_phase_a = Some(true);
-                    // Note: We can't easily store phaseAResult here without cloning the entire result
-                    // For now, we'll rely on the protection flag alone
+                    // CRITICAL FIX: Store reference to Phase A result for override detection
+                    semantic_tokens[i].phase_a_result = Some(phase_a_ref.clone());
                 }
             }
         }

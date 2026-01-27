@@ -50,11 +50,17 @@ describe('WASM Pattern Processor Error Handling', () => {
       const variableCache = new Map();
 
       // Action: Process tokens without WASM initialized
-      const results = await processTokensWasm(semanticTokens, variableCache);
+      const response = await processTokensWasm(semanticTokens, variableCache);
 
-      // Assert: Returns empty array instead of throwing
-      expect(results).toEqual([]);
-      expect(Array.isArray(results)).toBe(true);
+      // Assert: Returns structured error response instead of throwing
+      expect(response).toEqual({
+        success: false,
+        results: [],
+        error: expect.stringContaining('WASM Pattern Processor not initialized'),
+      });
+      expect(response.success).toBe(false);
+      expect(Array.isArray(response.results)).toBe(true);
+      expect(response.results).toEqual([]);
 
       // Assert: Warning was logged via logger
       expect(logger.warn).toHaveBeenCalledWith(
@@ -74,10 +80,12 @@ describe('WASM Pattern Processor Error Handling', () => {
       const variableCache = new Map();
 
       // Action: Process tokens without WASM
-      const results = await processTokensWasm(semanticTokens, variableCache);
+      const response = await processTokensWasm(semanticTokens, variableCache);
 
-      // Assert: No exception thrown, returns safely
-      expect(results).toEqual([]);
+      // Assert: No exception thrown, returns safely with structured response
+      expect(response.success).toBe(false);
+      expect(response.results).toEqual([]);
+      expect(response.error).toBeDefined();
       expect(() => processTokensWasm(semanticTokens, variableCache)).not.toThrow();
     });
 
@@ -90,18 +98,20 @@ describe('WASM Pattern Processor Error Handling', () => {
   describe('CRITICAL-2: Error handling during pattern processing', () => {
     it('should handle processing errors gracefully', async () => {
       // This test verifies the try-catch in processTokensWasm
-      // Even if WASM throws an error, we catch it and return empty array
+      // Even if WASM throws an error, we catch it and return structured error response
 
       const semanticTokens = [{ value: '测试', translated: null, translationSource: null }];
 
       const variableCache = new Map();
 
       // Action: Process tokens (will fail because WASM not initialized)
-      const results = await processTokensWasm(semanticTokens, variableCache);
+      const response = await processTokensWasm(semanticTokens, variableCache);
 
-      // Assert: Returns empty array instead of propagating error
-      expect(results).toEqual([]);
-      expect(Array.isArray(results)).toBe(true);
+      // Assert: Returns structured error response instead of propagating error
+      expect(response.success).toBe(false);
+      expect(response.results).toEqual([]);
+      expect(Array.isArray(response.results)).toBe(true);
+      expect(response.error).toBeDefined();
     });
 
     it('should log errors without throwing', async () => {
@@ -110,11 +120,12 @@ describe('WASM Pattern Processor Error Handling', () => {
       const variableCache = new Map();
 
       // Action: Process tokens
-      const results = await processTokensWasm(semanticTokens, variableCache);
+      const response = await processTokensWasm(semanticTokens, variableCache);
 
       // Assert: Warning logged via logger but no exception
       expect(logger.warn).toHaveBeenCalled();
-      expect(results).toEqual([]);
+      expect(response.success).toBe(false);
+      expect(response.results).toEqual([]);
     });
   });
 
@@ -135,28 +146,31 @@ describe('WASM Pattern Processor Error Handling', () => {
       const variableCache = new Map();
 
       // Action: Process empty array
-      const results = await processTokensWasm(semanticTokens, variableCache);
+      const response = await processTokensWasm(semanticTokens, variableCache);
 
-      // Assert: Returns empty array safely
-      expect(results).toEqual([]);
+      // Assert: Returns structured response safely
+      expect(response.success).toBe(false);
+      expect(response.results).toEqual([]);
     });
 
     it('should handle null variable cache', async () => {
       const semanticTokens = [{ value: '测试', translated: null, translationSource: null }];
 
       // Action: Process with null cache (WASM would handle this)
-      const results = await processTokensWasm(semanticTokens, null);
+      const response = await processTokensWasm(semanticTokens, null);
 
-      // Assert: Returns empty array safely (WASM not initialized)
-      expect(results).toEqual([]);
+      // Assert: Returns structured response safely (WASM not initialized)
+      expect(response.success).toBe(false);
+      expect(response.results).toEqual([]);
     });
 
     it('should handle undefined parameters gracefully', async () => {
       // Action: Call with undefined (edge case)
-      const results = await processTokensWasm(undefined, undefined);
+      const response = await processTokensWasm(undefined, undefined);
 
-      // Assert: Returns empty array instead of crashing
-      expect(results).toEqual([]);
+      // Assert: Returns structured response instead of crashing
+      expect(response.success).toBe(false);
+      expect(response.results).toEqual([]);
     });
   });
 });

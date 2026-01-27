@@ -21,6 +21,13 @@
  * patterns with more variables. Prevents generic short patterns from overriding
  * specific long patterns.
  *
+ * HIGH FIX (Code Review 2026-01-27):
+ * IMPORTANT: The Rust implementation (matcher.rs:find_best_pattern_match) uses
+ * LENGTH-FIRST selection, overriding this calculated priority. Pattern selection
+ * algorithm: (1) Prefer longer matches, (2) Use calculated priority as tiebreaker.
+ * This is intentional - match length indicates better context coverage.
+ * JavaScript implementations should follow the same length-first approach.
+ *
  * Example Priority Calculations:
  *
  * 1. Pattern "在XY中" (2 variables, 3 tokens):
@@ -90,15 +97,43 @@
  * // Result: 5 (10 variables + 2 length + 5 literal-first - 12 low priority penalty)
  */
 export function calculatePatternPriority(tokens, variables, lowPriority = false) {
+  // MEDIUM FIX: Validate inputs to prevent integer overflow
+  const MAX_SAFE_COUNT = 100; // Reasonable limit for pattern complexity
+
+  if (!Array.isArray(tokens)) {
+    console.warn('⚠️ Invalid tokens array, using default priority 0');
+    return 0;
+  }
+
+  if (!Array.isArray(variables)) {
+    console.warn('⚠️ Invalid variables array, using default priority 0');
+    return 0;
+  }
+
+  // Cap excessive values to prevent overflow and warn about malformed patterns
+  const validatedVariableCount =
+    variables.length > MAX_SAFE_COUNT ? MAX_SAFE_COUNT : variables.length;
+  const validatedTokenCount = tokens.length > MAX_SAFE_COUNT ? MAX_SAFE_COUNT : tokens.length;
+
+  if (variables.length > MAX_SAFE_COUNT) {
+    console.warn(
+      `⚠️ Excessive variables (${variables.length}) in pattern, capping at ${MAX_SAFE_COUNT}`
+    );
+  }
+
+  if (tokens.length > MAX_SAFE_COUNT) {
+    console.warn(`⚠️ Excessive tokens (${tokens.length}) in pattern, capping at ${MAX_SAFE_COUNT}`);
+  }
+
   let priority = 0;
 
   // More variables = higher priority (more specific patterns)
   // Weight: 8 (reduced from 10 to balance with pattern length)
-  priority += variables.length * 8;
+  priority += validatedVariableCount * 8;
 
   // Longer patterns = higher priority (more context)
   // Weight: 3 (increased from 1 to prioritize context over variables)
-  priority += tokens.length * 3;
+  priority += validatedTokenCount * 3;
 
   // Literal-starting patterns = higher priority (more efficient)
   if (tokens[0]?.type === 'literal') {
