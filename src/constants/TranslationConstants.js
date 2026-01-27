@@ -165,3 +165,39 @@ export const WASM_NUMBER_THRESHOLDS = {
    */
   MIN_CANDIDATES_FOR_WASM: 10,
 };
+
+/**
+ * LOW-2 FIX: Phase Timeout Configuration
+ * Maximum execution time for each translation phase (milliseconds)
+ *
+ * Rationale (based on profiling 2026-01-27):
+ * - Pattern matching: 30s for 5000+ patterns × 2000+ char texts
+ * - Proper nouns: 10s for trie lookups (O(k), fast even for 100K+ entries)
+ * - Numbers: 5s for WASM-accelerated processing (<100 candidates typical)
+ * - Phrases: 20s for sequential matching (1000+ phrases common)
+ * - Characters: 60s for fallback processing (can be 1000+ remaining chars)
+ *
+ * These timeouts protect against:
+ * - Malicious/corrupted input causing infinite loops
+ * - Performance regressions (detected when timing approaches timeout)
+ * - Hanging translations on edge cases
+ *
+ * Note: Promise.race timeouts can't kill ongoing work, only stop waiting.
+ * Actual execution continues but translation gracefully degrades to next phase.
+ */
+export const PHASE_TIMEOUTS = {
+  /** Pattern matching: Handles 5000+ patterns with variables */
+  patterns: 30000, // 30 seconds
+
+  /** Proper noun lookups: Trie-based O(k) lookups */
+  properNouns: 10000, // 10 seconds
+
+  /** Number conversion: WASM-accelerated Chinese number processing */
+  numbers: 5000, // 5 seconds
+
+  /** Phrase matching: Sequential dictionary lookups */
+  phrases: 20000, // 20 seconds
+
+  /** Character fallback: Last resort for all remaining tokens */
+  characters: 60000, // 60 seconds (2x patterns due to volume)
+};

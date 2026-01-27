@@ -8,41 +8,66 @@
  * Extraction Date: January 5, 2026
  * Reason: Pure function with zero dependencies - safe for extraction and testing
  *
- * Priority Calculation Formula:
+ * Priority Calculation Formula (CURRENT - Updated 2026-01-16):
+ * ═══════════════════════════════════════════════════════════════════
+ * priority = (variables × 8) + (length × 3) + (literal-first ? 5 : 0) - (lowPriority ? 12 : 0)
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * Components:
  * - Base priority: 0
  * - Variables: +8 per variable (more variables = more specific pattern)
- * - Length: +3 per token (longer patterns = more context, increased from +1)
+ * - Length: +3 per token (longer patterns = more context)
  * - Literal-first: +5 if pattern starts with literal (more efficient matching)
- * - Low priority flag: -12 (allows same-length patterns to compete)
+ * - Low priority flag: -12 penalty (allows same-length patterns to compete)
  *
- * PRIORITY FIX (2026-01-16):
- * Increased length weight from +1 to +3, reduced variable weight from +10 to +8.
- * Why: Longer patterns provide more context and should be prioritized over shorter
- * patterns with more variables. Prevents generic short patterns from overriding
- * specific long patterns.
+ * Weight Rationale (PRIORITY FIX 2026-01-16):
+ * - Variable weight: REDUCED from +10 to +8
+ * - Length weight: INCREASED from +1 to +3
+ * - Why: Longer patterns provide more context and should be prioritized over shorter
+ *   patterns with more variables. Prevents generic short patterns from overriding
+ *   specific long patterns.
  *
- * HIGH FIX (Code Review 2026-01-27):
- * IMPORTANT: The Rust implementation (matcher.rs:find_best_pattern_match) uses
- * LENGTH-FIRST selection, overriding this calculated priority. Pattern selection
- * algorithm: (1) Prefer longer matches, (2) Use calculated priority as tiebreaker.
- * This is intentional - match length indicates better context coverage.
- * JavaScript implementations should follow the same length-first approach.
+ * CRITICAL - LENGTH-FIRST Selection (Code Review 2026-01-27):
+ * ═══════════════════════════════════════════════════════════════════
+ * Both Rust (matcher.rs:find_best_pattern_match) and JavaScript
+ * (TranslationEngine.js:resolveGlobalConflicts) use LENGTH-FIRST selection:
+ *
+ * Selection Algorithm:
+ * 1. FIRST: Prefer longer matches (better context coverage)
+ * 2. TIEBREAKER: Use calculated priority when lengths are equal
+ *
+ * This is intentional - match length prevents substring collisions
+ * (e.g., "mà" matching inside "màu trắng"). Priority calculation
+ * only matters for same-length pattern competition.
+ * ═══════════════════════════════════════════════════════════════════
  *
  * Example Priority Calculations:
+ * ═══════════════════════════════════════════════════════════════════
  *
- * 1. Pattern "在XY中" (2 variables, 3 tokens):
- *    - Variables: 2 * 8 = 16
- *    - Length: 3 * 3 = 9
- *    - Literal-first: No (starts with variable)
- *    - Total: 16 + 9 = 25 (becomes 13 with lowPriority flag)
+ * Example 1: Pattern "在XY中" (2 variables, 3 tokens)
+ * ───────────────────────────────────────────────────────────────────
+ * - Variables: 2 × 8 = 16
+ * - Length: 3 × 3 = 9
+ * - Literal-first: 0 (starts with literal "在", but formula checks token type)
+ * - Total: 16 + 9 = 25
+ * - With lowPriority flag: 25 - 12 = 13
  *
- * 2. Pattern "在X眼中" (1 variable, 3 tokens):
- *    - Variables: 1 * 8 = 8
- *    - Length: 3 * 3 = 9
- *    - Literal-first: Yes (starts with "在")
- *    - Total: 8 + 9 + 5 = 22
+ * Example 2: Pattern "在X眼中" (1 variable, 3 tokens, literal-first)
+ * ───────────────────────────────────────────────────────────────────
+ * - Variables: 1 × 8 = 8
+ * - Length: 3 × 3 = 9
+ * - Literal-first: +5 (first token is literal "在")
+ * - Total: 8 + 9 + 5 = 22
  *
- * With lowPriority=true on first pattern, pattern 2 wins (22 > 13).
+ * Competition Result:
+ * ───────────────────────────────────────────────────────────────────
+ * With lowPriority=true on "在XY中", specific pattern "在X眼中" wins:
+ * - "在XY中" (lowPriority): 13
+ * - "在X眼中": 22
+ * Winner: "在X眼中" (22 > 13) ✓
+ *
+ * NOTE: Both patterns have same length (3 tokens), so priority is tiebreaker.
+ * If lengths differed, longer pattern would win regardless of priority.
  *
  * Usage:
  *
@@ -97,16 +122,48 @@
  * // Result: 5 (10 variables + 2 length + 5 literal-first - 12 low priority penalty)
  */
 export function calculatePatternPriority(tokens, variables, lowPriority = false) {
-  // MEDIUM FIX: Validate inputs to prevent integer overflow
+  // MEDIUM-2 FIX: Comprehensive input validation
   const MAX_SAFE_COUNT = 100; // Reasonable limit for pattern complexity
+  const VALID_TOKEN_TYPES = ['literal', 'variable'];
 
+  // Validate tokens array
   if (!Array.isArray(tokens)) {
-    console.warn('⚠️ Invalid tokens array, using default priority 0');
+    console.warn('⚠️ Invalid tokens array (not an Array), using default priority 0');
     return 0;
   }
 
+  // Validate variables array
   if (!Array.isArray(variables)) {
-    console.warn('⚠️ Invalid variables array, using default priority 0');
+    console.warn('⚠️ Invalid variables array (not an Array), using default priority 0');
+    return 0;
+  }
+
+  // MEDIUM-2 FIX: Validate token structure (required properties, valid types)
+  const hasInvalidTokens = tokens.some((token, index) => {
+    // Check token exists and is an object
+    if (!token || typeof token !== 'object') {
+      console.warn(`⚠️ Token ${index} is missing or not an object, using default priority 0`);
+      return true;
+    }
+
+    // Check token has required 'type' property
+    if (!token.type) {
+      console.warn(`⚠️ Token ${index} missing 'type' property, using default priority 0`);
+      return true;
+    }
+
+    // Check token type is valid
+    if (!VALID_TOKEN_TYPES.includes(token.type)) {
+      console.warn(
+        `⚠️ Token ${index} has invalid type '${token.type}' (expected 'literal' or 'variable'), using default priority 0`
+      );
+      return true;
+    }
+
+    return false;
+  });
+
+  if (hasInvalidTokens) {
     return 0;
   }
 

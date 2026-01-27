@@ -164,6 +164,7 @@ import {
   WASM_NUMBER_THRESHOLDS,
   POSITION_TRACKING, // CODE REVIEW FIX (LOW-3)
   getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
+  PHASE_TIMEOUTS, // LOW-2 FIX: Import phase timeouts from constants
 } from '../constants/TranslationConstants.js';
 
 /**
@@ -318,6 +319,10 @@ export class TranslationEngine {
     // CRITICAL-2 FIX: Track pattern processor warning to show only once
     this.showedPatternWarning = false;
 
+    // HIGH-2 FIX: Track pattern failures with time-based reset
+    this.patternFailureCount = 0;
+    this.lastPatternSuccessTime = null;
+
     // CRITICAL-3 FIX: Track pattern processing failures for auto-disable
     this.patternFailureCount = 0;
   }
@@ -418,11 +423,11 @@ export class TranslationEngine {
         if (navigatorMemory >= 2) return 15000; // 2-4GB RAM
         return 8000; // <2GB RAM
       }
-    } catch (_error) {
+    } catch (error) {
       this.log(
         DEBUG_LEVELS.WARN,
         '⚠️ Device memory detection failed, using conservative limits:',
-        _error
+        error
       );
     }
 
@@ -1004,8 +1009,8 @@ export class TranslationEngine {
               `🔥 Cache pre-warmed: ${cacheStats.charactersWarmed} characters + ${cacheStats.phrasesWarmed} phrases in ${cacheStats.timeMs}ms`
             );
           }
-        } catch (_error) {
-          this.log(DEBUG_LEVELS.WARN, '⚠️ Cache pre-warming failed:', _error.message);
+        } catch (error) {
+          this.log(DEBUG_LEVELS.WARN, '⚠️ Cache pre-warming failed:', error.message);
         }
       }
 
@@ -2046,8 +2051,8 @@ export class TranslationEngine {
         DEBUG_LEVELS.DEBUG,
         `✅ Phrase processing completed (patterns were processed in Phase 1)`
       );
-    } catch (_error) {
-      this.log(DEBUG_LEVELS.ERROR, '🚨 Phrase processing failed, falling back to legacy:', _error);
+    } catch (error) {
+      this.log(DEBUG_LEVELS.ERROR, '🚨 Phrase processing failed, falling back to legacy:', error);
 
       // Phase 3B.2: Check legacy system flags for pattern processing removal
       const legacyStatus = getLegacySystemStatus();
@@ -2067,12 +2072,17 @@ export class TranslationEngine {
         DEBUG_LEVELS.ERROR,
         '🚨 CRITICAL: Legacy pattern processing was removed but two-phase patterns failed'
       );
-      throw _error;
+      throw error;
     }
   }
 
   /**
    * Global conflict resolution using longest-match-first with smart prioritization
+   *
+   * CRITICAL: This must match Rust implementation (matcher.rs:find_best_pattern_match)
+   * Both use LENGTH-FIRST selection: (1) Prefer longer matches, (2) Use calculated priority as tiebreaker
+   * Match length indicates better context coverage and prevents substring collisions
+   *
    * @param {Array} allMatches - All potential matches from all positions
    * @param {Token[]} tokens - Array of tokens
    * @returns {Array} Non-overlapping optimal matches
@@ -2084,8 +2094,9 @@ export class TranslationEngine {
     );
 
     // Sort by priority: longest matches first, then by type priority
+    // CRITICAL: LENGTH-FIRST sorting matches Rust implementation (matcher.rs)
     allMatches.sort((a, b) => {
-      // Primary: Length (longer matches win)
+      // Primary: Length (longer matches win) - prevents substring collisions
       if (a.length !== b.length) {
         return b.length - a.length;
       }
@@ -2199,17 +2210,27 @@ export class TranslationEngine {
           );
         }
 
-        // LOW-12 FIX: Conditional deep copy to avoid overhead for immutable objects
-        // Only copy if objects exist (avoid creating empty Maps/Arrays unnecessarily)
-        const enhancedOptions = {
-          ...options,
-          // Only deep copy if the object exists (reduce allocation overhead)
-          ...(options.lookupIndex && { lookupIndex: new Map(options.lookupIndex) }),
-          ...(options.segments && { segments: [...options.segments] }),
-          activeProperNouns: this.activeProperNouns,
-          dictionaryManager: this.dictionaryManager,
-          debugLevel: this.debugLevel,
-        };
+        // MEDIUM-4 FIX: Only create new object when deep copy is actually needed
+        // Check if deep copy is required for lookupIndex or segments
+        const needsDeepCopy = options.lookupIndex || options.segments;
+
+        const enhancedOptions = needsDeepCopy
+          ? {
+              ...options,
+              // Deep copy mutable collections to prevent external modifications
+              ...(options.lookupIndex && { lookupIndex: new Map(options.lookupIndex) }),
+              ...(options.segments && { segments: [...options.segments] }),
+              activeProperNouns: this.activeProperNouns,
+              dictionaryManager: this.dictionaryManager,
+              debugLevel: this.debugLevel,
+            }
+          : {
+              // Simple spread when no deep copy needed (reduces allocation overhead)
+              ...options,
+              activeProperNouns: this.activeProperNouns,
+              dictionaryManager: this.dictionaryManager,
+              debugLevel: this.debugLevel,
+            };
 
         const hierarchicalResults = await this.twoPhaseProcessor.processTokens(
           tokens,
@@ -2222,6 +2243,15 @@ export class TranslationEngine {
           DEBUG_LEVELS.DEBUG,
           `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
         );
+
+        // HIGH-2 FIX: Reset failure counter on successful pattern processing
+        if (this.patternFailureCount > 0) {
+          logger.log(
+            `✅ Pattern processing recovered after ${this.patternFailureCount} previous failure(s)`
+          );
+          this.patternFailureCount = 0;
+          this.lastPatternSuccessTime = Date.now();
+        }
 
         // CRITICAL FIX: Detect and report ACTUAL pattern processing failures
         // IMPORTANT: Zero results ≠ Failure
@@ -2256,7 +2286,7 @@ export class TranslationEngine {
           // Record failure for diagnostics and performance monitoring
           if (
             typeof systemPerformanceMonitor !== 'undefined' &&
-            systemPerformanceMonitor.recordAlert
+            typeof systemPerformanceMonitor.recordAlert === 'function'
           ) {
             systemPerformanceMonitor.recordAlert('pattern_processing_failure', errorContext);
           }
@@ -2277,16 +2307,27 @@ export class TranslationEngine {
       );
 
       // Process tokens using unified semantic approach with prioritized patterns
-      // LOW-12 FIX: Conditional deep copy to avoid overhead for immutable objects
-      this.semanticPatternProcessor.processTokens(tokens, {
-        debugLevel: this.debugLevel,
-        prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-        semanticArrayBuilder: this.semanticArrayBuilder,
-        ...options,
-        // Only deep copy if the object exists (reduce allocation overhead)
-        ...(options.lookupIndex && { lookupIndex: new Map(options.lookupIndex) }),
-        ...(options.segments && { segments: [...options.segments] }),
-      });
+      // MEDIUM-4 FIX: Only create new object when deep copy is actually needed
+      const needsDeepCopy = options.lookupIndex || options.segments;
+
+      this.semanticPatternProcessor.processTokens(
+        tokens,
+        needsDeepCopy
+          ? {
+              ...options,
+              lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
+              segments: options.segments ? [...options.segments] : undefined,
+              debugLevel: this.debugLevel,
+              prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
+              semanticArrayBuilder: this.semanticArrayBuilder,
+            }
+          : {
+              ...options,
+              debugLevel: this.debugLevel,
+              prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
+              semanticArrayBuilder: this.semanticArrayBuilder,
+            }
+      );
 
       this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
     } catch (error) {
@@ -2294,21 +2335,36 @@ export class TranslationEngine {
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
 
-      // CRITICAL-3 FIX: Track failure count and auto-disable after threshold
+      // HIGH-2 FIX: Track failure count with time-based reset
       this.patternFailureCount++;
+      const timeSinceLastSuccess = this.lastPatternSuccessTime
+        ? Date.now() - this.lastPatternSuccessTime
+        : Infinity;
+      const FAILURE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
-      if (this.patternFailureCount >= 3) {
-        // Permanent disable after 3 failures to prevent repeated errors
+      // Only permanently disable after 3 CONSECUTIVE failures within 5 minutes
+      // This prevents transient errors from causing permanent disable
+      if (this.patternFailureCount >= 3 && timeSinceLastSuccess < FAILURE_WINDOW_MS) {
+        // Permanent disable after 3 consecutive failures
         this.settings.enableTwoPhasePatterns = false;
         toast.error(
           'Pattern matching permanently disabled due to repeated failures. Please reload dictionaries or restart the app.',
           { duration: 10000 }
         );
         logger.error(
-          `🚨 Pattern processing permanently disabled after ${this.patternFailureCount} failures`
+          `🚨 Pattern processing permanently disabled after ${this.patternFailureCount} consecutive failures within ${FAILURE_WINDOW_MS / 60000} minutes`
         );
-      } else if (!this.showedPatternWarning) {
-        // Show warning for first failure
+      } else if (this.patternFailureCount >= 3 && timeSinceLastSuccess >= FAILURE_WINDOW_MS) {
+        // Reset counter if failures are not consecutive (>5 min since last success)
+        logger.warn(
+          `⚠️ Resetting pattern failure counter (${this.patternFailureCount} failures but ${(timeSinceLastSuccess / 60000).toFixed(1)} min since last success)`
+        );
+        this.patternFailureCount = 1; // Reset to 1 (current failure)
+        this.showedPatternWarning = false; // Allow new warning
+      }
+
+      // Show warning for failures (with attempt counter)
+      if (this.settings.enableTwoPhasePatterns && !this.showedPatternWarning) {
         toast.warning(
           `Pattern matching failed (attempt ${this.patternFailureCount}/3). Translation quality may be reduced. Try reloading dictionaries.`,
           { duration: 8000 }
@@ -2317,7 +2373,10 @@ export class TranslationEngine {
       }
 
       // Record failure for diagnostics
-      if (typeof systemPerformanceMonitor !== 'undefined' && systemPerformanceMonitor.recordAlert) {
+      if (
+        typeof systemPerformanceMonitor !== 'undefined' &&
+        typeof systemPerformanceMonitor.recordAlert === 'function'
+      ) {
         systemPerformanceMonitor.recordAlert('pattern_processing_error', {
           error: error.message,
           timestamp: Date.now(),
@@ -2880,12 +2939,12 @@ export class TranslationEngine {
               break; // Pattern applied, move to next semantic token
             }
           }
-        } catch (_error) {
+        } catch (error) {
           // Pattern failed, continue with next pattern
           this.log(
             DEBUG_LEVELS.VERBOSE,
             `🚨 Pattern "${pattern.originalPattern}" failed:`,
-            _error.message
+            error.message
           );
         }
       }
@@ -3076,12 +3135,8 @@ export class TranslationEngine {
       if (result && !result.includes('X') && result !== matchText) {
         return result;
       }
-    } catch (_error) {
-      this.log(
-        DEBUG_LEVELS.VERBOSE,
-        `🚨 Error getting single pattern replacement:`,
-        _error.message
-      );
+    } catch (error) {
+      this.log(DEBUG_LEVELS.VERBOSE, `🚨 Error getting single pattern replacement:`, error.message);
     }
     return null;
   }
@@ -6230,9 +6285,9 @@ export class TranslationEngine {
       );
 
       return result;
-    } catch (_error) {
-      this.log(DEBUG_LEVELS.ERROR, `🚨 Translation error:`, _error);
-      throw _error;
+    } catch (error) {
+      this.log(DEBUG_LEVELS.ERROR, `🚨 Translation error:`, error);
+      throw error;
     } finally {
       // CRITICAL FIX: Restore original semantic builder after isolated processing
       if (options.isolatedSemanticBuilder) {
@@ -6299,15 +6354,8 @@ export class TranslationEngine {
     };
 
     // CODE REVIEW FIX (HIGH-1): Phase timeout protection
+    // LOW-2 FIX: Use PHASE_TIMEOUTS from constants instead of local definition
     // Timeout helper to prevent hanging on malicious/large inputs
-    const PHASE_TIMEOUTS = {
-      patterns: 30000, // 30s for pattern matching
-      properNouns: 10000, // 10s for proper noun lookup
-      numbers: 5000, // 5s for number conversion
-      phrases: 20000, // 20s for phrase matching
-      characters: 60000, // 60s for character fallback
-    };
-
     const withTimeout = (promise, timeoutMs, phaseName) => {
       return Promise.race([
         promise,
@@ -6343,20 +6391,43 @@ export class TranslationEngine {
           'patterns'
         );
         completedPhases.add('patterns');
-        // Record profiling metrics
-        await this.profiler.recordPhaseCompletion('patterns');
+        // Record profiling metrics (if profiler has this method)
+        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
+          await this.profiler.recordPhaseCompletion('patterns');
+        }
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('patterns', error.message);
         // MEDIUM-8 FIX: Standardize error logging with logger.error
         logger.error('🚨 Phase 1 (Patterns) failed:', error);
-        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+
+        // HIGH-3 FIX: Validate token array structure and throw on corruption
         if (tokens.length !== tokensLengthBeforePhase1) {
-          logger.error(
-            `⚠️ Phase 1 corrupted token array: ${tokensLengthBeforePhase1} → ${tokens.length} tokens`
-          );
-          // Cannot rollback, but warn user about potential incorrect results
+          const errorMsg = `Phase 1 corrupted token array: ${tokensLengthBeforePhase1} → ${tokens.length} tokens`;
+          logger.error(`⚠️ ${errorMsg}`);
+
+          // Notify user with actionable recovery steps
+          toast.error('Translation engine encountered a critical error. Please reload the page.', {
+            duration: 15000,
+          });
+
+          // Record corruption event for diagnostics
+          if (
+            typeof systemPerformanceMonitor !== 'undefined' &&
+            typeof systemPerformanceMonitor.recordAlert === 'function'
+          ) {
+            systemPerformanceMonitor.recordAlert('token_array_corruption', {
+              phase: 'patterns',
+              beforeLength: tokensLengthBeforePhase1,
+              afterLength: tokens.length,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Throw to stop execution (graceful degradation in caller)
+          throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
+
         // HIGH-6 FIX: Clear cached semantic tokens on phase failure to prevent stale cache
         this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
@@ -6378,19 +6449,40 @@ export class TranslationEngine {
           'properNouns'
         );
         completedPhases.add('properNouns');
-        // Record profiling metrics
-        await this.profiler.recordPhaseCompletion('properNouns');
+        // Record profiling metrics (if profiler has this method)
+        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
+          await this.profiler.recordPhaseCompletion('properNouns');
+        }
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('properNouns', error.message);
         // MEDIUM-8 FIX: Standardize error logging with logger.error
         logger.error('🚨 Phase 2 (Proper Nouns) failed:', error);
-        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+
+        // HIGH-3 FIX: Validate token array structure and throw on corruption
         if (tokens.length !== tokensLengthBeforePhase2) {
-          logger.error(
-            `⚠️ Phase 2 corrupted token array: ${tokensLengthBeforePhase2} → ${tokens.length} tokens`
-          );
+          const errorMsg = `Phase 2 corrupted token array: ${tokensLengthBeforePhase2} → ${tokens.length} tokens`;
+          logger.error(`⚠️ ${errorMsg}`);
+
+          toast.error('Translation engine encountered a critical error. Please reload the page.', {
+            duration: 15000,
+          });
+
+          if (
+            typeof systemPerformanceMonitor !== 'undefined' &&
+            typeof systemPerformanceMonitor.recordAlert === 'function'
+          ) {
+            systemPerformanceMonitor.recordAlert('token_array_corruption', {
+              phase: 'properNouns',
+              beforeLength: tokensLengthBeforePhase2,
+              afterLength: tokens.length,
+              timestamp: Date.now(),
+            });
+          }
+
+          throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
+
         // HIGH-6 FIX: Clear cached semantic tokens on phase failure to prevent stale cache
         this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
@@ -6629,7 +6721,10 @@ export class TranslationEngine {
 
             if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
               // Track metrics for threshold optimization
-              if (window.performanceDashboard) {
+              if (
+                window.performanceDashboard &&
+                typeof window.performanceDashboard.recordMetric === 'function'
+              ) {
                 window.performanceDashboard.recordMetric('number_processing', {
                   method,
                   candidateCount: numberCandidateCount,
@@ -6738,26 +6833,52 @@ export class TranslationEngine {
         this.fixNumberPlusLiangTranslations(tokens);
       });
 
-      // CODE REVIEW FIX (MEDIUM-1): Enhanced phase completion logging with failure reasons
-      // This helps identify which phases completed vs failed (silent failures)
+      // MEDIUM-1 FIX: Enhanced phase completion logging and monitoring
+      // Track which phases completed vs failed to identify silent failures
       const failedPhases = ['patterns', 'properNouns', 'numbers', 'phrases', 'characters'].filter(
         (phase) => !completedPhases.has(phase)
       );
+
       if (failedPhases.length > 0) {
+        // Create structured failure report
+        const failureReport = {
+          totalPhases: REQUIRED_PHASE_ORDER.length,
+          failedPhases,
+          completedPhases: Array.from(completedPhases),
+          failures: Object.fromEntries(phaseFailures),
+          timestamp: Date.now(),
+        };
+
         this.log(
           DEBUG_LEVELS.WARN,
           `⚠️ Translation completed with ${failedPhases.length} failed phase(s): ${failedPhases.join(', ')}`
         );
+
         // Log failure reasons for each failed phase
         for (const [phase, reason] of phaseFailures) {
           this.log(DEBUG_LEVELS.WARN, `  - ${phase}: ${reason}`);
         }
+
         this.log(
           DEBUG_LEVELS.DEBUG,
           `✅ Completed phases: ${Array.from(completedPhases).join(', ')}`
         );
+
+        // Send to performance monitor for tracking
+        if (
+          typeof systemPerformanceMonitor !== 'undefined' &&
+          typeof systemPerformanceMonitor.recordAlert === 'function'
+        ) {
+          systemPerformanceMonitor.recordAlert('phase_failures', failureReport);
+        }
+
+        // Store on engine instance for diagnostics API
+        this.lastPhaseFailures = failureReport;
       } else {
         this.log(DEBUG_LEVELS.DEBUG, '✅ All 5 phases completed successfully');
+
+        // Clear last failure report on successful run
+        this.lastPhaseFailures = null;
       }
 
       // CODE REVIEW FIX (CRITICAL-2): Check for semantic array corruption after all phases

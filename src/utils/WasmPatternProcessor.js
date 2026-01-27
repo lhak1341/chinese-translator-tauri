@@ -23,7 +23,9 @@ let wasmModule = null;
 let wasmPatternProcessor = null;
 let initializationPromise = null;
 let initializationFailed = false;
-let showedPatternWarning = false;
+// MEDIUM-3 FIX: Replace once-per-session with cooldown-based warnings
+let lastPatternWarningTime = 0;
+const PATTERN_WARNING_COOLDOWN = 30 * 60 * 1000; // 30 minutes
 
 /**
  * Initialize the WASM Pattern Processor
@@ -69,8 +71,8 @@ export async function initializeWasmPatternProcessor(patternsDict) {
       logger.log('✅ WASM Pattern Processor initialized successfully');
       // Note: stats is already logged by WASM side, JavaScript side just confirms success
 
-      // Reset warning flag on successful initialization
-      showedPatternWarning = false;
+      // MEDIUM-3 FIX: Reset warning time on successful initialization (allow immediate new warning)
+      lastPatternWarningTime = 0;
 
       return true;
     } catch (error) {
@@ -109,12 +111,13 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     logger.warn(`⚠️ ${errorMsg}`);
     logger.warn('Translation will continue with lower quality (no pattern matching)');
 
-    // One-time notification to prevent console spam
-    if (!showedPatternWarning) {
+    // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
+    const now = Date.now();
+    if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
       toast.warning('Pattern matching unavailable. Translation quality may be reduced.', {
         duration: TOAST_DURATION.WARNING,
       });
-      showedPatternWarning = true;
+      lastPatternWarningTime = now;
     }
 
     // MEDIUM FIX: Return structured error object instead of empty array
@@ -136,13 +139,14 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     const errorMsg = `WASM pattern processing error: ${error.message}`;
     logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
 
-    // One-time notification to prevent console spam
-    if (!showedPatternWarning) {
+    // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
+    const now = Date.now();
+    if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
       toast('Pattern matching error. Translation quality may be reduced.', {
         icon: '⚠️',
         duration: TOAST_DURATION.WARNING,
       });
-      showedPatternWarning = true;
+      lastPatternWarningTime = now;
     }
 
     // MEDIUM FIX: Return structured error object
@@ -199,7 +203,7 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
   wasmPatternProcessor = null;
   initializationPromise = null;
   initializationFailed = false;
-  showedPatternWarning = false; // Reset warning flag to allow new notifications
+  lastPatternWarningTime = 0; // MEDIUM-3 FIX: Reset warning time to allow new notifications
 
   // Re-initialize
   return initializeWasmPatternProcessor(patternsDict);
