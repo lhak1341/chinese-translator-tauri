@@ -6411,6 +6411,8 @@ export class TranslationEngine {
           this.profiler.profile('numbers', async () => {
             // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
             // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
+            // CODE REVIEW FIX (HIGH-6): Add performance monitoring
+            const numberPhaseStartTime = performance.now();
             let numberCandidateCount = 0;
             for (const token of tokens) {
               if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
@@ -6522,6 +6524,7 @@ export class TranslationEngine {
 
               // Add number conversions to semantic array for clickable highlighting
               // WASM doesn't have access to semanticArrayBuilder, so we add entries here
+              // CODE REVIEW FIX (HIGH-5): Validate span integrity BEFORE adding to semantic array
               for (let i = 0; i < tokens.length; i++) {
                 const token = tokens[i];
 
@@ -6530,54 +6533,75 @@ export class TranslationEngine {
                   // Collect original text from this token and any consumed tokens following it
                   let originalText = token.value;
                   let endIndex = i;
+                  let isValidSpan = true;
 
                   // Look ahead for consumed tokens that are part of this number
                   // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
                   // LOW-10 FIX: Use constant instead of magic number
                   const MAX_CONSUMED_SPAN = NUMBER_PROCESSING.MAX_CONSUMED_SPAN;
+
+                  // Validate span integrity BEFORE adding to semantic array
                   for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
                     if (tokens[j].translationSource === 'number_conversion_consumed') {
                       originalText += tokens[j].value;
                       endIndex = j;
+                    } else if (tokens[j].translationSource) {
+                      // Non-consumed token with source in span = corruption
+                      this.log(
+                        DEBUG_LEVELS.ERROR,
+                        `🔴 Number span corruption at token ${j}: expected consumed but got ${tokens[j].translationSource}`
+                      );
+                      isValidSpan = false;
+                      break;
                     } else {
-                      break; // Stop when we hit a non-consumed token
+                      // Natural end of span (untranslated token)
+                      break;
                     }
                   }
 
-                  // HIGH FIX: Warn if span exceeded limit (indicates wrong consumed marking)
+                  // Validate span didn't exceed maximum
                   if (endIndex - i >= MAX_CONSUMED_SPAN) {
                     this.log(
                       DEBUG_LEVELS.WARN,
-                      `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i}`
+                      `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i} (span: ${endIndex - i})`
                     );
+                    isValidSpan = false;
                   }
 
-                  // CRITICAL FIX: Validate that consumed tokens are contiguous
-                  // If we found consumed tokens (endIndex > i), verify they're all marked correctly
-                  if (endIndex > i) {
+                  // Validate contiguity: all tokens between i+1 and endIndex must be consumed
+                  if (isValidSpan && endIndex > i) {
                     for (let k = i + 1; k <= endIndex; k++) {
                       if (tokens[k].translationSource !== 'number_conversion_consumed') {
                         this.log(
                           DEBUG_LEVELS.ERROR,
-                          `⚠️ Number span integrity violation: token ${k} should be consumed but has source: ${tokens[k].translationSource}`
+                          `🔴 Number span integrity violation: gap at token ${k} (expected consumed, got ${tokens[k].translationSource})`
                         );
+                        isValidSpan = false;
+                        break;
                       }
                     }
                   }
 
-                  // Add to semantic array
-                  // NOTE: We use only the first token's index (i) even for multi-token numbers
-                  // because the semantic array represents one logical unit (the entire number).
-                  // The originalText contains the combined text from all tokens (i to endIndex).
-                  // This is correct - position tracking works because postProcess only processes
-                  // the first token (others are skipped due to translationSource=consumed).
-                  const globalTokenIndex = i + (options.chunkOffset || 0);
-                  this.semanticArrayBuilder.addUnit(
-                    originalText,
-                    token.translated,
-                    'numbers',
-                    globalTokenIndex
-                  );
+                  // Only add to semantic array if span is valid
+                  if (isValidSpan) {
+                    // NOTE: We use only the first token's index (i) even for multi-token numbers
+                    // because the semantic array represents one logical unit (the entire number).
+                    // The originalText contains the combined text from all tokens (i to endIndex).
+                    // This is correct - position tracking works because postProcess only processes
+                    // the first token (others are skipped due to translationSource=consumed).
+                    const globalTokenIndex = i + (options.chunkOffset || 0);
+                    this.semanticArrayBuilder.addUnit(
+                      originalText,
+                      token.translated,
+                      'numbers',
+                      globalTokenIndex
+                    );
+                  } else {
+                    this.log(
+                      DEBUG_LEVELS.WARN,
+                      `⚠️ Skipping corrupted number span at token ${i}: "${originalText}" → "${token.translated}"`
+                    );
+                  }
                 }
               }
             } catch (error) {
@@ -6593,6 +6617,35 @@ export class TranslationEngine {
                 ...options,
               });
             }
+
+            // CODE REVIEW FIX (HIGH-6): Record performance metrics for WASM vs JS optimization
+            const numberPhaseDuration = performance.now() - numberPhaseStartTime;
+            const method =
+              numberCandidateCount === 0
+                ? 'skipped'
+                : numberCandidateCount < WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM
+                  ? 'javascript'
+                  : 'wasm';
+
+            if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+              // Track metrics for threshold optimization
+              if (window.performanceDashboard) {
+                window.performanceDashboard.recordMetric('number_processing', {
+                  method,
+                  candidateCount: numberCandidateCount,
+                  duration: numberPhaseDuration,
+                  tokensProcessed: tokens.length,
+                  timestamp: Date.now(),
+                });
+              }
+
+              // Log for manual analysis
+              this.log(
+                DEBUG_LEVELS.DEBUG,
+                `⏱️  Number processing: ${method} method, ${numberCandidateCount} candidates, ${numberPhaseDuration.toFixed(2)}ms`
+              );
+            }
+
             // Mark phase as completed (whether WASM succeeded or JS fallback was used)
             completedPhases.add('numbers');
           }),

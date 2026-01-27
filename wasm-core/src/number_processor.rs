@@ -49,137 +49,196 @@ pub struct NumberProcessor {
     number_map: HashMap<char, u32>,
 }
 
-// Static patterns (compiled once)
+// ============================================================================
+// PARSING REGEX (LAZY_STATIC TO PREVENT MEMORY LEAKS)
+// ============================================================================
+// CODE REVIEW FIX (CRITICAL-3): Move regex out of parse_chinese_number loop
+// Prevents O(n) regex allocations during recursive parsing
 lazy_static! {
-    static ref PATTERNS: Vec<ConversionPattern> = vec![
-        // Four-digit years: 一九四五年 → năm 1945
-        ConversionPattern {
-            name: "fourDigitYear",
-            regex: Regex::new(r"^([一二两三四五六七八九零])([一二两三四五六七八九零])([一二两三四五六七八九零])([一二两三四五六七八九零])年$").unwrap(),
-            converter: NumberProcessor::convert_four_digit_year,
-            description: "Four-digit years like 一九四五年 (năm 1945)",
-        },
+    // Parsing patterns (used in recursive parse_chinese_number)
+    static ref THOUSANDS_RE: Regex =
+        Regex::new(r"([一二两三四五六七八九])千(.*)").expect("Failed to compile THOUSANDS_RE");
+    static ref HUNDREDS_ZERO_RE: Regex =
+        Regex::new(r"([一二两三四五六七八九])百零([一二两三四五六七八九])").expect("Failed to compile HUNDREDS_ZERO_RE");
+    static ref HUNDREDS_RE: Regex =
+        Regex::new(r"([一二两三四五六七八九])百(.*)").expect("Failed to compile HUNDREDS_RE");
+    static ref ZERO_TENS_RE: Regex =
+        Regex::new(r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$").expect("Failed to compile ZERO_TENS_RE");
+    static ref TENS_RE: Regex =
+        Regex::new(r"([一二两三四五六七八九])十([一二三四五六七八九])?").expect("Failed to compile TENS_RE");
+    static ref IMPLICIT_TENS_PARSE_RE: Regex =
+        Regex::new(r"^十([一二三四五六七八九])$").expect("Failed to compile IMPLICIT_TENS_PARSE_RE");
+}
 
-        // Thousand ten-thousand: 五千万 → 5,000 vạn
-        ConversionPattern {
-            name: "thousandTenThousand",
-            regex: Regex::new(r"^([一二两三四五六七八九])千万$").unwrap(),
-            converter: NumberProcessor::convert_thousand_ten_thousand,
-            description: "Large numbers like 五千万 (5,000 vạn)",
-        },
+// ============================================================================
+// CONVERSION PATTERNS (WITH VALIDATION)
+// ============================================================================
+// CODE REVIEW FIX (CRITICAL-2): Add validation and error handling for regex compilation
+lazy_static! {
+    static ref PATTERNS: Vec<ConversionPattern> = create_conversion_patterns();
+}
 
-        // Thousands: 三千七百 → 3,700
-        ConversionPattern {
-            name: "thousands",
-            regex: Regex::new(r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$").unwrap(),
-            converter: NumberProcessor::convert_thousands,
-            description: "Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015)",
-        },
+/// Create conversion patterns with validation
+/// Returns empty vec if any pattern fails to compile (graceful degradation)
+fn create_conversion_patterns() -> Vec<ConversionPattern> {
+    let mut patterns = Vec::new();
 
-        // Percentage range: 百分之五六十 → 50-60%
-        ConversionPattern {
-            name: "percentageRange",
-            regex: Regex::new(r"^百分之([一二两三四五六七八九])([一二两三四五六七八九])十$").unwrap(),
-            converter: NumberProcessor::convert_percentage_range,
-            description: "Percentage ranges like 百分之五六十 (50-60%)",
-        },
+    // Helper macro to add pattern with error handling
+    macro_rules! add_pattern {
+        ($name:expr, $regex:expr, $converter:expr, $desc:expr) => {
+            match Regex::new($regex) {
+                Ok(regex) => {
+                    patterns.push(ConversionPattern {
+                        name: $name,
+                        regex,
+                        converter: $converter,
+                        description: $desc,
+                    });
+                }
+                Err(e) => {
+                    web_sys::console::error_1(&format!(
+                        "❌ Failed to compile {} regex: {}. Pattern disabled.",
+                        $name, e
+                    ).into());
+                }
+            }
+        };
+    }
 
-        // Percentage: 百分之三十 → 30%, 百分之十五 → 15%
-        ConversionPattern {
-            name: "percentage",
-            regex: Regex::new(r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)$").unwrap(),
-            converter: NumberProcessor::convert_percentage,
-            description: "Percentages like 百分之三十 (30%), 百分之十五 (15%)",
-        },
+    // Four-digit years: 一九四五年 → năm 1945
+    add_pattern!(
+        "fourDigitYear",
+        r"^([一二两三四五六七八九零])([一二两三四五六七八九零])([一二两三四五六七八九零])([一二两三四五六七八九零])年$",
+        NumberProcessor::convert_four_digit_year,
+        "Four-digit years like 一九四五年 (năm 1945)"
+    );
 
-        // Ten thousand range: 七八万 → 7-8 vạn
-        ConversionPattern {
-            name: "tenThousandRange",
-            regex: Regex::new(r"^([一二两三四五六七八九])([一二两三四五六七八九])万$").unwrap(),
-            converter: NumberProcessor::convert_ten_thousand_range,
-            description: "Ten thousand ranges like 七八万 (7-8 vạn)",
-        },
+    // Thousand ten-thousand: 五千万 → 5,000 vạn
+    add_pattern!(
+        "thousandTenThousand",
+        r"^([一二两三四五六七八九])千万$",
+        NumberProcessor::convert_thousand_ten_thousand,
+        "Large numbers like 五千万 (5,000 vạn)"
+    );
 
-        // Thousand range: 七八千 → 7-8 ngàn
-        ConversionPattern {
-            name: "thousandRange",
-            regex: Regex::new(r"^([一二两三四五六七八九])([一二两三四五六七八九])千$").unwrap(),
-            converter: NumberProcessor::convert_thousand_range,
-            description: "Thousand ranges like 七八千 (7-8 ngàn)",
-        },
+    // Thousands: 三千七百 → 3,700
+    add_pattern!(
+        "thousands",
+        r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$",
+        NumberProcessor::convert_thousands,
+        "Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015). Handles implicit tens patterns."
+    );
 
-        // Hundreds range: 四五百 → 400-500
-        ConversionPattern {
-            name: "hundredsRange",
-            regex: Regex::new(r"^([一二两三四五六七八九])([一二两三四五六七八九])百$").unwrap(),
-            converter: NumberProcessor::convert_hundreds_range,
-            description: "Hundreds ranges like 四五百 (400-500)",
-        },
+    // Percentage range: 百分之五六十 → 50-60%
+    add_pattern!(
+        "percentageRange",
+        r"^百分之([一二两三四五六七八九])([一二两三四五六七八九])十$",
+        NumberProcessor::convert_percentage_range,
+        "Percentage ranges like 百分之五六十 (50-60%)"
+    );
 
-        // Hundreds plus tens range: 一百五六十 → 150-160
-        ConversionPattern {
-            name: "hundredsPlusTensRange",
-            regex: Regex::new(r"^([一二两三四五六七八九])百([一二两三四五六七八九])([一二两三四五六七八九])十$").unwrap(),
-            converter: NumberProcessor::convert_hundreds_plus_tens_range,
-            description: "Hundreds plus tens ranges like 一百五六十 (150-160)",
-        },
+    // Percentage: 百分之三十 → 30%, 百分之十五 → 15%
+    add_pattern!(
+        "percentage",
+        r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)$",
+        NumberProcessor::convert_percentage,
+        "Percentages like 百分之三十 (30%), 百分之十五 (15%)"
+    );
 
-        // Number range: 五六十 → 50-60
-        ConversionPattern {
-            name: "numberRange",
-            regex: Regex::new(r"^([一二两三四五六七八九])([一二两三四五六七八九])十$").unwrap(),
-            converter: NumberProcessor::convert_number_range,
-            description: "Number ranges like 五六十 (50-60)",
-        },
+    // Ten thousand range: 七八万 → 7-8 vạn
+    add_pattern!(
+        "tenThousandRange",
+        r"^([一二两三四五六七八九])([一二两三四五六七八九])万$",
+        NumberProcessor::convert_ten_thousand_range,
+        "Ten thousand ranges like 七八万 (7-8 vạn)"
+    );
 
-        // Teen age range: 十六七 → 16-17
-        ConversionPattern {
-            name: "teenAgeRange",
-            regex: Regex::new(r"^十([一二两三四五六七八九])([一二两三四五六七八九])$").unwrap(),
-            converter: NumberProcessor::convert_teen_age_range,
-            description: "Teen age ranges like 十六七 (16-17)",
-        },
+    // Thousand range: 七八千 → 7-8 ngàn
+    add_pattern!(
+        "thousandRange",
+        r"^([一二两三四五六七八九])([一二两三四五六七八九])千$",
+        NumberProcessor::convert_thousand_range,
+        "Thousand ranges like 七八千 (7-8 ngàn)"
+    );
 
-        // Tens-based range: 二十八九 → 28-29
-        ConversionPattern {
-            name: "tensBasedRange",
-            regex: Regex::new(r"^([二三四五六七八九])十([一二两三四五六七八九])([一二两三四五六七八九])$").unwrap(),
-            converter: NumberProcessor::convert_tens_based_range,
-            description: "Tens-based age ranges like 二十八九 (28-29)",
-        },
+    // Hundreds range: 四五百 → 400-500
+    add_pattern!(
+        "hundredsRange",
+        r"^([一二两三四五六七八九])([一二两三四五六七八九])百$",
+        NumberProcessor::convert_hundreds_range,
+        "Hundreds ranges like 四五百 (400-500)"
+    );
 
-        // Hundreds with zero: 两百零六 → 206
-        ConversionPattern {
-            name: "hundredsWithZero",
-            regex: Regex::new(r"^([一二两三四五六七八九])百零([一二两三四五六七八九])$").unwrap(),
-            converter: NumberProcessor::convert_hundreds_with_zero,
-            description: "Hundreds with zero like 两百零六 (206)",
-        },
+    // Hundreds plus tens range: 一百五六十 → 150-160
+    add_pattern!(
+        "hundredsPlusTensRange",
+        r"^([一二两三四五六七八九])百([一二两三四五六七八九])([一二两三四五六七八九])十$",
+        NumberProcessor::convert_hundreds_plus_tens_range,
+        "Hundreds plus tens ranges like 一百五六十 (150-160)"
+    );
 
-        // Hundreds: 三百五十 → 350
-        ConversionPattern {
-            name: "hundreds",
-            regex: Regex::new(r"^([一二两三四五六七八九])百([一二两三四五六七八九]十[一二两三四五六七八九]?|[一二两三四五六七八九]十|十[一二两三四五六七八九]|[一二三四五六七八九])?$").unwrap(),
-            converter: NumberProcessor::convert_hundreds,
-            description: "Hundreds like 三百五十 (350)",
-        },
+    // Number range: 五六十 → 50-60
+    add_pattern!(
+        "numberRange",
+        r"^([一二两三四五六七八九])([一二两三四五六七八九])十$",
+        NumberProcessor::convert_number_range,
+        "Number ranges like 五六十 (50-60)"
+    );
 
-        // Tens plus units: 三十五 → 35
-        ConversionPattern {
-            name: "tensPlusUnits",
-            regex: Regex::new(r"^([一二两三四五六七八九])十([一二三四五六七八九])?$").unwrap(),
-            converter: NumberProcessor::convert_tens_plus_units,
-            description: "Two-digit numbers like 三十五 (35)",
-        },
+    // Teen age range: 十六七 → 16-17
+    add_pattern!(
+        "teenAgeRange",
+        r"^十([一二两三四五六七八九])([一二两三四五六七八九])$",
+        NumberProcessor::convert_teen_age_range,
+        "Teen age ranges like 十六七 (16-17)"
+    );
 
-        // Implicit tens: 十七 → 17
-        ConversionPattern {
-            name: "implicitTens",
-            regex: Regex::new(r"^十([一二两三四五六七八九])$").unwrap(),
-            converter: NumberProcessor::convert_implicit_tens,
-            description: "Numbers like 十七 (17) where tens digit is implicit",
-        },
-    ];
+    // Tens-based range: 二十八九 → 28-29
+    add_pattern!(
+        "tensBasedRange",
+        r"^([二三四五六七八九])十([一二两三四五六七八九])([一二两三四五六七八九])$",
+        NumberProcessor::convert_tens_based_range,
+        "Tens-based age ranges like 二十八九 (28-29)"
+    );
+
+    // Hundreds with zero: 两百零六 → 206
+    add_pattern!(
+        "hundredsWithZero",
+        r"^([一二两三四五六七八九])百零([一二两三四五六七八九])$",
+        NumberProcessor::convert_hundreds_with_zero,
+        "Hundreds with zero like 两百零六 (206)"
+    );
+
+    // Hundreds: 三百五十 → 350
+    add_pattern!(
+        "hundreds",
+        r"^([一二两三四五六七八九])百([一二两三四五六七八九]十[一二两三四五六七八九]?|[一二两三四五六七八九]十|十[一二两三四五六七八九]|[一二三四五六七八九])?$",
+        NumberProcessor::convert_hundreds,
+        "Hundreds like 三百五十 (350)"
+    );
+
+    // Tens plus units: 三十五 → 35
+    add_pattern!(
+        "tensPlusUnits",
+        r"^([一二两三四五六七八九])十([一二三四五六七八九])?$",
+        NumberProcessor::convert_tens_plus_units,
+        "Two-digit numbers like 三十五 (35)"
+    );
+
+    // Implicit tens: 十七 → 17
+    add_pattern!(
+        "implicitTens",
+        r"^十([一二两三四五六七八九])$",
+        NumberProcessor::convert_implicit_tens,
+        "Numbers like 十七 (17) where tens digit is implicit"
+    );
+
+    web_sys::console::log_1(&format!(
+        "🔢 Initialized {} number conversion patterns",
+        patterns.len()
+    ).into());
+
+    patterns
 }
 
 #[wasm_bindgen]
@@ -332,6 +391,7 @@ impl NumberProcessor {
     }
 
     /// Parse complex Chinese number string
+    /// CODE REVIEW FIX (CRITICAL-3): Now uses lazy_static regex to prevent memory leaks
     fn parse_chinese_number(&self, text: &str) -> Option<u32> {
         if text.is_empty() {
             return Some(0);
@@ -339,8 +399,7 @@ impl NumberProcessor {
 
         // Handle thousands (e.g., 三千七百 = 3700)
         if text.contains('千') {
-            let re = Regex::new(r"([一二两三四五六七八九])千(.*)").unwrap();
-            if let Some(caps) = re.captures(text) {
+            if let Some(caps) = THOUSANDS_RE.captures(text) {
                 let thousands_char = caps.get(1)?.as_str().chars().next()?;
                 let thousands_value = self.get_number(thousands_char)? * 1000;
                 let remainder = caps.get(2)?.as_str();
@@ -355,8 +414,7 @@ impl NumberProcessor {
 
         // Handle hundreds with zero (e.g., 两百零六 = 206)
         if text.contains("百零") {
-            let re = Regex::new(r"([一二两三四五六七八九])百零([一二两三四五六七八九])").unwrap();
-            if let Some(caps) = re.captures(text) {
+            if let Some(caps) = HUNDREDS_ZERO_RE.captures(text) {
                 let hundreds_char = caps.get(1)?.as_str().chars().next()?;
                 let units_char = caps.get(2)?.as_str().chars().next()?;
                 return Some(self.get_number(hundreds_char)? * 100 + self.get_number(units_char)?);
@@ -365,8 +423,7 @@ impl NumberProcessor {
 
         // Handle hundreds (e.g., 三百五十 = 350)
         if text.contains('百') {
-            let re = Regex::new(r"([一二两三四五六七八九])百(.*)").unwrap();
-            if let Some(caps) = re.captures(text) {
+            if let Some(caps) = HUNDREDS_RE.captures(text) {
                 let hundreds_char = caps.get(1)?.as_str().chars().next()?;
                 let hundreds_value = self.get_number(hundreds_char)? * 100;
                 let remainder = caps.get(2)?.as_str();
@@ -381,8 +438,7 @@ impl NumberProcessor {
 
         // Handle zero + tens patterns (e.g., 零十五 = 15, 零二十四 = 24)
         if text.contains('零') && text.contains('十') {
-            let re = Regex::new(r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$").unwrap();
-            if let Some(caps) = re.captures(text) {
+            if let Some(caps) = ZERO_TENS_RE.captures(text) {
                 let tens_value = caps.get(1)
                     .and_then(|m| m.as_str().chars().next())
                     .and_then(|ch| self.get_number(ch))
@@ -399,8 +455,7 @@ impl NumberProcessor {
         // Handle tens (e.g., 三十五 = 35)
         if text.contains('十') {
             // Pattern: X十Y
-            let re = Regex::new(r"([一二两三四五六七八九])十([一二三四五六七八九])?").unwrap();
-            if let Some(caps) = re.captures(text) {
+            if let Some(caps) = TENS_RE.captures(text) {
                 let tens_char = caps.get(1)?.as_str().chars().next()?;
                 let tens_value = self.get_number(tens_char)? * 10;
                 let units_value = caps.get(2)
@@ -411,8 +466,7 @@ impl NumberProcessor {
             }
 
             // Pattern: 十Y (implicit ten, e.g., 十七 = 17)
-            let re2 = Regex::new(r"^十([一二三四五六七八九])$").unwrap();
-            if let Some(caps) = re2.captures(text) {
+            if let Some(caps) = IMPLICIT_TENS_PARSE_RE.captures(text) {
                 let units_char = caps.get(1)?.as_str().chars().next()?;
                 return Some(10 + self.get_number(units_char)?);
             }
@@ -591,5 +645,47 @@ impl NumberProcessor {
         if groups.is_empty() { return None; }
         let units = self.get_number(groups[0].chars().next()?)?;
         Some(format!("{}", 10 + units))
+    }
+}
+
+// ============================================================================
+// TESTS (CODE REVIEW FIX - CRITICAL-1)
+// ============================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_regex_patterns_compile() {
+        // Validate all patterns compiled successfully
+        assert!(!PATTERNS.is_empty(), "No patterns loaded - all regex compilation failed");
+
+        // Should have all 15 patterns
+        assert_eq!(PATTERNS.len(), 15, "Expected 15 patterns, got {}", PATTERNS.len());
+    }
+
+    #[test]
+    fn test_parsing_regex_compile() {
+        // Validate parsing regex compiled successfully
+        assert!(THOUSANDS_RE.is_match("三千"));
+        assert!(HUNDREDS_RE.is_match("三百"));
+        assert!(TENS_RE.is_match("三十"));
+    }
+
+    #[test]
+    fn test_simple_number_conversion() {
+        let processor = NumberProcessor::new();
+
+        // Test parse_chinese_number
+        assert_eq!(processor.parse_chinese_number("三十五"), Some(35));
+        assert_eq!(processor.parse_chinese_number("十七"), Some(17));
+        assert_eq!(processor.parse_chinese_number("三百"), Some(300));
+    }
+
+    #[test]
+    fn test_comma_formatting() {
+        assert_eq!(NumberProcessor::format_with_commas(1000), "1,000");
+        assert_eq!(NumberProcessor::format_with_commas(1000000), "1,000,000");
+        assert_eq!(NumberProcessor::format_with_commas(35), "35");
     }
 }

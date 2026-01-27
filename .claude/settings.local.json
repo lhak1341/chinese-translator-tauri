@@ -8,7 +8,10 @@
       "Bash(npx:*)",
       "Bash(npm outdated:*)",
       "Bash(done)",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Bash(pushd:*)",
+      "Bash(cargo check:*)",
+      "Bash(popd:*)"
     ],
     "deny": [],
     "ask": []

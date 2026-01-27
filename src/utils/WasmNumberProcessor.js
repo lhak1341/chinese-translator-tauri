@@ -75,6 +75,44 @@ export async function initializeWasmNumberProcessor() {
  * @param {Array} tokens - Array of token objects
  * @returns {Promise<Array>} Processed tokens
  */
+/**
+ * Categorize WASM error types for better diagnostics
+ * CODE REVIEW FIX (HIGH-4): Improve error handling with categorization
+ */
+function categorizeWasmError(error) {
+  const message = error.message || String(error);
+
+  if (message.includes('validation') || message.includes('undefined')) {
+    return {
+      type: 'validation',
+      userMessage: 'Number data validation failed',
+      shouldReport: true, // Report to error tracking
+    };
+  }
+
+  if (message.includes('serialization') || message.includes('parse') || message.includes('JSON')) {
+    return {
+      type: 'serialization',
+      userMessage: 'Number data format error',
+      shouldReport: true,
+    };
+  }
+
+  if (message.includes('WASM') || message.includes('memory')) {
+    return {
+      type: 'wasm_runtime',
+      userMessage: 'Number processor runtime error',
+      shouldReport: true,
+    };
+  }
+
+  return {
+    type: 'unknown',
+    userMessage: 'Number processing error',
+    shouldReport: true,
+  };
+}
+
 export async function processNumbersWasm(tokens) {
   // Ensure WASM is initialized
   if (!wasmNumberProcessor) {
@@ -102,11 +140,22 @@ export async function processNumbersWasm(tokens) {
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (error) {
-    logger.error('❌ Error in WASM number processing:', error);
+    // CODE REVIEW FIX (HIGH-4): Categorize errors for better debugging
+    const errorInfo = categorizeWasmError(error);
 
-    // One-time notification for processing errors
+    logger.error(`❌ WASM number processing ${errorInfo.type} error:`, error);
+
+    // Report to error tracking if needed (Sentry, etc.)
+    if (errorInfo.shouldReport && typeof window !== 'undefined' && window.errorTracker) {
+      window.errorTracker.captureException(error, {
+        tags: { component: 'wasm_number_processor', error_type: errorInfo.type },
+      });
+    }
+
+    // One-time notification for processing errors with specific message
     if (!showedNumberWarning) {
-      toast.warning('Number processing error. Numbers will translate character-by-character.', {
+      const detailedMessage = `${errorInfo.userMessage}. Numbers will translate character-by-character.`;
+      toast.warning(detailedMessage, {
         duration: TOAST_DURATIONS.LOAD_FAILURE,
         id: TOAST_IDS.WASM_NUMBER_FALLBACK,
       });
