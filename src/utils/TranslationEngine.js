@@ -6340,6 +6340,16 @@ export class TranslationEngine {
     let lastPhaseIndex = -1;
     const phaseFailures = new Map(); // Track failure reasons for MEDIUM-1
 
+    // CODE REVIEW 2026-01-27: Phase priority mapping (for validation)
+    // Lower numbers = higher priority (earlier phases override later phases)
+    const PHASE_PRIORITIES = {
+      patterns: 1,
+      properNouns: 2,
+      numbers: 3,
+      phrases: 4,
+      characters: 5,
+    };
+
     const validatePhaseOrder = (phaseName) => {
       const currentIndex = REQUIRED_PHASE_ORDER.indexOf(phaseName);
       if (currentIndex === -1) {
@@ -6354,8 +6364,7 @@ export class TranslationEngine {
     };
 
     // CODE REVIEW FIX (HIGH-1): Phase timeout protection
-    // LOW-2 FIX: Use PHASE_TIMEOUTS from constants instead of local definition
-    // Timeout helper to prevent hanging on malicious/large inputs
+    // Timeout values defined in TranslationConstants.js with rationale
     const withTimeout = (promise, timeoutMs, phaseName) => {
       return Promise.race([
         promise,
@@ -6366,6 +6375,77 @@ export class TranslationEngine {
           )
         ),
       ]);
+    };
+
+    // CODE REVIEW FIX (CRITICAL-3): Consumed token contract validation
+    // Ensures phases correctly mark consumed tokens with { translated: null, translationSource: "X_consumed" }
+    const validateConsumedTokenContract = (phaseName) => {
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        if (token.translationSource && token.translationSource.includes('consumed')) {
+          // Consumed tokens MUST have translated=null (not undefined!)
+          if (token.translated !== null) {
+            logger.error(
+              `🚨 ${phaseName} consumed token contract violation at token ${i}: ` +
+                `translated="${token.translated}" (expected null), ` +
+                `source="${token.translationSource}"`
+            );
+            // Force correct state to prevent "undefined" appearing in output
+            token.translated = null;
+          }
+        }
+      }
+    };
+
+    // CODE REVIEW FIX (HIGH-2): Phase priority validation
+    // Ensures lower-priority phases don't override higher-priority translations
+    const validatePhasePriority = (currentPhase, currentPriority) => {
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        if (token.translationSource && token.translated !== null) {
+          // Get priority of the phase that set this translation
+          const sourcePriority = PHASE_PRIORITIES[token.translationSource] || 999;
+
+          // Current phase should NOT have lower priority (higher number) than source
+          if (currentPriority > sourcePriority) {
+            logger.error(
+              `🚨 Phase priority violation: ${currentPhase} (priority ${currentPriority}) ` +
+                `attempted to override ${token.translationSource} (priority ${sourcePriority}) ` +
+                `at token ${i}: "${token.value}"`
+            );
+          }
+        }
+      }
+    };
+
+    // CODE REVIEW FIX (HIGH-3): Semantic array corruption checking
+    // Check after each phase to identify which phase caused corruption
+    const checkSemanticArrayCorruption = (phaseName) => {
+      if (this.semanticArrayBuilder.isCorrupted) {
+        const telemetry = this.semanticArrayBuilder.getCorruptionTelemetry();
+        logger.error(`🚨 Semantic array corruption detected in ${phaseName} phase`, {
+          totalCorruptions: telemetry.totalCorruptions,
+          lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
+        });
+
+        // Notify user about degraded translation quality
+        toast.error(
+          `Translation quality degraded (${phaseName} phase). Try reloading dictionaries.`,
+          { duration: 10000 }
+        );
+
+        // Record alert for monitoring
+        if (
+          typeof systemPerformanceMonitor !== 'undefined' &&
+          typeof systemPerformanceMonitor.recordAlert === 'function'
+        ) {
+          systemPerformanceMonitor.recordAlert('semantic_array_corruption', {
+            phase: phaseName,
+            telemetry,
+            timestamp: Date.now(),
+          });
+        }
+      }
     };
 
     // NOTE (LOW-16): Timeout protection NOW IMPLEMENTED (CODE REVIEW FIX)
@@ -6395,6 +6475,11 @@ export class TranslationEngine {
         if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
           await this.profiler.recordPhaseCompletion('patterns');
         }
+
+        // CODE REVIEW FIX 2026-01-27: Post-phase validation
+        validateConsumedTokenContract('patterns');
+        validatePhasePriority('patterns', PHASE_PRIORITIES.patterns);
+        checkSemanticArrayCorruption('patterns');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('patterns', error.message);
@@ -6453,6 +6538,11 @@ export class TranslationEngine {
         if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
           await this.profiler.recordPhaseCompletion('properNouns');
         }
+
+        // CODE REVIEW FIX 2026-01-27: Post-phase validation
+        validateConsumedTokenContract('properNouns');
+        validatePhasePriority('properNouns', PHASE_PRIORITIES.properNouns);
+        checkSemanticArrayCorruption('properNouns');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('properNouns', error.message);
@@ -6490,13 +6580,17 @@ export class TranslationEngine {
 
       // OPTIMIZATION: Cache semantic tokens after proper noun grouping completes
       // This avoids redundant O(N) filtering in subsequent phases (5-10% overhead reduction)
-      // CODE REVIEW FIX (HIGH-2): Validate cache before use
+      // NOTE (CODE REVIEW 2026-01-27): This cache is primarily used by phrase processing (Phase 4).
+      // It may become stale if Phase 3 (numbers) consumes additional tokens, but that's acceptable
+      // because number processing doesn't need semantic token filtering. If phases 4-5 notice
+      // issues, they should clear this cache: this.cachedSemanticTokens = null;
       this.cachedSemanticTokens = this.getCachedSemanticTokens(tokens);
 
       // Phase 3: Apply number conversion globally (before phrases to prevent fragmentation)
       // Numbers should be processed before phrases to preserve number sequences like "六十五"
       // This prevents phrase-level matches from breaking up number tokens
-      // CODE REVIEW FIX: Add validation and timeout
+      // CODE REVIEW FIX 2026-01-27: Add token count snapshot for corruption detection
+      const tokensLengthBeforePhase3 = tokens.length;
       try {
         validatePhaseOrder('numbers');
         await withTimeout(
@@ -6559,6 +6653,15 @@ export class TranslationEngine {
               `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
             );
             try {
+              // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Track pre-WASM consumed tokens
+              // Ensure WASM doesn't overwrite tokens consumed by earlier phases (patterns, proper nouns)
+              const preWasmConsumedIndices = new Set();
+              for (let i = 0; i < tokens.length; i++) {
+                if (tokens[i].translationSource) {
+                  preWasmConsumedIndices.add(i);
+                }
+              }
+
               const processedTokens = await processNumbersWasm(tokens);
 
               // CODE REVIEW FIX (CRITICAL-3): Detect concurrent modification during validation
@@ -6604,6 +6707,24 @@ export class TranslationEngine {
                 throw new Error(
                   `Token array modified during validation - concurrent modification detected (${originalTokensLength} → ${tokens.length})`
                 );
+              }
+
+              // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Validate WASM didn't overwrite consumed tokens
+              // Check that all previously consumed tokens still have their translationSource
+              for (const idx of preWasmConsumedIndices) {
+                if (!processedTokens[idx].translationSource) {
+                  logger.error(
+                    `🚨 WASM violated phase priority: cleared consumed token at index ${idx}. ` +
+                      `Original source: ${tokens[idx].translationSource}`
+                  );
+
+                  // Restore original translationSource to preserve phase priority
+                  processedTokens[idx].translationSource = tokens[idx].translationSource;
+                  // Also restore translated state if it was consumed
+                  if (tokens[idx].translated === null) {
+                    processedTokens[idx].translated = null;
+                  }
+                }
               }
 
               // Only copy AFTER validation passes (prevents partial corruption)
@@ -6747,11 +6868,51 @@ export class TranslationEngine {
           PHASE_TIMEOUTS.numbers,
           'numbers'
         );
+
+        // CODE REVIEW FIX 2026-01-27: Post-phase validation for Phase 3
+        // Record profiling metrics (standardize with Phases 1-2)
+        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
+          await this.profiler.recordPhaseCompletion('numbers');
+        }
+
+        validateConsumedTokenContract('numbers');
+        validatePhasePriority('numbers', PHASE_PRIORITIES.numbers);
+        checkSemanticArrayCorruption('numbers');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('numbers', error.message);
-        // LOW FIX: Standardize error handling for Phase 3 (was missing outer try-catch)
         logger.error('🚨 Phase 3 (Numbers) failed:', error);
+
+        // CODE REVIEW FIX 2026-01-27 (CRITICAL-2): Add token corruption validation
+        // Phase 3 was missing this check - now matches Phases 1-2 behavior
+        if (tokens.length !== tokensLengthBeforePhase3) {
+          const errorMsg = `Phase 3 corrupted token array: ${tokensLengthBeforePhase3} → ${tokens.length} tokens`;
+          logger.error(`⚠️ ${errorMsg}`);
+
+          // Notify user with actionable recovery steps
+          toast.error('Translation engine encountered a critical error. Please reload the page.', {
+            duration: 15000,
+          });
+
+          // Record corruption event for diagnostics
+          if (
+            typeof systemPerformanceMonitor !== 'undefined' &&
+            typeof systemPerformanceMonitor.recordAlert === 'function'
+          ) {
+            systemPerformanceMonitor.recordAlert('token_array_corruption', {
+              phase: 'numbers',
+              beforeLength: tokensLengthBeforePhase3,
+              afterLength: tokens.length,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Throw to stop execution (graceful degradation in caller)
+          throw new Error(`Token array corruption detected: ${errorMsg}`);
+        }
+
+        // Clear cached semantic tokens on phase failure to prevent stale cache
+        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
@@ -6769,16 +6930,51 @@ export class TranslationEngine {
           'phrases'
         );
         completedPhases.add('phrases');
+
+        // CODE REVIEW FIX 2026-01-27: Post-phase validation for Phase 4
+        // Record profiling metrics (standardize with Phases 1-3)
+        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
+          await this.profiler.recordPhaseCompletion('phrases');
+        }
+
+        validateConsumedTokenContract('phrases');
+        validatePhasePriority('phrases', PHASE_PRIORITIES.phrases);
+        checkSemanticArrayCorruption('phrases');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('phrases', error.message);
         logger.error('🚨 Phase 4 (Phrases) failed:', error);
-        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+
+        // CODE REVIEW FIX 2026-01-27 (CRITICAL-2): Restore throwing behavior for token corruption
+        // Was downgraded to warning - now restored to match Phases 1-3
         if (tokens.length !== tokensLengthBeforePhase4) {
-          logger.error(
-            `⚠️ Phase 4 corrupted token array: ${tokensLengthBeforePhase4} → ${tokens.length} tokens`
-          );
+          const errorMsg = `Phase 4 corrupted token array: ${tokensLengthBeforePhase4} → ${tokens.length} tokens`;
+          logger.error(`⚠️ ${errorMsg}`);
+
+          // Notify user with actionable recovery steps
+          toast.error('Translation engine encountered a critical error. Please reload the page.', {
+            duration: 15000,
+          });
+
+          // Record corruption event for diagnostics
+          if (
+            typeof systemPerformanceMonitor !== 'undefined' &&
+            typeof systemPerformanceMonitor.recordAlert === 'function'
+          ) {
+            systemPerformanceMonitor.recordAlert('token_array_corruption', {
+              phase: 'phrases',
+              beforeLength: tokensLengthBeforePhase4,
+              afterLength: tokens.length,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Throw to stop execution (graceful degradation in caller)
+          throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
+
+        // Clear cached semantic tokens on phase failure to prevent stale cache
+        this.cachedSemanticTokens = null;
         // Continue to next phase (graceful degradation)
       }
 
@@ -6815,16 +7011,51 @@ export class TranslationEngine {
           'characters'
         );
         completedPhases.add('characters');
+
+        // CODE REVIEW FIX 2026-01-27: Post-phase validation for Phase 5
+        // Record profiling metrics (standardize with Phases 1-4)
+        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
+          await this.profiler.recordPhaseCompletion('characters');
+        }
+
+        validateConsumedTokenContract('characters');
+        validatePhasePriority('characters', PHASE_PRIORITIES.characters);
+        checkSemanticArrayCorruption('characters');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('characters', error.message);
         logger.error('🚨 Phase 5 (Characters) failed:', error);
-        // HIGH FIX: Validate token array structure wasn't corrupted by partial failure
+
+        // CODE REVIEW FIX 2026-01-27 (CRITICAL-2): Restore throwing behavior for token corruption
+        // Was downgraded to warning - now restored to match Phases 1-4
         if (tokens.length !== tokensLengthBeforePhase5) {
-          logger.error(
-            `⚠️ Phase 5 corrupted token array: ${tokensLengthBeforePhase5} → ${tokens.length} tokens`
-          );
+          const errorMsg = `Phase 5 corrupted token array: ${tokensLengthBeforePhase5} → ${tokens.length} tokens`;
+          logger.error(`⚠️ ${errorMsg}`);
+
+          // Notify user with actionable recovery steps
+          toast.error('Translation engine encountered a critical error. Please reload the page.', {
+            duration: 15000,
+          });
+
+          // Record corruption event for diagnostics
+          if (
+            typeof systemPerformanceMonitor !== 'undefined' &&
+            typeof systemPerformanceMonitor.recordAlert === 'function'
+          ) {
+            systemPerformanceMonitor.recordAlert('token_array_corruption', {
+              phase: 'characters',
+              beforeLength: tokensLengthBeforePhase5,
+              afterLength: tokens.length,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Throw to stop execution (graceful degradation in caller)
+          throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
+
+        // Clear cached semantic tokens on phase failure to prevent stale cache
+        this.cachedSemanticTokens = null;
         // Continue to postProcess (graceful degradation)
       }
 
@@ -6881,24 +7112,30 @@ export class TranslationEngine {
         this.lastPhaseFailures = null;
       }
 
-      // CODE REVIEW FIX (CRITICAL-2): Check for semantic array corruption after all phases
-      // If corruption detected, we can't provide clickable highlighting
+      // CODE REVIEW FIX 2026-01-27: Final semantic array corruption check
+      // Note: Per-phase checking (added above) now identifies which phase caused corruption.
+      // This final check catches any corruption that occurred during postProcess or cleanup.
       if (this.semanticArrayBuilder.isCorrupted) {
         const telemetry = this.semanticArrayBuilder.getCorruptionTelemetry();
-        logger.error('🚨 Semantic array corruption detected after translation', {
-          totalCorruptions: telemetry.totalCorruptions,
-          lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
-        });
+        logger.error(
+          '🚨 Semantic array corruption detected after all phases (may be in postProcess)',
+          {
+            totalCorruptions: telemetry.totalCorruptions,
+            lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
+          }
+        );
 
-        // Note: User notification via toast would require import from react-hot-toast
-        // which is not available in this utility file. The notification should be
-        // handled at the UI layer (Translator.jsx) by checking builder.isCorrupted
-        // after translation completes.
+        // Toast notification already shown by per-phase check if corruption occurred during phases
+        // This catch is for postProcess corruption only
+        const lastPhaseCheck = telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1];
+        if (!lastPhaseCheck || !lastPhaseCheck.phase) {
+          toast.error('Translation quality degraded (postProcess). Try reloading dictionaries.', {
+            duration: 10000,
+          });
+        }
 
         // Log telemetry for production monitoring
         if (process.env.NODE_ENV === 'production') {
-          // In production, we would send this to analytics/monitoring service
-          // For now, we log it for debugging
           logger.warn('📊 Semantic array corruption telemetry:', telemetry);
         }
       }
