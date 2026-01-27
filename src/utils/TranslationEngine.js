@@ -5617,11 +5617,13 @@ export class TranslationEngine {
       // CODE REVIEW FIX (LOW-3): Use constant instead of magic number
       const MAX_TRACKING_POSITIONS = POSITION_TRACKING.MAX_TRACKING_POSITIONS;
 
+      // CODE REVIEW FIX (HIGH-3): Normalize output once before loop for efficiency
+      // NFC normalization ensures composed form (base + diacritic = single character)
+      // This handles cases where input might have decomposed form (NFD)
+      const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
+
       for (const candidate of candidateWords) {
-        // CODE REVIEW FIX (HIGH-3): Use NFC normalization for diacritic-aware matching
-        // Vietnamese diacritics can create ambiguous matches without normalization
-        // Example: "hoà" (harmony) vs "hòa" (peace) - different meanings, same base
-        const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
+        // Normalize candidate for consistent matching with normalized output
         const normalizedCandidate = candidate.translated.normalize('NFC').toLowerCase();
 
         let position = -1;
@@ -5632,12 +5634,11 @@ export class TranslationEngine {
           position = normalizedOutput.indexOf(normalizedCandidate, searchStart);
           if (position >= 0) {
             // Check if this position overlaps with any used position
+            // CRITICAL: Use normalized length since position is from normalized search
+            const candidateEnd = position + normalizedCandidate.length;
             let overlaps = false;
             for (const usedPos of usedPositions) {
-              if (
-                position < usedPos.end &&
-                position + candidate.translated.length > usedPos.start
-              ) {
+              if (position < usedPos.end && candidateEnd > usedPos.start) {
                 overlaps = true;
                 break;
               }
@@ -5651,27 +5652,16 @@ export class TranslationEngine {
               });
               usedPositions.add({
                 start: position,
-                end: position + candidate.translated.length,
+                end: candidateEnd,
               });
 
-              // CODE REVIEW FIX (HIGH-4): Bounded position tracking with LRU eviction
-              // CODE REVIEW FIX (LOW-3): Use constant for eviction percentage
-              if (usedPositions.size > MAX_TRACKING_POSITIONS) {
-                const evictCount = Math.floor(
-                  MAX_TRACKING_POSITIONS * POSITION_TRACKING.EVICTION_PERCENTAGE
-                );
-                const iterator = usedPositions.values();
-                const evicted = [];
-                for (let i = 0; i < evictCount; i++) {
-                  const old = iterator.next().value;
-                  if (old) {
-                    usedPositions.delete(old);
-                    evicted.push(old);
-                  }
-                }
+              // CODE REVIEW FIX (HIGH-4): Log warning if set grows too large (indicates performance issue)
+              // CRITICAL: Don't evict during loop - would break overlap detection and clickable highlighting
+              // Instead, warn and let it complete (correctness > performance)
+              if (usedPositions.size > MAX_TRACKING_POSITIONS && usedPositions.size % 100 === 0) {
                 this.log(
                   DEBUG_LEVELS.WARN,
-                  `⚠️ Evicted ${evicted.length} old position entries to prevent memory growth (${usedPositions.size} remaining)`
+                  `⚠️ Position tracking set large: ${usedPositions.size} positions (may impact performance for very large texts)`
                 );
               }
 
@@ -5696,12 +5686,15 @@ export class TranslationEngine {
         });
       }
 
+      // CODE REVIEW FIX (HIGH-3): Normalize output once before loop for efficiency
+      // NFC normalization ensures composed form for consistent position finding
+      const normalizedOutputForSegments = cleanedFinalResult.normalize('NFC').toLowerCase();
+
       for (let i = 0; i < outputOrder.length; i++) {
         const wordInfo = outputOrder[i];
-        // CODE REVIEW FIX (HIGH-3): Use NFC normalization for diacritic-aware matching
-        const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
+        // Normalize translated text for consistent matching
         const normalizedTranslated = wordInfo.translated.normalize('NFC').toLowerCase();
-        const position = normalizedOutput.indexOf(normalizedTranslated, currentPosition);
+        const position = normalizedOutputForSegments.indexOf(normalizedTranslated, currentPosition);
 
         if (position >= 0) {
           // Add spacing segment if there's a gap before this word
@@ -5738,15 +5731,14 @@ export class TranslationEngine {
           }
 
           // Add the word segment using the actual text from the output (preserves capitalization)
-          const actualText = cleanedFinalResult.substring(
-            position,
-            position + wordInfo.translated.length
-          );
+          // CRITICAL: Use normalized length since position is from normalized search
+          const wordLength = normalizedTranslated.length;
+          const actualText = cleanedFinalResult.substring(position, position + wordLength);
           wordSegments.push({
             type: 'semantic',
             unitIndex: wordInfo.semanticIndex, // Use the correct semantic array index
             start: position,
-            end: position + wordInfo.translated.length,
+            end: position + wordLength,
             originalText: wordInfo.original,
             translatedText: actualText, // Use actual text to preserve capitalization
             source: semanticArrays.metadata[wordInfo.semanticIndex]?.source || 'unknown',
@@ -5755,7 +5747,7 @@ export class TranslationEngine {
             text: actualText, // Use actual text to preserve capitalization
           });
 
-          currentPosition = position + wordInfo.translated.length;
+          currentPosition = position + wordLength;
         } else {
           logger.warn(`❌ Could not find "${wordInfo.translated}" in output`);
         }
