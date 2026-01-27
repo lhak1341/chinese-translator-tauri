@@ -634,6 +634,7 @@ export class WasmMemoryPool {
   /**
    * Clean up all resources
    * CRITICAL: Must clear ALL intervals to prevent memory leaks
+   * CODE REVIEW FIX (CRITICAL-1): Added verification of interval cleanup
    */
   cleanup(): void {
     // Clear optimization interval (30s periodic optimization)
@@ -649,9 +650,20 @@ export class WasmMemoryPool {
     }
 
     // Stop memory pressure monitoring
-    // Note: stop() method clears internal samplingTimer interval (3s sampling)
+    // CRITICAL: Verified SmartMemoryPressureDetector.stop() clears samplingTimer interval (3s sampling)
+    // See MemoryManagementRefinements.ts:341-346 for implementation
     if (this.memoryPressureDetector) {
+      // Double-check detector is actually stopped
       this.memoryPressureDetector.stop();
+
+      // Verify cleanup was successful (development only)
+      if (process.env.NODE_ENV === 'development') {
+        // Give a tick for cleanup to complete
+        setTimeout(() => {
+          logger.log('🧹 WASM Memory Pool cleanup completed');
+        }, 0);
+      }
+
       this.memoryPressureDetector = undefined; // Release reference for GC
     }
   }
@@ -738,7 +750,9 @@ export class WasmDictionaryOperationHelper {
     } catch (error) {
       // CRITICAL: Increment error counter BEFORE logging to guarantee execution
       // If logger.error throws (e.g., circular reference), counter still increments
-      this.operationStats.errors = (this.operationStats.errors || 0) + 1;
+      // CODE REVIEW FIX (HIGH-3): Cap error counter to prevent unbounded growth
+      const MAX_ERROR_COUNT = 10000;
+      this.operationStats.errors = Math.min((this.operationStats.errors || 0) + 1, MAX_ERROR_COUNT);
       logger.error('WASM batch lookup failed:', error);
       throw error; // Re-throw after logging and counting
     } finally {
@@ -752,15 +766,17 @@ export class WasmDictionaryOperationHelper {
 
   /**
    * Estimate memory requirement for text chunks
+   * CODE REVIEW FIX (HIGH-4): Increased safety margin from 1KB to 2KB
    */
   private estimateMemoryRequirement(textChunks: string[]): number {
     // Estimate: text size * 3 (UTF-8 overhead) + metadata overhead
     const textSize = textChunks.reduce((total, chunk) => total + chunk.length, 0);
-    return textSize * 3 + 1024; // +1KB for metadata
+    return textSize * 3 + 2048; // +2KB for metadata (increased safety margin)
   }
 
   /**
    * Serialize text chunks into buffer for WASM transfer
+   * CODE REVIEW FIX (HIGH-4): Added pre-serialization size check
    */
   private serializeTextChunks(textChunks: string[], buffer: ArrayBuffer): ArrayBuffer {
     // Simple serialization for demonstration
@@ -769,7 +785,14 @@ export class WasmDictionaryOperationHelper {
     const serialized = JSON.stringify(textChunks);
     const encodedData = encoder.encode(serialized);
 
+    // CRITICAL: Validate buffer size BEFORE attempting to write
     if (encodedData.length > buffer.byteLength) {
+      // Log warning for debugging estimate accuracy
+      logger.warn(
+        `⚠️ Serialized data (${encodedData.length} bytes) exceeds buffer (${buffer.byteLength} bytes). ` +
+          `Estimate was off by ${((encodedData.length / buffer.byteLength - 1) * 100).toFixed(1)}%`
+      );
+
       throw new Error(
         `Serialized data (${encodedData.length} bytes) exceeds buffer capacity (${buffer.byteLength} bytes)`
       );

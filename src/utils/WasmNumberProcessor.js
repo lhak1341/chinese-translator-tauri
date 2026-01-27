@@ -210,8 +210,26 @@ export async function reinitializeWasmNumberProcessor() {
   return initializeWasmNumberProcessor();
 }
 
+/**
+ * Clean up WASM NumberProcessor resources
+ * CODE REVIEW FIX (MEDIUM-7): Added cleanup method for consistency
+ * @returns {void}
+ */
+export function cleanupWasmNumberProcessor() {
+  wasmNumberProcessor = null;
+  wasmModule = null;
+  initializationPromise = null;
+  initializationFailed = false;
+  showedNumberWarning = false;
+
+  logger.log('🧹 WASM NumberProcessor cleaned up');
+  // Note: No intervals to clear in this module
+}
+
 // Auto-initialize on import (non-blocking)
+// CODE REVIEW FIX (CRITICAL-2): Clear promise cache on failure to allow retry
 initializeWasmNumberProcessor().catch((err) => {
   logger.warn('Background WASM NumberProcessor initialization failed:', err);
   initializationFailed = true; // Mark initialization as failed to prevent retries
+  initializationPromise = null; // CRITICAL: Clear cache to allow manual retry
 });

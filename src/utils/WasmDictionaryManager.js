@@ -247,9 +247,20 @@ export class WasmDictionaryManager {
   /**
    * Safely parse JSON metadata with fallback to null
    * Prevents metadata corruption from crashing WASM lookups
+   * CODE REVIEW FIX (MEDIUM-6): Added size limit to prevent DoS
    */
   _safeParseMetadata(metadataString) {
     if (!metadataString) return null;
+
+    // CRITICAL: Size limit to prevent DoS from malicious large metadata
+    // 10KB is reasonable for pattern metadata (e.g., priority, variables)
+    const MAX_METADATA_SIZE = 10240; // 10KB
+    if (metadataString.length > MAX_METADATA_SIZE) {
+      logger.warn(
+        `⚠️ Metadata too large (${metadataString.length} bytes, max ${MAX_METADATA_SIZE}), using null`
+      );
+      return null;
+    }
 
     try {
       return JSON.parse(metadataString);

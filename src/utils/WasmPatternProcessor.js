@@ -102,8 +102,22 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   // Patterns enhance translation quality but aren't essential - allow basic translation to continue
 
   // Wait for in-progress initialization before degrading
+  // CODE REVIEW FIX (HIGH-5): Check initialization result
   if (initializationPromise && !wasmPatternProcessor) {
-    await initializationPromise;
+    const success = await initializationPromise;
+
+    // CRITICAL: Verify initialization actually succeeded
+    if (!success || !wasmPatternProcessor) {
+      const errorMsg = 'WASM Pattern Processor initialization failed - skipping pattern processing';
+      logger.warn(`⚠️ ${errorMsg}`);
+      logger.warn('Translation will continue with lower quality (no pattern matching)');
+
+      return {
+        success: false,
+        results: [],
+        error: errorMsg,
+      };
+    }
   }
 
   if (!wasmPatternProcessor) {
@@ -207,6 +221,22 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
 
   // Re-initialize
   return initializeWasmPatternProcessor(patternsDict);
+}
+
+/**
+ * Clean up WASM Pattern Processor resources
+ * CODE REVIEW FIX (MEDIUM-7): Added cleanup method for consistency
+ * @returns {void}
+ */
+export function cleanupWasmPatternProcessor() {
+  wasmPatternProcessor = null;
+  wasmModule = null;
+  initializationPromise = null;
+  initializationFailed = false;
+  lastPatternWarningTime = 0;
+
+  logger.log('🧹 WASM Pattern Processor cleaned up');
+  // Note: No intervals to clear in this module
 }
 
 /**
