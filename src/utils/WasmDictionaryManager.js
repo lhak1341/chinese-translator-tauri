@@ -178,6 +178,20 @@ export class WasmDictionaryManager {
           })),
         }));
 
+        // INVESTIGATION: Check if batch methods exist
+        const hasBatchMethod = typeof this.engine.load_dictionaries_batch === 'function';
+        const hasFallbackMethod =
+          typeof this.engine.load_dictionaries_batch_fallback === 'function';
+
+        logger.warn(
+          `🔍 WASM batch method investigation:\n` +
+            `  - load_dictionaries_batch exists: ${hasBatchMethod}\n` +
+            `  - load_dictionaries_batch_fallback exists: ${hasFallbackMethod}\n` +
+            `  - Available methods: ${Object.keys(this.engine)
+              .filter((k) => typeof this.engine[k] === 'function')
+              .join(', ')}`
+        );
+
         // Single WASM call for all dictionaries with memory pool optimization
         const success =
           this.engine.load_dictionaries_batch?.(batchData) ??

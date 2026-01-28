@@ -31,3 +31,28 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 // Make expect available globally
 (globalThis as any).expect = expect;
+
+// Mock localStorage for tests
+const localStorageMock = {
+  storage: new Map<string, string>(),
+  getItem(key: string) {
+    return this.storage.get(key) || null;
+  },
+  setItem(key: string, value: string) {
+    this.storage.set(key, value);
+  },
+  removeItem(key: string) {
+    this.storage.delete(key);
+  },
+  clear() {
+    this.storage.clear();
+  },
+  get length() {
+    return this.storage.size;
+  },
+  key(index: number) {
+    return Array.from(this.storage.keys())[index] || null;
+  },
+};
+
+(globalThis as any).localStorage = localStorageMock;

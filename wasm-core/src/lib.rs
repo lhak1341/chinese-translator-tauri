@@ -217,6 +217,118 @@ impl DictionaryEngine {
         Ok(true)
     }
     
+    /// Load multiple dictionaries in a single batch operation
+    ///
+    /// This method reduces serialization overhead by processing all dictionaries
+    /// in one WASM call instead of individual calls per dictionary.
+    ///
+    /// # Arguments
+    /// * `batch_data` - Array of {name: string, entries: DictionaryEntry[]}
+    ///
+    /// # Returns
+    /// * `Ok(true)` if all dictionaries loaded successfully
+    /// * `Ok(false)` if any dictionary failed to load
+    /// * `Err(JsValue)` if deserialization or critical error occurs
+    #[wasm_bindgen]
+    pub fn load_dictionaries_batch(&mut self, batch_data: JsValue) -> Result<bool, JsValue> {
+        #[derive(serde::Deserialize)]
+        struct BatchDictionary {
+            name: String,
+            entries: Vec<DictionaryEntry>,
+        }
+
+        // Parse batch data
+        let batch: Vec<BatchDictionary> = serde_wasm_bindgen::from_value(batch_data)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse batch data: {}", e)))?;
+
+        web_sys::console::log_1(&format!(
+            "🚀 Batch loading {} dictionaries with {} total entries",
+            batch.len(),
+            batch.iter().map(|d| d.entries.len()).sum::<usize>()
+        ).into());
+
+        let mut loaded_count = 0;
+        let mut failed_dictionaries = Vec::new();
+
+        // Load each dictionary sequentially
+        // Note: We do sequential loading inside the batch to maintain memory limits
+        for dict in &batch {
+            // Estimate total memory requirement
+            let estimated_size = self.estimate_dictionary_size(&dict.entries);
+
+            // Check if this dictionary would exceed memory limits
+            if self.performance_stats.memory_usage_bytes + estimated_size
+                > self.performance_stats.memory_limit_bytes
+            {
+                web_sys::console::warn_1(&format!(
+                    "⚠️ Skipping dictionary '{}' - would exceed memory limit (current: {}MB, dict: {}MB, limit: {}MB)",
+                    dict.name,
+                    self.performance_stats.memory_usage_bytes / (1024 * 1024),
+                    estimated_size / (1024 * 1024),
+                    self.performance_stats.memory_limit_bytes / (1024 * 1024)
+                ).into());
+                failed_dictionaries.push(dict.name.clone());
+                continue;
+            }
+
+            // Build trie
+            let mut trie = TrieNode::new();
+            let mut checksum = 0u64;
+
+            for entry in &dict.entries {
+                trie.insert(
+                    &entry.chinese,
+                    entry.vietnamese.clone(),
+                    entry.metadata.clone(),
+                );
+                checksum = checksum.wrapping_add(entry.chinese.len() as u64);
+                checksum = checksum.wrapping_add(entry.vietnamese.len() as u64);
+            }
+
+            let entry_count = trie.get_entry_count();
+            let version_id = js_sys::Date::now() as u64;
+
+            let version = DictionaryVersion {
+                version: version_id,
+                timestamp: version_id,
+                entry_count,
+                checksum,
+            };
+
+            let versioned_dict = VersionedDictionary {
+                trie,
+                version,
+            };
+
+            // Update tracking
+            self.performance_stats.memory_usage_bytes += estimated_size;
+            self.total_entries += entry_count;
+            self.dictionaries.insert(dict.name.clone(), versioned_dict);
+
+            loaded_count += 1;
+        }
+
+        let total_dicts = batch.len();
+        let success = loaded_count == total_dicts;
+
+        if success {
+            web_sys::console::log_1(&format!(
+                "✅ Batch loading succeeded: {}/{} dictionaries loaded",
+                loaded_count,
+                total_dicts
+            ).into());
+        } else {
+            web_sys::console::warn_1(&format!(
+                "⚠️ Batch loading partial success: {}/{} dictionaries loaded. Failed: {:?}",
+                loaded_count,
+                total_dicts,
+                failed_dictionaries
+            ).into());
+        }
+
+        Ok(success)
+    }
+
     // Helper method to estimate dictionary memory usage
     fn estimate_dictionary_size(&self, entries: &[DictionaryEntry]) -> usize {
         let mut size = 0;
