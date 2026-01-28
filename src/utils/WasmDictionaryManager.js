@@ -19,10 +19,10 @@
 
 import init, { DictionaryEngine } from '../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
-import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
+import { FallbackManager } from './FallbackManager'; // REFACTOR (2026-01-28): Centralized failure handling
 
 export class WasmDictionaryManager {
   constructor() {
@@ -40,13 +40,14 @@ export class WasmDictionaryManager {
       memoryUsage: 0,
     };
 
-    // Fallback trigger conditions
-    this.consecutiveFailures = 0;
-    this.maxFailuresBeforeFallback = 3;
-    this.fallbackMode = false;
-
-    // HIGH-4 FIX: Track if fallback warning shown
-    this.notifiedFallbackMode = false;
+    // REFACTOR (2026-01-28): Centralized failure handling via FallbackManager
+    this.fallbackHandler = new FallbackManager({
+      systemName: 'WASM Dictionary Engine',
+      maxFailures: 3,
+      toastMessage: 'Dictionary system using slower fallback mode. Performance may be reduced.',
+      toastId: TOAST_IDS.WASM_DICT_FALLBACK,
+      toastDuration: TOAST_DURATIONS.LOAD_FAILURE,
+    });
 
     // ARCHITECTURAL FIX: Track sync failures for performance dashboard
     this.syncFailureTracking = {
@@ -105,13 +106,13 @@ export class WasmDictionaryManager {
       this.operationHelper = new WasmDictionaryOperationHelper(this.memoryPool, this);
 
       this.initialized = true;
-      this.fallbackMode = false;
+      this.fallbackHandler.recordSuccess(); // Reset failure counter on successful init
 
       return true;
     } catch (error) {
       logger.error('❌ WASM initialization failed after retries:', error);
       this.initialized = false;
-      this.fallbackMode = true;
+      this.fallbackHandler.recordFailure(); // Track initialization failure
       return false;
     }
   }
@@ -126,7 +127,7 @@ export class WasmDictionaryManager {
     this.syncFailureTracking.batchAttempts++;
     this.syncFailureTracking.lastSyncAttempt = Date.now();
 
-    if (!this.initialized || this.fallbackMode) {
+    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       logger.log('🔄 Using fallback for batch loading (WASM not available)');
       this._recordSyncFailure('WASM not initialized or in fallback mode', 'batch');
       // CRITICAL FIX: Pass _skipMetrics=true to prevent double-counting
@@ -224,15 +225,12 @@ export class WasmDictionaryManager {
       }
     } catch (error) {
       logger.error('❌ Batch dictionary loading failed:', error);
-      this.consecutiveFailures++;
 
       // ARCHITECTURAL FIX: Record sync failure with reason
       this._recordSyncFailure(error.message || 'Unknown error', 'batch');
 
-      if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-        logger.log('🔄 Too many failures, switching to fallback mode');
-        this.fallbackMode = true;
-      }
+      // REFACTOR (2026-01-28): Use centralized failure handling
+      this.handleFailure();
 
       return false;
     }
@@ -245,7 +243,7 @@ export class WasmDictionaryManager {
       this.syncFailureTracking.sequentialAttempts++;
     }
 
-    if (!this.initialized || this.fallbackMode) {
+    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       logger.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
       this._recordSyncFailure(`Sequential: WASM not available for ${name}`, 'sequential');
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
@@ -263,7 +261,10 @@ export class WasmDictionaryManager {
 
       if (success) {
         logger.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
-        this.consecutiveFailures = 0; // Reset failure counter
+
+        // REFACTOR (2026-01-28): Use centralized failure tracking
+        this.fallbackHandler.recordSuccess();
+
         this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
 
         // ARCHITECTURAL FIX: Record sequential success
@@ -353,7 +354,7 @@ export class WasmDictionaryManager {
   }
 
   findMatches(dictionaryName, text, startPos = 0) {
-    if (!this.initialized || this.fallbackMode) {
+    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
 
@@ -396,7 +397,7 @@ export class WasmDictionaryManager {
   }
 
   findLongestMatch(dictionaryName, text, startPos = 0) {
-    if (!this.initialized || this.fallbackMode) {
+    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
 
@@ -434,21 +435,12 @@ export class WasmDictionaryManager {
     }
   }
 
+  /**
+   * Handle WASM operation failure
+   * REFACTOR (2026-01-28): Delegates to FallbackManager for consistent handling
+   */
   handleFailure() {
-    this.consecutiveFailures++;
-    if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-      logger.warn('🚨 WASM engine entering fallback mode after repeated failures');
-      this.fallbackMode = true;
-
-      // HIGH-4 FIX: Show one-time notification when entering fallback mode
-      if (!this.notifiedFallbackMode) {
-        toast.warning('Dictionary system using slower fallback mode. Performance may be reduced.', {
-          duration: TOAST_DURATIONS.LOAD_FAILURE,
-          id: TOAST_IDS.WASM_DICT_FALLBACK,
-        });
-        this.notifiedFallbackMode = true;
-      }
-    }
+    this.fallbackHandler.recordFailure();
   }
 
   // Performance and status methods
@@ -456,7 +448,7 @@ export class WasmDictionaryManager {
     if (!this.initialized || !this.engine) {
       return {
         initialized: false,
-        fallbackMode: this.fallbackMode,
+        fallbackMode: this.fallbackHandler.isInFallbackMode(),
         error: 'WASM engine not initialized',
       };
     }
@@ -466,32 +458,38 @@ export class WasmDictionaryManager {
       return {
         ...wasmStats,
         initialized: this.initialized,
-        fallbackMode: this.fallbackMode,
+        fallbackMode: this.fallbackHandler.isInFallbackMode(),
         consecutiveFailures: this.consecutiveFailures,
       };
     } catch (error) {
       return {
         initialized: this.initialized,
-        fallbackMode: this.fallbackMode,
+        fallbackMode: this.fallbackHandler.isInFallbackMode(),
         error: error.message,
       };
     }
   }
 
   getDictionaryCount() {
-    return this.initialized && !this.fallbackMode ? this.engine.get_dictionary_count() : 0;
+    return this.initialized && !this.fallbackHandler.isInFallbackMode()
+      ? this.engine.get_dictionary_count()
+      : 0;
   }
 
   getTotalEntries() {
-    return this.initialized && !this.fallbackMode ? this.engine.get_total_entries() : 0;
+    return this.initialized && !this.fallbackHandler.isInFallbackMode()
+      ? this.engine.get_total_entries()
+      : 0;
   }
 
   hasDictionary(name) {
-    return this.initialized && !this.fallbackMode ? this.engine.has_dictionary(name) : false;
+    return this.initialized && !this.fallbackHandler.isInFallbackMode()
+      ? this.engine.has_dictionary(name)
+      : false;
   }
 
   clearAllDictionaries() {
-    if (this.initialized && !this.fallbackMode) {
+    if (this.initialized && !this.fallbackHandler.isInFallbackMode()) {
       this.engine.clear_all_dictionaries();
     }
   }
@@ -502,7 +500,7 @@ export class WasmDictionaryManager {
   }
 
   isInFallbackMode() {
-    return this.fallbackMode;
+    return this.fallbackHandler.isInFallbackMode();
   }
 
   /**
@@ -686,7 +684,7 @@ export class WasmDictionaryManager {
       syncHistory: this.syncFailureTracking.syncHistory,
 
       // Status
-      currentStatus: this.fallbackMode
+      currentStatus: this.fallbackHandler.isInFallbackMode()
         ? 'FALLBACK_MODE'
         : this.initialized
           ? 'ACTIVE'

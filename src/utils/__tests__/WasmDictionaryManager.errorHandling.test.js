@@ -98,7 +98,7 @@ describe('WasmDictionaryManager Error Handling', () => {
       );
 
       // Assert: Fallback mode enabled
-      expect(manager.fallbackMode).toBe(true);
+      expect(manager.fallbackHandler.isInFallbackMode()).toBe(true);
     });
 
     it('should only show toast warning once', async () => {
@@ -146,22 +146,22 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.findMatches('characters', '测试', 0);
       manager.findMatches('characters', '测试', 0);
 
-      expect(manager.consecutiveFailures).toBe(2);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(2);
 
       // Action: Successful loadDictionary resets counter
       mockDictionaryEngine.load_dictionary.mockReturnValue(true);
       await manager.loadDictionary('characters', [{ chinese: '测试', vietnamese: 'test' }]);
 
-      expect(manager.consecutiveFailures).toBe(0);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(0);
 
       // Action: 2 more failures (but counter was reset, so only at 2, not 4)
       manager.findMatches('characters', '测试', 0);
       manager.findMatches('characters', '测试', 0);
 
       // Assert: Only 2 consecutive failures after reset, no toast shown yet
-      expect(manager.consecutiveFailures).toBe(2);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(2);
       expect(toast.warning).not.toHaveBeenCalled();
-      expect(manager.fallbackMode).toBe(false);
+      expect(manager.fallbackHandler.isInFallbackMode()).toBe(false);
     });
   });
 
@@ -185,7 +185,7 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.findMatches('characters', '测试', 0);
 
       // Assert: Consecutive failures tracked
-      expect(manager.consecutiveFailures).toBe(2);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(2);
     });
 
     it('should reset failure counter on successful dictionary load', async () => {
@@ -203,14 +203,14 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.findMatches('characters', '测试', 0);
       manager.findMatches('characters', '测试', 0);
 
-      expect(manager.consecutiveFailures).toBe(2);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(2);
 
       // Action: Successful load_dictionary
       mockDictionaryEngine.load_dictionary.mockReturnValue(true);
       await manager.loadDictionary('characters', [{ chinese: '测试', vietnamese: 'test' }]);
 
       // Assert: Counter reset after success
-      expect(manager.consecutiveFailures).toBe(0);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(0);
     });
 
     it('should enter fallback mode after maxFailuresBeforeFallback', async () => {
@@ -227,13 +227,13 @@ describe('WasmDictionaryManager Error Handling', () => {
       });
 
       // Action: Trigger failures up to threshold (default: 3)
-      for (let i = 0; i < manager.maxFailuresBeforeFallback; i++) {
+      for (let i = 0; i < manager.fallbackHandler.maxFailures; i++) {
         manager.findMatches('characters', '测试', 0);
       }
 
       // Assert: Fallback mode enabled after threshold
-      expect(manager.fallbackMode).toBe(true);
-      expect(manager.consecutiveFailures).toBe(manager.maxFailuresBeforeFallback);
+      expect(manager.fallbackHandler.isInFallbackMode()).toBe(true);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(manager.fallbackHandler.maxFailures);
     });
   });
 
@@ -246,7 +246,11 @@ describe('WasmDictionaryManager Error Handling', () => {
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
-      manager.fallbackMode = true;
+
+      // REFACTOR (2026-01-28): Trigger fallback mode via failure tracking
+      for (let i = 0; i < manager.fallbackHandler.maxFailures; i++) {
+        manager.fallbackHandler.recordFailure();
+      }
 
       // Action: Find matches while in fallback mode
       const results = manager.findMatches('characters', '测试', 0);
@@ -265,7 +269,11 @@ describe('WasmDictionaryManager Error Handling', () => {
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
-      manager.fallbackMode = true;
+
+      // REFACTOR (2026-01-28): Trigger fallback mode via failure tracking
+      for (let i = 0; i < manager.fallbackHandler.maxFailures; i++) {
+        manager.fallbackHandler.recordFailure();
+      }
 
       // Action: Find longest match while in fallback mode
       const result = manager.findLongestMatch('characters', '测试', 0);
@@ -280,7 +288,11 @@ describe('WasmDictionaryManager Error Handling', () => {
       await manager.initialize(null); // No fallback
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
-      manager.fallbackMode = true;
+
+      // REFACTOR (2026-01-28): Trigger fallback mode via failure tracking
+      for (let i = 0; i < manager.fallbackHandler.maxFailures; i++) {
+        manager.fallbackHandler.recordFailure();
+      }
 
       // Action: Try to find matches without fallback manager
       const results = manager.findMatches('characters', '测试', 0);
@@ -312,7 +324,7 @@ describe('WasmDictionaryManager Error Handling', () => {
 
       // Assert: Falls back to JavaScript manager
       expect(mockFallbackManager.loadDictionary).toHaveBeenCalled();
-      expect(manager.consecutiveFailures).toBe(1);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
     });
 
     it('should handle find_matches exceptions', async () => {
@@ -334,7 +346,7 @@ describe('WasmDictionaryManager Error Handling', () => {
 
       // Assert: Falls back to JavaScript manager
       expect(mockFallbackManager.findMatches).toHaveBeenCalled();
-      expect(manager.consecutiveFailures).toBe(1);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
       expect(Array.isArray(results)).toBe(true);
     });
 
@@ -357,7 +369,7 @@ describe('WasmDictionaryManager Error Handling', () => {
 
       // Assert: Falls back to JavaScript manager
       expect(mockFallbackManager.findLongestMatch).toHaveBeenCalled();
-      expect(manager.consecutiveFailures).toBe(1);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
     });
   });
 });

@@ -158,7 +158,7 @@ describe('RustLookupIndexManager Error Handling', () => {
       await manager.buildLookupIndex('测试', dictionariesMap, dictionaryOrder);
 
       // Assert: Consecutive failures tracked
-      expect(manager.consecutiveFailures).toBe(2);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(2);
       expect(manager.stats.failures).toBe(2);
     });
 
@@ -190,7 +190,7 @@ describe('RustLookupIndexManager Error Handling', () => {
       await manager.buildLookupIndex('测试', dictionariesMap, dictionaryOrder);
 
       // Assert: Counter reset after success
-      expect(manager.consecutiveFailures).toBe(0);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(0);
       expect(manager.stats.failures).toBe(2); // Total failures still counted
     });
 
@@ -204,13 +204,13 @@ describe('RustLookupIndexManager Error Handling', () => {
       const dictionaryOrder = ['characters'];
 
       // Action: Trigger failures up to threshold (default: 3)
-      for (let i = 0; i < manager.maxFailuresBeforeFallback; i++) {
+      for (let i = 0; i < manager.fallbackHandler.maxFailures; i++) {
         await manager.buildLookupIndex('测试', dictionariesMap, dictionaryOrder);
       }
 
       // Assert: Manager disabled after threshold
       expect(manager.enabled).toBe(false);
-      expect(manager.consecutiveFailures).toBe(manager.maxFailuresBeforeFallback);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(manager.fallbackHandler.maxFailures);
     });
   });
 
@@ -243,7 +243,7 @@ describe('RustLookupIndexManager Error Handling', () => {
       // Assert: Returns error result safely
       expect(result.success).toBe(false);
       expect(result.error).toContain('Tauri command not found');
-      expect(manager.consecutiveFailures).toBe(1);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
     });
   });
 

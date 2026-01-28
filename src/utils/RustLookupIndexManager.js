@@ -13,17 +13,22 @@ import tauriAPI from '../tauriAPI.js';
 import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
+import { FallbackManager } from './FallbackManager'; // REFACTOR (2026-01-28): Centralized failure handling
 
 class RustLookupIndexManager {
   constructor() {
     this.enabled = true;
     this.useParallel = true;
     this.minTextLength = 50; // Don't build index for very short texts
-    this.consecutiveFailures = 0;
-    this.maxFailuresBeforeFallback = 3;
 
-    // HIGH-2 FIX: Track if fallback warning shown
-    this.showedFallbackWarning = false;
+    // REFACTOR (2026-01-28): Centralized failure handling via FallbackManager
+    this.fallbackHandler = new FallbackManager({
+      systemName: 'Rust Lookup Index',
+      maxFailures: 3,
+      toastMessage: 'High-performance indexing unavailable. Large texts may translate slower.',
+      toastId: TOAST_IDS.RUST_INDEX_UNAVAILABLE,
+      toastDuration: TOAST_DURATIONS.LOAD_FAILURE,
+    });
 
     // CODE REVIEW FIX (HIGH-3): Track if corruption warning shown
     this.showedCorruptionWarning = false;
@@ -92,8 +97,8 @@ class RustLookupIndexManager {
         this.stats.totalPositionsIndexed += result.positionsIndexed;
         this.stats.totalMatches += result.indexSize;
 
-        // Reset failure counter
-        this.consecutiveFailures = 0;
+        // Reset failure counter on success
+        this.fallbackHandler.recordSuccess();
 
         return result;
       } else {
@@ -240,27 +245,18 @@ class RustLookupIndexManager {
 
   /**
    * Handle build failure
+   * REFACTOR (2026-01-28): Delegates to FallbackManager for consistent handling
    */
   handleFailure(error) {
-    this.consecutiveFailures++;
     this.stats.failures++;
 
-    if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-      logger.warn('🚨 Too many Rust lookup index failures, disabling Rust implementation');
-      this.enabled = false;
-
-      // HIGH-2 FIX: Show user-facing warning when entering fallback mode (first time only)
-      if (!this.showedFallbackWarning) {
-        toast.warning('High-performance indexing unavailable. Large texts may translate slower.', {
-          duration: TOAST_DURATIONS.LOAD_FAILURE,
-          id: TOAST_IDS.RUST_INDEX_UNAVAILABLE,
-        });
-        this.showedFallbackWarning = true;
-      }
+    const enteredFallback = this.fallbackHandler.recordFailure();
+    if (enteredFallback) {
+      this.enabled = false; // Disable Rust implementation
     }
 
     logger.error(
-      `Rust lookup index failure (${this.consecutiveFailures}/${this.maxFailuresBeforeFallback}):`,
+      `Rust lookup index failure (${this.fallbackHandler.getFailureCount()}/${this.fallbackHandler.maxFailures}):`,
       error
     );
   }
@@ -272,7 +268,7 @@ class RustLookupIndexManager {
     return {
       ...this.stats,
       enabled: this.enabled,
-      consecutiveFailures: this.consecutiveFailures,
+      consecutiveFailures: this.fallbackHandler.getFailureCount(),
     };
   }
 
@@ -281,7 +277,7 @@ class RustLookupIndexManager {
    */
   reset() {
     this.enabled = true;
-    this.consecutiveFailures = 0;
+    this.fallbackHandler.reset();
   }
 
   /**
@@ -298,8 +294,7 @@ class RustLookupIndexManager {
   cleanup() {
     // Reset all state
     this.enabled = true;
-    this.consecutiveFailures = 0;
-    this.showedFallbackWarning = false;
+    this.fallbackHandler.exitFallbackMode(); // Full reset including warning flag
 
     // Clear stats
     this.stats = {

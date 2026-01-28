@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatErrorMessage } from '../../utils/errorHelpers'; // REFACTOR (2026-01-28): Consistent error formatting
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark, Zap } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
 
@@ -97,7 +98,7 @@ const ConfigurationManager: React.FC = () => {
           throw new Error(result.error || 'Failed to load dictionaries');
         }
       } catch (err) {
-        setError('Failed to load dictionaries: ' + (err as Error).message);
+        setError(formatErrorMessage('Dictionary loading', err));
       } finally {
         setIsLoading(false);
       }
@@ -127,7 +128,7 @@ const ConfigurationManager: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      setError('Failed to update configuration: ' + (err as Error).message);
+      setError(formatErrorMessage('Configuration update', err));
     }
   };
 
@@ -148,7 +149,7 @@ const ConfigurationManager: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      setError('Failed to create dictionary: ' + (err as Error).message);
+      setError(formatErrorMessage('Dictionary creation', err));
     }
   };
 
@@ -168,7 +169,7 @@ const ConfigurationManager: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      setError('Failed to update WASM configuration: ' + (err as Error).message);
+      setError(formatErrorMessage('WASM configuration update', err));
     }
   };
 
@@ -187,7 +188,7 @@ const ConfigurationManager: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      setError('Failed to update memory limit: ' + (err as Error).message);
+      setError(formatErrorMessage('Memory limit update', err));
     }
   };
 
@@ -244,7 +245,7 @@ const ConfigurationManager: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      setError('Failed to rename dictionary: ' + (err as Error).message);
+      setError(formatErrorMessage('Dictionary rename', err));
     }
   };
 
@@ -267,7 +268,7 @@ const ConfigurationManager: React.FC = () => {
         throw new Error(result.error);
       }
     } catch (err) {
-      setError('Failed to set default Cmd-5 dictionary: ' + (err as Error).message);
+      setError(formatErrorMessage('Default dictionary configuration', err));
     }
   };
 

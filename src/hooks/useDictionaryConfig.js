@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
-import { validateElectronResult, validateConfiguration } from '../utils/configValidation';
+import { loadValidatedConfiguration } from '../utils/configurationHelpers'; // REFACTOR (2026-01-28): Use centralized config loading
 
 /**
  * Dictionary configuration hook
@@ -8,10 +8,15 @@ import { validateElectronResult, validateConfiguration } from '../utils/configVa
  * Manages dictionary configuration state including active proper nouns and Quick Add modal.
  * Simple configuration state with no complex dependencies.
  *
+ * REFACTOR (2026-01-28): Modal state consolidated into single object for better state management.
+ * Backward compatibility maintained via individual property exposure.
+ *
  * @returns {{
  *   activeProperNouns: string[],
+ *   modalState: { isOpen: boolean, dictionaryId: string, text: string },
  *   showQuickAdd: boolean,
  *   quickAddDictionary: string,
+ *   clipboardText: string,
  *   openQuickAddCharacter: () => void,
  *   openQuickAddPhrase: () => void,
  *   openQuickAddProperNoun: () => void,
@@ -24,49 +29,63 @@ import { validateElectronResult, validateConfiguration } from '../utils/configVa
  */
 export function useDictionaryConfig() {
   const [activeProperNouns, setActiveProperNouns] = useState(['properNouns']);
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [quickAddDictionary, setQuickAddDictionary] = useState('properNouns');
-  const [clipboardText, setClipboardText] = useState('');
+
+  // REFACTOR (2026-01-28): Consolidated modal state for better state management
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    dictionaryId: 'properNouns',
+    text: '',
+  });
+
+  /**
+   * Generic Quick Add modal opener
+   * Consolidates common logic for opening Quick Add modal for any dictionary
+   * @param {string} dictionaryId - Dictionary ID to open
+   * @param {string} text - Optional pre-populated text from clipboard
+   */
+  const openQuickAdd = useCallback((dictionaryId, text = '') => {
+    setModalState({
+      isOpen: true,
+      dictionaryId,
+      text,
+    });
+  }, []);
 
   /**
    * Open Quick Add modal for character dictionary
    * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddCharacter = useCallback((text = '') => {
-    setClipboardText(text);
-    setQuickAddDictionary('characters');
-    setShowQuickAdd(true);
-  }, []);
+  const openQuickAddCharacter = useCallback(
+    (text = '') => openQuickAdd('characters', text),
+    [openQuickAdd]
+  );
 
   /**
    * Open Quick Add modal for phrase dictionary
    * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddPhrase = useCallback((text = '') => {
-    setClipboardText(text);
-    setQuickAddDictionary('phrases');
-    setShowQuickAdd(true);
-  }, []);
+  const openQuickAddPhrase = useCallback(
+    (text = '') => openQuickAdd('phrases', text),
+    [openQuickAdd]
+  );
 
   /**
    * Open Quick Add modal for proper noun dictionary
    * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddProperNoun = useCallback((text = '') => {
-    setClipboardText(text);
-    setQuickAddDictionary('properNouns');
-    setShowQuickAdd(true);
-  }, []);
+  const openQuickAddProperNoun = useCallback(
+    (text = '') => openQuickAdd('properNouns', text),
+    [openQuickAdd]
+  );
 
   /**
    * Open Quick Add modal for pattern dictionary
    * @param {string} text - Optional pre-populated text from clipboard
    */
-  const openQuickAddPattern = useCallback((text = '') => {
-    setClipboardText(text);
-    setQuickAddDictionary('patterns');
-    setShowQuickAdd(true);
-  }, []);
+  const openQuickAddPattern = useCallback(
+    (text = '') => openQuickAdd('patterns', text),
+    [openQuickAdd]
+  );
 
   /**
    * Open Quick Add modal for custom proper noun dictionary
@@ -89,34 +108,23 @@ export function useDictionaryConfig() {
       let selectedDictionary = 'properNouns'; // Default fallback
 
       try {
-        // Load and validate configuration (SECURITY: validates untrusted file data)
-        const rawResult = await window.electronAPI.loadConfiguration();
-        const configResult = validateElectronResult(rawResult, 'loadConfiguration');
+        // REFACTOR (2026-01-28): Use centralized configuration loading utility
+        const validatedConfig = await loadValidatedConfiguration();
+        const defaultQuickAddDictionary = validatedConfig.defaultQuickAddDictionary;
 
-        if (configResult.success && configResult.data) {
-          const validatedConfig = validateConfiguration(configResult.data);
-          const defaultQuickAddDictionary = validatedConfig.defaultQuickAddDictionary;
-
-          // If there's a configured default and it's active, use it
-          if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
-            selectedDictionary = defaultQuickAddDictionary;
-          } else {
-            // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
-            const customProperNouns = activeProperNouns.filter((dict) =>
-              dict.startsWith('properNouns-')
-            );
-
-            if (customProperNouns.length > 0) {
-              // Choose the first one alphabetically if multiple are active
-              selectedDictionary = customProperNouns.sort()[0];
-            }
-          }
+        // If there's a configured default and it's active, use it
+        if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
+          selectedDictionary = defaultQuickAddDictionary;
         } else {
-          // Config load failed, use fallback
-          logger.warn(
-            `Configuration load failed: ${configResult.error || 'Unknown error'}, using fallback`
+          // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
+          const customProperNouns = activeProperNouns.filter((dict) =>
+            dict.startsWith('properNouns-')
           );
-          throw new Error(configResult.error || 'Configuration load failed');
+
+          if (customProperNouns.length > 0) {
+            // Choose the first one alphabetically if multiple are active
+            selectedDictionary = customProperNouns.sort()[0];
+          }
         }
       } catch (error) {
         logger.error('Error loading default Cmd-5 dictionary:', error);
@@ -133,21 +141,26 @@ export function useDictionaryConfig() {
         }
       }
 
-      // CRITICAL: Set ALL state together in correct order to ensure React batches them properly
-      // This guarantees clipboardText is set BEFORE the dialog renders
-      setQuickAddDictionary(selectedDictionary);
-      setClipboardText(text); // Set clipboard text AFTER determining dictionary
-      setShowQuickAdd(true); // Show dialog LAST
+      // CRITICAL: Set ALL state together in a single atomic update
+      // This guarantees all modal state is set simultaneously before render
+      setModalState({
+        isOpen: true,
+        dictionaryId: selectedDictionary,
+        text, // Set after determining dictionary
+      });
     },
     [activeProperNouns]
   );
 
   /**
-   * Close Quick Add modal and clear clipboard text
+   * Close Quick Add modal and reset state
    */
   const closeQuickAdd = useCallback(() => {
-    setShowQuickAdd(false);
-    setClipboardText(''); // Clear clipboard text when closing
+    setModalState({
+      isOpen: false,
+      dictionaryId: 'properNouns',
+      text: '',
+    });
   }, []);
 
   /**
@@ -163,14 +176,21 @@ export function useDictionaryConfig() {
    * @param {string} dictionaryId - Selected dictionary ID
    */
   const handleQuickAddDictionaryChange = useCallback((dictionaryId) => {
-    setQuickAddDictionary(dictionaryId);
+    setModalState((prev) => ({
+      ...prev,
+      dictionaryId,
+    }));
   }, []);
 
   return {
     activeProperNouns,
-    showQuickAdd,
-    quickAddDictionary,
-    clipboardText,
+    // Consolidated modal state (REFACTOR 2026-01-28)
+    modalState,
+    // Backward compatibility: expose individual properties
+    showQuickAdd: modalState.isOpen,
+    quickAddDictionary: modalState.dictionaryId,
+    clipboardText: modalState.text,
+    // Functions
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,

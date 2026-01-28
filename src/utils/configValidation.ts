@@ -10,17 +10,7 @@
  */
 
 import { logger } from './logger';
-
-/**
- * Expected configuration structure from loadConfiguration()
- */
-export interface AppConfiguration {
-  defaultQuickAddDictionary?: string;
-  theme?: 'light' | 'dark' | 'system';
-  fontSize?: number;
-  autoSave?: boolean;
-  [key: string]: unknown; // Allow additional properties
-}
+import type { AppConfiguration } from '../types/ComponentTypes';
 
 /**
  * Result structure from electronAPI operations
@@ -148,7 +138,7 @@ export function validateConfiguration(config: unknown): ValidatedConfiguration {
     theme: 'system',
     fontSize: 14,
     autoSave: true,
-    raw: cfg as AppConfiguration,
+    raw: cfg as unknown as AppConfiguration, // Cast through unknown - we store raw config even if not fully typed
   };
 
   // Validate defaultQuickAddDictionary
@@ -201,7 +191,7 @@ function getDefaultConfiguration(): ValidatedConfiguration {
     theme: 'system',
     fontSize: 14,
     autoSave: true,
-    raw: {},
+    raw: {} as AppConfiguration, // Empty object as fallback - callers should provide defaults
   };
 }
 
