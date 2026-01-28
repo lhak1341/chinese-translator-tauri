@@ -147,6 +147,7 @@ import {
   BackgroundCleanupManager,
   ComponentMemoryProfiler,
 } from './MemoryManagementRefinements.js';
+import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
 import { logger } from './logger';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
@@ -5497,7 +5498,7 @@ export class TranslationEngine {
           // ENHANCED: Clear pattern processor cache if it gets too large
           if (this.semanticPatternProcessor && this.semanticPatternProcessor.variableCache) {
             const cacheSize = this.semanticPatternProcessor.variableCache.size;
-            if (cacheSize > 500) {
+            if (cacheSize > PATTERN_PROCESSING.VARIABLE_CACHE_CLEANUP_THRESHOLD) {
               this.semanticPatternProcessor.variableCache.clear();
               this.log(DEBUG_LEVELS.INFO, `🧹 Pattern cache cleared: ${cacheSize} entries`);
             }

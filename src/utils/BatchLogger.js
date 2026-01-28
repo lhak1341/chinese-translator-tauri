@@ -11,6 +11,7 @@
  */
 
 import { getLogEntry, releaseLogEntry } from './DebugObjectPool.js';
+import { logger } from './logger.js';
 
 export class BatchLogger {
   constructor(options = {}) {
@@ -137,7 +138,7 @@ export class BatchLogger {
       VERBOSE: '🔍',
     };
 
-    console.log(`${levelEmoji[level] || '📝'} ${message}`, ...args);
+    logger.log(`${levelEmoji[level] || '📝'} ${message}`, ...args);
   }
 
   /**

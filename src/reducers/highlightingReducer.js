@@ -107,7 +107,7 @@ export function highlightingReducer(state, action) {
 
   // MEDIUM-3 FIX: Validate indices in all actions (action-specific validation)
   if (action.unitIndex !== undefined && !isValidUnitIndex(action.unitIndex, action.type)) {
-    console.warn(`Invalid unitIndex in ${action.type}:`, action.unitIndex, '- ignoring action');
+    logger.warn(`Invalid unitIndex in ${action.type}:`, action.unitIndex, '- ignoring action');
     return state; // Don't update state with invalid index
   }
 

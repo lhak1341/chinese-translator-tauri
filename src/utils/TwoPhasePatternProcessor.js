@@ -458,7 +458,7 @@ class TwoPhasePatternProcessor {
 
     logger.log('Internal Breakdown:');
     logger.log('-'.repeat(80));
-    console.table(report.breakdown);
+    logger.table(report.breakdown);
 
     logger.log('\n' + '='.repeat(80));
     logger.log('Next Steps:');

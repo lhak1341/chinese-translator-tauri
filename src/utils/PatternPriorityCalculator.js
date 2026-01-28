@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 /**
  * Pattern Priority Calculator
  *
@@ -128,13 +130,13 @@ export function calculatePatternPriority(tokens, variables, lowPriority = false)
 
   // Validate tokens array
   if (!Array.isArray(tokens)) {
-    console.warn('⚠️ Invalid tokens array (not an Array), using default priority 0');
+    logger.warn('⚠️ Invalid tokens array (not an Array), using default priority 0');
     return 0;
   }
 
   // Validate variables array
   if (!Array.isArray(variables)) {
-    console.warn('⚠️ Invalid variables array (not an Array), using default priority 0');
+    logger.warn('⚠️ Invalid variables array (not an Array), using default priority 0');
     return 0;
   }
 
@@ -142,19 +144,19 @@ export function calculatePatternPriority(tokens, variables, lowPriority = false)
   const hasInvalidTokens = tokens.some((token, index) => {
     // Check token exists and is an object
     if (!token || typeof token !== 'object') {
-      console.warn(`⚠️ Token ${index} is missing or not an object, using default priority 0`);
+      logger.warn(`⚠️ Token ${index} is missing or not an object, using default priority 0`);
       return true;
     }
 
     // Check token has required 'type' property
     if (!token.type) {
-      console.warn(`⚠️ Token ${index} missing 'type' property, using default priority 0`);
+      logger.warn(`⚠️ Token ${index} missing 'type' property, using default priority 0`);
       return true;
     }
 
     // Check token type is valid
     if (!VALID_TOKEN_TYPES.includes(token.type)) {
-      console.warn(
+      logger.warn(
         `⚠️ Token ${index} has invalid type '${token.type}' (expected 'literal' or 'variable'), using default priority 0`
       );
       return true;
@@ -173,13 +175,13 @@ export function calculatePatternPriority(tokens, variables, lowPriority = false)
   const validatedTokenCount = tokens.length > MAX_SAFE_COUNT ? MAX_SAFE_COUNT : tokens.length;
 
   if (variables.length > MAX_SAFE_COUNT) {
-    console.warn(
+    logger.warn(
       `⚠️ Excessive variables (${variables.length}) in pattern, capping at ${MAX_SAFE_COUNT}`
     );
   }
 
   if (tokens.length > MAX_SAFE_COUNT) {
-    console.warn(`⚠️ Excessive tokens (${tokens.length}) in pattern, capping at ${MAX_SAFE_COUNT}`);
+    logger.warn(`⚠️ Excessive tokens (${tokens.length}) in pattern, capping at ${MAX_SAFE_COUNT}`);
   }
 
   let priority = 0;

@@ -182,7 +182,7 @@ export function handleError<T = any>(
     case ErrorStrategy.SILENT: {
       // Silent recovery: minimal logging in development only
       if (process.env.NODE_ENV === 'development') {
-        console.debug(`ℹ️ ${operation} failed silently:`, err.message);
+        logger.debug(`ℹ️ ${operation} failed silently:`, err.message);
       }
       return fallbackValue;
     }
@@ -304,7 +304,7 @@ export async function withRetry<T = any>(
       // Don't delay after last attempt
       if (attempt < maxRetries) {
         if (process.env.NODE_ENV === 'development') {
-          console.debug(`Retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`);
+          logger.debug(`Retry attempt ${attempt + 1}/${maxRetries} after ${delayMs}ms`);
         }
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }

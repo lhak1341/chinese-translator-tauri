@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger';
+
 /**
  * Centralized performance thresholds and configuration constants
  *
@@ -336,7 +338,7 @@ export function validateThresholds(): boolean {
   }
 
   if (warnings.length > 0) {
-    console.warn('⚠️ Performance threshold validation warnings:', warnings);
+    logger.warn('⚠️ Performance threshold validation warnings:', warnings);
   }
 
   return warnings.length === 0;
