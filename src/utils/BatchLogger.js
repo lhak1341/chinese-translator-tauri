@@ -17,10 +17,11 @@ export class BatchLogger {
     this.batchSize = options.batchSize || 50;
     this.flushInterval = options.flushInterval || 1000; // ms
     this.frequencyGate = options.frequencyGate || 20; // Only log every Nth call for hot paths
+    this.maxHotPathCounters = options.maxHotPathCounters || 200; // Prevent unbounded Map growth
 
     // Batch storage
     this.logBatch = [];
-    this.hotPathCounters = new Map(); // Track call frequency for gating
+    this.hotPathCounters = new Map(); // Track call frequency for gating (bounded to maxHotPathCounters)
 
     // Performance tracking
     this.stats = {
@@ -94,6 +95,16 @@ export class BatchLogger {
   logHotPath(hotPathKey, level, message, ...args) {
     if (process.env.NODE_ENV !== 'development') {
       return;
+    }
+
+    // CODE REVIEW FIX: Enforce size limit with LRU eviction to prevent unbounded Map growth
+    // If we're at capacity and this is a new hot path, delete the oldest entry
+    if (
+      this.hotPathCounters.size >= this.maxHotPathCounters &&
+      !this.hotPathCounters.has(hotPathKey)
+    ) {
+      const firstKey = this.hotPathCounters.keys().next().value;
+      this.hotPathCounters.delete(firstKey);
     }
 
     // Increment counter for this hot path
@@ -223,6 +234,8 @@ export class BatchLogger {
         this.stats.totalLogs > 0
           ? (this.stats.gatedLogs / (this.stats.totalLogs + this.stats.gatedLogs)) * 100
           : 0,
+      hotPathCounters: this.hotPathCounters.size,
+      maxHotPathCounters: this.maxHotPathCounters,
     };
   }
 
