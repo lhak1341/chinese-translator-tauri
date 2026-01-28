@@ -6399,19 +6399,30 @@ export class TranslationEngine {
 
     // CODE REVIEW FIX (HIGH-2): Phase priority validation
     // Ensures lower-priority phases don't override higher-priority translations
-    const validatePhasePriority = (currentPhase, currentPriority) => {
+    // CODE REVIEW FIX 2026-01-28 (HIGH-1): Use before/after snapshots to detect actual overwrites
+    // Previous implementation logged false positives when phases correctly skipped consumed tokens
+    const validatePhasePriority = (currentPhase, currentPriority, beforeSnapshot) => {
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        if (token.translationSource && token.translated !== null) {
-          // Get priority of the phase that set this translation
-          const sourcePriority = PHASE_PRIORITIES[token.translationSource] || 999;
+        const before = beforeSnapshot[i];
 
-          // Current phase should NOT have lower priority (higher number) than source
+        // Check if THIS PHASE modified the token
+        const wasModified =
+          token.translationSource !== before.translationSource ||
+          token.translated !== before.translated;
+
+        // Only validate if current phase actually modified this token
+        if (wasModified && before.translationSource) {
+          // Get priority of the phase that originally set this translation
+          const sourcePriority = PHASE_PRIORITIES[before.translationSource] || 999;
+
+          // ERROR: Current phase overrode higher-priority phase
           if (currentPriority > sourcePriority) {
             logger.error(
               `🚨 Phase priority violation: ${currentPhase} (priority ${currentPriority}) ` +
-                `attempted to override ${token.translationSource} (priority ${sourcePriority}) ` +
-                `at token ${i}: "${token.value}"`
+                `OVERWROTE ${before.translationSource} (priority ${sourcePriority}) ` +
+                `at token ${i}: "${token.value}" ` +
+                `(was: "${before.translated}", now: "${token.translated}")`
             );
           }
         }
@@ -6462,6 +6473,11 @@ export class TranslationEngine {
       // Phase 1: Apply patterns first (they need full context)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase1 = tokens.length;
+      // CODE REVIEW FIX 2026-01-28 (HIGH-1): Snapshot token state for priority validation
+      const tokensBeforePhase1 = tokens.map((t) => ({
+        translated: t.translated,
+        translationSource: t.translationSource,
+      }));
       // CODE REVIEW FIX: Validate phase order and add timeout protection
       try {
         validatePhaseOrder('patterns');
@@ -6478,7 +6494,7 @@ export class TranslationEngine {
 
         // CODE REVIEW FIX 2026-01-27: Post-phase validation
         validateConsumedTokenContract('patterns');
-        validatePhasePriority('patterns', PHASE_PRIORITIES.patterns);
+        validatePhasePriority('patterns', PHASE_PRIORITIES.patterns, tokensBeforePhase1);
         checkSemanticArrayCorruption('patterns');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
@@ -6521,6 +6537,11 @@ export class TranslationEngine {
       // Phase 2: Apply proper nouns globally (highest priority after patterns)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase2 = tokens.length;
+      // CODE REVIEW FIX 2026-01-28 (HIGH-1): Snapshot token state for priority validation
+      const tokensBeforePhase2 = tokens.map((t) => ({
+        translated: t.translated,
+        translationSource: t.translationSource,
+      }));
       // CODE REVIEW FIX: Validate phase order and add timeout protection
       try {
         validatePhaseOrder('properNouns');
@@ -6541,7 +6562,7 @@ export class TranslationEngine {
 
         // CODE REVIEW FIX 2026-01-27: Post-phase validation
         validateConsumedTokenContract('properNouns');
-        validatePhasePriority('properNouns', PHASE_PRIORITIES.properNouns);
+        validatePhasePriority('properNouns', PHASE_PRIORITIES.properNouns, tokensBeforePhase2);
         checkSemanticArrayCorruption('properNouns');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
@@ -6591,6 +6612,11 @@ export class TranslationEngine {
       // This prevents phrase-level matches from breaking up number tokens
       // CODE REVIEW FIX 2026-01-27: Add token count snapshot for corruption detection
       const tokensLengthBeforePhase3 = tokens.length;
+      // CODE REVIEW FIX 2026-01-28 (HIGH-1): Snapshot token state for priority validation
+      const tokensBeforePhase3 = tokens.map((t) => ({
+        translated: t.translated,
+        translationSource: t.translationSource,
+      }));
       try {
         validatePhaseOrder('numbers');
         await withTimeout(
@@ -6876,8 +6902,13 @@ export class TranslationEngine {
         }
 
         validateConsumedTokenContract('numbers');
-        validatePhasePriority('numbers', PHASE_PRIORITIES.numbers);
+        validatePhasePriority('numbers', PHASE_PRIORITIES.numbers, tokensBeforePhase3);
         checkSemanticArrayCorruption('numbers');
+
+        // CODE REVIEW FIX 2026-01-28 (HIGH-2): Invalidate cached semantic tokens after Phase 3
+        // Phase 3 can consume number tokens, making the cache set after Phase 2 stale
+        // Phase 4 (phrases) needs fresh semantic tokens to avoid wasting lookups on consumed positions
+        this.cachedSemanticTokens = null;
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
         phaseFailures.set('numbers', error.message);
@@ -6919,6 +6950,11 @@ export class TranslationEngine {
       // Phase 4: Apply phrases with global longest-match optimization
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase4 = tokens.length;
+      // CODE REVIEW FIX 2026-01-28 (HIGH-1): Snapshot token state for priority validation
+      const tokensBeforePhase4 = tokens.map((t) => ({
+        translated: t.translated,
+        translationSource: t.translationSource,
+      }));
       // CODE REVIEW FIX: Validate phase order and add timeout
       try {
         validatePhaseOrder('phrases');
@@ -6938,7 +6974,7 @@ export class TranslationEngine {
         }
 
         validateConsumedTokenContract('phrases');
-        validatePhasePriority('phrases', PHASE_PRIORITIES.phrases);
+        validatePhasePriority('phrases', PHASE_PRIORITIES.phrases, tokensBeforePhase4);
         checkSemanticArrayCorruption('phrases');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
@@ -7000,6 +7036,11 @@ export class TranslationEngine {
       // Phase 5: Process remaining tokens for character-level translation (fallback)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase5 = tokens.length;
+      // CODE REVIEW FIX 2026-01-28 (HIGH-1): Snapshot token state for priority validation
+      const tokensBeforePhase5 = tokens.map((t) => ({
+        translated: t.translated,
+        translationSource: t.translationSource,
+      }));
       // CODE REVIEW FIX: Validate phase order and add timeout
       try {
         validatePhaseOrder('characters');
@@ -7019,7 +7060,7 @@ export class TranslationEngine {
         }
 
         validateConsumedTokenContract('characters');
-        validatePhasePriority('characters', PHASE_PRIORITIES.characters);
+        validatePhasePriority('characters', PHASE_PRIORITIES.characters, tokensBeforePhase5);
         checkSemanticArrayCorruption('characters');
       } catch (error) {
         // CODE REVIEW FIX (MEDIUM-1): Track failure reason
