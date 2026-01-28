@@ -25,6 +25,9 @@ class RustLookupIndexManager {
     // HIGH-2 FIX: Track if fallback warning shown
     this.showedFallbackWarning = false;
 
+    // CODE REVIEW FIX (HIGH-3): Track if corruption warning shown
+    this.showedCorruptionWarning = false;
+
     // Performance tracking
     this.stats = {
       totalBuilds: 0,
@@ -186,6 +189,19 @@ class RustLookupIndexManager {
         logger.error(
           `⚠️ Trie traversal depth exceeded ${MAX_DEPTH}, possible cycle or corrupted trie at word: "${currentWord}"`
         );
+
+        // CODE REVIEW FIX (HIGH-3): Notify user in production (one-time warning)
+        if (!this.showedCorruptionWarning) {
+          toast.error(
+            'Dictionary corruption detected. Some translations may be incomplete. Try reloading dictionaries.',
+            {
+              duration: TOAST_DURATIONS.LOAD_FAILURE,
+              id: TOAST_IDS.DICT_CORRUPTION,
+            }
+          );
+          this.showedCorruptionWarning = true;
+        }
+
         return;
       }
 

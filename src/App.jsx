@@ -5,6 +5,10 @@ import { ToastProvider, useToast, setGlobalToast } from './components/ToastConte
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
 import { wasmMemoryPoolManager } from './utils/WasmMemoryPoolManager';
 import { logger } from './utils/logger';
+// CODE REVIEW FIX (MEDIUM-7): Import WASM cleanup functions
+import { cleanupWasmNumberProcessor } from './utils/WasmNumberProcessor';
+import { cleanupWasmPatternProcessor } from './utils/WasmPatternProcessor';
+import { rustLookupIndexManager } from './utils/RustLookupIndexManager';
 
 function App() {
   // Load and apply appearance settings on app start
@@ -327,8 +331,13 @@ function App() {
       return () => {
         systemPerformanceMonitor.destroy();
         wasmMemoryPoolManager.cleanup();
+        // CODE REVIEW FIX (MEDIUM-7): Add WASM cleanup
+        cleanupWasmNumberProcessor();
+        cleanupWasmPatternProcessor();
+        rustLookupIndexManager.cleanup();
         logger.log('🔍 Performance monitoring destroyed');
         logger.log('🧠 WASM Memory Pool cleanup completed');
+        logger.log('🧹 WASM components cleanup completed');
       };
     };
 

@@ -15,6 +15,8 @@
 import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
+import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
+import { categorizeWasmError, formatWasmError } from './wasmErrorHandler'; // CODE REVIEW FIX (MEDIUM-1)
 
 let wasmModule = null;
 let wasmNumberProcessor = null;
@@ -44,25 +46,32 @@ export async function initializeWasmNumberProcessor() {
   // This prevents concurrent calls from creating multiple initialization attempts
   return (initializationPromise = (async () => {
     try {
-      logger.log('🔢 Initializing WASM NumberProcessor...');
+      // CODE REVIEW FIX (HIGH-4): Wrap initialization in retry logic
+      await wasmRetryManager.retryWithBackoff(
+        async () => {
+          logger.log('🔢 Initializing WASM NumberProcessor...');
 
-      // Dynamically import the WASM module
-      wasmModule = await import('../wasm/translation_wasm_core.js');
+          // Dynamically import the WASM module
+          wasmModule = await import('../wasm/translation_wasm_core.js');
 
-      // Initialize WASM
-      await wasmModule.default();
+          // Initialize WASM
+          await wasmModule.default();
 
-      // Create NumberProcessor instance
-      wasmNumberProcessor = new wasmModule.NumberProcessor();
+          // Create NumberProcessor instance
+          wasmNumberProcessor = new wasmModule.NumberProcessor();
 
-      logger.log('✅ WASM NumberProcessor initialized successfully');
+          logger.log('✅ WASM NumberProcessor initialized successfully');
+        },
+        'NumberProcessor-init',
+        { onlyRetryTransient: true }
+      );
 
       // Reset warning flag on successful initialization
       showedNumberWarning = false;
 
       return true;
     } catch (error) {
-      logger.warn('⚠️ Failed to initialize WASM NumberProcessor:', error);
+      logger.warn('⚠️ Failed to initialize WASM NumberProcessor after retries:', error);
       logger.warn('Falling back to character-by-character translation for numbers');
       initializationFailed = true;
       return false;
@@ -75,44 +84,6 @@ export async function initializeWasmNumberProcessor() {
  * @param {Array} tokens - Array of token objects
  * @returns {Promise<Array>} Processed tokens
  */
-/**
- * Categorize WASM error types for better diagnostics
- * CODE REVIEW FIX (HIGH-4): Improve error handling with categorization
- */
-function categorizeWasmError(error) {
-  const message = error.message || String(error);
-
-  if (message.includes('validation') || message.includes('undefined')) {
-    return {
-      type: 'validation',
-      userMessage: 'Number data validation failed',
-      shouldReport: true, // Report to error tracking
-    };
-  }
-
-  if (message.includes('serialization') || message.includes('parse') || message.includes('JSON')) {
-    return {
-      type: 'serialization',
-      userMessage: 'Number data format error',
-      shouldReport: true,
-    };
-  }
-
-  if (message.includes('WASM') || message.includes('memory')) {
-    return {
-      type: 'wasm_runtime',
-      userMessage: 'Number processor runtime error',
-      shouldReport: true,
-    };
-  }
-
-  return {
-    type: 'unknown',
-    userMessage: 'Number processing error',
-    shouldReport: true,
-  };
-}
-
 export async function processNumbersWasm(tokens) {
   // Ensure WASM is initialized
   if (!wasmNumberProcessor) {
@@ -136,25 +107,37 @@ export async function processNumbersWasm(tokens) {
   }
 
   try {
+    // CODE REVIEW NOTE (MEDIUM-4): Performance degradation monitoring
+    // TODO: Add performance tracking here:
+    // const startTime = performance.now();
+    // const processedTokens = wasmNumberProcessor.processTokens(tokens);
+    // const duration = performance.now() - startTime;
+    //
+    // if (typeof window !== 'undefined' && window.systemPerformanceMonitor) {
+    //   window.systemPerformanceMonitor.recordMetric('wasm_number_processing', duration);
+    //   // Check if duration > baseline * 2
+    //   // If degraded, log warning: "WASM number processor slowdown detected"
+    // }
+
     // Call WASM NumberProcessor
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (error) {
-    // CODE REVIEW FIX (HIGH-4): Categorize errors for better debugging
-    const errorInfo = categorizeWasmError(error);
+    // CODE REVIEW FIX (MEDIUM-1): Use shared error categorization
+    const errorInfo = categorizeWasmError(error, 'number-processor');
 
     logger.error(`❌ WASM number processing ${errorInfo.type} error:`, error);
 
     // Report to error tracking if needed (Sentry, etc.)
     if (errorInfo.shouldReport && typeof window !== 'undefined' && window.errorTracker) {
       window.errorTracker.captureException(error, {
-        tags: { component: 'wasm_number_processor', error_type: errorInfo.type },
+        tags: { component: errorInfo.component, error_type: errorInfo.type },
       });
     }
 
     // One-time notification for processing errors with specific message
     if (!showedNumberWarning) {
-      const detailedMessage = `${errorInfo.userMessage}. Numbers will translate character-by-character.`;
+      const detailedMessage = `${formatWasmError(errorInfo)}. Numbers will translate character-by-character.`;
       toast.warning(detailedMessage, {
         duration: TOAST_DURATIONS.LOAD_FAILURE,
         id: TOAST_IDS.WASM_NUMBER_FALLBACK,
@@ -227,9 +210,11 @@ export function cleanupWasmNumberProcessor() {
 }
 
 // Auto-initialize on import (non-blocking)
-// CODE REVIEW FIX (CRITICAL-2): Clear promise cache on failure to allow retry
+// CODE REVIEW FIX (CRITICAL-2): Clear promise cache and partial state on failure to allow retry
 initializeWasmNumberProcessor().catch((err) => {
   logger.warn('Background WASM NumberProcessor initialization failed:', err);
   initializationFailed = true; // Mark initialization as failed to prevent retries
   initializationPromise = null; // CRITICAL: Clear cache to allow manual retry
+  wasmNumberProcessor = null; // CODE REVIEW FIX (CRITICAL-2): Clear partial state
+  wasmModule = null; // CODE REVIEW FIX (CRITICAL-2): Clear partial module state
 });

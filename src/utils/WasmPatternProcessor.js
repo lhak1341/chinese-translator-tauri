@@ -18,14 +18,16 @@
 
 import toast from './toast';
 import { logger } from './logger';
+import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
 let initializationPromise = null;
 let initializationFailed = false;
 // MEDIUM-3 FIX: Replace once-per-session with cooldown-based warnings
+// CODE REVIEW FIX (MEDIUM-3): Reduced from 30min to 10min for better UX
 let lastPatternWarningTime = 0;
-const PATTERN_WARNING_COOLDOWN = 30 * 60 * 1000; // 30 minutes
+const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Initialize the WASM Pattern Processor
@@ -50,35 +52,46 @@ export async function initializeWasmPatternProcessor(patternsDict) {
   // This prevents concurrent calls from creating multiple initialization attempts
   return (initializationPromise = (async () => {
     try {
-      // Dynamically import the WASM module
-      wasmModule = await import('../wasm/translation_wasm_core.js');
+      // CODE REVIEW FIX (HIGH-4): Wrap initialization in retry logic
+      await wasmRetryManager.retryWithBackoff(
+        async () => {
+          // Dynamically import the WASM module
+          wasmModule = await import('../wasm/translation_wasm_core.js');
 
-      // Initialize WASM
-      await wasmModule.default();
+          // Initialize WASM
+          await wasmModule.default();
 
-      // Create PatternProcessor instance
-      wasmPatternProcessor = new wasmModule.WasmPatternProcessor();
+          // Create PatternProcessor instance
+          wasmPatternProcessor = new wasmModule.WasmPatternProcessor();
 
-      // Initialize with patterns
-      const success = wasmPatternProcessor.initialize(patternsDict);
+          // Initialize with patterns
+          const success = wasmPatternProcessor.initialize(patternsDict);
 
-      if (!success) {
-        throw new Error('Failed to initialize pattern processor with patterns');
-      }
+          if (!success) {
+            throw new Error('Failed to initialize pattern processor with patterns');
+          }
 
-      // Get statistics
-      const stats = wasmPatternProcessor.getStatistics();
-      logger.log('✅ WASM Pattern Processor initialized successfully');
-      // Note: stats is already logged by WASM side, JavaScript side just confirms success
+          // Get statistics
+          const stats = wasmPatternProcessor.getStatistics();
+          logger.log('✅ WASM Pattern Processor initialized successfully');
+          // Note: stats is already logged by WASM side, JavaScript side just confirms success
+        },
+        'PatternProcessor-init',
+        { onlyRetryTransient: true }
+      );
 
       // MEDIUM-3 FIX: Reset warning time on successful initialization (allow immediate new warning)
       lastPatternWarningTime = 0;
 
       return true;
     } catch (error) {
-      logger.error('❌ Failed to initialize WASM Pattern Processor:', error);
+      logger.error('❌ Failed to initialize WASM Pattern Processor after retries:', error);
       logger.error('Pattern matching will not be available. Please check WASM configuration.');
       initializationFailed = true;
+      // CODE REVIEW FIX (CRITICAL-2): Clear partial state on failure
+      initializationPromise = null;
+      wasmPatternProcessor = null;
+      wasmModule = null;
       return false;
     }
   })());
@@ -111,6 +124,18 @@ export async function processTokensWasm(semanticTokens, variableCache) {
       const errorMsg = 'WASM Pattern Processor initialization failed - skipping pattern processing';
       logger.warn(`⚠️ ${errorMsg}`);
       logger.warn('Translation will continue with lower quality (no pattern matching)');
+
+      // CODE REVIEW FIX (HIGH-1): Add user notification for initialization failure
+      const now = Date.now();
+      if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
+        toast.warning(
+          'Pattern matching initialization failed. Translation quality may be reduced.',
+          {
+            duration: TOAST_DURATION.WARNING,
+          }
+        );
+        lastPatternWarningTime = now;
+      }
 
       return {
         success: false,

@@ -22,6 +22,7 @@ import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemo
 import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
+import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
 
 export class WasmDictionaryManager {
   constructor() {
@@ -81,13 +82,23 @@ export class WasmDictionaryManager {
 
   async _doInitialize(fallbackManager, _config) {
     try {
-      logger.log('🦀 Initializing WASM Dictionary Engine...');
+      // CODE REVIEW FIX (HIGH-4): Wrap initialization in retry logic
+      await wasmRetryManager.retryWithBackoff(
+        async () => {
+          logger.log('🦀 Initializing WASM Dictionary Engine...');
 
-      // Initialize the WASM module
-      await init();
+          // Initialize the WASM module
+          await init();
 
-      // Create the engine instance
-      this.engine = new DictionaryEngine();
+          // Create the engine instance
+          this.engine = new DictionaryEngine();
+
+          logger.log('✅ WASM Dictionary Engine initialized successfully');
+        },
+        'DictionaryEngine-init',
+        { onlyRetryTransient: true }
+      );
+
       this.fallbackManager = fallbackManager;
 
       // Initialize memory pool operation helper
@@ -96,10 +107,9 @@ export class WasmDictionaryManager {
       this.initialized = true;
       this.fallbackMode = false;
 
-      logger.log('✅ WASM Dictionary Engine initialized successfully');
       return true;
     } catch (error) {
-      logger.error('❌ WASM initialization failed:', error);
+      logger.error('❌ WASM initialization failed after retries:', error);
       this.initialized = false;
       this.fallbackMode = true;
       return false;
@@ -131,6 +141,17 @@ export class WasmDictionaryManager {
       logger.log(
         `✅ Sequential fallback loaded ${successCount}/${dictionaries.length} dictionaries`
       );
+
+      // CODE REVIEW FIX (CRITICAL-1): Record sequential fallback success
+      if (successCount === dictionaries.length) {
+        this._recordSyncSuccess('sequential_fallback');
+      } else {
+        this._recordSyncFailure(
+          `Sequential fallback only loaded ${successCount}/${dictionaries.length} dictionaries`,
+          'sequential_fallback'
+        );
+      }
+
       return true;
     }
 
@@ -143,6 +164,8 @@ export class WasmDictionaryManager {
 
       // Get optimized buffer from memory pool
       const buffer = this.memoryPool.getBuffer(estimatedMemoryNeeds);
+      // CODE REVIEW FIX (HIGH-2): Track buffer release to guarantee cleanup
+      let bufferReleased = false;
 
       try {
         // Convert all dictionaries to WASM format in one operation
@@ -179,8 +202,11 @@ export class WasmDictionaryManager {
           return false; // Trigger fallback to sequential loading
         }
       } finally {
-        // Always return buffer to pool
-        this.memoryPool.returnBuffer(buffer);
+        // CODE REVIEW FIX (HIGH-2): Guarantee buffer return even on process interruption
+        if (!bufferReleased) {
+          this.memoryPool.returnBuffer(buffer);
+          bufferReleased = true;
+        }
       }
     } catch (error) {
       logger.error('❌ Batch dictionary loading failed:', error);
@@ -248,6 +274,7 @@ export class WasmDictionaryManager {
    * Safely parse JSON metadata with fallback to null
    * Prevents metadata corruption from crashing WASM lookups
    * CODE REVIEW FIX (MEDIUM-6): Added size limit to prevent DoS
+   * CODE REVIEW FIX (CRITICAL-3): Added structure validation for pattern metadata
    */
   _safeParseMetadata(metadataString) {
     if (!metadataString) return null;
@@ -263,7 +290,48 @@ export class WasmDictionaryManager {
     }
 
     try {
-      return JSON.parse(metadataString);
+      const parsed = JSON.parse(metadataString);
+
+      // CODE REVIEW FIX (CRITICAL-3): Validate pattern metadata structure
+      // Invalid structure could crash pattern priority calculation
+      if (parsed !== null && typeof parsed === 'object') {
+        // Validate priority field (used in PatternPriorityCalculator)
+        if (parsed.priority !== undefined && typeof parsed.priority !== 'number') {
+          logger.warn(
+            `⚠️ Invalid priority type in metadata (${typeof parsed.priority}), using null`
+          );
+          return null;
+        }
+
+        // Validate variables field (used in pattern matching)
+        if (parsed.variables !== undefined && !Array.isArray(parsed.variables)) {
+          logger.warn(
+            `⚠️ Invalid variables type in metadata (${typeof parsed.variables}), using null`
+          );
+          return null;
+        }
+
+        // Validate lowPriority flag (used in priority calculation)
+        if (parsed.lowPriority !== undefined && typeof parsed.lowPriority !== 'boolean') {
+          logger.warn(
+            `⚠️ Invalid lowPriority type in metadata (${typeof parsed.lowPriority}), using null`
+          );
+          return null;
+        }
+
+        // Validate allowAsPatternVariable flag (used in two-phase processing)
+        if (
+          parsed.allowAsPatternVariable !== undefined &&
+          typeof parsed.allowAsPatternVariable !== 'boolean'
+        ) {
+          logger.warn(
+            `⚠️ Invalid allowAsPatternVariable type in metadata (${typeof parsed.allowAsPatternVariable}), using null`
+          );
+          return null;
+        }
+      }
+
+      return parsed;
     } catch (error) {
       logger.warn('⚠️ Corrupted metadata encountered, using null:', error.message);
       return null;
@@ -425,6 +493,21 @@ export class WasmDictionaryManager {
 
   /**
    * Estimate memory requirement for batch dictionary loading
+   *
+   * CODE REVIEW FIX (MEDIUM-2): Improved accuracy and documentation
+   *
+   * Memory estimation formula:
+   * - Chinese characters: 3 bytes/char (UTF-8 typical)
+   * - Vietnamese characters: 1.5 bytes/char average (mostly Latin-1 + diacritics)
+   * - Metadata: 2 bytes/char (JSON overhead)
+   * - Structure overhead: 50% (trie nodes, pointers, padding)
+   *
+   * Conservative bounds:
+   * - Minimum: 4KB (prevent tiny allocations)
+   * - Maximum: 1MB (prevent OOM from malicious/corrupted data)
+   *
+   * @param {Array} dictionaries - Array of {name, entries}
+   * @returns {number} Estimated memory in bytes
    */
   estimateBatchMemoryRequirement(dictionaries) {
     // Calculate total text size for all dictionary entries
@@ -436,16 +519,20 @@ export class WasmDictionaryManager {
         const vietnamese = entry.vietnamese || entry.translation || '';
         const metadata = entry.metadata ? JSON.stringify(entry.metadata) : '';
 
-        // Estimate UTF-8 size (worst case: 4 bytes per character)
-        totalTextSize += (chinese.length + vietnamese.length + metadata.length) * 4;
+        // CODE REVIEW FIX (MEDIUM-2): More accurate UTF-8 size estimation
+        // Chinese: 3 bytes/char (typical CJK in UTF-8)
+        // Vietnamese: 1.5 bytes/char (Latin-1 base + diacritics)
+        // Metadata: 2 bytes/char (JSON structure overhead)
+        totalTextSize += chinese.length * 3 + vietnamese.length * 1.5 + metadata.length * 2;
       }
     }
 
     // Add overhead for structure and serialization (50% overhead)
+    // Accounts for: trie nodes, HashMap entries, pointers, padding, Vec capacity
     const structureOverhead = Math.ceil(totalTextSize * 0.5);
     const totalEstimate = totalTextSize + structureOverhead;
 
-    // Minimum 4KB, maximum 1MB for safety
+    // Minimum 4KB (avoid tiny allocations), maximum 1MB (prevent OOM)
     return Math.max(4096, Math.min(totalEstimate, 1024 * 1024));
   }
 

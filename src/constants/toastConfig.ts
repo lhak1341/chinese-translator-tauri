@@ -92,6 +92,9 @@ export const TOAST_IDS = {
   /** Dictionary loading failure */
   DICT_LOAD_FAILED: 'dict-load-failed',
 
+  /** Dictionary corruption detected (CODE REVIEW FIX HIGH-3) */
+  DICT_CORRUPTION: 'dict-corruption',
+
   /** Translation in progress */
   TRANSLATION_IN_PROGRESS: 'translation-in-progress',
 

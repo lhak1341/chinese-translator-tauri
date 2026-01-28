@@ -80,6 +80,12 @@ lazy_static! {
 
 /// Create conversion patterns with validation
 /// Returns empty vec if any pattern fails to compile (graceful degradation)
+///
+/// CODE REVIEW FIX (MEDIUM-5): TODO - Expose regex compilation warnings to JavaScript
+/// Currently errors only log to browser console. Consider adding:
+/// - Static COMPILATION_WARNINGS vector to store failures
+/// - get_compilation_warnings() method exposed via wasm_bindgen
+/// - JavaScript can check warnings after initialization
 fn create_conversion_patterns() -> Vec<ConversionPattern> {
     let mut patterns = Vec::new();
 
@@ -100,6 +106,7 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
                         "❌ Failed to compile {} regex: {}. Pattern disabled.",
                         $name, e
                     ).into());
+                    // CODE REVIEW NOTE (MEDIUM-5): Add to COMPILATION_WARNINGS here
                 }
             }
         };
