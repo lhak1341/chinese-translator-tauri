@@ -3,35 +3,164 @@
  * Segments text into meaningful units for optimized translation
  */
 
-export const TokenType = {
-  CHINESE_CHAR: 'chinese_char',
-  CHINESE_WORD: 'chinese_word',
-  LATIN_WORD: 'latin_word',
-  NUMBER: 'number',
-  PUNCTUATION: 'punctuation',
-  WHITESPACE: 'whitespace',
-  UNKNOWN: 'unknown',
-};
+/**
+ * Token type enum for classification
+ */
+export enum TokenType {
+  CHINESE_CHAR = 'chinese_char',
+  CHINESE_WORD = 'chinese_word',
+  LATIN_WORD = 'latin_word',
+  NUMBER = 'number',
+  PUNCTUATION = 'punctuation',
+  WHITESPACE = 'whitespace',
+  UNKNOWN = 'unknown',
+}
 
+/**
+ * Token class representing a text segment
+ */
 export class Token {
-  constructor(type, value, start, end) {
+  /** Token type identifier */
+  type: string;
+
+  /** Token text value */
+  value: string;
+
+  /** Start position in original text */
+  start: number;
+
+  /** End position in original text */
+  end: number;
+
+  /** Translation result (null if not translated) */
+  translated: string | null = null;
+
+  /** Whether this token is part of a semantic group */
+  isGrouped: boolean = false;
+
+  /** Array of token indices that are grouped with this token */
+  groupedWith: number[] = [];
+
+  /** Index of the token that leads this group (null if this is the leader) */
+  groupLeader: number | null = null;
+
+  /** Original value before grouping (optional) */
+  originalValue?: string;
+
+  constructor(type: string, value: string, start: number, end: number) {
     this.type = type;
     this.value = value;
     this.start = start;
     this.end = end;
-    this.translated = null; // Will hold translation result
-    this.isGrouped = false; // Whether this token is part of a semantic group
-    this.groupedWith = []; // Array of token indices that are grouped with this token
-    this.groupLeader = null; // Index of the token that leads this group (null if this is the leader)
   }
 
-  toString() {
+  toString(): string {
     const groupInfo = this.isGrouped ? ` grouped:${this.groupedWith.length}` : '';
     return `Token(${this.type}: "${this.value}", ${this.start}-${this.end}${groupInfo})`;
   }
 }
 
+/**
+ * Grouped token structure
+ */
+export interface GroupedToken {
+  token: Token;
+  index: number;
+}
+
+/**
+ * Token groups by type
+ */
+export interface TokenGroups {
+  [TokenType.CHINESE_CHAR]: GroupedToken[];
+  [TokenType.CHINESE_WORD]: GroupedToken[];
+  [TokenType.LATIN_WORD]: GroupedToken[];
+  [TokenType.NUMBER]: GroupedToken[];
+  [TokenType.PUNCTUATION]: GroupedToken[];
+  [TokenType.WHITESPACE]: GroupedToken[];
+  [TokenType.UNKNOWN]: GroupedToken[];
+}
+
+/**
+ * Phrase candidate structure
+ */
+export interface PhraseCandidate {
+  /** The phrase text */
+  phrase: string;
+
+  /** Starting token index */
+  startIndex: number;
+
+  /** Ending token index */
+  endIndex: number;
+
+  /** Character length of phrase */
+  length: number;
+
+  /** Number of tokens in phrase */
+  tokenCount: number;
+}
+
+/**
+ * Text complexity levels
+ */
+export type TextComplexity = 'simple' | 'chinese_heavy' | 'mixed' | 'latin_heavy';
+
+/**
+ * Processing strategy
+ */
+export type ProcessingStrategy =
+  | 'prioritize_phrase_matching'
+  | 'balanced_processing'
+  | 'minimal_processing';
+
+/**
+ * Text analysis result
+ */
+export interface TextAnalysis {
+  /** Total character length */
+  totalLength: number;
+
+  /** Total number of tokens */
+  tokenCount: number;
+
+  /** Composition breakdown by type */
+  composition: {
+    [key: string]: {
+      tokens: number;
+      characters: number;
+      percentage: string;
+    };
+  };
+
+  /** Text complexity classification */
+  complexity: TextComplexity;
+
+  /** Suggested processing strategy */
+  strategy?: ProcessingStrategy;
+}
+
+/**
+ * Regex patterns for token matching
+ */
+interface TokenPatterns {
+  chineseChar: RegExp;
+  latinWord: RegExp;
+  number: RegExp;
+  punctuation: RegExp;
+  whitespace: RegExp;
+}
+
+/**
+ * Text Tokenizer class
+ *
+ * Segments text into meaningful units for optimized translation processing.
+ * Handles Chinese characters, Latin words, numbers, punctuation, and whitespace.
+ */
 export class TextTokenizer {
+  private patterns: TokenPatterns;
+  private tokenRegex: RegExp;
+
   constructor() {
     // Regex patterns for different token types
     this.patterns = {
@@ -51,14 +180,20 @@ export class TextTokenizer {
 
   /**
    * Tokenize text into meaningful segments
-   * @param {string} text - Input text to tokenize
-   * @returns {Token[]} Array of tokens
+   *
+   * @param text - Input text to tokenize
+   * @returns Array of tokens
+   *
+   * @example
+   * const tokenizer = new TextTokenizer();
+   * const tokens = tokenizer.tokenize("在那些魔帅眼中，");
+   * // Returns: [Token("在"), Token("那"), Token("些"), ...]
    */
-  tokenize(text) {
+  tokenize(text: string): Token[] {
     if (!text) return [];
 
-    const tokens = [];
-    let match;
+    const tokens: Token[] = [];
+    let match: RegExpExecArray | null;
     let lastIndex = 0;
 
     // Reset regex
@@ -76,7 +211,7 @@ export class TextTokenizer {
       }
 
       // Determine token type and create token
-      let tokenType;
+      let tokenType: string;
       if (chinese) {
         // Always treat as individual characters for better dictionary matching
         tokenType = TokenType.CHINESE_CHAR;
@@ -107,11 +242,12 @@ export class TextTokenizer {
 
   /**
    * Post-process tokens to merge related segments
-   * @param {Token[]} tokens - Raw tokens
-   * @returns {Token[]} Processed tokens
+   *
+   * @param tokens - Raw tokens
+   * @returns Processed tokens
    */
-  postProcessTokens(tokens) {
-    const processed = [];
+  private postProcessTokens(tokens: Token[]): Token[] {
+    const processed: Token[] = [];
     let i = 0;
 
     while (i < tokens.length) {
@@ -128,11 +264,16 @@ export class TextTokenizer {
 
   /**
    * Group tokens for efficient batch processing
-   * @param {Token[]} tokens - Input tokens
-   * @returns {Object} Grouped tokens by type
+   *
+   * @param tokens - Input tokens
+   * @returns Grouped tokens by type
+   *
+   * @example
+   * const groups = tokenizer.groupTokensByType(tokens);
+   * console.log(groups[TokenType.CHINESE_CHAR].length); // Number of Chinese chars
    */
-  groupTokensByType(tokens) {
-    const groups = {
+  groupTokensByType(tokens: Token[]): TokenGroups {
+    const groups: TokenGroups = {
       [TokenType.CHINESE_CHAR]: [],
       [TokenType.CHINESE_WORD]: [],
       [TokenType.LATIN_WORD]: [],
@@ -143,7 +284,7 @@ export class TextTokenizer {
     };
 
     tokens.forEach((token, index) => {
-      groups[token.type].push({ token, index });
+      groups[token.type as TokenType].push({ token, index });
     });
 
     return groups;
@@ -151,20 +292,31 @@ export class TextTokenizer {
 
   /**
    * Reconstruct text from tokens
-   * @param {Token[]} tokens - Tokens to reconstruct
-   * @returns {string} Reconstructed text
+   *
+   * @param tokens - Tokens to reconstruct
+   * @returns Reconstructed text
+   *
+   * @example
+   * const text = tokenizer.reconstruct(tokens);
+   * // Returns: original or translated text
    */
-  reconstruct(tokens) {
+  reconstruct(tokens: Token[]): string {
     return tokens.map((token) => token.translated || token.value).join('');
   }
 
   /**
    * Find potential phrase boundaries for dictionary lookup optimization
-   * @param {Token[]} tokens - Input tokens
-   * @returns {Array} Phrase candidates with start/end indices
+   *
+   * @param tokens - Input tokens
+   * @param maxPhraseLength - Maximum phrase length in tokens (default: 10)
+   * @returns Phrase candidates sorted by length (longest first)
+   *
+   * @example
+   * const candidates = tokenizer.findPhraseCandidates(tokens, 5);
+   * // Returns: [{ phrase: "在那些魔帅眼中", startIndex: 0, ... }, ...]
    */
-  findPhraseCandidates(tokens, maxPhraseLength = 10) {
-    const candidates = [];
+  findPhraseCandidates(tokens: Token[], maxPhraseLength: number = 10): PhraseCandidate[] {
+    const candidates: PhraseCandidate[] = [];
 
     for (let i = 0; i < tokens.length; i++) {
       if (tokens[i].type === TokenType.CHINESE_WORD || tokens[i].type === TokenType.CHINESE_CHAR) {
@@ -207,14 +359,20 @@ export class TextTokenizer {
 
   /**
    * Analyze text composition for optimization hints
-   * @param {string} text - Input text
-   * @returns {Object} Analysis results
+   *
+   * @param text - Input text
+   * @returns Analysis results with complexity and strategy suggestions
+   *
+   * @example
+   * const analysis = tokenizer.analyzeText("在那些魔帅眼中，");
+   * console.log(analysis.complexity); // "chinese_heavy"
+   * console.log(analysis.strategy); // "prioritize_phrase_matching"
    */
-  analyzeText(text) {
+  analyzeText(text: string): TextAnalysis {
     const tokens = this.tokenize(text);
     const groups = this.groupTokensByType(tokens);
 
-    const analysis = {
+    const analysis: TextAnalysis = {
       totalLength: text.length,
       tokenCount: tokens.length,
       composition: {},
@@ -223,7 +381,10 @@ export class TextTokenizer {
 
     // Calculate composition percentages
     Object.entries(groups).forEach(([type, tokenList]) => {
-      const charCount = tokenList.reduce((sum, { token }) => sum + token.value.length, 0);
+      const charCount = tokenList.reduce(
+        (sum: number, { token }: GroupedToken) => sum + token.value.length,
+        0
+      );
       analysis.composition[type] = {
         tokens: tokenList.length,
         characters: charCount,
@@ -233,8 +394,8 @@ export class TextTokenizer {
 
     // Determine complexity
     const chineseRatio =
-      parseFloat(analysis.composition[TokenType.CHINESE_WORD]?.percentage || 0) +
-      parseFloat(analysis.composition[TokenType.CHINESE_CHAR]?.percentage || 0);
+      parseFloat(analysis.composition[TokenType.CHINESE_WORD]?.percentage || '0') +
+      parseFloat(analysis.composition[TokenType.CHINESE_CHAR]?.percentage || '0');
 
     if (chineseRatio > 80) {
       analysis.complexity = 'chinese_heavy';
@@ -258,10 +419,25 @@ export class TextTokenizer {
 }
 
 // Utility functions
-export const createTokenizer = () => new TextTokenizer();
 
-export const tokenTypeToString = (type) => {
-  const typeNames = {
+/**
+ * Create a new tokenizer instance
+ *
+ * @returns New TextTokenizer instance
+ */
+export const createTokenizer = (): TextTokenizer => new TextTokenizer();
+
+/**
+ * Convert token type to human-readable string
+ *
+ * @param type - Token type
+ * @returns Human-readable type name
+ *
+ * @example
+ * tokenTypeToString(TokenType.CHINESE_CHAR); // "Chinese Character"
+ */
+export const tokenTypeToString = (type: string): string => {
+  const typeNames: Record<string, string> = {
     [TokenType.CHINESE_CHAR]: 'Chinese Character',
     [TokenType.CHINESE_WORD]: 'Chinese Word',
     [TokenType.LATIN_WORD]: 'Latin Word',

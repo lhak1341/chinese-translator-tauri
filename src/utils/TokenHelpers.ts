@@ -10,15 +10,21 @@
  * @module TokenHelpers
  */
 
-import { TokenType } from './TextTokenizer.js';
+import { TokenType, Token } from './TextTokenizer.js';
 
 /**
- * Token structure from TextTokenizer
- *
- * Note: When TextTokenizer.js is migrated to TypeScript, this interface
- * should be moved there and exported.
+ * Token structure from TextTokenizer (re-exported for convenience)
  */
-export interface TextToken {
+export type TextToken = Token & {
+  /** Original index in token array (added by getSemanticTokens) */
+  originalIndex?: number;
+};
+
+/**
+ * Legacy interface maintained for backward compatibility
+ * @deprecated Use Token from TextTokenizer instead
+ */
+export interface LegacyTextToken {
   /** Token type identifier */
   type: string;
 
