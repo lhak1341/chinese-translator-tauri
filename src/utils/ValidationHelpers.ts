@@ -12,7 +12,7 @@
  * - Reusable across the entire application
  *
  * USAGE:
- * ```javascript
+ * ```typescript
  * import { isEmptyString, isEmptyArray, isValidNumber } from './ValidationHelpers.js';
  *
  * if (isEmptyString(text)) {
@@ -28,8 +28,8 @@
 /**
  * Check if a string is empty or contains only whitespace
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if empty or whitespace-only
+ * @param value - Value to check
+ * @returns True if empty or whitespace-only
  *
  * @example
  * isEmptyString('') // true
@@ -38,7 +38,7 @@
  * isEmptyString(null) // true
  * isEmptyString(undefined) // true
  */
-export function isEmptyString(value) {
+export function isEmptyString(value: unknown): boolean {
   return !value || (typeof value === 'string' && value.trim() === '');
 }
 
@@ -46,8 +46,8 @@ export function isEmptyString(value) {
  * Check if a value is a non-empty string
  * Inverse of isEmptyString, useful for validation
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if non-empty string
+ * @param value - Value to check
+ * @returns True if non-empty string
  *
  * @example
  * isNonEmptyString('hello') // true
@@ -55,15 +55,15 @@ export function isEmptyString(value) {
  * isNonEmptyString('   ') // false
  * isNonEmptyString(null) // false
  */
-export function isNonEmptyString(value) {
+export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
 /**
  * Check if an array is empty or null/undefined
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if empty, null, undefined, or not an array
+ * @param value - Value to check
+ * @returns True if empty, null, undefined, or not an array
  *
  * @example
  * isEmptyArray([]) // true
@@ -71,7 +71,7 @@ export function isNonEmptyString(value) {
  * isEmptyArray([1, 2, 3]) // false
  * isEmptyArray('not array') // true
  */
-export function isEmptyArray(value) {
+export function isEmptyArray(value: unknown): boolean {
   return !value || !Array.isArray(value) || value.length === 0;
 }
 
@@ -79,23 +79,23 @@ export function isEmptyArray(value) {
  * Check if a value is a non-empty array
  * Inverse of isEmptyArray
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if non-empty array
+ * @param value - Value to check
+ * @returns True if non-empty array
  *
  * @example
  * isNonEmptyArray([1, 2, 3]) // true
  * isNonEmptyArray([]) // false
  * isNonEmptyArray(null) // false
  */
-export function isNonEmptyArray(value) {
+export function isNonEmptyArray<T>(value: unknown): value is T[] {
   return Array.isArray(value) && value.length > 0;
 }
 
 /**
  * Check if a value is null or undefined
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if null or undefined
+ * @param value - Value to check
+ * @returns True if null or undefined
  *
  * @example
  * isNullOrUndefined(null) // true
@@ -103,7 +103,7 @@ export function isNonEmptyArray(value) {
  * isNullOrUndefined(0) // false
  * isNullOrUndefined('') // false
  */
-export function isNullOrUndefined(value) {
+export function isNullOrUndefined(value: unknown): value is null | undefined {
   return value === null || value === undefined;
 }
 
@@ -111,8 +111,8 @@ export function isNullOrUndefined(value) {
  * Check if a value is defined (not null and not undefined)
  * Inverse of isNullOrUndefined
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if defined (not null/undefined)
+ * @param value - Value to check
+ * @returns True if defined (not null/undefined)
  *
  * @example
  * isDefined(0) // true
@@ -120,15 +120,15 @@ export function isNullOrUndefined(value) {
  * isDefined(null) // false
  * isDefined(undefined) // false
  */
-export function isDefined(value) {
+export function isDefined<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined;
 }
 
 /**
  * Check if a value is a valid number (not NaN, not Infinity)
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if valid finite number
+ * @param value - Value to check
+ * @returns True if valid finite number
  *
  * @example
  * isValidNumber(42) // true
@@ -137,15 +137,15 @@ export function isDefined(value) {
  * isValidNumber(Infinity) // false
  * isValidNumber('42') // false (string, not number)
  */
-export function isValidNumber(value) {
+export function isValidNumber(value: unknown): value is number {
   return typeof value === 'number' && !isNaN(value) && isFinite(value);
 }
 
 /**
  * Check if a value is a positive number (> 0)
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if positive number
+ * @param value - Value to check
+ * @returns True if positive number
  *
  * @example
  * isPositiveNumber(42) // true
@@ -153,45 +153,45 @@ export function isValidNumber(value) {
  * isPositiveNumber(-5) // false
  * isPositiveNumber('42') // false
  */
-export function isPositiveNumber(value) {
+export function isPositiveNumber(value: unknown): value is number {
   return isValidNumber(value) && value > 0;
 }
 
 /**
  * Check if a value is a non-negative number (>= 0)
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if non-negative number
+ * @param value - Value to check
+ * @returns True if non-negative number
  *
  * @example
  * isNonNegativeNumber(0) // true
  * isNonNegativeNumber(42) // true
  * isNonNegativeNumber(-5) // false
  */
-export function isNonNegativeNumber(value) {
+export function isNonNegativeNumber(value: unknown): value is number {
   return isValidNumber(value) && value >= 0;
 }
 
 /**
  * Check if a value is an integer
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if integer
+ * @param value - Value to check
+ * @returns True if integer
  *
  * @example
  * isInteger(42) // true
  * isInteger(3.14) // false
  * isInteger('42') // false
  */
-export function isInteger(value) {
+export function isInteger(value: unknown): value is number {
   return isValidNumber(value) && Number.isInteger(value);
 }
 
 /**
  * Check if a value is a plain object (not array, not null)
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if plain object
+ * @param value - Value to check
+ * @returns True if plain object
  *
  * @example
  * isPlainObject({}) // true
@@ -200,7 +200,7 @@ export function isInteger(value) {
  * isPlainObject(null) // false
  * isPlainObject(new Date()) // false
  */
-export function isPlainObject(value) {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -212,9 +212,9 @@ export function isPlainObject(value) {
 /**
  * Check if an object has a specific property with a non-null/undefined value
  *
- * @param {any} obj - Object to check
- * @param {string} prop - Property name
- * @returns {boolean} True if property exists and is defined
+ * @param obj - Object to check
+ * @param prop - Property name
+ * @returns True if property exists and is defined
  *
  * @example
  * hasDefinedProperty({ a: 1 }, 'a') // true
@@ -222,15 +222,15 @@ export function isPlainObject(value) {
  * hasDefinedProperty({ a: undefined }, 'a') // false
  * hasDefinedProperty({}, 'a') // false
  */
-export function hasDefinedProperty(obj, prop) {
+export function hasDefinedProperty(obj: unknown, prop: string): boolean {
   return isPlainObject(obj) && isDefined(obj[prop]);
 }
 
 /**
  * Check if a value is a function
  *
- * @param {any} value - Value to check
- * @returns {boolean} True if function
+ * @param value - Value to check
+ * @returns True if function
  *
  * @example
  * isFunction(() => {}) // true
@@ -238,33 +238,33 @@ export function hasDefinedProperty(obj, prop) {
  * isFunction(async () => {}) // true
  * isFunction('not a function') // false
  */
-export function isFunction(value) {
+export function isFunction(value: unknown): value is Function {
   return typeof value === 'function';
 }
 
 /**
  * Check if arrays have the same length
  *
- * @param {any[]} arr1 - First array
- * @param {any[]} arr2 - Second array
- * @returns {boolean} True if both are arrays with same length
+ * @param arr1 - First array
+ * @param arr2 - Second array
+ * @returns True if both are arrays with same length
  *
  * @example
  * haveSameLength([1, 2], [3, 4]) // true
  * haveSameLength([1], [2, 3]) // false
  * haveSameLength([], null) // false
  */
-export function haveSameLength(arr1, arr2) {
+export function haveSameLength(arr1: unknown, arr2: unknown): boolean {
   return Array.isArray(arr1) && Array.isArray(arr2) && arr1.length === arr2.length;
 }
 
 /**
  * Validate that a value is within a range (inclusive)
  *
- * @param {number} value - Value to check
- * @param {number} min - Minimum value (inclusive)
- * @param {number} max - Maximum value (inclusive)
- * @returns {boolean} True if value is within range
+ * @param value - Value to check
+ * @param min - Minimum value (inclusive)
+ * @param max - Maximum value (inclusive)
+ * @returns True if value is within range
  *
  * @example
  * isInRange(5, 1, 10) // true
@@ -273,23 +273,23 @@ export function haveSameLength(arr1, arr2) {
  * isInRange(0, 1, 10) // false
  * isInRange(11, 1, 10) // false
  */
-export function isInRange(value, min, max) {
+export function isInRange(value: unknown, min: number, max: number): boolean {
   return isValidNumber(value) && value >= min && value <= max;
 }
 
 /**
  * Validate that a string matches a pattern (regex or exact match)
  *
- * @param {string} value - String to check
- * @param {string|RegExp} pattern - Pattern to match against
- * @returns {boolean} True if string matches pattern
+ * @param value - String to check
+ * @param pattern - Pattern to match against
+ * @returns True if string matches pattern
  *
  * @example
  * matchesPattern('hello', /^h/) // true
  * matchesPattern('hello', 'hello') // true
  * matchesPattern('hello', 'world') // false
  */
-export function matchesPattern(value, pattern) {
+export function matchesPattern(value: unknown, pattern: string | RegExp): boolean {
   if (typeof value !== 'string') {
     return false;
   }
@@ -308,17 +308,17 @@ export function matchesPattern(value, pattern) {
 /**
  * Validate that an object has all required properties
  *
- * @param {object} obj - Object to validate
- * @param {string[]} requiredProps - Array of required property names
- * @returns {boolean} True if all properties exist and are defined
+ * @param obj - Object to validate
+ * @param requiredProps - Array of required property names
+ * @returns True if all properties exist and are defined
  *
  * @example
  * hasRequiredProperties({ a: 1, b: 2 }, ['a', 'b']) // true
  * hasRequiredProperties({ a: 1 }, ['a', 'b']) // false
  * hasRequiredProperties({ a: null, b: 2 }, ['a', 'b']) // false
  */
-export function hasRequiredProperties(obj, requiredProps) {
-  if (!isPlainObject(obj) || !isNonEmptyArray(requiredProps)) {
+export function hasRequiredProperties(obj: unknown, requiredProps: string[]): boolean {
+  if (!isPlainObject(obj) || !isNonEmptyArray<string>(requiredProps)) {
     return false;
   }
 
@@ -326,18 +326,28 @@ export function hasRequiredProperties(obj, requiredProps) {
 }
 
 /**
+ * Token structure for validation
+ */
+export interface ValidatableToken {
+  type: string;
+  value: string;
+  translated: string | null;
+  [key: string]: unknown;
+}
+
+/**
  * Validate token object structure
  * Ensures token has required fields for translation processing
  *
- * @param {any} token - Token to validate
- * @returns {boolean} True if valid token structure
+ * @param token - Token to validate
+ * @returns True if valid token structure
  *
  * @example
  * isValidToken({ type: 'chinese_char', value: '在', translated: null }) // true
  * isValidToken({ value: '在' }) // false (missing type)
  * isValidToken(null) // false
  */
-export function isValidToken(token) {
+export function isValidToken(token: unknown): token is ValidatableToken {
   return (
     isPlainObject(token) &&
     isNonEmptyString(token.type) &&
@@ -347,11 +357,21 @@ export function isValidToken(token) {
 }
 
 /**
+ * Semantic arrays structure for validation
+ */
+export interface SemanticArrays {
+  original: unknown[];
+  translated: unknown[];
+  metadata: unknown[];
+  [key: string]: unknown;
+}
+
+/**
  * Validate semantic array structure
  * Ensures semantic arrays have matching lengths and valid data
  *
- * @param {object} semanticArrays - Semantic arrays to validate
- * @returns {boolean} True if valid semantic array structure
+ * @param semanticArrays - Semantic arrays to validate
+ * @returns True if valid semantic array structure
  *
  * @example
  * isValidSemanticArrays({
@@ -365,7 +385,7 @@ export function isValidToken(token) {
  *   translated: [] // length mismatch
  * }) // false
  */
-export function isValidSemanticArrays(semanticArrays) {
+export function isValidSemanticArrays(semanticArrays: unknown): semanticArrays is SemanticArrays {
   if (
     !isPlainObject(semanticArrays) ||
     !isNonEmptyArray(semanticArrays.original) ||

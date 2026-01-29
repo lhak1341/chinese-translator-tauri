@@ -12,7 +12,7 @@
  * - Reusable across the entire application
  *
  * USAGE:
- * ```javascript
+ * ```typescript
  * import { formatBytes, formatBytesToMB, formatBytesToKB } from './ByteFormatter.js';
  *
  * console.log(formatBytes(1536)); // "1.50 KB"
@@ -25,18 +25,23 @@
  */
 
 /**
+ * Byte unit type
+ */
+export type ByteUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB';
+
+/**
  * Format bytes to megabytes with specified decimal places
  *
- * @param {number} bytes - Byte count to format
- * @param {number} decimals - Number of decimal places (default: 1)
- * @returns {string} Formatted string (e.g., "1.5MB")
+ * @param bytes - Byte count to format
+ * @param decimals - Number of decimal places (default: 1)
+ * @returns Formatted string (e.g., "1.5MB")
  *
  * @example
  * formatBytesToMB(1048576) // "1.0MB"
  * formatBytesToMB(1572864) // "1.5MB"
  * formatBytesToMB(1048576, 2) // "1.00MB"
  */
-export function formatBytesToMB(bytes, decimals = 1) {
+export function formatBytesToMB(bytes: number, decimals: number = 1): string {
   if (typeof bytes !== 'number' || isNaN(bytes)) {
     return '0.0MB';
   }
@@ -48,16 +53,16 @@ export function formatBytesToMB(bytes, decimals = 1) {
 /**
  * Format bytes to kilobytes with specified decimal places
  *
- * @param {number} bytes - Byte count to format
- * @param {number} decimals - Number of decimal places (default: 1)
- * @returns {string} Formatted string (e.g., "1.5KB")
+ * @param bytes - Byte count to format
+ * @param decimals - Number of decimal places (default: 1)
+ * @returns Formatted string (e.g., "1.5KB")
  *
  * @example
  * formatBytesToKB(1024) // "1.0KB"
  * formatBytesToKB(1536) // "1.5KB"
  * formatBytesToKB(1024, 2) // "1.00KB"
  */
-export function formatBytesToKB(bytes, decimals = 1) {
+export function formatBytesToKB(bytes: number, decimals: number = 1): string {
   if (typeof bytes !== 'number' || isNaN(bytes)) {
     return '0.0KB';
   }
@@ -69,15 +74,15 @@ export function formatBytesToKB(bytes, decimals = 1) {
 /**
  * Format bytes to gigabytes with specified decimal places
  *
- * @param {number} bytes - Byte count to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted string (e.g., "1.50GB")
+ * @param bytes - Byte count to format
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Formatted string (e.g., "1.50GB")
  *
  * @example
  * formatBytesToGB(1073741824) // "1.00GB"
  * formatBytesToGB(1610612736) // "1.50GB"
  */
-export function formatBytesToGB(bytes, decimals = 2) {
+export function formatBytesToGB(bytes: number, decimals: number = 2): string {
   if (typeof bytes !== 'number' || isNaN(bytes)) {
     return '0.00GB';
   }
@@ -90,9 +95,9 @@ export function formatBytesToGB(bytes, decimals = 2) {
  * Format bytes with automatic unit selection
  * Selects the most appropriate unit (KB, MB, GB) based on magnitude
  *
- * @param {number} bytes - Byte count to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted string with automatic unit (e.g., "1.50 KB")
+ * @param bytes - Byte count to format
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Formatted string with automatic unit (e.g., "1.50 KB")
  *
  * @example
  * formatBytes(500) // "500 B"
@@ -101,7 +106,7 @@ export function formatBytesToGB(bytes, decimals = 2) {
  * formatBytes(1073741824) // "1.00 GB"
  * formatBytes(1536, 1) // "1.5 KB"
  */
-export function formatBytes(bytes, decimals = 2) {
+export function formatBytes(bytes: number, decimals: number = 2): string {
   if (typeof bytes !== 'number' || isNaN(bytes)) {
     return '0 B';
   }
@@ -112,7 +117,7 @@ export function formatBytes(bytes, decimals = 2) {
 
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const sizes: ByteUnit[] = ['B', 'KB', 'MB', 'GB', 'TB'];
 
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   const sizeIndex = Math.min(i, sizes.length - 1);
@@ -124,15 +129,15 @@ export function formatBytes(bytes, decimals = 2) {
  * Format bytes with compact notation (no space between value and unit)
  * Same as formatBytes but removes space for compact display
  *
- * @param {number} bytes - Byte count to format
- * @param {number} decimals - Number of decimal places (default: 2)
- * @returns {string} Formatted string with compact unit (e.g., "1.50KB")
+ * @param bytes - Byte count to format
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Formatted string with compact unit (e.g., "1.50KB")
  *
  * @example
  * formatBytesCompact(1536) // "1.50KB"
  * formatBytesCompact(1048576) // "1.00MB"
  */
-export function formatBytesCompact(bytes, decimals = 2) {
+export function formatBytesCompact(bytes: number, decimals: number = 2): string {
   return formatBytes(bytes, decimals).replace(' ', '');
 }
 
@@ -140,8 +145,8 @@ export function formatBytesCompact(bytes, decimals = 2) {
  * Parse formatted byte string back to number
  * Supports KB, MB, GB, TB suffixes (case-insensitive, with or without space)
  *
- * @param {string} formattedBytes - Formatted byte string (e.g., "1.5 MB", "1.5MB")
- * @returns {number} Byte count, or 0 if parsing fails
+ * @param formattedBytes - Formatted byte string (e.g., "1.5 MB", "1.5MB")
+ * @returns Byte count, or 0 if parsing fails
  *
  * @example
  * parseFormattedBytes("1.5 KB") // 1536
@@ -149,7 +154,7 @@ export function formatBytesCompact(bytes, decimals = 2) {
  * parseFormattedBytes("1.5MB") // 1572864 (no space)
  * parseFormattedBytes("invalid") // 0
  */
-export function parseFormattedBytes(formattedBytes) {
+export function parseFormattedBytes(formattedBytes: string): number {
   if (typeof formattedBytes !== 'string') {
     return 0;
   }
@@ -161,9 +166,9 @@ export function parseFormattedBytes(formattedBytes) {
   }
 
   const value = parseFloat(match[1]);
-  const unit = (match[2] || 'B').toUpperCase();
+  const unit = (match[2] || 'B').toUpperCase() as ByteUnit;
 
-  const multipliers = {
+  const multipliers: Record<ByteUnit, number> = {
     B: 1,
     KB: 1024,
     MB: 1024 * 1024,

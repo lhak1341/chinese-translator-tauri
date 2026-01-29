@@ -13,20 +13,58 @@
 import { TokenType } from './TextTokenizer.js';
 
 /**
+ * Token structure from TextTokenizer
+ *
+ * Note: When TextTokenizer.js is migrated to TypeScript, this interface
+ * should be moved there and exported.
+ */
+export interface TextToken {
+  /** Token type identifier */
+  type: string;
+
+  /** Token text value */
+  value: string;
+
+  /** Start position in original text */
+  start: number;
+
+  /** End position in original text */
+  end: number;
+
+  /** Translation result (null if not translated) */
+  translated: string | null;
+
+  /** Whether this token is part of a semantic group */
+  isGrouped: boolean;
+
+  /** Array of token indices grouped with this token */
+  groupedWith: number[];
+
+  /** Index of the token that leads this group (null if this is the leader) */
+  groupLeader: number | null;
+
+  /** Original value before grouping (optional) */
+  originalValue?: string;
+
+  /** Original index in token array (added by getSemanticTokens) */
+  originalIndex?: number;
+}
+
+/**
  * Extract semantic tokens from token array
  *
  * Filters tokens to include only Chinese words and characters,
  * excluding grouped followers (tokens that are part of another token's group).
  *
- * @param {Token[]} tokens - Array of tokens
- * @returns {Token[]} Array of semantic tokens with originalIndex property
+ * @param tokens - Array of tokens
+ * @returns Array of semantic tokens with originalIndex property
  *
  * @example
  * const semanticTokens = getSemanticTokens(tokens);
  * // Returns: Chinese words/chars with originalIndex preserved
  */
-export function getSemanticTokens(tokens) {
-  const semanticTokens = [];
+export function getSemanticTokens(tokens: TextToken[]): TextToken[] {
+  const semanticTokens: TextToken[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
     // Skip tokens that are grouped followers
@@ -52,16 +90,16 @@ export function getSemanticTokens(tokens) {
  * Determines how many tokens (starting from startIndex) are needed to
  * match the given text. Stops when text is fully matched or tokens exhausted.
  *
- * @param {Token[]} tokens - Array of tokens
- * @param {number} startIndex - Starting token index
- * @param {string} text - Text to match
- * @returns {number} Number of tokens that match the text
+ * @param tokens - Array of tokens
+ * @param startIndex - Starting token index
+ * @param text - Text to match
+ * @returns Number of tokens that match the text
  *
  * @example
  * const span = getTokenSpanForText(tokens, 5, "在那些");
  * // Returns: 3 (if tokens 5-7 match "在那些")
  */
-export function getTokenSpanForText(tokens, startIndex, text) {
+export function getTokenSpanForText(tokens: TextToken[], startIndex: number, text: string): number {
   let remainingText = text;
   let span = 0;
 
@@ -89,14 +127,14 @@ export function getTokenSpanForText(tokens, startIndex, text) {
  * Extracts and concatenates only Chinese words and characters,
  * filtering out punctuation, whitespace, and other token types.
  *
- * @param {Token[]} tokens - Array of tokens
- * @returns {string} Reconstructed Chinese text
+ * @param tokens - Array of tokens
+ * @returns Reconstructed Chinese text
  *
  * @example
  * const chinese = reconstructChineseText(tokens);
  * // Returns: "在那些魔帅眼中" (without punctuation/spaces)
  */
-export function reconstructChineseText(tokens) {
+export function reconstructChineseText(tokens: TextToken[]): string {
   return tokens
     .filter((t) => t.type === TokenType.CHINESE_WORD || t.type === TokenType.CHINESE_CHAR)
     .map((t) => t.value)
@@ -112,16 +150,16 @@ export function reconstructChineseText(tokens) {
  * Used for context-aware dictionary matching that respects
  * punctuation boundaries.
  *
- * @param {Token[]} tokens - Array of tokens
- * @param {number} startIndex - Starting index
- * @returns {string} Reconstructed text segment
+ * @param tokens - Array of tokens
+ * @param startIndex - Starting index
+ * @returns Reconstructed text segment
  *
  * @example
  * const segment = reconstructTextFromIndex(tokens, 3);
  * // Returns: "魔帅眼中" (stops before next punctuation)
  */
-export function reconstructTextFromIndex(tokens, startIndex) {
-  const result = [];
+export function reconstructTextFromIndex(tokens: TextToken[], startIndex: number): string {
+  const result: string[] = [];
   for (let i = startIndex; i < tokens.length; i++) {
     const token = tokens[i];
 
@@ -144,14 +182,14 @@ export function reconstructTextFromIndex(tokens, startIndex) {
  * Concatenates token values, excluding grouped followers.
  * Preserves all token types (Chinese, punctuation, whitespace, etc.).
  *
- * @param {Token[]} tokens - Array of tokens
- * @returns {string} Complete reconstructed text
+ * @param tokens - Array of tokens
+ * @returns Complete reconstructed text
  *
  * @example
  * const fullText = getTextFromTokens(tokens);
  * // Returns: "在那些魔帅眼中，" (includes punctuation)
  */
-export function getTextFromTokens(tokens) {
+export function getTextFromTokens(tokens: TextToken[]): string {
   return tokens
     .filter((token) => token.groupLeader === null || token.groupLeader === undefined) // Skip tokens that are part of another token group
     .map((token) => token.value)
@@ -164,15 +202,15 @@ export function getTextFromTokens(tokens) {
  * Returns the character position in the original text where the token starts.
  * Uses cached position from tokenizer if available, falls back to calculation.
  *
- * @param {Token[]} tokens - Array of tokens
- * @param {number} tokenIndex - Index of the token
- * @returns {number} Character position in original text
+ * @param tokens - Array of tokens
+ * @param tokenIndex - Index of the token
+ * @returns Character position in original text
  *
  * @example
  * const position = getTextPositionForTokenIndex(tokens, 5);
  * // Returns: 12 (if token 5 starts at character 12)
  */
-export function getTextPositionForTokenIndex(tokens, tokenIndex) {
+export function getTextPositionForTokenIndex(tokens: TextToken[], tokenIndex: number): number {
   // Use cached position from tokenizer instead of recalculating
   if (tokenIndex >= 0 && tokenIndex < tokens.length && tokens[tokenIndex].start !== undefined) {
     return tokens[tokenIndex].start;

@@ -1,4 +1,4 @@
-import { logger } from './logger';
+import { logger } from './logger.js';
 
 /**
  * Pattern Priority Calculator
@@ -73,28 +73,78 @@ import { logger } from './logger';
  *
  * Usage:
  *
- * ```javascript
+ * ```typescript
  * import { calculatePatternPriority } from './PatternPriorityCalculator.js';
  *
- * const tokens = [
+ * const tokens: PatternToken[] = [
  *   { type: 'literal', value: '在' },
  *   { type: 'variable', name: 'X' },
  *   { type: 'literal', value: '眼中' }
  * ];
  *
- * const variables = [{ name: 'X' }];
+ * const variables: PatternVariable[] = [{ name: 'X' }];
  * const priority = calculatePatternPriority(tokens, variables, false);
- * console.log(priority); // 18 (10 + 3 + 5)
+ * console.log(priority); // 22 (8 + 9 + 5)
  * ```
  */
 
 /**
+ * Pattern token types
+ */
+type PatternTokenType = 'literal' | 'variable';
+
+/**
+ * Pattern token structure
+ */
+export interface PatternToken {
+  /** Token type: 'literal' or 'variable' */
+  type: PatternTokenType;
+
+  /** Token value (for literals) */
+  value?: string;
+
+  /** Variable name (for variables) */
+  name?: string;
+}
+
+/**
+ * Pattern variable definition
+ */
+export interface PatternVariable {
+  /** Variable name */
+  name: string;
+
+  /** Additional variable metadata (optional) */
+  [key: string]: unknown;
+}
+
+/**
+ * Priority breakdown result
+ */
+export interface PriorityBreakdown {
+  /** Score from variables (variableCount × 8) */
+  variableScore: number;
+
+  /** Score from pattern length (tokenCount × 3) */
+  lengthScore: number;
+
+  /** Bonus for literal-first patterns (+5 or 0) */
+  literalFirstBonus: number;
+
+  /** Penalty for low priority flag (-12 or 0) */
+  lowPriorityPenalty: number;
+
+  /** Total calculated priority */
+  totalPriority: number;
+}
+
+/**
  * Calculate pattern priority based on complexity and usefulness
  *
- * @param {Array} tokens - Pattern tokens (must have 'type' property: 'literal' or 'variable')
- * @param {Array} variables - Pattern variables (variable definitions)
- * @param {boolean} lowPriority - Whether this is a low priority pattern (default: false)
- * @returns {number} Priority score (higher = more important)
+ * @param tokens - Pattern tokens (must have 'type' property: 'literal' or 'variable')
+ * @param variables - Pattern variables (variable definitions)
+ * @param lowPriority - Whether this is a low priority pattern (default: false)
+ * @returns Priority score (higher = more important)
  *
  * @example
  * // Simple pattern with no variables
@@ -103,7 +153,7 @@ import { logger } from './logger';
  *   [],
  *   false
  * );
- * // Result: 7 (0 variables + 2 length + 5 literal-first)
+ * // Result: 11 (0 variables + 6 length + 5 literal-first)
  *
  * @example
  * // Pattern with variables
@@ -112,7 +162,7 @@ import { logger } from './logger';
  *   [{ name: 'X' }],
  *   false
  * );
- * // Result: 12 (10 variables + 2 length)
+ * // Result: 14 (8 variables + 6 length)
  *
  * @example
  * // Low priority pattern (for conflict resolution)
@@ -121,12 +171,16 @@ import { logger } from './logger';
  *   [{ name: 'X' }],
  *   true
  * );
- * // Result: 5 (10 variables + 2 length + 5 literal-first - 12 low priority penalty)
+ * // Result: 2 (8 variables + 6 length + 5 literal-first - 12 low priority penalty)
  */
-export function calculatePatternPriority(tokens, variables, lowPriority = false) {
+export function calculatePatternPriority(
+  tokens: PatternToken[],
+  variables: PatternVariable[],
+  lowPriority: boolean = false
+): number {
   // MEDIUM-2 FIX: Comprehensive input validation
   const MAX_SAFE_COUNT = 100; // Reasonable limit for pattern complexity
-  const VALID_TOKEN_TYPES = ['literal', 'variable'];
+  const VALID_TOKEN_TYPES: PatternTokenType[] = ['literal', 'variable'];
 
   // Validate tokens array
   if (!Array.isArray(tokens)) {
@@ -216,7 +270,7 @@ export const PRIORITY_WEIGHTS = {
   LENGTH: 3, // Points per token in pattern (increased from 1)
   LITERAL_FIRST: 5, // Bonus for patterns starting with literal
   LOW_PRIORITY_PENALTY: -12, // Penalty for low priority flag
-};
+} as const;
 
 /**
  * Calculate priority factors breakdown (for debugging/analysis)
@@ -224,23 +278,27 @@ export const PRIORITY_WEIGHTS = {
  * Returns detailed breakdown of how priority was calculated.
  * Useful for understanding why one pattern won over another.
  *
- * @param {Array} tokens - Pattern tokens
- * @param {Array} variables - Pattern variables
- * @param {boolean} lowPriority - Whether this is a low priority pattern
- * @returns {Object} Priority breakdown with individual factors
+ * @param tokens - Pattern tokens
+ * @param variables - Pattern variables
+ * @param lowPriority - Whether this is a low priority pattern
+ * @returns Priority breakdown with individual factors
  *
  * @example
  * const breakdown = calculatePriorityBreakdown(tokens, variables, false);
  * console.log(breakdown);
  * // {
- * //   variableScore: 20,
- * //   lengthScore: 3,
+ * //   variableScore: 16,
+ * //   lengthScore: 9,
  * //   literalFirstBonus: 5,
  * //   lowPriorityPenalty: 0,
- * //   totalPriority: 28
+ * //   totalPriority: 30
  * // }
  */
-export function calculatePriorityBreakdown(tokens, variables, lowPriority = false) {
+export function calculatePriorityBreakdown(
+  tokens: PatternToken[],
+  variables: PatternVariable[],
+  lowPriority: boolean = false
+): PriorityBreakdown {
   const variableScore = variables.length * 8; // Updated weight: 8 (was 10)
   const lengthScore = tokens.length * 3; // Updated weight: 3 (was 1)
   const literalFirstBonus = tokens[0]?.type === 'literal' ? 5 : 0;
