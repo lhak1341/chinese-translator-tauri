@@ -24,9 +24,11 @@
 mod trie;
 pub mod number_processor;
 pub mod pattern_processor;
+pub mod segment_matcher;
 
 // Re-export WASM wrappers for JavaScript
 pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
+pub use segment_matcher::SegmentMatcher;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;
