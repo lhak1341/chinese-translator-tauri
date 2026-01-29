@@ -9,6 +9,7 @@ import { logger } from './utils/logger';
 import { cleanupWasmNumberProcessor } from './utils/WasmNumberProcessor';
 import { cleanupWasmPatternProcessor } from './utils/WasmPatternProcessor';
 import { rustLookupIndexManager } from './utils/RustLookupIndexManager';
+import { initializeWasmPositionMapper } from './utils/WasmPositionMapper';
 
 function App() {
   // Load and apply appearance settings on app start
@@ -342,6 +343,15 @@ function App() {
     };
 
     loadAppearanceSettings();
+
+    // Initialize WASM Position Mapper for 3-5x faster string search
+    initializeWasmPositionMapper().catch((error) => {
+      logger.warn(
+        '⚠️ WASM Position Mapper initialization failed, using JavaScript fallback:',
+        error
+      );
+    });
+
     const cleanup = initializePerformanceMonitoring();
 
     return cleanup;
