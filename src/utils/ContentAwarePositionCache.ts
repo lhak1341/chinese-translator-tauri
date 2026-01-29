@@ -6,33 +6,144 @@
  * - 50-200ms improvement per translation
  * - 30-50% cache hit improvement through content similarity detection
  * - Preserves clickable highlighting precision
- *
- * @import {
- *   ContentAwarePositionCacheOptions,
- *   ContentAwarePositionCache as IContentAwarePositionCache,
- *   ContentSignature,
- *   PositionMappingCacheEntry,
- *   ContentAwarePositionCacheStats,
- *   SimilarityMatch,
- *   LRUCache as ILRUCache
- * } from '../types/CacheTypes'
  */
 
 import { logger } from './logger';
-import { LRUCache } from './LRUCache.ts';
+import { LRUCache } from './LRUCache';
+
+/**
+ * Configuration options for ContentAwarePositionCache
+ */
+export interface ContentAwarePositionCacheOptions {
+  /** Maximum cache size (default: 500) */
+  maxCacheSize?: number;
+
+  /** Maximum age of cache entries in milliseconds (default: 30 minutes) */
+  maxCacheAge?: number;
+
+  /** Similarity threshold for matching (default: 0.85) */
+  similarityThreshold?: number;
+}
+
+/**
+ * Content signature for similarity detection
+ * Uses character frequency and length patterns
+ */
+export interface ContentSignature {
+  /** Top 20 characters with frequencies (format: "char:freq|char:freq|...") */
+  signature: string;
+
+  /** Total text length */
+  length: number;
+
+  /** Word count */
+  wordCount: number;
+
+  /** Average word length */
+  avgWordLength: number;
+}
+
+/**
+ * Position mapping cache entry
+ */
+interface PositionMappingCacheEntry {
+  /** Position mapping array */
+  positionMapping: any;
+
+  /** Timestamp when entry was created */
+  timestamp: number;
+
+  /** Time taken to compute the mapping (ms) */
+  computeTime: number;
+
+  /** Length of the text */
+  textLength: number;
+
+  /** Content signature for similarity detection */
+  signature: ContentSignature;
+}
+
+/**
+ * Similarity cache data
+ */
+interface SimilarityCacheData {
+  /** Content signature */
+  signature: ContentSignature;
+
+  /** Timestamp */
+  timestamp: number;
+}
+
+/**
+ * Cache statistics
+ */
+interface CacheStatistics {
+  /** Number of exact cache hits */
+  exactHits: number;
+
+  /** Number of similarity-based cache hits */
+  similarityHits: number;
+
+  /** Number of cache misses */
+  misses: number;
+
+  /** Number of cache stores */
+  stores: number;
+
+  /** Total lookup operations */
+  totalLookups: number;
+
+  /** Overall hit rate (percentage) */
+  hitRate: number;
+
+  /** Average compute time saved per hit (ms) */
+  avgComputeTimeSaved: number;
+}
+
+/**
+ * Extended statistics returned by getStats()
+ */
+interface GetStatsResult extends CacheStatistics {
+  /** Total hits (exact + similarity) */
+  totalHits: number;
+
+  /** Exact hit rate (percentage) */
+  exactHitRate: number;
+
+  /** Similarity hit rate (percentage) */
+  similarityHitRate: number;
+
+  /** Current cache size */
+  cacheSize: number;
+
+  /** Similarity cache size */
+  similarityCacheSize: number;
+
+  /** Estimated total time saved (ms) */
+  estimatedTimeSaved: number;
+}
 
 export class ContentAwarePositionCache {
-  constructor(options = {}) {
+  private cacheVersion: number;
+  private maxCacheSize: number;
+  private maxCacheAge: number;
+  private similarityThreshold: number;
+  private exactCache: LRUCache<string, PositionMappingCacheEntry>;
+  private similarityCache: Map<string, SimilarityCacheData>;
+  private stats: CacheStatistics;
+  private cleanupIntervalId: number | null;
+
+  constructor(options: ContentAwarePositionCacheOptions = {}) {
     this.cacheVersion = 3; // v3: Disabled similarity matching (was causing wrong position mappings)
     this.maxCacheSize = options.maxCacheSize || 500; // Position mappings are larger objects
     this.maxCacheAge = options.maxCacheAge || 30 * 60 * 1000; // 30 minutes
     this.similarityThreshold = options.similarityThreshold || 0.85; // 85% similarity
 
     // Main cache for exact content matches
-    this.exactCache = new LRUCache(this.maxCacheSize);
+    this.exactCache = new LRUCache<string, PositionMappingCacheEntry>(this.maxCacheSize);
 
     // Similarity cache for detecting similar content (must be initialized before checkCacheVersion)
-    this.similarityCache = new Map(); // Map of content hashes to similarity signatures
+    this.similarityCache = new Map<string, SimilarityCacheData>();
 
     // Check and clear old cache versions
     this.checkCacheVersion();
@@ -56,7 +167,7 @@ export class ContentAwarePositionCache {
   /**
    * Check cache version and clear if outdated
    */
-  checkCacheVersion() {
+  checkCacheVersion(): void {
     try {
       const storedVersion = localStorage.getItem('positionCacheVersion');
       if (storedVersion !== String(this.cacheVersion)) {
@@ -72,7 +183,7 @@ export class ContentAwarePositionCache {
   /**
    * Generate fast content hash for exact matching
    */
-  generateContentHash(text) {
+  generateContentHash(text: string): string {
     let hash = 0;
     for (let i = 0; i < text.length; i++) {
       const char = text.charCodeAt(i);
@@ -86,10 +197,10 @@ export class ContentAwarePositionCache {
    * Generate content signature for similarity detection
    * Uses character frequency and length patterns
    */
-  generateContentSignature(text) {
+  generateContentSignature(text: string): ContentSignature {
     // Character frequency signature (first 1000 chars for performance)
     const sampleText = text.substring(0, 1000);
-    const charFreq = {};
+    const charFreq: Record<string, number> = {};
 
     for (const char of sampleText) {
       charFreq[char] = (charFreq[char] || 0) + 1;
@@ -112,7 +223,7 @@ export class ContentAwarePositionCache {
   /**
    * Calculate similarity between two content signatures
    */
-  calculateSimilarity(sig1, sig2) {
+  calculateSimilarity(sig1: ContentSignature, sig2: ContentSignature): number {
     // Length similarity (30% weight)
     const lengthSimilarity =
       1 - Math.abs(sig1.length - sig2.length) / Math.max(sig1.length, sig2.length);
@@ -134,7 +245,7 @@ export class ContentAwarePositionCache {
   /**
    * Get cached position mapping
    */
-  get(text) {
+  get(text: string): any | null {
     const startTime = performance.now();
     this.stats.totalLookups++;
 
@@ -174,11 +285,11 @@ export class ContentAwarePositionCache {
   /**
    * Store position mapping in cache
    */
-  set(text, positionMapping, computeTime = 0) {
+  set(text: string, positionMapping: any, computeTime: number = 0): void {
     const contentHash = this.generateContentHash(text);
     const contentSignature = this.generateContentSignature(text);
 
-    const cacheEntry = {
+    const cacheEntry: PositionMappingCacheEntry = {
       positionMapping,
       timestamp: Date.now(),
       computeTime,
@@ -206,7 +317,9 @@ export class ContentAwarePositionCache {
   /**
    * Check if cache entry is still valid
    */
-  isValidCacheEntry(entry) {
+  isValidCacheEntry(
+    entry: PositionMappingCacheEntry | undefined
+  ): entry is PositionMappingCacheEntry {
     if (!entry || !entry.timestamp) return false;
 
     const age = Date.now() - entry.timestamp;
@@ -216,7 +329,7 @@ export class ContentAwarePositionCache {
   /**
    * Update hit rate statistics
    */
-  updateHitRate() {
+  updateHitRate(): void {
     const totalHits = this.stats.exactHits + this.stats.similarityHits;
     this.stats.hitRate =
       this.stats.totalLookups > 0 ? (totalHits / this.stats.totalLookups) * 100 : 0;
@@ -225,7 +338,7 @@ export class ContentAwarePositionCache {
   /**
    * Get cache statistics
    */
-  getStats() {
+  getStats(): GetStatsResult {
     const totalHits = this.stats.exactHits + this.stats.similarityHits;
 
     return {
@@ -237,7 +350,7 @@ export class ContentAwarePositionCache {
         this.stats.totalLookups > 0
           ? (this.stats.similarityHits / this.stats.totalLookups) * 100
           : 0,
-      cacheSize: this.exactCache.cache.size,
+      cacheSize: this.exactCache.size(),
       similarityCacheSize: this.similarityCache.size,
       estimatedTimeSaved: totalHits * this.stats.avgComputeTimeSaved,
     };
@@ -246,7 +359,7 @@ export class ContentAwarePositionCache {
   /**
    * Clear all caches
    */
-  clear() {
+  clear(): void {
     this.exactCache.clear();
     this.similarityCache.clear();
 
@@ -267,8 +380,8 @@ export class ContentAwarePositionCache {
   /**
    * Set up periodic cleanup of expired entries
    */
-  setupPeriodicCleanup() {
-    this.cleanupIntervalId = setInterval(
+  setupPeriodicCleanup(): void {
+    this.cleanupIntervalId = window.setInterval(
       () => {
         this.cleanupExpiredEntries();
       },
@@ -279,7 +392,7 @@ export class ContentAwarePositionCache {
   /**
    * Clean up resources including periodic cleanup timer
    */
-  destroy() {
+  destroy(): void {
     if (this.cleanupIntervalId !== null) {
       clearInterval(this.cleanupIntervalId);
       this.cleanupIntervalId = null;
@@ -291,7 +404,7 @@ export class ContentAwarePositionCache {
   /**
    * Remove expired entries from similarity cache
    */
-  cleanupExpiredEntries() {
+  cleanupExpiredEntries(): void {
     const now = Date.now();
     let removedCount = 0;
 
