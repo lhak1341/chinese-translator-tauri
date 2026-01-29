@@ -11,19 +11,141 @@
  *
  * Cache Key Format: hash(originalText + dictionaryFingerprint + configOptions)
  * Cache Entry: { translatedText, semanticArrays, timestamp, hitCount, dictVersion }
- *
- * @import {
- *   TranslationSegmentCacheOptions,
- *   SegmentCacheEntry,
- *   CacheMetadata,
- *   TranslationSegmentCache as ITranslationSegmentCache
- * } from '../types/CacheTypes'
  */
 
 import { logger } from './logger';
 
+/**
+ * Options for TranslationSegmentCache constructor
+ */
+export interface TranslationSegmentCacheOptions {
+  /** Maximum number of cached segments before eviction (default: 1000) */
+  maxCacheSize?: number;
+
+  /** Maximum age of cache entries in milliseconds (default: 7 days) */
+  maxCacheAge?: number;
+}
+
+/**
+ * Cache metadata for tracking all cached entries
+ * Stored in localStorage to persist across sessions
+ */
+interface CacheMetadataStructure {
+  /** Array of all cache keys currently stored */
+  keys: string[];
+
+  /** Timestamp when metadata was created */
+  created: number;
+
+  /** Timestamp of last cleanup operation */
+  lastCleanup: number;
+}
+
+/**
+ * Cached translation entry
+ * Stored in localStorage with cache key as the key
+ */
+interface CachedEntry {
+  /** Partial original text for debugging (truncated to 100 chars) */
+  originalText: string;
+
+  /** Full translated text */
+  translatedText: string;
+
+  /** Semantic arrays for clickable highlighting */
+  semanticArrays: {
+    original: string[];
+    translated: string[];
+    metadata: any[];
+  };
+
+  /** Timestamp when entry was created */
+  timestamp: number;
+
+  /** Timestamp of last access */
+  lastAccess: number;
+
+  /** Number of times this entry was accessed */
+  hitCount: number;
+
+  /** Dictionary fingerprint for cache invalidation */
+  dictFingerprint: string;
+}
+
+/**
+ * Cache statistics for performance monitoring
+ */
+interface CacheStatistics {
+  /** Total cache hits */
+  hits: number;
+
+  /** Total cache misses */
+  misses: number;
+
+  /** Total cache stores */
+  stores: number;
+
+  /** Total cache evictions */
+  evictions: number;
+
+  /** Total lookup operations */
+  totalLookups: number;
+
+  /** Hit rate percentage */
+  hitRate: number;
+
+  /** Average lookup time in milliseconds */
+  averageLookupTime: number;
+}
+
+/**
+ * Return type for get() method
+ */
+interface CacheGetResult {
+  /** Translated text */
+  translatedText: string;
+
+  /** Semantic arrays for clickable highlighting */
+  semanticArrays: {
+    original: string[];
+    translated: string[];
+    metadata: any[];
+  };
+}
+
+/**
+ * Translation options for cache key generation
+ */
+interface TranslationOptions {
+  [key: string]: string | number | boolean;
+}
+
+/**
+ * Dictionary manager interface (minimal subset for fingerprint generation)
+ */
+interface DictionaryManagerLike {
+  ready: boolean;
+  getActiveDictionaryNames?: () => string[];
+  getDictionary?: (name: string) => { version?: string | number; size?: number } | undefined;
+}
+
 export class TranslationSegmentCache {
-  constructor(options = {}) {
+  private maxCacheSize: number;
+  private maxCacheAge: number;
+  private windowId: string;
+  private cacheKeyPrefix: string;
+  private metadataKey: string;
+  private _operationLock: Promise<void>;
+  private readonly LOCK_KEY: string;
+  private readonly LOCK_TIMEOUT: number;
+  private stats: CacheStatistics;
+  private metadata: CacheMetadataStructure;
+  private cleanupIntervalId: number | null;
+  private approximateSize: number;
+  private writesSinceRecalculation: number;
+  private readonly RECALCULATION_INTERVAL: number;
+
+  constructor(options: TranslationSegmentCacheOptions = {}) {
     this.maxCacheSize = options.maxCacheSize || 1000; // Maximum cached segments
     this.maxCacheAge = options.maxCacheAge || 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
@@ -80,35 +202,38 @@ export class TranslationSegmentCache {
   /**
    * CRITICAL FIX: Acquire operation lock to prevent concurrent write corruption
    * Uses promise chaining to serialize cache operations
-   * @returns {Function} Release function to call when operation completes
+   * @returns Release function to call when operation completes
    */
-  async _acquireLock() {
+  private async _acquireLock(): Promise<() => void> {
     // Chain this operation after previous operation completes
     const previousOperation = this._operationLock;
 
-    let releaseLock;
-    this._operationLock = new Promise((resolve) => {
+    let releaseLock: () => void;
+    this._operationLock = new Promise<void>((resolve) => {
       releaseLock = resolve;
     });
 
     // Wait for previous operation to complete
     await previousOperation;
 
-    return releaseLock;
+    return releaseLock!;
   }
 
   /**
    * CRITICAL FIX: Safe JSON parser to prevent crashes from corrupted localStorage
    * Handles malformed entries from browser crashes or storage corruption
-   * @param {string} jsonString - JSON string to parse
-   * @param {*} fallback - Fallback value if parsing fails
-   * @returns {*} Parsed object or fallback
+   * @param jsonString - JSON string to parse
+   * @param fallback - Fallback value if parsing fails
+   * @returns Parsed object or fallback
    */
-  _safeParseJSON(jsonString, fallback = {}) {
+  private _safeParseJSON<T>(jsonString: string, fallback: T): T {
     try {
-      return JSON.parse(jsonString);
+      return JSON.parse(jsonString) as T;
     } catch (error) {
-      logger.warn('Failed to parse JSON from localStorage (using fallback):', error.message);
+      logger.warn(
+        'Failed to parse JSON from localStorage (using fallback):',
+        error instanceof Error ? error.message : String(error)
+      );
       return fallback;
     }
   }
@@ -116,12 +241,16 @@ export class TranslationSegmentCache {
   /**
    * CODE REVIEW FIX (MEDIUM-3): Generate secure cache key with SHA-256
    * Uses collision-resistant hashing to prevent wrong translations being served
-   * @param {string} originalText - Original text to translate
-   * @param {string} dictionaryFingerprint - Dictionary version fingerprint
-   * @param {Object} options - Translation options
-   * @returns {Promise<string>} Cache key
+   * @param originalText - Original text to translate
+   * @param dictionaryFingerprint - Dictionary version fingerprint
+   * @param options - Translation options
+   * @returns Cache key
    */
-  async generateCacheKey(originalText, dictionaryFingerprint, options = {}) {
+  async generateCacheKey(
+    originalText: string,
+    dictionaryFingerprint: string,
+    options: TranslationOptions = {}
+  ): Promise<string> {
     const startTime = performance.now();
 
     // SECURITY FIX: Sanitize options to prevent cache collisions from unexpected types
@@ -142,10 +271,10 @@ export class TranslationSegmentCache {
   /**
    * CODE REVIEW FIX (MEDIUM-3): Secure hash using SHA-256
    * Provides collision-resistant hashing via Web Crypto API
-   * @param {string} content - Content to hash
-   * @returns {Promise<string>} Hex-encoded SHA-256 hash
+   * @param content - Content to hash
+   * @returns Hex-encoded SHA-256 hash
    */
-  async secureHash(content) {
+  async secureHash(content: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(content);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -157,12 +286,12 @@ export class TranslationSegmentCache {
    * Sanitize options object to prevent cache collisions from unexpected types
    * Only allows primitive string/number/boolean values
    */
-  sanitizeOptions(options) {
+  sanitizeOptions(options: any): TranslationOptions {
     if (!options || typeof options !== 'object') {
       return {};
     }
 
-    const safeOptions = {};
+    const safeOptions: TranslationOptions = {};
     for (const key of Object.keys(options)) {
       const value = options[key];
       // Only allow primitive types that serialize predictably
@@ -178,7 +307,7 @@ export class TranslationSegmentCache {
    * Fast hash function for cache key generation
    * Simple but sufficient for cache addressing
    */
-  simpleHash(str) {
+  simpleHash(str: string): string {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
@@ -192,7 +321,7 @@ export class TranslationSegmentCache {
    * Generate dictionary fingerprint for cache invalidation
    * Creates unique identifier based on dictionary content and versions
    */
-  generateDictionaryFingerprint(dictionaryManager) {
+  generateDictionaryFingerprint(dictionaryManager: DictionaryManagerLike | null): string {
     if (!dictionaryManager || !dictionaryManager.ready) {
       return 'no-dictionaries';
     }
@@ -219,7 +348,11 @@ export class TranslationSegmentCache {
    * Returns null if not found or expired
    * CODE REVIEW FIX (MEDIUM-3): Now async to support SHA-256 hashing
    */
-  async get(originalText, dictionaryFingerprint, options = {}) {
+  async get(
+    originalText: string,
+    dictionaryFingerprint: string,
+    options: TranslationOptions = {}
+  ): Promise<CacheGetResult | null> {
     const startTime = performance.now();
     this.stats.totalLookups++;
 
@@ -234,12 +367,15 @@ export class TranslationSegmentCache {
       }
 
       // ERROR HANDLING FIX: Validate JSON.parse to prevent cache corruption crashes
-      let cachedData;
+      let cachedData: CachedEntry | null;
       try {
-        cachedData = JSON.parse(cachedDataStr);
+        cachedData = JSON.parse(cachedDataStr) as CachedEntry;
       } catch (parseError) {
         // Corrupted cache entry - remove and treat as miss
-        logger.warn(`Corrupted cache entry removed: ${cacheKey}`, parseError.message);
+        logger.warn(
+          `Corrupted cache entry removed: ${cacheKey}`,
+          parseError instanceof Error ? parseError.message : String(parseError)
+        );
         this._removeEntry(cacheKey);
         this.stats.misses++;
         this.stats.evictions++;
@@ -314,12 +450,18 @@ export class TranslationSegmentCache {
    * Implements LRU eviction when cache is full
    * CRITICAL FIX: Uses operation lock to prevent concurrent write corruption
    */
-  async set(originalText, translatedText, semanticArrays, dictionaryFingerprint, options = {}) {
+  async set(
+    originalText: string,
+    translatedText: string,
+    semanticArrays: { original: string[]; translated: string[]; metadata: any[] },
+    dictionaryFingerprint: string,
+    options: TranslationOptions = {}
+  ): Promise<void> {
     const startTime = performance.now();
     const cacheKey = await this.generateCacheKey(originalText, dictionaryFingerprint, options);
     const now = Date.now();
 
-    const cacheEntry = {
+    const cacheEntry: CachedEntry = {
       originalText:
         originalText.length > 100 ? originalText.substring(0, 100) + '...' : originalText, // Store partial for debugging
       translatedText,
@@ -365,7 +507,7 @@ export class TranslationSegmentCache {
       }
     } catch (error) {
       // Handle localStorage quota exceeded
-      if (error.name === 'QuotaExceededError') {
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
         logger.warn('Cache storage quota exceeded, cleaning up old entries');
         this.aggressiveCleanup();
         // Retry once after cleanup
@@ -395,14 +537,17 @@ export class TranslationSegmentCache {
    * Ensure cache doesn't exceed size limits
    * Implements LRU eviction strategy
    */
-  ensureCacheSpace() {
+  ensureCacheSpace(): void {
     const cacheKeys = this.metadata.keys || [];
 
     if (cacheKeys.length >= this.maxCacheSize) {
       // Sort by last access time (ascending) to find LRU entries
       const keyStats = cacheKeys.map((key) => {
         // CRITICAL FIX: Use safe parser to handle corrupted localStorage entries
-        const data = this._safeParseJSON(localStorage.getItem(key) || '{}', {});
+        const data = this._safeParseJSON<Partial<CachedEntry>>(
+          localStorage.getItem(key) || '{}',
+          {}
+        );
         return {
           key,
           lastAccess: data.lastAccess || 0,
@@ -439,13 +584,13 @@ export class TranslationSegmentCache {
 
   /**
    * MEMORY PROFILING FIX: Check if localStorage is approaching quota limit
-   * @returns {boolean} True if localStorage usage > 80% of typical 5MB quota
+   * @returns True if localStorage usage > 80% of typical 5MB quota
    */
   /**
    * PERFORMANCE FIX: Recalculate actual localStorage size
-   * Only called periodically (every 100 writes) to correct drift
+   * Only called periodically (every 10 writes) to correct drift
    */
-  _recalculateSize() {
+  private _recalculateSize(): number {
     try {
       let totalBytes = 0;
       const cacheKeys = this.metadata.keys || [];
@@ -475,12 +620,12 @@ export class TranslationSegmentCache {
   /**
    * PERFORMANCE FIX: Estimate entry size for incremental tracking
    */
-  _estimateEntrySize(key, value) {
+  private _estimateEntrySize(key: string, value: string): number {
     const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
     return (key.length + valueStr.length) * 2; // UTF-16 encoding
   }
 
-  isApproachingQuota() {
+  isApproachingQuota(): boolean {
     try {
       // PERFORMANCE FIX: Use incremental size tracking instead of O(n) loop
       // Periodically recalculate to correct drift
@@ -525,11 +670,10 @@ export class TranslationSegmentCache {
    * MEMORY LEAK FIX: Clean up orphaned cache entries from previous sessions
    * Removes entries with different window IDs that were created in previous app runs
    */
-  _cleanupOrphanedEntries() {
+  private _cleanupOrphanedEntries(): void {
     try {
       let removedCount = 0;
       const currentPrefix = this.cacheKeyPrefix;
-      const currentMetadataKey = this.metadataKey;
 
       // Scan all localStorage keys for translation cache entries
       for (let i = 0; i < localStorage.length; i++) {
@@ -563,7 +707,7 @@ export class TranslationSegmentCache {
    * MEMORY PROFILING FIX: Proactive cleanup to prevent quota exceeded errors
    * More aggressive than reactive cleanup - removes entries older than 3 days
    */
-  proactiveCleanup() {
+  proactiveCleanup(): void {
     const now = Date.now();
     const cacheKeys = this.metadata.keys || [];
     let removedCount = 0;
@@ -571,7 +715,10 @@ export class TranslationSegmentCache {
     // Remove entries older than 3 days (less aggressive than 1-day reactive cleanup)
     cacheKeys.forEach((key) => {
       // CRITICAL FIX: Use safe parser, remove corrupted entries
-      const data = this._safeParseJSON(localStorage.getItem(key) || '{}', null);
+      const data = this._safeParseJSON<Partial<CachedEntry> | null>(
+        localStorage.getItem(key) || '{}',
+        null
+      );
 
       // If parsing failed (returns null), remove corrupted entry
       if (data === null) {
@@ -592,7 +739,7 @@ export class TranslationSegmentCache {
   /**
    * Aggressive cleanup when storage quota exceeded
    */
-  aggressiveCleanup() {
+  aggressiveCleanup(): void {
     const now = Date.now();
     const cacheKeys = this.metadata.keys || [];
     let removedCount = 0;
@@ -600,7 +747,10 @@ export class TranslationSegmentCache {
     // Remove all entries older than 1 day
     cacheKeys.forEach((key) => {
       // CRITICAL FIX: Use safe parser, remove corrupted entries
-      const data = this._safeParseJSON(localStorage.getItem(key) || '{}', null);
+      const data = this._safeParseJSON<Partial<CachedEntry> | null>(
+        localStorage.getItem(key) || '{}',
+        null
+      );
 
       // If parsing failed (returns null), remove corrupted entry
       if (data === null) {
@@ -619,11 +769,11 @@ export class TranslationSegmentCache {
   /**
    * Load or initialize cache metadata
    */
-  loadMetadata() {
+  loadMetadata(): CacheMetadataStructure {
     try {
       const metadataStr = localStorage.getItem(this.metadataKey);
       if (metadataStr) {
-        return JSON.parse(metadataStr);
+        return JSON.parse(metadataStr) as CacheMetadataStructure;
       }
     } catch (error) {
       logger.warn('Failed to load cache metadata:', error);
@@ -640,12 +790,12 @@ export class TranslationSegmentCache {
    * Save cache metadata
    * CRITICAL: Metadata must be saved to track cache keys, without it cache becomes inconsistent
    */
-  saveMetadata() {
+  saveMetadata(): void {
     try {
       localStorage.setItem(this.metadataKey, JSON.stringify(this.metadata));
     } catch (error) {
       // Handle localStorage quota exceeded
-      if (error.name === 'QuotaExceededError') {
+      if (error instanceof Error && error.name === 'QuotaExceededError') {
         logger.warn('Metadata storage quota exceeded, cleaning up old entries');
         this.aggressiveCleanup();
         // Retry once after cleanup
@@ -655,7 +805,7 @@ export class TranslationSegmentCache {
           logger.error('CRITICAL: Metadata save failed after cleanup:', retryError);
           // Metadata loss is critical - cache tracking will be inconsistent
           // Consider clearing entire cache to prevent orphaned entries
-          if (retryError.name === 'QuotaExceededError') {
+          if (retryError instanceof Error && retryError.name === 'QuotaExceededError') {
             logger.error('Clearing entire cache due to quota issues');
             this.clear();
           }
@@ -669,7 +819,7 @@ export class TranslationSegmentCache {
   /**
    * Add key to metadata tracking
    */
-  addToMetadata(key, _timestamp) {
+  addToMetadata(key: string, _timestamp: number): void {
     if (!this.metadata.keys.includes(key)) {
       this.metadata.keys.push(key);
       this.saveMetadata();
@@ -679,7 +829,7 @@ export class TranslationSegmentCache {
   /**
    * Remove key from metadata tracking
    */
-  removeFromMetadata(key) {
+  removeFromMetadata(key: string): void {
     this.metadata.keys = this.metadata.keys.filter((k) => k !== key);
     this.saveMetadata();
   }
@@ -688,7 +838,7 @@ export class TranslationSegmentCache {
    * PERFORMANCE FIX: Remove cache entry and update size tracking
    * Helper to ensure size tracking stays in sync with removals
    */
-  _removeEntry(key) {
+  private _removeEntry(key: string): void {
     try {
       // Get entry size before removing
       const value = localStorage.getItem(key);
@@ -713,7 +863,7 @@ export class TranslationSegmentCache {
   /**
    * Update hit rate statistics
    */
-  updateHitRate() {
+  updateHitRate(): void {
     this.stats.hitRate =
       this.stats.totalLookups > 0 ? (this.stats.hits / this.stats.totalLookups) * 100 : 0;
   }
@@ -721,7 +871,17 @@ export class TranslationSegmentCache {
   /**
    * Get cache statistics
    */
-  getStats() {
+  getStats(): {
+    hits: number;
+    misses: number;
+    stores: number;
+    evictions: number;
+    totalLookups: number;
+    hitRate: number;
+    cacheSize: number;
+    maxCacheSize: number;
+    averageLookupTime: number;
+  } {
     return {
       ...this.stats,
       cacheSize: this.metadata.keys.length,
@@ -734,7 +894,7 @@ export class TranslationSegmentCache {
   /**
    * Clear all cached data
    */
-  clear() {
+  clear(): void {
     const keys = this.metadata.keys || [];
     keys.forEach((key) => localStorage.removeItem(key));
 
@@ -766,10 +926,10 @@ export class TranslationSegmentCache {
   /**
    * Setup periodic cleanup of expired entries
    */
-  setupPeriodicCleanup() {
+  setupPeriodicCleanup(): void {
     // MEMORY LEAK FIX: Store interval ID for cleanup
     // Run cleanup every 5 minutes when active
-    this.cleanupIntervalId = setInterval(
+    this.cleanupIntervalId = window.setInterval(
       () => {
         this.cleanupExpiredEntries();
       },
@@ -781,7 +941,7 @@ export class TranslationSegmentCache {
    * MEMORY LEAK FIX: Cleanup method to stop periodic cleanup timer
    * Call this when cache is no longer needed to prevent memory leaks
    */
-  destroy() {
+  destroy(): void {
     if (this.cleanupIntervalId !== null) {
       clearInterval(this.cleanupIntervalId);
       this.cleanupIntervalId = null;
@@ -791,7 +951,7 @@ export class TranslationSegmentCache {
   /**
    * Clean up expired entries
    */
-  cleanupExpiredEntries() {
+  cleanupExpiredEntries(): void {
     const now = Date.now();
 
     // Skip cleanup if done recently
@@ -806,7 +966,7 @@ export class TranslationSegmentCache {
       try {
         const data = localStorage.getItem(key);
         if (data) {
-          const parsedData = JSON.parse(data);
+          const parsedData = JSON.parse(data) as CachedEntry;
           if (now - parsedData.timestamp > this.maxCacheAge) {
             this._removeEntry(key);
             cleanedCount++;
