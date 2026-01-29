@@ -26,9 +26,221 @@ export class SegmentPrecomputer {
    * Pre-compute clickable segments from semantic arrays
    * @param {string} text - The full translated text
    * @param {Object} semanticArrays - Semantic arrays from translation
+   * @param {Object} options - Options for segment computation
+   * @param {boolean} options.useWasm - Whether to try WASM acceleration (default: true)
    * @returns {Array} Pre-computed segments with positions and metadata
    */
-  static precomputeSegments(text, semanticArrays) {
+  static async precomputeSegments(text, semanticArrays, options = {}) {
+    const { useWasm = true } = options;
+
+    // Try WASM first if enabled
+    if (useWasm) {
+      try {
+        const wasmSegments = await this.precomputeSegmentsWasm(text, semanticArrays);
+        if (wasmSegments !== null) {
+          return wasmSegments;
+        }
+        // Fall through to JavaScript if WASM returned null
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          logger.warn('⚠️ WASM segment computation failed, falling back to JavaScript:', error);
+        }
+        // Fall through to JavaScript implementation
+      }
+    }
+
+    // JavaScript fallback
+    return this.precomputeSegmentsJS(text, semanticArrays);
+  }
+
+  /**
+   * WASM-accelerated segment computation (8-20x faster)
+   * @param {string} text - The full translated text
+   * @param {Object} semanticArrays - Semantic arrays from translation
+   * @returns {Array|null} Pre-computed segments or null if WASM unavailable
+   */
+  static async precomputeSegmentsWasm(text, semanticArrays) {
+    if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
+      return [];
+    }
+
+    // Normalize text to NFC
+    text = text.normalize('NFC');
+
+    const { translated, original, metadata } = semanticArrays;
+
+    // Prepare semantic units for WASM
+    const allUnits = translated
+      .map((unit, index) => ({
+        index,
+        unit: unit ? unit.normalize('NFC') : unit,
+        original: original[index],
+        metadata: metadata[index],
+      }))
+      .filter((unitData) => unitData.unit && unitData.unit.length > 0);
+
+    if (allUnits.length === 0) {
+      return [];
+    }
+
+    // Sort by token index
+    const filteredUnits = allUnits.sort((a, b) => {
+      const aIndex = a.metadata?.tokenIndex ?? 0;
+      const bIndex = b.metadata?.tokenIndex ?? 0;
+      return aIndex - bIndex;
+    });
+
+    // Initialize WASM matcher
+    const wasmMatcher = new WasmSegmentMatcher();
+    const wasmReady = await wasmMatcher.initialize(filteredUnits);
+
+    if (!wasmReady) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.log('ℹ️ WASM segment matcher not available, using JavaScript fallback');
+      }
+      return null; // Signal to use JavaScript fallback
+    }
+
+    // Find matches using WASM trie (O(n+k) instead of O(n*m*k))
+    const wasmMatches = wasmMatcher.findMatches(text, filteredUnits);
+
+    if (!wasmMatches) {
+      return null; // WASM failed, use JavaScript fallback
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      const stats = wasmMatcher.getStats();
+      logger.log('✅ WASM segment matcher used:', {
+        textLength: text.length,
+        units: filteredUnits.length,
+        matches: wasmMatches.length,
+        stats,
+      });
+    }
+
+    // Convert WASM matches to segments
+    return this.convertMatchesToSegments(text, wasmMatches, filteredUnits);
+  }
+
+  /**
+   * Convert WASM matches to segment format
+   * @param {string} text - The full translated text
+   * @param {Array} matches - Matches from WASM matcher
+   * @param {Array} filteredUnits - Filtered semantic units
+   * @returns {Array} Segments in expected format
+   */
+  static convertMatchesToSegments(text, matches, filteredUnits) {
+    const segments = [];
+    let currentPosition = 0;
+
+    // Sort matches by position
+    const sortedMatches = matches.sort((a, b) => a.position - b.position);
+
+    for (const match of sortedMatches) {
+      // Add non-matching text before this match
+      if (match.position > currentPosition) {
+        const nonMatchingText = text.substring(currentPosition, match.position);
+        this.addNonSemanticSegments(segments, nonMatchingText, currentPosition);
+      }
+
+      // Add the matched segment
+      const unitData = filteredUnits[match.unitIndex];
+      const endPosition = match.position + match.length;
+
+      // Get matched text (already has correct capitalization from source text)
+      const matchedText = text.substring(match.position, endPosition);
+
+      segments.push({
+        type: 'semantic',
+        text: matchedText,
+        start: match.position,
+        end: endPosition,
+        unitIndex: unitData.index,
+        originalText: unitData.original,
+        translatedText: matchedText,
+        source: unitData.metadata?.source || 'unknown',
+        metadata: unitData.metadata,
+        isClickable: true,
+      });
+
+      currentPosition = endPosition;
+    }
+
+    // Add remaining text
+    if (currentPosition < text.length) {
+      const remainingText = text.substring(currentPosition);
+      this.addNonSemanticSegments(segments, remainingText, currentPosition);
+    }
+
+    return segments;
+  }
+
+  /**
+   * Add non-semantic text segments (spaces, line breaks, text)
+   * @param {Array} segments - Segments array to append to
+   * @param {string} text - Non-semantic text
+   * @param {number} startPosition - Starting position in original text
+   */
+  static addNonSemanticSegments(segments, text, startPosition) {
+    let position = 0;
+
+    while (position < text.length) {
+      const char = text[position];
+
+      if (char === ' ') {
+        segments.push({
+          type: 'space',
+          text: ' ',
+          start: startPosition + position,
+          end: startPosition + position + 1,
+          unitIndex: -1,
+          isClickable: false,
+        });
+        position++;
+      } else if (/[\r\n]/.test(char)) {
+        let lineBreakEnd = position;
+        while (lineBreakEnd < text.length && /[\r\n]/.test(text[lineBreakEnd])) {
+          lineBreakEnd++;
+        }
+
+        segments.push({
+          type: 'text',
+          text: text.substring(position, lineBreakEnd),
+          start: startPosition + position,
+          end: startPosition + lineBreakEnd,
+          unitIndex: -1,
+          isClickable: false,
+        });
+        position = lineBreakEnd;
+      } else {
+        // Find next boundary
+        let nextBoundary = position + 1;
+        while (nextBoundary < text.length && !TEXT_BOUNDARY.test(text[nextBoundary])) {
+          nextBoundary++;
+        }
+
+        const nonSemanticText = text.substring(position, nextBoundary);
+        segments.push({
+          type: 'text',
+          text: nonSemanticText,
+          start: startPosition + position,
+          end: startPosition + nextBoundary,
+          unitIndex: -1,
+          isClickable: false,
+        });
+
+        position = nextBoundary;
+      }
+    }
+  }
+
+  /**
+   * JavaScript fallback segment computation (original implementation)
+   * @param {string} text - The full translated text
+   * @param {Object} semanticArrays - Semantic arrays from translation
+   * @returns {Array} Pre-computed segments with positions and metadata
+   */
+  static precomputeSegmentsJS(text, semanticArrays) {
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
       return [];
     }
