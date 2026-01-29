@@ -2,7 +2,7 @@
  * Semantic Array-Based Clickable Translation Component
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import type {
   ClickableTranslationSemanticProps,
   SegmentClickPayload,
@@ -20,10 +20,15 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   highlightedTranslationUnitIndex = -1,
   direction = 'translation-to-original',
 }) => {
-  // Use SegmentPrecomputer to create reliable segments, with special handling for character-only
-  const segments = useMemo(() => {
+  // State to hold computed segments (needed because SegmentPrecomputer.precomputeSegments is async)
+  const [segments, setSegments] = useState<any[]>([]);
+
+  // Compute segments synchronously for character-only mode, or async for other modes
+  useEffect(() => {
+    // Early exit for invalid data
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
-      return [];
+      setSegments([]);
+      return;
     }
 
     // For character-only translation, use position metadata when available (more reliable than indexOf)
@@ -34,7 +39,8 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         logger.warn(
           'translatedText is null/undefined in character-only mode, returning empty segments'
         );
-        return [];
+        setSegments([]);
+        return;
       }
 
       const directSegments = [];
@@ -218,18 +224,26 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         });
       }
 
-      return directSegments;
+      setSegments(directSegments);
+      return;
     }
 
-    // For other translations, use the existing SegmentPrecomputer
+    // For other translations, use the existing SegmentPrecomputer (async)
     // MEDIUM-2 FIX: Validate translatedText before using non-null assertion
     if (!translatedText) {
       logger.warn('translatedText is null/undefined, returning empty segments');
-      return [];
+      setSegments([]);
+      return;
     }
 
-    const computedSegments = SegmentPrecomputer.precomputeSegments(translatedText, semanticArrays);
-    return computedSegments;
+    // Call async precomputeSegments
+    (async () => {
+      const computedSegments = await SegmentPrecomputer.precomputeSegments(
+        translatedText,
+        semanticArrays
+      );
+      setSegments(computedSegments);
+    })();
   }, [translatedText, semanticArrays, direction]);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)
