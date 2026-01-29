@@ -5,6 +5,7 @@ React/Tauri desktop application for translating Chinese novels to Vietnamese. Pr
 ## 🚨 **CRITICAL: Code Activity Status**
 
 **Before modifying any code, consult these documents:**
+
 - **`ACTIVE_CODE_QUICK_REFERENCE.md`** - Fast lookup: is this code actually running?
 - **`WASM_RUST_SYSTEMS_MAP.md`** - Comprehensive Rust/WASM architecture documentation
 
@@ -37,9 +38,11 @@ npm run tauri:dev  # Builds WASM core, starts Vite dev server, launches Tauri wi
 **Root Cause**: `TranslationSegmentCache` stores corrupted results in localStorage that persist across restarts.
 
 **Resolution (ALWAYS TRY FIRST)**:
+
 - Click **"Reload Dictionary"** button (clears cache + reloads dictionaries)
 
 **Manual Cache Clear** (Tauri):
+
 ```bash
 # macOS
 rm -rf ~/Library/Application\ Support/com.tauri.dev/Cache
@@ -69,34 +72,40 @@ npm run tauri:dev
 **Adaptive Table Layout**: Column structure changes based on dictionary metadata capabilities, eliminating modal dialogs for all editing operations.
 
 **Column Layouts by Dictionary Type**:
+
 - **Patterns**: Source Text (40%) | Translation (40%) | Variable (10%) | Low Priority (10%)
 - **Phrases**: Source Text (45%) | Translation (45%) | Variable (10%)
 - **Simple Dictionaries**: Source Text (50%) | Translation (50%)
   - Covers: Characters, Proper Nouns, Conversion, Punctuation
 
 **Text Editing Workflow**:
+
 - **Click any text field** → Input appears with blue border
 - **Enter or click outside** → Saves changes, validates non-empty strings
 - **Escape** → Cancels edit, reverts to original value
 - **Auto-focus** → Cursor positioned for immediate typing
 
 **Checkbox Editing**:
+
 - **Direct click** → Toggles immediately, saves to dictionary JSON
 - **Metadata handling** → Only sends appropriate fields per dictionary type
 - **Visual feedback** → Hover states indicate interactive elements
 
 **Performance Characteristics**:
+
 - **Virtualized scrolling** → Handles 1000+ entries without UI blocking
 - **State isolation** → Multiple concurrent edits don't conflict
 - **Error recovery** → Failed saves revert to original values with console logging
 
 **Architecture Benefits**:
+
 - **Single editing interface** → Eliminates 3-click modal workflow, reduces to 1-click direct edit
 - **Type-aware metadata** → Patterns get both Variable/Low checkboxes, Phrases get Variable only, Simple dictionaries get clean 2-column layout
 - **Preserved validation** → Existing dictionary validation and save logic unchanged
 - **Future-proof design** → Automatic 2-column layout for new proper noun dictionaries
 
 **Implementation Files**:
+
 - **Table Rendering**: `src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx` - adaptive row components
 - **Header Logic**: `src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx` - conditional column headers
 - **Save Operations**: Same updateEntry context methods, metadata detection
@@ -106,26 +115,32 @@ npm run tauri:dev
 **Pattern Competition Resolution**: When multiple patterns match the same text span, priority calculation determines which pattern wins.
 
 **Priority Calculation**:
+
 ```javascript
-priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 0) - (lowPriority ? 12 : 0)
+priority =
+  variables.length * 10 + tokens.length + (literal_first_token ? 5 : 0) - (lowPriority ? 12 : 0);
 ```
 
 **Common Conflict Example**:
+
 - "在XY中" (generic, priority 29 → 17 with lowPriority) vs "在X眼中" (specific, priority 19)
 - **Result**: "在那些魔帅眼中" → "Ở trong mắt những ma soái kia" (correct word order)
 
 **lowPriority Flag Usage**:
+
 - **Dictionary Tab**: Structural Pattern → Edit pattern → Check "Low priority (for same-length conflicts)"
 - **JSON Format**: `{"translation": "ở trong X Y", "allowAsPatternVariable": false, "lowPriority": true}`
 - **Visual Indicator**: Orange `[LP]` badge in dictionary table
 - **Effect**: -12 priority penalty allows more specific patterns to win
 
 **When to Use lowPriority**:
+
 - Generic patterns that interfere with specific patterns of same length
 - Over-broad patterns that produce incorrect word order
 - Fallback patterns that should only match when no better option exists
 
 **Implementation Files**:
+
 - **Core Logic**: `src/utils/SemanticPatternProcessor.js` - `calculatePatternPriority()` method
 - **JSON Loading**: `src/utils/SemanticPatternProcessor.js` - lowPriority extraction in pattern compilation
 - **UI Components**: `src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx` - badge display
@@ -136,20 +151,23 @@ priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 
 ### Core Translation Requirements (IMMUTABLE)
 
 **5-Phase Sequential Processing**: Pattern → Proper Noun → Number → Phrase → Character
+
 - **Why Immutable**: Fixed order prevents double-processing conflicts and ensures pattern variable resolution
 - **Token Consumption**: Each token processed by exactly ONE phase
 - **Engine State**: Single shared state requires sequential execution between modes
 
 **Semantic Array Precision**: Position mapping must align exactly with clickable highlighting
+
 - **Why Critical**: Translation and original text synchronization depends on precise start/end indices
 - **UI Dependency**: All translation modes must preserve semantic array structure
 - **Direct Position Tracking** (January 2025): Positions stored during `postProcess()` text assembly instead of searching
-  - Eliminates search-based position mapping (O(n*m) → O(1) lookup)
+  - Eliminates search-based position mapping (O(n\*m) → O(1) lookup)
   - Stores `translatedStart`/`translatedEnd` in metadata during text concatenation
   - Handles spacing, punctuation, and whitespace correctly
   - Implementation: `SemanticArrayBuilder.setPositionByMatch()`, `OptimizedSemanticArrayBuilder.setPositionByMatch()`
 
 **WASM/Rust Status**: Three active acceleration systems
+
 - ✅ **WASM Number Processor** (`wasm-core/src/number_processor.rs`): Chinese number conversion (5-10x speedup)
 - ✅ **WASM Pattern Processor** (`wasm-core/src/pattern_processor/two_phase.rs`): Two-phase hierarchical pattern matching (10-50x speedup), **WASM-only** (JavaScript fallback removed Jan 2025 after parity verification)
 - ✅ **WASM Dictionary Engine** (`wasm-core/src/lib.rs` DictionaryEngine): Trie-based dictionary lookups, loads 7 dictionaries with 27,000+ entries, used via `WasmDictionaryManager.js`
@@ -159,15 +177,18 @@ priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 
 ### File Architecture Rationale
 
 **Large Files Are Intentional**:
+
 - `TranslationEngine.js` (6,400+ lines): 5-phase coordination, WASM sync, memory management
 - `Translator.jsx` (2,500+ lines): Cross-mode state management, configuration timing, UI coordination
 
 **Why Extraction Fails**:
+
 - Breaking 5-phase processing eliminates conflict resolution
 - Separating WASM/JS handling corrupts state isolation
 - Extracting semantic array generation breaks clickable precision
 
 **Successful Refactoring (December 2025)**:
+
 - **Phase 1**: Extracted 3 independent hooks (usePerformanceMonitoring, useStreamingTranslation, useDictionaryConfig) - 329 lines into reusable modules
 - **Phase 2**: Extracted 2 display components (TranslatorControls, TranslatorDisplayPanels) - 362 lines with clean prop interfaces
 - **Results**: Translator.jsx reduced 2835 → 2492 lines (12.1% reduction), zero functionality loss
@@ -178,12 +199,14 @@ priority = (variables.length * 10) + tokens.length + (literal_first_token ? 5 : 
 ### Safe Development Zones
 
 **✅ SAFE Extensions** (recommended pattern):
+
 - **Monitoring systems**: Performance tracking, memory analysis, validation
 - **Utility functions**: Text processing helpers, format conversion
 - **Configuration management**: Settings persistence, import/export
 - **Development tooling**: Debugging aids, test utilities
 
 **Pattern Example**:
+
 ```javascript
 // Extend around existing systems
 export class NewMonitoringFeature {
@@ -199,6 +222,7 @@ class TranslationEngine {
 ```
 
 **❌ NEVER Touch** (breaks core functionality):
+
 - 5-phase token processing sequence
 - Semantic array position mapping
 - WASM/JavaScript engine coordination
@@ -210,6 +234,7 @@ class TranslationEngine {
 The codebase uses a **hybrid TypeScript/JavaScript architecture** with strategic migration of utilities and UI components while preserving core engine stability.
 
 **Migrated to TypeScript**:
+
 - **Core utilities**: ~15 files converted to `.ts` (LRUCache, PerformanceThresholds, CacheKeyGenerator, ErrorHandling, UnifiedLogger, etc.)
 - **Type definitions**: 19 comprehensive `.d.ts` files (11,000+ total lines) covering all major systems:
   - `SemanticTypes.d.ts` - Translation engine interfaces
@@ -227,12 +252,14 @@ The codebase uses a **hybrid TypeScript/JavaScript architecture** with strategic
   - Error boundaries and utility components
 
 **Intentionally JavaScript** (will NEVER migrate):
+
 - `TranslationEngine.js` (6,737 lines) - Core 5-phase translation logic with intentional coupling
 - `Translator.jsx` (2,566 lines) - Main UI coordination with complex state timing
 - `SemanticPatternProcessor.js` - Pattern matching engine with performance-critical code
 - Other core engine files requiring tight coupling for timing guarantees
 
 **Development Guidelines**:
+
 - **Import syntax**: Use `.js` extension in TypeScript imports (e.g., `import { foo } from './bar.js'`)
 - **Type checking**: Run `npm run type-check` before committing utility changes (0 errors expected)
 - **Migration principle**: Only migrate truly independent utilities and display components
@@ -243,6 +270,7 @@ The codebase uses a **hybrid TypeScript/JavaScript architecture** with strategic
 **NEVER modify dictionary files without explicit permission.** Entries are curated for translation quality.
 
 **Dictionary Locations (Tauri)**:
+
 - **Production**: Platform-specific application data directory
   - macOS: `~/Library/Application Support/com.tauri.dev/dictionaries/`
   - Linux: `~/.local/share/com.tauri.dev/dictionaries/`
@@ -261,6 +289,7 @@ The codebase uses a **hybrid TypeScript/JavaScript architecture** with strategic
 **Root Cause**: `useCallback` captures config at creation time, not execution time.
 
 **Solution Pattern**:
+
 ```javascript
 // CORRECT: Load at operation time
 const handleOperation = useCallback(async () => {
@@ -286,8 +315,8 @@ operationThatChangesDOM();
 restoreFunction(savedPositions);
 
 // WRONG: Async state timing gaps
-setSavedPositions(positions);     // Queued
-restoreFunction();               // Executes immediately, sees stale data
+setSavedPositions(positions); // Queued
+restoreFunction(); // Executes immediately, sees stale data
 ```
 
 ### Performance Degradation Patterns
@@ -295,6 +324,7 @@ restoreFunction();               // Executes immediately, sees stale data
 **Translation Segment Memory Leak**: Translation segments accumulate unbounded arrays causing 100x slowdown after extended use
 
 **Symptoms**:
+
 - Progressively slower translation with each operation
 - Memory usage growing from ~50MB to 500MB+ over time
 - UI becomes unresponsive during large translations
@@ -302,6 +332,7 @@ restoreFunction();               // Executes immediately, sees stale data
 **Root Cause**: Translation segments accumulate during normal operation without automatic cleanup
 
 **Solution**: Proactive cleanup with standardized threshold hierarchy (implemented in `TranslationEngine.js`)
+
 - **Emergency Cleanup**: >3 segments → keep 3 (configured in `PerformanceThresholds.ts`)
 - **Critical Cleanup**: >5 segments → keep 5 (configured in `PerformanceThresholds.ts`)
 - **Normal Cleanup**: >75 segments → keep 35 (uses `MEMORY_THRESHOLDS` from `PerformanceThresholds.ts`)
@@ -310,6 +341,7 @@ restoreFunction();               // Executes immediately, sees stale data
 - **Reset**: Fresh segment array for each new translation (`TranslationEngine.js` - `translateWithProgressiveBatches()` method)
 
 **Engine State Corruption**: Main translation outputs character-by-character Vietnamese
+
 - **Solution**: Sequential execution with `setTimeout(..., 0)` between modes
 
 ### Cache Interference with Translation Priority
@@ -317,6 +349,7 @@ restoreFunction();               // Executes immediately, sees stale data
 **Cache Serving Wrong Translation Phases**: Semantic cache returns character-level translations instead of proper noun translations, violating 5-phase priority order.
 
 **Symptoms**:
+
 - Proper noun entries exist in dictionary but not translating (character fallback used)
 - Mixed translation quality: some proper nouns work, others don't
 - Cache hit rate looks good but translation accuracy degraded
@@ -324,11 +357,13 @@ restoreFunction();               // Executes immediately, sees stale data
 **Root Cause**: `SemanticTranslationCache` served cached results without respecting phase priority. Character-level cache hits prevented proper noun dictionary lookups.
 
 **Diagnostic Steps**:
+
 1. **Check cache vs dictionary**: Verify entry exists in dictionary but cache serves different result
 2. **Phase priority analysis**: Lower phases (proper nouns=2) must override higher phases (characters=5)
 3. **Cache metadata inspection**: Check if cached result includes `phasePriority` metadata
 
 **Solution Pattern**: Phase-aware caching with priority validation
+
 ```javascript
 // CORRECT: Check phase priority before serving cache
 const cacheResult = semanticTranslationCache.get(text, source);
@@ -350,14 +385,16 @@ if (cacheResult && cacheResult.metadata.phasePriority <= currentPhasePriority) {
 
 **Symptoms**: Dictionary operations slower in WASM than JavaScript despite trie optimization, translation performance degrades during pattern variable resolution.
 
-**Root Cause**: N sequential lookups cross WASM boundary N times with expensive serialization. Original O(n*m²) algorithm processed each character individually.
+**Root Cause**: N sequential lookups cross WASM boundary N times with expensive serialization. Original O(n\*m²) algorithm processed each character individually.
 
 **Diagnostic Steps**:
+
 1. **Check WASM vs JS performance**: Profile dictionary lookup times in both engines
 2. **Monitor boundary crossings**: Count serialization calls vs actual lookups needed
 3. **Verify trie efficiency**: Ensure `find_longest_match` processes spans, not individual characters
 
 **Architectural Solution**: Batch operations eliminate repeated boundary crossings
+
 ```rust
 // CORRECT: Process entire span array in single WASM call
 let results = find_longest_match(dictionary_trie, token_spans);
@@ -370,6 +407,7 @@ for char in text {
 ```
 
 **Implementation**:
+
 - **WASM Core**: `wasm-core/src/number_processor.rs`, `wasm-core/src/lookup_index.rs`
 - **JavaScript Interface**: `WasmNumberProcessor.js`, `RustLookupIndexManager.js`
 - **Performance**: O(n*m²) → O(n*k) complexity, 99.8% reduction in boundary crossings
@@ -381,6 +419,7 @@ for char in text {
 **Incorrect Word Order from Pattern Competition**: Multiple patterns match same text span, but wrong pattern wins due to priority calculation, causing incorrect word order in translation.
 
 **Symptoms**:
+
 - Translation exists but word order is wrong (例: "Ở trong những ma soái kia mắt" instead of "Ở trong mắt những ma soái kia")
 - Console shows multiple pattern matches but wrong pattern selected as winner
 - Dictionary entries exist for both competing patterns
@@ -388,16 +427,19 @@ for char in text {
 **Root Cause**: Priority calculation favors patterns with more variables, causing generic patterns to beat specific patterns of same length.
 
 **Diagnostic Steps**:
+
 1. **Check translation logs**: Look for multiple "✅ Pattern MATCH" followed by wrong "🏆 WINNER"
 2. **Compare pattern priorities**: Generic patterns (more variables) get higher base priority than specific patterns
 3. **Verify pattern length**: Same-length patterns compete directly, variable count determines winner
 
 **Common Competition Patterns**:
+
 - **Generic vs Specific**: "在XY中" (2 variables, priority 29) beats "在X眼中" (1 variable, priority 19)
 - **Overly Broad Patterns**: Multi-variable patterns matching specific single-variable contexts
 - **Structural vs Semantic**: Structural patterns interfering with contextual translations
 
 **Solution Pattern**: lowPriority flag for overly generic patterns
+
 ```javascript
 // patterns.json - Mark generic pattern as low priority
 "在XY中": {
@@ -408,6 +450,7 @@ for char in text {
 ```
 
 **Priority Calculation Impact**:
+
 - **Before**: "在XY中" priority 29 vs "在X眼中" priority 19 → Wrong winner
 - **After**: "在XY中" priority 17 vs "在X眼中" priority 19 → Correct winner
 
@@ -420,48 +463,53 @@ for char in text {
 **When Performance Degrades**: Systematic framework for detecting and investigating gradual performance degradation before it becomes critical.
 
 **Step 1: Check Regression Health Status**
+
 ```javascript
 // Monitor real-time health in Translator tab UI
 // 📊 🟢3 = healthy, 3 baselines   📊 🟡2!1 = warning, 2 baselines, 1 alert   📊 🔴1!3 = critical, 1 baseline, 3 alerts
 
 // Get detailed health report
-window.performanceDashboard.getHealthReport()
+window.performanceDashboard.getHealthReport();
 // Returns: status, totalBaselines, recentAlerts, criticalAlerts, warningAlerts, recommendations
 ```
 
 **Step 2: Investigate Memory Alerts**
+
 ```javascript
 // First, check if memory alerts are false positives
-window.checkRealMemory()
+window.checkRealMemory();
 // Shows: real heap usage % - healthy systems typically show 10-20% usage
 
 // Get specific investigation suggestions for memory issues
-window.performanceDashboard.investigateMemoryAlerts()
+window.performanceDashboard.investigateMemoryAlerts();
 // Shows: memory ratio analysis, cleanup suggestions, debugging commands
 
 // Direct engine inspection for memory leaks
-window.translationEngine.translationSegments.length
+window.translationEngine.translationSegments.length;
 // Should be ≤35 segments normally; >35 triggers automatic cleanup
 ```
 
 **Step 3: Analyze Performance Baselines**
+
 ```javascript
 // Check established baselines and recent performance
-window.performanceDashboard.getBaselines()
+window.performanceDashboard.getBaselines();
 // Shows: translation_engine, position_cache, virtual_scrolling performance baselines
 
 // Check cache performance specifically
-window.performanceDashboard.checkCachePerformance()
+window.performanceDashboard.checkCachePerformance();
 // Shows: hit rate, optimization suggestions if <70%
 ```
 
 **Common Performance Regression Patterns**:
+
 - **False Memory Alerts (1.3-2.0x baseline)**: Startup vs runtime baseline comparison errors - check real heap usage first
 - **Actual Memory Leaks (>35 translation segments)**: Translation segment cleanup threshold issues, cache unbounded growth
 - **Cache Degradation (<70% hit rate)**: Content variation, similarity threshold too high, cache size too small
 - **Processing Slowdown (1.2-1.5x baseline)**: WASM fallback mode, dictionary loading delays, DOM manipulation bottlenecks
 
 **Diagnostic Questions**:
+
 1. **Is memory pressure real?** `window.checkRealMemory()` - >30% indicates actual issues, <20% suggests false alerts
 2. **Are cleanup thresholds working?** `window.translationEngine.translationSegments.length` should be ≤35
 3. **Which system is regressing?** Check alerts by type: `translation_engine`, `position_cache`
@@ -469,6 +517,7 @@ window.performanceDashboard.checkCachePerformance()
 5. **Does "Reload Dictionary" fix it?** Yes = translation cache issue, No = architectural problem
 
 **Quick Resolution Steps**:
+
 1. **Memory warnings**: First run `window.checkRealMemory()` - if <20% usage, alerts are false positives
 2. **Real memory issues**: Click "Reload Dictionary" button to clear caches, check segment count with `window.translationEngine.translationSegments.length`
 3. **Cache performance**: Use `window.performanceDashboard.checkCachePerformance()` for optimization suggestions
@@ -481,6 +530,7 @@ window.performanceDashboard.checkCachePerformance()
 ### Active Performance Optimizations
 
 **WASM/Rust Acceleration** (3 active systems):
+
 - **WASM Number Processor**: 5-10x speedup for Chinese numbers (百分之十五 → 15%, 三千十五 → 3,015)
 - **WASM Pattern Processor**: 10-50x speedup for two-phase hierarchical pattern matching, WASM-only implementation (JavaScript fallback removed Jan 2025)
 - **WASM Dictionary Engine**: Trie-based lookups for 7 dictionaries (27,000+ entries), handles Pattern/Proper Noun/Phrase/Character dictionaries
@@ -489,23 +539,27 @@ window.performanceDashboard.checkCachePerformance()
 - **Debug**: `window.translationEngine.dictionaryManager.getWasmStatus()` for runtime diagnostics
 
 **Viewport Optimization**:
+
 - Large text rendering: 98.5% improvement (6800ms → 50ms)
 - Virtualized segments: On-demand generation vs precomputing all
 - Acceleration thresholds: <1000 chars (JS), 1000-2000 (Workers), >2000 (WASM)
 
 **Position Mapping Acceleration**:
-- Sliding window search: O(n*m) → O(n) complexity for texts >2000 chars with >100 semantic units
+
+- Sliding window search: O(n\*m) → O(n) complexity for texts >2000 chars with >100 semantic units
 - Window-based lookup: 1000-char search windows instead of full text scans (up to 10,000+ chars)
 - Position caching: 30-70% cache hit rates for repetitive content patterns reduce redundant searches
 - Automatic activation: Triggers at 2000+ chars + 100+ units, preserves exact clickable highlighting precision
 
 **Memory Management**:
+
 - Smart pressure detection: Real heap usage vs fixed thresholds
 - Background cleanup: `requestIdleCallback()` scheduling
 - Progressive translation: Available for all text lengths
 - WASM memory pools: Pre-allocated buffers (small/medium/large) with recycling efficiency >70%
 
 **Proactive Performance Regression Detection**:
+
 - Baseline tracking: Establishes performance baselines for translation_engine, position_cache
 - Automated alerts: Detects 20%+ degradation (warning) and 50%+ degradation (critical) - memory alerts disabled due to false positives
 - Memory leak detection: Standardized cleanup thresholds (Emergency: 3, Critical: 5, Normal: 35 segments) with consistent hierarchy
@@ -515,19 +569,19 @@ window.performanceDashboard.checkCachePerformance()
 
 ### Key Files Reference
 
-| Purpose | File | Key Functions | Why Coupled |
-|---------|------|---------------|-------------|
-| **Translation Core** | `TranslationEngine.js` | `translateSinglePass()`, `processChunksInParallel()` | 5-phase state coordination |
-| **Dictionary System** | `DictionaryManager.js`, `EnhancedDictionaryManager.js` | Trie lookups, validation | Performance + memory unity |
-| **UI Coordination** | `Translator.jsx` | `handleForceReload()` | Cross-mode synchronization |
-| **WASM Number Processing** | `wasm-core/src/number_processor.rs`, `WasmNumberProcessor.js` | Chinese number conversion | Native performance |
-| **WASM Pattern Processing** | `wasm-core/src/pattern_processor/two_phase.rs`, `TwoPhasePatternProcessor.js`, `WasmPatternProcessor.js` | Two-phase hierarchical pattern matching | 10-50x speedup, WASM-only |
-| **WASM Lookup Index** | `wasm-core/src/lookup_index.rs`, `RustLookupIndexManager.js` | Trie-based dictionary indexing | 6-50x speedup |
-| **Performance** | `UIResponsiveness.ts`, `MemoryManagementRefinements.ts` | Debounced updates, smart memory pressure | System extension pattern |
-| **Regression Detection** | `ProactivePerformanceDetector.js` | Baseline tracking, automated alerts, trend analysis | Zero-risk monitoring extension |
-| **Memory Optimization** | `WasmMemoryPoolManager.ts` | Pre-allocated WASM buffers, recycling efficiency | Boundary crossing optimization |
-| **Code Quality** | `types/SemanticTypes.d.ts`, `PerformanceThresholds.ts`, `ErrorHandling.ts`, `UnifiedLogger.ts`, `CacheKeyGenerator.ts` | TypeScript interfaces, centralized thresholds, standardized error/logging/caching | Maintainability and debugging |
-| **Refactored Modules** | `hooks/usePerformanceMonitoring.js`, `hooks/useStreamingTranslation.js`, `hooks/useDictionaryConfig.js`, `translator/TranslatorControls.tsx`, `translator/TranslatorDisplayPanels.tsx` | Independent state hooks, display components | Safe extraction from Translator.jsx |
+| Purpose                     | File                                                                                                                                                                                   | Key Functions                                                                     | Why Coupled                         |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------- |
+| **Translation Core**        | `TranslationEngine.js`                                                                                                                                                                 | `translateSinglePass()`, `processChunksInParallel()`                              | 5-phase state coordination          |
+| **Dictionary System**       | `DictionaryManager.js`, `EnhancedDictionaryManager.js`                                                                                                                                 | Trie lookups, validation                                                          | Performance + memory unity          |
+| **UI Coordination**         | `Translator.jsx`                                                                                                                                                                       | `handleForceReload()`                                                             | Cross-mode synchronization          |
+| **WASM Number Processing**  | `wasm-core/src/number_processor.rs`, `WasmNumberProcessor.js`                                                                                                                          | Chinese number conversion                                                         | Native performance                  |
+| **WASM Pattern Processing** | `wasm-core/src/pattern_processor/two_phase.rs`, `TwoPhasePatternProcessor.js`, `WasmPatternProcessor.js`                                                                               | Two-phase hierarchical pattern matching                                           | 10-50x speedup, WASM-only           |
+| **WASM Lookup Index**       | `wasm-core/src/lookup_index.rs`, `RustLookupIndexManager.js`                                                                                                                           | Trie-based dictionary indexing                                                    | 6-50x speedup                       |
+| **Performance**             | `UIResponsiveness.ts`, `MemoryManagementRefinements.ts`                                                                                                                                | Debounced updates, smart memory pressure                                          | System extension pattern            |
+| **Regression Detection**    | `ProactivePerformanceDetector.js`                                                                                                                                                      | Baseline tracking, automated alerts, trend analysis                               | Zero-risk monitoring extension      |
+| **Memory Optimization**     | `WasmMemoryPoolManager.ts`                                                                                                                                                             | Pre-allocated WASM buffers, recycling efficiency                                  | Boundary crossing optimization      |
+| **Code Quality**            | `types/SemanticTypes.d.ts`, `PerformanceThresholds.ts`, `ErrorHandling.ts`, `UnifiedLogger.ts`, `CacheKeyGenerator.ts`                                                                 | TypeScript interfaces, centralized thresholds, standardized error/logging/caching | Maintainability and debugging       |
+| **Refactored Modules**      | `hooks/usePerformanceMonitoring.js`, `hooks/useStreamingTranslation.js`, `hooks/useDictionaryConfig.js`, `translator/TranslatorControls.tsx`, `translator/TranslatorDisplayPanels.tsx` | Independent state hooks, display components                                       | Safe extraction from Translator.jsx |
 
 **Detailed Refactoring Analysis**: See "Successful Refactoring (December 2025)" section above for complete analysis of what was successfully extracted vs what must remain coupled due to timing dependencies.
 
@@ -565,30 +619,35 @@ window.performanceDashboard.checkCachePerformance()
 ### Proven Successful Pattern
 
 **System Extension** (1,200+ lines added successfully):
+
 - Add monitoring, validation, performance tools around existing architecture
 - Zero impact on translation quality or clickable highlighting
 - UI responsiveness, memory management, selective WASM acceleration all added via extension
 
 **Recent Optimizations** (October-December 2025):
 
-*October 2025 - Batch Processing*:
+_October 2025 - Batch Processing_:
+
 - **Progress debouncing**: 300ms threshold reduces callbacks by 60-80%, saves 20-30% UI blocking (`TranslationEngine.js:3944-4372`)
 - **Binary search segments**: O(n²) → O(n log n) overlap detection, 35-40ms per batch (`TranslationEngine.js` - 90 lines)
 - **Larger batches**: Earlier virtualization for texts >3000 chars
 
-*October 2025 - Boundary Crossing Reduction*:
+_October 2025 - Boundary Crossing Reduction_:
+
 - **WASM batch loading**: Single call replaces N sequential dictionary loads - 5-10x reduction in boundary crossings
 - **Token string precomputation**: `PrecomputedTokenStrings` eliminates 15,000 dynamic slice().join() operations with 70 Map lookups (`SemanticPatternProcessor.js:16-46`) - 5-10x pattern matching speedup
 - **WASM trie optimization**: O(n*k) `find_longest_match` replaces O(n*m²) character-by-character processing
 - **Dictionary loading fix**: Non-base proper noun dictionaries load correctly from Tauri application data directory
 - **Static CSS compilation**: Eliminates dynamic style injection (`StreamingTranslationDisplay.jsx` → `src/styles/streaming-animations.css`) - 2-4x UI responsiveness during streaming
 
-*December 2025 - Production Overhead Elimination*:
+_December 2025 - Production Overhead Elimination_:
+
 - **Dev-only snapshots**: `performance.memory` calls only in development, eliminates 10-30ms per translation (`TranslationEngine.js:4176-4201`)
 - **Metadata array slice**: `array.slice()` replaces full rebuild, 200+ ops → 1 native copy + fills (`TranslationEngine.js:4350-4368`)
 - **Frozen default object**: Single reused object eliminates 50-100 allocations per progress callback
 
-*December 2025 - Code Quality Infrastructure*:
+_December 2025 - Code Quality Infrastructure_:
+
 - **TypeScript type definitions**: Comprehensive interfaces for `SemanticArrays`, `TranslationOptions`, `ProgressData`, etc. (`types/SemanticTypes.d.ts` - 316 lines) - enables IDE autocomplete and prevents position mapping errors
 - **Centralized performance thresholds**: Extracted magic numbers to `PerformanceThresholds.ts` with validation and detailed rationale - single source for tuning memory (75→35 segments), WASM activation (2000 chars), virtualization (200 segments)
 - **Standardized error handling**: Unified strategies (THROW/FALLBACK/SILENT) via `ErrorHandling.ts` with custom error classes and retry logic - eliminates inconsistent error behavior across modules
@@ -597,26 +656,30 @@ window.performanceDashboard.checkCachePerformance()
 - **WASM optimization documentation**: Comprehensive guide explaining batch operations pattern (`WASM_BOUNDARY_OPTIMIZATION.md`) - 99.8% boundary crossing reduction, pre-computation vs dynamic generation trade-offs, real-world measurements
 - **Algorithm documentation**: Added inline examples to `testPatternMatch()` showing multi-token variables, Phase A overrides, pattern competition (`SemanticPatternProcessor.js:884-928`)
 
-*December 2025 - React Component Re-render Reduction*:
+_December 2025 - React Component Re-render Reduction_:
+
 - **Context memoization**: `useMemo` wraps `DictionaryContext` value object to prevent 7+ consumer components from re-rendering on every Provider update (`DictionaryContext.tsx:347-378`)
 - **Highlighting state consolidation**: 4 separate useState (unitIndex, translationUnitIndex, characterOnlyUnitIndex, isCharacterOnlyClick) migrated to single useReducer with 6 action types (`Translator.jsx:78-139`) - reduces 2-3 re-renders per highlighting operation to 1 atomic update
 - **Action dispatch pattern**: 31+ coordinated setState calls replaced with dispatch actions (HIGHLIGHT_ORIGINAL, HIGHLIGHT_TRANSLATION, HIGHLIGHT_FROM_CHARACTER_ONLY, HIGHLIGHT_BOTH, SET_CHARACTER_ONLY_INDEX, CLEAR_ALL) - eliminates intermediate render states during multi-value updates
 - **Debug log reduction**: Removed per-match scoring console output (30+ lines per character click) in character-only highlighting bridge, keeps summary logs only (`Translator.jsx:859`)
 
-*January 2025 - Async Memory Management*:
+_January 2025 - Async Memory Management_:
+
 - **Async proactive cleanup**: Segment cleanup deferred to `requestIdleCallback()` instead of blocking translation (`TranslationEngine.js:3385-3389`) - eliminates 2-5ms per segment creation
 - **Async automatic cleanup**: Non-critical memory cleanup runs in browser idle time (`TranslationEngine.js:4110-4114`) - saves 10-20ms per cleanup cycle
-- **Preserved synchronous critical cleanup**: Emergency/critical cleanup remains immediate for safety (`TranslationEngine.js:4117`)  - ensures memory emergencies are handled without delay
+- **Preserved synchronous critical cleanup**: Emergency/critical cleanup remains immediate for safety (`TranslationEngine.js:4117`) - ensures memory emergencies are handled without delay
 - **Performance impact**: 5-20ms saved per translation by deferring cleanup to idle time, no translation blocking
 
-*January 2025 - Dead Code Cleanup*:
+_January 2025 - Dead Code Cleanup_:
+
 - **12 files removed** (Dec 2025): ~3,500 lines (VirtualizedClickableTranslation.jsx, WasmTranslationAccelerator.js, PatternCompiler.js, etc.)
 - **core_engine.rs removed** (Jan 2026): 2,341 lines Phase 6-7 remnant with zero references
 - **WASM systems clarified**: 3 active systems confirmed (NumberProcessor, DictionaryEngine, Rust Lookup Index)
 - **Logging fixes**: Added visibility for WASM initialization (`getWasmStatus()` method, explicit console logs)
 - **Impact**: Cleaner codebase, accurate documentation, no functionality affected
 
-*January 2026 - Pattern Matching Rust Optimizations*:
+_January 2026 - Pattern Matching Rust Optimizations_:
+
 - **Phase 1: HashMap Cloning Elimination** (40-60% of WASM pattern time): Changed `PatternMatcher` to use `&'a HashMap` reference with lifetime parameter instead of cloning entire HashMap at every token position (`wasm-core/src/pattern_processor/matcher.rs:140-149`, 489) - eliminated 154 full HashMap clones per translation
 - **Phase 1: String Allocation Reduction** (30-40% of WASM pattern time): Pre-allocated reusable string buffer in `resolve_variable_with_lookahead()`, only clone on cache hits instead of every span attempt (`wasm-core/src/pattern_processor/matcher.rs:322-397`) - reduced 100-500 allocations to 1 buffer + 1-2 clones on matches
 - **Phase 1: Token Cloning Delay** (10-15% of WASM pattern time): Delay token cloning until pattern succeeds, clone entire range once (`wasm-core/src/pattern_processor/matcher.rs:173-299`) - only 5-10 clones on successful matches vs 50-500 speculative clones
@@ -633,11 +696,13 @@ window.performanceDashboard.checkCachePerformance()
 ### Failed Patterns (Avoid)
 
 **Architectural Restructuring**:
+
 - Two-phase translation: 63% clickable coverage (vs 100%)
 - Separated concerns: Position mapping failures, metadata loss
 - Hierarchical processing: Circular references, coordination failures
 
 **Translation Quality vs Performance Trade-offs**:
+
 - Semantic content caching: Translation quality degradation despite 60-80% cache hit rates
 - Phase priority violations: Cache served character-level translations instead of proper noun matches
 - Context loss: Similar text patterns cached inappropriate translations despite semantic similarity
@@ -646,11 +711,13 @@ window.performanceDashboard.checkCachePerformance()
 **Resolution**: Removed semantic caching system entirely, prioritizing translation accuracy over marginal performance gains
 
 **Quality Issues Observed**:
+
 - "不知道" cached as "bất biết" instead of correct "không biết" from Common Phrases dictionary
 - Inconsistent proper noun translation when similar patterns existed
 - Phase-level caching created 3.4x memory growth through duplicate cache keys
 
 **Speculative Performance Optimization Failure**:
+
 - Complex caching system: 1,500+ lines added, 0% measurable performance benefit
 - Background processing overhead: Multiple intervals, workers, cleanup routines caused lag
 - WASM memory conflicts: Complex state management triggered unsafe memory access
@@ -659,6 +726,7 @@ window.performanceDashboard.checkCachePerformance()
 **Root Cause**: Premature optimization without profiling actual bottlenecks. Existing simple cache (LRU + TranslationCache) already provided sufficient performance (1034-7500 tokens/sec).
 
 **Symptoms**:
+
 - Zero cache hit rates despite complex frequency analysis
 - Performance degradation from "optimization"
 - WASM panics from memory safety violations
@@ -667,6 +735,7 @@ window.performanceDashboard.checkCachePerformance()
 **Prevention Strategy**: Profile first, measure current performance, identify actual bottlenecks with data before adding complexity. Simple solutions often outperform complex ones. **Prioritize translation quality over performance optimizations** that interfere with core translation accuracy.
 
 **WASM Full 5-Phase Translation Engine Failure** (Phase 6-7, 2024):
+
 - **Implementation**: Complete 5-phase WASM translation engine (WasmTranslationAccelerator.js, 1,951 lines + Rust modules)
 - **Symptoms**: Dictionary lookups returned zero matches, character-by-character fallback instead of phrase matching
 - **Example**: "那三个乞丐" → "Na tam cá khất cái" (character-by-character) instead of "Na ba cá ăn mày" (correct phrases)
@@ -676,6 +745,7 @@ window.performanceDashboard.checkCachePerformance()
 - **Lessons Learned**: WASM valuable for focused features (number processing, **pattern matching**, lookup indexing) but full 5-phase replacement introduced complexity without reliability
 
 **WASM Pattern Matching Success** (January 2025):
+
 - **Implementation**: Rust WASM two-phase hierarchical pattern matching only (not full 5-phase pipeline)
 - **Approach**: Focused acceleration of pattern phase only, JavaScript handles other phases
 - **Results**: 10-50x speedup, complete parity with JavaScript, production-ready
@@ -717,6 +787,7 @@ applyPatterns()
 ### Systematic Debug Log Placement
 
 **Step 1: Verify Entry Point**
+
 ```javascript
 // TranslationEngine.js:1073
 async translate(text, options = {}) {
@@ -726,6 +797,7 @@ async translate(text, options = {}) {
 ```
 
 **Step 2: Track Batch Processing**
+
 ```javascript
 // TranslationEngine.js:3955
 async translateWithProgressiveBatches(text, options = {}) {
@@ -739,6 +811,7 @@ console.log(`🔍 Chunks created: total=${chunks.length}, translatable=${transla
 ```
 
 **Step 3: Identify Translation Path**
+
 ```javascript
 // TranslationEngine.js:4949
 async translateDirectly(text, options = {}) {
@@ -754,6 +827,7 @@ async translateSinglePass(tokens, options = {}) {
 ```
 
 **Step 4: Check Pattern Processing Route**
+
 ```javascript
 // TranslationEngine.js:1974
 async applyPatterns(tokens, options) {
@@ -765,6 +839,7 @@ async applyPatterns(tokens, options) {
 ```
 
 **Step 5A: Debug Legacy Pattern Path**
+
 ```javascript
 // SemanticPatternProcessor.js:721
 processTokens(tokens, options = {}) {
@@ -782,6 +857,7 @@ applyPatternMatch(tokens, matchResult, options = {}) {
 ```
 
 **Step 5B: Debug Hierarchical Pattern Path**
+
 ```javascript
 // TwoPhasePatternProcessor.js:54
 async processTokens(tokens, options) {
@@ -813,6 +889,7 @@ console.log(`🔍 Phase B patterns:`, phaseBResults.map(r => ({
 ```
 
 **Step 6: Verify Final Output**
+
 ```javascript
 // TranslationEngine.js:4991
 const result = this.postProcess(tokens, options);
@@ -823,20 +900,24 @@ console.log(`🔍 Final translation result: "${result.substring(0, 100)}..."`);
 ### Common Debugging Scenarios
 
 **Scenario 1: Translation missing entirely**
+
 - Add logs at Step 1-3 to verify execution reaches translation logic
 - Check if cache is returning stale results (disable cache temporarily)
 
 **Scenario 2: Pattern not matching despite existing in dictionary**
+
 - Add logs at Step 4-5 to see which pattern path is taken
 - For hierarchical path, check if pattern is in Phase A or Phase B
 - Verify pattern priority calculation with detailed Phase A/B result logs
 
 **Scenario 3: Pattern matches but translation incomplete**
+
 - Add logs at Step 5B to see if hierarchical composition is discarding results
 - Check if `simpleResultSelection` is filtering out non-overlapping patterns
 - Verify `finalResults.length` matches expected pattern count
 
 **Scenario 4: Wrong pattern wins in competition**
+
 - Add pattern priority logs in `SemanticPatternProcessor.testPatternMatch()`
 - Compare priority values between competing patterns
 - Check if `lowPriority` flag is set correctly for generic patterns
@@ -858,20 +939,20 @@ console.log(`🔍 Final translation result: "${result.substring(0, 100)}..."`);
 console.log(`🔍 [FUNCTION_NAME] Entry:`, {
   inputLength: input?.length,
   options: Object.keys(options),
-  timestamp: Date.now()
+  timestamp: Date.now(),
 });
 
 // At key decision points:
 console.log(`🔍 [FUNCTION_NAME] Decision:`, {
   condition: 'what you are checking',
   value: actualValue,
-  willTake: 'which branch'
+  willTake: 'which branch',
 });
 
 // At function exit:
 console.log(`🔍 [FUNCTION_NAME] Exit:`, {
   resultCount: results.length,
-  resultSample: results[0]
+  resultSample: results[0],
 });
 ```
 
@@ -880,6 +961,7 @@ console.log(`🔍 [FUNCTION_NAME] Exit:`, {
 **Issue**: Translation "在这可怕的声波振荡之中" produced "ở sóng âm đáng sợ này" (missing "trong chấn đãng")
 
 **Investigation Steps**:
+
 1. Added logs at Step 1-3: Verified execution reached `processChunksInParallel()`
 2. Added logs at Step 4: Discovered `enableTwoPhasePatterns=true`, taking hierarchical path
 3. Added logs at Step 5B: Found Phase A=1 result, Phase B=2 results, but Final=1 result
@@ -894,10 +976,12 @@ This debugging flow would have taken 5 minutes instead of 45 minutes with system
 **Access**: Available via browser console when `NODE_ENV === 'development'`
 
 **Direct System Access**:
+
 - `window.systemPerformanceMonitor` - Direct access to regression detection system, baseline tracking
 - `window.translationEngine` - Direct engine state inspection, segment array analysis for memory leaks
 
 **Direct Engine Inspection**:
+
 - `window.translationEngine.translationSegments.length` - Check segment accumulation (should be ≤35)
 - Engine state inspection for cache analysis and dictionary manager debugging
 
@@ -957,6 +1041,7 @@ npm run build        # Build web assets only
 ```
 
 **Critical CSP Directives**:
+
 - `default-src` - Include `asset: http://asset.localhost` for WASM as default resource
 - `connect-src` - Include `asset: http://asset.localhost` for fetch() calls to load WASM
 - `script-src` - Include `'wasm-unsafe-eval'` to execute WASM modules
@@ -974,10 +1059,10 @@ export default defineConfig({
             return 'assets/[name][extname]';
           }
           return 'assets/[name]-[hash][extname]';
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });
 ```
 
@@ -1004,6 +1089,7 @@ open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
 ```
 
 **Common Production-Only Issues**:
+
 - WASM fails to load → Check CSP configuration
 - Numbers translate character-by-character → WASM not initializing
 - Module import errors → Check Vite asset filename configuration
@@ -1024,6 +1110,7 @@ open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
 **Problem**: Rust's `Option<String>` serializes to JavaScript `undefined` (not `null`), causing "undefined" to appear as literal text in translations.
 
 **Rust Token Structure**:
+
 ```rust
 #[derive(Serialize, Deserialize)]
 pub struct Token {
@@ -1034,13 +1121,14 @@ pub struct Token {
 ```
 
 **JavaScript Handling**:
+
 ```javascript
 // ❌ WRONG: Copies undefined, displays "undefined"
 tokens[i].translated = processedTokens[i].translated;
 
 // ✅ CORRECT: Explicit null conversion
 if (processed.translationSource?.includes('consumed')) {
-  tokens[i].translated = null;  // Explicit null, not undefined
+  tokens[i].translated = null; // Explicit null, not undefined
 } else if (processed.translated !== undefined) {
   tokens[i].translated = processed.translated;
 }
@@ -1049,12 +1137,14 @@ if (processed.translationSource?.includes('consumed')) {
 ### Token Modification Pattern
 
 **All token processors (WASM or JavaScript) MUST**:
+
 1. **Maintain original token array length** - No insert/delete operations
 2. **Set consumed tokens to `{ translated: null, translationSource: "X_consumed" }`**
 3. **Use explicit `null` (not `undefined`) for all optional fields**
 4. **Modify tokens in-place** - Don't replace the entire array
 
 **Example** (Rust side):
+
 ```rust
 // Mark consumed tokens
 for j in (i + 1)..=number_match.end_index {
@@ -1064,13 +1154,14 @@ for j in (i + 1)..=number_match.end_index {
 ```
 
 **Example** (JavaScript side):
+
 ```javascript
 // Copy WASM results back to original tokens
 for (let i = 0; i < tokens.length; i++) {
   const processed = processedTokens[i];
 
   if (processed.translationSource?.includes('consumed')) {
-    tokens[i].translated = null;  // Force null, not undefined
+    tokens[i].translated = null; // Force null, not undefined
     tokens[i].translationSource = processed.translationSource;
   } else if (processed.translated !== undefined) {
     tokens[i].translated = processed.translated;
@@ -1082,15 +1173,16 @@ for (let i = 0; i < tokens.length; i++) {
 ### Post-Processing Logic
 
 **The `postProcess()` function relies on this exact pattern**:
+
 ```javascript
 // TranslationEngine.js:2946-2965
 for (let i = 0; i < tokens.length; i++) {
   const token = tokens[i];
 
   if (token.translated !== null) {
-    output = token.translated;  // Use translated value
+    output = token.translated; // Use translated value
   } else if (token.translationSource) {
-    continue;  // Skip consumed tokens (null + source = consumed)
+    continue; // Skip consumed tokens (null + source = consumed)
   } else {
     // Fallback character translation
   }
@@ -1106,12 +1198,14 @@ for (let i = 0; i < tokens.length; i++) {
 **What Went Wrong**: Modified Rust conversion logic, rebuilt WASM multiple times, cleared caches repeatedly - but the function was never being called.
 
 **Prevention**:
+
 1. ✅ **Verify execution path FIRST**: `grep "functionName(" src/` - Is it actually called?
 2. ✅ **Check for expected logs**: Missing `🔢 Number converted` = code not running
 3. ✅ **Add entry point log**: `console.log('🔍 Function called')` - Confirm execution
 4. ✅ **THEN fix logic**: Only modify implementation after verifying it's reachable
 
 **Quick Verification Template**:
+
 ```javascript
 // Step 1: Verify import
 grep "processNumbersWasm" src/utils/TranslationEngine.js
@@ -1129,12 +1223,14 @@ grep "processNumbersWasm(" src/utils/TranslationEngine.js  // Look for actual ca
 **What Went Wrong**: Dev build worked perfectly, production build completely failed. Spent hours debugging only to discover CSP was blocking WASM in production.
 
 **Prevention**:
+
 - ✅ **Test production builds during development**, not just before release
 - ✅ **Different bundling** = different issues (Vite transforms code differently)
 - ✅ **Different protocols** = different loading (`http://` vs `asset://`)
 - ✅ **Different CSP** = different restrictions (relaxed in dev, strict in prod)
 
 **Weekly Production Build Check**:
+
 ```bash
 # Every Friday (or before major features)
 npm run tauri:build
@@ -1147,17 +1243,19 @@ open "src-tauri/target/release/bundle/macos/App.app"
 **What Went Wrong**: Rust `Option::None` became JavaScript `undefined`, which displayed as literal "undefined" text because no explicit null handling.
 
 **Prevention**:
+
 - ✅ **Document type conversions at boundaries** (Rust ↔ JS, WASM ↔ JS)
 - ✅ **Add runtime validation** for WASM responses
 - ✅ **Use TypeScript interfaces** for WASM-returned types
 - ✅ **Explicit null handling** at all boundary crossings
 
 **TypeScript Contract** (Add to `types/WasmTypes.d.ts`):
+
 ```typescript
 interface WasmToken {
   type: string;
   value: string;
-  translated: string | null;  // Explicit: null allowed, undefined NOT allowed
+  translated: string | null; // Explicit: null allowed, undefined NOT allowed
   translationSource: string | null;
 }
 
@@ -1175,11 +1273,13 @@ function validateWasmToken(token: unknown): WasmToken {
 **What Went Wrong**: First attempt replaced entire tokens array (`tokens = processedTokens`), breaking object references. Should have checked how JavaScript `numberProcessor.processTokens()` works first.
 
 **Prevention**:
+
 - ✅ **Check existing implementations** before adding new ones
 - ✅ **Match modification patterns** (in-place vs replacement)
 - ✅ **Grep for similar code**: `grep "processTokens(" src/` - How do others do it?
 
 **Pattern Discovery**:
+
 ```bash
 # Find existing token processors
 grep -r "processTokens" src/utils/
@@ -1194,33 +1294,38 @@ grep -r "processTokens" src/utils/
 **Before spending time fixing logic:**
 
 **1. Check console for expected logs**
-   - Missing `🔢 Number converted` = number processor not called
-   - Missing `✅ WASM NumberProcessor initialized` = WASM not loaded
+
+- Missing `🔢 Number converted` = number processor not called
+- Missing `✅ WASM NumberProcessor initialized` = WASM not loaded
 
 **2. Verify execution path**
-   ```bash
-   # Is function imported?
-   grep "processNumbersWasm" src/utils/TranslationEngine.js
 
-   # Is function called? (Look for actual invocation with parentheses)
-   grep "processNumbersWasm(" src/utils/TranslationEngine.js
-   ```
+```bash
+# Is function imported?
+grep "processNumbersWasm" src/utils/TranslationEngine.js
+
+# Is function called? (Look for actual invocation with parentheses)
+grep "processNumbersWasm(" src/utils/TranslationEngine.js
+```
 
 **3. Test incrementally**
-   - Add `console.log` at function entry
-   - Confirm log appears in console
-   - Then fix logic
+
+- Add `console.log` at function entry
+- Confirm log appears in console
+- Then fix logic
 
 **4. Check for dead code**
-   ```bash
-   # Search for removed system references
-   grep -r "coreEngineRust" src/  # Should return 0 results if removed
-   grep -r "WasmTranslationAccelerator" src/  # Verify removal
-   ```
+
+```bash
+# Search for removed system references
+grep -r "coreEngineRust" src/  # Should return 0 results if removed
+grep -r "WasmTranslationAccelerator" src/  # Verify removal
+```
 
 ## Tauri-Specific Notes
 
 **File System Access**: Tauri uses a different file system API than Electron
+
 - Read files: `invoke('read_file', { path })`
 - Write files: `invoke('write_file', { path, contents })`
 - List directories: `invoke('read_dir', { path })`
@@ -1233,4 +1338,4 @@ grep -r "processTokens" src/utils/
 
 ---
 
-*This architecture has proven stable and extensible through continuous enhancement. Follow the system extension pattern for reliable development.*
+_This architecture has proven stable and extensible through continuous enhancement. Follow the system extension pattern for reliable development._
