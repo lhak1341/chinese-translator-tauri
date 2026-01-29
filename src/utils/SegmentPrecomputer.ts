@@ -12,6 +12,138 @@
 import { logger } from './logger';
 import { getGraphemeLength } from './GraphemeHelper.js';
 
+/**
+ * Options for segment precomputation
+ */
+export interface SegmentPrecomputerOptions {
+  /** Whether to try WASM acceleration (default: true) */
+  useWasm?: boolean;
+}
+
+/**
+ * Semantic arrays from translation engine
+ */
+export interface SemanticArrays {
+  /** Translated text units */
+  translated: string[];
+
+  /** Original text units */
+  original: string[];
+
+  /** Metadata for each unit */
+  metadata: any[];
+}
+
+/**
+ * Individual semantic unit with metadata
+ */
+interface UnitData {
+  /** Index in semantic arrays */
+  index: number;
+
+  /** Translated unit text (normalized to NFC) */
+  unit: string;
+
+  /** Original unit text */
+  original: string;
+
+  /** Unit metadata */
+  metadata: any;
+}
+
+/**
+ * Match result from unit matching
+ */
+interface MatchResult {
+  /** Whether a match was found */
+  found: boolean;
+
+  /** Offset from start position (accounts for punctuation) */
+  offset: number;
+}
+
+/**
+ * WASM match result
+ */
+interface WasmMatch {
+  /** Starting position in text */
+  position: number;
+
+  /** Match length */
+  length: number;
+
+  /** Index of matched unit */
+  unitIndex: number;
+}
+
+/**
+ * Segment types
+ */
+type SegmentType = 'semantic' | 'space' | 'text';
+
+/**
+ * Base segment structure
+ */
+export interface Segment {
+  /** Segment type */
+  type: SegmentType;
+
+  /** Segment text content */
+  text: string;
+
+  /** Starting position in full text */
+  start: number;
+
+  /** Ending position in full text */
+  end: number;
+
+  /** Semantic unit index (-1 for non-semantic) */
+  unitIndex: number;
+
+  /** Whether segment is clickable */
+  isClickable: boolean;
+
+  /** Original text (for semantic segments) */
+  originalText?: string;
+
+  /** Translated text (for semantic segments) */
+  translatedText?: string;
+
+  /** Translation source (for semantic segments) */
+  source?: string;
+
+  /** Unit metadata (for semantic segments) */
+  metadata?: any;
+}
+
+/**
+ * Render-optimized segment with additional display properties
+ */
+export interface RenderSegment extends Segment {
+  /** Unique React key */
+  key: string;
+
+  /** Whether segment is highlighted */
+  isHighlighted: boolean;
+
+  /** CSS class name */
+  className: string;
+}
+
+/**
+ * Minimal WASM segment matcher interface
+ */
+interface WasmSegmentMatcher {
+  initialize(units: UnitData[]): Promise<boolean>;
+  findMatches(text: string, units: UnitData[]): WasmMatch[] | null;
+  getStats(): any;
+}
+
+// Declare global WasmSegmentMatcher constructor
+declare const WasmSegmentMatcher: {
+  new (): WasmSegmentMatcher;
+};
+
 // MEDIUM-4 FIX: Extract magic regex patterns to named constants
 // Punctuation and whitespace characters used for text boundary detection
 const PUNCTUATION_AND_WHITESPACE =
@@ -24,13 +156,16 @@ export class SegmentPrecomputer {
   // Enhanced with punctuation handling for proper noun highlighting
   /**
    * Pre-compute clickable segments from semantic arrays
-   * @param {string} text - The full translated text
-   * @param {Object} semanticArrays - Semantic arrays from translation
-   * @param {Object} options - Options for segment computation
-   * @param {boolean} options.useWasm - Whether to try WASM acceleration (default: true)
-   * @returns {Array} Pre-computed segments with positions and metadata
+   * @param text - The full translated text
+   * @param semanticArrays - Semantic arrays from translation
+   * @param options - Options for segment computation
+   * @returns Pre-computed segments with positions and metadata
    */
-  static async precomputeSegments(text, semanticArrays, options = {}) {
+  static async precomputeSegments(
+    text: string,
+    semanticArrays: SemanticArrays,
+    options: SegmentPrecomputerOptions = {}
+  ): Promise<Segment[]> {
     const { useWasm = true } = options;
 
     // Try WASM first if enabled
@@ -55,11 +190,14 @@ export class SegmentPrecomputer {
 
   /**
    * WASM-accelerated segment computation (8-20x faster)
-   * @param {string} text - The full translated text
-   * @param {Object} semanticArrays - Semantic arrays from translation
-   * @returns {Array|null} Pre-computed segments or null if WASM unavailable
+   * @param text - The full translated text
+   * @param semanticArrays - Semantic arrays from translation
+   * @returns Pre-computed segments or null if WASM unavailable
    */
-  static async precomputeSegmentsWasm(text, semanticArrays) {
+  static async precomputeSegmentsWasm(
+    text: string,
+    semanticArrays: SemanticArrays
+  ): Promise<Segment[] | null> {
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
       return [];
     }
@@ -70,14 +208,14 @@ export class SegmentPrecomputer {
     const { translated, original, metadata } = semanticArrays;
 
     // Prepare semantic units for WASM
-    const allUnits = translated
+    const allUnits: UnitData[] = translated
       .map((unit, index) => ({
         index,
         unit: unit ? unit.normalize('NFC') : unit,
         original: original[index],
         metadata: metadata[index],
       }))
-      .filter((unitData) => unitData.unit && unitData.unit.length > 0);
+      .filter((unitData): unitData is UnitData => !!unitData.unit && unitData.unit.length > 0);
 
     if (allUnits.length === 0) {
       return [];
@@ -124,13 +262,17 @@ export class SegmentPrecomputer {
 
   /**
    * Convert WASM matches to segment format
-   * @param {string} text - The full translated text
-   * @param {Array} matches - Matches from WASM matcher
-   * @param {Array} filteredUnits - Filtered semantic units
-   * @returns {Array} Segments in expected format
+   * @param text - The full translated text
+   * @param matches - Matches from WASM matcher
+   * @param filteredUnits - Filtered semantic units
+   * @returns Segments in expected format
    */
-  static convertMatchesToSegments(text, matches, filteredUnits) {
-    const segments = [];
+  static convertMatchesToSegments(
+    text: string,
+    matches: WasmMatch[],
+    filteredUnits: UnitData[]
+  ): Segment[] {
+    const segments: Segment[] = [];
     let currentPosition = 0;
 
     // Sort matches by position
@@ -177,11 +319,11 @@ export class SegmentPrecomputer {
 
   /**
    * Add non-semantic text segments (spaces, line breaks, text)
-   * @param {Array} segments - Segments array to append to
-   * @param {string} text - Non-semantic text
-   * @param {number} startPosition - Starting position in original text
+   * @param segments - Segments array to append to
+   * @param text - Non-semantic text
+   * @param startPosition - Starting position in original text
    */
-  static addNonSemanticSegments(segments, text, startPosition) {
+  static addNonSemanticSegments(segments: Segment[], text: string, startPosition: number): void {
     let position = 0;
 
     while (position < text.length) {
@@ -236,11 +378,11 @@ export class SegmentPrecomputer {
 
   /**
    * JavaScript fallback segment computation (original implementation)
-   * @param {string} text - The full translated text
-   * @param {Object} semanticArrays - Semantic arrays from translation
-   * @returns {Array} Pre-computed segments with positions and metadata
+   * @param text - The full translated text
+   * @param semanticArrays - Semantic arrays from translation
+   * @returns Pre-computed segments with positions and metadata
    */
-  static precomputeSegmentsJS(text, semanticArrays) {
+  static precomputeSegmentsJS(text: string, semanticArrays: SemanticArrays): Segment[] {
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
       return [];
     }
@@ -258,21 +400,21 @@ export class SegmentPrecomputer {
     // Duplicate validation caused 2x CPU cost and duplicate warning logs
     // Upstream components handle validation and fallback to indexOf when metadata invalid
 
-    const segments = [];
+    const segments: Segment[] = [];
     let currentPosition = 0;
 
     // Create a lookup map for faster unit matching - don't use keys, use direct comparison
     // HIGH-5 FIX: Pre-filter empty units to avoid wasting iteration cycles
     // Empty units cannot match any text, filtering saves n iterations per position
     // CRITICAL BUG FIX: Normalize units to NFC for consistent matching with normalized text
-    const allUnits = translated
+    const allUnits: UnitData[] = translated
       .map((unit, index) => ({
         index,
         unit: unit ? unit.normalize('NFC') : unit, // Normalize each unit
         original: original[index],
         metadata: metadata[index],
       }))
-      .filter((unitData) => unitData.unit && unitData.unit.length > 0);
+      .filter((unitData): unitData is UnitData => !!unitData.unit && unitData.unit.length > 0);
 
     // Sort units by their tokenIndex to ensure text-order processing for duplicates
     // HIGH-3 FIX: Use optional chaining to prevent crash if metadata is null/undefined
@@ -286,10 +428,10 @@ export class SegmentPrecomputer {
     // Set size: Grows linearly with semantic array length (max = semanticArrays.translated.length)
     // Memory: ~1 byte per entry, typical max ~10KB for 10,000 char texts
     // Lifecycle: Cleared at function end, no unbounded growth risk
-    const usedIndices = new Set();
+    const usedIndices = new Set<number>();
 
     while (currentPosition < text.length) {
-      let bestMatch = null;
+      let bestMatch: UnitData | null = null;
       let bestLength = 0;
       let bestOffset = 0;
 
@@ -493,11 +635,11 @@ export class SegmentPrecomputer {
 
   /**
    * Pre-compute segments for original text
-   * @param {string} text - The full original text
-   * @param {Object} semanticArrays - Semantic arrays from translation
-   * @returns {Array} Pre-computed segments for original text
+   * @param text - The full original text
+   * @param semanticArrays - Semantic arrays from translation
+   * @returns Pre-computed segments for original text
    */
-  static precomputeOriginalSegments(text, semanticArrays) {
+  static precomputeOriginalSegments(text: string, semanticArrays: SemanticArrays): Segment[] {
     if (!semanticArrays || !semanticArrays.original || semanticArrays.original.length === 0) {
       return [];
     }
@@ -505,13 +647,18 @@ export class SegmentPrecomputer {
     const { original, translated, metadata } = semanticArrays;
 
     // New approach: Use simple text search but prioritize longer matches
-    const segments = [];
+    const segments: Segment[] = [];
     let currentPosition = 0;
-    let usedIndices = new Set();
+    const usedIndices = new Set<number>();
 
     // Process text character by character
     while (currentPosition < text.length) {
-      let bestMatch = null;
+      let bestMatch: {
+        index: number;
+        unit: string;
+        translated: string;
+        metadata: any;
+      } | null = null;
       let bestStartPos = -1;
 
       // Find the best match starting at current position
@@ -586,16 +733,16 @@ export class SegmentPrecomputer {
 
   /**
    * Create optimized segment data structure for rendering
-   * @param {Array} segments - Pre-computed segments
-   * @param {number} highlightedUnitIndex - Currently highlighted unit index (original to translation)
-   * @param {number} highlightedTranslationUnitIndex - Currently highlighted translation index (translation to original)
-   * @returns {Array} Render-optimized segments
+   * @param segments - Pre-computed segments
+   * @param highlightedUnitIndex - Currently highlighted unit index (original to translation)
+   * @param highlightedTranslationUnitIndex - Currently highlighted translation index (translation to original)
+   * @returns Render-optimized segments
    */
   static createRenderSegments(
-    segments,
-    highlightedUnitIndex = -1,
-    highlightedTranslationUnitIndex = -1
-  ) {
+    segments: Segment[],
+    highlightedUnitIndex: number = -1,
+    highlightedTranslationUnitIndex: number = -1
+  ): RenderSegment[] {
     return segments.map((segment, index) => {
       const isHighlighted =
         segment.unitIndex === highlightedUnitIndex ||
@@ -611,12 +758,12 @@ export class SegmentPrecomputer {
 
   /**
    * Get optimized CSS class name for segment
-   * @param {Object} segment - Segment data
-   * @param {boolean} isHighlighted - Whether segment is highlighted
-   * @returns {string} CSS class name
+   * @param segment - Segment data
+   * @param isHighlighted - Whether segment is highlighted
+   * @returns CSS class name
    */
-  static getSegmentClassName(segment, isHighlighted) {
-    const classes = ['segment'];
+  static getSegmentClassName(segment: Segment, isHighlighted: boolean): string {
+    const classes: string[] = ['segment'];
 
     if (segment.isClickable) {
       classes.push('clickable');
@@ -636,10 +783,10 @@ export class SegmentPrecomputer {
 
   /**
    * Extract highlight styles for better performance
-   * @param {boolean} isHighlighted - Whether segment is highlighted
-   * @returns {Object} Style object
+   * @param isHighlighted - Whether segment is highlighted
+   * @returns Style object
    */
-  static getSegmentStyles(isHighlighted) {
+  static getSegmentStyles(isHighlighted: boolean): { color?: string; fontWeight?: number } {
     if (isHighlighted) {
       return {
         color: 'var(--primary-color)',
@@ -652,22 +799,22 @@ export class SegmentPrecomputer {
 
   /**
    * Optimize segments for virtual scrolling
-   * @param {Array} segments - Pre-computed segments
-   * @param {number} startIndex - Start index for visible area
-   * @param {number} endIndex - End index for visible area
-   * @returns {Array} Visible segments only
+   * @param segments - Pre-computed segments
+   * @param startIndex - Start index for visible area
+   * @param endIndex - End index for visible area
+   * @returns Visible segments only
    */
-  static getVisibleSegments(segments, startIndex, endIndex) {
+  static getVisibleSegments(segments: Segment[], startIndex: number, endIndex: number): Segment[] {
     return segments.slice(startIndex, endIndex + 1);
   }
 
   /**
    * Find a semantic unit match with offset information
-   * @param {string} remainingText - Text remaining to match against
-   * @param {string} unitText - Semantic unit text to find
-   * @returns {Object} Match result with found flag and offset
+   * @param remainingText - Text remaining to match against
+   * @param unitText - Semantic unit text to find
+   * @returns Match result with found flag and offset
    */
-  static findUnitMatch(remainingText, unitText) {
+  static findUnitMatch(remainingText: string, unitText: string): MatchResult {
     // HIGH-3 FIX: Validate input BEFORE offset calculation to prevent invalid processing
     // Previous: Safety check happened AFTER offset loop (line 474)
     // Fixed: Pre-validation ensures offset calculation works on valid data
@@ -732,10 +879,10 @@ export class SegmentPrecomputer {
    * - normalizeText() only used in startsWith() comparison (lines 359, 383)
    * - Positions stored use original text length, not normalized length
    *
-   * @param {string} text - Text to normalize
-   * @returns {string} Normalized text (lowercase, whitespace collapsed, zero-width removed)
+   * @param text - Text to normalize
+   * @returns Normalized text (lowercase, whitespace collapsed, zero-width removed)
    */
-  static normalizeText(text) {
+  static normalizeText(text: string): string {
     return (
       text
         .toLowerCase()
@@ -753,11 +900,11 @@ export class SegmentPrecomputer {
 
   /**
    * Enhanced matching that handles punctuation and formatting differences
-   * @param {string} remainingText - Text remaining to match against
-   * @param {string} unitText - Semantic unit text to find
-   * @returns {boolean} True if unit matches at current position
+   * @param remainingText - Text remaining to match against
+   * @param unitText - Semantic unit text to find
+   * @returns True if unit matches at current position
    */
-  static matchesAtPosition(remainingText, unitText) {
+  static matchesAtPosition(remainingText: string, unitText: string): boolean {
     const remaining = remainingText.toLowerCase();
     const unit = unitText.toLowerCase();
 

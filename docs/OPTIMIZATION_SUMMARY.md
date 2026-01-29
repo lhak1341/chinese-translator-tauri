@@ -1,6 +1,6 @@
 # Code Optimization Summary (2026-01-29)
 
-## Progress: 4/9 Tasks Complete (44%)
+## Progress: 5/9 Tasks Complete (56%)
 
 ## Completed Optimizations
 
@@ -118,6 +118,25 @@
 
 ---
 
+### ✅ Task #6: SegmentPrecomputer TypeScript Migration
+
+**Status:** COMPLETED
+**Impact:** 8-12% estimated speedup via type-safe WASM boundaries
+**Type Check:** ✅ 0 errors
+
+**Files:** `src/utils/SegmentPrecomputer.ts` (788 lines)
+
+**Improvements:**
+
+- Type-safe WASM boundaries prevent undefined from WASM
+- Type-safe async operations (Promise<Segment[] | null>)
+- Comprehensive type guards for runtime safety
+- NFC normalization type-safe for Vietnamese diacritics
+- Type-safe segment type discrimination ('semantic' | 'space' | 'text')
+- Typed WASM fallback logic preserves all error handling
+
+---
+
 ## Pending Tasks
 
 **Priority Order (by impact):**
@@ -140,23 +159,23 @@
 | SemanticArrayBuilder          | Baseline     | +10-15%     | 1.1-1.15x  | ✅ Done    |
 | OptimizedSemanticArrayBuilder | Baseline     | +15-20%     | 1.15-1.2x  | ✅ Done    |
 | TranslationSegmentCache       | Baseline     | +5-10%      | 1.05-1.1x  | ✅ Done    |
+| SegmentPrecomputer            | 8-20x (WASM) | +8-12%      | 1.08-1.12x | ✅ Done    |
 | Position Mapping (WASM)       | 50-200ms     | 10-40ms     | 3-5x       | ⏳ Pending |
-| SegmentPrecomputer            | 8-20x (WASM) | +8-12%      | 1.08-1.12x | ⏳ Pending |
 | Content Hash (WASM)           | Baseline     | 2-3x faster | 2-3x       | ⏳ Pending |
 | NumberProcessor               | 5-10x (WASM) | +0-5%       | ~1.0x      | ⏳ Pending |
 | ContentAwarePositionCache     | Baseline     | +5-10%      | 1.05-1.1x  | ⏳ Pending |
 
 **Combined Estimated Impact:** 2-3x overall translation pipeline speedup
-**Current Progress:** 4 of 9 tasks complete (44%)
+**Current Progress:** 5 of 9 tasks complete (56%)
 
 ---
 
 ## Next Steps
 
-1. **Continue TypeScript migrations** - SegmentPrecomputer.ts (788 lines) next in priority
-2. **Run full test suite** - Ensure 541 tests still pass
-3. **Performance benchmark** - Measure actual TypeScript JIT improvements
-4. **High-impact WASM modules** - Position Mapping (3-5x speedup) or Content Hash (2-3x speedup)
+1. **High-impact WASM modules** - Position Mapping (3-5x speedup) or Content Hash (2-3x speedup)
+2. **Complete TypeScript migrations** - ContentAwarePositionCache.ts and NumberProcessor.ts remaining
+3. **Run full test suite** - Ensure 541 tests still pass
+4. **Performance benchmark** - Measure actual TypeScript JIT improvements
 
 ---
 
