@@ -18,6 +18,7 @@ js-sys = "0.3"
 console_error_panic_hook = "0.1"
 regex = "1.11"             # For pattern processing
 unicode-segmentation = "1.12" # For Chinese text tokenization
+unicode-normalization = "0.1" # For NFC text normalization
 fxhash = "0.2.1"           # Faster hash maps
 lazy_static = "1.5"        # For static regex compilation
 
