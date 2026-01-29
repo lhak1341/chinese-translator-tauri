@@ -239,6 +239,31 @@ export class TranslationSegmentCache {
   }
 
   /**
+   * CODE REVIEW FIX: Safe localStorage write with verification
+   * Verifies write succeeded to detect corruption early
+   * @param key - Storage key
+   * @param value - JSON string to store
+   * @throws Error if write verification fails
+   */
+  private _safeSetItem(key: string, value: string): void {
+    try {
+      // Write to localStorage
+      localStorage.setItem(key, value);
+
+      // CRITICAL FIX: Verify write succeeded by reading back
+      const readback = localStorage.getItem(key);
+      if (readback !== value) {
+        // Write verification failed - remove corrupted entry
+        this._removeEntry(key);
+        throw new Error('localStorage write verification failed - data mismatch');
+      }
+    } catch (error) {
+      // Re-throw for caller to handle (quota exceeded, verification failed, etc.)
+      throw error;
+    }
+  }
+
+  /**
    * CODE REVIEW FIX (MEDIUM-3): Generate secure cache key with SHA-256
    * Uses collision-resistant hashing to prevent wrong translations being served
    * @param originalText - Original text to translate
@@ -487,7 +512,7 @@ export class TranslationSegmentCache {
       this.ensureCacheSpace();
 
       const serializedEntry = JSON.stringify(cacheEntry);
-      localStorage.setItem(cacheKey, serializedEntry);
+      this._safeSetItem(cacheKey, serializedEntry); // CODE REVIEW FIX: Use verified write
       this.addToMetadata(cacheKey, now);
 
       // PERFORMANCE FIX: Track size incrementally
@@ -513,7 +538,7 @@ export class TranslationSegmentCache {
         // Retry once after cleanup
         try {
           const serializedEntry = JSON.stringify(cacheEntry);
-          localStorage.setItem(cacheKey, serializedEntry);
+          this._safeSetItem(cacheKey, serializedEntry); // CODE REVIEW FIX: Use verified write
           this.addToMetadata(cacheKey, now);
 
           // PERFORMANCE FIX: Track size incrementally on retry too
@@ -792,7 +817,7 @@ export class TranslationSegmentCache {
    */
   saveMetadata(): void {
     try {
-      localStorage.setItem(this.metadataKey, JSON.stringify(this.metadata));
+      this._safeSetItem(this.metadataKey, JSON.stringify(this.metadata)); // CODE REVIEW FIX: Use verified write
     } catch (error) {
       // Handle localStorage quota exceeded
       if (error instanceof Error && error.name === 'QuotaExceededError') {
@@ -800,7 +825,7 @@ export class TranslationSegmentCache {
         this.aggressiveCleanup();
         // Retry once after cleanup
         try {
-          localStorage.setItem(this.metadataKey, JSON.stringify(this.metadata));
+          this._safeSetItem(this.metadataKey, JSON.stringify(this.metadata)); // CODE REVIEW FIX: Use verified write
         } catch (retryError) {
           logger.error('CRITICAL: Metadata save failed after cleanup:', retryError);
           // Metadata loss is critical - cache tracking will be inconsistent

@@ -17,7 +17,8 @@ let wasmGenerateContentHash: ((text: string) => string) | null = null;
 // Dynamically import WASM hash function when available
 (async () => {
   try {
-    const wasmModule = await import('../../public/wasm/translation_wasm_core.js');
+    // CI FIX: Use src/wasm path (included in TypeScript) instead of public/wasm
+    const wasmModule = await import('../wasm/translation_wasm_core.js');
     await wasmModule.default();
     wasmGenerateContentHash = wasmModule.generateContentHash;
     logger.log('✅ WASM Content Hash initialized (2-3x speedup)');

@@ -1296,7 +1296,9 @@ const Translator = ({ isActive = true }) => {
           }
 
           // Progressive translation with onProgress callback and proper timeout cleanup
+          // CRITICAL FIX: Use atomic flag to prevent race condition between timeout and completion
           let timeoutId;
+          let timeoutShouldFire = true; // Atomic flag to prevent double execution
           const result = await Promise.race([
             (async () => {
               const segmentResult = await engineRef.current.translateWithSegments(text, {
@@ -1351,6 +1353,10 @@ const Translator = ({ isActive = true }) => {
                 ],
               });
 
+              // CRITICAL FIX: Set atomic flag BEFORE clearing timeout to prevent race
+              // This ensures timeout callback won't reject even if it's already running
+              timeoutShouldFire = false;
+
               // Clear timeout since translation completed successfully
               if (timeoutId) {
                 clearTimeout(timeoutId);
@@ -1383,7 +1389,9 @@ const Translator = ({ isActive = true }) => {
             new Promise((_, reject) => {
               timeoutId = setTimeout(
                 () => {
-                  if (!abortController.signal.aborted) {
+                  // CRITICAL FIX: Check atomic flag to prevent race condition
+                  // Must check both abort state AND timeout flag to avoid double execution
+                  if (timeoutShouldFire && !abortController.signal.aborted) {
                     logger.error(`⏰ Optimized engine timeout for translation ${translationId}`);
                     setProgressInfo(null);
                     reject(new Error('Optimized engine timeout'));
@@ -1394,6 +1402,7 @@ const Translator = ({ isActive = true }) => {
 
               // Cancel timeout if translation is aborted
               abortController.signal.addEventListener('abort', () => {
+                timeoutShouldFire = false; // CRITICAL FIX: Set flag before clearing timeout
                 clearTimeout(timeoutId);
                 reject(new Error('Translation cancelled'));
               });

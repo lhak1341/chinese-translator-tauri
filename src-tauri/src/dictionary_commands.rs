@@ -113,31 +113,50 @@ impl DictionaryCache {
         }
     }
 
-    /// SECURITY: Handle mutex poisoning gracefully to prevent app crashes
+    /// CODE REVIEW FIX: Handle mutex poisoning with cache reset and error logging
+    /// Poisoning indicates a panic occurred - corrupted data should not be used
     pub fn get(&self, key: &str) -> Option<serde_json::Value> {
         match self.cache.lock() {
             Ok(cache) => cache.get(key).cloned(),
             Err(poisoned) => {
-                eprintln!("Warning: Cache mutex poisoned during get, recovering");
-                poisoned.into_inner().get(key).cloned()
+                // CODE REVIEW FIX: Log critical error instead of warning
+                eprintln!("CRITICAL: Cache mutex poisoned during get - dictionary cache may be corrupted");
+                eprintln!("Poisoning indicates a panic occurred while holding the lock");
+                eprintln!("Attempting recovery but cache should be invalidated");
+
+                // Clear the corrupted cache by taking ownership and dropping it
+                let mut cache = poisoned.into_inner();
+                cache.clear();
+
+                // Return None since cache is now cleared
+                None
             }
         }
     }
 
-    /// SECURITY: Handle mutex poisoning gracefully to prevent app crashes
+    /// CODE REVIEW FIX: Handle mutex poisoning with cache reset and error logging
+    /// Poisoning indicates a panic occurred - corrupted data should not be used
     pub fn set(&self, key: String, value: serde_json::Value) {
         match self.cache.lock() {
             Ok(mut cache) => {
                 cache.insert(key, value);
             }
             Err(poisoned) => {
-                eprintln!("Warning: Cache mutex poisoned during set, recovering");
-                poisoned.into_inner().insert(key, value);
+                // CODE REVIEW FIX: Log critical error instead of warning
+                eprintln!("CRITICAL: Cache mutex poisoned during set - dictionary cache may be corrupted");
+                eprintln!("Poisoning indicates a panic occurred while holding the lock");
+                eprintln!("Clearing cache instead of inserting into corrupted state");
+
+                // Clear the corrupted cache instead of inserting into it
+                let mut cache = poisoned.into_inner();
+                cache.clear();
+                // Don't insert the new value - cache is now empty and will rebuild naturally
             }
         }
     }
 
-    /// SECURITY: Handle mutex poisoning gracefully to prevent app crashes
+    /// CODE REVIEW FIX: Handle mutex poisoning with cache reset and error logging
+    /// Poisoning indicates a panic occurred - corrupted data should not be used
     pub fn invalidate(&self, dictionary_id: Option<&str>) {
         match self.cache.lock() {
             Ok(mut cache) => {
@@ -148,13 +167,15 @@ impl DictionaryCache {
                 }
             }
             Err(poisoned) => {
-                eprintln!("Warning: Cache mutex poisoned during invalidation, recovering");
+                // CODE REVIEW FIX: Log critical error instead of warning
+                eprintln!("CRITICAL: Cache mutex poisoned during invalidation - dictionary cache may be corrupted");
+                eprintln!("Poisoning indicates a panic occurred while holding the lock");
+                eprintln!("Clearing entire cache to ensure consistency");
+
+                // Clear the entire cache regardless of dictionary_id
+                // Since the cache is corrupted, partial invalidation is unsafe
                 let mut cache = poisoned.into_inner();
-                if let Some(id) = dictionary_id {
-                    cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
-                } else {
-                    cache.clear();
-                }
+                cache.clear();
             }
         }
     }

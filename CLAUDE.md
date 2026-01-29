@@ -321,6 +321,70 @@ open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
 
 ---
 
+## Documentation Organization
+
+### Where to Create New Documentation
+
+When development requires creating documentation, use this decision tree:
+
+**1. Architecture Decision Records (ADRs)** → `docs/adr/`
+
+- **When**: Making a significant architectural decision or explaining why a design choice was made
+- **Format**: `ADR-NNN-short-title.md` (e.g., `ADR-005-cache-invalidation-strategy.md`)
+- **Content**: Problem, decision, rationale, consequences, alternatives considered
+- **Examples**: "Why we chose X over Y", "Why this coupling is necessary"
+
+**2. Code Reviews** → `docs/code-review/`
+
+- **When**: Documenting a code review, bug fix analysis, or security audit
+- **Format**: `TOPIC_YYYY-MM-DD.md` (e.g., `CACHE_RACE_CONDITIONS_2026-01-29.md`)
+- **Content**: Issues found, fixes applied, verification steps
+- **Examples**: Performance optimization reviews, security fixes, hotfix documentation
+
+**3. Core Guides** → `docs/guides/`
+
+- **When**: Adding to existing guide categories (architecture, development, performance, troubleshooting)
+- **Update existing files**: Don't create new guides unless it's a completely new category
+- **Content**: Practical "how to" information, diagnostic procedures, best practices
+
+**4. Archive** → `docs/archive/`
+
+- **When**: Documenting completed migrations, historical context, or deprecated approaches
+- **Subdirectories**:
+  - `migrations/` - Migration guides for major changes
+  - `refactoring-2026/` - Refactoring attempts and lessons learned
+  - `pattern-optimization/` - Historical optimization work
+- **Content**: What was done, why it was changed, lessons learned
+
+**5. Inline Code Comments**
+
+- **When**: Explaining complex logic, warning about pitfalls, documenting critical fixes
+- **Format**: Add `CODE REVIEW FIX:` or `CRITICAL FIX:` prefixes for important fixes
+- **Examples**: Race condition fixes, mutex handling, security validations
+
+### Documentation Quick Reference
+
+**Don't create standalone docs for**:
+
+- Simple bug fixes (use git commit messages)
+- Temporary investigations (use comments in code)
+- Individual function documentation (use JSDoc/TSDoc)
+
+**Always document**:
+
+- Architectural decisions (ADRs)
+- Security fixes and audits (code reviews)
+- Migration procedures (archive)
+- Significant refactoring attempts, even if failed (archive)
+
+**Keep updated**:
+
+- `CLAUDE.md` - Overview and critical constraints (update when architecture changes)
+- `docs/README.md` - Documentation index (update when adding new docs)
+- Core guides - Living documents that evolve with the codebase
+
+---
+
 ## Documentation Navigation
 
 - **[Full Documentation Index](docs/README.md)** - Complete documentation map
