@@ -419,6 +419,9 @@ const Translator = ({ isActive = true }) => {
   const scrollRestorationTimeoutRef = useRef(null);
   const scrollRestorationRafRef = useRef(null);
 
+  // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
+  const highlightScrollTimeoutRef = useRef(null);
+
   // Track previous isDictionaryReloading value to detect reload completion (CRITICAL-1 FIX)
   const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
 
@@ -468,6 +471,12 @@ const Translator = ({ isActive = true }) => {
     return () => {
       // MEDIUM-7 FIX: Use shared cleanup function (eliminates duplication)
       cleanupScrollRestoration();
+
+      // CODE REVIEW FIX: Clean up highlight scroll timeout
+      if (highlightScrollTimeoutRef.current) {
+        clearTimeout(highlightScrollTimeoutRef.current);
+        highlightScrollTimeoutRef.current = null;
+      }
 
       // Clean up translation segment cache timer
       if (translationSegmentCache && typeof translationSegmentCache.destroy === 'function') {
@@ -621,16 +630,26 @@ const Translator = ({ isActive = true }) => {
         dispatchHighlighting({ type: 'HIGHLIGHT_BOTH', unitIndex: segmentInfo.unitIndex });
 
         // Auto-scroll to highlighted element in original text after state update
-        setTimeout(() => {
+        // Clear previous timeout to prevent memory leak
+        if (highlightScrollTimeoutRef.current) {
+          clearTimeout(highlightScrollTimeoutRef.current);
+        }
+        highlightScrollTimeoutRef.current = setTimeout(() => {
           scrollToHighlightedElement(originalTextRef, segmentInfo.unitIndex);
+          highlightScrollTimeoutRef.current = null;
         }, HIGHLIGHT_SCROLL_DELAY_MS);
       } else if (segmentInfo.direction === 'original-to-translation') {
         // Clicked original text, highlight translation text
         dispatchHighlighting({ type: 'HIGHLIGHT_TRANSLATION', unitIndex: segmentInfo.unitIndex });
 
         // Auto-scroll to highlighted element in translation text after state update
-        setTimeout(() => {
+        // Clear previous timeout to prevent memory leak
+        if (highlightScrollTimeoutRef.current) {
+          clearTimeout(highlightScrollTimeoutRef.current);
+        }
+        highlightScrollTimeoutRef.current = setTimeout(() => {
           scrollToHighlightedElement(translationTextRef, segmentInfo.unitIndex);
+          highlightScrollTimeoutRef.current = null;
         }, HIGHLIGHT_SCROLL_DELAY_MS);
       } else if (segmentInfo.direction === 'character-only-to-original') {
         // Clicked character-only text, highlight original text and full translation
@@ -684,9 +703,14 @@ const Translator = ({ isActive = true }) => {
             });
 
             // Auto-scroll to highlighted elements
-            setTimeout(() => {
+            // Clear previous timeout to prevent memory leak
+            if (highlightScrollTimeoutRef.current) {
+              clearTimeout(highlightScrollTimeoutRef.current);
+            }
+            highlightScrollTimeoutRef.current = setTimeout(() => {
               scrollToHighlightedElement(originalTextRef, bestMatch.index);
               scrollToHighlightedElement(translationTextRef, bestMatch.index);
+              highlightScrollTimeoutRef.current = null;
             }, HIGHLIGHT_SCROLL_DELAY_MS);
           } else {
             logger.warn(
@@ -713,9 +737,14 @@ const Translator = ({ isActive = true }) => {
             });
 
             // Auto-scroll to highlighted elements
-            setTimeout(() => {
+            // Clear previous timeout to prevent memory leak
+            if (highlightScrollTimeoutRef.current) {
+              clearTimeout(highlightScrollTimeoutRef.current);
+            }
+            highlightScrollTimeoutRef.current = setTimeout(() => {
               scrollToHighlightedElement(originalTextRef, clampedIndex);
               scrollToHighlightedElement(translationTextRef, clampedIndex);
+              highlightScrollTimeoutRef.current = null;
             }, HIGHLIGHT_SCROLL_DELAY_MS);
           }
         }
@@ -1176,6 +1205,12 @@ const Translator = ({ isActive = true }) => {
       return Promise.resolve();
     }
 
+    // CODE REVIEW FIX: Prevent translation during dictionary reload (race condition)
+    if (isReloading) {
+      logger.warn('Character-only translation rejected: dictionary reload in progress');
+      return Promise.resolve();
+    }
+
     try {
       if (engineRef.current && engineRef.current.isReady()) {
         const result = await engineRef.current.translateWithCharactersOnly(text);
@@ -1222,6 +1257,34 @@ const Translator = ({ isActive = true }) => {
         });
         logger.warn('Translation rejected: text contains invalid control characters');
         return;
+      }
+
+      // CODE REVIEW FIX: Prevent translation during dictionary reload (race condition)
+      if (isReloading) {
+        toast.warning('Dictionary reload in progress. Please wait.', {
+          duration: 3000,
+        });
+        logger.warn('Translation rejected: dictionary reload in progress');
+        return;
+      }
+
+      // CODE REVIEW FIX: Cancel previous in-flight translations to prevent wasted computation
+      // When user rapidly pastes new text, abort old translation and start fresh
+      if (activeTranslationControllers.current.size > 0) {
+        logger.log(
+          `🛑 Cancelling ${activeTranslationControllers.current.size} previous translation(s) to start new one`
+        );
+        const controllers = Array.from(activeTranslationControllers.current.values());
+        controllers.forEach((controller) => {
+          try {
+            controller.abort();
+          } catch (error) {
+            // Ignore abort errors (controller may already be aborted)
+            logger.debug('Controller abort error (safe to ignore):', error.message);
+          }
+        });
+        activeTranslationControllers.current.clear();
+        setActiveTranslations(0);
       }
 
       const translationId = Date.now();
@@ -2051,8 +2114,9 @@ const Translator = ({ isActive = true }) => {
           return `${needSpaceBefore ? ' ' : ''}${vietnamese}${needSpaceAfter ? ' ' : ''}`;
         });
       }
-    } catch (_error) {
-      logger.error('Error in translateProperNouns:', _error);
+    } catch (error) {
+      // CODE REVIEW FIX: Proper error handling (not ignoring)
+      logger.error('Error in translateProperNouns:', error);
     }
     return result;
   };
@@ -2335,8 +2399,9 @@ const Translator = ({ isActive = true }) => {
             setIsTranslating(false);
           }
         }
-      } catch (_error) {
-        logger.error('Failed to load configuration:', _error);
+      } catch (error) {
+        // CODE REVIEW FIX: Proper error handling (not ignoring)
+        logger.error('Failed to load configuration:', error);
       }
     };
 
@@ -2355,6 +2420,15 @@ const Translator = ({ isActive = true }) => {
     // MEDIUM-1 FIX: Prevent concurrent clipboard translations
     if (isClipboardBusy.current) {
       logger.log('Clipboard translation already in progress - ignoring duplicate call');
+      return;
+    }
+
+    // CODE REVIEW FIX: Prevent clipboard translation during dictionary reload (race condition)
+    if (isReloading) {
+      toast.warning('Dictionary reload in progress. Please wait.', {
+        duration: 3000,
+      });
+      logger.warn('Clipboard translation rejected: dictionary reload in progress');
       return;
     }
 
@@ -2380,8 +2454,9 @@ const Translator = ({ isActive = true }) => {
           originalTextRef.current.scrollLeft = 0;
         }
       }, 50); // Small delay to ensure content has been updated
-    } catch (_err) {
-      logger.error('Failed to read clipboard:', _err);
+    } catch (error) {
+      // CODE REVIEW FIX: Proper error handling (not ignoring)
+      logger.error('Failed to read clipboard:', error);
     } finally {
       // Reset busy flag after short delay to allow translation to start
       setTimeout(() => {
@@ -2754,12 +2829,13 @@ const Translator = ({ isActive = true }) => {
       }
 
       logger.log('✅ Reload Dictionary sequence completed');
-    } catch (_error) {
-      logger.error('❌ Reload Dictionary failed:', _error);
+    } catch (error) {
+      // CODE REVIEW FIX: Proper error handling (not ignoring)
+      logger.error('❌ Reload Dictionary failed:', error);
       const unexpectedErrorMessage =
-        '❌ Reload Dictionary failed!\n\nUnexpected error: ' + _error.message;
+        '❌ Reload Dictionary failed!\n\nUnexpected error: ' + error.message;
       setTranslatedText(unexpectedErrorMessage);
-      toast.error(`Dictionary reload failed: ${_error.message}`);
+      toast.error(`Dictionary reload failed: ${error.message}`);
     } finally {
       // CRITICAL-1 FIX: Keep isDictionaryReloading=true until AFTER scroll restoration
       // Prevents auto-scroll from overriding saved positions during reload

@@ -17,6 +17,7 @@ import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
 import { categorizeWasmError, formatWasmError } from './wasmErrorHandler'; // CODE REVIEW FIX (MEDIUM-1)
+import { verifyWasmModule, verifyWasmInstance } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 
 let wasmModule = null;
 let wasmNumberProcessor = null;
@@ -54,11 +55,31 @@ export async function initializeWasmNumberProcessor() {
           // Dynamically import the WASM module
           wasmModule = await import('../wasm/translation_wasm_core.js');
 
+          // CODE REVIEW FIX: Verify WASM module integrity before use
+          const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
+          if (!moduleVerification.valid) {
+            throw new Error(
+              `WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`
+            );
+          }
+
           // Initialize WASM
           await wasmModule.default();
 
           // Create NumberProcessor instance
           wasmNumberProcessor = new wasmModule.NumberProcessor();
+
+          // CODE REVIEW FIX: Verify instance has expected methods
+          const instanceVerification = verifyWasmInstance(
+            wasmNumberProcessor,
+            ['processNumbers', 'free'],
+            'NumberProcessor'
+          );
+          if (!instanceVerification.valid) {
+            throw new Error(
+              `WASM instance verification failed: ${instanceVerification.errors.join(', ')}`
+            );
+          }
 
           logger.log('✅ WASM NumberProcessor initialized successfully');
         },

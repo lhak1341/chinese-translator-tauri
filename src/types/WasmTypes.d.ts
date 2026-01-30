@@ -102,8 +102,8 @@ export interface WasmMatchResult {
   /** End position in source text */
   end_pos?: number;
 
-  /** Parsed metadata object */
-  metadata?: any;
+  /** Parsed metadata object (JSON deserialized from Rust) */
+  metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -308,8 +308,8 @@ export interface WasmTranslationAccelerator {
   /** Rust engine instance */
   rustEngine: CoreTranslationEngine | null;
 
-  /** Fallback JavaScript engine */
-  fallbackEngine: any;
+  /** Fallback JavaScript engine (TranslationEngine instance) */
+  fallbackEngine: unknown;
 
   /** Whether WASM is initialized */
   initialized: boolean;
@@ -334,17 +334,17 @@ export interface WasmTranslationAccelerator {
 
   /**
    * Load dictionaries into Rust engine
-   * @param dictionaries - Dictionary data
+   * @param dictionaries - Dictionary data (dictionary name -> entries array)
    * @returns Success status
    */
-  loadDictionaries(dictionaries: Record<string, any[]>): Promise<boolean>;
+  loadDictionaries(dictionaries: Record<string, WasmDictionaryEntry[]>): Promise<boolean>;
 
   /**
    * Optimized batch dictionary loading (single boundary crossing)
-   * @param dictionaries - Dictionary data
+   * @param dictionaries - Dictionary data (dictionary name -> entries array)
    * @returns Success status
    */
-  loadDictionariesOptimized(dictionaries: Record<string, any[]>): Promise<boolean>;
+  loadDictionariesOptimized(dictionaries: Record<string, WasmDictionaryEntry[]>): Promise<boolean>;
 
   /**
    * Process Chinese numbers with WASM
@@ -352,15 +352,18 @@ export interface WasmTranslationAccelerator {
    * @param options - Processing options
    * @returns Processed result
    */
-  processChineseNumbers(text: string, options?: any): Promise<any>;
+  processChineseNumbers(
+    text: string,
+    options?: WasmNumberProcessingOptions
+  ): Promise<WasmTranslationResult>;
 
   /**
    * Translate text using WASM
    * @param text - Input text
-   * @param options - Translation options
+   * @param options - Translation options (JSON-serializable)
    * @returns Translation result with semantic arrays
    */
-  translate(text: string, options?: any): Promise<any>;
+  translate(text: string, options?: Record<string, unknown>): Promise<WasmTranslationResult>;
 
   /**
    * Get performance statistics

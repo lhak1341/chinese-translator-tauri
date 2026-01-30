@@ -11,6 +11,8 @@
  * @file PatternProcessingTypes.d.ts
  */
 
+import type { Token } from './SemanticTypes';
+
 // ============================================================================
 // Pattern Structure Types
 // ============================================================================
@@ -141,7 +143,7 @@ export interface PatternMatchResult {
   /** End position in original tokens */
   endPosition: number;
   /** Matched tokens text */
-  matchedTokens: any[];
+  matchedTokens: Token[];
   /** Original text that was matched */
   originalText: string;
   /** Translated result */
@@ -159,7 +161,7 @@ export interface PatternMatchResult {
     source?: string;
     phase?: 'A' | 'B';
     compositeEligible?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -274,7 +276,7 @@ export interface CompositePatternResult {
     phaseAPattern: string;
     phaseBPattern: string;
     absorptionType: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -425,7 +427,8 @@ export interface PatternProcessingOptions {
   /** Active proper noun dictionaries */
   activeProperNouns?: string[];
   /** Dictionary manager instance */
-  dictionaryManager?: any;
+  /** Dictionary manager instance (DictionaryManager type) */
+  dictionaryManager?: unknown;
   /** Enable enhanced variable resolution (Phase B) */
   enableEnhancedVariableResolution?: boolean;
   /** Phase A results for enhanced resolution */
@@ -674,7 +677,7 @@ export interface SemanticPatternProcessor {
   isInitialized: boolean;
 
   // String optimization
-  precomputedStrings: any | null;
+  precomputedStrings: Map<string, string> | null;
   enableStringOptimization: boolean;
 
   // Statistics
@@ -682,30 +685,30 @@ export interface SemanticPatternProcessor {
 
   // Methods
   initializePatterns(
-    patternsDict: Record<string, any>,
+    patternsDict: Record<string, unknown>,
     options?: PatternInitializationOptions
   ): void;
   parsePattern(
     patternText: string,
     template: string,
-    allowedVariableTypes?: any,
+    allowedVariableTypes?: Record<string, string[]> | null,
     allowAsPatternVariable?: boolean,
     lowPriority?: boolean
   ): SemanticPattern | null;
   indexPattern(pattern: SemanticPattern): void;
   calculatePriority(tokens: PatternToken[], variables: string[], lowPriority?: boolean): number;
-  processTokens(tokens: any[], options?: PatternProcessingOptions): void;
+  processTokens(tokens: Token[], options?: PatternProcessingOptions): void;
   findBestPatternMatch(
-    semanticTokens: any[],
+    semanticTokens: Token[],
     position: number,
     options?: PatternProcessingOptions
   ): PatternMatchResult | null;
   applyPatternMatch(
-    tokens: any[],
+    tokens: Token[],
     matchResult: PatternMatchResult,
     options?: PatternProcessingOptions
   ): void;
-  buildVariableCache(tokens: any[], dictionaryTypes: string[], dictionaryManager: any): void;
+  buildVariableCache(tokens: Token[], dictionaryTypes: string[], dictionaryManager: any): void;
 }
 
 /**
@@ -722,22 +725,23 @@ export interface TwoPhasePatternProcessor {
   processedPatterns: SemanticPattern[];
 
   // Analyzer
-  analyzer: any;
+  /** Pattern analyzer instance */
+  analyzer: unknown;
 
   // Methods
   categorizePatterns(): void;
-  processTokens(tokens: any[], options: PatternProcessingOptions): Promise<PatternMatchResult[]>;
-  processPhaseA(tokens: any[], options: PatternProcessingOptions): Promise<PhaseAResult[]>;
+  processTokens(tokens: Token[], options: PatternProcessingOptions): Promise<PatternMatchResult[]>;
+  processPhaseA(tokens: Token[], options: PatternProcessingOptions): Promise<PhaseAResult[]>;
   processPhaseB(
-    tokens: any[],
+    tokens: Token[],
     phaseAResults: PhaseAResult[],
     options: PatternProcessingOptions
   ): Promise<PhaseBResult[]>;
-  markTokensAsProtected(tokens: any[], phaseAResults: PhaseAResult[]): void;
+  markTokensAsProtected(tokens: Token[], phaseAResults: PhaseAResult[]): void;
   detectComposites(
     phaseAResults: PhaseAResult[],
     phaseBResults: PhaseBResult[],
-    tokens: any[]
+    tokens: Token[]
   ): Promise<CompositePatternResult[]>;
   selectOptimalResults(
     phaseAResults: PhaseAResult[],
@@ -745,7 +749,7 @@ export interface TwoPhasePatternProcessor {
     compositeResults: CompositePatternResult[]
   ): PatternMatchResult[];
   processSinglePhaseFallback(
-    tokens: any[],
+    tokens: Token[],
     options: PatternProcessingOptions
   ): Promise<PatternMatchResult[]>;
 }
@@ -758,23 +762,25 @@ export interface CompositePatternDetector {
   options: VariableExtractorConfig & CompositeGeneratorConfig;
 
   // Components
-  variableExtractor: any;
-  compositeGenerator: any;
+  /** Variable extractor instance */
+  variableExtractor: unknown;
+  /** Composite generator instance */
+  compositeGenerator: unknown;
 
   // Methods
   detectComposites(
     phaseAResults: PhaseAResult[],
     phaseBCandidates: PhaseBResult[],
-    tokens: any[]
+    tokens: Token[]
   ): CompositePatternResult[];
   tryCreateComposite(
     phaseAResult: PhaseAResult,
     phaseBCandidate: PhaseBResult,
-    tokens: any[]
+    tokens: Token[]
   ): CompositePatternResult | null;
   findAbsorptionPattern(
     phaseAResult: PhaseAResult,
     phaseBCandidate: PhaseBResult,
-    tokens: any[]
+    tokens: Token[]
   ): AbsorptionInfo | null;
 }

@@ -53,5 +53,10 @@ pub fn run() {
             dictionary_commands::build_lookup_index,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to start Chinese-Vietnamese Translator: {}", e);
+            eprintln!("Please check your system configuration and try again.");
+            eprintln!("If the problem persists, please report it at: https://github.com/lhak1341/chinese-translator-tauri/issues");
+            std::process::exit(1);
+        });
 }

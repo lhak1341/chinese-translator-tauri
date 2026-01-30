@@ -19,6 +19,7 @@
 import toast from './toast';
 import { logger } from './logger';
 import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
+import { verifyWasmModule, verifyWasmInstance } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
@@ -58,11 +59,31 @@ export async function initializeWasmPatternProcessor(patternsDict) {
           // Dynamically import the WASM module
           wasmModule = await import('../wasm/translation_wasm_core.js');
 
+          // CODE REVIEW FIX: Verify WASM module integrity before use
+          const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
+          if (!moduleVerification.valid) {
+            throw new Error(
+              `WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`
+            );
+          }
+
           // Initialize WASM
           await wasmModule.default();
 
           // Create PatternProcessor instance
           wasmPatternProcessor = new wasmModule.WasmPatternProcessor();
+
+          // CODE REVIEW FIX: Verify instance has expected methods
+          const instanceVerification = verifyWasmInstance(
+            wasmPatternProcessor,
+            ['initialize', 'processTokens', 'getStatistics', 'free'],
+            'WasmPatternProcessor'
+          );
+          if (!instanceVerification.valid) {
+            throw new Error(
+              `WASM instance verification failed: ${instanceVerification.errors.join(', ')}`
+            );
+          }
 
           // Initialize with patterns
           const success = wasmPatternProcessor.initialize(patternsDict);

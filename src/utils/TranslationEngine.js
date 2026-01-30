@@ -898,9 +898,25 @@ export class TranslationEngine {
         if (configResult.success && configResult.data.activeProperNouns) {
           activeProperNouns = configResult.data.activeProperNouns;
         }
-      } catch (_error) {
-        // Config loading failed, use default
-        this.log(DEBUG_LEVELS.DEBUG, 'Could not load configuration, using default proper nouns');
+      } catch (error) {
+        // CODE REVIEW FIX: Log config loading errors for debugging
+        // Expected: File not found (first run), permission denied (rare)
+        // Unexpected: Parse errors (corrupted config), filesystem errors
+        if (error.code === 'ENOENT') {
+          this.log(DEBUG_LEVELS.DEBUG, 'Configuration file not found, using default proper nouns');
+        } else if (error.name === 'SyntaxError') {
+          this.log(
+            DEBUG_LEVELS.WARN,
+            '⚠️ Configuration file corrupted, using defaults:',
+            error.message
+          );
+        } else {
+          this.log(
+            DEBUG_LEVELS.WARN,
+            '⚠️ Could not load configuration, using defaults:',
+            error.message || error
+          );
+        }
       }
 
       // Store active proper nouns for use in translation processing
@@ -4642,8 +4658,15 @@ export class TranslationEngine {
           // Fallback to browser memory API (Chrome/Edge)
           memoryUsage = performance.memory.usedJSHeapSize;
         }
-      } catch (_e) {
-        // Memory usage unavailable - use 0 as fallback
+      } catch (error) {
+        // CODE REVIEW FIX: Log when memory info is unavailable
+        // Expected: Browser doesn't support performance.memory (normal in non-Chromium)
+        // Unexpected: Permission errors, API changes
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          'Memory usage API unavailable, using 0 as fallback:',
+          error.message || 'performance.memory not supported'
+        );
         memoryUsage = 0;
       }
 
@@ -5225,7 +5248,15 @@ export class TranslationEngine {
                   else if (typeof value === 'object' && value !== null)
                     size = JSON.stringify(value).length;
                   else size = String(value).length;
-                } catch (_e) {
+                } catch (error) {
+                  // CODE REVIEW FIX: Log when size calculation fails
+                  // Expected: Circular references, complex objects
+                  // Unexpected: Out of memory, API errors
+                  this.log(
+                    DEBUG_LEVELS.DEBUG,
+                    `Could not calculate size for cache key "${key}":`,
+                    error.message || error
+                  );
                   size = 0;
                 }
                 return { key, size, type: Array.isArray(value) ? 'array' : typeof value };
@@ -5560,8 +5591,19 @@ export class TranslationEngine {
                   `🔍 Dictionary lookups: ${parallelRatio}% parallel, ${parallelStats.fallbackCount || 0} fallbacks, avg parallel: ${parallelStats.averageParallelTime?.toFixed(1) || 0}ms`
                 );
               }
-            } catch (_error) {
-              // Ignore cache stat errors
+            } catch (error) {
+              // CODE REVIEW FIX: Categorize cache stat errors instead of silently ignoring
+              // Expected: Cache not yet initialized (normal during startup)
+              // Unexpected: Other errors that might indicate cache corruption
+              if (error.message && error.message.includes('not initialized')) {
+                this.log(DEBUG_LEVELS.DEBUG, 'Cache stats unavailable (not yet initialized)');
+              } else {
+                this.log(
+                  DEBUG_LEVELS.WARN,
+                  '⚠️ Unexpected error reading cache stats:',
+                  error.message || error
+                );
+              }
             }
           }
 
@@ -5679,6 +5721,16 @@ export class TranslationEngine {
       const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
 
       for (const candidate of candidateWords) {
+        // CODE REVIEW FIX: Stop processing if position tracking exceeds hard limit
+        // This prevents O(n²) performance degradation for very large texts
+        if (usedPositions.size > MAX_TRACKING_POSITIONS * 2) {
+          this.log(
+            DEBUG_LEVELS.WARN,
+            `⚠️ Position tracking limit exceeded (${usedPositions.size} positions). Stopping candidate processing to prevent performance degradation.`
+          );
+          break; // Exit candidate loop but keep already-found words
+        }
+
         // Normalize candidate for consistent matching with normalized output
         const normalizedCandidate = candidate.translated.normalize('NFC').toLowerCase();
 
