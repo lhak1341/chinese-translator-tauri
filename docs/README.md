@@ -72,6 +72,7 @@ Complete documentation for the Chinese-Vietnamese Translation App.
 
 ## Additional Documentation
 
+- **[CSP_SECURITY.md](CSP_SECURITY.md)** - Content Security Policy and WASM security analysis
 - **[TEST_COVERAGE_IMPROVEMENTS.md](TEST_COVERAGE_IMPROVEMENTS.md)** - Test suite evolution (541 tests, 4,408% increase)
 - **[../tests/README.md](../tests/README.md)** - Testing infrastructure details
 - **[../wasm-core/WARNINGS.md](../wasm-core/WARNINGS.md)** - WASM development warnings
@@ -129,6 +130,7 @@ Complete documentation for the Chinese-Vietnamese Translation App.
 | ---------------------- | -------------------------------------------- | ----------------------------- |
 | 5-Phase Pipeline       | [Architecture](guides/architecture.md)       | System Architecture           |
 | WASM Systems           | [Architecture](guides/architecture.md)       | WASM Acceleration             |
+| WASM Security          | [CSP_SECURITY.md](CSP_SECURITY.md)           | Full Document                 |
 | Clickable Highlighting | [Architecture](guides/architecture.md)       | Semantic Arrays               |
 | Translation Issues     | [Troubleshooting](guides/troubleshooting.md) | When Translation Is Wrong     |
 | Performance Issues     | [Troubleshooting](guides/troubleshooting.md) | When Performance Degrades     |
