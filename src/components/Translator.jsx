@@ -2193,12 +2193,12 @@ const Translator = ({ isActive = true }) => {
 
         // Reset reloading flag AFTER restoration definitely completes
         setIsDictionaryReloading(false);
-        setSavedScrollPositions(null);
+        // Note: savedScrollPositions now managed internally by useScrollPositionManager hook
         logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
 
         // HIGH-1 FIX: Reset concurrent reload protection after complete
         setIsReloading(false);
-      }, SCROLL_RESTORATION_DELAYS.POST_RELOAD_DELAY);
+      }, 100); // POST_RELOAD_DELAY: Allow React state updates to flush
     }
   }, [
     inputText,

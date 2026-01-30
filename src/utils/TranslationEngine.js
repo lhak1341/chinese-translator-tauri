@@ -119,6 +119,7 @@ import {
   getTextPositionForTokenIndex,
 } from './TokenHelpers.js';
 import { SemanticPatternProcessor } from './SemanticPatternProcessor.js';
+import { PatternTemplateEngine } from './PatternTemplateEngine.js';
 import { TextChunker } from './TextChunker.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './QuoteProcessor';
@@ -2978,8 +2979,8 @@ export class TranslationEngine {
    * @returns {Object} Match result
    */
   async matchSemanticPattern(pattern, semanticTokens, startPos, variableResolver, _options) {
-    // Parse pattern into semantic components
-    const patternTokens = this.parsePatternToTokens(pattern.originalPattern);
+    // Parse pattern into semantic components using extracted utility
+    const patternTokens = PatternTemplateEngine.parsePatternToTokens(pattern.originalPattern);
 
     this.log(
       DEBUG_LEVELS.VERBOSE,
@@ -3026,8 +3027,8 @@ export class TranslationEngine {
       }
     }
 
-    // Apply pattern template with resolved variables
-    const translation = this.applyPatternTemplate(pattern.template, variables);
+    // Apply pattern template with resolved variables using extracted utility
+    const translation = PatternTemplateEngine.applyPatternTemplate(pattern.template, variables);
 
     return {
       success: true,
@@ -3037,53 +3038,9 @@ export class TranslationEngine {
     };
   }
 
-  /**
-   * Parse pattern string into semantic tokens
-   * @param {string} pattern - Pattern string like "这些X"
-   * @returns {Array} Array of pattern tokens
-   */
-  parsePatternToTokens(pattern) {
-    const tokens = [];
-    let i = 0;
-
-    while (i < pattern.length) {
-      if (pattern[i].match(/[A-Z]/)) {
-        // Variable token
-        tokens.push({
-          type: 'variable',
-          name: pattern[i],
-          value: pattern[i],
-        });
-        i++;
-      } else {
-        // Literal token
-        tokens.push({
-          type: 'literal',
-          value: pattern[i],
-        });
-        i++;
-      }
-    }
-
-    return tokens;
-  }
-
-  /**
-   * Apply pattern template with resolved variables
-   * @param {string} template - Template string like "những X này"
-   * @param {Object} variables - Resolved variables
-   * @returns {string} Final translation
-   */
-  applyPatternTemplate(template, variables) {
-    let result = template;
-
-    // Replace each variable with its resolved value
-    Object.entries(variables).forEach(([varName, varValue]) => {
-      result = result.replace(new RegExp(varName, 'g'), varValue);
-    });
-
-    return result;
-  }
+  // PHASE 2.1 EXTRACTION: parsePatternToTokens() and applyPatternTemplate()
+  // moved to PatternTemplateEngine utility (2026-01-30)
+  // See: src/utils/PatternTemplateEngine.js
 
   /**
    * Apply semantic pattern result to original tokens
