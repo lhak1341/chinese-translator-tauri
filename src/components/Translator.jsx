@@ -39,6 +39,7 @@ import {
   INITIAL_HIGHLIGHTING_STATE,
 } from '../reducers/highlightingReducer.js';
 import { buildPositionMappings } from '../utils/PositionMappingBuilder.js';
+import { scrollToHighlightedElement } from '../utils/ScrollHelpers';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -595,23 +596,6 @@ const Translator = ({ isActive = true }) => {
   ); // Added dependencies for character-only handling
 
   // Helper function to scroll to a highlighted element
-  const scrollToHighlightedElement = (containerRef, unitIndex) => {
-    if (!containerRef.current) return;
-
-    // Find the highlighted element within the container
-    const highlightedElement = containerRef.current.querySelector(
-      '[data-unit-index="' + unitIndex + '"]'
-    );
-
-    if (highlightedElement) {
-      highlightedElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center', // Center the element in the viewport
-        inline: 'nearest',
-      });
-    }
-  };
-
   // handleQuickAddDictionaryChange now provided by useDictionaryConfig hook
 
   // Streaming state now managed by useStreamingTranslation hook
