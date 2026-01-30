@@ -163,12 +163,13 @@ export class WasmDictionaryManager {
       const totalEntries = dictionaries.reduce((sum, dict) => sum + dict.entries.length, 0);
       const estimatedMemoryNeeds = this.estimateBatchMemoryRequirement(dictionaries);
 
-      // Get optimized buffer from memory pool
-      const buffer = this.memoryPool.getBuffer(estimatedMemoryNeeds);
-      // CODE REVIEW FIX (HIGH-2): Track buffer release to guarantee cleanup
+      // CODE REVIEW FIX: Track buffer and its release status
+      let buffer = null;
       let bufferReleased = false;
 
       try {
+        // Get optimized buffer from memory pool (inside try to ensure cleanup)
+        buffer = this.memoryPool.getBuffer(estimatedMemoryNeeds);
         // Convert all dictionaries to WASM format in one operation
         const batchData = dictionaries.map(({ name, entries }) => ({
           name,
@@ -217,8 +218,8 @@ export class WasmDictionaryManager {
           return false; // Trigger fallback to sequential loading
         }
       } finally {
-        // CODE REVIEW FIX (HIGH-2): Guarantee buffer return even on process interruption
-        if (!bufferReleased) {
+        // CODE REVIEW FIX: Guarantee buffer return even on process interruption, with null check
+        if (buffer && !bufferReleased) {
           this.memoryPool.returnBuffer(buffer);
           bufferReleased = true;
         }

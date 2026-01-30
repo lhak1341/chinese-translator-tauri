@@ -252,10 +252,8 @@ const Translator = ({ isActive = true }) => {
   );
 
   // State for tracking dictionary reload (used throughout component)
+  // CODE REVIEW FIX: Consolidated from two separate reload state variables to prevent race conditions
   const [isDictionaryReloading, setIsDictionaryReloading] = useState(false);
-
-  // HIGH-1 FIX: Protect against concurrent dictionary reloads
-  const [isReloading, setIsReloading] = useState(false);
 
   // ISSUE-4 FIX: Timing constant for highlight scroll delay (eliminates magic number)
   // Wait for React state update to complete before scrolling to highlighted element
@@ -263,6 +261,9 @@ const Translator = ({ isActive = true }) => {
 
   // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
   const highlightScrollTimeoutRef = useRef(null);
+
+  // CODE REVIEW FIX: Track component mount status to prevent state updates after unmount
+  const isMountedRef = useRef(true);
 
   // Track previous isDictionaryReloading value to detect reload completion (CRITICAL-1 FIX)
   const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
@@ -310,7 +311,11 @@ const Translator = ({ isActive = true }) => {
 
   // Cleanup timers on component unmount to prevent memory leaks
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      // CODE REVIEW FIX: Mark component as unmounted to prevent timeout setting after unmount
+      isMountedRef.current = false;
+
       // MEDIUM-7 FIX: Use shared cleanup function (eliminates duplication)
       cleanupScrollRestoration();
 
@@ -476,10 +481,15 @@ const Translator = ({ isActive = true }) => {
         if (highlightScrollTimeoutRef.current) {
           clearTimeout(highlightScrollTimeoutRef.current);
         }
-        highlightScrollTimeoutRef.current = setTimeout(() => {
-          scrollToHighlightedElement(originalTextRef, segmentInfo.unitIndex);
-          highlightScrollTimeoutRef.current = null;
-        }, HIGHLIGHT_SCROLL_DELAY_MS);
+        // CODE REVIEW FIX: Only set timeout if component is still mounted
+        if (isMountedRef.current) {
+          highlightScrollTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              scrollToHighlightedElement(originalTextRef, segmentInfo.unitIndex);
+              highlightScrollTimeoutRef.current = null;
+            }
+          }, HIGHLIGHT_SCROLL_DELAY_MS);
+        }
       } else if (segmentInfo.direction === 'original-to-translation') {
         // Clicked original text, highlight translation text
         dispatchHighlighting({ type: 'HIGHLIGHT_TRANSLATION', unitIndex: segmentInfo.unitIndex });
@@ -489,10 +499,15 @@ const Translator = ({ isActive = true }) => {
         if (highlightScrollTimeoutRef.current) {
           clearTimeout(highlightScrollTimeoutRef.current);
         }
-        highlightScrollTimeoutRef.current = setTimeout(() => {
-          scrollToHighlightedElement(translationTextRef, segmentInfo.unitIndex);
-          highlightScrollTimeoutRef.current = null;
-        }, HIGHLIGHT_SCROLL_DELAY_MS);
+        // CODE REVIEW FIX: Only set timeout if component is still mounted
+        if (isMountedRef.current) {
+          highlightScrollTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              scrollToHighlightedElement(translationTextRef, segmentInfo.unitIndex);
+              highlightScrollTimeoutRef.current = null;
+            }
+          }, HIGHLIGHT_SCROLL_DELAY_MS);
+        }
       } else if (segmentInfo.direction === 'character-only-to-original') {
         // Clicked character-only text, highlight original text and full translation
         // DEBUG: Character-only click logging removed for performance
@@ -549,11 +564,16 @@ const Translator = ({ isActive = true }) => {
             if (highlightScrollTimeoutRef.current) {
               clearTimeout(highlightScrollTimeoutRef.current);
             }
-            highlightScrollTimeoutRef.current = setTimeout(() => {
-              scrollToHighlightedElement(originalTextRef, bestMatch.index);
-              scrollToHighlightedElement(translationTextRef, bestMatch.index);
-              highlightScrollTimeoutRef.current = null;
-            }, HIGHLIGHT_SCROLL_DELAY_MS);
+            // CODE REVIEW FIX: Only set timeout if component is still mounted
+            if (isMountedRef.current) {
+              highlightScrollTimeoutRef.current = setTimeout(() => {
+                if (isMountedRef.current) {
+                  scrollToHighlightedElement(originalTextRef, bestMatch.index);
+                  scrollToHighlightedElement(translationTextRef, bestMatch.index);
+                  highlightScrollTimeoutRef.current = null;
+                }
+              }, HIGHLIGHT_SCROLL_DELAY_MS);
+            }
           } else {
             logger.warn(
               `⚠️ No matches found for "${targetCharacter}" in Chinese Text - using position fallback`
@@ -583,11 +603,16 @@ const Translator = ({ isActive = true }) => {
             if (highlightScrollTimeoutRef.current) {
               clearTimeout(highlightScrollTimeoutRef.current);
             }
-            highlightScrollTimeoutRef.current = setTimeout(() => {
-              scrollToHighlightedElement(originalTextRef, clampedIndex);
-              scrollToHighlightedElement(translationTextRef, clampedIndex);
-              highlightScrollTimeoutRef.current = null;
-            }, HIGHLIGHT_SCROLL_DELAY_MS);
+            // CODE REVIEW FIX: Only set timeout if component is still mounted
+            if (isMountedRef.current) {
+              highlightScrollTimeoutRef.current = setTimeout(() => {
+                if (isMountedRef.current) {
+                  scrollToHighlightedElement(originalTextRef, clampedIndex);
+                  scrollToHighlightedElement(translationTextRef, clampedIndex);
+                  highlightScrollTimeoutRef.current = null;
+                }
+              }, HIGHLIGHT_SCROLL_DELAY_MS);
+            }
           }
         }
       }
@@ -1012,7 +1037,7 @@ const Translator = ({ isActive = true }) => {
     }
 
     // CODE REVIEW FIX: Prevent translation during dictionary reload (race condition)
-    if (isReloading) {
+    if (isDictionaryReloading) {
       logger.warn('Character-only translation rejected: dictionary reload in progress');
       return Promise.resolve();
     }
@@ -1049,7 +1074,7 @@ const Translator = ({ isActive = true }) => {
       }
 
       // CODE REVIEW FIX: Prevent translation during dictionary reload (race condition)
-      if (isReloading) {
+      if (isDictionaryReloading) {
         toast.warning('Dictionary reload in progress. Please wait.', {
           duration: 3000,
         });
@@ -1375,7 +1400,7 @@ const Translator = ({ isActive = true }) => {
     }
 
     // CODE REVIEW FIX: Prevent clipboard translation during dictionary reload (race condition)
-    if (isReloading) {
+    if (isDictionaryReloading) {
       toast.warning('Dictionary reload in progress. Please wait.', {
         duration: 3000,
       });
@@ -1418,14 +1443,12 @@ const Translator = ({ isActive = true }) => {
 
   // Reload Dictionary handler to clear all caches, reload dictionaries from storage, and reinitialize engine
   const handleForceReload = useCallback(async () => {
-    // HIGH-1 FIX: Prevent concurrent dictionary reloads
-    if (isReloading) {
+    // CODE REVIEW FIX: Prevent concurrent dictionary reloads (consolidated from separate isReloading state)
+    if (isDictionaryReloading) {
       logger.warn('🛑 Reload already in progress - ignoring duplicate call');
       toast.warning('Dictionary reload already in progress');
       return;
     }
-
-    setIsReloading(true);
     logger.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
     logger.log('Current state before reload:', {
       translatedText: translatedText?.substring(0, 50),
@@ -1785,9 +1808,6 @@ const Translator = ({ isActive = true }) => {
         setIsDictionaryReloading(false);
         // Note: savedScrollPositions now managed internally by useScrollPositionManager hook
         logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
-
-        // HIGH-1 FIX: Reset concurrent reload protection after complete
-        setIsReloading(false);
       }, 100); // POST_RELOAD_DELAY: Allow React state updates to flush
     }
   }, [
@@ -1796,7 +1816,7 @@ const Translator = ({ isActive = true }) => {
     dictionaries,
     getFilteredDictionaries,
     isLoading,
-    isReloading,
+    isDictionaryReloading,
     saveScrollPositions,
     restoreScrollPositions,
     translateCharacterOnly,
@@ -1907,7 +1927,7 @@ const Translator = ({ isActive = true }) => {
         handleQuickAddProperNoun={handleQuickAddProperNoun}
         handleForceReload={handleForceReload}
         isLoading={isLoading}
-        isReloading={isReloading}
+        isReloading={isDictionaryReloading}
         isTranslating={isTranslating}
         progressInfo={progressInfo}
         activeTranslations={activeTranslations}

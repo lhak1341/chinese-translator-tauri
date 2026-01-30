@@ -5568,11 +5568,14 @@ export class TranslationEngine {
             this.translationCache.clearOldEntries();
           }
 
-          // More aggressive garbage collection for memory pressure
-          if (typeof global !== 'undefined' && global.gc) {
-            global.gc();
-          } else if (typeof window !== 'undefined' && window.gc) {
-            window.gc();
+          // CODE REVIEW FIX: Only attempt manual GC in development (requires --expose-gc flag)
+          // Modern JS engines handle GC automatically in production
+          if (process.env.NODE_ENV === 'development') {
+            if (typeof global !== 'undefined' && global.gc) {
+              global.gc();
+            } else if (typeof window !== 'undefined' && window.gc) {
+              window.gc();
+            }
           }
 
           // Remove artificial delays entirely - they were causing exponential slowdown
