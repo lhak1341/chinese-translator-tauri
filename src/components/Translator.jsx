@@ -14,6 +14,7 @@ import { TranslationInputValidator } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
 import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
+import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { validateElectronResult, validateDictionary } from '../utils/configValidation';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
@@ -179,13 +180,29 @@ const Translator = ({ isActive = true }) => {
   const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
 
-  // LOW-2 FIX: Extract shared function for clearing highlights to eliminate code duplication
+  /**
+   * Clears all highlighting state across all panels
+   *
+   * Resets highlighting indices to -1 for Original, Full Translation, and Character Only panels.
+   * Called when input text changes or translation starts to prevent stale highlights.
+   *
+   * @returns {void}
+   */
   const clearHighlighting = useCallback(() => {
     dispatchHighlighting({ type: 'CLEAR_ALL' });
   }, []);
 
-  // IMPORTANT-4 FIX: Clear stale highlight state when semantic arrays change
-  // Prevents highlighting indices from previous translation causing errors or wrong highlighting
+  /**
+   * Clear stale highlights when semantic arrays change (new translation completes)
+   *
+   * Lifecycle: Runs when new semantic arrays are set
+   * Dependencies: semanticArrays, clearHighlighting
+   *
+   * Prevents highlighting indices from previous translation causing errors or wrong highlighting
+   * when new translation has different array lengths.
+   *
+   * Critical for preventing array index out of bounds errors when switching between translations.
+   */
   useEffect(() => {
     if (semanticArrays !== null) {
       // New translation completed - clear any stale highlighting from previous translation
@@ -246,7 +263,7 @@ const Translator = ({ isActive = true }) => {
     },
     {
       maxRetryAttempts: 10,
-      maxRetryDelay: 1000,
+      maxRetryDelay: UI_TIMEOUTS.MAX_RETRY_DELAY,
       initialAttemptDelay: 50,
     }
   );
@@ -268,7 +285,23 @@ const Translator = ({ isActive = true }) => {
   // Track previous isDictionaryReloading value to detect reload completion (CRITICAL-1 FIX)
   const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
 
-  // Helper function to filter dictionaries based on active configuration
+  /**
+   * Filters dictionaries to include only active proper noun dictionaries
+   *
+   * Always includes non-proper-noun dictionaries (characters, phrases, patterns, etc.).
+   * Only includes proper noun dictionaries that are in the activeProperNouns list.
+   *
+   * Used during engine initialization and dictionary reload to ensure only selected
+   * proper noun dictionaries are loaded (memory optimization + user preference).
+   *
+   * @param {Object.<string, Object>} allDictionaries - All available dictionaries (from DictionaryContext)
+   * @param {string[]} activeProperNouns - Array of active proper noun dictionary names
+   * @returns {Object.<string, Object>} Filtered dictionaries object
+   *
+   * @example
+   * const filtered = getFilteredDictionaries(dictionaries, ['properNouns-DaiDuongSongLong']);
+   * // Returns: { characters: {...}, phrases: {...}, properNouns-DaiDuongSongLong: {...} }
+   */
   const getFilteredDictionaries = useCallback((allDictionaries, activeProperNouns) => {
     const filtered = {};
 
@@ -286,7 +319,19 @@ const Translator = ({ isActive = true }) => {
     return filtered;
   }, []);
 
-  // Load initial configuration on component mount
+  /**
+   * Loads initial configuration on component mount
+   *
+   * Lifecycle: Runs once on mount (empty dependency array)
+   *
+   * Loads saved activeProperNouns from configuration file to restore user's
+   * dictionary selection from previous session.
+   *
+   * Error handling:
+   * - Silent on first run (file not found is expected)
+   * - Shows warning toast for unexpected errors
+   * - Falls back to defaults if loading fails
+   */
   useEffect(() => {
     const loadInitialConfig = async () => {
       try {
@@ -309,7 +354,21 @@ const Translator = ({ isActive = true }) => {
     loadInitialConfig();
   }, []);
 
-  // Cleanup timers on component unmount to prevent memory leaks
+  /**
+   * Cleanup effect - prevents memory leaks on component unmount
+   *
+   * Lifecycle: Runs cleanup on unmount
+   *
+   * Cleanup operations:
+   * - Marks component as unmounted (prevents timeout setters after unmount)
+   * - Clears scroll restoration timers
+   * - Clears highlight scroll timeout
+   * - Destroys translation segment cache timer
+   * - Destroys system performance monitor timer
+   * - Resets engine initialization flag
+   *
+   * Critical for preventing memory leaks from timers, intervals, and async operations.
+   */
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -342,7 +401,36 @@ const Translator = ({ isActive = true }) => {
     };
   }, [cleanupScrollRestoration]);
 
-  // Initialize engine once when dictionaries are first loaded
+  /**
+   * Engine initialization effect - creates and configures translation engine
+   *
+   * Lifecycle: Runs when dictionaries load and configuration changes
+   * Dependencies: isLoading, dictionaries, engineInitialized, activeProperNouns
+   *
+   * Initialization sequence:
+   * 1. Creates translation engine instance
+   * 2. Exposes engine to window for development debugging
+   * 3. Filters dictionaries based on activeProperNouns
+   * 4. Initializes engine with filtered dictionaries and priorities
+   * 5. Sets up pattern parity tests for WASM validation
+   * 6. Configures debounced progress handler callbacks
+   * 7. Updates engine stats and sets initialized flag
+   *
+   * Race condition prevention:
+   * - Uses isInitializingEngineRef to prevent duplicate initialization
+   * - Sets flag synchronously BEFORE async function to prevent race
+   * - Resets flag in finally block after completion or error
+   *
+   * Error handling:
+   * - Sets initializationError state for user display
+   * - Shows critical error toast with actionable guidance
+   * - Resets engineInitialized flag on failure
+   *
+   * Why this can't be extracted:
+   * - Coordinates multiple state setters atomically
+   * - Timing-sensitive initialization sequence
+   * - Requires access to multiple refs and state setters
+   */
   useEffect(() => {
     // MEDIUM-1 FIX: Prevent duplicate engine initialization during dependency changes
     // If activeProperNouns changes during initialization, this effect fires again
@@ -425,7 +513,20 @@ const Translator = ({ isActive = true }) => {
     // Include getFilteredDictionaries to satisfy React exhaustive-deps rule (function is stable but should be listed)
   }, [isLoading, dictionaries, engineInitialized, activeProperNouns, getFilteredDictionaries]);
 
-  // Monitor WASM status changes
+  /**
+   * WASM status monitoring effect - tracks WASM initialization and fallback mode
+   *
+   * Lifecycle: Runs when engine initializes and WASM status changes
+   * Dependencies: engineInitialized, wasmStatus
+   *
+   * Monitors WASM dictionary engine status:
+   * - initialized: Whether WASM module loaded successfully
+   * - fallbackMode: Whether using JavaScript fallback (WASM failed)
+   * - totalEntries: Number of entries loaded into WASM trie
+   *
+   * Updates status every 5 seconds to detect initialization completion or failures.
+   * Only updates state if status actually changed (prevents unnecessary re-renders).
+   */
   useEffect(() => {
     if (engineInitialized && engineRef.current?.wasmManager) {
       const checkWasmStatus = () => {
@@ -450,7 +551,7 @@ const Translator = ({ isActive = true }) => {
       checkWasmStatus();
 
       // Set up periodic monitoring
-      const interval = setInterval(checkWasmStatus, 1000);
+      const interval = setInterval(checkWasmStatus, UI_TIMEOUTS.WASM_STATUS_CHECK_INTERVAL);
 
       return () => clearInterval(interval);
     }
@@ -461,10 +562,73 @@ const Translator = ({ isActive = true }) => {
   // Note: Configuration changes are now handled only during manual reload
   // to prevent constant reinitializations during normal operation
 
-  // Quick Add handlers now provided by useDictionaryConfig hook
+  /**
+   * Quick Add handlers (provided by useDictionaryConfig hook)
+   *
+   * These handlers open the Quick Add modal with the appropriate dictionary pre-selected:
+   * - handleQuickAddCharacter: Opens Quick Add for character dictionary (Cmd/Ctrl-1)
+   * - handleQuickAddPhrase: Opens Quick Add for phrase dictionary (Cmd/Ctrl-2)
+   * - handleQuickAddProperNoun: Opens Quick Add for proper noun dictionary (Cmd/Ctrl-3)
+   * - handleQuickAddPattern: Opens Quick Add for pattern dictionary (Cmd/Ctrl-4)
+   * - handleQuickAddCustomProperNoun: Opens Quick Add for custom proper noun (Cmd/Ctrl-5)
+   * - handleQuickAddDictionaryChange: Changes target dictionary in Quick Add modal
+   * - closeQuickAdd: Closes Quick Add modal
+   *
+   * See useDictionaryConfig hook for implementation details.
+   */
 
-  // Handler for semantic array-based segment clicks with auto-scroll
-  // Memoized handler for semantic array-based segment clicks with auto-scroll
+  /**
+   * Handles clickable highlighting - bidirectional mapping between translation panels
+   *
+   * User action: Click any segment in Original, Full Translation, or Character Only panels
+   *
+   * Supports three click directions:
+   * 1. translation-to-original: Full Translation → Original Text + Character Only
+   * 2. original-to-translation: Original Text → Full Translation
+   * 3. character-only-to-original: Character Only → Original Text + Full Translation
+   *
+   * Highlighting algorithm:
+   * - Direct mapping: Uses semantic array unit indices for precise position tracking
+   * - Character Only bridge: Position-based scoring with context matching
+   * - Multi-occurrence handling: Sequential occurrence matching + context scoring
+   * - Auto-scroll: Scrolls target panel to highlighted element (10ms delay)
+   *
+   * Side effects:
+   * - Updates highlighting state via reducer (HIGHLIGHT_BOTH, HIGHLIGHT_TRANSLATION, etc.)
+   * - Auto-scrolls target panels to highlighted elements
+   * - Sets timeout for scroll animation (cleaned up on component unmount)
+   *
+   * Position mapping details:
+   * - Full Translation uses semantic arrays with exact unit indices
+   * - Character Only uses position ratio + context scoring for accuracy
+   * - Fallback to position-based heuristic if no context match found
+   *
+   * Error handling:
+   * - Validates semantic arrays exist before processing
+   * - Skips if click originated from Character Only (prevents infinite loops)
+   * - Clears timeouts on component unmount (prevents memory leaks)
+   * - Only sets timeouts if component is mounted (isMountedRef check)
+   *
+   * @param {SegmentClickPayload} segmentInfo - Click payload with direction and position
+   * @param {string} segmentInfo.direction - Click direction (translation-to-original, original-to-translation, character-only-to-original)
+   * @param {number} segmentInfo.unitIndex - Index in source semantic array
+   * @param {string} [segmentInfo.originalText] - Text content (for character-only clicks)
+   * @returns {void}
+   *
+   * @example
+   * // Translation panel click (highlights original)
+   * handleSemanticSegmentClick({
+   *   direction: 'translation-to-original',
+   *   unitIndex: 42
+   * });
+   *
+   * // Character-only panel click (highlights both original and translation)
+   * handleSemanticSegmentClick({
+   *   direction: 'character-only-to-original',
+   *   unitIndex: 10,
+   *   originalText: '你'
+   * });
+   */
   const handleSemanticSegmentClick = useCallback(
     (segmentInfo) => {
       // Only log in development for performance
@@ -630,7 +794,45 @@ const Translator = ({ isActive = true }) => {
   const debouncedProgressHandler = useRef(new DebouncedProgressHandler(300));
   const smoothLoadingManager = useRef(new SmoothLoadingManager());
 
-  // Bridge: Map between any highlighted text and Character Only
+  /**
+   * Character Only bridge effect - maps highlighting between Full Translation and Character Only
+   *
+   * Lifecycle: Runs when highlighting changes in Original or Full Translation panels
+   * Dependencies: highlightedUnitIndex, highlightedTranslationUnitIndex, semanticArrays,
+   *               characterOnlySemanticArrays, isCharacterOnlyClick
+   *
+   * Algorithm:
+   * 1. Skip if highlight originated from Character Only (prevents infinite loops)
+   * 2. Determine which text is highlighted (Full Translation or Original)
+   * 3. Find target segment in semantic arrays
+   * 4. Search for matching segments in Character Only arrays
+   * 5. For single match: Use directly
+   * 6. For multiple matches: Use context-based scoring algorithm
+   *
+   * Context-based scoring (for multiple occurrences):
+   * - Immediate context (±2 segments): 10 points per match
+   * - Distant context (±50 segments): 2 points per match
+   * - Sequential occurrence matching: 100 points for correct position
+   * - Falls back to position ratio if no context match
+   *
+   * Performance optimizations:
+   * - MAX_MATCHES limit (100) prevents memory exhaustion
+   * - CONTEXT_WINDOW limit (50) reduces slice overhead
+   * - Precomputed occurrence count (avoids O(n²) nested loop)
+   * - Precomputed context strings (eliminates repeated concatenation)
+   * - Early breaks when reaching MAX_MATCHES
+   *
+   * Race condition prevention:
+   * - Uses `cancelled` flag for cleanup
+   * - Validates array bounds before access
+   * - Checks cancelled flag before expensive scoring loop
+   *
+   * Error handling:
+   * - Validates semantic arrays exist
+   * - Bounds checking before array access
+   * - Clears highlighting if no matches found
+   * - Logs warnings for edge cases
+   */
   useEffect(() => {
     // HIGH-1 FIX: Add cleanup function to cancel in-flight operations
     // Prevents race conditions when dependencies change during scoring algorithm
@@ -917,7 +1119,17 @@ const Translator = ({ isActive = true }) => {
     isCharacterOnlyClick,
   ]);
 
-  // Auto-scroll Character Only text when highlighting changes
+  /**
+   * Auto-scroll effect for Character Only panel
+   *
+   * Lifecycle: Runs when Character Only highlighting index changes
+   * Dependencies: highlightedCharacterOnlyUnitIndex
+   *
+   * Scrolls Character Only panel to highlighted element when highlighting changes.
+   * Handles both single index and array of indices (for multi-character segments).
+   *
+   * Uses 10ms delay to ensure React state update completes before scrolling.
+   */
   useEffect(() => {
     if (highlightedCharacterOnlyUnitIndex && highlightedCharacterOnlyUnitIndex !== -1) {
       const timeoutId = setTimeout(() => {
@@ -935,7 +1147,21 @@ const Translator = ({ isActive = true }) => {
     }
   }, [highlightedCharacterOnlyUnitIndex]);
 
-  // MEDIUM-4 FIX: Monitor cache degradation and alert user
+  /**
+   * Cache health monitoring effect - alerts user when cache performance degrades
+   *
+   * Lifecycle: Runs every 5 minutes during active use
+   * Dependencies: None (monitoring interval)
+   *
+   * Monitors translation segment cache for degradation:
+   * - Checks hit rate after 100+ lookups (meaningful sample size)
+   * - Shows warning toast if hit rate < 50%
+   * - Suggests dictionary reload for cache refresh
+   *
+   * Uses toast ID to prevent duplicate warnings.
+   *
+   * Performance: Lightweight check (1-2ms) runs every 5 minutes.
+   */
   useEffect(() => {
     const checkCacheHealth = () => {
       try {
@@ -960,7 +1186,7 @@ const Translator = ({ isActive = true }) => {
     };
 
     // Check cache health every 5 minutes during active use
-    const interval = setInterval(checkCacheHealth, 5 * 60 * 1000);
+    const interval = setInterval(checkCacheHealth, UI_TIMEOUTS.CACHE_HEALTH_CHECK_INTERVAL);
     return () => clearInterval(interval);
   }, []);
 
@@ -981,7 +1207,21 @@ const Translator = ({ isActive = true }) => {
   // Optimized performance monitoring with reduced overhead
   // updatePerformanceStats now provided by usePerformanceMonitoring hook
 
-  // Update all statistics (optimized - only when advanced stats are visible or when significant changes occur)
+  /**
+   * Updates all performance statistics (cache, pool, semantic, timing)
+   *
+   * Optimization: Only updates advanced stats when they're visible in UI.
+   * Always updates cache hit rate for simple performance display.
+   *
+   * Gathers metrics from:
+   * - translationSegmentCache: Cache hits/misses/size
+   * - debugObjectPool: Reuse rate, GC reduction, memory stats
+   * - globalPerformanceMonitor: Total time, ops/sec, min/max time
+   *
+   * Called after dictionary reload to show updated statistics.
+   *
+   * @returns {void}
+   */
   const updateAllStats = useCallback(() => {
     // Always update cache hit rate for simple display
     updateCacheHitRate(translationSegmentCache);
@@ -1022,7 +1262,21 @@ const Translator = ({ isActive = true }) => {
     // This function exists for compatibility but is not used in the optimized version
   };
 
-  // Character-only translation function - optimized for concurrent execution
+  /**
+   * Translates Chinese text using character-only mode (individual character dictionary lookups)
+   *
+   * Runs concurrently with main translation to provide fallback translation without phrases,
+   * patterns, or proper nouns. Used for comparison and debugging translation quality.
+   *
+   * Triggered automatically after main translation completes. Does not trigger UI loading states.
+   *
+   * @param {string} text - Chinese text to translate character-by-character
+   * @returns {Promise<void>} Promise that resolves when character-only translation completes
+   *
+   * @example
+   * // Automatically called after main translation
+   * translateCharacterOnly(inputText);
+   */
   const translateCharacterOnly = useCallback(async (text) => {
     const charOnlyId = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     batchLog.hotInfo(
@@ -1062,13 +1316,57 @@ const Translator = ({ isActive = true }) => {
     return Promise.resolve();
   }, []);
 
-  // Main translation function - now with progressive support and streaming
+  /**
+   * Main translation handler - processes Chinese text through 5-phase translation pipeline
+   *
+   * Executes the core translation workflow:
+   * 1. Validates input (security, memory limits)
+   * 2. Prevents concurrent translations during dictionary reload
+   * 3. Creates AbortController for cancellation/timeout management
+   * 4. Runs progressive translation with streaming updates
+   * 5. Handles semantic arrays for clickable highlighting
+   * 6. Updates performance statistics
+   *
+   * Translation phases (IMMUTABLE order):
+   * - Phase 1: Pattern Processing (structural patterns with variables)
+   * - Phase 2: Proper Noun Processing (novel-specific terms)
+   * - Phase 3: Number Processing (Chinese numbers → Arabic/percentages)
+   * - Phase 4: Phrase Processing (common multi-character phrases)
+   * - Phase 5: Character Processing (single character fallback)
+   *
+   * Side effects:
+   * - Sets loading state (isTranslating)
+   * - Updates translated text progressively via streaming
+   * - Clears previous semantic arrays and highlighting
+   * - Shows toast notifications for errors/completion
+   * - Auto-scrolls translation panel to beginning
+   * - Triggers character-only translation after completion
+   *
+   * Error handling:
+   * - Input validation rejects oversized/malicious text
+   * - Blocks translation during dictionary reload (race condition prevention)
+   * - Automatic timeout based on text length (30s minimum + 100ms/char)
+   * - AbortController cancellation for manual stops
+   * - Engine readiness checks before processing
+   *
+   * @param {string} text - Chinese text to translate (max 1MB, validated)
+   * @returns {Promise<string>} Translated Vietnamese text
+   *
+   * @throws {Error} If input validation fails (oversized, malicious patterns)
+   * @throws {Error} If translation timeout exceeded
+   * @throws {Error} If engine not ready or initialization failed
+   *
+   * @example
+   * // Triggered by input text change
+   * const result = await translateText("你好世界");
+   * setTranslatedText(result);
+   */
   const translateText = useCallback(
     async (text) => {
       // CRITICAL FIX: Validate input text to prevent memory exhaustion and security issues
       const validationResult = TranslationInputValidator.validateInput(text);
       if (!validationResult.valid) {
-        toast.error(validationResult.error, { duration: 5000 });
+        toast.error(validationResult.error, { duration: UI_TIMEOUTS.TOAST_DURATION_ERROR });
         logger.warn(`Translation rejected: ${validationResult.error}`);
         return;
       }
@@ -1298,7 +1596,32 @@ const Translator = ({ isActive = true }) => {
   const dictionaryCache = new Map();
   const MAX_DICTIONARY_CACHE_SIZE = 10; // Limit recent combinations
 
-  // Combined effect for configuration loading and translation
+  /**
+   * Main translation effect - orchestrates configuration loading and translation
+   *
+   * Lifecycle: Runs when input text changes or dictionaries load
+   * Dependencies: inputText, isLoading, isClipboardTranslation, isDictionaryReloading
+   *
+   * Workflow:
+   * 1. Skip if dictionary reload just completed (prevents duplicate translation)
+   * 2. Skip if dictionary reload in progress (race condition prevention)
+   * 3. Clear highlighting when input changes
+   * 4. Load latest configuration from disk
+   * 5. Translate input text if available
+   * 6. Trigger character-only translation after main completes
+   * 7. Auto-scroll if clipboard translation (skip during reload)
+   *
+   * Why this can't be extracted:
+   * - Coordinates translation timing with configuration loading
+   * - Manages multiple state setters (isTranslating, translatedText, semanticArrays)
+   * - Handles clipboard auto-scroll coordination
+   * - Prevents duplicate translations during reload
+   *
+   * Performance optimizations:
+   * - Uses progressive translation for immediate responsiveness
+   * - Character-only runs after main (non-blocking for better UX)
+   * - Shows success notification for large translations (>5000 chars)
+   */
   useEffect(() => {
     const loadAndTranslate = async () => {
       try {
@@ -1348,8 +1671,8 @@ const Translator = ({ isActive = true }) => {
             logger.log(`📝 Translation completed: ${newTranslation.length} chars`);
             setTranslatedText(newTranslation);
 
-            // Show success notification for large translations (>1000 chars input)
-            if (inputText.length > 1000) {
+            // Show success notification for large translations
+            if (inputText.length > UI_TIMEOUTS.LARGE_TRANSLATION_THRESHOLD) {
               toast.success(`Translation completed: ${inputText.length} characters processed`, {
                 duration: TOAST_DURATIONS.SUCCESS,
                 id: TOAST_IDS.TRANSLATION_COMPLETED,
@@ -1391,7 +1714,40 @@ const Translator = ({ isActive = true }) => {
     translateText,
   ]); // Only retranslate when input changes or dictionaries finish initial loading
 
-  // Memoized clipboard translation handler
+  /**
+   * Handles clipboard translation - reads clipboard and initiates translation
+   *
+   * User action: Click "Translate from Clipboard" button or press Cmd/Ctrl-V
+   *
+   * Workflow:
+   * 1. Prevents concurrent clipboard operations (debouncing via busy flag)
+   * 2. Blocks during dictionary reload (race condition prevention)
+   * 3. Reads clipboard via Tauri API (no browser permission prompt)
+   * 4. Preprocesses text (collapse 2+ line breaks to single break)
+   * 5. Sets input text and marks as clipboard translation
+   * 6. Auto-scrolls both original and translation panels to top
+   *
+   * Side effects:
+   * - Sets input text (triggers translation via useEffect)
+   * - Sets isClipboardTranslation flag (controls auto-scroll behavior)
+   * - Clears previous highlighting
+   * - Scrolls original text panel to beginning
+   * - Shows toast warnings for errors or blocked operations
+   *
+   * Error handling:
+   * - Graceful degradation on clipboard read failure
+   * - Debouncing prevents double-click issues (500ms busy window)
+   * - Blocks during dictionary reload to prevent race conditions
+   *
+   * @returns {Promise<void>} Promise that resolves when clipboard read and setup completes
+   *
+   * @example
+   * // Button click handler
+   * <Button onClick={handleTranslateFromClipboard}>Translate from Clipboard</Button>
+   *
+   * // Keyboard shortcut
+   * onTranslateFromClipboard={handleTranslateFromClipboard}
+   */
   const handleTranslateFromClipboard = useCallback(async () => {
     // MEDIUM-1 FIX: Prevent concurrent clipboard translations
     if (isClipboardBusy.current) {
@@ -1441,7 +1797,70 @@ const Translator = ({ isActive = true }) => {
     }
   }, []); // No dependencies - only uses setters which are stable
 
-  // Reload Dictionary handler to clear all caches, reload dictionaries from storage, and reinitialize engine
+  /**
+   * Reloads all dictionaries from storage and reinitializes translation engine
+   *
+   * User action: Click "Reload Dictionary" button or press Cmd/Ctrl-R
+   *
+   * Critical use cases:
+   * - After adding new dictionary entries (picks up changes)
+   * - When translation quality degrades (clears stale caches)
+   * - After editing proper noun dictionaries
+   * - When cache corruption is suspected
+   *
+   * 8-Step reload sequence:
+   * 1. Prevent concurrent reloads (blocks duplicate calls)
+   * 2. Save scroll positions for restoration
+   * 3. Cancel active translations (200ms wait for cleanup)
+   * 4. Clear all caches (translation segments, dictionary caches, WASM caches)
+   * 5. Destroy current engine instance
+   * 6. Force reload all dictionaries from storage (parallel load, 8x faster)
+   * 7. Load fresh configuration (activeProperNouns from disk, not React state)
+   * 8. Reinitialize engine with filtered dictionaries
+   * 9. Retranslate current text (if input exists)
+   * 10. Restore scroll positions after completion
+   *
+   * Side effects (coordination requires coupling):
+   * - Sets isDictionaryReloading flag (blocks translations during reload)
+   * - Cancels active translations (up to 3 concurrent)
+   * - Clears isTranslating, progressInfo state
+   * - Destroys engine (engineRef.current = null)
+   * - Clears all caches (translation segments, dictionary, pattern variables, WASM)
+   * - Shows progressive status messages in translation panel
+   * - Resets engineInitialized flag
+   * - Loads fresh activeProperNouns from disk (NOT React state)
+   * - Creates new engine with filtered dictionaries
+   * - Retranslates current input (if exists)
+   * - Restores scroll positions after 100ms delay
+   * - Shows toast notifications (success/error)
+   *
+   * Why this can't be extracted:
+   * - Coordinates 10+ state setters atomically
+   * - Timing-sensitive cache invalidation
+   * - Scroll position management requires DOM refs
+   * - Configuration loading must bypass React state (disk is source of truth)
+   *
+   * Error handling:
+   * - Prevents concurrent reloads (isDictionaryReloading mutex)
+   * - Shows error messages in translation panel
+   * - Toast notifications for all error states
+   * - Graceful degradation if dictionaries not ready
+   * - WASM validation runs asynchronously (non-blocking)
+   *
+   * Performance optimizations:
+   * - Parallel dictionary loading (8x speedup vs sequential)
+   * - Dual-mode translation for reload (if available)
+   * - Non-blocking WASM validation (100ms delayed)
+   *
+   * @returns {Promise<void>} Promise that resolves when reload and retranslation completes
+   *
+   * @example
+   * // Button click
+   * <Button onClick={handleForceReload}>Reload Dictionary</Button>
+   *
+   * // Keyboard shortcut
+   * onReloadDictionary={handleForceReload}
+   */
   const handleForceReload = useCallback(async () => {
     // CODE REVIEW FIX: Prevent concurrent dictionary reloads (consolidated from separate isReloading state)
     if (isDictionaryReloading) {

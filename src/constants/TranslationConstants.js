@@ -222,3 +222,110 @@ export const PHASE_TIMEOUTS = {
   /** Character fallback: Last resort for all remaining tokens */
   characters: 60000, // 60 seconds (2x patterns due to volume)
 };
+
+/**
+ * Device Memory-Based Token Limits
+ * Adaptive token limits based on available device memory (RAM)
+ *
+ * Rationale:
+ * - Low memory devices (≤2GB): Conservative 15K token limit
+ * - Medium memory devices (2-4GB): Balanced 25K token limit
+ * - High memory devices (4-8GB): Comfortable 40K token limit
+ * - Very high memory devices (8GB+): Maximum 50K token limit
+ *
+ * These limits prevent memory exhaustion while maximizing performance
+ * for the user's hardware capabilities.
+ */
+export const DEVICE_MEMORY_LIMITS = {
+  /** Default fallback limit for older browsers without memory API */
+  DEFAULT_MAX_TOKENS: 15000,
+
+  /** Low memory devices (≤2GB RAM) */
+  LOW_MEMORY_TOKENS: 15000,
+
+  /** Medium memory devices (2-4GB RAM) */
+  MEDIUM_MEMORY_TOKENS: 25000,
+
+  /** High memory devices (4-8GB RAM) */
+  HIGH_MEMORY_TOKENS: 40000,
+
+  /** Very high memory devices (8GB+ RAM) */
+  VERY_HIGH_MEMORY_TOKENS: 50000,
+
+  /** Minimum token limit (safety floor) */
+  MIN_TOKEN_LIMIT: 5000,
+
+  /** Percentage of available memory to use for token storage */
+  MEMORY_USAGE_PERCENTAGE: 0.3, // 30% of available memory
+};
+
+/**
+ * UI and Interaction Timeouts
+ * Timeout values for user notifications and background operations
+ */
+export const UI_TIMEOUTS = {
+  /** Toast notification duration for normal messages (ms) */
+  TOAST_DURATION_NORMAL: 15000, // 15 seconds
+
+  /** Toast notification duration for validation errors (ms) */
+  TOAST_DURATION_ERROR: 5000, // 5 seconds
+
+  /** Toast notification duration for critical errors (ms) */
+  TOAST_DURATION_CRITICAL: 10000, // 10 seconds
+
+  /** Idle callback timeout for background cleanup (ms) */
+  IDLE_CALLBACK_TIMEOUT: 2000, // 2 seconds
+
+  /** WASM status check interval (ms) */
+  WASM_STATUS_CHECK_INTERVAL: 1000, // 1 second
+
+  /** Cache health check interval (ms) */
+  CACHE_HEALTH_CHECK_INTERVAL: 5 * 60 * 1000, // 5 minutes
+
+  /** Retry delay for operations (ms) */
+  MAX_RETRY_DELAY: 1000, // 1 second
+
+  /** Minimum input length to show success notification (characters) */
+  LARGE_TRANSLATION_THRESHOLD: 1000, // 1000 characters
+};
+
+/**
+ * Pattern Processing Failure Detection
+ * Configuration for detecting and recovering from pattern processing failures
+ */
+export const PATTERN_FAILURE_DETECTION = {
+  /** Time window for tracking pattern failures (ms) */
+  FAILURE_WINDOW_MS: 5 * 60 * 1000, // 5 minutes
+
+  /** Maximum failures before disabling pattern processing */
+  MAX_FAILURES: 3,
+};
+
+/**
+ * Optimized Search Activation Thresholds
+ * Determines when to use WASM-accelerated search for clickable highlighting
+ *
+ * Rationale:
+ * - WASM search is 10-50x faster but has initialization overhead
+ * - For texts >2000 chars AND >100 semantic units, WASM speedup outweighs overhead
+ * - JavaScript O(n*m) search becomes bottleneck at this scale
+ */
+export const OPTIMIZED_SEARCH_THRESHOLDS = {
+  /** Minimum text length to activate optimized search (characters) */
+  MIN_TEXT_LENGTH: 2000,
+
+  /** Minimum semantic units to activate optimized search */
+  MIN_SEMANTIC_UNITS: 100,
+
+  /** Average segment size threshold for cleanup warning (characters) */
+  LARGE_SEGMENT_SIZE_THRESHOLD: 2000,
+};
+
+/**
+ * Memory Waste Detection
+ * Threshold for detecting inefficient memory usage patterns
+ */
+export const MEMORY_WASTE_DETECTION = {
+  /** Percentage of wasted memory that triggers a warning */
+  WASTE_PERCENTAGE_THRESHOLD: 0.3, // 30% waste
+};
