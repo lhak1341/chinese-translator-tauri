@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers'; // REFACTOR (2026-01-28): Consistent error formatting
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark, Zap } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
@@ -31,6 +31,13 @@ const ConfigurationManager: React.FC = () => {
 
   // Default Cmd-5 dictionary state
   const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
+
+  // CODE REVIEW FIX (2026-01-30): Track active drag handlers for cleanup on unmount
+  // Prevents memory leak when component unmounts during slider drag
+  const dragHandlersRef = useRef<{
+    handleMove: ((e: MouseEvent) => void) | null;
+    handleUp: (() => void) | null;
+  }>({ handleMove: null, handleUp: null });
 
   // Sort dictionaries: general 'properNouns' first, then custom ones alphabetically
   const sortDictionaries = (dictionaries: string[]): string[] => {
@@ -105,6 +112,20 @@ const ConfigurationManager: React.FC = () => {
     };
 
     loadDictionaries();
+  }, []);
+
+  // CODE REVIEW FIX (2026-01-30): Cleanup drag event listeners on unmount
+  // Prevents memory leak if component unmounts during active drag
+  useEffect(() => {
+    return () => {
+      // Remove any lingering drag listeners
+      if (dragHandlersRef.current.handleMove) {
+        document.removeEventListener('mousemove', dragHandlersRef.current.handleMove);
+      }
+      if (dragHandlersRef.current.handleUp) {
+        document.removeEventListener('mouseup', dragHandlersRef.current.handleUp);
+      }
+    };
   }, []);
 
   // Handle dictionary activation toggle
@@ -443,6 +464,14 @@ const ConfigurationManager: React.FC = () => {
                     const track = e.currentTarget.parentElement;
                     if (!track) return;
 
+                    // CODE REVIEW FIX (2026-01-30): Clean up any existing drag handlers before creating new ones
+                    if (dragHandlersRef.current.handleMove) {
+                      document.removeEventListener('mousemove', dragHandlersRef.current.handleMove);
+                    }
+                    if (dragHandlersRef.current.handleUp) {
+                      document.removeEventListener('mouseup', dragHandlersRef.current.handleUp);
+                    }
+
                     const handleMove = (moveEvent: MouseEvent) => {
                       const rect = track.getBoundingClientRect();
                       const percent = (moveEvent.clientX - rect.left) / rect.width;
@@ -453,7 +482,14 @@ const ConfigurationManager: React.FC = () => {
                     const handleUp = () => {
                       document.removeEventListener('mousemove', handleMove);
                       document.removeEventListener('mouseup', handleUp);
+                      // Clear ref after cleanup
+                      dragHandlersRef.current.handleMove = null;
+                      dragHandlersRef.current.handleUp = null;
                     };
+
+                    // Store handlers in ref for cleanup on unmount
+                    dragHandlersRef.current.handleMove = handleMove;
+                    dragHandlersRef.current.handleUp = handleUp;
 
                     document.addEventListener('mousemove', handleMove);
                     document.addEventListener('mouseup', handleUp);

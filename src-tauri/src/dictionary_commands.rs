@@ -5,7 +5,8 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::num::NonZeroU32;
-use tauri::{Manager, State};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use tauri::{AppHandle, Emitter, Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
@@ -101,6 +102,11 @@ fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
     }
 }
 
+// CODE REVIEW FIX (2026-01-30): Track mutex poisoning events for monitoring
+// Global counters to detect cache corruption and notify frontend
+static MUTEX_POISONED: AtomicBool = AtomicBool::new(false);
+static POISONING_EVENT_COUNT: AtomicU64 = AtomicU64::new(0);
+
 // Dictionary cache for preventing duplicate loads
 pub struct DictionaryCache {
     cache: Mutex<HashMap<String, serde_json::Value>>,
@@ -119,6 +125,10 @@ impl DictionaryCache {
         match self.cache.lock() {
             Ok(cache) => cache.get(key).cloned(),
             Err(poisoned) => {
+                // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
+                MUTEX_POISONED.store(true, Ordering::SeqCst);
+                POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+
                 // CODE REVIEW FIX: Log critical error instead of warning
                 eprintln!("CRITICAL: Cache mutex poisoned during get - dictionary cache may be corrupted");
                 eprintln!("Poisoning indicates a panic occurred while holding the lock");
@@ -142,6 +152,10 @@ impl DictionaryCache {
                 cache.insert(key, value);
             }
             Err(poisoned) => {
+                // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
+                MUTEX_POISONED.store(true, Ordering::SeqCst);
+                POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+
                 // CODE REVIEW FIX: Log critical error instead of warning
                 eprintln!("CRITICAL: Cache mutex poisoned during set - dictionary cache may be corrupted");
                 eprintln!("Poisoning indicates a panic occurred while holding the lock");
@@ -167,6 +181,10 @@ impl DictionaryCache {
                 }
             }
             Err(poisoned) => {
+                // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
+                MUTEX_POISONED.store(true, Ordering::SeqCst);
+                POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+
                 // CODE REVIEW FIX: Log critical error instead of warning
                 eprintln!("CRITICAL: Cache mutex poisoned during invalidation - dictionary cache may be corrupted");
                 eprintln!("Poisoning indicates a panic occurred while holding the lock");
@@ -1209,4 +1227,54 @@ pub async fn build_lookup_index(
         index_size,
         error: None,
     })
+}
+
+// ============================================================================
+// CODE REVIEW FIX (2026-01-30): Dictionary Cache Health Monitoring
+// ============================================================================
+
+#[derive(Serialize)]
+pub struct CacheHealthResponse {
+    success: bool,
+    is_healthy: bool,
+    mutex_poisoned: bool,
+    poisoning_event_count: u64,
+    message: Option<String>,
+}
+
+/// CODE REVIEW FIX (2026-01-30): Check dictionary cache health status
+///
+/// Monitors mutex poisoning events to detect cache corruption.
+/// Frontend can call this periodically or when dictionary operations behave unexpectedly.
+/// If poisoning is detected, frontend should notify user and suggest application restart.
+#[tauri::command]
+pub fn check_dictionary_cache_health(app: AppHandle) -> CacheHealthResponse {
+    let mutex_poisoned = MUTEX_POISONED.load(Ordering::SeqCst);
+    let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
+
+    // Emit event to frontend if poisoning detected
+    if mutex_poisoned {
+        let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
+            "type": "mutex_poisoning",
+            "event_count": event_count,
+            "severity": "critical",
+            "message": "Dictionary cache corruption detected. Application restart recommended.",
+            "recommendation": "Save your work and restart the application to ensure data integrity."
+        }));
+    }
+
+    CacheHealthResponse {
+        success: true,
+        is_healthy: !mutex_poisoned,
+        mutex_poisoned,
+        poisoning_event_count: event_count,
+        message: if mutex_poisoned {
+            Some(format!(
+                "Dictionary cache has been poisoned {} time(s). Performance degradation expected. Restart recommended.",
+                event_count
+            ))
+        } else {
+            None
+        },
+    }
 }

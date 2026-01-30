@@ -51,6 +51,7 @@ pub fn run() {
             dictionary_commands::import_dictionaries,
             dictionary_commands::reset_dictionaries,
             dictionary_commands::build_lookup_index,
+            dictionary_commands::check_dictionary_cache_health,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| {

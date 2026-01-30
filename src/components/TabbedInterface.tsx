@@ -75,26 +75,26 @@ const TabbedInterface: React.FC = () => {
           className={`${styles.componentWrapper} ${activeTab === 'translator' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
           <ErrorBoundary>
-            {React.createElement(Translator as any, { isActive: activeTab === 'translator' })}
+            <Translator isActive={activeTab === 'translator'} />
           </ErrorBoundary>
         </div>
         <div
           className={`${styles.componentWrapper} ${activeTab === 'dictionary' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
-          {React.createElement(DictionaryManager as any, {
-            searchRef: dictionarySearchRef,
-            isActive: activeTab === 'dictionary',
-          })}
+          <DictionaryManager
+            searchRef={dictionarySearchRef as React.RefObject<HTMLInputElement>}
+            isActive={activeTab === 'dictionary'}
+          />
         </div>
         <div
           className={`${styles.componentWrapper} ${activeTab === 'configuration' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
-          {React.createElement(ConfigurationManager as any)}
+          <ConfigurationManager />
         </div>
         <div
           className={`${styles.componentWrapper} ${styles.componentWrapperScroll} ${activeTab === 'appearance' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
-          {React.createElement(AppearanceManager as any)}
+          <AppearanceManager />
         </div>
       </div>
     </div>

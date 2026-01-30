@@ -8,7 +8,7 @@ import type {
   SegmentClickPayload,
   SegmentClickHandler,
 } from '../types/ClickableTypes';
-import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
+import { SegmentPrecomputer, Segment } from '../utils/SegmentPrecomputer.js';
 import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableOriginalSemantic.module.css';
 import { logger } from '../utils/logger';
@@ -69,7 +69,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)
   // ISSUE-2 FIX: Use shared utility to eliminate code duplication
-  const paragraphs = useMemo(() => groupSegmentsIntoParagraphs(segments as any), [segments]);
+  const paragraphs = useMemo(() => groupSegmentsIntoParagraphs(segments), [segments]);
 
   // Render a single segment with highlighting
   const renderSegment = (segment: any, index: number) => {

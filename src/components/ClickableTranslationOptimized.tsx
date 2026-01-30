@@ -6,6 +6,8 @@ import React, { useMemo, useCallback } from 'react';
 import type {
   ClickableTranslationOptimizedProps,
   SegmentComponentProps,
+  SegmentClickHandler,
+  SegmentClickPayload,
 } from '../types/ClickableTypes';
 import styles from '../styles/ClickableTranslationOptimized.module.css';
 
@@ -24,7 +26,7 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
 
     const handleClick = useCallback(() => {
       if (isClickable) {
-        (onClick as any)({
+        (onClick as SegmentClickHandler)({
           unitIndex,
           originalText,
           translatedText,
@@ -151,9 +153,9 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
 
   // Memoize click handler to prevent re-renders
   const handleSegmentClick = useCallback(
-    (segmentData: any) => {
+    (segmentData: SegmentClickPayload) => {
       if (onSegmentClick) {
-        (onSegmentClick as any)(segmentData);
+        (onSegmentClick as SegmentClickHandler)(segmentData);
       }
     },
     [onSegmentClick]

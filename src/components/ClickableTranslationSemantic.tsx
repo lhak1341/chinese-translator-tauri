@@ -8,7 +8,7 @@ import type {
   SegmentClickPayload,
   SegmentClickHandler,
 } from '../types/ClickableTypes';
-import { SegmentPrecomputer } from '../utils/SegmentPrecomputer.js';
+import { SegmentPrecomputer, Segment } from '../utils/SegmentPrecomputer.js';
 import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
 import { logger } from '../utils/logger';
@@ -21,7 +21,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   direction = 'translation-to-original',
 }) => {
   // State to hold computed segments (needed because SegmentPrecomputer.precomputeSegments is async)
-  const [segments, setSegments] = useState<any[]>([]);
+  const [segments, setSegments] = useState<Segment[]>([]);
 
   // Compute segments synchronously for character-only mode, or async for other modes
   useEffect(() => {
@@ -248,7 +248,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)
   // ISSUE-1 FIX: Use shared utility to eliminate code duplication
-  const paragraphs = useMemo(() => groupSegmentsIntoParagraphs(segments as any), [segments]);
+  const paragraphs = useMemo(() => groupSegmentsIntoParagraphs(segments), [segments]);
 
   // Handle click on a semantic unit
   const handleUnitClick = (unitIndex: number) => {

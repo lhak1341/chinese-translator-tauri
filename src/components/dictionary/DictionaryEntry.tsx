@@ -397,11 +397,12 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
         // Search through all dictionaries for the source text
         for (const [dictionaryId, dictionary] of Object.entries(dictionaries)) {
           if (dictionary && typeof dictionary === 'object' && dictionary[trimmedSource]) {
-            const existingTranslation = dictionary[trimmedSource];
+            const existingTranslation = dictionary[trimmedSource] as DictionaryEntryValue;
             const translationText =
               typeof existingTranslation === 'string'
                 ? existingTranslation
-                : (existingTranslation as any)?.translation || existingTranslation;
+                : (existingTranslation as Extract<DictionaryEntryValue, { translation: string }>)
+                    .translation;
 
             // Get the dictionary display name
             const dictionaryInfo = allDictionaryTypes?.[dictionaryId];
