@@ -12,6 +12,7 @@ import { SegmentPrecomputer, Segment } from '../utils/SegmentPrecomputer.js';
 import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
 import { logger } from '../utils/logger';
+import { sanitizeString } from '../utils/configValidation';
 
 const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> = ({
   translatedText,
@@ -42,6 +43,13 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         setSegments([]);
         return;
       }
+
+      // CODE REVIEW FIX: Normalize text BEFORE validation to handle Vietnamese diacritics
+      // Issue: Vietnamese diacritics change text length during NFC normalization
+      // Example: NFD "màu" = 4 chars (m+a+`+u) → NFC "màu" = 3 chars (m+à+u)
+      // Impact: Positions validated before normalization become invalid after
+      // Fix: Normalize first, then validate positions against normalized length
+      const normalizedTranslatedText = translatedText.normalize('NFC');
 
       const directSegments = [];
       let currentPosition = 0;
@@ -82,10 +90,11 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           metadata.translatedEnd !== undefined &&
           metadata.translatedEnd !== -1 &&
           // MEDIUM-2 FIX: Validate position metadata is within text bounds
+          // CODE REVIEW FIX: Use normalized text length for validation
           metadata.translatedStart >= 0 &&
-          metadata.translatedStart < translatedText!.length &&
+          metadata.translatedStart < normalizedTranslatedText.length &&
           metadata.translatedEnd > metadata.translatedStart &&
-          metadata.translatedEnd <= translatedText!.length
+          metadata.translatedEnd <= normalizedTranslatedText.length
         ) {
           // HIGH-2 FIX: Validate sequential ordering (detect overlapping positions)
           if (previousMetadata && metadata.translatedStart < previousMetadata.translatedEnd) {
@@ -123,15 +132,15 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
               translatedUnit,
               metadataStart: metadata.translatedStart,
               metadataEnd: metadata.translatedEnd,
-              textLength: translatedText!.length,
+              textLength: normalizedTranslatedText.length,
               reason:
                 metadata.translatedStart < 0
                   ? 'Negative start position'
-                  : metadata.translatedStart >= translatedText!.length
+                  : metadata.translatedStart >= normalizedTranslatedText.length
                     ? 'Start position beyond text length'
                     : metadata.translatedEnd <= metadata.translatedStart
                       ? 'End position not after start'
-                      : metadata.translatedEnd > translatedText!.length
+                      : metadata.translatedEnd > normalizedTranslatedText.length
                         ? 'End position beyond text length'
                         : 'Unknown validation failure',
             });
@@ -141,7 +150,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           // Previous: substring(currentPosition) creates new string on EVERY iteration (O(m) × n units = O(n*m))
           // Fixed: indexOf(unit, currentPosition) searches from offset without creating substring (O(m) total)
           // Impact: 5000 units × 50K chars: 250M → 250K character operations (1000x faster)
-          const unitPosition = translatedText!.indexOf(translatedUnit, currentPosition);
+          const unitPosition = normalizedTranslatedText.indexOf(translatedUnit, currentPosition);
 
           if (unitPosition === -1) {
             // HIGH-1 FIX: Update currentPosition before skipping to prevent overlapping segments
@@ -158,7 +167,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         // CRITICAL-4 FIX: Use offset-based indexOf to avoid O(n*m) performance in validation
         // TypeScript note: When usingMetadata is true, actualPosition is guaranteed to be assigned (lines 98-99)
         if (process.env.NODE_ENV === 'development' && usingMetadata) {
-          const indexOfPosition = translatedText!.indexOf(translatedUnit, currentPosition);
+          const indexOfPosition = normalizedTranslatedText.indexOf(translatedUnit, currentPosition);
           if (indexOfPosition !== -1 && actualPosition! !== indexOfPosition) {
             logger.error('❌ Character-only position mismatch detected!', {
               unitIndex: i,
@@ -174,7 +183,10 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         // TypeScript note: actualPosition and unitLength are guaranteed to be assigned here
         // If metadata/indexOf failed, we would have continued at line 144
         if (actualPosition! > currentPosition) {
-          const nonSemanticText = translatedText!.substring(currentPosition, actualPosition!);
+          const nonSemanticText = normalizedTranslatedText.substring(
+            currentPosition,
+            actualPosition!
+          );
           directSegments.push({
             type: 'text' as const,
             text: nonSemanticText,
@@ -212,13 +224,13 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       }
 
       // Add any remaining text
-      if (translatedText && currentPosition < translatedText.length) {
-        const remainingText = translatedText.substring(currentPosition);
+      if (currentPosition < normalizedTranslatedText.length) {
+        const remainingText = normalizedTranslatedText.substring(currentPosition);
         directSegments.push({
           type: 'text' as const,
           text: remainingText,
           start: currentPosition,
-          end: translatedText.length,
+          end: normalizedTranslatedText.length,
           unitIndex: -1,
           isClickable: false as const,
         });
@@ -312,7 +324,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           data-unit-index={segment.unitIndex}
           onClick={() => handleUnitClick(segment.unitIndex)}
           className={`${styles.clickableSegment} ${isHighlighted ? styles.clickableSegmentHighlighted : ''}`}
-          title={`Click to highlight "${segment.originalText}" (${segment.source})`}
+          title={`Click to highlight "${sanitizeString(segment.originalText || '', 100)}" (${segment.source})`}
         >
           {segment.text}
         </span>

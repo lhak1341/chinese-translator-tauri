@@ -10,6 +10,7 @@ import type {
   SegmentClickPayload,
 } from '../types/ClickableTypes';
 import styles from '../styles/ClickableTranslationOptimized.module.css';
+import { sanitizeString } from '../utils/configValidation';
 
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
@@ -56,7 +57,7 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
         className={className}
         title={
           segment.isClickable
-            ? `"${segment.text}" ← translation (${segment.source || 'unknown'})`
+            ? `"${sanitizeString(segment.text || '', 100)}" ← translation (${segment.source || 'unknown'})`
             : undefined
         }
       >
@@ -99,11 +100,15 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
       text: segment.translatedText || segment.text,
       // CRITICAL-4 FIX: Explicit null/undefined guards before comparison
       // Prevents silent failures if state corruption occurs
+      // CODE REVIEW FIX: Support both single index and array of indices for highlighting
+      // Matches ClickableTranslationSemantic behavior for consistency across dual-path architecture
       isHighlighted:
         highlightedTranslationUnitIndex !== null &&
         highlightedTranslationUnitIndex !== undefined &&
         highlightedTranslationUnitIndex !== -1 &&
-        highlightedTranslationUnitIndex === segment.unitIndex,
+        (Array.isArray(highlightedTranslationUnitIndex)
+          ? highlightedTranslationUnitIndex.includes(segment.unitIndex)
+          : highlightedTranslationUnitIndex === segment.unitIndex),
     }));
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 

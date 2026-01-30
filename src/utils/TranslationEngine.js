@@ -5421,7 +5421,10 @@ export class TranslationEngine {
               translated: safeTranslated,
               metadata: progressiveMetadata, // Already shallow-cloned at line 4955
             },
-            progressiveSegments: this.progressivePositionTracker.clickableSegments,
+            // CODE REVIEW FIX: Clone clickableSegments to prevent race condition
+            // Issue: Next batch continues mutating array after React receives reference
+            // Scenario: Batch 5 sends array[100] → Batch 6 mutates to [120] → React reads [120]
+            progressiveSegments: [...this.progressivePositionTracker.clickableSegments],
           });
 
           // Update timestamp
@@ -5744,6 +5747,12 @@ export class TranslationEngine {
 
       // Sort by position in output text to get the correct order
       foundWords.sort((a, b) => a.position - b.position);
+
+      // CODE REVIEW FIX: Clear usedPositions Set to prevent memory leak
+      // Issue: Set grows unbounded (~1KB per 50 positions), never cleared
+      // Impact: 50,000 char texts leak ~20KB per translation, cumulative pressure
+      // Fix: Explicitly release memory after position tracking completes
+      usedPositions.clear();
 
       // Create the output order from sorted words
       for (const word of foundWords) {
@@ -8054,7 +8063,13 @@ export class TranslationEngine {
       // Step 4: Update progressive tracker
       this.progressivePositionTracker.finalText += cleanedBatchText;
       this.progressivePositionTracker.runningTextPosition += cleanedBatchText.length;
-      this.progressivePositionTracker.clickableSegments.push(...batchSegments);
+      // CODE REVIEW FIX: Clone array to prevent race condition with React state updates
+      // Issue: Direct mutation via push() continues after array is passed to React
+      // Fix: Create new array instead of mutating existing one
+      this.progressivePositionTracker.clickableSegments = [
+        ...this.progressivePositionTracker.clickableSegments,
+        ...batchSegments,
+      ];
 
       // Semantic arrays are accumulated by semanticArrayBuilder (no duplication needed)
 
