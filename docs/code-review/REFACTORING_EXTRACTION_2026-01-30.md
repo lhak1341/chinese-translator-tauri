@@ -2,7 +2,7 @@
 
 **Date**: 2026-01-30
 **Type**: Code Review - Architectural Analysis & Refactoring
-**Status**: Phase 1 ✅ | Phase 2 ✅ | Phase 3.1 ✅ | Phase 3.2 ⏳
+**Status**: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 4 ⏳
 **Agent ID**: a19848b (code-explorer analysis)
 
 ---
@@ -423,64 +423,72 @@ Position mapping is part of the 5-phase post-processing pipeline that **cannot b
 
 ### 3.2 useDictionaryReload.js (250 lines)
 
-**Status**: ⏳ NOT STARTED
-**Risk**: LOW
-**Priority**: MEDIUM
-**Estimated Time**: 3-4 hours
+**Status**: ❌ SKIPPED - Not extractable (coordination logic)
+**Risk**: N/A
+**Priority**: N/A
+**Analysis Time**: 30 minutes
 
-**Location**: Currently embedded in Translator.jsx (lines ~720-970, dictionary reload coordination)
+**Location**: Embedded in Translator.jsx (lines 1787-2172, ~385 lines - `handleForceReload` function)
 
-**What to extract**:
+**Why extraction is not feasible**:
 
-- Dictionary reload coordination
-- `reloadDictionaries()` - Reload with scroll position preservation
-- Concurrent reload prevention (isReloadingRef)
-- Lifecycle hooks (onBeforeReload, onAfterReload, onError)
-- Cache invalidation coordination
+The `handleForceReload` function is **coordination logic** that orchestrates 8 sequential steps across multiple subsystems:
 
-**Extraction steps**:
+1. Stop ongoing translations (using Phase 3.1 hook ✅)
+2. Clear engine and translation caches
+3. Load dictionaries from storage in parallel
+4. Load fresh configuration from disk
+5. Reinitialize translation engine
+6. Validate WASM sync (async background task)
+7. Retranslate current text if present
+8. Restore scroll positions (using Phase 1.2 hook ✅)
 
-- [ ] Create `src/hooks/useDictionaryReload.js`
-- [ ] Create `src/hooks/__tests__/useDictionaryReload.test.js`
-- [ ] Extract reload coordination logic
-- [ ] Write tests for reload flow, error handling
-- [ ] Update Translator.jsx to use hook
-- [ ] Verify reload preserves scroll position
-- [ ] Verify concurrent reload prevention works
+**Architectural coupling (cannot be removed)**:
 
-**Verification checklist**:
+- **10+ State setters**: setIsReloading, setIsDictionaryReloading, setTranslatedText, setSemanticArrays, setCharacterOnlySemanticArrays, setCharacterOnlyText, setEngineStats, setEngineInitialized, setIsTranslating, setProgressInfo, setActiveProperNouns
+- **2 Refs**: engineRef.current (translation engine instance), translationSegmentCache
+- **7 Parent functions**: translateText, translateCharacterOnly, getFilteredDictionaries, createTranslationEngine, updateAllStats, clearHighlighting, saveScrollPositions, restoreScrollPositions
+- **4 Context values**: dictionaries, activeProperNouns, isLoading, inputText
 
-- [ ] Tests pass with 100% coverage
-- [ ] Reload flow works correctly
-- [ ] Scroll position preserved
-- [ ] Concurrent reloads prevented
-- [ ] Error handling works
-- [ ] TypeScript: 0 errors
+**Why extraction would be counterproductive**:
 
-**Progress notes**:
+1. Would require hook with 20+ parameters (all dependencies listed above)
+2. Hook would be Translator.jsx-specific, not reusable
+3. Moves coupling to hook interface instead of removing it
+4. Adds indirection without architectural benefit
+5. Violates extraction guideline: "Pure utilities with zero dependencies, no side effects"
 
-- (To be filled during implementation)
+**Conclusion**:
+
+Dictionary reload is **intentionally coupled** coordination logic that belongs in Translator.jsx. It orchestrates multiple subsystems (engine, state, caching, translation) in a specific sequence. This is exactly the type of code that should remain in the component.
+
+Similar to Phase 2.2, this represents the **coordination boundary** where extraction stops being beneficial.
 
 ---
 
 **Phase 3 Completion Criteria**:
 
 - [x] Extraction 3.1 completed ✅
-- [ ] Extraction 3.2 not started (optional continuation)
+- [x] Extraction 3.2 analyzed and skipped (not extractable - coordination logic) ✅
 - [x] Translator.jsx reduced by translation controller logic ✅
 - [x] useTranslationController hook created and tested ✅
 - [x] Controller pattern reusable ✅
 - [x] All tests pass (906/906) ✅
 - [x] TypeScript: 0 errors ✅
 
-**Phase 3.1 Summary** (completed):
+**Phase 3 Summary** (COMPLETE):
 
-- Lines extracted: 221 lines (hook implementation)
-- Lines removed from Translator.jsx: ~80 lines net (manual controller management replaced with hook calls)
-- New modules created: 1 (useTranslationController.js)
-- Tests added: 20 tests (100% coverage)
-- Issues encountered: Dictionary reload wait logic needed simplification (polling no longer possible, replaced with fixed 200ms wait)
-- Lessons learned: Hook pattern works well for AbortController lifecycle, simplified wait logic is safer than complex polling
+- **Extractions completed**: 1 of 2 (50%)
+- **Extractions skipped**: 1 of 2 (coordination logic - intentionally coupled)
+- **Lines extracted**: 221 lines (hook implementation)
+- **Lines removed from Translator.jsx**: ~80 lines net (manual controller management replaced with hook calls)
+- **New modules created**: 1 (useTranslationController.js)
+- **Tests added**: 20 tests (100% coverage)
+- **Issues encountered**: Dictionary reload wait logic needed simplification (polling no longer possible, replaced with fixed 200ms wait)
+- **Lessons learned**:
+  - Hook pattern works well for AbortController lifecycle management
+  - Simplified wait logic (fixed time) is safer than complex polling
+  - Not all coordination logic should be extracted - dictionary reload orchestrates 8 steps across 10+ state setters and is appropriately coupled to Translator.jsx
 
 ---
 
