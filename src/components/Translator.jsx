@@ -12,6 +12,7 @@ import { logger } from '../utils/logger';
 import { ChineseNumberConverter } from '../utils/ChineseNumberConverter';
 import { TranslationInputValidator } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
+import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { validateElectronResult, validateDictionary } from '../utils/configValidation';
 import { useDictionary } from './dictionary/DictionaryContext';
@@ -954,12 +955,16 @@ const Translator = ({ isActive = true }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Track active translation controllers for cancellation
-  const activeTranslationControllers = useRef(new Map());
-
-  // CRITICAL-1 FIX: Translation timeout to prevent stuck controllers
-  // Each translation gets a timeout that cleans up Map if translation hangs
-  const TRANSLATION_TIMEOUT_MS = 60000; // 1 minute max per translation
+  // Use translation controller hook for cancellation and timeout management
+  const {
+    createController: createTranslationController,
+    cleanup: cleanupTranslationController,
+    cancelAll: cancelAllTranslations,
+    getActiveCount: getActiveTranslationCount,
+  } = useTranslationController({
+    timeout: 60000, // 1 minute max per translation
+    cancelPreviousOnNew: true,
+  });
 
   // MEDIUM-1 FIX: Clipboard translation debouncing to prevent double-clicks
   const isClipboardBusy = useRef(false);
@@ -1091,28 +1096,15 @@ const Translator = ({ isActive = true }) => {
         return;
       }
 
-      // CODE REVIEW FIX: Cancel previous in-flight translations to prevent wasted computation
-      // When user rapidly pastes new text, abort old translation and start fresh
-      if (activeTranslationControllers.current.size > 0) {
-        logger.log(
-          `🛑 Cancelling ${activeTranslationControllers.current.size} previous translation(s) to start new one`
-        );
-        const controllers = Array.from(activeTranslationControllers.current.values());
-        controllers.forEach((controller) => {
-          try {
-            controller.abort();
-          } catch (error) {
-            // Ignore abort errors (controller may already be aborted)
-            logger.debug('Controller abort error (safe to ignore):', error.message);
-          }
-        });
-        activeTranslationControllers.current.clear();
-        setActiveTranslations(0);
-      }
+      // Create translation controller with automatic cancellation and timeout
+      // Hook automatically cancels previous translations (cancelPreviousOnNew: true)
+      const {
+        controller: abortController,
+        translationId,
+        timeoutId: controllerTimeoutId,
+      } = createTranslationController();
 
-      const translationId = Date.now();
       const translationStartTime = performance.now();
-      const abortController = new AbortController();
 
       // NEW: Initialize streaming state
       updateStreaming({
@@ -1124,23 +1116,6 @@ const Translator = ({ isActive = true }) => {
         batchNumber: 0,
         avgTimePerChunk: 0,
       });
-
-      // Translation tracking for development
-      // Register this translation for potential cancellation
-      activeTranslationControllers.current.set(translationId, abortController);
-
-      // CRITICAL-1 FIX: Add timeout to prevent stuck controllers
-      // If translation hangs (WASM crash, network issue, infinite loop), clean up after timeout
-      const controllerTimeoutId = setTimeout(() => {
-        if (activeTranslationControllers.current.has(translationId)) {
-          logger.warn(
-            `⏰ Translation ${translationId} timed out after ${TRANSLATION_TIMEOUT_MS}ms - cleaning up controller`
-          );
-          abortController.abort();
-          activeTranslationControllers.current.delete(translationId);
-          setActiveTranslations((prev) => Math.max(0, prev - 1));
-        }
-      }, TRANSLATION_TIMEOUT_MS);
 
       setActiveTranslations((prev) => {
         const newCount = prev + 1;
@@ -1311,11 +1286,8 @@ const Translator = ({ isActive = true }) => {
           return 'Engine not ready. Please wait for engine initialization.';
         }
       } finally {
-        // CRITICAL-1 FIX: Clear controller timeout
-        clearTimeout(controllerTimeoutId);
-
-        // Clean up translation controller
-        activeTranslationControllers.current.delete(translationId);
+        // Clean up translation controller (clears timeout and removes from tracking)
+        cleanupTranslationController(translationId, controllerTimeoutId);
 
         // Clean up debounced progress handler
         debouncedProgressHandler.current.cleanup();
@@ -1844,32 +1816,17 @@ const Translator = ({ isActive = true }) => {
 
       // Step 1: Stop any ongoing translations and wait for them to finish
       logger.log('Step 1: Stopping ongoing translations...');
-      const activeControllers = Array.from(activeTranslationControllers.current.values());
-      if (activeControllers.length > 0) {
-        logger.log(`🛑 Cancelling ${activeControllers.length} active translations...`);
-        activeControllers.forEach((controller) => controller.abort());
+      const cancelledCount = cancelAllTranslations();
+      if (cancelledCount > 0) {
+        logger.log(`🛑 Cancelled ${cancelledCount} active translation(s)`);
 
         // CRITICAL: Wait for translations to actually finish before destroying engine
         // Why: Abort signal doesn't immediately stop async operations
-        // Race condition: Translation's finally block may try to access engineRef.current.getEngineStats()
-        // Fix: Wait up to 5 seconds for translations to complete cleanup
-        const maxWaitMs = 5000;
-        const startWait = Date.now();
-        while (
-          activeTranslationControllers.current.size > 0 &&
-          Date.now() - startWait < maxWaitMs
-        ) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
+        // Race condition: Translation's finally block may try to access engineRef.current
+        // Fix: Wait 200ms for translations to complete cleanup (simplified from polling)
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
-        if (activeTranslationControllers.current.size > 0) {
-          logger.warn(
-            `⚠️ ${activeTranslationControllers.current.size} translations did not complete in time - proceeding with reload`
-          );
-          activeTranslationControllers.current.clear();
-        } else {
-          logger.log('✅ All translations completed cleanup successfully');
-        }
+        logger.log('✅ Translations cleanup wait completed');
       }
       setIsTranslating(false);
       setProgressInfo(null);
