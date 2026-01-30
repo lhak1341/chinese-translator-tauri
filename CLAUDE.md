@@ -105,16 +105,20 @@ npm run tauri:dev  # WASM build (2-3s) → Vite (100-200ms) → Tauri window
 
 **Large files are intentional:**
 
-- `TranslationEngine.js` (6,299 lines): 5-phase coordination, WASM sync, memory management
-- `Translator.jsx` (2,352 lines): Cross-mode state management, configuration timing, UI coordination
+- `TranslationEngine.js` (7,464 lines): 5-phase coordination, WASM sync, memory management
+- `Translator.jsx` (1,967 lines): Cross-mode state management, configuration timing, UI coordination
 
 **Why extraction fails**: Breaking 5-phase processing eliminates conflict resolution
 
-**What CAN be extracted**:
+**What CAN be extracted** (proven patterns from 2026-01-30 refactoring):
 
-- Pure utilities with zero `this.*` references
-- Self-contained classes with no engine state dependencies
-- No side effects, no instance method calls
+- ✅ Pure utilities: Number conversion, input validation, pattern parsing → `src/utils/`
+- ✅ React hooks: AbortController lifecycle, scroll position management → `src/hooks/`
+- ✅ Dead code: Functions prefixed with `_` are unused, safe to remove after verification
+- ❌ Coordination logic: Dictionary reload (10+ state setters), cache invalidation, mode bridges
+- ❌ Functions using `this.*`, `setState`, `engineRef`, or parent component functions
+
+**Gotcha**: If extracting requires passing 10+ parameters, it's coordination logic - keep it in component.
 
 📖 **Extraction Guidelines**: [docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md](docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md)
 
@@ -175,6 +179,19 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 - Type contracts: WASM boundary validation
 
 📖 **Full Guidelines**: [docs/guides/development.md](docs/guides/development.md#safe-development-zones)
+
+### Refactoring Gotchas
+
+**Before extracting, check for these red flags:**
+
+- 🚩 **10+ parameters** - It's coordination logic, keep it in component
+- 🚩 **Multiple state setters** - Dictionary reload has 10+ setters, can't extract
+- 🚩 **Functions prefixed with `_`** - Unused legacy code, verify with grep then remove
+- 🚩 **`this.*`, `setState`, refs** - State dependencies prevent extraction
+- ✅ **Pure functions, no side effects** - Safe to extract to `src/utils/`
+- ✅ **React hooks managing one concern** - Extract to `src/hooks/`
+
+**After extracting Phase 1, reload broke** (2026-01-30): Removed constants still referenced. Always grep for usage before removing infrastructure.
 
 ### Logging Best Practices
 
@@ -241,12 +258,19 @@ npm run tauri:build     # Build production app
 
 | Purpose          | File                                | Lines | Why Coupled                |
 | ---------------- | ----------------------------------- | ----- | -------------------------- |
-| Translation Core | `TranslationEngine.js`              | 7,507 | 5-phase state coordination |
-| UI Coordination  | `Translator.jsx`                    | 2,352 | Cross-mode synchronization |
+| Translation Core | `TranslationEngine.js`              | 7,464 | 5-phase state coordination |
+| UI Coordination  | `Translator.jsx`                    | 1,967 | Cross-mode synchronization |
 | WASM Number      | `wasm-core/src/number_processor.rs` | -     | Native performance         |
 | WASM Pattern     | `wasm-core/src/pattern_processor/`  | -     | 10-50x speedup             |
 | WASM Dictionary  | `wasm-core/src/lib.rs`              | -     | 27,000+ entries            |
 | Rust Lookup      | `src-tauri/src/lookup_index.rs`     | -     | Backend trie indexing      |
+
+**Extracted Utilities** (2026-01-30, see `docs/code-review/REFACTORING_EXTRACTION_2026-01-30.md`):
+
+- `ChineseNumberConverter.js` (640 lines) - Number processing, 73 tests
+- `PatternTemplateEngine.js` (250 lines) - Pattern parsing, 51 tests
+- `useTranslationController.js` (221 lines) - AbortController lifecycle, 20 tests
+- `TranslationInputValidator.js`, `useScrollPositionManager.js`, `ScrollHelpers.ts` - Various utilities
 
 ### Development Debugging Tools
 
