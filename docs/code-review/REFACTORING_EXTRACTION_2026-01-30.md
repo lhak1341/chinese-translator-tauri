@@ -492,40 +492,183 @@ Similar to Phase 2.2, this represents the **coordination boundary** where extrac
 
 ---
 
-## Phase 4: Optional Refinements (2-3 days)
+## Phase 4: Code Quality & Deduplication (1-2 hours)
 
-**Goal**: Extract if time permits and value is clear
+**Goal**: Remove duplicates and extract remaining pure utilities
 
-### 4.1 CacheInvalidationOrchestrator.js (60 lines)
+**Analysis Results** (Explore agent a586de3):
 
-**Status**: ⏳ NOT STARTED
-**Risk**: MEDIUM
-**Priority**: LOW
-**Estimated Time**: 1-2 hours
+- Found 5 duplicate `escapeRegExp` implementations (existing utility already in RegexHelpers.ts)
+- Found 1 extractable pure utility (`scrollToHighlightedElement`)
+- Found 11 unused legacy functions (prefixed with `_`) - 371 lines potential removal
 
-**Defer to**: After Phase 1-3 completion, evaluate if needed
+### 4.1 Remove duplicate escapeRegExp implementations
+
+**Status**: ✅ COMPLETED (combined with 4.3)
+**Risk**: VERY LOW
+**Priority**: HIGH (code duplication)
+**Estimated Time**: 10 minutes
+
+**Location**: Translator.jsx lines 1311, 1342, 1443, 1477, 1499 (5 identical copies)
+
+**What to do**:
+
+Replace all 5 duplicate implementations with import from existing `RegexHelpers.ts:39-41`
+
+**Current code** (5 duplicates):
+
+```javascript
+const escapeRegExp = (string) => {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+```
+
+**Action**:
+
+- Remove all 5 local definitions
+- Add import: `import { escapeRegExp } from '../utils/RegexHelpers'`
+
+**Extraction steps**:
+
+- [x] ✅ All duplicates removed (embedded in removed unused functions)
+- [x] ✅ No import needed (functions containing duplicates were removed entirely)
+- [x] ✅ Verified all tests pass (906/906)
+
+**Verification checklist**:
+
+- [x] Tests pass (906/906) ✅
+- [x] No compilation errors ✅
+- [x] Translation quality unchanged ✅
+
+**Actual Impact**: -374 lines total (removed entire unused functions containing duplicates)
+**Note**: Combined with Phase 4.3 - removed all 11 unused legacy functions which contained the 5 duplicate escapeRegExp implementations
 
 ---
 
-### 4.2 MemoryCleanupStrategies.js (150 lines)
+### 4.2 Extract scrollToHighlightedElement utility
 
 **Status**: ⏳ NOT STARTED
-**Risk**: MEDIUM
-**Priority**: LOW
-**Estimated Time**: 2-3 hours
+**Risk**: VERY LOW
+**Priority**: MEDIUM
+**Estimated Time**: 20 minutes
 
-**Defer to**: After Phase 1-3 completion, evaluate if needed
+**Location**: Translator.jsx lines 598-613
+
+**What to extract**:
+
+Pure utility function that scrolls container to bring highlighted element into view
+
+**Current code**:
+
+```javascript
+const scrollToHighlightedElement = (containerRef, unitIndex) => {
+  if (!containerRef.current) return;
+  const highlightedElement = containerRef.current.querySelector(
+    '[data-unit-index="' + unitIndex + '"]'
+  );
+  if (highlightedElement) {
+    highlightedElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest',
+    });
+  }
+};
+```
+
+**Extraction steps**:
+
+- [ ] Create `src/utils/ScrollHelpers.ts` (if doesn't exist)
+- [ ] Add `scrollToHighlightedElement` function with TypeScript types
+- [ ] Update Translator.jsx to import and use
+- [ ] Verify highlighting scroll behavior works
+
+**Verification checklist**:
+
+- [ ] Tests pass
+- [ ] TypeScript: 0 errors
+- [ ] Scroll-to-highlight works in both panels
+
+**Impact**: +15 lines utility, reusable across components
 
 ---
 
-### 4.3 useCharacterOnlyBridge.js (150 lines)
+### 4.3 Remove unused legacy functions
 
-**Status**: ⏳ NOT STARTED
-**Risk**: MEDIUM
-**Priority**: LOW
-**Estimated Time**: 3-4 hours
+**Status**: ✅ COMPLETED (combined with 4.1 - Agent ac67f63)
+**Risk**: LOW
+**Priority**: LOW (cleanup)
+**Estimated Time**: 30 minutes
 
-**Defer to**: After Phase 1-3 completion, evaluate if needed
+**Location**: Translator.jsx (11 functions prefixed with `_`)
+
+**What to remove** (after verification):
+
+Functions prefixed with `_` indicating they're unused:
+
+- `_convertTraditionalToSimplified` (12 lines, line 1310)
+- `_convertChineseNumbers` (12 lines, line 1323)
+- `_translateProperNouns` (100 lines, line 1341)
+- `_translatePhrases` (33 lines, line 1442)
+- `_translateCharacters` (21 lines, line 1476)
+- `_convertPunctuation` (24 lines, line 1498)
+- `_cleanupFormatting` (118 lines, line 1523)
+- `_processInputText` (17 lines, line 2237)
+- `_processTranslatedText` (15 lines, line 2255)
+- `_updateSemanticStats` (15 lines, line 1012)
+- `_clearCache` (4 lines, line 1034)
+
+**Total**: ~371 lines of legacy code
+
+**Extraction steps**:
+
+- [x] Verify functions are truly unused (grep codebase) ✅
+- [x] Remove all 11 unused functions ✅
+- [x] Run all tests to verify no breakage ✅
+- [x] Update file size tracking ✅
+
+**Verification checklist**:
+
+- [x] Grep confirms no usage ✅
+- [x] All tests pass (906/906) ✅
+- [x] No compilation errors ✅
+- [x] Translation quality unchanged ✅
+
+**Actual Impact**: -374 lines (all 11 functions confirmed unused and removed)
+
+**Functions Removed** (Agent ac67f63):
+
+1. `_updateSemanticStats` (15 lines)
+2. `_clearCache` (4 lines)
+3. `_convertTraditionalToSimplified` (12 lines, contained escapeRegExp)
+4. `_convertChineseNumbers` (12 lines)
+5. `_translateProperNouns` (100 lines, contained escapeRegExp)
+6. `_translatePhrases` (33 lines, contained escapeRegExp)
+7. `_translateCharacters` (21 lines, contained escapeRegExp)
+8. `_convertPunctuation` (24 lines, contained escapeRegExp)
+9. `_cleanupFormatting` (119 lines)
+10. `_processInputText` (17 lines)
+11. `_processTranslatedText` (15 lines)
+
+**File Size**: 2,352 → 1,983 lines (15.7% reduction)
+
+---
+
+**Phase 4 Completion Criteria**:
+
+- [ ] All duplicate escapeRegExp removed
+- [ ] scrollToHighlightedElement extracted
+- [ ] Unused legacy functions verified and removed
+- [ ] All tests pass (906/906)
+- [ ] TypeScript: 0 errors
+- [ ] Translator.jsx reduced by ~250-400 lines
+
+**Phase 4 Summary** (to be filled on completion):
+
+- Lines removed: \_\_\_
+- New utilities created: \_\_\_
+- Code duplication eliminated: \_\_\_
+- Tests status: \_\_\_
 
 ---
 
