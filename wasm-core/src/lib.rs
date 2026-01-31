@@ -36,6 +36,7 @@ pub mod string_processor;
 pub mod dictionary_trie;
 pub mod regex_utils;
 pub mod text_assembly;
+pub mod wasm_boundary;
 
 #[cfg(test)]
 mod content_hash_test;
@@ -49,6 +50,7 @@ pub use string_processor::StringProcessor;
 pub use dictionary_trie::WasmDictionaryTrie;
 pub use regex_utils::RegexUtils;
 pub use text_assembly::TextAssembler;
+pub use wasm_boundary::BoundaryOptimizer;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;
