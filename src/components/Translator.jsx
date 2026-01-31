@@ -41,6 +41,7 @@ import {
 } from '../reducers/highlightingReducer.js';
 import { buildPositionMappings } from '../utils/PositionMappingBuilder.js';
 import { scrollToHighlightedElement } from '../utils/ScrollHelpers';
+import { parallelDictionaryLoader } from '../utils/ParallelDictionaryLoader.js';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -1952,41 +1953,93 @@ const Translator = ({ isActive = true }) => {
         `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
       );
 
-      // HIGH-3 FIX: Parallelize dictionary loading for 8x speedup
-      const loadPromises = allDictionaryIds.map(async (dictId) => {
-        try {
-          logger.log(`Force loading dictionary from storage: ${dictId}`);
-          const result = await window.electronAPI.loadDictionary(dictId);
-          if (result.success) {
-            return {
-              dictId,
-              data: result.data,
-              success: true,
-              entryCount: Object.keys(result.data || {}).length,
-            };
-          }
-          logger.error(`Failed to load dictionary ${dictId}:`, result.error);
-          return { dictId, error: result.error, success: false };
-        } catch (error) {
-          logger.error(`Failed to reload dictionary ${dictId}:`, error);
-          return { dictId, error: error.message, success: false };
-        }
-      });
-
-      const results = await Promise.all(loadPromises);
-
-      // Process results
+      // INTEGRATION #2: Use ParallelDictionaryLoader for optimized parallel loading
+      // Expected: 2-4x faster initialization with better error handling and statistics
       const freshDictionaries = {};
       let successCount = 0;
-      results.forEach(({ dictId, data, success, entryCount }) => {
-        if (success) {
-          freshDictionaries[dictId] = data;
-          successCount++;
-          logger.log(`✅ Loaded ${dictId}: ${entryCount} entries`);
-        }
-      });
 
-      logger.log(`📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel`);
+      try {
+        // Transform dictionary IDs into format expected by ParallelDictionaryLoader
+        const dictionariesToLoad = allDictionaryIds.map((dictId) => ({
+          name: dictId,
+          path: dictId, // Path not used, Electron API handles lookup internally
+        }));
+
+        // Wrapper function for Electron API
+        const loadFunction = async (name, _path) => {
+          logger.log(`Force loading dictionary from storage: ${name}`);
+          const result = await window.electronAPI.loadDictionary(name);
+          if (!result.success) {
+            throw new Error(result.error || 'Unknown error');
+          }
+          return {
+            data: result.data,
+            entryCount: Object.keys(result.data || {}).length,
+          };
+        };
+
+        // Use ParallelDictionaryLoader for optimized parallel loading
+        const loadResult = await parallelDictionaryLoader.loadDictionariesParallel(
+          dictionariesToLoad,
+          loadFunction
+        );
+
+        // Process results
+        loadResult.results.forEach(({ name, success, result, error }) => {
+          if (success && result) {
+            freshDictionaries[name] = result.data;
+            successCount++;
+            logger.log(`✅ Loaded ${name}: ${result.entryCount} entries`);
+          } else {
+            logger.error(`Failed to load dictionary ${name}:`, error);
+          }
+        });
+
+        logger.log(
+          `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (${loadResult.duration.toFixed(0)}ms)`
+        );
+      } catch (loaderError) {
+        // Fallback to original manual parallel loading if ParallelDictionaryLoader fails
+        logger.warn(
+          'ParallelDictionaryLoader failed, falling back to manual loading:',
+          loaderError
+        );
+
+        const loadPromises = allDictionaryIds.map(async (dictId) => {
+          try {
+            logger.log(`Force loading dictionary from storage: ${dictId}`);
+            const result = await window.electronAPI.loadDictionary(dictId);
+            if (result.success) {
+              return {
+                dictId,
+                data: result.data,
+                success: true,
+                entryCount: Object.keys(result.data || {}).length,
+              };
+            }
+            logger.error(`Failed to load dictionary ${dictId}:`, result.error);
+            return { dictId, error: result.error, success: false };
+          } catch (error) {
+            logger.error(`Failed to reload dictionary ${dictId}:`, error);
+            return { dictId, error: error.message, success: false };
+          }
+        });
+
+        const results = await Promise.all(loadPromises);
+
+        // Process fallback results
+        results.forEach(({ dictId, data, success, entryCount }) => {
+          if (success) {
+            freshDictionaries[dictId] = data;
+            successCount++;
+            logger.log(`✅ Loaded ${dictId}: ${entryCount} entries`);
+          }
+        });
+
+        logger.log(
+          `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (fallback)`
+        );
+      }
 
       // Update context with fresh data from storage
       if (Object.keys(freshDictionaries).length > 0) {
