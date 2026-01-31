@@ -44,14 +44,14 @@
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  */
 
+import init, { NumberProcessor } from '../wasm/translation_wasm_core.js';
 import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
 import { categorizeWasmError, formatWasmError } from './wasmErrorHandler'; // CODE REVIEW FIX (MEDIUM-1)
-import { verifyWasmModule, verifyWasmInstance } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
+import { verifyWasmInstance } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 
-let wasmModule = null;
 let wasmNumberProcessor = null;
 let initializationPromise = null;
 let initializationFailed = false;
@@ -84,27 +84,20 @@ export async function initializeWasmNumberProcessor() {
         async () => {
           logger.log('🔢 Initializing WASM NumberProcessor...');
 
-          // Dynamically import the WASM module
-          wasmModule = await import('../wasm/translation_wasm_core.js');
-
-          // CODE REVIEW FIX: Verify WASM module integrity before use
-          const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
-          if (!moduleVerification.valid) {
-            throw new Error(
-              `WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`
-            );
-          }
-
-          // Initialize WASM
-          await wasmModule.default();
+          // Initialize WASM module (using static import)
+          logger.debug('About to initialize WASM module...');
+          await init();
+          logger.debug('WASM module initialized successfully');
 
           // Create NumberProcessor instance
-          wasmNumberProcessor = new wasmModule.NumberProcessor();
+          logger.debug('Creating NumberProcessor instance...');
+          wasmNumberProcessor = new NumberProcessor();
+          logger.debug('NumberProcessor instance created');
 
           // CODE REVIEW FIX: Verify instance has expected methods
           const instanceVerification = verifyWasmInstance(
             wasmNumberProcessor,
-            ['processNumbers', 'free'],
+            ['processTokens', 'free'],
             'NumberProcessor'
           );
           if (!instanceVerification.valid) {
@@ -253,7 +246,6 @@ export async function reinitializeWasmNumberProcessor() {
  */
 export function cleanupWasmNumberProcessor() {
   wasmNumberProcessor = null;
-  wasmModule = null;
   initializationPromise = null;
   initializationFailed = false;
   showedNumberWarning = false;
@@ -269,5 +261,4 @@ initializeWasmNumberProcessor().catch((err) => {
   initializationFailed = true; // Mark initialization as failed to prevent retries
   initializationPromise = null; // CRITICAL: Clear cache to allow manual retry
   wasmNumberProcessor = null; // CODE REVIEW FIX (CRITICAL-2): Clear partial state
-  wasmModule = null; // CODE REVIEW FIX (CRITICAL-2): Clear partial module state
 });
