@@ -2,19 +2,21 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use wasm_bindgen::prelude::*;
 
-/// High-performance regex utilities using lazy_static compilation
-///
-/// Performance improvements:
-/// - JavaScript regex: Recompiled on each use (~0.1-0.5ms overhead)
-/// - Rust lazy_static: Compiled once at startup (zero overhead after)
-/// - Expected speedup: 3-8x for frequently used patterns
-///
-/// Pattern categories:
-/// 1. Text chunking - Punctuation and sentence boundaries
-/// 2. Pattern variables - Template variable extraction
-/// 3. Whitespace - Normalization and trimming
-///
-/// Note: Number conversion patterns already optimized in number_processor.rs
+// ============================================================================
+// High-performance regex utilities using lazy_static compilation
+//
+// Performance improvements:
+// - JavaScript regex: Recompiled on each use (~0.1-0.5ms overhead)
+// - Rust lazy_static: Compiled once at startup (zero overhead after)
+// - Expected speedup: 3-8x for frequently used patterns
+//
+// Pattern categories:
+// 1. Text chunking - Punctuation and sentence boundaries
+// 2. Pattern variables - Template variable extraction
+// 3. Whitespace - Normalization and trimming
+//
+// Note: Number conversion patterns already optimized in number_processor.rs
+// ============================================================================
 
 // ============================================================================
 // TEXT CHUNKING PATTERNS (lazy_static for zero overhead)

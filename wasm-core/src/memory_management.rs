@@ -94,17 +94,8 @@ impl Drop for ManagedStringCache {
         // Automatic memory cleanup
         record_deallocation(self.estimated_size);
 
-        #[cfg(feature = "console_log")]
-        {
-            web_sys::console::log_1(
-                &format!(
-                    "🗑️ Dropped ManagedStringCache ({} bytes, {} entries)",
-                    self.estimated_size,
-                    self.cache.len()
-                )
-                .into(),
-            );
-        }
+        // Note: Debug logging removed to avoid web_sys dependency
+        // Previously logged: "🗑️ Dropped ManagedStringCache ({} bytes, {} entries)"
     }
 }
 
@@ -166,17 +157,8 @@ impl Drop for ManagedDictionary {
     fn drop(&mut self) {
         record_deallocation(self.estimated_size);
 
-        #[cfg(feature = "console_log")]
-        {
-            web_sys::console::log_1(
-                &format!(
-                    "🗑️ Dropped ManagedDictionary ({} bytes, {} entries)",
-                    self.estimated_size,
-                    self.entries.len()
-                )
-                .into(),
-            );
-        }
+        // Note: Debug logging removed to avoid web_sys dependency
+        // Previously logged: "🗑️ Dropped ManagedDictionary ({} bytes, {} entries)"
     }
 }
 
@@ -238,12 +220,8 @@ impl Drop for ManagedBuffer {
     fn drop(&mut self) {
         record_deallocation(self.data.capacity());
 
-        #[cfg(feature = "console_log")]
-        {
-            web_sys::console::log_1(
-                &format!("🗑️ Dropped ManagedBuffer ({} bytes)", self.data.capacity()).into(),
-            );
-        }
+        // Note: Debug logging removed to avoid web_sys dependency
+        // Previously logged: "🗑️ Dropped ManagedBuffer ({} bytes)"
     }
 }
 

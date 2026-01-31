@@ -186,9 +186,11 @@ pub struct BoundaryOptimizer {
 struct BoundaryStats {
     zero_copy_calls: usize,
     binary_calls: usize,
+    #[allow(dead_code)] // Reserved for future JSON serialization tracking
     json_calls: usize,
     total_zero_copy_time: f64,
     total_binary_time: f64,
+    #[allow(dead_code)] // Reserved for future JSON serialization tracking
     total_json_time: f64,
 }
 
