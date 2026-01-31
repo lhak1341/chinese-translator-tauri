@@ -156,6 +156,14 @@ export class OptimizedSemanticArrayBuilder {
   }
 
   /**
+   * Reset position tracking for a new chunk (without clearing semantic arrays)
+   * Called when starting a new chunk that has positions starting from 0
+   */
+  resetPositionTracking(): void {
+    this.lastPositionSet = -1;
+  }
+
+  /**
    * Reset the builder for a new translation with capacity estimation
    * @param estimatedSize - Expected number of semantic units
    */

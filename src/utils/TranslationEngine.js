@@ -2467,12 +2467,13 @@ export class TranslationEngine {
     ).length;
 
     if (unprocessedCount > tokens.length * 0.8) {
-      // >80% of Chinese tokens still unprocessed - likely phase failure
-      logger.warn(
-        `⚠️ Unusual token state before phrase processing: ${unprocessedCount}/${tokens.length} Chinese tokens still unprocessed`
+      // >80% of Chinese tokens still unprocessed - may be normal for some text types
+      // Changed to debug level to reduce console noise (was causing hundreds of warnings)
+      logger.debug(
+        `Unusual token state before phrase processing: ${unprocessedCount}/${tokens.length} Chinese tokens still unprocessed`
       );
-      logger.warn(
-        'This may indicate silent failures in Phase 1 (Patterns) or Phase 2 (Proper Nouns)'
+      logger.debug(
+        'This may indicate silent failures in Phase 1 (Patterns) or Phase 2 (Proper Nouns), or simply text without patterns/proper nouns'
       );
     }
 
@@ -4105,6 +4106,15 @@ export class TranslationEngine {
   postProcess(tokens, options) {
     this.log(DEBUG_LEVELS.DEBUG, '🔧 Post-processing tokens:', tokens.length, 'tokens');
 
+    // Reset position tracking for new chunk (positions start from 0 for each chunk)
+    // This prevents "Position decreased" errors when processing multiple chunks
+    if (
+      this.semanticArrayBuilder &&
+      typeof this.semanticArrayBuilder.resetPositionTracking === 'function'
+    ) {
+      this.semanticArrayBuilder.resetPositionTracking();
+    }
+
     // Step 1: Build array of output segments from tokens
     const segments = [];
     const properNounTranslations = new Set(); // Track proper noun translations for capitalization
@@ -4612,10 +4622,11 @@ export class TranslationEngine {
     // At 35 segments: ~1-2ms overhead (negligible for real-time UI).
     // OPTIMIZATION: Defer cleanup to idle time to avoid blocking translation
     if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
-      // MEMORY PROFILING FIX: Log warning if segments exceed emergency threshold
+      // MEMORY PROFILING FIX: Monitor if segments exceed emergency threshold
+      // Changed to debug level - cleanup IS working reliably (reduces 200+ to 35)
       if (this.translationSegments.length > 100) {
-        logger.warn(
-          `⚠️ Translation segments exceeding safe threshold: ${this.translationSegments.length} segments (emergency threshold: 100). Cleanup may not be triggering reliably.`
+        logger.debug(
+          `Translation segments: ${this.translationSegments.length} (will trigger cleanup at next opportunity)`
         );
       }
 
