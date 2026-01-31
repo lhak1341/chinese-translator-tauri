@@ -68,6 +68,9 @@ export class OptimizationBenchmarks {
       // Task #6: WASM Regex Utilities
       await this.benchmarkWasmRegexUtils();
 
+      // Task #5: ReadonlyArray Optimizations
+      await this.benchmarkReadonlyArrayOptimizations();
+
       // Print comprehensive report
       this.printBenchmarkReport();
 
@@ -917,6 +920,178 @@ export class OptimizationBenchmarks {
     logger.log(`\n  Average speedup: ${avgSpeedup.toFixed(1)}x ${avgSpeedup >= 3 ? '✅' : '⚠️'}`);
     logger.log(
       `  Target: 3-8x improvement | Current: ${avgSpeedup.toFixed(1)}x | ${avgSpeedup >= 3 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
+    );
+  }
+
+  /**
+   * Benchmark #10: ReadonlyArray Optimizations (Task #5)
+   * Compares direct array mutation vs readonly scan + batch update
+   */
+  async benchmarkReadonlyArrayOptimizations() {
+    logger.log('\n📊 Benchmark #10: ReadonlyArray Optimizations (Task #5)');
+    logger.log('  Testing: Direct mutation vs readonly scan + batch update');
+
+    const {
+      scanTokens,
+      applyTokenUpdates,
+      createTokenUpdate,
+      findUnprocessedTokens,
+      findConsecutiveUnprocessed,
+    } = await import('./ReadonlyOptimizationUtils.js');
+
+    // Create test token array
+    const tokenCount = 5000;
+    const testTokens = Array.from({ length: tokenCount }, (_, i) => ({
+      value: String.fromCharCode(0x4e00 + (i % 100)), // Chinese characters
+      type: 'character',
+      position: i,
+      translated: i % 3 === 0 ? null : 'translated',
+      translationSource: i % 3 === 0 ? null : 'test',
+    }));
+
+    const iterations = 1000;
+    const results = {
+      directMutation: {
+        scanAndUpdate: 0,
+        findUnprocessed: 0,
+        findConsecutive: 0,
+      },
+      readonlyBatch: {
+        scanAndUpdate: 0,
+        findUnprocessed: 0,
+        findConsecutive: 0,
+      },
+      speedup: {
+        scanAndUpdate: 0,
+        findUnprocessed: 0,
+        findConsecutive: 0,
+      },
+    };
+
+    // Test 1: Scan and update pattern (most common operation)
+    logger.log('  Testing scan + update pattern...');
+
+    // Direct mutation approach
+    let directStart = performance.now();
+    for (let iter = 0; iter < iterations; iter++) {
+      const tokens = JSON.parse(JSON.stringify(testTokens)); // Fresh copy
+
+      // Scan and mutate in same pass
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].translated === null) {
+          tokens[i].translated = 'updated';
+          tokens[i].translationSource = 'phase4';
+        }
+      }
+    }
+    results.directMutation.scanAndUpdate = (performance.now() - directStart) / iterations;
+
+    // Readonly + batch update approach
+    let readonlyStart = performance.now();
+    for (let iter = 0; iter < iterations; iter++) {
+      const tokens = JSON.parse(JSON.stringify(testTokens)); // Fresh copy
+
+      // Readonly scan
+      const updates = new Map();
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i].translated === null) {
+          updates.set(i, createTokenUpdate(i, 'updated', 'phase4'));
+        }
+      }
+
+      // Batch apply
+      applyTokenUpdates(tokens, updates);
+    }
+    results.readonlyBatch.scanAndUpdate = (performance.now() - readonlyStart) / iterations;
+
+    // Test 2: Find unprocessed tokens
+    logger.log('  Testing findUnprocessed pattern...');
+
+    // Direct approach
+    directStart = performance.now();
+    for (let iter = 0; iter < iterations; iter++) {
+      const indices = [];
+      for (let i = 0; i < testTokens.length; i++) {
+        if (testTokens[i].translated === null) {
+          indices.push(i);
+        }
+      }
+    }
+    results.directMutation.findUnprocessed = (performance.now() - directStart) / iterations;
+
+    // Readonly approach
+    readonlyStart = performance.now();
+    for (let iter = 0; iter < iterations; iter++) {
+      findUnprocessedTokens(testTokens);
+    }
+    results.readonlyBatch.findUnprocessed = (performance.now() - readonlyStart) / iterations;
+
+    // Test 3: Find consecutive unprocessed spans
+    logger.log('  Testing findConsecutive pattern...');
+
+    // Direct approach
+    directStart = performance.now();
+    for (let iter = 0; iter < iterations; iter++) {
+      const spans = [];
+      let spanStart = -1;
+      let spanLength = 0;
+
+      for (let i = 0; i < testTokens.length; i++) {
+        const isUnprocessed = testTokens[i].translated === null;
+
+        if (isUnprocessed) {
+          if (spanStart === -1) {
+            spanStart = i;
+            spanLength = 1;
+          } else {
+            spanLength++;
+          }
+        } else {
+          if (spanStart !== -1 && spanLength >= 1) {
+            spans.push({ start: spanStart, length: spanLength });
+          }
+          spanStart = -1;
+          spanLength = 0;
+        }
+      }
+    }
+    results.directMutation.findConsecutive = (performance.now() - directStart) / iterations;
+
+    // Readonly approach
+    readonlyStart = performance.now();
+    for (let iter = 0; iter < iterations; iter++) {
+      findConsecutiveUnprocessed(testTokens, 1, 10);
+    }
+    results.readonlyBatch.findConsecutive = (performance.now() - readonlyStart) / iterations;
+
+    // Calculate speedups
+    results.speedup.scanAndUpdate =
+      results.directMutation.scanAndUpdate / results.readonlyBatch.scanAndUpdate;
+    results.speedup.findUnprocessed =
+      results.directMutation.findUnprocessed / results.readonlyBatch.findUnprocessed;
+    results.speedup.findConsecutive =
+      results.directMutation.findConsecutive / results.readonlyBatch.findConsecutive;
+
+    // Calculate average improvement
+    const avgImprovement =
+      ((results.speedup.scanAndUpdate +
+        results.speedup.findUnprocessed +
+        results.speedup.findConsecutive) /
+        3 -
+        1) *
+      100;
+
+    this.results.set('readonly_optimization', results);
+    this.recordBaseline('readonly_optimization_improvement', avgImprovement);
+
+    logger.log(`\n  Scan + Update: ${results.speedup.scanAndUpdate.toFixed(2)}x speedup`);
+    logger.log(`  Find Unprocessed: ${results.speedup.findUnprocessed.toFixed(2)}x speedup`);
+    logger.log(`  Find Consecutive: ${results.speedup.findConsecutive.toFixed(2)}x speedup`);
+    logger.log(
+      `\n  Average improvement: ${avgImprovement.toFixed(1)}% ${avgImprovement >= 5 ? '✅' : '⚠️'}`
+    );
+    logger.log(
+      `  Target: 5-10% reduction | Current: ${avgImprovement.toFixed(1)}% | ${avgImprovement >= 5 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
     );
   }
 
