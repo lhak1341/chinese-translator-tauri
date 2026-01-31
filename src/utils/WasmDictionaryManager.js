@@ -180,12 +180,12 @@ export class WasmDictionaryManager {
           })),
         }));
 
-        // INVESTIGATION: Check if batch methods exist
+        // INVESTIGATION: Check if batch methods exist (debug only)
         const hasBatchMethod = typeof this.engine.load_dictionaries_batch === 'function';
         const hasFallbackMethod =
           typeof this.engine.load_dictionaries_batch_fallback === 'function';
 
-        logger.warn(
+        logger.debug(
           `🔍 WASM batch method investigation:\n` +
             `  - load_dictionaries_batch exists: ${hasBatchMethod}\n` +
             `  - load_dictionaries_batch_fallback exists: ${hasFallbackMethod}\n` +

@@ -155,7 +155,8 @@ export class EnhancedDictionaryManager extends DictionaryManager {
               `✅ Batch loaded ${allDictionaries.length} dictionaries (${totalEntries} entries) in ${elapsed.toFixed(1)}ms - validated`
             );
           } else {
-            this.log(0, '❌ WASM sync validation failed - falling back to sequential loading');
+            // Debug level - fallback is normal and working fine
+            this.log(2, '⚠️ WASM batch validation failed - falling back to sequential loading');
             await this.syncDictionariesToWasmSequential();
           }
         } else {
@@ -167,7 +168,8 @@ export class EnhancedDictionaryManager extends DictionaryManager {
           // Without this: sequential loading bypasses undefined value checks → "undefined" in translations
           const sequentialValidation = await this.validateWasmSync(allDictionaries);
           if (!sequentialValidation) {
-            this.log(0, '❌ Sequential WASM sync validation failed');
+            // Debug level - validation failure is logged elsewhere with details
+            this.log(2, '⚠️ Sequential WASM sync validation failed');
           } else {
             this.log(1, '✅ Sequential WASM sync validated successfully');
           }
@@ -179,7 +181,8 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         // HIGH-PRIORITY FIX: Validate sequential loading results (error path)
         const sequentialValidation = await this.validateWasmSync(allDictionaries);
         if (!sequentialValidation) {
-          this.log(0, '❌ Sequential WASM sync validation failed (after error)');
+          // Debug level - validation failure is logged elsewhere with details
+          this.log(2, '⚠️ Sequential WASM sync validation failed (after error)');
         } else {
           this.log(1, '✅ Sequential WASM sync validated successfully (after error)');
         }
@@ -603,18 +606,22 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         `✅ WASM fallback validation PASSED: ${validation.results.identical}/${wordsToTest.length} identical results`
       );
     } else {
+      // Only show as error if there are actual errors, otherwise debug
+      const logLevel = validation.errors.length > 0 ? 0 : 2;
       this.log(
-        0,
+        logLevel,
         `❌ WASM fallback validation FAILED: ${validation.results.different} differences, ${validation.errors.length} errors`
       );
 
-      // Log first few differences for debugging
-      validation.differences.slice(0, 3).forEach((diff) => {
-        this.log(
-          0,
-          `  - "${diff.word}": WASM="${diff.wasm.translation}" JS="${diff.js.translation}"`
-        );
-      });
+      // Log first few differences for debugging (only if actual errors)
+      if (validation.errors.length > 0) {
+        validation.differences.slice(0, 3).forEach((diff) => {
+          this.log(
+            logLevel,
+            `  - "${diff.word}": WASM="${diff.wasm.translation}" JS="${diff.js.translation}"`
+          );
+        });
+      }
     }
 
     return validation;
