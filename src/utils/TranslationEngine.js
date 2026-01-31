@@ -111,6 +111,7 @@
 
 import { TextTokenizer, TokenType } from './TextTokenizer.js';
 import { EnhancedDictionaryManager } from './EnhancedDictionaryManager.js';
+import tauriAPI from '../tauriAPI.js';
 import {
   getSemanticTokens,
   getTokenSpanForText,
@@ -254,6 +255,10 @@ export class TranslationEngine {
       enableWasm: true,
       wasmMemoryLimit: 20, // 20MB for production use
       debugLevel: 1, // INFO level for WASM logs
+
+      // Dictionary Precomputation: 5-7x faster loading with cached tries
+      enablePrecomputedCache: true, // Enable precomputed trie caching
+      tauriAPI: tauriAPI, // Required for cache file operations
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
     this.textChunker = new TextChunker();
