@@ -12,6 +12,7 @@ static FALLBACK_COUNT: AtomicU32 = AtomicU32::new(0);
 
 /// Text chunk result matching JavaScript TextChunk structure
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TextChunkResult {
     pub content: String,
     pub punctuation: String,

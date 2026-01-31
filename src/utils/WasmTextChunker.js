@@ -38,17 +38,29 @@ export class WasmTextChunker {
    * Initialize WASM text chunker
    *
    * @param {boolean} useUnicodeProperties - Use Unicode property detection (default: true)
+   * @param {number} timeoutMs - Timeout for initialization (default: 5000ms)
    * @returns {Promise<boolean>} Success status
    */
-  async initialize(useUnicodeProperties = true) {
+  async initialize(useUnicodeProperties = true, timeoutMs = 5000) {
     try {
-      await init();
+      logger.log('🔄 Starting WASM TextChunker initialization...');
+
+      // Add timeout to prevent hangs
+      const initPromise = init();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('WASM initialization timeout')), timeoutMs)
+      );
+
+      await Promise.race([initPromise, timeoutPromise]);
+
       this.chunker = new TextChunker(useUnicodeProperties);
       this.initialized = true;
-      logger.log('✅ WASM TextChunker initialized');
+      logger.log('✅ WASM TextChunker initialized successfully');
       return true;
     } catch (error) {
-      logger.error('Failed to initialize WASM TextChunker:', error);
+      logger.error('❌ Failed to initialize WASM TextChunker:', error);
+      logger.error('   Will use JavaScript fallback for text chunking');
+      this.initialized = false;
       return false;
     }
   }
@@ -174,8 +186,12 @@ export const wasmTextChunker = new WasmTextChunker();
 
 // Eager initialization - start loading WASM immediately
 // This allows the chunker to be ready by the time it's first used
-wasmTextChunker.initialize().catch((error) => {
-  logger.debug('WASM TextChunker initialization failed, will use JavaScript fallback:', error);
+// Use shorter timeout in production to prevent hangs
+const initTimeout = process.env.NODE_ENV === 'production' ? 3000 : 5000;
+wasmTextChunker.initialize(true, initTimeout).catch((error) => {
+  logger.warn('WASM TextChunker initialization failed, will use JavaScript fallback:', error);
+  // Ensure initialized flag is false on failure
+  wasmTextChunker.initialized = false;
 });
 
 // Expose globally for debugging in development
