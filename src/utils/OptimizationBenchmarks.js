@@ -74,6 +74,9 @@ export class OptimizationBenchmarks {
       // Task #7: WASM Text Assembly
       await this.benchmarkWasmTextAssembly();
 
+      // Task #8: V8 Hidden Class Optimization
+      await this.benchmarkV8Optimization();
+
       // Print comprehensive report
       this.printBenchmarkReport();
 
@@ -1193,6 +1196,170 @@ export class OptimizationBenchmarks {
     );
     logger.log(
       `  Target: 30-50% improvement | Current: ${avgImprovement.toFixed(1)}% | ${avgImprovement >= 30 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
+    );
+  }
+
+  /**
+   * Benchmark #12: V8 Hidden Class Optimization (Task #8)
+   * Compares dynamic Object.keys/values vs typed iteration
+   */
+  async benchmarkV8Optimization() {
+    logger.log('\n📊 Benchmark #12: V8 Hidden Class Optimization (Task #8)');
+    logger.log('  Testing: Dynamic Object.keys vs typed iteration');
+
+    const {
+      createTypedIterator,
+      benchmarkPropertyAccess,
+      segmentIterator,
+      memoryStatsIterator,
+      performanceMetricsIterator,
+    } = await import('./V8OptimizationUtils.js');
+
+    const results = {
+      segmentAccess: { dynamic: 0, typed: 0, speedup: 0 },
+      memoryStats: { dynamic: 0, typed: 0, speedup: 0 },
+      performanceMetrics: { dynamic: 0, typed: 0, speedup: 0 },
+      averageSpeedup: 0,
+    };
+
+    const iterations = 50000;
+
+    // Test 1: Translation segment property access
+    logger.log('  Testing translation segment access...');
+
+    const testSegment = {
+      originalSegment: '这是测试文本这是测试文本这是测试文本',
+      translatedSegment: 'Đây là văn bản thử nghiệm',
+      metadata: { phase: 4, confidence: 0.9, pattern: 'test' },
+      startIndex: 0,
+      endIndex: 8,
+      translationSource: 'phrase',
+      priority: 1,
+    };
+
+    // Dynamic Object.keys approach
+    let dynamicStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const keys = Object.keys(testSegment);
+      let sum = 0;
+      for (const key of keys) {
+        const value = testSegment[key];
+        if (typeof value === 'string') {
+          sum += value.length;
+        } else if (typeof value === 'number') {
+          sum += value;
+        }
+      }
+    }
+    results.segmentAccess.dynamic = performance.now() - dynamicStart;
+
+    // Typed iteration approach
+    let typedStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      let sum = 0;
+      segmentIterator.forEachProperty(testSegment, (key, value) => {
+        if (typeof value === 'string') {
+          sum += value.length;
+        } else if (typeof value === 'number') {
+          sum += value;
+        }
+      });
+    }
+    results.segmentAccess.typed = performance.now() - typedStart;
+    results.segmentAccess.speedup = results.segmentAccess.dynamic / results.segmentAccess.typed;
+
+    // Test 2: Memory stats access
+    logger.log('  Testing memory stats access...');
+
+    const testMemoryStats = {
+      totalMemory: 104857600,
+      heapUsed: 52428800,
+      heapTotal: 78643200,
+      external: 5242880,
+      arrayBuffers: 1048576,
+      timestamp: Date.now(),
+    };
+
+    // Dynamic approach
+    dynamicStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const values = Object.values(testMemoryStats);
+      const sum = values.reduce((acc, val) => acc + val, 0);
+    }
+    results.memoryStats.dynamic = performance.now() - dynamicStart;
+
+    // Typed approach
+    typedStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const values = memoryStatsIterator.getValues(testMemoryStats);
+      const sum = values.reduce((acc, val) => acc + val, 0);
+    }
+    results.memoryStats.typed = performance.now() - typedStart;
+    results.memoryStats.speedup = results.memoryStats.dynamic / results.memoryStats.typed;
+
+    // Test 3: Performance metrics access
+    logger.log('  Testing performance metrics access...');
+
+    const testMetrics = {
+      totalTime: 125.5,
+      phase1Time: 15.2,
+      phase2Time: 22.3,
+      phase3Time: 18.7,
+      phase4Time: 35.1,
+      phase5Time: 28.4,
+      dictionaryLookupTime: 5.8,
+      wasmOverheadTime: 0.3,
+      postProcessingTime: 12.7,
+    };
+
+    // Dynamic approach
+    dynamicStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const entries = Object.entries(testMetrics);
+      const result = entries.map(([key, value]) => ({ name: key, time: value }));
+    }
+    results.performanceMetrics.dynamic = performance.now() - dynamicStart;
+
+    // Typed approach
+    typedStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const result = performanceMetricsIterator.mapProperties(testMetrics, (key, value) => ({
+        name: key,
+        time: value,
+      }));
+    }
+    results.performanceMetrics.typed = performance.now() - typedStart;
+    results.performanceMetrics.speedup =
+      results.performanceMetrics.dynamic / results.performanceMetrics.typed;
+
+    // Calculate average speedup and improvement
+    results.averageSpeedup =
+      (results.segmentAccess.speedup +
+        results.memoryStats.speedup +
+        results.performanceMetrics.speedup) /
+      3;
+
+    const avgImprovement = (results.averageSpeedup - 1) * 100;
+
+    this.results.set('v8_optimization', results);
+    this.recordBaseline('v8_optimization_speedup', results.averageSpeedup);
+
+    logger.log(`\n  Results:`);
+    logger.log(
+      `    Segment access: ${results.segmentAccess.speedup.toFixed(2)}x speedup (Dynamic: ${results.segmentAccess.dynamic.toFixed(2)}ms, Typed: ${results.segmentAccess.typed.toFixed(2)}ms)`
+    );
+    logger.log(
+      `    Memory stats: ${results.memoryStats.speedup.toFixed(2)}x speedup (Dynamic: ${results.memoryStats.dynamic.toFixed(2)}ms, Typed: ${results.memoryStats.typed.toFixed(2)}ms)`
+    );
+    logger.log(
+      `    Performance metrics: ${results.performanceMetrics.speedup.toFixed(2)}x speedup (Dynamic: ${results.performanceMetrics.dynamic.toFixed(2)}ms, Typed: ${results.performanceMetrics.typed.toFixed(2)}ms)`
+    );
+
+    logger.log(
+      `\n  Average speedup: ${results.averageSpeedup.toFixed(2)}x (${avgImprovement.toFixed(1)}% improvement) ${avgImprovement >= 10 ? '✅' : '⚠️'}`
+    );
+    logger.log(
+      `  Target: 10-20% improvement | Current: ${avgImprovement.toFixed(1)}% | ${avgImprovement >= 10 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
     );
   }
 
