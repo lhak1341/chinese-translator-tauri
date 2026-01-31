@@ -18,6 +18,7 @@ import { PunctuationProcessor } from './PunctuationProcessor.js';
 import { QuoteProcessor, QUOTE_CATEGORIES, QUOTE_TYPES } from './QuoteProcessor';
 import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
 import { logger } from './logger.js';
+import { wasmTextChunker } from './WasmTextChunker.js';
 
 export class TextChunk {
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
@@ -214,6 +215,30 @@ export class TextChunker {
       return [];
     }
 
+    // OPTIMIZATION: Try WASM chunker first for 2-3x speedup (if initialized)
+    try {
+      const wasmChunks = wasmTextChunker.chunkText(text);
+
+      if (wasmChunks && Array.isArray(wasmChunks)) {
+        // Convert WASM chunk results to TextChunk objects
+        return wasmChunks.map(
+          (chunk) =>
+            new TextChunk(
+              chunk.content,
+              chunk.punctuation,
+              chunk.startIndex,
+              chunk.lineBreaks,
+              chunk.startedBy
+            )
+        );
+      }
+      // If wasmChunks is null, fall through to JavaScript implementation
+    } catch (wasmError) {
+      // Graceful fallback to JavaScript implementation
+      logger.debug('WASM TextChunker failed, using JavaScript fallback:', wasmError);
+    }
+
+    // JavaScript implementation (fallback)
     const chunks = [];
     const chars = Array.from(text);
     let currentContent = '';

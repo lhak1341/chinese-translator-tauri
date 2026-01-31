@@ -38,6 +38,7 @@ pub mod regex_utils;
 pub mod text_assembly;
 pub mod wasm_boundary;
 pub mod memory_management;
+pub mod text_chunker;
 
 #[cfg(test)]
 mod content_hash_test;
@@ -52,6 +53,7 @@ pub use dictionary_trie::WasmDictionaryTrie;
 pub use regex_utils::RegexUtils;
 pub use text_assembly::TextAssembler;
 pub use wasm_boundary::BoundaryOptimizer;
+pub use text_chunker::TextChunker;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;
