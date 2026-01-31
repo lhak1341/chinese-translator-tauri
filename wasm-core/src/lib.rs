@@ -33,6 +33,7 @@ pub mod segment_matcher;
 pub mod text_tokenizer;
 pub mod position_mapper;
 pub mod string_processor;
+pub mod dictionary_trie;
 
 #[cfg(test)]
 mod content_hash_test;
@@ -43,6 +44,7 @@ pub use segment_matcher::SegmentMatcher;
 pub use text_tokenizer::{tokenize_text, get_tokenizer_stats};
 pub use position_mapper::PositionMapper;
 pub use string_processor::StringProcessor;
+pub use dictionary_trie::WasmDictionaryTrie;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;

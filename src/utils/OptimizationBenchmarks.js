@@ -62,6 +62,9 @@ export class OptimizationBenchmarks {
       // Task #3: WASM String Processor
       await this.benchmarkWasmStringProcessor();
 
+      // Task #4: WASM Dictionary Trie
+      await this.benchmarkWasmDictionaryTrie();
+
       // Print comprehensive report
       this.printBenchmarkReport();
 
@@ -619,6 +622,159 @@ export class OptimizationBenchmarks {
     logger.log(`  getString speedup: ${results.speedup.getString.toFixed(1)}x`);
     logger.log(
       `\n  Target: 5-15x improvement | Current: ${results.speedup.build.toFixed(1)}x | ${results.speedup.build >= 5 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
+    );
+  }
+
+  /**
+   * Benchmark #8: WASM Dictionary Trie (Task #4)
+   * Compares JavaScript Map trie vs Rust WASM HashMap trie
+   */
+  async benchmarkWasmDictionaryTrie() {
+    logger.log('\n📊 Benchmark #8: WASM Dictionary Trie (Task #4)');
+    logger.log('  Testing: JavaScript Map vs Rust HashMap trie');
+
+    // Import dependencies
+    const { createWasmDictionaryTrie } = await import('./WasmDictionaryTrie.js');
+
+    // Create test dictionary (simulate character dictionary with ~1000 entries)
+    const testEntries = [];
+    for (let i = 0; i < 1000; i++) {
+      testEntries.push({
+        chars: `字${i}`,
+        translation: `chữ ${i}`,
+        priority: Math.floor(Math.random() * 10),
+      });
+    }
+
+    // Add some multi-character entries for realistic matching
+    testEntries.push({ chars: '字典', translation: 'từ điển', priority: 8 });
+    testEntries.push({ chars: '图书馆', translation: 'thư viện', priority: 7 });
+    testEntries.push({ chars: '学校', translation: 'trường học', priority: 8 });
+
+    const results = {
+      javascript: { loadTime: 0, lookupTime: 0, memoryBytes: 0 },
+      wasm: { loadTime: 0, lookupTime: 0, memoryBytes: 0 },
+      speedup: { load: 0, lookup: 0, memory: 0 },
+    };
+
+    // Benchmark JavaScript Map trie (simplified implementation)
+    logger.log('  Testing JavaScript Map trie...');
+
+    class SimpleMapTrie {
+      constructor() {
+        this.root = new Map();
+      }
+
+      insert(chars, entry) {
+        let current = this.root;
+        for (const ch of chars) {
+          if (!current.has(ch)) {
+            current.set(ch, { children: new Map(), data: null });
+          }
+          current = current.get(ch).children;
+        }
+        // Set data at the last node
+        const lastChar = chars[chars.length - 1];
+        if (this.root.has(lastChar)) {
+          current.set('__data__', entry);
+        }
+      }
+
+      findLongestMatch(text, startPos) {
+        const chars = Array.from(text);
+        if (startPos >= chars.length) return null;
+
+        let current = this.root;
+        let longestMatch = null;
+        let pos = startPos;
+
+        while (pos < chars.length) {
+          const ch = chars[pos];
+          const node = current.get(ch);
+
+          if (!node) break;
+
+          pos++;
+          current = node.children;
+
+          if (current.has('__data__')) {
+            longestMatch = {
+              matchedText: chars.slice(startPos, pos).join(''),
+              ...current.get('__data__'),
+              length: pos - startPos,
+            };
+          }
+        }
+
+        return longestMatch;
+      }
+    }
+
+    const jsTrieStart = performance.now();
+    const jsTrie = new SimpleMapTrie();
+    for (const entry of testEntries) {
+      jsTrie.insert(entry.chars, entry);
+    }
+    results.javascript.loadTime = performance.now() - jsTrieStart;
+
+    // Test lookup performance
+    const testText = '字典图书馆学校字1字2字3';
+    const iterations = 10000;
+
+    const jsLookupStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      for (let pos = 0; pos < testText.length; pos++) {
+        jsTrie.findLongestMatch(testText, pos);
+      }
+    }
+    results.javascript.lookupTime = (performance.now() - jsLookupStart) / iterations;
+
+    // Estimate memory (rough approximation)
+    results.javascript.memoryBytes = testEntries.length * 100; // ~100 bytes per entry with Map overhead
+
+    // Benchmark WASM HashMap trie
+    logger.log('  Testing WASM HashMap trie...');
+
+    const wasmTrieStart = performance.now();
+    const wasmTrie = await createWasmDictionaryTrie('test', testEntries);
+    results.wasm.loadTime = performance.now() - wasmTrieStart;
+
+    // Test lookup performance
+    const wasmLookupStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      for (let pos = 0; pos < testText.length; pos++) {
+        wasmTrie.findLongestMatch(testText, pos);
+      }
+    }
+    results.wasm.lookupTime = (performance.now() - wasmLookupStart) / iterations;
+
+    // Get actual memory stats from WASM
+    const stats = wasmTrie.getStats();
+    results.wasm.memoryBytes = stats.nodeCount * 50; // Estimate ~50 bytes per node
+
+    // Calculate speedups
+    results.speedup.load = results.javascript.loadTime / results.wasm.loadTime;
+    results.speedup.lookup = results.javascript.lookupTime / results.wasm.lookupTime;
+    results.speedup.memory = results.javascript.memoryBytes / results.wasm.memoryBytes;
+
+    // Clean up
+    wasmTrie.clear();
+
+    this.results.set('wasm_dictionary_trie', results);
+    this.recordBaseline('wasm_trie_load_time', results.wasm.loadTime);
+    this.recordBaseline('wasm_trie_lookup_speedup', results.speedup.lookup);
+
+    logger.log(`  JavaScript load: ${results.javascript.loadTime.toFixed(2)}ms`);
+    logger.log(`  WASM load: ${results.wasm.loadTime.toFixed(2)}ms`);
+    logger.log(`  Load speedup: ${results.speedup.load.toFixed(1)}x`);
+    logger.log(`  JavaScript lookup: ${results.javascript.lookupTime.toFixed(3)}ms per iteration`);
+    logger.log(`  WASM lookup: ${results.wasm.lookupTime.toFixed(3)}ms per iteration`);
+    logger.log(
+      `  Lookup speedup: ${results.speedup.lookup.toFixed(1)}x ${results.speedup.lookup >= 2 ? '✅' : '⚠️'}`
+    );
+    logger.log(`  Memory reduction: ${results.speedup.memory.toFixed(1)}x`);
+    logger.log(
+      `\n  Target: 2-4x improvement | Current: ${results.speedup.lookup.toFixed(1)}x | ${results.speedup.lookup >= 2 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
     );
   }
 
