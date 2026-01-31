@@ -692,13 +692,22 @@ segments.par_iter_mut().for_each(|seg| {
 
 ### Baseline Measurements (Before Optimizations)
 
-To be collected with `window.runOptimizationBenchmarks()`:
+✅ **Collected on 2026-01-31** with `window.runOptimizationBenchmarks()`:
 
-- **WASM Boundary**: \_\_\_ ms per 1000 tokens (Target: <1ms)
-- **Dictionary Lookup**: \_\_\_ ops/sec (Target: 3x current)
-- **String Operations**: \_\_\_ ops/sec (Target: 5-15x current)
-- **Regex Operations**: \_\_\_ ms precompiled (Target: 3-8x)
-- **String Assembly**: \_\_\_ ms per 100 segments (Target: 30-50% faster)
+- **WASM Boundary**: **0.22ms** per 1000 tokens (Target: <1ms) ✅ **ALREADY OPTIMIZED** (4.5x better!)
+- **Dictionary Lookup**: 0 ops/sec (Test issue - no dictionaries loaded in benchmark)
+- **String Operations**: **43M ops/sec** slicing (Target: 5-15x = 215M-645M ops/sec)
+- **Regex Operations**: **0.004ms** precompiled (Target: 3-8x faster = 0.0005-0.0013ms)
+- **String Assembly**: **0.003ms** per 100 segments (preallocated) ✅ **ALREADY OPTIMIZED**
+
+**Key Findings**:
+
+- ✅ WASM boundary and string assembly are **already well-optimized**!
+- ⚠️ Focus on **string operations** (43M → 215M+ ops/sec) for maximum impact
+- ⚠️ Regex optimization less critical (indexOf already 1.75x faster than regex)
+- 💡 Manual mapping is 6.7x faster than JSON (0.03ms vs 0.2ms)
+
+**Detailed Results**: See `docs/code-review/BASELINE_MEASUREMENTS_2026-01-31.json`
 
 ### Post-Optimization Measurements
 
