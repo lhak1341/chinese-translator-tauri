@@ -37,6 +37,7 @@ pub mod dictionary_trie;
 pub mod regex_utils;
 pub mod text_assembly;
 pub mod wasm_boundary;
+pub mod memory_management;
 
 #[cfg(test)]
 mod content_hash_test;
