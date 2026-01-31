@@ -44,3 +44,6 @@ src-tauri/gen
 
 # Test coverage reports
 coverage
+
+# Dictionary cache files (precomputed tries)
+*.trie.json

@@ -28,6 +28,10 @@ export class WasmTextChunker {
     this.chunker = null;
     /** @type {boolean} */
     this.initialized = false;
+    /** @type {Promise<boolean> | null} - Track initialization promise to prevent race conditions */
+    this.initializationPromise = null;
+    /** @type {boolean} */
+    this.initializationFailed = false;
     /** @type {number} */
     this.wasmHits = 0;
     /** @type {number} */
@@ -35,34 +39,68 @@ export class WasmTextChunker {
   }
 
   /**
-   * Initialize WASM text chunker
+   * Initialize WASM text chunker (LAZY - call on first use)
    *
    * @param {boolean} useUnicodeProperties - Use Unicode property detection (default: true)
    * @param {number} timeoutMs - Timeout for initialization (default: 5000ms)
    * @returns {Promise<boolean>} Success status
    */
-  async initialize(useUnicodeProperties = true, timeoutMs = 5000) {
-    try {
-      logger.log('🔄 Starting WASM TextChunker initialization...');
-
-      // Add timeout to prevent hangs
-      const initPromise = init();
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('WASM initialization timeout')), timeoutMs)
-      );
-
-      await Promise.race([initPromise, timeoutPromise]);
-
-      this.chunker = new TextChunker(useUnicodeProperties);
-      this.initialized = true;
-      logger.log('✅ WASM TextChunker initialized successfully');
+  async initialize(useUnicodeProperties = true, timeoutMs = 10000) {
+    // Return cached result if already initialized or failed
+    if (this.chunker && this.initialized) {
       return true;
-    } catch (error) {
-      logger.error('❌ Failed to initialize WASM TextChunker:', error);
-      logger.error('   Will use JavaScript fallback for text chunking');
-      this.initialized = false;
+    }
+    if (this.initializationFailed) {
       return false;
     }
+
+    // Return existing promise if initialization in progress (RACE CONDITION FIX)
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    // Assign promise synchronously before async work to prevent concurrent init attempts
+    this.initializationPromise = (async () => {
+      try {
+        const startTime = performance.now();
+        console.log(
+          `[WASM TextChunker] 🔄 Starting init (timeout: ${timeoutMs}ms, env: ${process.env.NODE_ENV})`
+        );
+
+        // Add timeout to prevent hangs
+        const initPromise = init();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`WASM initialization timeout after ${timeoutMs}ms`)),
+            timeoutMs
+          )
+        );
+
+        await Promise.race([initPromise, timeoutPromise]);
+        const initTime = performance.now() - startTime;
+
+        console.log(`[WASM TextChunker] ✅ WASM module loaded in ${initTime.toFixed(1)}ms`);
+
+        this.chunker = new TextChunker(useUnicodeProperties);
+        this.initialized = true;
+
+        const totalTime = performance.now() - startTime;
+        console.log(`[WASM TextChunker] ✅ Fully initialized in ${totalTime.toFixed(1)}ms`);
+        return true;
+      } catch (error) {
+        console.error('[WASM TextChunker] ❌ Initialization error:', {
+          error: error.message,
+          stack: error.stack,
+          env: process.env.NODE_ENV,
+          timeout: timeoutMs,
+        });
+        this.initialized = false;
+        this.initializationFailed = true;
+        return false;
+      }
+    })();
+
+    return this.initializationPromise;
   }
 
   /**
@@ -77,9 +115,27 @@ export class WasmTextChunker {
    * @returns {Array<{content: string, punctuation: string, startIndex: number, lineBreaks: string, startedBy: string}> | null}
    *   Array of chunk objects or null on error/not initialized
    */
+  /**
+   * Chunk text (synchronous - triggers lazy init if needed)
+   * @param {string} text - Input text
+   * @returns {Array|null} Chunks or null if not initialized
+   */
   chunkText(text) {
-    if (!this.initialized) {
-      // Not initialized yet - caller should initialize first or use fallback
+    // LAZY INITIALIZATION: Trigger initialization on first use (non-blocking)
+    if (!this.initialized && !this.initializationFailed && !this.initializationPromise) {
+      console.log('[WASM TextChunker] Triggering lazy initialization');
+      this.initialize().catch((err) => {
+        console.error('[WASM TextChunker] Lazy init failed:', err);
+      });
+    }
+
+    console.log(
+      `[WASM TextChunker] chunkText (initialized: ${this.initialized}, chunker: ${!!this.chunker}, textLength: ${text.length})`
+    );
+
+    if (!this.initialized || !this.chunker) {
+      // Not initialized yet - use JS fallback
+      console.log('[WASM TextChunker] Not ready, using JS fallback');
       try {
         recordFallback();
       } catch (e) {
@@ -91,10 +147,27 @@ export class WasmTextChunker {
 
     try {
       const chunks = this.chunker.chunkText(text);
+      console.log(`[WASM TextChunker] ✅ Chunked into ${chunks.length} chunks`);
       this.wasmHits++;
+
+      // MEMORY FIX: Reset WASM instance after EACH use in production to prevent accumulation
+      // WASM linear memory grows but never shrinks - this forces cleanup
+      if (process.env.NODE_ENV === 'production') {
+        console.log('[WASM TextChunker] Resetting instance to prevent memory accumulation');
+        this.chunker = null;
+        this.initialized = false;
+        this.initializationPromise = null;
+        this.initializationFailed = false;
+      }
+
       return chunks;
     } catch (error) {
-      logger.warn('WASM TextChunker failed, using fallback:', error);
+      console.error('[WASM TextChunker] ❌ Error during chunking:', {
+        message: error.message,
+        stack: error.stack,
+        textLength: text.length,
+        env: process.env.NODE_ENV,
+      });
       try {
         recordFallback();
       } catch (e) {
@@ -184,17 +257,11 @@ export class WasmTextChunker {
 // Create singleton instance
 export const wasmTextChunker = new WasmTextChunker();
 
-// Eager initialization - start loading WASM immediately
-// This allows the chunker to be ready by the time it's first used
-// Use shorter timeout in production to prevent hangs
-const initTimeout = process.env.NODE_ENV === 'production' ? 3000 : 5000;
-wasmTextChunker.initialize(true, initTimeout).catch((error) => {
-  logger.warn('WASM TextChunker initialization failed, will use JavaScript fallback:', error);
-  // Ensure initialized flag is false on failure
-  wasmTextChunker.initialized = false;
-});
+// LAZY INITIALIZATION: No eager init - WASM loads on first use
+// This prevents race conditions in production builds where module loading
+// happens before WASM files are fully available
 
-// Expose globally for debugging in development
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+// Expose globally for debugging
+if (typeof window !== 'undefined') {
   window.wasmTextChunker = wasmTextChunker;
 }
