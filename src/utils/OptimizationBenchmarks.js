@@ -71,6 +71,9 @@ export class OptimizationBenchmarks {
       // Task #5: ReadonlyArray Optimizations
       await this.benchmarkReadonlyArrayOptimizations();
 
+      // Task #7: WASM Text Assembly
+      await this.benchmarkWasmTextAssembly();
+
       // Print comprehensive report
       this.printBenchmarkReport();
 
@@ -1092,6 +1095,104 @@ export class OptimizationBenchmarks {
     );
     logger.log(
       `  Target: 5-10% reduction | Current: ${avgImprovement.toFixed(1)}% | ${avgImprovement >= 5 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
+    );
+  }
+
+  /**
+   * Benchmark #11: WASM Text Assembly (Task #7)
+   * Compares JavaScript string concatenation vs Rust String::with_capacity
+   */
+  async benchmarkWasmTextAssembly() {
+    logger.log('\n📊 Benchmark #11: WASM Text Assembly (Task #7)');
+    logger.log('  Testing: JavaScript concatenation vs Rust String::with_capacity');
+
+    const { createWasmTextAssembler } = await import('./WasmTextAssembler.js');
+
+    // Create test segments (simulate translation output)
+    const segmentCounts = [10, 50, 100, 200];
+    const results = {
+      javascript: {},
+      wasm: {},
+      speedup: {},
+    };
+
+    for (const count of segmentCounts) {
+      logger.log(`  Testing with ${count} segments...`);
+
+      // Generate test segments
+      const segments = Array.from({ length: count }, (_, i) => ({
+        original: '这是一段测试文本',
+        translated: 'Đây là một đoạn văn bản thử nghiệm',
+        translationSource: i % 3 === 0 ? 'pattern' : i % 2 === 0 ? 'phrase' : 'character',
+        startIndex: i * 8,
+        endIndex: (i + 1) * 8,
+        metadata: {
+          phase: (i % 5) + 1,
+          confidence: 0.9,
+        },
+      }));
+
+      const iterations = 1000;
+
+      // JavaScript assembly
+      let jsStart = performance.now();
+      for (let iter = 0; iter < iterations; iter++) {
+        let translatedText = '';
+        let originalText = '';
+        const originalArray = [];
+        const translatedArray = [];
+        const sourcesArray = [];
+        const positionsArray = [];
+        let currentPosition = 0;
+
+        for (const segment of segments) {
+          translatedText += segment.translated;
+          originalText += segment.original;
+
+          originalArray.push(segment.original);
+          translatedArray.push(segment.translated);
+          sourcesArray.push(segment.translationSource);
+          positionsArray.push(currentPosition);
+
+          currentPosition += segment.original.length;
+        }
+      }
+      results.javascript[count] = (performance.now() - jsStart) / iterations;
+
+      // WASM assembly
+      const wasmAssembler = await createWasmTextAssembler();
+      let wasmStart = performance.now();
+      for (let iter = 0; iter < iterations; iter++) {
+        wasmAssembler.assembleTranslation(segments);
+      }
+      results.wasm[count] = (performance.now() - wasmStart) / iterations;
+
+      // Calculate speedup
+      results.speedup[count] = results.javascript[count] / results.wasm[count];
+    }
+
+    // Calculate average speedup
+    const avgSpeedup =
+      Object.values(results.speedup).reduce((sum, val) => sum + val, 0) / segmentCounts.length;
+
+    // Calculate improvement percentage
+    const avgImprovement = (avgSpeedup - 1) * 100;
+
+    this.results.set('wasm_text_assembly', results);
+    this.recordBaseline('wasm_text_assembly_speedup', avgSpeedup);
+
+    logger.log(`\n  Results by segment count:`);
+    for (const count of segmentCounts) {
+      logger.log(
+        `    ${count} segments: ${results.speedup[count].toFixed(2)}x speedup (JS: ${results.javascript[count].toFixed(3)}ms, WASM: ${results.wasm[count].toFixed(3)}ms)`
+      );
+    }
+
+    logger.log(
+      `\n  Average speedup: ${avgSpeedup.toFixed(2)}x (${avgImprovement.toFixed(1)}% improvement) ${avgImprovement >= 30 ? '✅' : '⚠️'}`
+    );
+    logger.log(
+      `  Target: 30-50% improvement | Current: ${avgImprovement.toFixed(1)}% | ${avgImprovement >= 30 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
     );
   }
 
