@@ -5,6 +5,7 @@ import { ToastProvider, useToast, setGlobalToast } from './components/ToastConte
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
 import { wasmMemoryPoolManager } from './utils/WasmMemoryPoolManager';
 import { logger } from './utils/logger';
+import { optimizationBenchmarks } from './utils/OptimizationBenchmarks.js';
 // CODE REVIEW FIX (MEDIUM-7): Import WASM cleanup functions
 import { cleanupWasmNumberProcessor } from './utils/WasmNumberProcessor';
 import { cleanupWasmPatternProcessor } from './utils/WasmPatternProcessor';
@@ -326,6 +327,15 @@ function App() {
             return null;
           }
         };
+
+        // Expose optimization benchmarks for TypeScript/Rust optimization tracking
+        window.optimizationBenchmarks = optimizationBenchmarks;
+        window.runOptimizationBenchmarks = () => optimizationBenchmarks.runFullSuite();
+
+        logger.log('🚀 Optimization benchmarks available:');
+        logger.log('   - window.runOptimizationBenchmarks() - Run full benchmark suite');
+        logger.log('   - window.optimizationBenchmarks.exportResults() - Export benchmark data');
+        logger.log('   - window.optimizationBenchmarks.compareToBaseline() - Compare to baseline');
       }
 
       // Set up cleanup on unmount
