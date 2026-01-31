@@ -21,6 +21,7 @@
 
 import { calculatePatternPriority } from './PatternPriorityCalculator.js';
 import { logger } from './logger.js';
+import { wasmStringProcessor } from './WasmStringProcessor.js';
 
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
@@ -816,7 +817,7 @@ export class SemanticPatternProcessor {
    * @param {Token[]} tokens - Array of tokens to process
    * @param {Object} options - Processing options
    */
-  processTokens(tokens, options = {}) {
+  async processTokens(tokens, options = {}) {
     if (!this.isInitialized) {
       throw new Error('SemanticPatternProcessor not initialized');
     }
@@ -853,28 +854,64 @@ export class SemanticPatternProcessor {
     if (this.enableStringOptimization && semanticTokens.length > 5) {
       // CRITICAL FIX: Clear previous instance to prevent memory leak
       if (this.precomputedStrings) {
-        this.precomputedStrings.stringLookup.clear();
+        if (this.precomputedStrings.stringLookup) {
+          this.precomputedStrings.stringLookup.clear();
+        }
+        if (this.precomputedStrings.clear) {
+          this.precomputedStrings.clear();
+        }
         this.precomputedStrings = null;
       }
 
       const precomputeStart = performance.now();
-      this.precomputedStrings = new PrecomputedTokenStrings(semanticTokens);
-      const precomputeTime = performance.now() - precomputeStart;
 
+      // Try WASM string processor first (5-15x faster)
+      let useWasm = false;
+      try {
+        const wasmSuccess = await wasmStringProcessor.buildCache(semanticTokens);
+        if (wasmSuccess) {
+          this.precomputedStrings = wasmStringProcessor;
+          this.usingWasm = true;
+          useWasm = true;
+
+          const stats = wasmStringProcessor.getStats();
+          this.log(
+            debugLevel,
+            5,
+            `⚡ WASM: Pre-computed ${stats.cacheSize} strings in ${(performance.now() - precomputeStart).toFixed(2)}ms (${(stats.memoryBytes / 1024).toFixed(1)}KB)`
+          );
+        }
+      } catch (error) {
+        logger.warn('⚠️ WASM string processor failed, falling back to JavaScript:', error);
+      }
+
+      // Fallback to JavaScript PrecomputedTokenStrings
+      if (!useWasm) {
+        this.precomputedStrings = new PrecomputedTokenStrings(semanticTokens);
+        this.usingWasm = false;
+
+        this.log(
+          debugLevel,
+          5,
+          `⚡ JS: Pre-computed ${this.precomputedStrings.stats.totalPrecomputed} strings in ${(performance.now() - precomputeStart).toFixed(2)}ms`
+        );
+      }
+
+      const precomputeTime = performance.now() - precomputeStart;
       this.stats.stringOptimization.enabled = true;
       this.stats.stringOptimization.precomputeTime += precomputeTime;
-
-      this.log(
-        debugLevel,
-        5,
-        `⚡ Pre-computed ${this.precomputedStrings.stats.totalPrecomputed} strings in ${precomputeTime.toFixed(2)}ms`
-      );
     } else {
       // CRITICAL FIX: Clear existing instance when optimization disabled
       if (this.precomputedStrings) {
-        this.precomputedStrings.stringLookup.clear();
+        if (this.precomputedStrings.stringLookup) {
+          this.precomputedStrings.stringLookup.clear();
+        }
+        if (this.precomputedStrings.clear) {
+          this.precomputedStrings.clear();
+        }
       }
       this.precomputedStrings = null;
+      this.usingWasm = false;
       this.stats.stringOptimization.enabled = false;
     }
 

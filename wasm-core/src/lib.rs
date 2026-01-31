@@ -32,6 +32,7 @@ pub mod pattern_processor;
 pub mod segment_matcher;
 pub mod text_tokenizer;
 pub mod position_mapper;
+pub mod string_processor;
 
 #[cfg(test)]
 mod content_hash_test;
@@ -41,6 +42,7 @@ pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
 pub use segment_matcher::SegmentMatcher;
 pub use text_tokenizer::{tokenize_text, get_tokenizer_stats};
 pub use position_mapper::PositionMapper;
+pub use string_processor::StringProcessor;
 
 use wasm_bindgen::prelude::*;
 use trie::TrieNode;

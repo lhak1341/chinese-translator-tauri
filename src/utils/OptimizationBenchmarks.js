@@ -59,6 +59,9 @@ export class OptimizationBenchmarks {
       // Medium #7: String Assembly
       await this.benchmarkStringAssembly();
 
+      // Task #3: WASM String Processor
+      await this.benchmarkWasmStringProcessor();
+
       // Print comprehensive report
       this.printBenchmarkReport();
 
@@ -502,6 +505,121 @@ export class OptimizationBenchmarks {
       duration: typeof value === 'number' ? value : 0,
       timestamp: Date.now(),
     });
+  }
+
+  /**
+   * Benchmark #7: WASM String Processor (Task #3)
+   * Compares JavaScript PrecomputedTokenStrings vs Rust WASM StringProcessor
+   */
+  async benchmarkWasmStringProcessor() {
+    logger.log('\n📊 Benchmark #7: WASM String Processor (Task #3)');
+    logger.log('  Testing: JavaScript vs Rust WASM string operations');
+
+    // Import dependencies
+    const { wasmStringProcessor } = await import('./WasmStringProcessor.js');
+
+    // Create test data (typical 2000-char text = ~200 tokens)
+    const testTokens = Array.from({ length: 200 }, (_, i) => ({
+      value: `字${i}`,
+      type: 'chinese_char',
+      position: i,
+    }));
+
+    const results = {
+      javascript: { buildTime: 0, getString: 0, totalPrecomputed: 0 },
+      wasm: { buildTime: 0, getString: 0, totalPrecomputed: 0 },
+      speedup: { build: 0, getString: 0 },
+    };
+
+    // Benchmark JavaScript PrecomputedTokenStrings
+    logger.log('  Testing JavaScript implementation...');
+    const { default: SemanticPatternProcessor } = await import('./SemanticPatternProcessor.js');
+
+    // Access the PrecomputedTokenStrings class (it's a private class, use reflection)
+    const PrecomputedTokenStrings = class {
+      constructor(semanticTokens, maxSpan = 10) {
+        this.stringLookup = new Map();
+        this.enabled = true;
+        this.stats = { totalPrecomputed: 0, totalLookups: 0, precomputeTime: 0 };
+
+        const startTime = performance.now();
+        for (let pos = 0; pos < semanticTokens.length; pos++) {
+          for (let span = 1; span <= maxSpan; span++) {
+            if (pos + span <= semanticTokens.length) {
+              const key = `${pos}_${span}`;
+              const value = semanticTokens
+                .slice(pos, pos + span)
+                .map((t) => t.value)
+                .join('');
+              this.stringLookup.set(key, value);
+              this.stats.totalPrecomputed++;
+            }
+          }
+        }
+        this.stats.precomputeTime = performance.now() - startTime;
+      }
+
+      getString(position, span) {
+        if (!this.enabled) return null;
+        this.stats.totalLookups++;
+        const key = `${position}_${span}`;
+        return this.stringLookup.get(key) || null;
+      }
+    };
+
+    const jsStart = performance.now();
+    const jsProcessor = new PrecomputedTokenStrings(testTokens, 10);
+    results.javascript.buildTime = performance.now() - jsStart;
+    results.javascript.totalPrecomputed = jsProcessor.stats.totalPrecomputed;
+
+    // Test getString performance
+    const jsGetStart = performance.now();
+    const iterations = 1000;
+    for (let i = 0; i < iterations; i++) {
+      jsProcessor.getString(50, 3);
+      jsProcessor.getString(100, 5);
+      jsProcessor.getString(150, 2);
+    }
+    results.javascript.getString = (performance.now() - jsGetStart) / iterations;
+
+    // Benchmark WASM StringProcessor
+    logger.log('  Testing WASM implementation...');
+
+    const wasmStart = performance.now();
+    await wasmStringProcessor.buildCache(testTokens);
+    results.wasm.buildTime = performance.now() - wasmStart;
+    const stats = wasmStringProcessor.getStats();
+    results.wasm.totalPrecomputed = stats.cacheSize;
+
+    // Test getString performance
+    const wasmGetStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      wasmStringProcessor.getString(50, 3);
+      wasmStringProcessor.getString(100, 5);
+      wasmStringProcessor.getString(150, 2);
+    }
+    results.wasm.getString = (performance.now() - wasmGetStart) / iterations;
+
+    // Calculate speedups
+    results.speedup.build = results.javascript.buildTime / results.wasm.buildTime;
+    results.speedup.getString = results.javascript.getString / results.wasm.getString;
+
+    // Clean up
+    wasmStringProcessor.clear();
+
+    this.results.set('wasm_string_processor', results);
+    this.recordBaseline('wasm_string_build_time', results.wasm.buildTime);
+    this.recordBaseline('wasm_string_get_speedup', results.speedup.getString);
+
+    logger.log(`  JavaScript build: ${results.javascript.buildTime.toFixed(2)}ms`);
+    logger.log(`  WASM build: ${results.wasm.buildTime.toFixed(2)}ms`);
+    logger.log(
+      `  Build speedup: ${results.speedup.build.toFixed(1)}x ${results.speedup.build >= 5 ? '✅' : '⚠️'}`
+    );
+    logger.log(`  getString speedup: ${results.speedup.getString.toFixed(1)}x`);
+    logger.log(
+      `\n  Target: 5-15x improvement | Current: ${results.speedup.build.toFixed(1)}x | ${results.speedup.build >= 5 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
+    );
   }
 
   /**

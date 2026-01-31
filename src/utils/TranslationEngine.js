@@ -2790,7 +2790,7 @@ export class TranslationEngine {
       // MEDIUM-4 FIX: Only create new object when deep copy is actually needed
       const needsDeepCopy = options.lookupIndex || options.segments;
 
-      this.semanticPatternProcessor.processTokens(
+      await this.semanticPatternProcessor.processTokens(
         tokens,
         needsDeepCopy
           ? {
