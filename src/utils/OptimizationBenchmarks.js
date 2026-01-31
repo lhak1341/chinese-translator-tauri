@@ -65,6 +65,9 @@ export class OptimizationBenchmarks {
       // Task #4: WASM Dictionary Trie
       await this.benchmarkWasmDictionaryTrie();
 
+      // Task #6: WASM Regex Utilities
+      await this.benchmarkWasmRegexUtils();
+
       // Print comprehensive report
       this.printBenchmarkReport();
 
@@ -775,6 +778,145 @@ export class OptimizationBenchmarks {
     logger.log(`  Memory reduction: ${results.speedup.memory.toFixed(1)}x`);
     logger.log(
       `\n  Target: 2-4x improvement | Current: ${results.speedup.lookup.toFixed(1)}x | ${results.speedup.lookup >= 2 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
+    );
+  }
+
+  /**
+   * Benchmark #9: WASM Regex Utilities (Task #6)
+   * Compares JavaScript regex (recompiled each time) vs Rust lazy_static
+   */
+  async benchmarkWasmRegexUtils() {
+    logger.log('\n📊 Benchmark #9: WASM Regex Utilities (Task #6)');
+    logger.log('  Testing: JavaScript regex vs Rust lazy_static');
+
+    // Import dependencies
+    const { createWasmRegexUtils } = await import('./WasmRegexUtils.js');
+
+    const testText = '这是第一句。这是第二句！这是第三句？还有更多内容在这里。';
+    const testPattern = '在{X}{Y}中';
+    const iterations = 10000;
+
+    const results = {
+      javascript: {
+        punctuationTest: 0,
+        sentenceSplit: 0,
+        variableExtract: 0,
+        whitespaceNorm: 0,
+      },
+      wasm: {
+        punctuationTest: 0,
+        sentenceSplit: 0,
+        variableExtract: 0,
+        whitespaceNorm: 0,
+      },
+      speedup: {
+        punctuationTest: 0,
+        sentenceSplit: 0,
+        variableExtract: 0,
+        whitespaceNorm: 0,
+      },
+    };
+
+    // Benchmark JavaScript regex (recompiled each time)
+    logger.log('  Testing JavaScript regex (recompiled)...');
+
+    // Test 1: Punctuation detection
+    let jsStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const regex = /[。！？]/g; // Recompiled every iteration
+      regex.test(testText);
+    }
+    results.javascript.punctuationTest = (performance.now() - jsStart) / iterations;
+
+    // Test 2: Sentence splitting
+    jsStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const regex = /[。！？]/g; // Recompiled every iteration
+      testText.split(regex);
+    }
+    results.javascript.sentenceSplit = (performance.now() - jsStart) / iterations;
+
+    // Test 3: Variable extraction
+    jsStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const regex = /\{([A-Z])\}/g; // Recompiled every iteration
+      const matches = [];
+      let match;
+      while ((match = regex.exec(testPattern)) !== null) {
+        matches.push(match[1]);
+      }
+    }
+    results.javascript.variableExtract = (performance.now() - jsStart) / iterations;
+
+    // Test 4: Whitespace normalization
+    const whitespaceText = 'text   with    multiple     spaces';
+    jsStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      const regex = /\s+/g; // Recompiled every iteration
+      whitespaceText.replace(regex, ' ');
+    }
+    results.javascript.whitespaceNorm = (performance.now() - jsStart) / iterations;
+
+    // Benchmark WASM lazy_static regex
+    logger.log('  Testing WASM lazy_static regex...');
+
+    const wasmUtils = await createWasmRegexUtils();
+
+    // Test 1: Punctuation detection
+    let wasmStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      wasmUtils.hasChinesePunctuation(testText);
+    }
+    results.wasm.punctuationTest = (performance.now() - wasmStart) / iterations;
+
+    // Test 2: Sentence splitting
+    wasmStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      wasmUtils.splitBySentences(testText);
+    }
+    results.wasm.sentenceSplit = (performance.now() - wasmStart) / iterations;
+
+    // Test 3: Variable extraction
+    wasmStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      wasmUtils.extractPatternVariables(testPattern);
+    }
+    results.wasm.variableExtract = (performance.now() - wasmStart) / iterations;
+
+    // Test 4: Whitespace normalization
+    wasmStart = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      wasmUtils.normalizeWhitespace(whitespaceText);
+    }
+    results.wasm.whitespaceNorm = (performance.now() - wasmStart) / iterations;
+
+    // Calculate speedups
+    results.speedup.punctuationTest =
+      results.javascript.punctuationTest / results.wasm.punctuationTest;
+    results.speedup.sentenceSplit = results.javascript.sentenceSplit / results.wasm.sentenceSplit;
+    results.speedup.variableExtract =
+      results.javascript.variableExtract / results.wasm.variableExtract;
+    results.speedup.whitespaceNorm =
+      results.javascript.whitespaceNorm / results.wasm.whitespaceNorm;
+
+    // Calculate average speedup
+    const avgSpeedup =
+      (results.speedup.punctuationTest +
+        results.speedup.sentenceSplit +
+        results.speedup.variableExtract +
+        results.speedup.whitespaceNorm) /
+      4;
+
+    this.results.set('wasm_regex_utils', results);
+    this.recordBaseline('wasm_regex_avg_speedup', avgSpeedup);
+
+    logger.log(`  Punctuation test: ${results.speedup.punctuationTest.toFixed(1)}x speedup`);
+    logger.log(`  Sentence split: ${results.speedup.sentenceSplit.toFixed(1)}x speedup`);
+    logger.log(`  Variable extract: ${results.speedup.variableExtract.toFixed(1)}x speedup`);
+    logger.log(`  Whitespace norm: ${results.speedup.whitespaceNorm.toFixed(1)}x speedup`);
+    logger.log(`\n  Average speedup: ${avgSpeedup.toFixed(1)}x ${avgSpeedup >= 3 ? '✅' : '⚠️'}`);
+    logger.log(
+      `  Target: 3-8x improvement | Current: ${avgSpeedup.toFixed(1)}x | ${avgSpeedup >= 3 ? '✅ TARGET MET' : '❌ NEEDS IMPROVEMENT'}`
     );
   }
 
