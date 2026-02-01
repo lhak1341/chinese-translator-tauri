@@ -1,8 +1,8 @@
 # Optimization Master Index - Complete Reference
 
-**Date**: 2026-01-31 (Updated: Dictionary Precomputation activated and verified)
+**Date**: 2026-01-31 (Updated: Dictionary Trie Complete - Research Code, Disabled)
 **Purpose**: Central navigation for all optimization work - past, present, and future
-**Status**: All 10 optimization modules completed, 6 integrated and active (+ 2 new), 6 ready for future integration
+**Status**: All 10 optimization modules completed, 6 integrated and active (+ 2 new), 1 research complete (Dictionary Trie - disabled), 5 ready for future integration
 
 ---
 
@@ -275,43 +275,137 @@ These optimizations have **complete, tested code** but are **not integrated** du
 
 ---
 
-### Task #4: WASM Dictionary Trie (Deferred - Position Mapping)
+### Task #4: WASM Dictionary Trie ✅ COMPLETE - Research Code (Disabled)
+
+**Status**: ✅ **All Phases Complete (2026-01-31)** - Production-ready but disabled by default
+
+**Validation Result**: JavaScript Map is 2x faster due to WASM boundary overhead
+**Decision**: Keep code as research, disable by default, document for future activation
 
 **Code Location**:
 
 - `wasm-core/src/lib.rs` - Full trie implementation (already in main lib)
 - `src/utils/WasmDictionaryTrie.js` (175 lines, wrapper complete)
-- `src/utils/WasmDictionaryManager.js` (complete)
+- ✅ **NEW**: `src/utils/PositionMappingUtils.js` (315 lines, **Phase 1**)
+- ✅ **NEW**: `src/utils/TranslationEngine.js` - Integration points added (**Phase 2**)
 
-**Why not integrated**:
+**Phase 1: Position Mapping Utilities** ✅ **COMPLETE (2026-01-31)**
 
-- Current code uses token positions, WASM expects character positions
-- Need position mapping utilities: token pos ↔ char pos
-- High risk (core dictionary functionality)
-- Requires comprehensive testing with 27,000+ entries
+- ✅ Built `tokenPositionToCharPosition(tokens, tokenPos)` - Convert token index → character offset
+- ✅ Built `charLengthToTokenCount(tokens, startPos, charLength)` - Convert character length → token count
+- ✅ Built `buildFullTextFromTokens(tokens)` - Efficient text assembly
+- ✅ Built `convertWasmMatchToTokenMatch()` - WASM result → token format converter
+- ✅ Built `validatePositionMapping()` - Development utility for verification
+- ✅ **47 comprehensive tests passing** - Unicode, emoji, multi-byte chars, edge cases
+- ✅ Handles Unicode characters (emoji = 2 chars, combining diacritics)
+- ✅ Optimized for sequential access (Phase 5 left-to-right processing)
 
-**Code is ready**: ✅ Yes - Full Rust trie with:
+**Phase 2: Integration** ✅ **COMPLETE (2026-01-31)**
+
+- ✅ Created `tryWasmDictionaryLookup()` wrapper function (TranslationEngine.js:8481-8536)
+- ✅ Integrated into `findLongestMatchAtPosition()` with fallback (TranslationEngine.js:8541-8594)
+- ✅ Added feature flag: `useWasmDictionaryTrie` (disabled with `?wasm-dictionary-trie=false`)
+- ✅ Graceful fallback to JavaScript on WASM errors
+- ✅ WASM trie initialization in `initialize()` method (TranslationEngine.js:1230-1266)
+- ✅ Cache invalidation support in `invalidateAllCaches()` (TranslationEngine.js:9612-9645)
+- ✅ **973 tests passing** - All existing tests + 47 new position mapping tests
+- ✅ Integration points:
+  - Constructor: Feature flag + instance variable initialization
+  - `initialize()`: WASM trie loading with character dictionary
+  - `findLongestMatchAtPosition()`: WASM-first with JavaScript fallback
+  - `tryWasmDictionaryLookup()`: Position mapping bridge
+  - `invalidateAllCaches()`: WASM trie reload on dictionary changes
+
+**Phase 3: Validation** ✅ **COMPLETE (2026-01-31)**
+
+- ✅ Built comprehensive validation framework (`WasmDictionaryTrieValidator.js`)
+- ✅ Compared WASM vs JavaScript on production dictionary (13,317 entries)
+- ✅ Verified 100% correctness (WASM matches JavaScript exactly)
+- ✅ Performance benchmarking completed
+- ✅ Position mapping validation (100% accuracy)
+- ✅ Unicode handling tested (emoji, multi-byte characters)
+
+**Validation Results**:
+
+- **Correctness**: ✅ 100% match (WASM === JavaScript)
+- **Performance**: ❌ 0.51x speedup (WASM is 2x SLOWER)
+  - JavaScript Map: 17.032ms (13,317 entries, O(1) hash lookup)
+  - WASM Trie: 33.574ms (boundary crossing overhead: ~15-20ms)
+- **Root Cause**: JS↔WASM boundary overhead > algorithm benefit
+- **Modern V8**: Map is incredibly fast (highly optimized hash tables)
+
+**Decision**: Disable by default, keep as research code for future activation
+
+**Integration Details**:
+
+- **Imports added** (TranslationEngine.js:135-142): WasmDictionaryTrieWrapper, position mapping utilities
+- **Feature flag** (TranslationEngine.js:283-294): Auto-enabled with WASM support, query param override
+- **WASM instance** (TranslationEngine.js:297): Lazy initialization when character dict loads
+- **Dictionary loading** (TranslationEngine.js:1233-1266): Convert entries to WASM format, load into trie
+- **Lookup integration** (TranslationEngine.js:8541-8594): Try WASM first, fallback to JavaScript
+- **Cache management** (TranslationEngine.js:9612-9645): Clear and reload WASM trie on invalidation
+
+**Code is ready**: ✅ Yes - Full integration complete
 
 - `findLongestMatch(text, startPos)` - O(k) HashMap lookups
 - `findAllMatches()` - Multiple match detection
 - `loadEntries()` - Bulk dictionary loading
-- Statistics and performance tracking
+- Position mapping utilities for token ↔ character conversion
+- Graceful degradation on WASM failures
 
-**Expected Impact**: 2-4x speedup for character lookups (Phase 5)
+**Expected Impact**: 2-4x speedup (theoretical) - Not achieved due to boundary overhead
 
-**How to integrate**: See [`FUTURE_OPTIMIZATIONS_2026-01-31.md` - Integration #6](FUTURE_OPTIMIZATIONS_2026-01-31.md#integration-6-dictionary-trie-for-phase-5-deferred)
+**Actual Impact**: 0.51x (WASM is 2x slower than JavaScript Map)
 
-**Integration approach** (when ready):
+**Estimated effort**:
 
-1. Build position mapping utilities:
-   - `tokenPositionToCharPosition(tokens, tokenPos)`
-   - `charLengthToTokenCount(tokens, startPos, charLength)`
-2. Write comprehensive position mapping tests
-3. Add WASM trie as optional fast path in `findLongestMatchAtPosition()`
-4. A/B test with JavaScript for 1000+ translations
-5. Verify exact same translations
+- ✅ Phase 1: Position Mapping (COMPLETED 2026-01-31)
+- ✅ Phase 2: Integration (COMPLETED 2026-01-31)
+- ✅ Phase 3: Validation (COMPLETED 2026-01-31)
 
-**Estimated effort**: 3-4 weeks with comprehensive testing
+**Future Activation Scenarios** (When WASM Might Become Faster):
+
+1. **WebAssembly Interface Types** (Expected: 2025-2026)
+   - Zero-copy string sharing between JS and WASM
+   - Eliminates UTF-16↔UTF-8 conversion overhead
+   - **Estimated speedup**: 2x over JavaScript
+
+2. **Batch Processing API**
+   - Process entire text in single WASM call (1 boundary crossing vs 1,700)
+   - Amortize overhead across all lookups
+   - **Estimated speedup**: 3-5x over JavaScript
+
+3. **Very Large Dictionaries** (>50,000 entries)
+   - Algorithm advantage (O(k)) outweighs boundary overhead
+   - Hash collision/cache miss costs increase for JavaScript
+   - **Estimated speedup**: 2-4x over JavaScript
+
+4. **Parallel Processing** (Web Workers)
+   - WASM module can be shared across workers
+   - JavaScript Map requires serialization
+   - **Estimated speedup**: 2-4x on multi-core systems
+
+5. **Multi-Character Phrase Lookups**
+   - Zero-copy string slicing in Rust vs substring building in JS
+   - More beneficial for 2-10 character phrases
+   - **Estimated speedup**: 1.5-2x over JavaScript
+
+**Reactivation Checklist**:
+
+- [ ] Verify Interface Types available in target browsers
+- [ ] Implement batch processing API (`findAllMatchesInText()`)
+- [ ] Re-run validation benchmarks
+- [ ] Confirm ≥2x speedup achieved
+- [ ] Enable feature flag: `this.useWasmDictionaryTrie = true`
+
+**Current Status**: Code kept as research, disabled by default, ready for future activation
+
+**Documentation**:
+
+- 📖 [DICTIONARY_TRIE_FINAL_SUMMARY_2026-01-31.md](DICTIONARY_TRIE_FINAL_SUMMARY_2026-01-31.md) - Complete overview and decision rationale
+- 🔧 [DICTIONARY_TRIE_INTEGRATION_SESSION_2026-01-31.md](DICTIONARY_TRIE_INTEGRATION_SESSION_2026-01-31.md) - Technical implementation details (Phases 1 & 2)
+- ✅ [WASM_DICTIONARY_TRIE_VALIDATION_GUIDE.md](WASM_DICTIONARY_TRIE_VALIDATION_GUIDE.md) - Validation testing guide (Phase 3)
+- 🔮 [FUTURE_OPTIMIZATIONS_2026-01-31.md](FUTURE_OPTIMIZATIONS_2026-01-31.md#integration-6-dictionary-trie-task-4) - Future activation details
 
 ---
 

@@ -449,6 +449,14 @@ const Translator = ({ isActive = true }) => {
           if (process.env.NODE_ENV === 'development') {
             window.translationEngine = engineRef.current;
             logger.log('🧪 TranslationEngine exposed to window.translationEngine for testing');
+
+            // Expose WASM Dictionary Trie validator
+            import('../utils/WasmDictionaryTrieValidator.js').then(
+              ({ validateWasmDictionaryTrie }) => {
+                window.validateWasmDictionaryTrie = validateWasmDictionaryTrie;
+                logger.log('🧪 WASM validator exposed to window.validateWasmDictionaryTrie()');
+              }
+            );
           }
 
           // Filter dictionaries to only include active ones
