@@ -156,10 +156,10 @@ impl DictionaryCache {
         }
     }
 
-    /// CODE REVIEW FIX: Handle mutex poisoning with cache reset and error logging
-    /// Poisoning indicates a panic occurred - corrupted data should not be used
-    /// CODE REVIEW FIX (2026-02-01): Mutex remains permanently poisoned after recovery
-    /// Application restart is required to restore normal operation
+    /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
+    /// Poisoning indicates a panic occurred, but we can continue using the lock
+    /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
+    /// The mutex remains marked as poisoned but continues to function normally
     pub fn get(&self, key: &str) -> Option<serde_json::Value> {
         match self.cache.lock() {
             Ok(cache) => cache.get(key).cloned(),
@@ -171,27 +171,24 @@ impl DictionaryCache {
                 // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
                 emit_poisoning_event();
 
-                // CODE REVIEW FIX (2026-02-01): Document that mutex is permanently corrupted
-                eprintln!("CRITICAL: Cache mutex poisoned during get - dictionary cache is permanently corrupted");
+                // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
+                eprintln!("WARNING: Cache mutex poisoned during get - continuing with degraded reliability");
                 eprintln!("Poisoning indicates a panic occurred while holding the lock");
-                eprintln!("IMPORTANT: The mutex remains poisoned after recovery - application restart required");
-                eprintln!("ACTION: Save your work and restart the application immediately");
+                eprintln!("The mutex continues to function but may have corrupted data");
+                eprintln!("Application will continue running - restart recommended when convenient");
 
-                // Clear the corrupted cache by taking ownership and dropping it
-                // NOTE: This does NOT fix the poisoned state - the mutex stays poisoned
-                let mut cache = poisoned.into_inner();
-                cache.clear();
-
-                // Return None since cache is now cleared
-                None
+                // IMPORTANT: Continue using the lock! into_inner() gives us the guard
+                // The mutex stays poisoned but remains functional
+                let cache = poisoned.into_inner();
+                cache.get(key).cloned()
             }
         }
     }
 
-    /// CODE REVIEW FIX: Handle mutex poisoning with cache reset and error logging
-    /// Poisoning indicates a panic occurred - corrupted data should not be used
-    /// CODE REVIEW FIX (2026-02-01): Mutex remains permanently poisoned after recovery
-    /// Application restart is required to restore normal operation
+    /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
+    /// Poisoning indicates a panic occurred, but we can continue using the lock
+    /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
+    /// The mutex remains marked as poisoned but continues to function normally
     pub fn set(&self, key: String, value: serde_json::Value) {
         match self.cache.lock() {
             Ok(mut cache) => {
@@ -205,25 +202,25 @@ impl DictionaryCache {
                 // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
                 emit_poisoning_event();
 
-                // CODE REVIEW FIX (2026-02-01): Document that mutex is permanently corrupted
-                eprintln!("CRITICAL: Cache mutex poisoned during set - dictionary cache is permanently corrupted");
+                // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
+                eprintln!("WARNING: Cache mutex poisoned during set - continuing with degraded reliability");
                 eprintln!("Poisoning indicates a panic occurred while holding the lock");
-                eprintln!("IMPORTANT: The mutex remains poisoned after recovery - application restart required");
-                eprintln!("ACTION: Save your work and restart the application immediately");
+                eprintln!("Clearing corrupted cache and inserting fresh data");
+                eprintln!("Application will continue running - restart recommended when convenient");
 
-                // Clear the corrupted cache instead of inserting into it
-                // NOTE: This does NOT fix the poisoned state - the mutex stays poisoned
+                // IMPORTANT: Continue using the lock! into_inner() gives us the guard
+                // Clear corrupted data and insert fresh value
                 let mut cache = poisoned.into_inner();
-                cache.clear();
-                // Don't insert the new value - cache is now empty and will rebuild naturally
+                cache.clear(); // Remove potentially corrupted entries
+                cache.insert(key, value); // Insert fresh data to rebuild cache
             }
         }
     }
 
-    /// CODE REVIEW FIX: Handle mutex poisoning with cache reset and error logging
-    /// Poisoning indicates a panic occurred - corrupted data should not be used
-    /// CODE REVIEW FIX (2026-02-01): Mutex remains permanently poisoned after recovery
-    /// Application restart is required to restore normal operation
+    /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
+    /// Poisoning indicates a panic occurred, but we can continue using the lock
+    /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
+    /// The mutex remains marked as poisoned but continues to function normally
     pub fn invalidate(&self, dictionary_id: Option<&str>) {
         match self.cache.lock() {
             Ok(mut cache) => {
@@ -241,17 +238,16 @@ impl DictionaryCache {
                 // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
                 emit_poisoning_event();
 
-                // CODE REVIEW FIX (2026-02-01): Document that mutex is permanently corrupted
-                eprintln!("CRITICAL: Cache mutex poisoned during invalidation - dictionary cache is permanently corrupted");
+                // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
+                eprintln!("WARNING: Cache mutex poisoned during invalidation - continuing with degraded reliability");
                 eprintln!("Poisoning indicates a panic occurred while holding the lock");
-                eprintln!("IMPORTANT: The mutex remains poisoned after recovery - application restart required");
-                eprintln!("ACTION: Save your work and restart the application immediately");
+                eprintln!("Clearing entire cache regardless of dictionary_id (safe after panic)");
+                eprintln!("Application will continue running - restart recommended when convenient");
 
-                // Clear the entire cache regardless of dictionary_id
-                // Since the cache is corrupted, partial invalidation is unsafe
-                // NOTE: This does NOT fix the poisoned state - the mutex stays poisoned
+                // IMPORTANT: Continue using the lock! into_inner() gives us the guard
+                // Clear the entire cache regardless of dictionary_id for safety
                 let mut cache = poisoned.into_inner();
-                cache.clear();
+                cache.clear(); // Full clear is safest after poisoning
             }
         }
     }

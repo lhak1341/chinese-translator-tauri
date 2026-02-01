@@ -7478,6 +7478,20 @@ export class TranslationEngine {
     const startTime = performance.now();
     this.log(DEBUG_LEVELS.VERBOSE, `🚀 Single-pass translation: ${tokens.length} tokens`);
 
+    // CODE REVIEW FIX 2026-02-01 (IMPORTANT-2): Early document size validation
+    // Validate token count before processing to prevent integer overflow in position calculations
+    // Position mappings multiply segment indices by character positions, which can exceed
+    // Number.MAX_SAFE_INTEGER for extremely large documents
+    const MAX_POSITION_VALUE = Number.MAX_SAFE_INTEGER / 1000; // Conservative multiplier
+    const MAX_SAFE_SEGMENTS = Math.floor(MAX_POSITION_VALUE / 100); // ~90 trillion segments
+
+    if (tokens.length > MAX_SAFE_SEGMENTS) {
+      throw new Error(
+        `Document too large: ${tokens.length.toLocaleString()} tokens exceeds safe limit of ${MAX_SAFE_SEGMENTS.toLocaleString()} tokens. ` +
+          `This prevents integer overflow in position calculations for clickable highlighting.`
+      );
+    }
+
     // Clear semantic token cache for this translation
     this.cachedSemanticTokens = null;
 

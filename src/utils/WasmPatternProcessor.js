@@ -56,6 +56,7 @@ import {
   verifyWasmInstance,
   verifyWasmBinaryIntegrity,
 } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
+import { fetchWasmBinary } from './wasmBinaryCache'; // CODE REVIEW FIX 2026-02-01 (HIGH-1): Shared WASM binary cache
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
@@ -106,18 +107,11 @@ export async function initializeWasmPatternProcessor(patternsDict) {
             );
           }
 
-          // CODE REVIEW FIX (CRITICAL-1): Fetch WASM binary for hash verification
+          // CODE REVIEW FIX 2026-02-01 (HIGH-1): Use cached WASM binary to avoid duplicate fetches
           const wasmFileName = 'translation_wasm_core_bg.wasm';
-          const wasmUrl = new URL(`../wasm/${wasmFileName}`, import.meta.url);
-
           logger.debug('Fetching WASM binary for integrity verification...');
-          const response = await fetch(wasmUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch WASM: ${response.statusText}`);
-          }
-
-          const wasmBinary = await response.arrayBuffer();
-          logger.debug(`WASM binary fetched (${wasmBinary.byteLength} bytes)`);
+          const wasmBinary = await fetchWasmBinary(wasmFileName);
+          logger.debug(`WASM binary ready (${wasmBinary.byteLength} bytes)`);
 
           // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
           const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);

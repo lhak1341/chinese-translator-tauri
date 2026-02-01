@@ -68,19 +68,24 @@ export function categorizeWasmError(error, component = 'unknown') {
     };
   }
 
-  // Serialization errors (boundary crossing issues)
-  if (message.includes('serialization') || message.includes('parse') || message.includes('json')) {
-    const isTransient = !message.includes('format'); // Format errors are permanent
+  // CODE REVIEW FIX 2026-02-01 (HIGH-2): Reorder from most specific to most general
+  // This prevents unreachable conditions where specific errors are caught by general checks
+
+  // Initialization errors (check BEFORE serialization)
+  // Example: "Failed to load WASM: JSON parse error" should be initialization, not serialization
+  if (message.includes('init') || message.includes('load')) {
+    const isTransient = message.includes('network') || message.includes('fetch');
     return {
-      type: WASM_ERROR_TYPES.SERIALIZATION,
-      userMessage: `${component} data format error`,
+      type: WASM_ERROR_TYPES.INITIALIZATION,
+      userMessage: `${component} initialization failed`,
       shouldReport: true,
       isTransient,
       component,
     };
   }
 
-  // WASM runtime errors
+  // WASM runtime errors (check BEFORE serialization)
+  // Ensures WASM-specific errors are categorized correctly
   if (message.includes('wasm') || message.includes('module')) {
     return {
       type: WASM_ERROR_TYPES.WASM_RUNTIME,
@@ -91,12 +96,13 @@ export function categorizeWasmError(error, component = 'unknown') {
     };
   }
 
-  // Initialization errors
-  if (message.includes('init') || message.includes('load')) {
-    const isTransient = message.includes('network') || message.includes('fetch');
+  // Serialization errors (boundary crossing issues)
+  // Now checked AFTER more specific initialization/runtime errors
+  if (message.includes('serialization') || message.includes('parse') || message.includes('json')) {
+    const isTransient = !message.includes('format'); // Format errors are permanent
     return {
-      type: WASM_ERROR_TYPES.INITIALIZATION,
-      userMessage: `${component} initialization failed`,
+      type: WASM_ERROR_TYPES.SERIALIZATION,
+      userMessage: `${component} data format error`,
       shouldReport: true,
       isTransient,
       component,
