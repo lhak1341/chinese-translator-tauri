@@ -120,9 +120,11 @@ pub fn init_app_handle(handle: tauri::AppHandle) {
 
 /// CODE REVIEW FIX (CRITICAL-2): Emit mutex poisoning event immediately
 /// Notifies frontend as soon as poisoning is detected, not just on health check
+/// CODE REVIEW FIX (2026-02-01): Added stderr fallback for early startup failures
 fn emit_poisoning_event() {
+    let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
+
     if let Some(app) = APP_HANDLE.get() {
-        let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
         let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
             "type": "mutex_poisoning",
             "event_count": event_count,
@@ -131,6 +133,14 @@ fn emit_poisoning_event() {
             "recommendation": "Save your work and restart the application to ensure data integrity.",
             "timestamp": chrono::Utc::now().to_rfc3339()
         }));
+    } else {
+        // Fallback: Log to stderr when AppHandle not yet initialized during early startup
+        eprintln!("═══════════════════════════════════════════════════════════════════════════");
+        eprintln!("CRITICAL: Dictionary cache corruption detected (mutex poisoning)");
+        eprintln!("Event count: {}", event_count);
+        eprintln!("AppHandle not yet initialized - unable to emit frontend notification");
+        eprintln!("ACTION REQUIRED: Restart the application to ensure data integrity");
+        eprintln!("═══════════════════════════════════════════════════════════════════════════");
     }
 }
 
@@ -250,16 +260,17 @@ impl RateLimiters {
     pub fn new() -> Self {
         Self {
             // 10 build_index calls per minute (expensive operation)
+            // CODE REVIEW FIX (2026-02-01): Use expect() instead of unwrap() for better error messages
             build_index: RateLimiter::direct(
-                Quota::per_minute(NonZeroU32::new(10).unwrap())
+                Quota::per_minute(NonZeroU32::new(10).expect("Rate limit quota must be non-zero"))
             ),
             // 30 load_parallel calls per minute
             load_parallel: RateLimiter::direct(
-                Quota::per_minute(NonZeroU32::new(30).unwrap())
+                Quota::per_minute(NonZeroU32::new(30).expect("Rate limit quota must be non-zero"))
             ),
             // 5 export/import operations per minute (very expensive)
             export_import: RateLimiter::direct(
-                Quota::per_minute(NonZeroU32::new(5).unwrap())
+                Quota::per_minute(NonZeroU32::new(5).expect("Rate limit quota must be non-zero"))
             ),
         }
     }
@@ -384,8 +395,11 @@ pub async fn create_proper_nouns_dictionary(
     }
 
     // Create empty dictionary
+    // CODE REVIEW FIX (2026-02-01): Proper error handling instead of unwrap()
     let empty_dict = serde_json::json!({});
-    fs::write(&file_path, serde_json::to_string_pretty(&empty_dict).unwrap())
+    let json_string = serde_json::to_string_pretty(&empty_dict)
+        .map_err(|e| format!("Failed to serialize empty dictionary: {}", e))?;
+    fs::write(&file_path, json_string)
         .map_err(|e| e.to_string())?;
 
     Ok(DictionaryResponse {

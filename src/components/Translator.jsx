@@ -296,6 +296,9 @@ const Translator = ({ isActive = true }) => {
   // - Alternative (useEffect cleanup) would be more complex and less clear
   const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
 
+  // CODE REVIEW FIX (2026-02-01): Track highlighting computation state for proper cleanup
+  const highlightingComputationRef = useRef(null);
+
   /**
    * Filters dictionaries to include only active proper noun dictionaries
    *
@@ -328,6 +331,30 @@ const Translator = ({ isActive = true }) => {
     }
 
     return filtered;
+  }, []);
+
+  /**
+   * CODE REVIEW FIX (2026-02-01): Validate semantic array size to prevent integer overflow
+   * Throws error if array exceeds MAX_SAFE_SEGMENTS to prevent position calculation overflow
+   *
+   * @param {Object} semanticArrays - Semantic arrays object with original/translated arrays
+   * @param {string} context - Context description for error message
+   * @throws {Error} If array size exceeds safe limit
+   */
+  const validateSemanticArraySize = useCallback((semanticArrays, context) => {
+    if (!semanticArrays?.original) return;
+
+    const arrayLength = semanticArrays.original.length;
+    if (arrayLength > MAX_SAFE_SEGMENTS) {
+      const error = new Error(
+        `Document too large for ${context}: ${arrayLength.toLocaleString()} segments exceeds maximum ${MAX_SAFE_SEGMENTS.toLocaleString()}`
+      );
+      logger.error(error.message);
+      toast.error(
+        `Document too large: ${arrayLength.toLocaleString()} segments (max: ${MAX_SAFE_SEGMENTS.toLocaleString()})`
+      );
+      throw error;
+    }
   }, []);
 
   /**
@@ -911,7 +938,18 @@ const Translator = ({ isActive = true }) => {
     // Prevents race conditions when dependencies change during scoring algorithm
     let cancelled = false;
 
-    if (!semanticArrays || !characterOnlySemanticArrays) return;
+    // CODE REVIEW FIX (2026-02-01): Track computation state for proper cleanup
+    const computationState = {
+      cancelled: false,
+      targetSegment: null,
+      allMatches: null,
+    };
+    highlightingComputationRef.current = computationState;
+
+    if (!semanticArrays || !characterOnlySemanticArrays) {
+      highlightingComputationRef.current = null;
+      return;
+    }
 
     // Skip this mapping if the highlight change originated from Character Only
     if (isCharacterOnlyClick) {
@@ -1181,8 +1219,15 @@ const Translator = ({ isActive = true }) => {
     }
 
     // HIGH-1 FIX: Cleanup function to cancel operation if dependencies change
+    // CODE REVIEW FIX (2026-02-01): Clear intermediate computation state to prevent memory leaks
     return () => {
       cancelled = true;
+      if (highlightingComputationRef.current) {
+        highlightingComputationRef.current.cancelled = true;
+        highlightingComputationRef.current.targetSegment = null;
+        highlightingComputationRef.current.allMatches = null;
+        highlightingComputationRef.current = null;
+      }
     };
   }, [
     highlightedUnitIndex,
@@ -1376,6 +1421,13 @@ const Translator = ({ isActive = true }) => {
           logger.log(
             `🎯 CHARACTER ONLY TRANSLATION END: ${charOnlyId} - Arrays length: ${result.semanticArrays.original?.length || 0}`
           );
+          // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
+          try {
+            validateSemanticArraySize(result.semanticArrays, 'character-only translation');
+          } catch (validationError) {
+            // Validation error already logged and toasted in validateSemanticArraySize
+            return;
+          }
           // Use requestAnimationFrame for smooth UI updates during parallel processing
           requestAnimationFrame(() => {
             setCharacterOnlyText(result.translatedText);
@@ -1593,6 +1645,18 @@ const Translator = ({ isActive = true }) => {
               debouncedProgressHandler.current.flushUpdates();
 
               if (segmentResult && segmentResult.semanticArrays) {
+                // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
+                try {
+                  validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
+                } catch (validationError) {
+                  // Validation error already logged and toasted in validateSemanticArraySize
+                  // Clear translation state on overflow
+                  setTranslatedText('');
+                  setSemanticArrays(null);
+                  setPrebuiltSegments([]);
+                  return;
+                }
+
                 setSemanticArrays(segmentResult.semanticArrays);
                 setPrebuiltSegments(segmentResult.prebuiltSegments || []);
               }
@@ -2286,6 +2350,21 @@ const Translator = ({ isActive = true }) => {
                 try {
                   // Use optimized dual-mode translation for reload performance
                   const dualResults = await engineRef.current.translateDualModeOptimized(inputText);
+
+                  // CODE REVIEW FIX (2026-02-01): Validate semantic array sizes before setting
+                  try {
+                    validateSemanticArraySize(
+                      dualResults.fullResult.semanticArrays,
+                      'full translation'
+                    );
+                    validateSemanticArraySize(
+                      dualResults.characterResult.semanticArrays,
+                      'character-only translation'
+                    );
+                  } catch (validationError) {
+                    // Validation error already logged and toasted in validateSemanticArraySize
+                    return;
+                  }
 
                   // Update both translations efficiently
                   setTranslatedText(dualResults.fullResult.translatedText);

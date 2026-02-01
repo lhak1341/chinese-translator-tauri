@@ -5934,6 +5934,13 @@ export class TranslationEngine {
     let cumulativeTokenCount = 0;
 
     while (processedChunks < translatableChunks.length) {
+      // CODE REVIEW FIX (2026-02-01): Check abort signal between batches
+      // Allows users to cancel long translations mid-processing
+      if (options.abortSignal?.aborted) {
+        this.log(DEBUG_LEVELS.WARN, '🛑 Translation cancelled by user (abort signal)');
+        throw new Error('Translation cancelled by user');
+      }
+
       // Adaptive batch sizing: adjust based on performance history
       if (this.batchPerformanceHistory.length >= 2) {
         const recentBatches = this.batchPerformanceHistory.slice(-2);
@@ -6962,6 +6969,12 @@ export class TranslationEngine {
           isParallelChunk: true,
         })
       );
+
+      // CODE REVIEW FIX (2026-02-01): Check abort signal before parallel processing
+      if (options.abortSignal?.aborted) {
+        this.log(DEBUG_LEVELS.WARN, '🛑 Translation cancelled by user (abort signal)');
+        throw new Error('Translation cancelled by user');
+      }
 
       const translatedContents = await Promise.all(translationPromises);
 

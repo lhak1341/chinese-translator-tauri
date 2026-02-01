@@ -73,6 +73,16 @@ export async function initializeWasmNumberProcessor() {
     return false;
   }
 
+  // CODE REVIEW FIX (2026-02-01): Check cooldown period before creating promise
+  // This prevents rapid retry attempts from bypassing the backoff mechanism
+  if (retryAllowedAfter > Date.now()) {
+    const remainingMs = retryAllowedAfter - Date.now();
+    logger.warn(
+      `⏳ WASM NumberProcessor initialization on cooldown (${Math.ceil(remainingMs / 1000)}s remaining)`
+    );
+    return false;
+  }
+
   // Return existing promise if initialization in progress
   if (initializationPromise) {
     return initializationPromise;
