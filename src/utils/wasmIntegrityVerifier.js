@@ -271,8 +271,19 @@ export async function verifyWasmBinaryIntegrity(wasmFileName, wasmBinary) {
   const manifest = await loadIntegrityManifest();
 
   if (!manifest) {
-    warnings.push('Integrity manifest not available - hash verification skipped');
-    return { valid: true, errors, warnings }; // Don't fail if manifest unavailable
+    // CODE REVIEW FIX (2026-02-01): Fail securely in production if manifest is missing
+    // Missing manifest in production could indicate tampering or build failure
+    if (import.meta.env.PROD) {
+      errors.push('CRITICAL: Integrity manifest missing in production build');
+      errors.push('WASM verification cannot proceed without integrity manifest');
+      logger.error('❌ WASM integrity verification failed: manifest missing in production');
+      return { valid: false, errors, warnings };
+    } else {
+      // Development: Allow missing manifest for faster iteration
+      warnings.push('Integrity manifest not available - hash verification skipped (dev mode)');
+      logger.warn('⚠️  Development mode: Skipping WASM hash verification');
+      return { valid: true, errors, warnings };
+    }
   }
 
   // Check if file is in manifest

@@ -280,8 +280,11 @@ const Translator = ({ isActive = true }) => {
   // ISSUE-4 FIX: Timing constant for highlight scroll delay (eliminates magic number)
   // Wait for React state update to complete before scrolling to highlighted element
   const HIGHLIGHT_SCROLL_DELAY_MS = 10;
-  // CODE REVIEW FIX (IMPORTANT-4): Prevent integer overflow in position mapping for large documents
-  const MAX_SAFE_SEGMENTS = Number.MAX_SAFE_INTEGER / 1000; // ~9 quadrillion segments
+  // CODE REVIEW FIX (2026-02-01): Prevent integer overflow in position calculations for large documents
+  // Position mapping multiplies segment indices by character positions, so we need conservative bounds
+  // Calculation: (MAX_SAFE_INTEGER / 1000) / 100 assumes ~100 chars per segment average
+  const MAX_POSITION_VALUE = Number.MAX_SAFE_INTEGER / 1000; // Conservative multiplier for position arithmetic
+  const MAX_SAFE_SEGMENTS = Math.floor(MAX_POSITION_VALUE / 100); // ~90 trillion segments (assumes 100 chars/segment)
 
   // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
   const highlightScrollTimeoutRef = useRef(null);

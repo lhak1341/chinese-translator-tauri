@@ -401,6 +401,10 @@ export class TranslationEngine {
 
     // CRITICAL-3 FIX: Track pattern processing failures for auto-disable
     this.patternFailureCount = 0;
+
+    // CODE REVIEW FIX (2026-02-01): Track pending cleanup callbacks for proper cancellation
+    // Prevents memory leak when translation is aborted before cleanup completes
+    this.pendingCleanupCallbacks = new Set();
   }
 
   /**
@@ -1053,6 +1057,24 @@ export class TranslationEngine {
     if (this.properNounTranslations) {
       this.properNounTranslations.clear();
       this.properNounTranslations = null;
+    }
+
+    // CODE REVIEW FIX (2026-02-01): Cancel all pending cleanup callbacks to prevent memory leak
+    // Prevents callbacks from accessing destroyed state after engine is destroyed
+    if (this.pendingCleanupCallbacks && this.pendingCleanupCallbacks.size > 0) {
+      this.pendingCleanupCallbacks.forEach((callbackId) => {
+        try {
+          if (typeof cancelIdleCallback !== 'undefined') {
+            cancelIdleCallback(callbackId);
+          } else {
+            clearTimeout(callbackId);
+          }
+        } catch (error) {
+          // Ignore errors during cleanup (callback may have already fired)
+        }
+      });
+      this.pendingCleanupCallbacks.clear();
+      logger.log(`🧹 Cancelled ${this.pendingCleanupCallbacks.size} pending cleanup callbacks`);
     }
 
     // Reset initialization state
@@ -5835,11 +5857,23 @@ export class TranslationEngine {
             performanceLogger.endTiming(`memory-cleanup-${level}`);
           };
 
+          // CODE REVIEW FIX (2026-02-01): Track and cancel cleanup callbacks to prevent memory leak
           // Use requestIdleCallback if available, otherwise defer with setTimeout
           if (typeof requestIdleCallback !== 'undefined') {
-            requestIdleCallback(automaticCleanupFn, { timeout: UI_TIMEOUTS.IDLE_CALLBACK_TIMEOUT });
+            const callbackId = requestIdleCallback(
+              () => {
+                this.pendingCleanupCallbacks.delete(callbackId);
+                automaticCleanupFn();
+              },
+              { timeout: UI_TIMEOUTS.IDLE_CALLBACK_TIMEOUT }
+            );
+            this.pendingCleanupCallbacks.add(callbackId);
           } else {
-            setTimeout(automaticCleanupFn, 0);
+            const callbackId = setTimeout(() => {
+              this.pendingCleanupCallbacks.delete(callbackId);
+              automaticCleanupFn();
+            }, 0);
+            this.pendingCleanupCallbacks.add(callbackId);
           }
         } else if (level === 'critical') {
           // CRITICAL cleanup must be synchronous - we're in trouble and need immediate action
