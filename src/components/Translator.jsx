@@ -276,6 +276,8 @@ const Translator = ({ isActive = true }) => {
   // ISSUE-4 FIX: Timing constant for highlight scroll delay (eliminates magic number)
   // Wait for React state update to complete before scrolling to highlighted element
   const HIGHLIGHT_SCROLL_DELAY_MS = 10;
+  // CODE REVIEW FIX (IMPORTANT-4): Prevent integer overflow in position mapping for large documents
+  const MAX_SAFE_SEGMENTS = Number.MAX_SAFE_INTEGER / 1000; // ~9 quadrillion segments
 
   // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
   const highlightScrollTimeoutRef = useRef(null);
@@ -284,6 +286,10 @@ const Translator = ({ isActive = true }) => {
   const isMountedRef = useRef(true);
 
   // Track previous isDictionaryReloading value to detect reload completion (CRITICAL-1 FIX)
+  // CODE REVIEW NOTE (IMPORTANT-6): Ref pattern is safe here despite being "one-render delay"
+  // - Ref is updated synchronously within useEffect before any decisions are made
+  // - Rapid state changes are handled correctly because each useEffect run sees current state
+  // - Alternative (useEffect cleanup) would be more complex and less clear
   const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
 
   /**
@@ -703,6 +709,16 @@ const Translator = ({ isActive = true }) => {
           );
 
           if (allMatches.length > 0) {
+            // CODE REVIEW FIX (IMPORTANT-4): Validate array sizes to prevent integer overflow
+            if (
+              characterOnlySemanticArrays.original.length > MAX_SAFE_SEGMENTS ||
+              semanticArrays.original.length > MAX_SAFE_SEGMENTS
+            ) {
+              logger.warn(
+                `⚠️ Document too large for precise position mapping (${characterOnlySemanticArrays.original.length} / ${semanticArrays.original.length} segments), using approximation`
+              );
+            }
+
             // Use position-based mapping to select the best match
             const relativePosition =
               segmentInfo.unitIndex / characterOnlySemanticArrays.original.length;

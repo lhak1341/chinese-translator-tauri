@@ -282,6 +282,10 @@ describe('WasmPatternProcessor Error Handling', () => {
       expect(result1).toBe(false);
       expect(hasWasmPatternProcessorFailed()).toBe(true);
 
+      // CODE REVIEW FIX: Wait for cooldown period (5 seconds) before retry
+      // The race condition fix adds a cooldown to prevent duplicate initialization attempts
+      await new Promise((resolve) => setTimeout(resolve, 5500)); // Wait 5.5s (cooldown is 5s)
+
       // Second attempt succeeds (clears failure state)
       shouldFail = false;
       const result2 = await reinitializeWasmPatternProcessor({ X的Y: 'Y của X' });
@@ -289,7 +293,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       expect(result2).toBe(true);
       expect(hasWasmPatternProcessorFailed()).toBe(false); // Failure cleared
       expect(mockInit).toHaveBeenCalledTimes(1); // Called once on successful reinit
-    });
+    }, 10000); // 10 second timeout to accommodate 5.5s cooldown wait
   });
 
   describe('Statistics', () => {

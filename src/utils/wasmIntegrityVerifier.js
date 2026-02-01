@@ -8,8 +8,19 @@
  * - Build system failures that produce invalid WASM
  * - Tampering attempts (though Tauri apps are code-signed)
  *
- * Note: This is structural validation, not cryptographic verification.
- * For cryptographic integrity, Tauri's code signing provides app-level protection.
+ * Current Implementation: Structural validation only
+ * - Verifies expected exports exist (classes, functions, minimum export count)
+ * - Checks for suspicious property names
+ * - Validates instance methods
+ *
+ * CODE REVIEW RECOMMENDATION (IMPORTANT-5): Add cryptographic checksum verification
+ * Future Enhancement: Verify WASM binary integrity with SHA-256 checksums
+ * - Generate checksums at build time (wasm-pack build → compute hash → embed in JS)
+ * - Validate binary hash before instantiation
+ * - Detect corrupted files that pass structural validation but have incorrect contents
+ * - Implementation requires build-time integration with wasm-pack
+ *
+ * For now, Tauri's code signing provides app-level cryptographic protection.
  */
 
 import { logger } from './logger';

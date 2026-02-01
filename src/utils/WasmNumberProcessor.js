@@ -56,6 +56,9 @@ let wasmNumberProcessor = null;
 let initializationPromise = null;
 let initializationFailed = false;
 let showedNumberWarning = false;
+// CODE REVIEW FIX (CRITICAL-1): Prevent race condition in promise cache clearing
+let retryAllowedAfter = 0;
+const RETRY_COOLDOWN_MS = 5000; // 5 seconds
 
 /**
  * Initialize the WASM NumberProcessor
@@ -229,11 +232,21 @@ export function getWasmNumberProcessorStatus() {
  * @returns {Promise<boolean>} True if re-initialization succeeded
  */
 export async function reinitializeWasmNumberProcessor() {
+  // CODE REVIEW FIX (CRITICAL-1): Check cooldown period before allowing retry
+  if (retryAllowedAfter > Date.now()) {
+    const remainingMs = retryAllowedAfter - Date.now();
+    logger.warn(
+      `⏳ WASM NumberProcessor retry on cooldown (${Math.ceil(remainingMs / 1000)}s remaining)`
+    );
+    return false;
+  }
+
   // Clear existing state
   wasmNumberProcessor = null;
   initializationPromise = null;
   initializationFailed = false;
   showedNumberWarning = false; // Reset warning flag to allow new notifications
+  retryAllowedAfter = 0; // Reset cooldown
 
   // Re-initialize
   return initializeWasmNumberProcessor();
@@ -255,10 +268,16 @@ export function cleanupWasmNumberProcessor() {
 }
 
 // Auto-initialize on import (non-blocking)
-// CODE REVIEW FIX (CRITICAL-2): Clear promise cache and partial state on failure to allow retry
+// CODE REVIEW FIX (CRITICAL-1): Use cooldown period to prevent race condition in promise cache clearing
 initializeWasmNumberProcessor().catch((err) => {
   logger.warn('Background WASM NumberProcessor initialization failed:', err);
   initializationFailed = true; // Mark initialization as failed to prevent retries
-  initializationPromise = null; // CRITICAL: Clear cache to allow manual retry
-  wasmNumberProcessor = null; // CODE REVIEW FIX (CRITICAL-2): Clear partial state
+  wasmNumberProcessor = null; // Clear partial state
+
+  // CODE REVIEW FIX (CRITICAL-1): Set cooldown before clearing promise cache
+  // This prevents concurrent imports during same module load cycle from creating duplicate initialization attempts
+  retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
+  setTimeout(() => {
+    initializationPromise = null; // Clear cache after cooldown
+  }, RETRY_COOLDOWN_MS);
 });

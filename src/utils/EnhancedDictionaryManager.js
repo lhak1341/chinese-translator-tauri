@@ -161,49 +161,50 @@ export class EnhancedDictionaryManager extends DictionaryManager {
           }
         } else {
           this.log(1, '⚠️ Batch loading failed, falling back to sequential loading');
+          // CODE REVIEW FIX (CODE-QUALITY-7): Sequential loading now returns validation result
           await this.syncDictionariesToWasmSequential();
-
-          // HIGH-PRIORITY FIX: Validate sequential loading results
-          // Batch loading validates WASM sync, sequential fallback must too
-          // Without this: sequential loading bypasses undefined value checks → "undefined" in translations
-          const sequentialValidation = await this.validateWasmSync(allDictionaries);
-          if (!sequentialValidation) {
-            // Debug level - validation failure is logged elsewhere with details
-            this.log(2, '⚠️ Sequential WASM sync validation failed');
-          } else {
-            this.log(1, '✅ Sequential WASM sync validated successfully');
-          }
         }
       } catch (error) {
         this.log(0, '❌ Batch loading error, falling back to sequential:', error);
+        // CODE REVIEW FIX (CODE-QUALITY-7): Sequential loading now returns validation result
         await this.syncDictionariesToWasmSequential();
-
-        // HIGH-PRIORITY FIX: Validate sequential loading results (error path)
-        const sequentialValidation = await this.validateWasmSync(allDictionaries);
-        if (!sequentialValidation) {
-          // Debug level - validation failure is logged elsewhere with details
-          this.log(2, '⚠️ Sequential WASM sync validation failed (after error)');
-        } else {
-          this.log(1, '✅ Sequential WASM sync validated successfully (after error)');
-        }
       }
     }
   }
 
   /**
    * Fallback sequential loading (original method)
+   * CODE REVIEW FIX (CODE-QUALITY-7): Add validation after sequential loading
    */
   async syncDictionariesToWasmSequential() {
+    const allDictionaries = [];
+
     for (const [name, trie] of this.dictionaries) {
       try {
         const entries = this.extractTrieEntries(trie);
         await this.wasmManager.loadDictionary(name, entries);
 
+        allDictionaries.push({ name, entries });
         this.log(2, `📚 Synced dictionary '${name}': ${entries.length} entries`);
       } catch (error) {
         this.log(0, `❌ Failed to sync dictionary '${name}':`, error);
       }
     }
+
+    // CODE REVIEW FIX (CODE-QUALITY-7): Validate sequential loading results
+    // This ensures consistency with batch loading validation
+    if (allDictionaries.length > 0) {
+      const validationSuccess = await this.validateWasmSync(allDictionaries);
+      if (!validationSuccess) {
+        this.log(2, '⚠️ Sequential WASM sync validation failed');
+        return false;
+      } else {
+        this.log(1, '✅ Sequential WASM sync validated successfully');
+        return true;
+      }
+    }
+
+    return allDictionaries.length > 0;
   }
 
   /**

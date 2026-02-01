@@ -9,6 +9,39 @@
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from './utils/logger.js';
 
+// CODE REVIEW FIX (CRITICAL-2): Whitelist validation for dictionary IDs to prevent path traversal
+// Allow alphanumeric, underscore, hyphen, and dot (for .json extensions)
+// Still prevents path traversal (../, ../../etc/passwd) via no forward/back slashes
+const VALID_DICTIONARY_ID = /^[a-zA-Z0-9_.-]+$/;
+
+/**
+ * Validate dictionary ID to prevent path traversal attacks
+ * @param {string} dictionaryId - The dictionary identifier to validate
+ * @returns {boolean} True if valid, false otherwise
+ */
+function validateDictionaryId(dictionaryId) {
+  if (!dictionaryId || typeof dictionaryId !== 'string') {
+    return false;
+  }
+
+  // Check basic format (alphanumeric, underscore, hyphen, dot)
+  if (!VALID_DICTIONARY_ID.test(dictionaryId)) {
+    return false;
+  }
+
+  // Explicitly block path traversal attempts
+  if (dictionaryId.includes('..') || dictionaryId.includes('/') || dictionaryId.includes('\\')) {
+    return false;
+  }
+
+  // Block absolute paths (starting with / or drive letter)
+  if (dictionaryId.startsWith('/') || /^[a-zA-Z]:/.test(dictionaryId)) {
+    return false;
+  }
+
+  return true;
+}
+
 // Create the API object that mimics window.electronAPI
 const tauriAPI = {
   /**
@@ -32,6 +65,12 @@ const tauriAPI = {
    * @returns {Promise<{success: boolean, data?: any, error?: string}>}
    */
   saveDictionary: async (dictionaryId, data) => {
+    // CODE REVIEW FIX (CRITICAL-2): Validate dictionary ID to prevent path traversal
+    if (!validateDictionaryId(dictionaryId)) {
+      logger.error('Invalid dictionary ID format:', dictionaryId);
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+
     try {
       const result = await invoke('save_dictionary', {
         dictionaryId,
@@ -53,6 +92,12 @@ const tauriAPI = {
    * @returns {Promise<{success: boolean, data?: any, error?: string}>}
    */
   loadDictionary: async (dictionaryId) => {
+    // CODE REVIEW FIX (CRITICAL-2): Validate dictionary ID to prevent path traversal
+    if (!validateDictionaryId(dictionaryId)) {
+      logger.error('Invalid dictionary ID format:', dictionaryId);
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+
     try {
       const result = await invoke('load_dictionary', { dictionaryId });
       if (!result.success && result.error !== 'File not found') {
@@ -71,6 +116,24 @@ const tauriAPI = {
    * @returns {Promise<{total: number, successful: number, failed: number, results: Array<{dictionary_id: string, success: boolean, data?: any, error?: string}>}>}
    */
   loadDictionariesParallel: async (dictionaryIds) => {
+    // CODE REVIEW FIX (CRITICAL-2): Validate all dictionary IDs before proceeding
+    const invalidIds = dictionaryIds.filter((id) => !validateDictionaryId(id));
+    if (invalidIds.length > 0) {
+      logger.error('Invalid dictionary ID format(s):', invalidIds);
+      return {
+        total: dictionaryIds.length,
+        successful: 0,
+        failed: dictionaryIds.length,
+        results: dictionaryIds.map((id) => ({
+          dictionary_id: id,
+          success: false,
+          error: validateDictionaryId(id)
+            ? 'Batch validation failed'
+            : 'Invalid dictionary ID format (no path traversal allowed)',
+        })),
+      };
+    }
+
     try {
       const result = await invoke('load_dictionaries_parallel', { dictionaryIds });
       return result;
@@ -121,6 +184,12 @@ const tauriAPI = {
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   createProperNounsDictionary: async (dictionaryId) => {
+    // CODE REVIEW FIX (CRITICAL-2): Validate dictionary ID to prevent path traversal
+    if (!validateDictionaryId(dictionaryId)) {
+      logger.error('Invalid dictionary ID format:', dictionaryId);
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+
     try {
       return await invoke('create_proper_nouns_dictionary', { dictionaryId });
     } catch (error) {
@@ -136,6 +205,12 @@ const tauriAPI = {
    * @returns {Promise<{success: boolean, message?: string, error?: string}>}
    */
   renameProperNounsDictionary: async (oldDictionaryId, newDictionaryId) => {
+    // CODE REVIEW FIX (CRITICAL-2): Validate both dictionary IDs to prevent path traversal
+    if (!validateDictionaryId(oldDictionaryId) || !validateDictionaryId(newDictionaryId)) {
+      logger.error('Invalid dictionary ID format:', { oldDictionaryId, newDictionaryId });
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+
     try {
       return await invoke('rename_proper_nouns_dictionary', {
         oldDictionaryId,

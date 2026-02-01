@@ -61,6 +61,9 @@ let initializationFailed = false;
 // CODE REVIEW FIX (MEDIUM-3): Reduced from 30min to 10min for better UX
 let lastPatternWarningTime = 0;
 const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
+// CODE REVIEW FIX (CRITICAL-1): Prevent race condition in promise cache clearing
+let retryAllowedAfter = 0;
+const RETRY_COOLDOWN_MS = 5000; // 5 seconds
 
 /**
  * Initialize the WASM Pattern Processor
@@ -141,10 +144,16 @@ export async function initializeWasmPatternProcessor(patternsDict) {
       logger.error('❌ Failed to initialize WASM Pattern Processor after retries:', error);
       logger.error('Pattern matching will not be available. Please check WASM configuration.');
       initializationFailed = true;
-      // CODE REVIEW FIX (CRITICAL-2): Clear partial state on failure
-      initializationPromise = null;
+      // CODE REVIEW FIX (CRITICAL-1): Use cooldown period to prevent race condition
       wasmPatternProcessor = null;
       wasmModule = null;
+
+      // Set cooldown before clearing promise cache
+      retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
+      setTimeout(() => {
+        initializationPromise = null; // Clear cache after cooldown
+      }, RETRY_COOLDOWN_MS);
+
       return false;
     }
   })());
@@ -291,11 +300,21 @@ export function getWasmPatternProcessorStats() {
  * @returns {Promise<boolean>} True if re-initialization succeeded
  */
 export async function reinitializeWasmPatternProcessor(patternsDict) {
+  // CODE REVIEW FIX (CRITICAL-1): Check cooldown period before allowing retry
+  if (retryAllowedAfter > Date.now()) {
+    const remainingMs = retryAllowedAfter - Date.now();
+    logger.warn(
+      `⏳ WASM PatternProcessor retry on cooldown (${Math.ceil(remainingMs / 1000)}s remaining)`
+    );
+    return false;
+  }
+
   // Clear existing state
   wasmPatternProcessor = null;
   initializationPromise = null;
   initializationFailed = false;
   lastPatternWarningTime = 0; // MEDIUM-3 FIX: Reset warning time to allow new notifications
+  retryAllowedAfter = 0; // Reset cooldown
 
   // Re-initialize
   return initializeWasmPatternProcessor(patternsDict);
