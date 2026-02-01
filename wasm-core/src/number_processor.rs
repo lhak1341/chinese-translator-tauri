@@ -54,20 +54,45 @@ pub struct NumberProcessor {
 // ============================================================================
 // CODE REVIEW FIX (CRITICAL-3): Move regex out of parse_chinese_number loop
 // Prevents O(n) regex allocations during recursive parsing
+// CODE REVIEW FIX (2026-02-01): Enhanced error messages for WASM debugging
 lazy_static! {
     // Parsing patterns (used in recursive parse_chinese_number)
     static ref THOUSANDS_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])千(.*)").expect("Failed to compile THOUSANDS_RE");
+        Regex::new(r"([一二两三四五六七八九])千(.*)").expect(
+            "CRITICAL: THOUSANDS_RE regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
     static ref HUNDREDS_ZERO_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])百零([一二两三四五六七八九])").expect("Failed to compile HUNDREDS_ZERO_RE");
+        Regex::new(r"([一二两三四五六七八九])百零([一二两三四五六七八九])").expect(
+            "CRITICAL: HUNDREDS_ZERO_RE regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
     static ref HUNDREDS_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])百(.*)").expect("Failed to compile HUNDREDS_RE");
+        Regex::new(r"([一二两三四五六七八九])百(.*)").expect(
+            "CRITICAL: HUNDREDS_RE regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
     static ref ZERO_TENS_RE: Regex =
-        Regex::new(r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$").expect("Failed to compile ZERO_TENS_RE");
+        Regex::new(r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$").expect(
+            "CRITICAL: ZERO_TENS_RE regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
     static ref TENS_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])十([一二三四五六七八九])?").expect("Failed to compile TENS_RE");
+        Regex::new(r"([一二两三四五六七八九])十([一二三四五六七八九])?").expect(
+            "CRITICAL: TENS_RE regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
     static ref IMPLICIT_TENS_PARSE_RE: Regex =
-        Regex::new(r"^十([一二三四五六七八九])$").expect("Failed to compile IMPLICIT_TENS_PARSE_RE");
+        Regex::new(r"^十([一二三四五六七八九])$").expect(
+            "CRITICAL: IMPLICIT_TENS_PARSE_RE regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
 }
 
 // ============================================================================

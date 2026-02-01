@@ -21,38 +21,63 @@ use wasm_bindgen::prelude::*;
 // ============================================================================
 // TEXT CHUNKING PATTERNS (lazy_static for zero overhead)
 // ============================================================================
+// CODE REVIEW FIX (2026-02-01): Enhanced error messages for WASM debugging
 
 lazy_static! {
     /// Chinese punctuation marks for text chunking
     /// Matches: 。！？；：、，
     static ref CHINESE_PUNCTUATION: Regex =
-        Regex::new(r"[。！？；：、，]").expect("Failed to compile CHINESE_PUNCTUATION");
+        Regex::new(r"[。！？；：、，]").expect(
+            "CRITICAL: CHINESE_PUNCTUATION regex compilation failed in regex_utils.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
 
     /// Sentence-ending punctuation
     /// Matches: 。！？
     static ref SENTENCE_END: Regex =
-        Regex::new(r"[。！？]").expect("Failed to compile SENTENCE_END");
+        Regex::new(r"[。！？]").expect(
+            "CRITICAL: SENTENCE_END regex compilation failed in regex_utils.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
 
     /// All punctuation including Western
     /// Matches both Chinese and Western punctuation
     static ref ALL_PUNCTUATION: Regex =
-        Regex::new(r"[。！？；：、，.!?;:,]").expect("Failed to compile ALL_PUNCTUATION");
+        Regex::new(r"[。！？；：、，.!?;:,]").expect(
+            "CRITICAL: ALL_PUNCTUATION regex compilation failed in regex_utils.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
 
     /// Whitespace normalization
     /// Matches: multiple spaces, tabs, newlines
     static ref WHITESPACE: Regex =
-        Regex::new(r"\s+").expect("Failed to compile WHITESPACE");
+        Regex::new(r"\s+").expect(
+            "CRITICAL: WHITESPACE regex compilation failed in regex_utils.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
 
     /// Pattern variable extraction (used in PatternTemplateEngine)
     /// Matches: {X}, {Y}, {Z}, etc.
     static ref PATTERN_VARIABLE: Regex =
-        Regex::new(r"\{([A-Z])\}").expect("Failed to compile PATTERN_VARIABLE");
+        Regex::new(r"\{([A-Z])\}").expect(
+            "CRITICAL: PATTERN_VARIABLE regex compilation failed in regex_utils.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        );
 
     /// Number range detection
     /// Matches: 五六十, 二三十, etc.
     static ref NUMBER_RANGE: Regex =
         Regex::new(r"([一二两三四五六七八九十])([一二两三四五六七八九十])十")
-            .expect("Failed to compile NUMBER_RANGE");
+            .expect(
+                "CRITICAL: NUMBER_RANGE regex compilation failed in regex_utils.rs. \
+                 This indicates a compile-time bug in the regex pattern. \
+                 Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+            );
 }
 
 /// WASM regex utilities wrapper

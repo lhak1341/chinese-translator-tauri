@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use governor::{Quota, RateLimiter, clock::DefaultClock, state::{InMemoryState, NotKeyed}};
 
 // Import lookup index engine
@@ -107,6 +107,11 @@ fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
 static MUTEX_POISONED: AtomicBool = AtomicBool::new(false);
 static POISONING_EVENT_COUNT: AtomicU64 = AtomicU64::new(0);
 
+// CODE REVIEW FIX (2026-02-01): Rate limiting for poisoning notifications
+// Prevents notification spam when cache is accessed frequently after poisoning
+static LAST_POISONING_NOTIFICATION: AtomicU64 = AtomicU64::new(0);
+const NOTIFICATION_COOLDOWN_MS: u64 = 60_000; // 1 minute between notifications
+
 // CODE REVIEW FIX (CRITICAL-2): Store AppHandle for immediate event emission
 // Initialized during app setup, used to emit poisoning events immediately
 use once_cell::sync::OnceCell;
@@ -121,17 +126,68 @@ pub fn init_app_handle(handle: tauri::AppHandle) {
 /// CODE REVIEW FIX (CRITICAL-2): Emit mutex poisoning event immediately
 /// Notifies frontend as soon as poisoning is detected, not just on health check
 /// CODE REVIEW FIX (2026-02-01): Added stderr fallback for early startup failures
+/// CODE REVIEW FIX (2026-02-01): Rate limiting to prevent notification spam
+///
+/// Problem: After poisoning, every cache access (100+ per translation) emits an event,
+/// causing performance degradation and UI notification spam.
+///
+/// Solution: Only emit notifications once per minute. Still alerts immediately on first
+/// poisoning, but prevents repeated notifications during degraded operation.
 fn emit_poisoning_event() {
     let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
 
+    // Get current time in milliseconds
+    let now_ms = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let last_notify = LAST_POISONING_NOTIFICATION.load(Ordering::SeqCst);
+
+    // Rate limiting: Only notify once per cooldown period
+    // This prevents 100+ notifications per second during degraded operation
+    if last_notify > 0 && (now_ms - last_notify) < NOTIFICATION_COOLDOWN_MS {
+        // Skip notification - still within cooldown period
+        return;
+    }
+
+    // Update last notification time (atomic compare-and-swap to handle race conditions)
+    // If another thread already updated the timestamp, we skip (they sent the notification)
+    if LAST_POISONING_NOTIFICATION
+        .compare_exchange(last_notify, now_ms, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return; // Another thread already sent notification
+    }
+
+    // Emit notification to frontend
     if let Some(app) = APP_HANDLE.get() {
+        // Determine restart urgency based on event count
+        let auto_restart_seconds = if event_count > 100 {
+            60  // Critical: restart in 1 minute
+        } else if event_count > 10 {
+            300 // Warning: restart in 5 minutes
+        } else {
+            0   // Informational: restart when convenient
+        };
+
         let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
             "type": "mutex_poisoning",
             "event_count": event_count,
-            "severity": "critical",
-            "message": "Dictionary cache corruption detected. Application restart recommended.",
-            "recommendation": "Save your work and restart the application to ensure data integrity.",
-            "timestamp": chrono::Utc::now().to_rfc3339()
+            "severity": if event_count > 100 { "critical" } else { "warning" },
+            "message": format!(
+                "Dictionary cache corruption detected ({} events). Application restart recommended.",
+                event_count
+            ),
+            "recommendation": if event_count > 100 {
+                format!("Critical: Auto-restart recommended in {} seconds to prevent data loss.", auto_restart_seconds)
+            } else {
+                "Save your work and restart the application to ensure data integrity.".to_string()
+            },
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "last_notification_ms": now_ms,
+            "cooldown_ms": NOTIFICATION_COOLDOWN_MS,
+            "auto_restart_recommended_in_seconds": auto_restart_seconds
         }));
     } else {
         // Fallback: Log to stderr when AppHandle not yet initialized during early startup
