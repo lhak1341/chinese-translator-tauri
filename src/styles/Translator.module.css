@@ -10,6 +10,16 @@
   border-radius: 4px;
 }
 
+/* CODE REVIEW FIX (CRITICAL-2): Critical warning banner for cache poisoning */
+.criticalWarningBanner {
+  background-color: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
 .errorHeader {
   display: flex;
   align-items: center;

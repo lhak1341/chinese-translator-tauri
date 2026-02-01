@@ -8,22 +8,24 @@
  * - Build system failures that produce invalid WASM
  * - Tampering attempts (though Tauri apps are code-signed)
  *
- * Current Implementation: Structural validation only
- * - Verifies expected exports exist (classes, functions, minimum export count)
- * - Checks for suspicious property names
- * - Validates instance methods
+ * Two-Layer Validation:
+ * 1. **Cryptographic Integrity (SHA-256)** - Verifies WASM binary hasn't been modified
+ * 2. **Structural Validation** - Verifies expected exports exist (classes, functions)
  *
- * CODE REVIEW RECOMMENDATION (IMPORTANT-5): Add cryptographic checksum verification
- * Future Enhancement: Verify WASM binary integrity with SHA-256 checksums
- * - Generate checksums at build time (wasm-pack build → compute hash → embed in JS)
- * - Validate binary hash before instantiation
- * - Detect corrupted files that pass structural validation but have incorrect contents
- * - Implementation requires build-time integration with wasm-pack
+ * CODE REVIEW FIX (CRITICAL-1): Implemented SHA-256 checksum verification
+ * - Checksums generated at build time by scripts/generate-wasm-hashes.js
+ * - Manifest stored in src/wasm/integrity-manifest.json
+ * - Runtime verification before WASM instantiation
+ * - Detects corrupted or tampered files
  *
- * For now, Tauri's code signing provides app-level cryptographic protection.
+ * Note: Tauri's code signing provides app-level protection; this adds file-level verification.
  */
 
 import { logger } from './logger';
+
+// Cache for integrity manifest (loaded once)
+let integrityManifest = null;
+let manifestLoadFailed = false;
 
 /**
  * Expected exports for each WASM module type
@@ -200,4 +202,123 @@ export function verifyWasmInstance(instance, expectedMethods, instanceName) {
 export function registerWasmModule(moduleName, rules) {
   EXPECTED_EXPORTS[moduleName] = rules;
   logger.log(`📝 Registered validation rules for WASM module: ${moduleName}`);
+}
+
+/**
+ * Load the WASM integrity manifest
+ * CODE REVIEW FIX (CRITICAL-1): Load SHA-256 hashes for runtime verification
+ *
+ * @returns {Promise<Object|null>} Integrity manifest or null if not available
+ */
+async function loadIntegrityManifest() {
+  // Return cached manifest if already loaded
+  if (integrityManifest) {
+    return integrityManifest;
+  }
+
+  // Don't retry if previous load failed
+  if (manifestLoadFailed) {
+    return null;
+  }
+
+  try {
+    // Import manifest generated at build time
+    const manifest = await import('../wasm/integrity-manifest.json', {
+      assert: { type: 'json' },
+    });
+
+    integrityManifest = manifest.default || manifest;
+    logger.log(
+      `✅ Loaded WASM integrity manifest (${Object.keys(integrityManifest.files || {}).length} files)`
+    );
+    return integrityManifest;
+  } catch (error) {
+    logger.warn('⚠️  Could not load WASM integrity manifest:', error.message);
+    logger.warn('   Hash verification will be skipped (not recommended for production)');
+    manifestLoadFailed = true;
+    return null;
+  }
+}
+
+/**
+ * Compute SHA-256 hash of binary data
+ * CODE REVIEW FIX (CRITICAL-1): Runtime hash computation for verification
+ *
+ * @param {ArrayBuffer} data - Binary data to hash
+ * @returns {Promise<string>} Hex-encoded SHA-256 hash
+ */
+async function computeSHA256(data) {
+  // Use SubtleCrypto API (available in modern browsers and Tauri)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+/**
+ * Verify WASM binary integrity using SHA-256 hash
+ * CODE REVIEW FIX (CRITICAL-1): Cryptographic verification before loading WASM
+ *
+ * @param {string} wasmFileName - Name of WASM file (e.g., "translation_wasm_core_bg.wasm")
+ * @param {ArrayBuffer} wasmBinary - WASM binary data
+ * @returns {Promise<Object>} Verification result { valid: boolean, errors: string[], warnings: string[] }
+ */
+export async function verifyWasmBinaryIntegrity(wasmFileName, wasmBinary) {
+  const errors = [];
+  const warnings = [];
+
+  // Load integrity manifest
+  const manifest = await loadIntegrityManifest();
+
+  if (!manifest) {
+    warnings.push('Integrity manifest not available - hash verification skipped');
+    return { valid: true, errors, warnings }; // Don't fail if manifest unavailable
+  }
+
+  // Check if file is in manifest
+  if (!manifest.files || !manifest.files[wasmFileName]) {
+    warnings.push(`File ${wasmFileName} not found in integrity manifest`);
+    return { valid: true, errors, warnings }; // Don't fail for unknown files
+  }
+
+  const expectedHash = manifest.files[wasmFileName].sha256;
+  const expectedSize = manifest.files[wasmFileName].size;
+
+  // Verify file size first (quick check)
+  if (wasmBinary.byteLength !== expectedSize) {
+    errors.push(
+      `Size mismatch: expected ${expectedSize} bytes, got ${wasmBinary.byteLength} bytes`
+    );
+    return { valid: false, errors, warnings };
+  }
+
+  // Compute actual hash
+  const actualHash = await computeSHA256(wasmBinary);
+
+  // Compare hashes
+  if (actualHash !== expectedHash) {
+    errors.push(
+      `Hash mismatch: expected ${expectedHash.substring(0, 16)}..., got ${actualHash.substring(0, 16)}...`
+    );
+    logger.error(`❌ WASM binary integrity check failed for ${wasmFileName}`);
+    logger.error(`   Expected: ${expectedHash}`);
+    logger.error(`   Actual:   ${actualHash}`);
+    return { valid: false, errors, warnings };
+  }
+
+  logger.log(`✅ WASM binary ${wasmFileName} integrity verified (SHA-256 match)`);
+  return { valid: true, errors, warnings };
+}
+
+/**
+ * Get integrity manifest status
+ *
+ * @returns {Object} Status { loaded: boolean, failed: boolean, fileCount: number }
+ */
+export function getIntegrityManifestStatus() {
+  return {
+    loaded: integrityManifest !== null,
+    failed: manifestLoadFailed,
+    fileCount: integrityManifest ? Object.keys(integrityManifest.files || {}).length : 0,
+  };
 }

@@ -50,7 +50,7 @@ import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
 import { categorizeWasmError, formatWasmError } from './wasmErrorHandler'; // CODE REVIEW FIX (MEDIUM-1)
-import { verifyWasmInstance } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
+import { verifyWasmInstance, verifyWasmBinaryIntegrity } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 
 let wasmNumberProcessor = null;
 let initializationPromise = null;
@@ -87,9 +87,33 @@ export async function initializeWasmNumberProcessor() {
         async () => {
           logger.log('🔢 Initializing WASM NumberProcessor...');
 
-          // Initialize WASM module (using static import)
-          logger.debug('About to initialize WASM module...');
-          await init();
+          // CODE REVIEW FIX (CRITICAL-1): Fetch WASM binary for hash verification
+          const wasmFileName = 'translation_wasm_core_bg.wasm';
+          const wasmUrl = new URL(`../wasm/${wasmFileName}`, import.meta.url);
+
+          logger.debug('Fetching WASM binary for integrity verification...');
+          const response = await fetch(wasmUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch WASM: ${response.statusText}`);
+          }
+
+          const wasmBinary = await response.arrayBuffer();
+          logger.debug(`WASM binary fetched (${wasmBinary.byteLength} bytes)`);
+
+          // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
+          const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);
+          if (!integrityCheck.valid) {
+            throw new Error(
+              `WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`
+            );
+          }
+          if (integrityCheck.warnings.length > 0) {
+            logger.warn('WASM integrity warnings:', integrityCheck.warnings);
+          }
+
+          // Initialize WASM module with verified binary
+          logger.debug('Initializing WASM module with verified binary...');
+          await init(wasmBinary);
           logger.debug('WASM module initialized successfully');
 
           // Create NumberProcessor instance

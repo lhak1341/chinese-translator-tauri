@@ -1282,7 +1282,8 @@ export class TranslationEngine {
             const characterEntries = Object.entries(dictionaries.characters).map(
               ([chars, translation]) => ({
                 chars,
-                translation: typeof translation === 'string' ? translation : translation.translation,
+                translation:
+                  typeof translation === 'string' ? translation : translation.translation,
                 priority: translation.priority || 5,
                 metadata: translation.metadata,
               })
@@ -1304,7 +1305,10 @@ export class TranslationEngine {
             this.wasmCharacterTrie = null;
           }
         } catch (error) {
-          logger.warn('⚠️ WASM Dictionary Trie initialization failed, using JavaScript fallback:', error);
+          logger.warn(
+            '⚠️ WASM Dictionary Trie initialization failed, using JavaScript fallback:',
+            error
+          );
           this.wasmCharacterTrie = null;
         }
       }
@@ -5488,6 +5492,14 @@ export class TranslationEngine {
       let characterPhaseYieldTime = performance.now();
 
       for (let i = 0; i < tokens.length; i++) {
+        // CODE REVIEW FIX (HIGH-3): Check abort signal periodically in long loops
+        if (i % 100 === 0 && options.abortSignal?.aborted) {
+          throw new DOMException(
+            'Translation aborted during character batch processing',
+            'AbortError'
+          );
+        }
+
         if (processedTokens.has(i)) {
           // Process batch at end of loop even if current token is processed
           if (i === tokens.length - 1 && currentBatch.length > 0) {
@@ -7713,6 +7725,13 @@ export class TranslationEngine {
       }));
       try {
         validatePhaseOrder('numbers');
+        // CODE REVIEW FIX (HIGH-3): Check abort signal at start of phase
+        if (options.abortSignal?.aborted) {
+          throw new DOMException(
+            'Translation aborted during number processing phase',
+            'AbortError'
+          );
+        }
         await withTimeout(
           this.profiler.profile('numbers', async () => {
             // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
@@ -7773,6 +7792,14 @@ export class TranslationEngine {
               `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
             );
             try {
+              // CODE REVIEW FIX (HIGH-3): Check abort signal before expensive WASM operation
+              if (options.abortSignal?.aborted) {
+                throw new DOMException(
+                  'Translation aborted before WASM number processing',
+                  'AbortError'
+                );
+              }
+
               // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Track pre-WASM consumed tokens
               // Ensure WASM doesn't overwrite tokens consumed by earlier phases (patterns, proper nouns)
               const preWasmConsumedIndices = new Set();
@@ -8052,6 +8079,13 @@ export class TranslationEngine {
       // CODE REVIEW FIX: Validate phase order and add timeout
       try {
         validatePhaseOrder('phrases');
+        // CODE REVIEW FIX (HIGH-3): Check abort signal at start of phase
+        if (options.abortSignal?.aborted) {
+          throw new DOMException(
+            'Translation aborted during phrase processing phase',
+            'AbortError'
+          );
+        }
         await withTimeout(
           this.profiler.profile('phrases', async () => {
             await this.createOptimalPhraseGroups(tokens, options);
@@ -8138,6 +8172,13 @@ export class TranslationEngine {
       // CODE REVIEW FIX: Validate phase order and add timeout
       try {
         validatePhaseOrder('characters');
+        // CODE REVIEW FIX (HIGH-3): Check abort signal at start of phase
+        if (options.abortSignal?.aborted) {
+          throw new DOMException(
+            'Translation aborted during character processing phase',
+            'AbortError'
+          );
+        }
         await withTimeout(
           this.profiler.profile('characters', async () => {
             await this.processRemainingTokensInBatches(tokens, processedTokens, options);
@@ -8594,12 +8635,7 @@ export class TranslationEngine {
       }
 
       // Step 4: Convert WASM result to token-based format
-      const tokenMatch = convertWasmMatchToTokenMatch(
-        wasmMatch,
-        tokens,
-        position,
-        dictionaryName
-      );
+      const tokenMatch = convertWasmMatchToTokenMatch(wasmMatch, tokens, position, dictionaryName);
 
       // Log successful WASM lookup (development only)
       if (this.debugLevel >= DEBUG_LEVELS.VERBOSE) {
@@ -9664,7 +9700,8 @@ export class TranslationEngine {
             const characterEntries = Object.entries(this.lastLoadedDictionaries.characters).map(
               ([chars, translation]) => ({
                 chars,
-                translation: typeof translation === 'string' ? translation : translation.translation,
+                translation:
+                  typeof translation === 'string' ? translation : translation.translation,
                 priority: translation.priority || 5,
                 metadata: translation.metadata,
               })

@@ -51,7 +51,11 @@
 import toast from './toast';
 import { logger } from './logger';
 import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
-import { verifyWasmModule, verifyWasmInstance } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
+import {
+  verifyWasmModule,
+  verifyWasmInstance,
+  verifyWasmBinaryIntegrity,
+} from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
@@ -102,8 +106,33 @@ export async function initializeWasmPatternProcessor(patternsDict) {
             );
           }
 
-          // Initialize WASM
-          await wasmModule.default();
+          // CODE REVIEW FIX (CRITICAL-1): Fetch WASM binary for hash verification
+          const wasmFileName = 'translation_wasm_core_bg.wasm';
+          const wasmUrl = new URL(`../wasm/${wasmFileName}`, import.meta.url);
+
+          logger.debug('Fetching WASM binary for integrity verification...');
+          const response = await fetch(wasmUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch WASM: ${response.statusText}`);
+          }
+
+          const wasmBinary = await response.arrayBuffer();
+          logger.debug(`WASM binary fetched (${wasmBinary.byteLength} bytes)`);
+
+          // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
+          const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);
+          if (!integrityCheck.valid) {
+            throw new Error(
+              `WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`
+            );
+          }
+          if (integrityCheck.warnings.length > 0) {
+            logger.warn('WASM integrity warnings:', integrityCheck.warnings);
+          }
+
+          // Initialize WASM with verified binary
+          logger.debug('Initializing WASM module with verified binary...');
+          await wasmModule.default(wasmBinary);
 
           // Create PatternProcessor instance
           wasmPatternProcessor = new wasmModule.WasmPatternProcessor();

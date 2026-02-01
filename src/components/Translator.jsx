@@ -7,6 +7,7 @@ import {
   useReducer,
   startTransition,
 } from 'react';
+import { listen } from '@tauri-apps/api/event'; // CODE REVIEW FIX (CRITICAL-2): Listen for cache poisoning events
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { ChineseNumberConverter } from '../utils/ChineseNumberConverter';
@@ -180,6 +181,9 @@ const Translator = ({ isActive = true }) => {
   });
   const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
+  // CODE REVIEW FIX (CRITICAL-2): Track cache poisoning for user notification
+  const [cachePoisoningDetected, setCachePoisoningDetected] = useState(false);
+  const [cachePoisoningCount, setCachePoisoningCount] = useState(0);
 
   /**
    * Clears all highlighting state across all panels
@@ -576,6 +580,50 @@ const Translator = ({ isActive = true }) => {
 
   // Note: Configuration changes are now handled only during manual reload
   // to prevent constant reinitializations during normal operation
+
+  /**
+   * CODE REVIEW FIX (CRITICAL-2): Listen for dictionary cache poisoning events
+   *
+   * Lifecycle: Runs once on component mount
+   * Dependencies: None (event listener cleanup on unmount)
+   *
+   * Monitors cache mutex poisoning events emitted from Rust backend.
+   * Displays persistent warning banner when poisoning is detected.
+   * Recommends application restart to ensure data integrity.
+   */
+  useEffect(() => {
+    let unsubscribe;
+
+    const setupListener = async () => {
+      try {
+        unsubscribe = await listen('dictionary-cache-critical-error', (event) => {
+          logger.error('🚨 Dictionary cache critical error detected:', event.payload);
+
+          const { event_count, message, recommendation } = event.payload;
+
+          // Update state to show warning banner
+          setCachePoisoningDetected(true);
+          setCachePoisoningCount(event_count || 0);
+
+          // Show toast notification
+          toast.error(`${message}\n\n${recommendation}`, {
+            duration: TOAST_DURATIONS.ERROR,
+            id: TOAST_IDS.CACHE_POISONING,
+          });
+        });
+      } catch (error) {
+        logger.error('Failed to set up cache poisoning event listener:', error);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []); // Empty deps - run once on mount
 
   /**
    * Quick Add handlers (provided by useDictionaryConfig hook)
@@ -1426,13 +1474,22 @@ const Translator = ({ isActive = true }) => {
         avgTimePerChunk: 0,
       });
 
-      setActiveTranslations((prev) => {
-        const newCount = prev + 1;
-        if (newCount > 3) {
-          throw new Error('Too many translations running - please wait');
-        }
-        return newCount;
-      });
+      // CODE REVIEW FIX (HIGH-4): Enforce maximum concurrent translation limit
+      const MAX_CONCURRENT_TRANSLATIONS = 3;
+      const currentActiveCount = getActiveTranslationCount();
+
+      if (currentActiveCount >= MAX_CONCURRENT_TRANSLATIONS) {
+        const errorMsg = `Maximum concurrent translation limit reached (${MAX_CONCURRENT_TRANSLATIONS}). Please wait for existing translations to complete.`;
+        logger.warn(`🛑 ${errorMsg}`);
+        toast.warning(errorMsg, {
+          duration: TOAST_DURATIONS.WARNING,
+          id: TOAST_IDS.TRANSLATION_LIMIT_REACHED,
+        });
+        // Return original text instead of throwing
+        return text;
+      }
+
+      setActiveTranslations((prev) => prev + 1);
 
       try {
         if (isLoading) {
@@ -1595,22 +1652,28 @@ const Translator = ({ isActive = true }) => {
           return 'Engine not ready. Please wait for engine initialization.';
         }
       } finally {
-        // Clean up translation controller (clears timeout and removes from tracking)
-        cleanupTranslationController(translationId, controllerTimeoutId);
+        // CODE REVIEW FIX (CRITICAL-3): Wrap cleanup work in promise for tracking
+        const cleanupWork = (async () => {
+          // Clean up debounced progress handler
+          debouncedProgressHandler.current.cleanup();
 
-        // Clean up debounced progress handler
-        debouncedProgressHandler.current.cleanup();
+          // Reset streaming state on completion/error
+          updateStreaming({
+            isStreaming: false,
+          });
 
-        // NEW: Always reset streaming state on completion/error
-        updateStreaming({
-          isStreaming: false,
-        });
+          setActiveTranslations((prev) => {
+            const newCount = prev - 1;
+            logger.log(`🏁 Translation ${translationId} finished - Active: ${newCount}`);
+            return newCount;
+          });
 
-        setActiveTranslations((prev) => {
-          const newCount = prev - 1;
-          logger.log(`🏁 Translation ${translationId} finished - Active: ${newCount}`);
-          return newCount;
-        });
+          // Small delay to ensure state updates are processed
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        })();
+
+        // Clean up translation controller and pass cleanup promise for tracking
+        cleanupTranslationController(translationId, controllerTimeoutId, cleanupWork);
       }
     },
     [isLoading, isDictionaryReloading]
@@ -1916,17 +1979,18 @@ const Translator = ({ isActive = true }) => {
 
       // Step 1: Stop any ongoing translations and wait for them to finish
       logger.log('Step 1: Stopping ongoing translations...');
-      const cancelledCount = cancelAllTranslations();
+      // CODE REVIEW FIX (CRITICAL-3): Use Promise-based cleanup tracking instead of fixed 200ms wait
+      const { count: cancelledCount, cleanupComplete } = cancelAllTranslations();
       if (cancelledCount > 0) {
         logger.log(`🛑 Cancelled ${cancelledCount} active translation(s)`);
 
         // CRITICAL: Wait for translations to actually finish before destroying engine
         // Why: Abort signal doesn't immediately stop async operations
         // Race condition: Translation's finally block may try to access engineRef.current
-        // Fix: Wait 200ms for translations to complete cleanup (simplified from polling)
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // FIX: Wait for all cleanup promises to resolve (no arbitrary timeout)
+        await cleanupComplete;
 
-        logger.log('✅ Translations cleanup wait completed');
+        logger.log('✅ All translation cleanup(s) completed');
       }
       setIsTranslating(false);
       setProgressInfo(null);
@@ -2413,6 +2477,34 @@ const Translator = ({ isActive = true }) => {
               className={styles.errorButtonSecondary}
             >
               Reload App
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CODE REVIEW FIX (CRITICAL-2): Show cache poisoning warning banner */}
+      {cachePoisoningDetected && (
+        <div className={styles.criticalWarningBanner}>
+          <div className={styles.errorHeader}>
+            <strong className={styles.errorTitle}>🚨 Critical: Dictionary Cache Corruption</strong>
+          </div>
+          <div className={styles.errorMessage}>
+            Dictionary cache corruption has been detected ({cachePoisoningCount} event(s)). This may
+            cause incorrect translations or degraded performance.
+          </div>
+          <div className={styles.errorMessage}>
+            <strong>Recommended action:</strong> Save your work and restart the application to
+            ensure data integrity.
+          </div>
+          <div className={styles.errorActions}>
+            <button onClick={() => window.location.reload()} className={styles.errorButton}>
+              Restart Application
+            </button>
+            <button
+              onClick={() => setCachePoisoningDetected(false)}
+              className={styles.errorButtonSecondary}
+            >
+              Dismiss Warning
             </button>
           </div>
         </div>

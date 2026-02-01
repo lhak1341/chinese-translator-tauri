@@ -32,6 +32,11 @@ pub fn run() {
         .manage(DictionaryCache::new())
         // SECURITY: Manage rate limiters for DoS prevention
         .manage(RateLimiters::new())
+        // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
+        .setup(|app| {
+            dictionary_commands::init_app_handle(app.handle().clone());
+            Ok(())
+        })
         // Register all commands
         .invoke_handler(tauri::generate_handler![
             greet,

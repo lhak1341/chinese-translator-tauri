@@ -138,7 +138,8 @@ describe('useTranslationController', () => {
 
       let cancelledCount;
       act(() => {
-        cancelledCount = result.current.cancelAll();
+        const { count } = result.current.cancelAll();
+        cancelledCount = count;
       });
 
       expect(cancelledCount).toBe(3);
@@ -153,7 +154,8 @@ describe('useTranslationController', () => {
 
       let count;
       act(() => {
-        count = result.current.cancelAll();
+        const { count: cancelledCount } = result.current.cancelAll();
+        count = cancelledCount;
       });
 
       expect(count).toBe(0);

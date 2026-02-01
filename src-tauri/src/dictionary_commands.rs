@@ -107,6 +107,33 @@ fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
 static MUTEX_POISONED: AtomicBool = AtomicBool::new(false);
 static POISONING_EVENT_COUNT: AtomicU64 = AtomicU64::new(0);
 
+// CODE REVIEW FIX (CRITICAL-2): Store AppHandle for immediate event emission
+// Initialized during app setup, used to emit poisoning events immediately
+use once_cell::sync::OnceCell;
+static APP_HANDLE: OnceCell<tauri::AppHandle> = OnceCell::new();
+
+/// CODE REVIEW FIX (CRITICAL-2): Initialize AppHandle for event emission
+/// Called during app setup to enable immediate poisoning notifications
+pub fn init_app_handle(handle: tauri::AppHandle) {
+    let _ = APP_HANDLE.set(handle);
+}
+
+/// CODE REVIEW FIX (CRITICAL-2): Emit mutex poisoning event immediately
+/// Notifies frontend as soon as poisoning is detected, not just on health check
+fn emit_poisoning_event() {
+    if let Some(app) = APP_HANDLE.get() {
+        let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
+        let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
+            "type": "mutex_poisoning",
+            "event_count": event_count,
+            "severity": "critical",
+            "message": "Dictionary cache corruption detected. Application restart recommended.",
+            "recommendation": "Save your work and restart the application to ensure data integrity.",
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        }));
+    }
+}
+
 // Dictionary cache for preventing duplicate loads
 pub struct DictionaryCache {
     cache: Mutex<HashMap<String, serde_json::Value>>,
@@ -128,6 +155,9 @@ impl DictionaryCache {
                 // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
                 MUTEX_POISONED.store(true, Ordering::SeqCst);
                 POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+
+                // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
+                emit_poisoning_event();
 
                 // CODE REVIEW FIX: Log critical error instead of warning
                 eprintln!("CRITICAL: Cache mutex poisoned during get - dictionary cache may be corrupted");
@@ -155,6 +185,9 @@ impl DictionaryCache {
                 // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
                 MUTEX_POISONED.store(true, Ordering::SeqCst);
                 POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+
+                // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
+                emit_poisoning_event();
 
                 // CODE REVIEW FIX: Log critical error instead of warning
                 eprintln!("CRITICAL: Cache mutex poisoned during set - dictionary cache may be corrupted");
@@ -184,6 +217,9 @@ impl DictionaryCache {
                 // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
                 MUTEX_POISONED.store(true, Ordering::SeqCst);
                 POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+
+                // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
+                emit_poisoning_event();
 
                 // CODE REVIEW FIX: Log critical error instead of warning
                 eprintln!("CRITICAL: Cache mutex poisoned during invalidation - dictionary cache may be corrupted");

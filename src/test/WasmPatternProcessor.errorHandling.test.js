@@ -17,6 +17,19 @@ vi.mock('../utils/toast', () => ({
   default: mockToast,
 }));
 
+// CODE REVIEW FIX: Mock hash verification for WASM binary integrity checks
+vi.mock('../utils/wasmIntegrityVerifier', () => ({
+  verifyWasmBinaryIntegrity: vi.fn(async () => ({ valid: true, errors: [], warnings: [] })),
+  verifyWasmModule: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+  verifyWasmInstance: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+}));
+
+// CODE REVIEW FIX: Mock fetch for WASM binary loading
+global.fetch = vi.fn(async () => ({
+  ok: true,
+  arrayBuffer: async () => new ArrayBuffer(8),
+}));
+
 // Reset module state before tests
 beforeEach(async () => {
   // Clear all mocks and reset modules

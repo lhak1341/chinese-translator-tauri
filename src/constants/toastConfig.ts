@@ -95,11 +95,17 @@ export const TOAST_IDS = {
   /** Dictionary corruption detected (CODE REVIEW FIX HIGH-3) */
   DICT_CORRUPTION: 'dict-corruption',
 
+  /** Cache mutex poisoning detected (CODE REVIEW FIX CRITICAL-2) */
+  CACHE_POISONING: 'cache-poisoning',
+
   /** Translation in progress */
   TRANSLATION_IN_PROGRESS: 'translation-in-progress',
 
   /** Translation completed successfully */
   TRANSLATION_COMPLETED: 'translation-completed',
+
+  /** Translation limit reached (CODE REVIEW FIX HIGH-4) */
+  TRANSLATION_LIMIT_REACHED: 'translation-limit-reached',
 
   /** Configuration save failure */
   CONFIG_SAVE_FAILED: 'config-save-failed',

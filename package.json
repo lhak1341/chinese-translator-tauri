@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "npm run build-wasm-dev && vite",
     "build": "npm run build-wasm && tsc && vite build",
-    "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm",
-    "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm",
+    "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm && npm run generate-wasm-hashes",
+    "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm && npm run generate-wasm-hashes",
+    "generate-wasm-hashes": "node scripts/generate-wasm-hashes.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",

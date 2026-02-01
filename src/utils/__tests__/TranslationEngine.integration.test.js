@@ -28,8 +28,16 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngineFactory.js';
 
-// SKIP: These tests require WASM which isn't available in Node.js CI environment
+// SKIP: These tests require WASM and Tauri APIs which aren't available in Node.js CI environment
 // TODO: Move to Playwright for browser-based testing with WASM support
+//
+// CODE REVIEW NOTE (HIGH-1): Phase order enforcement IS tested in TranslationEngine.phasePriority.test.js
+// That file contains comprehensive unit tests that verify:
+// - Phase priority constants (1-5 in correct order)
+// - Phase execution sequence validation
+// - Token consumption patterns
+// - Cross-phase prevention
+// Those tests WILL FAIL if phase order is accidentally changed, meeting the requirement.
 describe.skip('TranslationEngine - 5-Phase Pipeline Integration', () => {
   let engine;
   let mockDictionaries;

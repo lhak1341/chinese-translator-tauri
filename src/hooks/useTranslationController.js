@@ -44,6 +44,8 @@ export function useTranslationController(options = {}) {
   // Track active translation controllers
   const activeControllers = useRef(new Map());
   const timeoutRefs = useRef(new Map());
+  // CODE REVIEW FIX (CRITICAL-3): Track cleanup promises for proper async coordination
+  const cleanupPromises = useRef(new Map());
 
   /**
    * Create new AbortController with automatic timeout
@@ -102,10 +104,14 @@ export function useTranslationController(options = {}) {
   /**
    * Cleanup specific translation controller
    *
+   * CODE REVIEW FIX (CRITICAL-3): Now accepts cleanup promise for tracking
+   *
    * @param {number} translationId - Translation ID to cleanup
    * @param {number} timeoutId - Timeout ID to clear
+   * @param {Promise} [cleanupPromise] - Optional promise representing async cleanup work
+   * @returns {Promise} Promise that resolves when cleanup is complete
    */
-  const cleanup = useCallback((translationId, timeoutId) => {
+  const cleanup = useCallback((translationId, timeoutId, cleanupPromise = null) => {
     // Clear timeout
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
@@ -115,13 +121,34 @@ export function useTranslationController(options = {}) {
     // Remove controller
     activeControllers.current.delete(translationId);
 
+    // CODE REVIEW FIX (CRITICAL-3): Track cleanup promise for coordination
+    if (cleanupPromise && cleanupPromise instanceof Promise) {
+      cleanupPromises.current.set(translationId, cleanupPromise);
+
+      // Auto-remove after completion
+      cleanupPromise.finally(() => {
+        cleanupPromises.current.delete(translationId);
+      });
+    } else {
+      // No async cleanup, resolve immediately
+      cleanupPromises.current.set(translationId, Promise.resolve());
+      // Immediate cleanup can be removed right away
+      setTimeout(() => cleanupPromises.current.delete(translationId), 0);
+    }
+
     logger.log(`🧹 Cleaned up translation controller ${translationId}`);
+
+    return cleanupPromises.current.get(translationId) || Promise.resolve();
   }, []);
 
   /**
    * Cancel all active translations
    *
-   * @returns {number} Number of translations cancelled
+   * CODE REVIEW FIX (CRITICAL-3): Now returns cleanup promises for coordination
+   *
+   * @returns {Object} Cancellation result
+   * @returns {number} returns.count - Number of translations cancelled
+   * @returns {Promise<void>} returns.cleanupComplete - Promise that resolves when all cleanups finish
    */
   const cancelAll = useCallback(() => {
     const count = activeControllers.current.size;
@@ -149,7 +176,19 @@ export function useTranslationController(options = {}) {
       timeoutRefs.current.clear();
     }
 
-    return count;
+    // CODE REVIEW FIX (CRITICAL-3): Return promise that resolves when all cleanups complete
+    const pendingCleanups = Array.from(cleanupPromises.current.values());
+    const cleanupComplete =
+      pendingCleanups.length > 0
+        ? Promise.all(pendingCleanups).then(() => {
+            logger.log(`✅ All ${pendingCleanups.length} translation cleanup(s) completed`);
+          })
+        : Promise.resolve();
+
+    return {
+      count,
+      cleanupComplete,
+    };
   }, []);
 
   /**

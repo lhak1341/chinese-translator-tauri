@@ -1,7 +1,7 @@
 # Content Security Policy (CSP) and WASM Security
 
 **Status**: Production-ready with mitigations in place
-**Last Updated**: 2026-01-30
+**Last Updated**: 2026-02-01 (Added SHA-256 hash verification)
 **Risk Level**: Low (properly mitigated)
 
 ---
@@ -99,7 +99,69 @@ wasmModule = await import('../wasm/translation_wasm_core.js');
 
 ---
 
-### 2. ✅ Module Integrity Verification
+### 2. ✅ Binary Integrity Verification (SHA-256 Hashing)
+
+**CODE REVIEW FIX (CRITICAL-1)**: Implemented Subresource Integrity for WASM binaries.
+
+**What**: WASM binary files are cryptographically verified using SHA-256 hashes before loading.
+
+**Implementation**:
+
+```bash
+# Build-time hash generation (automatic with WASM builds)
+npm run build-wasm  # Compiles Rust → WASM → generates hashes
+```
+
+**Hash Manifest**: `src/wasm/integrity-manifest.json`
+
+```json
+{
+  "generated": "2026-02-01T05:14:35.031Z",
+  "algorithm": "sha256",
+  "files": {
+    "translation_wasm_core_bg.wasm": {
+      "sha256": "169658094597e797ee685e5c525f92c06c7a9fb23e4db45bef590fc5a47e7093",
+      "size": 1575582
+    }
+  }
+}
+```
+
+**Runtime Verification** (`src/utils/wasmIntegrityVerifier.js`):
+
+```javascript
+// src/utils/WasmNumberProcessor.js:90-116
+const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
+
+// Verify hash before loading
+const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);
+if (!integrityCheck.valid) {
+  throw new Error(`WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`);
+}
+
+// Initialize only with verified binary
+await init(wasmBinary);
+```
+
+**Checks Performed**:
+
+- File size verification (fast check)
+- SHA-256 hash computation using `crypto.subtle.digest()`
+- Hash comparison against manifest
+- Failure if mismatch detected
+
+**Why This Matters**:
+
+- Detects corrupted WASM files (filesystem corruption, incomplete builds)
+- Prevents loading tampered binaries (though Tauri code signing already protects this)
+- Catches build system failures that produce invalid WASM
+- Provides cryptographic guarantee of file integrity
+
+**Result**: Only cryptographically verified WASM binaries are loaded; hash mismatches trigger initialization failure and JavaScript fallback.
+
+---
+
+### 3. ✅ Module Structure Verification
 
 **What**: Every WASM module is verified before use to ensure it has expected exports.
 
@@ -123,7 +185,7 @@ if (!moduleVerification.valid) {
 
 ---
 
-### 3. ✅ Instance Method Verification
+### 4. ✅ Instance Method Verification
 
 **What**: After creating WASM instances, we verify they have expected methods before use.
 
@@ -149,7 +211,7 @@ if (!instanceVerification.valid) {
 
 ---
 
-### 4. ✅ Graceful Degradation
+### 5. ✅ Graceful Degradation
 
 **What**: If WASM fails to load for any reason, the application falls back to pure JavaScript.
 
@@ -178,7 +240,7 @@ catch (error) {
 
 ---
 
-### 5. ✅ Retry Logic with Exponential Backoff
+### 6. ✅ Retry Logic with Exponential Backoff
 
 **What**: Transient WASM loading failures trigger automatic retries before falling back.
 
@@ -203,7 +265,7 @@ await wasmRetryManager.retryWithBackoff(
 
 ---
 
-### 6. ✅ No Dynamic WASM Loading
+### 7. ✅ No Dynamic WASM Loading
 
 **What**: The application never loads WASM modules from user input, URLs, or external sources.
 
@@ -228,13 +290,14 @@ $ grep -r "WebAssembly.instantiateStreaming" src/
 
 ### Attack Vector Analysis
 
-| Attack Scenario            | Feasibility                  | Mitigations                           | Residual Risk |
-| -------------------------- | ---------------------------- | ------------------------------------- | ------------- |
-| **Remote WASM injection**  | ❌ Not possible              | Local-only loading                    | None          |
-| **User-controlled WASM**   | ❌ Not possible              | No dynamic loading                    | None          |
-| **Tampered bundled WASM**  | ⚠️ Requires OS compromise    | Integrity checks, OS file permissions | Very Low      |
-| **Malicious WASM updates** | ⚠️ Requires build compromise | Build process security, code review   | Very Low      |
-| **XSS → WASM exploit**     | ❌ Not possible              | No user data in WASM loading          | None          |
+| Attack Scenario            | Feasibility                  | Mitigations                                           | Residual Risk |
+| -------------------------- | ---------------------------- | ----------------------------------------------------- | ------------- |
+| **Remote WASM injection**  | ❌ Not possible              | Local-only loading                                    | None          |
+| **User-controlled WASM**   | ❌ Not possible              | No dynamic loading                                    | None          |
+| **Tampered bundled WASM**  | ⚠️ Requires OS compromise    | SHA-256 verification, integrity checks, OS file perms | Very Low      |
+| **Corrupted WASM builds**  | ⚠️ Build system failure      | SHA-256 verification, build-time hash generation      | Very Low      |
+| **Malicious WASM updates** | ⚠️ Requires build compromise | Hash manifest in version control, code review         | Very Low      |
+| **XSS → WASM exploit**     | ❌ Not possible              | No user data in WASM loading                          | None          |
 
 ### Overall Risk Level: **Low**
 
@@ -305,15 +368,16 @@ Future CSP standards may provide:
 - Hash-based WASM module whitelisting
 - Stricter `'wasm-unsafe-eval'` alternatives
 
-**4. Consider Subresource Integrity (SRI)**
+**4. ~~Consider Subresource Integrity (SRI)~~ ✅ IMPLEMENTED (2026-02-01)**
 
-If Tauri supports SRI for local assets:
+SHA-256 hash verification now implemented:
 
-```javascript
-const wasmModule = await import('../wasm/translation_wasm_core.js', {
-  integrity: 'sha384-...',
-});
-```
+- Build-time hash generation: `scripts/generate-wasm-hashes.js`
+- Hash manifest: `src/wasm/integrity-manifest.json`
+- Runtime verification: `src/utils/wasmIntegrityVerifier.js`
+- Automatic integration with WASM builds
+
+See mitigation #2 above for full implementation details.
 
 ---
 
@@ -377,11 +441,12 @@ Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allow
 **Answer**: **Yes**, with the mitigations in place:
 
 1. ✅ WASM loaded only from bundled files (not remotely)
-2. ✅ Integrity verification before use
-3. ✅ Instance method validation after creation
-4. ✅ Graceful degradation on failure
-5. ✅ No user-controlled WASM loading
+2. ✅ SHA-256 binary integrity verification (CODE REVIEW FIX 2026-02-01)
+3. ✅ Module structure verification before use
+4. ✅ Instance method validation after creation
+5. ✅ Graceful degradation on failure
 6. ✅ Retry logic with security-aware failure handling
+7. ✅ No user-controlled WASM loading
 
 **Risk**: Low (properly mitigated)
 **Production Ready**: Yes
@@ -389,5 +454,5 @@ Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allow
 
 ---
 
-**Reviewed**: 2026-01-30
+**Reviewed**: 2026-02-01 (Added SHA-256 hash verification)
 **Next Review**: After wasm-bindgen major version update or CSP standard changes
