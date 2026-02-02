@@ -366,6 +366,7 @@ export class WasmMemoryPool {
 
   /**
    * Return buffer to pool for reuse
+   * CODE REVIEW FIX (HIGH-3): Added double-return protection
    */
   returnBuffer(buffer: ArrayBuffer | null): void {
     if (!buffer) return;
@@ -395,6 +396,15 @@ export class WasmMemoryPool {
         currentPressure.level === 'unknown';
 
       if (shouldRecycle) {
+        // CRITICAL FIX: Check if buffer already in available pool (double-return detection)
+        if (targetPool.available.includes(buffer)) {
+          logger.error(
+            `🚨 Double-return detected for ${poolName} buffer! This indicates a bug in buffer lifecycle. Stack trace:`,
+            new Error().stack
+          );
+          return; // Don't add duplicate
+        }
+
         // Reset buffer and return to pool
         this.resetBuffer(buffer);
         targetPool.available.push(buffer);
@@ -403,6 +413,11 @@ export class WasmMemoryPool {
         // Memory pressure - don't keep excess buffers
         logger.log(`🧹 WASM Memory Pool: Released ${poolName} buffer due to memory pressure`);
       }
+    } else if (buffer) {
+      // DEFENSIVE: Buffer not in any pool - log warning
+      logger.warn(
+        `⚠️ Attempted to return buffer not managed by any pool (${buffer.byteLength} bytes)`
+      );
     }
 
     const deallocationTime = performance.now() - startTime;

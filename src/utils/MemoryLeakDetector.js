@@ -36,6 +36,10 @@ export class MemoryLeakDetector {
       emergency: 0.95, // 95% of heap
     };
     this.onCleanupNeeded = null; // Callback for cleanup requests
+
+    // CODE REVIEW FIX (HIGH-1): Use WeakMap to store heavy context data
+    // Allows GC to collect context when snapshot is discarded
+    this.snapshotContexts = new WeakMap();
   }
 
   getCurrentMemory() {
@@ -54,26 +58,46 @@ export class MemoryLeakDetector {
     const memory = this.getCurrentMemory();
     if (!memory) return null;
 
-    const snapshot = {
+    // CODE REVIEW FIX (HIGH-1): Separate lightweight metadata from heavy context
+    // Lightweight snapshot only contains primitives and small objects
+    const lightweightSnapshot = {
       operation,
       memory,
-      context,
       memoryGrowth: memory.used - this.startMemory.used,
       memoryGrowthMB: (memory.used - this.startMemory.used) / (1024 * 1024),
       trend: this.calculateTrend(),
       timestamp: memory.timestamp,
+      // ❌ context removed - stored in WeakMap instead
     };
 
-    this.snapshots.push(snapshot);
-    this.updateTrends(snapshot);
-    this.checkThresholds(snapshot);
+    // Store heavy context in WeakMap (GC-friendly)
+    // When snapshot is removed from array, context becomes GC-eligible
+    if (context && Object.keys(context).length > 0) {
+      this.snapshotContexts.set(lightweightSnapshot, context);
+    }
+
+    this.snapshots.push(lightweightSnapshot);
+    this.updateTrends(lightweightSnapshot);
+    this.checkThresholds(lightweightSnapshot);
 
     // Keep only recent snapshots to prevent memory leak in the detector itself
     if (this.snapshots.length > 50) {
+      const removed = this.snapshots.slice(0, 25); // These will be GC'd
       this.snapshots = this.snapshots.slice(-25);
+      // WeakMap automatically releases context for removed snapshots
     }
 
-    return snapshot;
+    return lightweightSnapshot;
+  }
+
+  /**
+   * Get snapshot context if needed
+   * CODE REVIEW FIX (HIGH-1): Helper to retrieve context from WeakMap
+   * @param {Object} snapshot - Snapshot object
+   * @returns {Object} Context object or empty object if not found
+   */
+  getSnapshotContext(snapshot) {
+    return this.snapshotContexts.get(snapshot) || {};
   }
 
   // Legacy method for backward compatibility

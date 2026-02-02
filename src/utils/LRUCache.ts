@@ -304,6 +304,7 @@ export class LRUCache<K = string, V = any> {
 
   /**
    * Remove specific key from cache
+   * CODE REVIEW FIX (HIGH-2): Count manual deletes as evictions
    * @param key - Cache key to remove
    * @returns True if key was removed, false if not found
    */
@@ -314,7 +315,14 @@ export class LRUCache<K = string, V = any> {
     }
 
     this.removeNode(node);
-    return this.cache.delete(key);
+    const deleted = this.cache.delete(key);
+
+    // CODE REVIEW FIX: Manual deletes should count as evictions for accurate stats
+    if (deleted) {
+      this.stats.evictions++;
+    }
+
+    return deleted;
   }
 
   /**

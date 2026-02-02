@@ -50,6 +50,7 @@ export class WasmDictionaryManager {
     });
 
     // ARCHITECTURAL FIX: Track sync failures for performance dashboard
+    // CODE REVIEW FIX (CRITICAL-2): Use pre-allocated circular buffers
     this.syncFailureTracking = {
       totalSyncAttempts: 0,
       successfulSyncs: 0,
@@ -57,14 +58,18 @@ export class WasmDictionaryManager {
       lastSyncAttempt: null,
       lastSyncSuccess: null,
       lastSyncFailure: null,
-      failureReasons: [], // Last 10 failure reasons
-      syncHistory: [], // Last 20 sync attempts with timestamps
+      failureReasons: new Array(10).fill(null), // Pre-allocated circular buffer
+      syncHistory: new Array(20).fill(null), // Pre-allocated circular buffer
       // Track batch vs sequential loading separately
       batchAttempts: 0,
       batchSuccesses: 0,
       sequentialAttempts: 0,
       sequentialSuccesses: 0,
     };
+
+    // Circular buffer indices for O(1) operations
+    this.failureReasonsIndex = 0;
+    this.syncHistoryIndex = 0;
 
     // Memory pool integration
     this.memoryPool = wasmMemoryPoolManager;
@@ -564,6 +569,7 @@ export class WasmDictionaryManager {
 
   /**
    * ARCHITECTURAL FIX: Record successful sync for performance dashboard
+   * CODE REVIEW FIX (CRITICAL-2): Use circular buffer for O(1) operations
    * @private
    * @param {string} method - 'batch' or 'sequential'
    */
@@ -578,21 +584,20 @@ export class WasmDictionaryManager {
       this.syncFailureTracking.sequentialSuccesses++;
     }
 
-    // Add to history (keep last 20)
-    this.syncFailureTracking.syncHistory.push({
+    // Add to history using circular buffer (O(1) instead of O(n) with shift)
+    this.syncFailureTracking.syncHistory[this.syncHistoryIndex] = {
       timestamp: Date.now(),
       success: true,
       method: method,
       reason: null,
-    });
+    };
 
-    if (this.syncFailureTracking.syncHistory.length > 20) {
-      this.syncFailureTracking.syncHistory.shift();
-    }
+    this.syncHistoryIndex = (this.syncHistoryIndex + 1) % 20;
   }
 
   /**
    * ARCHITECTURAL FIX: Record sync failure with reason for performance dashboard
+   * CODE REVIEW FIX (CRITICAL-2): Use circular buffer + truncate messages
    * @private
    * @param {string} reason - Failure reason
    * @param {string} method - 'batch' or 'sequential'
@@ -601,32 +606,36 @@ export class WasmDictionaryManager {
     this.syncFailureTracking.failedSyncs++;
     this.syncFailureTracking.lastSyncFailure = Date.now();
 
-    // Add to failure reasons (keep last 10)
-    this.syncFailureTracking.failureReasons.push({
+    // CRITICAL FIX: Truncate large error messages to prevent unbounded growth
+    const MAX_REASON_LENGTH = 200; // 200 chars = ~200 bytes
+    const truncatedReason =
+      typeof reason === 'string' && reason.length > MAX_REASON_LENGTH
+        ? reason.substring(0, MAX_REASON_LENGTH) + '...'
+        : reason;
+
+    // Use circular buffer (O(1) instead of O(n) with shift)
+    this.syncFailureTracking.failureReasons[this.failureReasonsIndex] = {
       timestamp: Date.now(),
       method: method,
-      reason: reason,
-    });
+      reason: truncatedReason,
+    };
 
-    if (this.syncFailureTracking.failureReasons.length > 10) {
-      this.syncFailureTracking.failureReasons.shift();
-    }
+    this.failureReasonsIndex = (this.failureReasonsIndex + 1) % 10;
 
-    // Add to history (keep last 20)
-    this.syncFailureTracking.syncHistory.push({
+    // Add to history using circular buffer
+    this.syncFailureTracking.syncHistory[this.syncHistoryIndex] = {
       timestamp: Date.now(),
       success: false,
       method: method,
-      reason: reason,
-    });
+      reason: truncatedReason,
+    };
 
-    if (this.syncFailureTracking.syncHistory.length > 20) {
-      this.syncFailureTracking.syncHistory.shift();
-    }
+    this.syncHistoryIndex = (this.syncHistoryIndex + 1) % 20;
   }
 
   /**
    * ARCHITECTURAL FIX: Get sync metrics for performance dashboard
+   * CODE REVIEW FIX (CRITICAL-2): Filter null entries from circular buffers
    * @returns {Object} Sync metrics including success rate and recent failures
    */
   getSyncMetrics() {
@@ -654,6 +663,10 @@ export class WasmDictionaryManager {
         ? ((sequentialSuccesses / sequentialAttempts) * 100).toFixed(1)
         : 'N/A';
 
+    // Filter out null entries from circular buffers
+    const validFailures = this.syncFailureTracking.failureReasons.filter((f) => f !== null);
+    const validHistory = this.syncFailureTracking.syncHistory.filter((h) => h !== null);
+
     return {
       // Overall metrics
       totalAttempts: totalSyncAttempts,
@@ -680,9 +693,9 @@ export class WasmDictionaryManager {
       lastSyncSuccess: this.syncFailureTracking.lastSyncSuccess,
       lastSyncFailure: this.syncFailureTracking.lastSyncFailure,
 
-      // Failure tracking
-      recentFailures: this.syncFailureTracking.failureReasons.slice(-5), // Last 5 failures
-      syncHistory: this.syncFailureTracking.syncHistory,
+      // Failure tracking (filter nulls from circular buffer)
+      recentFailures: validFailures.slice(-5), // Last 5 non-null failures
+      syncHistory: validHistory, // All non-null history entries
 
       // Status
       currentStatus: this.fallbackHandler.isInFallbackMode()

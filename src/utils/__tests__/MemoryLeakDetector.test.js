@@ -113,7 +113,8 @@ describe('MemoryLeakDetector', () => {
       const snapshot = detector.recordSnapshot('translation', { batchSize: 10 });
 
       expect(snapshot.operation).toBe('translation');
-      expect(snapshot.context).toEqual({ batchSize: 10 });
+      // CODE REVIEW FIX: Context now stored in WeakMap, use helper method
+      expect(detector.getSnapshotContext(snapshot)).toEqual({ batchSize: 10 });
     });
 
     test('should calculate memory growth from start', () => {
@@ -171,8 +172,10 @@ describe('MemoryLeakDetector', () => {
       const snapshot = detector.takeSnapshot(5, { data: 'test' });
 
       expect(snapshot.operation).toBe('batch_5');
-      expect(snapshot.context.batchIndex).toBe(5);
-      expect(snapshot.context.data).toBe('test');
+      // CODE REVIEW FIX: Context now stored in WeakMap, use helper method
+      const context = detector.getSnapshotContext(snapshot);
+      expect(context.batchIndex).toBe(5);
+      expect(context.data).toBe('test');
     });
   });
 
@@ -612,7 +615,9 @@ describe('MemoryLeakDetector', () => {
 
     test('should handle missing context', () => {
       const snapshot = detector.recordSnapshot('test');
-      expect(snapshot.context).toEqual({});
+      // CODE REVIEW FIX: Context now stored in WeakMap, use helper method
+      // When no context provided, getSnapshotContext returns empty object
+      expect(detector.getSnapshotContext(snapshot)).toEqual({});
     });
 
     test('should handle multiple cleanup callbacks', () => {
