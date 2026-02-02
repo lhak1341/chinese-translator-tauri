@@ -41,6 +41,8 @@ const DEFAULT_APPEARANCE: AppearanceSettings = {
     fontFamily: 'Inter, system-ui, Arial, sans-serif',
   },
   theme: 'auto',
+  // Default: Character Only follows Full Translation style
+  characterOnlyFollowsFullTranslation: true,
 };
 
 /**
@@ -55,6 +57,8 @@ const AppearanceManager: React.FC = () => {
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [characterOnlyFollowsFullTranslation, setCharacterOnlyFollowsFullTranslation] =
+    useState<boolean>(true);
 
   // Load appearance settings on mount
   useEffect(() => {
@@ -85,8 +89,13 @@ const AppearanceManager: React.FC = () => {
             ...result.data.uiFont,
           },
           theme: result.data.theme || 'auto',
+          characterOnlyFollowsFullTranslation:
+            result.data.characterOnlyFollowsFullTranslation ?? true,
         };
         setAppearance(loadedAppearance);
+        setCharacterOnlyFollowsFullTranslation(
+          result.data.characterOnlyFollowsFullTranslation ?? true
+        );
       }
       setError(null);
     } catch (err) {
@@ -134,19 +143,34 @@ const AppearanceManager: React.FC = () => {
     property: FontProperty,
     value: string
   ): void => {
-    setAppearance((prev) => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [property]: value,
-      },
-    }));
+    setAppearance((prev) => {
+      const newAppearance = {
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [property]: value,
+        },
+      };
+
+      // If Full Translation is changed and Character Only follows it, sync the change
+      if (section === 'fullTranslation' && characterOnlyFollowsFullTranslation) {
+        newAppearance.characterOnly = {
+          ...newAppearance.characterOnly,
+          [property]: value,
+        };
+      }
+
+      return newAppearance;
+    });
   };
 
   // Auto-save when user finishes editing (onBlur)
   const handleAutoSave = async (): Promise<void> => {
     try {
-      const result = await window.electronAPI.saveAppearanceSettings(appearance);
+      const result = await window.electronAPI.saveAppearanceSettings({
+        ...appearance,
+        characterOnlyFollowsFullTranslation,
+      });
       if (result.success) {
         // Apply styles immediately to the document
         applyStylesToDocument();
@@ -157,6 +181,52 @@ const AppearanceManager: React.FC = () => {
     } catch (err) {
       logger.error('Failed to auto-save appearance settings:', err);
       setError('Failed to save appearance settings');
+    }
+  };
+
+  // Handle checkbox toggle for Character Only following Full Translation
+  const handleFollowFullTranslationChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    const isChecked = e.target.checked;
+    setCharacterOnlyFollowsFullTranslation(isChecked);
+
+    // If checked, sync all properties from Full Translation to Character Only
+    if (isChecked) {
+      const newAppearance: AppearanceSettings = {
+        ...appearance,
+        characterOnly: {
+          ...appearance.fullTranslation,
+        },
+        characterOnlyFollowsFullTranslation: true,
+      };
+      setAppearance(newAppearance);
+
+      // Auto-save immediately
+      try {
+        const result = await window.electronAPI.saveAppearanceSettings(newAppearance);
+        if (result.success) {
+          applyStylesToDocument();
+          setError(null);
+        }
+      } catch (err) {
+        logger.error('Failed to save after checkbox change:', err);
+        setError('Failed to save appearance settings');
+      }
+    } else {
+      // Just save the checkbox state
+      try {
+        const result = await window.electronAPI.saveAppearanceSettings({
+          ...appearance,
+          characterOnlyFollowsFullTranslation: false,
+        });
+        if (result.success) {
+          setError(null);
+        }
+      } catch (err) {
+        logger.error('Failed to save after checkbox change:', err);
+        setError('Failed to save appearance settings');
+      }
     }
   };
 
@@ -370,6 +440,18 @@ const AppearanceManager: React.FC = () => {
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>Character Only Box</h3>
         <div className={styles.controlGroup}>
+          {/* Checkbox to follow Full Translation style */}
+          <div className={styles.controlRow}>
+            <label className={styles.label}>
+              <input
+                type="checkbox"
+                checked={characterOnlyFollowsFullTranslation}
+                onChange={handleFollowFullTranslationChange}
+                style={{ marginRight: '0.5rem' }}
+              />
+              Follow Full Translation Box style
+            </label>
+          </div>
           <div className={styles.controlRow}>
             <label className={styles.label}>Font:</label>
             <input
@@ -379,11 +461,13 @@ const AppearanceManager: React.FC = () => {
               onChange={(e) => handleFontChange('characterOnly', 'fontFamily', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., Bookerly, Arial, sans-serif"
+              disabled={characterOnlyFollowsFullTranslation}
             />
             <button
               className={styles.resetButton}
               onClick={() => resetToDefault('characterOnly', 'fontFamily')}
               title="Reset font to default"
+              disabled={characterOnlyFollowsFullTranslation}
             >
               <RotateCcw size={14} />
             </button>
@@ -397,11 +481,13 @@ const AppearanceManager: React.FC = () => {
               onChange={(e) => handleFontChange('characterOnly', 'fontSize', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., 1.25rem, 20px, 14pt"
+              disabled={characterOnlyFollowsFullTranslation}
             />
             <button
               className={styles.resetButton}
               onClick={() => resetToDefault('characterOnly', 'fontSize')}
               title="Reset size to default"
+              disabled={characterOnlyFollowsFullTranslation}
             >
               <RotateCcw size={14} />
             </button>
@@ -415,11 +501,35 @@ const AppearanceManager: React.FC = () => {
               onChange={(e) => handleFontChange('characterOnly', 'letterSpacing', e.target.value)}
               onBlur={handleAutoSave}
               placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
+              disabled={characterOnlyFollowsFullTranslation}
             />
             <button
               className={styles.resetButton}
               onClick={() => resetToDefault('characterOnly', 'letterSpacing')}
               title="Reset letter spacing to default"
+              disabled={characterOnlyFollowsFullTranslation}
+            >
+              <RotateCcw size={14} />
+            </button>
+          </div>
+          <div className={styles.controlRow}>
+            <label className={styles.label}>Paragraph Spacing:</label>
+            <input
+              type="text"
+              className={styles.input}
+              value={appearance.characterOnly.paragraphSpacing || '1rem'}
+              onChange={(e) =>
+                handleFontChange('characterOnly', 'paragraphSpacing', e.target.value)
+              }
+              onBlur={handleAutoSave}
+              placeholder="e.g., 1rem, 16px, 1.5em"
+              disabled={characterOnlyFollowsFullTranslation}
+            />
+            <button
+              className={styles.resetButton}
+              onClick={() => resetToDefault('characterOnly', 'paragraphSpacing')}
+              title="Reset paragraph spacing to default"
+              disabled={characterOnlyFollowsFullTranslation}
             >
               <RotateCcw size={14} />
             </button>

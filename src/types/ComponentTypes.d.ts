@@ -168,6 +168,8 @@ export interface AppearanceSettings {
   uiFont: Pick<FontSettings, 'fontFamily'>;
   /** Theme selection */
   theme: Theme;
+  /** Whether Character Only Box follows Full Translation Box style */
+  characterOnlyFollowsFullTranslation?: boolean;
   /** Custom CSS variables (optional) */
   customColors?: Record<string, string>;
 }
