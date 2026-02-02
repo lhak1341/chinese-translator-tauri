@@ -1711,6 +1711,7 @@ export class TranslationEngine {
           '〗',
           '～',
           '˙',
+          '——',
         ];
         for (const char of punctuationChars) {
           const result_lookup = this.dictionaryManager.translate(char, ['punctuation']);
@@ -1724,8 +1725,9 @@ export class TranslationEngine {
         }
       }
 
-      // Skip applyFinalCleanup for character-only translation to preserve exact spacing
-      // (applyFinalCleanup removes leading whitespace which we want to keep)
+      // Apply light formatting for character-only translation
+      // Capitalize first letter and after punctuation, but preserve exact spacing
+      translatedText = this.applyLightFormatting(translatedText);
 
       if (process.env.NODE_ENV === 'development') {
         batchLog.hotInfo(
@@ -1734,9 +1736,25 @@ export class TranslationEngine {
         );
       }
 
+      // CRITICAL FIX: Get semantic arrays BEFORE capitalization
+      // The semantic arrays were built with lowercase text (e.g., "vu thị")
+      // If we capitalize first (to "Vu thị"), the segment builder can't match
+      // the lowercase semantic units against the capitalized text
       // Get semantic arrays from the isolated builder (prevents conflicts with concurrent main translations)
       // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
       const semanticArrays = characterOnlySemanticBuilder.getArrays();
+
+      // CRITICAL FIX: Capitalize semantic arrays to match the capitalized text
+      // This ensures segment builder can match units correctly
+      if (semanticArrays && semanticArrays.translated && semanticArrays.translated.length > 0) {
+        // Capitalize first unit if it exists
+        if (semanticArrays.translated[0]) {
+          const firstUnit = semanticArrays.translated[0];
+          if (firstUnit.length > 0) {
+            semanticArrays.translated[0] = firstUnit.charAt(0).toUpperCase() + firstUnit.slice(1);
+          }
+        }
+      }
 
       if (process.env.NODE_ENV === 'development') {
         batchLog.hotVerbose(
@@ -4274,7 +4292,7 @@ export class TranslationEngine {
         // CRITICAL: Validate consumed token contract
         // Tokens with null translation MUST have translationSource to indicate consumption
         // If null without source = potential double-processing bug
-        // EXCEPTION: NUMBER and LATIN_WORD tokens naturally have null translation (pass-through)
+        // EXCEPTION: NUMBER, LATIN_WORD, and UNKNOWN tokens naturally have null translation (pass-through)
         if (
           token.translated === null &&
           token.type !== TokenType.CHINESE_CHAR &&
@@ -4283,7 +4301,8 @@ export class TranslationEngine {
           token.type !== TokenType.NEWLINE &&
           token.type !== TokenType.PUNCTUATION &&
           token.type !== TokenType.NUMBER &&
-          token.type !== TokenType.LATIN_WORD
+          token.type !== TokenType.LATIN_WORD &&
+          token.type !== TokenType.UNKNOWN
         ) {
           // Suspicious: Non-pass-through token with null translation but no source
           // This could indicate a phase forgot to set translationSource after consumption
@@ -4319,9 +4338,12 @@ export class TranslationEngine {
           case TokenType.SPACE:
           case TokenType.NEWLINE:
           case TokenType.PUNCTUATION:
-            // CRITICAL FIX: Explicit handling for whitespace and punctuation tokens
+          case TokenType.UNKNOWN:
+            // CRITICAL FIX: Explicit handling for whitespace, punctuation, and unknown tokens
             // These are pass-through tokens but typically don't need semantic array entries
             // (spacing/punctuation handled separately in postProcess spacing logic)
+            // UNKNOWN tokens include characters like Japanese hiragana "の" that don't match
+            // Chinese/Latin/Number patterns but should still be preserved
             output = token.value;
             // Note: No semantic array entry needed - these are structural, not translatable content
             break;
@@ -4474,6 +4496,27 @@ export class TranslationEngine {
       if (
         next &&
         current.tokenType === TokenType.NUMBER &&
+        (next.tokenType === TokenType.CHINESE_CHAR || next.tokenType === TokenType.CHINESE_WORD)
+      ) {
+        result += ' ';
+        currentPosition += 1;
+      }
+
+      // Add space between Chinese segments and UNKNOWN tokens (e.g., Japanese hiragana "の")
+      if (
+        next &&
+        (current.tokenType === TokenType.CHINESE_CHAR ||
+          current.tokenType === TokenType.CHINESE_WORD) &&
+        next.tokenType === TokenType.UNKNOWN
+      ) {
+        result += ' ';
+        currentPosition += 1;
+      }
+
+      // Add space between UNKNOWN tokens and Chinese segments
+      if (
+        next &&
+        current.tokenType === TokenType.UNKNOWN &&
         (next.tokenType === TokenType.CHINESE_CHAR || next.tokenType === TokenType.CHINESE_WORD)
       ) {
         result += ' ';
@@ -4878,6 +4921,7 @@ export class TranslationEngine {
       '〗',
       '～',
       '˙',
+      '——',
     ];
 
     for (const char of punctuationChars) {
@@ -8989,6 +9033,64 @@ export class TranslationEngine {
     }
 
     return text;
+  }
+
+  /**
+   * Apply light formatting to character-only translation
+   * - Capitalize first letter and after sentence-ending punctuation
+   * - Add space after commas and colons
+   * - Preserve all other spacing exactly as-is
+   * @param {string} text - Text to format
+   * @returns {string} Formatted text
+   */
+  applyLightFormatting(text) {
+    if (!text) return text;
+
+    let formatted = text;
+
+    // Add space after commas (but not if already has space)
+    formatted = formatted.replace(/,(?!\s)/g, ', ');
+
+    // Add space after colons (but not if already has space)
+    formatted = formatted.replace(/:(?!\s)/g, ': ');
+
+    // Add space after periods (but not if already has space)
+    formatted = formatted.replace(/\.(?!\s)/g, '. ');
+
+    // Add space after em dashes (but not if already has space)
+    formatted = formatted.replace(/——(?!\s)/g, '—— ');
+
+    // Add spaces around chunks of Japanese/other non-Vietnamese characters (e.g., "の", "ののの")
+    // Hiragana: U+3040-U+309F, Katakana: U+30A0-U+30FF
+    // Pattern: Match Japanese chunk between Vietnamese text and add spaces
+    // Step 1: Add space before Japanese chunk (Vietnamese letter + no space + Japanese)
+    formatted = formatted.replace(
+      /([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])([\u3040-\u309F\u30A0-\u30FF]+)/gi,
+      '$1 $2'
+    );
+    // Step 2: Add space after Japanese chunk (Japanese + no space + Vietnamese letter)
+    formatted = formatted.replace(
+      /([\u3040-\u309F\u30A0-\u30FF]+)([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])/gi,
+      '$1 $2'
+    );
+
+    // Capitalize first letter (handle Vietnamese diacritics correctly)
+    if (formatted.length > 0) {
+      formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+    }
+
+    // Capitalize after sentence-ending punctuation (period, exclamation, question mark)
+    // Use a more careful regex that preserves the punctuation and spacing
+    formatted = formatted.replace(/([.!?])(\s+)(\S)/g, (match, punct, spaces, letter) => {
+      return punct + spaces + letter.toUpperCase();
+    });
+
+    // Capitalize after line breaks
+    formatted = formatted.replace(/\n\s*(\S)/g, (match, letter) => {
+      return match.slice(0, -1) + letter.toUpperCase();
+    });
+
+    return formatted;
   }
 
   /**

@@ -146,11 +146,13 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
             });
           }
 
-          // CRITICAL-4 FIX: Use offset-based indexOf instead of substring to avoid O(n*m) performance
-          // Previous: substring(currentPosition) creates new string on EVERY iteration (O(m) × n units = O(n*m))
-          // Fixed: indexOf(unit, currentPosition) searches from offset without creating substring (O(m) total)
-          // Impact: 5000 units × 50K chars: 250M → 250K character operations (1000x faster)
-          const unitPosition = normalizedTranslatedText.indexOf(translatedUnit, currentPosition);
+          // CRITICAL FIX: Use case-insensitive indexOf for character-only mode
+          // After applyLightFormatting() capitalizes text (e.g., "vu" → "Vu"), semantic units
+          // (built before formatting) are still lowercase. Case-sensitive indexOf fails, causing
+          // units to be skipped and text like periods to disappear.
+          const lowerText = normalizedTranslatedText.toLowerCase();
+          const lowerUnit = translatedUnit.toLowerCase();
+          const unitPosition = lowerText.indexOf(lowerUnit, currentPosition);
 
           if (unitPosition === -1) {
             // HIGH-1 FIX: Update currentPosition before skipping to prevent overlapping segments
@@ -198,14 +200,21 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         }
 
         // Add the semantic unit
+        // CRITICAL FIX: Extract text from the formatted text (preserves capitalization)
+        // instead of using translatedUnit from semantic array (which is pre-formatting lowercase)
+        const actualText = normalizedTranslatedText.substring(
+          actualPosition!,
+          actualPosition! + unitLength!
+        );
+
         directSegments.push({
           type: 'semantic' as const,
-          text: translatedUnit,
+          text: actualText,
           start: actualPosition!,
           end: actualPosition! + unitLength!,
           unitIndex: i,
           originalText: originalUnit,
-          translatedText: translatedUnit,
+          translatedText: actualText,
           isClickable: true as const,
         });
 
