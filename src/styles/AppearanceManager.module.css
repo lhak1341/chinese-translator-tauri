@@ -33,6 +33,28 @@
   background: var(--background-color);
 }
 
+/* Two-column layout */
+.columnsContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Individual column */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Responsive: Stack on smaller screens */
+@media (max-width: 1024px) {
+  .columnsContainer {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Error Display */
 .error {
   padding: 0.625rem 0.75rem;
@@ -45,7 +67,6 @@
 
 /* Section */
 .section {
-  margin-bottom: 1.5rem;
   padding: 1rem;
   background: var(--surface-color);
   border: 1px solid var(--border-color);

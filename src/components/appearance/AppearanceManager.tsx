@@ -274,303 +274,319 @@ const AppearanceManager: React.FC = () => {
     <div className={styles.container}>
       {error && <div className={styles.error}>{error}</div>}
 
-      {/* Chinese Text Box Settings */}
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Chinese Text Box</h3>
-        <div className={styles.controlGroup}>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Font:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.chineseText.fontFamily}
-              onChange={(e) => handleFontChange('chineseText', 'fontFamily', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder='e.g., "Noto Sans CJK SC", Arial, sans-serif'
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('chineseText', 'fontFamily')}
-              title="Reset font to default"
-            >
-              <RotateCcw size={14} />
-            </button>
+      <div className={styles.columnsContainer}>
+        {/* Left Column: Chinese Text & UI Font */}
+        <div className={styles.column}>
+          {/* Chinese Text Box Settings */}
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Chinese Text Box</h3>
+            <div className={styles.controlGroup}>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Font:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.chineseText.fontFamily}
+                  onChange={(e) => handleFontChange('chineseText', 'fontFamily', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder='e.g., "Noto Sans CJK SC", Arial, sans-serif'
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('chineseText', 'fontFamily')}
+                  title="Reset font to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Size:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.chineseText.fontSize}
+                  onChange={(e) => handleFontChange('chineseText', 'fontSize', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., 1.25rem, 20px, 14pt"
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('chineseText', 'fontSize')}
+                  title="Reset size to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Letter Spacing:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.chineseText.letterSpacing}
+                  onChange={(e) => handleFontChange('chineseText', 'letterSpacing', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('chineseText', 'letterSpacing')}
+                  title="Reset letter spacing to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div
+                className={styles.preview}
+                style={{
+                  fontFamily: appearance.chineseText.fontFamily,
+                  fontSize: appearance.chineseText.fontSize,
+                  letterSpacing: appearance.chineseText.letterSpacing,
+                }}
+              >
+                这是中文文本的预览样式。你好世界！
+              </div>
+            </div>
           </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Size:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.chineseText.fontSize}
-              onChange={(e) => handleFontChange('chineseText', 'fontSize', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., 1.25rem, 20px, 14pt"
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('chineseText', 'fontSize')}
-              title="Reset size to default"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Letter Spacing:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.chineseText.letterSpacing}
-              onChange={(e) => handleFontChange('chineseText', 'letterSpacing', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('chineseText', 'letterSpacing')}
-              title="Reset letter spacing to default"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div
-            className={styles.preview}
-            style={{
-              fontFamily: appearance.chineseText.fontFamily,
-              fontSize: appearance.chineseText.fontSize,
-              letterSpacing: appearance.chineseText.letterSpacing,
-            }}
-          >
-            这是中文文本的预览样式。你好世界！
-          </div>
-        </div>
-      </div>
 
-      {/* Full Translation Box Settings */}
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Full Translation Box</h3>
-        <div className={styles.controlGroup}>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Font:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.fullTranslation.fontFamily}
-              onChange={(e) => handleFontChange('fullTranslation', 'fontFamily', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder='e.g., Bookerly, "Times New Roman", serif'
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('fullTranslation', 'fontFamily')}
-              title="Reset font to default"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Size:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.fullTranslation.fontSize}
-              onChange={(e) => handleFontChange('fullTranslation', 'fontSize', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., 1.25rem, 20px, 14pt"
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('fullTranslation', 'fontSize')}
-              title="Reset size to default"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Letter Spacing:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.fullTranslation.letterSpacing}
-              onChange={(e) => handleFontChange('fullTranslation', 'letterSpacing', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('fullTranslation', 'letterSpacing')}
-              title="Reset letter spacing to default"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Paragraph Spacing:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.fullTranslation.paragraphSpacing || '1rem'}
-              onChange={(e) =>
-                handleFontChange('fullTranslation', 'paragraphSpacing', e.target.value)
-              }
-              onBlur={handleAutoSave}
-              placeholder="e.g., 1rem, 16px, 1.5em"
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('fullTranslation', 'paragraphSpacing')}
-              title="Reset paragraph spacing to default"
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div
-            className={styles.preview}
-            style={{
-              fontFamily: appearance.fullTranslation.fontFamily,
-              fontSize: appearance.fullTranslation.fontSize,
-              letterSpacing: appearance.fullTranslation.letterSpacing,
-            }}
-          >
-            This is a preview of the full translation style. Hello world!
+          {/* UI Font Settings */}
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>UI Font</h3>
+            <div className={styles.controlGroup}>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Font:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.uiFont.fontFamily}
+                  onChange={(e) => handleFontChange('uiFont', 'fontFamily', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., Inter, system-ui, Arial, sans-serif"
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('uiFont', 'fontFamily')}
+                  title="Reset UI font to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Character Only Box Settings */}
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>Character Only Box</h3>
-        <div className={styles.controlGroup}>
-          {/* Checkbox to follow Full Translation style */}
-          <div className={styles.controlRow}>
-            <label className={styles.label}>
-              <input
-                type="checkbox"
-                checked={characterOnlyFollowsFullTranslation}
-                onChange={handleFollowFullTranslationChange}
-                style={{ marginRight: '0.5rem' }}
-              />
-              Follow Full Translation Box style
-            </label>
+        {/* Right Column: Full Translation & Character Only */}
+        <div className={styles.column}>
+          {/* Full Translation Box Settings */}
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Full Translation Box</h3>
+            <div className={styles.controlGroup}>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Font:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.fullTranslation.fontFamily}
+                  onChange={(e) =>
+                    handleFontChange('fullTranslation', 'fontFamily', e.target.value)
+                  }
+                  onBlur={handleAutoSave}
+                  placeholder='e.g., Bookerly, "Times New Roman", serif'
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('fullTranslation', 'fontFamily')}
+                  title="Reset font to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Size:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.fullTranslation.fontSize}
+                  onChange={(e) => handleFontChange('fullTranslation', 'fontSize', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., 1.25rem, 20px, 14pt"
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('fullTranslation', 'fontSize')}
+                  title="Reset size to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Letter Spacing:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.fullTranslation.letterSpacing}
+                  onChange={(e) =>
+                    handleFontChange('fullTranslation', 'letterSpacing', e.target.value)
+                  }
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('fullTranslation', 'letterSpacing')}
+                  title="Reset letter spacing to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Paragraph Spacing:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.fullTranslation.paragraphSpacing || '1rem'}
+                  onChange={(e) =>
+                    handleFontChange('fullTranslation', 'paragraphSpacing', e.target.value)
+                  }
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., 1rem, 16px, 1.5em"
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('fullTranslation', 'paragraphSpacing')}
+                  title="Reset paragraph spacing to default"
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div
+                className={styles.preview}
+                style={{
+                  fontFamily: appearance.fullTranslation.fontFamily,
+                  fontSize: appearance.fullTranslation.fontSize,
+                  letterSpacing: appearance.fullTranslation.letterSpacing,
+                }}
+              >
+                This is a preview of the full translation style. Hello world!
+              </div>
+            </div>
           </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Font:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.characterOnly.fontFamily}
-              onChange={(e) => handleFontChange('characterOnly', 'fontFamily', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., Bookerly, Arial, sans-serif"
-              disabled={characterOnlyFollowsFullTranslation}
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('characterOnly', 'fontFamily')}
-              title="Reset font to default"
-              disabled={characterOnlyFollowsFullTranslation}
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Size:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.characterOnly.fontSize}
-              onChange={(e) => handleFontChange('characterOnly', 'fontSize', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., 1.25rem, 20px, 14pt"
-              disabled={characterOnlyFollowsFullTranslation}
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('characterOnly', 'fontSize')}
-              title="Reset size to default"
-              disabled={characterOnlyFollowsFullTranslation}
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Letter Spacing:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.characterOnly.letterSpacing}
-              onChange={(e) => handleFontChange('characterOnly', 'letterSpacing', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
-              disabled={characterOnlyFollowsFullTranslation}
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('characterOnly', 'letterSpacing')}
-              title="Reset letter spacing to default"
-              disabled={characterOnlyFollowsFullTranslation}
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Paragraph Spacing:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.characterOnly.paragraphSpacing || '1rem'}
-              onChange={(e) =>
-                handleFontChange('characterOnly', 'paragraphSpacing', e.target.value)
-              }
-              onBlur={handleAutoSave}
-              placeholder="e.g., 1rem, 16px, 1.5em"
-              disabled={characterOnlyFollowsFullTranslation}
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('characterOnly', 'paragraphSpacing')}
-              title="Reset paragraph spacing to default"
-              disabled={characterOnlyFollowsFullTranslation}
-            >
-              <RotateCcw size={14} />
-            </button>
-          </div>
-          <div
-            className={styles.preview}
-            style={{
-              fontFamily: appearance.characterOnly.fontFamily,
-              fontSize: appearance.characterOnly.fontSize,
-              letterSpacing: appearance.characterOnly.letterSpacing,
-            }}
-          >
-            This is a preview of the character-only translation style.
-          </div>
-        </div>
-      </div>
 
-      {/* UI Font Settings */}
-      <div className={styles.section}>
-        <h3 className={styles.sectionTitle}>UI Font</h3>
-        <div className={styles.controlGroup}>
-          <div className={styles.controlRow}>
-            <label className={styles.label}>Font:</label>
-            <input
-              type="text"
-              className={styles.input}
-              value={appearance.uiFont.fontFamily}
-              onChange={(e) => handleFontChange('uiFont', 'fontFamily', e.target.value)}
-              onBlur={handleAutoSave}
-              placeholder="e.g., Inter, system-ui, Arial, sans-serif"
-            />
-            <button
-              className={styles.resetButton}
-              onClick={() => resetToDefault('uiFont', 'fontFamily')}
-              title="Reset UI font to default"
-            >
-              <RotateCcw size={14} />
-            </button>
+          {/* Character Only Box Settings */}
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle}>Character Only Box</h3>
+            <div className={styles.controlGroup}>
+              {/* Checkbox to follow Full Translation style */}
+              <div className={styles.controlRow}>
+                <label className={styles.label}>
+                  <input
+                    type="checkbox"
+                    checked={characterOnlyFollowsFullTranslation}
+                    onChange={handleFollowFullTranslationChange}
+                    style={{ marginRight: '0.5rem' }}
+                  />
+                  Follow Full Translation Box style
+                </label>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Font:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.characterOnly.fontFamily}
+                  onChange={(e) => handleFontChange('characterOnly', 'fontFamily', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., Bookerly, Arial, sans-serif"
+                  disabled={characterOnlyFollowsFullTranslation}
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('characterOnly', 'fontFamily')}
+                  title="Reset font to default"
+                  disabled={characterOnlyFollowsFullTranslation}
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Size:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.characterOnly.fontSize}
+                  onChange={(e) => handleFontChange('characterOnly', 'fontSize', e.target.value)}
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., 1.25rem, 20px, 14pt"
+                  disabled={characterOnlyFollowsFullTranslation}
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('characterOnly', 'fontSize')}
+                  title="Reset size to default"
+                  disabled={characterOnlyFollowsFullTranslation}
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Letter Spacing:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.characterOnly.letterSpacing}
+                  onChange={(e) =>
+                    handleFontChange('characterOnly', 'letterSpacing', e.target.value)
+                  }
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
+                  disabled={characterOnlyFollowsFullTranslation}
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('characterOnly', 'letterSpacing')}
+                  title="Reset letter spacing to default"
+                  disabled={characterOnlyFollowsFullTranslation}
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div className={styles.controlRow}>
+                <label className={styles.label}>Paragraph Spacing:</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={appearance.characterOnly.paragraphSpacing || '1rem'}
+                  onChange={(e) =>
+                    handleFontChange('characterOnly', 'paragraphSpacing', e.target.value)
+                  }
+                  onBlur={handleAutoSave}
+                  placeholder="e.g., 1rem, 16px, 1.5em"
+                  disabled={characterOnlyFollowsFullTranslation}
+                />
+                <button
+                  className={styles.resetButton}
+                  onClick={() => resetToDefault('characterOnly', 'paragraphSpacing')}
+                  title="Reset paragraph spacing to default"
+                  disabled={characterOnlyFollowsFullTranslation}
+                >
+                  <RotateCcw size={14} />
+                </button>
+              </div>
+              <div
+                className={styles.preview}
+                style={{
+                  fontFamily: appearance.characterOnly.fontFamily,
+                  fontSize: appearance.characterOnly.fontSize,
+                  letterSpacing: appearance.characterOnly.letterSpacing,
+                }}
+              >
+                This is a preview of the character-only translation style.
+              </div>
+            </div>
           </div>
         </div>
+        {/* End Right Column */}
       </div>
+      {/* End Columns Container */}
     </div>
   );
 };

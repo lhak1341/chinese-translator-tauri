@@ -306,7 +306,7 @@ body {
    Typography
    -------------------------------------------------------------------------- */
 h1 {
-  font-family: var(--font-display);
+  font-family: var(--ui-font);
   font-size: 1.875rem;
   font-weight: 600;
   line-height: 1.2;
@@ -315,7 +315,7 @@ h1 {
 }
 
 h2 {
-  font-family: var(--font-display);
+  font-family: var(--ui-font);
   font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.25;
@@ -324,7 +324,7 @@ h2 {
 }
 
 h3 {
-  font-family: var(--font-display);
+  font-family: var(--ui-font);
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.35;
@@ -358,7 +358,7 @@ a:focus-visible {
    Buttons - Flat and bold
    -------------------------------------------------------------------------- */
 button {
-  font-family: var(--font-body);
+  font-family: var(--ui-font);
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1.25;
@@ -448,7 +448,7 @@ button.secondary:hover {
 input,
 select,
 textarea {
-  font-family: var(--font-body);
+  font-family: var(--ui-font);
   font-size: 0.875rem;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-color);
@@ -716,7 +716,7 @@ input[type='range'] {
    Toast Overrides
    -------------------------------------------------------------------------- */
 [data-sonner-toaster] {
-  font-family: var(--font-body) !important;
+  font-family: var(--ui-font) !important;
 }
 
 /* --------------------------------------------------------------------------
