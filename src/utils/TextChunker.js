@@ -207,6 +207,22 @@ export class TextChunker {
 
   /**
    * Split text into chunks by punctuation boundaries, preserving line breaks and tracking what starts each chunk
+   *
+   * EXECUTION PATH (WASM vs JavaScript):
+   *   - Primary: WASM TextChunker (Rust implementation, 2-3x faster)
+   *   - Fallback: JavaScript implementation (when WASM not loaded yet)
+   *   - Used by: Full Translation mode for chunking large texts
+   *
+   * WASM ACCELERATION:
+   *   - Lazy initialization: WASM loads on first use
+   *   - Graceful degradation: Falls back to JS if WASM fails
+   *   - Performance: 2-3x speedup for large texts (>1000 chars)
+   *
+   * CHUNKING BEHAVIOR:
+   *   - WASM: More aggressive chunking (splits at / for example)
+   *   - JavaScript: Less aggressive (preserves / in same chunk)
+   *   - Result: WASM may produce more chunks than JavaScript
+   *
    * @param {string} text - Input text to chunk
    * @returns {TextChunk[]} Array of text chunks with startedBy context
    */
@@ -323,6 +339,19 @@ export class TextChunker {
 
   /**
    * Reconstruct text from translated chunks and build segment positions simultaneously
+   *
+   * EXECUTION PATH:
+   *   - Used by: Full Translation mode (right panel with clickable highlighting)
+   *   - Called from: TranslationEngine.translateSinglePass() after all 5 phases
+   *   - Purpose: Build both final text AND semantic arrays for clickable word highlighting
+   *
+   * NOT USED BY:
+   *   - Character-only mode uses reconstructText() instead (simpler, no segments)
+   *
+   * PERFORMANCE:
+   *   - Slower than reconstructText() due to semantic array building
+   *   - Builds position tracking for every chunk, punctuation, and line break
+   *
    * @param {TextChunker[]} chunks - Array of translated chunks
    * @param {Object} semanticArrays - Optional semantic arrays for segment tracking
    * @returns {Object} {text: string, segments: Array} - Reconstructed text and segment positions
@@ -466,12 +495,25 @@ export class TextChunker {
   }
 
   /**
-   * Reconstruct text from translated chunks with translated punctuation and preserved line breaks
+   * Reconstruct text from translated chunks (WITHOUT building segment positions)
+   *
+   * EXECUTION PATH:
+   *   - Used by: Character-only translation mode (bottom-left panel)
+   *   - Called from: SegmentPrecomputer.js for simple text reconstruction
+   *   - Purpose: Fast text assembly without position tracking overhead
+   *
+   * NOT USED BY:
+   *   - Full Translation mode uses reconstructTextWithSegments() instead
+   *
+   * PERFORMANCE:
+   *   - Faster than reconstructTextWithSegments() (no segment building)
+   *   - Simple string concatenation with punctuation spacing
+   *
    * @param {TextChunk[]} chunks - Array of translated chunks
    * @returns {string} Reconstructed text
    */
   reconstructText(chunks) {
-    return chunks
+    const result = chunks
       .map((chunk, index) => {
         const content = chunk.translated || chunk.translatedContent || chunk.content;
         const punctuation = chunk.translatedPunctuation || chunk.punctuation;
@@ -527,6 +569,8 @@ export class TextChunker {
         return prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
       })
       .join('');
+
+    return result;
   }
 
   /**

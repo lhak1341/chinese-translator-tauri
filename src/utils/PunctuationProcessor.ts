@@ -101,6 +101,8 @@ export class PunctuationProcessor {
     this.SPECIAL_PATTERNS = [
       // Colon + quote combinations: : " → : "
       { regex: QuoteProcessor.createColonQuoteRegex(), replacement: ': $1' },
+      // Colon + opening bracket: :( → : ( (both Chinese and ASCII colons)
+      { regex: /([：:])([[（【(])/g, replacement: '$1 $2' },
       // Period + opening quote: ." → . " (both Chinese and ASCII periods)
       { regex: QuoteProcessor.createPeriodQuoteRegex(), replacement: '$1 $2' },
       // Period + opening bracket: .[ → . [ (both Chinese and ASCII periods)
@@ -164,12 +166,14 @@ export class PunctuationProcessor {
         hasQuote &&
         Array.from(punctuation).some((char) => QuoteProcessor.isOpeningQuote(char));
       const hasOpeningBracket = this.OPENING_BRACKET_PATTERN.test(punctuation);
+      const isDivisionSlash = punctuation === '/'; // Don't add space after / (division operator)
       const needsTrailingSpace =
         hasNextChunk &&
         !result.endsWith(' ') &&
         !isOnlyOpeningQuote &&
         !isCommaOpeningQuoteCombo &&
-        !hasOpeningBracket;
+        !hasOpeningBracket &&
+        !isDivisionSlash;
 
       if (needsTrailingSpace) {
         result += ' ';

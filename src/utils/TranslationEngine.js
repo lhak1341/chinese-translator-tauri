@@ -268,7 +268,9 @@ export class TranslationEngine {
       tauriAPI: tauriAPI, // Required for cache file operations
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
-    this.textChunker = new TextChunker();
+    this.textChunker = new TextChunker({
+      excludedCharacters: new Set(['/']), // Don't treat / as chunk separator (used in fractions like 23/30)
+    });
     this.numberProcessor = new NumberProcessor();
 
     // WASM Core Engine REMOVED:
@@ -4202,6 +4204,17 @@ export class TranslationEngine {
    * pre-built segments for ClickableTranslationOptimized component. Position tracking
    * is critical for bidirectional highlighting accuracy.
    *
+   * EXECUTION PATH:
+   *   - Called by: translateSinglePass() after all 5 translation phases complete
+   *   - Called for: ONLY Chinese characters that needed translation
+   *   - NOT called for: Numbers (already Arabic), Latin text (already target language)
+   *
+   * CRITICAL DEBUGGING INSIGHT:
+   *   If you're debugging content like "23" or "30" and logs here don't appear,
+   *   it's because those numbers are ALREADY in Arabic numerals - they skip this
+   *   function entirely! Numbers only go through Phase 3 (Number Processing) which
+   *   converts Chinese numbers (三十 → 30), but Arabic numbers pass through untouched.
+   *
    * Post-processing steps:
    * 1. Build semantic arrays with position tracking (original, translated, metadata)
    * 2. Generate segments for clickable highlighting
@@ -4375,6 +4388,30 @@ export class TranslationEngine {
       segments.map((s) => `"${s.text}" (${s.tokenType})${s.isProperNoun ? ' [proper noun]' : ''}`)
     );
 
+    // DEBUG: Log segments with parentheses and numbers
+    if (process.env.NODE_ENV === 'development') {
+      const hasParenthesesAndNumbers = segments.some(
+        (s) =>
+          s.text === '(' ||
+          s.text === ')' ||
+          s.text === '（' ||
+          s.text === '）' ||
+          s.text === '/' ||
+          s.tokenType === TokenType.NUMBER
+      );
+      if (hasParenthesesAndNumbers) {
+        logger.log('🔍 DEBUG: Segments with parentheses/numbers BEFORE spacing logic:', {
+          segmentCount: segments.length,
+          segments: segments.map((s, i) => ({
+            index: i,
+            text: s.text,
+            tokenType: s.tokenType,
+            originalToken: s.originalToken,
+          })),
+        });
+      }
+    }
+
     // Step 2: Join segments with appropriate spacing AND track positions for semantic array
     let result = '';
     let currentPosition = 0;
@@ -4524,11 +4561,34 @@ export class TranslationEngine {
       }
     }
 
+    // DEBUG: Log result before and after cleanup
+    if (process.env.NODE_ENV === 'development') {
+      if (result.includes('(') || result.includes('（')) {
+        logger.log('🔍 DEBUG: Result BEFORE cleanupFormatting:', {
+          result: result.substring(Math.max(0, result.indexOf('(') - 20), result.indexOf(')') + 20),
+          fullLength: result.length,
+        });
+      }
+    }
+
     const cleaned = this.cleanupFormatting(result, {
       ...options,
       properNounTranslations,
       segments,
     });
+
+    // DEBUG: Log result after cleanup
+    if (process.env.NODE_ENV === 'development') {
+      if (cleaned.includes('(') || cleaned.includes('（')) {
+        logger.log('🔍 DEBUG: Result AFTER cleanupFormatting:', {
+          cleaned: cleaned.substring(
+            Math.max(0, cleaned.indexOf('(') - 20),
+            cleaned.indexOf(')') + 20
+          ),
+          fullLength: cleaned.length,
+        });
+      }
+    }
 
     this.log(
       DEBUG_LEVELS.VERBOSE,
@@ -4890,6 +4950,12 @@ export class TranslationEngine {
    * @returns {string} Cleaned text
    */
   cleanupFormatting(text, options) {
+    // DEBUG: Log when processing text with numbers
+    if (text.includes('23') || text.includes('30')) {
+      logger.log('🔍 DEBUG: cleanupFormatting INPUT:', text.substring(0, 200));
+      logger.log('🔍 DEBUG: useChunking option:', options.useChunking);
+    }
+
     let result = text;
 
     // Apply punctuation translations FIRST using the actual punctuation dictionary
@@ -4983,7 +5049,12 @@ export class TranslationEngine {
     //     result = result.replace(/["“]\s*./g, match => match.toUpperCase()); // " and "
 
     // Capitalize first letter after closing quotes (period + quote + space + text)
-    //     result = result.replace(/[.!?]["”]\s+./g, match => match.toUpperCase()); // " and "
+    //     result = result.replace(/[.!?][""]\s+./g, match => match.toUpperCase()); // " and "
+
+    // DEBUG: Log output when processing text with numbers
+    if (result.includes('23') || result.includes('30')) {
+      logger.log('🔍 DEBUG: cleanupFormatting OUTPUT:', result.substring(0, 200));
+    }
 
     return result;
   }
@@ -5317,6 +5388,18 @@ export class TranslationEngine {
 
   /**
    * Process chunks in parallel within a batch
+   *
+   * EXECUTION PATH:
+   *   - Called by: translateDirectly() when processing large texts in batches
+   *   - Used by: Full Translation mode (Character-only uses simpler path)
+   *   - Purpose: Parallel processing of text chunks for performance
+   *   - When: Only when text is chunked (multiple chunks exist)
+   *
+   * WHAT IT DOES:
+   *   - Processes multiple chunks concurrently using Promise.all
+   *   - Each chunk goes through full 5-phase translation pipeline
+   *   - Applies progressive batch processing for memory efficiency
+   *
    * @param {Array} batch - Array of chunks to process
    * @param {Object} options - Translation options
    * @param {number} batchStart - Starting index for chunk offset calculation
@@ -5400,7 +5483,26 @@ export class TranslationEngine {
             isParallelChunk: true, // Prevent semantic array reset in individual chunks
           };
 
+          // DEBUG: Log before translation
+          if (chunk.content.includes('2') || chunk.content.includes('3')) {
+            logger.log('🔍 DEBUG: About to translate chunk:', chunk.content);
+          }
+
           chunk.translated = await this.translateDirectly(chunk.content, chunkOptions);
+
+          // DEBUG: Log translated chunk content
+          if (
+            chunk.content.includes('2') ||
+            chunk.content.includes('3') ||
+            chunk.translated.includes('2') ||
+            chunk.translated.includes('3')
+          ) {
+            logger.log('🔍 DEBUG: Translated chunk:', {
+              original: chunk.content,
+              translated: chunk.translated,
+              punctuation: chunk.punctuation,
+            });
+          }
 
           // Log individual chunk completion for debugging
           if (this.debugLevel >= DEBUG_LEVELS.VERBOSE) {
@@ -7443,6 +7545,12 @@ export class TranslationEngine {
    * conflicts. This method CANNOT be split because phase coordination requires synchronous
    * token state management.
    *
+   * EXECUTION PATH:
+   *   - Called by: translateDirectly() after text tokenization
+   *   - Used by: BOTH Full Translation and Character-only modes
+   *   - Calls: postProcess() ONLY for tokens that needed translation (Chinese content)
+   *   - Skips postProcess() for: Numbers (already Arabic), Latin text, punctuation
+   *
    * Phase Execution Order (NEVER CHANGE):
    * 1. Pattern Processing (applyPatterns) - Highest priority
    * 2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
@@ -9095,6 +9203,22 @@ export class TranslationEngine {
 
   /**
    * Apply final cleanup: spacing and other formatting
+   *
+   * EXECUTION PATH:
+   *   - Called by: translateSinglePass() AFTER reconstructTextWithSegments()
+   *   - Called for: ALL translated text (both Full Translation and Character-only)
+   *   - Purpose: Fix spacing between Vietnamese text and numbers
+   *
+   * WHAT IT DOES:
+   *   - Adds space between Vietnamese text and Arabic numerals (Thứ422 → Thứ 422)
+   *   - CRITICAL: Excludes ()/ from spacing to preserve "(23/30)" formatting
+   *   - Cleans up multiple spaces
+   *   - Removes spaces at line boundaries
+   *
+   * BUG FIX HISTORY:
+   *   - 2026-02-02: Added ()/ to exclusion list to fix "(23/30)" → ":( 23 / 30 )" bug
+   *   - Regex now: /([^\s\d,.\-+%()\/])(\d)/g instead of /([^\s\d,.\-+%])(\d)/g
+   *
    * @param {string} text - Text to clean up
    * @returns {string} Cleaned up text
    */
@@ -9106,8 +9230,9 @@ export class TranslationEngine {
 
     // Add space between Vietnamese text and Arabic numerals (like "Thứ422giới" -> "Thứ 422 giới")
     // BUT preserve number formatting by excluding number-related characters (comma, period, dash, plus, percent)
-    cleanedText = cleanedText.replace(/([^\s\d,.\-+%])(\d)/g, '$1 $2');
-    cleanedText = cleanedText.replace(/(\d)([^\s\d,.\-+%])/g, '$1 $2');
+    // ALSO exclude parentheses and slashes to prevent breaking "(23/30)" formatting
+    cleanedText = cleanedText.replace(/([^\s\d,.\-+%()\/])(\d)/g, '$1 $2');
+    cleanedText = cleanedText.replace(/(\d)([^\s\d,.\-+%()\/])/g, '$1 $2');
 
     // Clean up multiple spaces (but not across line breaks)
     cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');

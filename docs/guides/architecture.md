@@ -24,6 +24,179 @@ This guide describes the core architecture of the Chinese-Vietnamese Translation
 
 ---
 
+## Execution Paths (Full Translation vs Character-only)
+
+**Critical for debugging**: Understanding which code path executes is essential before adding debug logs.
+
+### Mode Comparison
+
+| Aspect                  | Full Translation                | Character-only                         |
+| ----------------------- | ------------------------------- | -------------------------------------- |
+| **TextChunker**         | WASM (Rust)                     | JavaScript                             |
+| **Text Reconstruction** | `reconstructTextWithSegments()` | `reconstructText()`                    |
+| **Semantic Arrays**     | Built during reconstruction     | Built separately by SegmentPrecomputer |
+| **Parallel Processing** | `processChunksInParallel()`     | Simpler sequential path                |
+| **Chunking Behavior**   | More aggressive (splits at `/`) | Less aggressive                        |
+
+### Function Call Sequences
+
+#### Full Translation Pipeline
+
+```
+translateDirectly()
+  ↓
+[TextChunker (WASM)] chunkText()
+  ↓
+processChunksInParallel() [if multiple chunks]
+  ↓
+translateSinglePass() [for each chunk]
+  ↓ [5 phases execute]
+  ↓
+postProcess() [ONLY for Chinese content needing translation]
+  ↓
+reconstructTextWithSegments() [builds text + semantic arrays]
+  ↓
+applyFinalCleanup() [spacing fixes]
+```
+
+#### Character-only Pipeline
+
+```
+translateDirectly()
+  ↓
+[TextChunker (JavaScript)] chunkText()
+  ↓
+translateSinglePass() [simpler, no parallel processing]
+  ↓ [5 phases execute]
+  ↓
+postProcess() [ONLY for Chinese content needing translation]
+  ↓
+reconstructText() [simple text assembly, no segments]
+  ↓
+[SegmentPrecomputer] builds semantic arrays separately
+  ↓
+applyFinalCleanup() [spacing fixes]
+```
+
+### When Functions Are Called
+
+#### `postProcess()` - Post-processing & Text Assembly
+
+**Called for:**
+
+- Chinese characters that needed translation
+- Content that went through any of the 5 phases
+
+**NOT called for:**
+
+- Numbers like "23" or "30" (already in Arabic numerals)
+- Latin text (already in target language)
+- Punctuation (passes through untouched)
+
+**Debugging tip**: If you're debugging content like "23/30" and your logs in `postProcess()` don't appear, it's because those numbers are ALREADY in Arabic format and skip this function entirely!
+
+#### `applyFinalCleanup()` - Final Spacing Fixes
+
+**Called for:**
+
+- ALL translated text (both Full Translation and Character-only)
+- Runs AFTER text reconstruction
+
+**What it does:**
+
+- Adds space between Vietnamese text and numbers (Thứ422 → Thứ 422)
+- Excludes `()` and `/` to preserve formatting like "(23/30)"
+- Cleans up multiple spaces
+- Removes spaces at line boundaries
+
+#### `reconstructTextWithSegments()` vs `reconstructText()`
+
+**`reconstructTextWithSegments()`:**
+
+- Used by: Full Translation mode
+- Purpose: Build final text AND semantic arrays simultaneously
+- Slower: Additional overhead for position tracking
+- Output: `{text: string, segments: Array}`
+
+**`reconstructText()`:**
+
+- Used by: Character-only mode
+- Purpose: Fast text assembly without segments
+- Faster: No position tracking overhead
+- Output: `string`
+
+### WASM vs JavaScript Implementations
+
+#### WASM Path (Full Translation)
+
+**TextChunker:**
+
+- Implementation: `wasm-core/src/text_chunker.rs`
+- Behavior: More aggressive chunking (splits at `/`)
+- Example: `"(23/30)"` → 3 chunks: `"("`, `"23"`, `"/"`, `"30"`, `")"`
+
+**Pattern Processor:**
+
+- Implementation: `wasm-core/src/pattern_processor/`
+- Speedup: 10-50x faster than JavaScript
+- Mandatory: No JavaScript fallback (removed Jan 2025)
+
+**Number Processor:**
+
+- Implementation: `wasm-core/src/number_processor.rs`
+- Speedup: 5-10x faster than JavaScript
+- Handles: Chinese number conversion (三十 → 30)
+
+#### JavaScript Path (Character-only)
+
+**TextChunker:**
+
+- Implementation: `src/utils/TextChunker.js`
+- Behavior: Less aggressive chunking (preserves `/`)
+- Example: `"(23/30)"` → 2 chunks: `"("`, `"23/30"`, `")"`
+
+**Fallback behavior:**
+
+- WASM TextChunker has lazy initialization
+- Falls back to JavaScript if WASM not loaded yet
+- Graceful degradation ensures functionality
+
+### Debugging Strategy
+
+**Before adding debug logs, verify:**
+
+1. **Which mode is running?** Full Translation or Character-only?
+2. **Which implementation?** WASM or JavaScript?
+3. **What content type?** Chinese, numbers, Latin, punctuation?
+4. **Does the function execute for this content?** Check "NOT called for" lists
+
+**Effective debugging pattern:**
+
+```javascript
+// At function entry - verify execution
+console.log('🔍 [FunctionName] ENTRY:', { contentType, mode });
+
+// At decision points - trace flow
+if (needsTranslation(content)) {
+  console.log('🔍 [FunctionName] Taking translation path');
+} else {
+  console.log('🔍 [FunctionName] Skipping translation (already target format)');
+}
+
+// At function exit - verify output
+console.log('🔍 [FunctionName] EXIT:', { result });
+```
+
+**Example: Why logs didn't appear in our debugging session**
+
+We added logs to `postProcess()` to debug "(23/30)" spacing, but logs never appeared:
+
+- **Why**: Numbers "23" and "30" are already in Arabic numerals
+- **Result**: They skip `postProcess()` entirely (no translation needed)
+- **Solution**: Add logs to `applyFinalCleanup()` instead (called for ALL content)
+
+---
+
 ## WASM Acceleration (Active Systems)
 
 **Only 4 WASM systems are actively used:**

@@ -209,6 +209,53 @@ logger.error('Failed to save:', error);
 
 📖 **Migration Progress**: [docs/guides/development.md](docs/guides/development.md#logging-best-practices)
 
+### Debugging Strategies
+
+**Critical insight** (2026-02-02): Understanding execution paths is essential before adding debug logs.
+
+**Execution path differences** (Full Translation vs Character-only):
+
+| Aspect                             | Full Translation                             | Character-only      |
+| ---------------------------------- | -------------------------------------------- | ------------------- |
+| TextChunker                        | WASM (Rust)                                  | JavaScript          |
+| Reconstruction                     | `reconstructTextWithSegments()`              | `reconstructText()` |
+| When `postProcess()` called        | Only for Chinese content needing translation | Same                |
+| Content that skips `postProcess()` | Numbers, Latin text (already in target form) | Same                |
+
+**Debugging strategy that works:**
+
+1. **Start at the output and work backwards** - Don't guess which function processes what
+2. **Verify execution path first** - Add logs to confirm which code path is actually running
+3. **Check if logs appear** - If logs don't appear, you're in the wrong function
+4. **Trace decision points** - Log at if/else branches to understand flow
+
+**Common mistakes:**
+
+- ❌ Adding logs to functions that aren't called for your test case
+- ❌ Assuming both modes use the same code path
+- ❌ Not checking if WASM vs JavaScript implementation is being used
+- ❌ Assuming all content goes through all processing phases
+
+**Example: Numbers don't need translation:**
+
+```javascript
+// ❌ WRONG: Adding logs here won't show anything for "23" or "30"
+postProcess(translationResult) {
+  console.log('Processing:', translationResult);
+  // Numbers skip this entirely - they're already in Arabic numerals!
+}
+
+// ✅ RIGHT: Add logs at the decision point
+if (needsTranslation(content)) {
+  console.log('Content needs translation, calling postProcess');
+  postProcess(content);
+} else {
+  console.log('Content already in target form, skipping postProcess');
+}
+```
+
+📖 **Full Analysis**: [docs/code-review/PUNCTUATION_SPACING_DEBUG_2026-02-02.md](docs/code-review/PUNCTUATION_SPACING_DEBUG_2026-02-02.md)
+
 ### Error Handling Patterns
 
 **Production reliability** (January 2025): Comprehensive error handling with user-facing notifications and graceful degradation.
