@@ -80,7 +80,10 @@ impl ManagedStringCache {
         self.estimated_size
     }
 
-    /// Clear cache manually
+    /// Clear cache manually.
+    /// Sets estimated_size to 0 before returning — the Drop impl will then
+    /// call record_deallocation(0), which is a no-op. Do not re-insert into
+    /// the cache after clear() without a corresponding record_allocation().
     pub fn clear(&mut self) {
         record_deallocation(self.estimated_size);
         self.estimated_size = 0;

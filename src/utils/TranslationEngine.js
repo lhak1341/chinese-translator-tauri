@@ -1075,8 +1075,9 @@ export class TranslationEngine {
           // Ignore errors during cleanup (callback may have already fired)
         }
       });
+      const cancelledCount = this.pendingCleanupCallbacks.size;
       this.pendingCleanupCallbacks.clear();
-      logger.log(`🧹 Cancelled ${this.pendingCleanupCallbacks.size} pending cleanup callbacks`);
+      logger.log(`🧹 Cancelled ${cancelledCount} pending cleanup callbacks`);
     }
 
     // Reset initialization state
@@ -4882,9 +4883,20 @@ export class TranslationEngine {
 
       // Use requestIdleCallback if available, otherwise defer with setTimeout
       if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(cleanupFn, { timeout: 1000 });
+        const callbackId = requestIdleCallback(
+          () => {
+            this.pendingCleanupCallbacks.delete(callbackId);
+            cleanupFn();
+          },
+          { timeout: 1000 }
+        );
+        this.pendingCleanupCallbacks.add(callbackId);
       } else {
-        setTimeout(cleanupFn, 0);
+        const callbackId = setTimeout(() => {
+          this.pendingCleanupCallbacks.delete(callbackId);
+          cleanupFn();
+        }, 0);
+        this.pendingCleanupCallbacks.add(callbackId);
       }
     }
 

@@ -458,6 +458,7 @@ impl DictionaryEngine {
     pub fn clear_all_dictionaries(&mut self) {
         self.dictionaries.clear();
         self.total_entries = 0;
+        self.performance_stats.memory_usage_bytes = 0;
         web_sys::console::log_1(&"🗑️ All dictionaries cleared".into());
     }
 

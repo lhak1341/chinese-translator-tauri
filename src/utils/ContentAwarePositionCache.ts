@@ -328,12 +328,6 @@ export class ContentAwarePositionCache {
     // Store in exact cache
     this.exactCache.set(contentHash, cacheEntry);
 
-    // Store signature for similarity matching
-    this.similarityCache.set(contentHash, {
-      signature: contentSignature,
-      timestamp: Date.now(),
-    });
-
     this.stats.stores++;
     this.stats.avgComputeTimeSaved = (this.stats.avgComputeTimeSaved + computeTime) / 2;
 

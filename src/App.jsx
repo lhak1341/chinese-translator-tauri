@@ -10,6 +10,7 @@ import { optimizationBenchmarks } from './utils/OptimizationBenchmarks.js';
 import { cleanupWasmNumberProcessor } from './utils/WasmNumberProcessor';
 import { cleanupWasmPatternProcessor } from './utils/WasmPatternProcessor';
 import { rustLookupIndexManager } from './utils/RustLookupIndexManager';
+import { contentAwarePositionCache } from './utils/ContentAwarePositionCache';
 import { initializeWasmPositionMapper } from './utils/WasmPositionMapper';
 
 function App() {
@@ -342,6 +343,7 @@ function App() {
       return () => {
         systemPerformanceMonitor.destroy();
         wasmMemoryPoolManager.cleanup();
+        contentAwarePositionCache.destroy();
         // CODE REVIEW FIX (MEDIUM-7): Add WASM cleanup
         cleanupWasmNumberProcessor();
         cleanupWasmPatternProcessor();
