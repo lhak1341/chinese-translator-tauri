@@ -16,10 +16,7 @@
  *   - Generate detailed validation report
  */
 
-import {
-  tokenPositionToCharPosition,
-  buildFullTextFromTokens,
-} from './PositionMappingUtils.js';
+import { tokenPositionToCharPosition, buildFullTextFromTokens } from './PositionMappingUtils.js';
 
 export class WasmDictionaryTrieValidator {
   constructor(translationEngine) {
@@ -369,7 +366,11 @@ export class WasmDictionaryTrieValidator {
     if ((wasm === null) !== (js === null)) return false;
 
     // Both have results - compare
-    return wasm.word === js.word && wasm.translation === js.translation && wasm.tokenLength === js.tokenLength;
+    return (
+      wasm.word === js.word &&
+      wasm.translation === js.translation &&
+      wasm.tokenLength === js.tokenLength
+    );
   }
 
   /**
@@ -399,7 +400,9 @@ export class WasmDictionaryTrieValidator {
       console.log('\n⚡ Performance:');
       console.log(`   WASM Time:         ${this.results.performance.wasmTime.toFixed(2)}ms`);
       console.log(`   JavaScript Time:   ${this.results.performance.jsTime.toFixed(2)}ms`);
-      console.log(`   Position Mapping:  ${this.results.performance.positionMappingTime.toFixed(2)}ms`);
+      console.log(
+        `   Position Mapping:  ${this.results.performance.positionMappingTime.toFixed(2)}ms`
+      );
 
       const speedup = this.results.performance.jsTime / this.results.performance.wasmTime;
       console.log(`   Speedup:           ${speedup.toFixed(2)}x`);
@@ -414,8 +417,12 @@ export class WasmDictionaryTrieValidator {
       console.log('\n❌ Mismatches Found:');
       this.results.errors.slice(0, 10).forEach((error, idx) => {
         console.log(`\n   ${idx + 1}. Text: "${error.tokens}", Position: ${error.position}`);
-        console.log(`      WASM: ${error.wasm ? `"${error.wasm.word}" → "${error.wasm.translation}"` : 'null'}`);
-        console.log(`      JS:   ${error.js ? `"${error.js.word}" → "${error.js.translation}"` : 'null'}`);
+        console.log(
+          `      WASM: ${error.wasm ? `"${error.wasm.word}" → "${error.wasm.translation}"` : 'null'}`
+        );
+        console.log(
+          `      JS:   ${error.js ? `"${error.js.word}" → "${error.js.translation}"` : 'null'}`
+        );
       });
 
       if (this.results.errors.length > 10) {
@@ -428,7 +435,9 @@ export class WasmDictionaryTrieValidator {
     if (this.results.correctness.mismatches === 0) {
       console.log('✅ VALIDATION PASSED - WASM matches JavaScript perfectly!');
     } else {
-      console.log(`⚠️ VALIDATION INCOMPLETE - ${this.results.correctness.mismatches} mismatches found`);
+      console.log(
+        `⚠️ VALIDATION INCOMPLETE - ${this.results.correctness.mismatches} mismatches found`
+      );
     }
 
     if (this.results.performance.lookupCount > 0) {
@@ -451,7 +460,7 @@ export class WasmDictionaryTrieValidator {
 export async function validateWasmDictionaryTrie() {
   if (!window.translationEngine) {
     console.error('❌ Translation engine not found');
-    console.log('   Make sure you\'re in the Translator tab and dictionaries are loaded');
+    console.log("   Make sure you're in the Translator tab and dictionaries are loaded");
     return;
   }
 

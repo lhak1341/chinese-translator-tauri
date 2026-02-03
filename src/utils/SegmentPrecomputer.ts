@@ -424,6 +424,17 @@ export class SegmentPrecomputer {
       return aIndex - bIndex;
     });
 
+    // Build first-character index for O(1) candidate lookup instead of scanning all units.
+    // Keyed on lowercased first char to match the case-insensitive comparison in findUnitMatch.
+    const firstCharIndex = new Map<string, UnitData[]>();
+    for (const unitData of filteredUnits) {
+      const fc = unitData.unit[0].toLowerCase();
+      if (!firstCharIndex.has(fc)) {
+        firstCharIndex.set(fc, []);
+      }
+      firstCharIndex.get(fc)!.push(unitData);
+    }
+
     // HIGH-3 DOCUMENTATION: Track used indices to ensure duplicate units map correctly
     // Set size: Grows linearly with semantic array length (max = semanticArrays.translated.length)
     // Memory: ~1 byte per entry, typical max ~10KB for 10,000 char texts
@@ -438,7 +449,33 @@ export class SegmentPrecomputer {
       // Find the best matching unit at current position with smart conflict resolution
       // Extract remainingText once per outer iteration — it doesn't change inside the inner loop
       const remainingText = text.substring(currentPosition);
-      for (const unitData of filteredUnits) {
+
+      // Pre-compute the offset past leading punctuation/whitespace once — same logic as
+      // findUnitMatch uses internally. This lets us pick the correct lookup character for
+      // the first-char index without re-scanning punctuation per candidate.
+      let effectiveOffset = 0;
+      while (
+        effectiveOffset < remainingText.length &&
+        PUNCTUATION_AND_WHITESPACE.test(remainingText[effectiveOffset])
+      ) {
+        effectiveOffset++;
+      }
+
+      // Determine candidate set via first-char index.
+      // Zero-width chars (\u200B-\u200D, \uFEFF) are stripped by normalizeText but not
+      // caught by the punctuation offset loop — fall back to full scan in that rare case.
+      let candidates: UnitData[];
+      if (/[\u200B-\u200D\uFEFF]/.test(remainingText[0] || '')) {
+        candidates = filteredUnits;
+      } else {
+        const lookupChar =
+          effectiveOffset < remainingText.length
+            ? remainingText[effectiveOffset].toLowerCase()
+            : '';
+        candidates = firstCharIndex.get(lookupChar) || [];
+      }
+
+      for (const unitData of candidates) {
         // Skip already used semantic indices to handle duplicates correctly
         if (usedIndices.has(unitData.index)) continue;
 

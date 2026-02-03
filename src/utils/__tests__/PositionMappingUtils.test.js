@@ -28,12 +28,7 @@ describe('PositionMappingUtils', () => {
     });
 
     it('should handle mixed single and multi-char tokens', () => {
-      const tokens = [
-        { value: '我' },
-        { value: '今天' },
-        { value: '去' },
-        { value: '北京' },
-      ];
+      const tokens = [{ value: '我' }, { value: '今天' }, { value: '去' }, { value: '北京' }];
 
       expect(tokenPositionToCharPosition(tokens, 0)).toBe(0); // "我"
       expect(tokenPositionToCharPosition(tokens, 1)).toBe(1); // Skip "我"
@@ -122,12 +117,7 @@ describe('PositionMappingUtils', () => {
     });
 
     it('should handle mixed single and multi-char tokens', () => {
-      const tokens = [
-        { value: '我' },
-        { value: '今天' },
-        { value: '去' },
-        { value: '北京' },
-      ];
+      const tokens = [{ value: '我' }, { value: '今天' }, { value: '去' }, { value: '北京' }];
 
       expect(charLengthToTokenCount(tokens, 0, 1)).toBe(1); // "我"
       expect(charLengthToTokenCount(tokens, 0, 3)).toBe(2); // "我今天"
@@ -198,12 +188,7 @@ describe('PositionMappingUtils', () => {
     });
 
     it('should handle mixed tokens', () => {
-      const tokens = [
-        { value: '我' },
-        { value: '今天' },
-        { value: '去' },
-        { value: '北京' },
-      ];
+      const tokens = [{ value: '我' }, { value: '今天' }, { value: '去' }, { value: '北京' }];
       expect(buildFullTextFromTokens(tokens)).toBe('我今天去北京');
     });
 
@@ -329,12 +314,7 @@ describe('PositionMappingUtils', () => {
     });
 
     it('should validate correct mixed token mapping', () => {
-      const tokens = [
-        { value: '我' },
-        { value: '今天' },
-        { value: '去' },
-        { value: '北京' },
-      ];
+      const tokens = [{ value: '我' }, { value: '今天' }, { value: '去' }, { value: '北京' }];
       expect(validatePositionMapping(tokens)).toBe(true);
     });
 
@@ -437,12 +417,7 @@ describe('PositionMappingUtils', () => {
     });
 
     it('should handle multi-token WASM match workflow', () => {
-      const tokens = [
-        { value: '今' },
-        { value: '天' },
-        { value: '天' },
-        { value: '气' },
-      ];
+      const tokens = [{ value: '今' }, { value: '天' }, { value: '天' }, { value: '气' }];
 
       // Build full text
       const fullText = buildFullTextFromTokens(tokens);

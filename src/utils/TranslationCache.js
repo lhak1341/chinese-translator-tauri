@@ -52,16 +52,36 @@ export class TranslationCache {
   }
 
   /**
-   * Generate cache key for multi-dictionary lookup
+   * Generate cache key for multi-dictionary lookup.
    * Caches the joined dictionary key to avoid repeated Array.join() allocations
    * when the dictionary set hasn't changed between calls.
+   *
+   * Fast-path: same array reference → skip entirely.
+   * Slow-path: different reference → element-wise comparison before deciding
+   * whether to re-join. Avoids join() when callers create a new array each time
+   * but the contents are identical (common pattern).
+   *
    * @param {string} text - Text to translate
    * @param {Array} dictionaryNames - Array of dictionary names
    * @returns {string} Cache key
    */
   generateMultiLookupKey(text, dictionaryNames) {
     if (dictionaryNames !== this._lastDictNames) {
-      this._lastDictKey = dictionaryNames.join(',');
+      // Reference changed — check whether the contents actually differ
+      // before paying for join(). With 3-7 dictionaries this loop is
+      // cheaper than a string allocation.
+      let changed = !this._lastDictNames || dictionaryNames.length !== this._lastDictNames.length;
+      if (!changed) {
+        for (let i = 0; i < dictionaryNames.length; i++) {
+          if (dictionaryNames[i] !== this._lastDictNames[i]) {
+            changed = true;
+            break;
+          }
+        }
+      }
+      if (changed) {
+        this._lastDictKey = dictionaryNames.join(',');
+      }
       this._lastDictNames = dictionaryNames;
     }
     return `${this._lastDictKey}:${text}`;

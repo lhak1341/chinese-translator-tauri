@@ -95,8 +95,10 @@ class GraphemeHelper {
     if (!text || text.length === 0) return '';
 
     if (this.segmenter) {
-      const segments = Array.from(this.segmenter.segment(text));
-      return segments.length > 0 ? segments[0].segment : '';
+      // Use iterator directly — Array.from() would segment the entire string
+      // just to extract the first element, making this O(n). Iterator is O(1).
+      const first = this.segmenter.segment(text)[Symbol.iterator]().next();
+      return first.done ? '' : first.value.segment;
     }
 
     // Fallback: Use [0] (less accurate but safe for most text)

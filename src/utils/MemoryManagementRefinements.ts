@@ -506,10 +506,14 @@ export class BackgroundCleanupManager {
     const processNextTask = (deadline: IdleDeadline) => {
       const startTime = performance.now();
 
-      while (deadline.timeRemaining() > 5 && this.cleanupQueue.length > 0) {
-        const task = this.cleanupQueue.shift();
-
-        if (!task) continue;
+      // Index-based iteration: avoids O(n) shift() on every loop body.
+      // Retried tasks are pushed to the end and are naturally included
+      // in subsequent iterations (cleanupQueue.length grows).
+      // After the loop a single slice() removes all consumed entries in O(n).
+      let head = 0;
+      while (deadline.timeRemaining() > 5 && head < this.cleanupQueue.length) {
+        const task = this.cleanupQueue[head];
+        head++;
 
         try {
           const taskStartTime = performance.now();
@@ -540,6 +544,11 @@ export class BackgroundCleanupManager {
             logger.warn(`🚨 Background cleanup failed after ${task.maxAttempts} attempts:`, error);
           }
         }
+      }
+
+      // Remove all consumed entries in one pass
+      if (head > 0) {
+        this.cleanupQueue = this.cleanupQueue.slice(head);
       }
 
       const totalTime = performance.now() - startTime;

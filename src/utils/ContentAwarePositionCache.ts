@@ -2,10 +2,12 @@
  * Content-Aware Position Cache
  * Optimized caching for position mappings based on text content hash
  *
- * OPTIMIZATION: Cache position mappings by text content, not semantic arrays
- * - 50-200ms improvement per translation
- * - 30-50% cache hit improvement through content similarity detection
+ * OPTIMIZATION: Cache position mappings by exact text content hash
+ * - 50-200ms improvement per translation via exact-match cache hits
  * - Preserves clickable highlighting precision
+ *
+ * NOTE: Similarity matching was disabled in v3 — similar text does not imply the
+ * same translation, so approximate matches produced wrong clickable highlighting.
  */
 
 import { logger } from './logger';
@@ -36,14 +38,11 @@ export interface ContentAwarePositionCacheOptions {
 
   /** Maximum age of cache entries in milliseconds (default: 30 minutes) */
   maxCacheAge?: number;
-
-  /** Similarity threshold for matching (default: 0.85) */
-  similarityThreshold?: number;
 }
 
 /**
- * Content signature for similarity detection
- * Uses character frequency and length patterns
+ * Content signature based on character frequency and length patterns.
+ * Kept as exported type for .d.ts compatibility; no longer used at runtime.
  */
 export interface ContentSignature {
   /** Top 20 characters with frequencies (format: "char:freq|char:freq|...") */
@@ -74,20 +73,6 @@ interface PositionMappingCacheEntry {
 
   /** Length of the text */
   textLength: number;
-
-  /** Content signature for similarity detection */
-  signature: ContentSignature;
-}
-
-/**
- * Similarity cache data
- */
-interface SimilarityCacheData {
-  /** Content signature */
-  signature: ContentSignature;
-
-  /** Timestamp */
-  timestamp: number;
 }
 
 /**
@@ -96,9 +81,6 @@ interface SimilarityCacheData {
 interface CacheStatistics {
   /** Number of exact cache hits */
   exactHits: number;
-
-  /** Number of similarity-based cache hits */
-  similarityHits: number;
 
   /** Number of cache misses */
   misses: number;
@@ -120,20 +102,14 @@ interface CacheStatistics {
  * Extended statistics returned by getStats()
  */
 interface GetStatsResult extends CacheStatistics {
-  /** Total hits (exact + similarity) */
+  /** Total cache hits */
   totalHits: number;
 
   /** Exact hit rate (percentage) */
   exactHitRate: number;
 
-  /** Similarity hit rate (percentage) */
-  similarityHitRate: number;
-
   /** Current cache size */
   cacheSize: number;
-
-  /** Similarity cache size */
-  similarityCacheSize: number;
 
   /** Estimated total time saved (ms) */
   estimatedTimeSaved: number;
@@ -143,23 +119,15 @@ export class ContentAwarePositionCache {
   private cacheVersion: number;
   private maxCacheSize: number;
   private maxCacheAge: number;
-  private similarityThreshold: number;
   private exactCache: LRUCache<string, PositionMappingCacheEntry>;
-  private similarityCache: Map<string, SimilarityCacheData>;
   private stats: CacheStatistics;
-  private cleanupIntervalId: number | null;
 
   constructor(options: ContentAwarePositionCacheOptions = {}) {
     this.cacheVersion = 3; // v3: Disabled similarity matching (was causing wrong position mappings)
-    this.maxCacheSize = options.maxCacheSize || 500; // Position mappings are larger objects
+    this.maxCacheSize = options.maxCacheSize || 500;
     this.maxCacheAge = options.maxCacheAge || 30 * 60 * 1000; // 30 minutes
-    this.similarityThreshold = options.similarityThreshold || 0.85; // 85% similarity
 
-    // Main cache for exact content matches
     this.exactCache = new LRUCache<string, PositionMappingCacheEntry>(this.maxCacheSize);
-
-    // Similarity cache for detecting similar content (must be initialized before checkCacheVersion)
-    this.similarityCache = new Map<string, SimilarityCacheData>();
 
     // Check and clear old cache versions
     this.checkCacheVersion();
@@ -167,17 +135,12 @@ export class ContentAwarePositionCache {
     // Performance tracking
     this.stats = {
       exactHits: 0,
-      similarityHits: 0,
       misses: 0,
       stores: 0,
       totalLookups: 0,
       hitRate: 0,
       avgComputeTimeSaved: 0,
     };
-
-    // Cleanup interval
-    this.cleanupIntervalId = null;
-    this.setupPeriodicCleanup();
   }
 
   /**
@@ -289,15 +252,6 @@ export class ContentAwarePositionCache {
       return exactMatch.positionMapping;
     }
 
-    // DISABLED: Similarity matching causes incorrect position mappings
-    // Similar text != same translation → wrong clickable highlighting
-    // Only use exact content hash matches for correctness
-    //
-    // const contentSignature = this.generateContentSignature(text);
-    // for (const [cachedHash, cachedData] of this.similarityCache.entries()) {
-    //   ... similarity matching code removed ...
-    // }
-
     // Cache miss
     this.stats.misses++;
     this.updateHitRate();
@@ -315,14 +269,12 @@ export class ContentAwarePositionCache {
    */
   set(text: string, positionMapping: any, computeTime: number = 0): void {
     const contentHash = this.generateContentHash(text);
-    const contentSignature = this.generateContentSignature(text);
 
     const cacheEntry: PositionMappingCacheEntry = {
       positionMapping,
       timestamp: Date.now(),
       computeTime,
       textLength: text.length,
-      signature: contentSignature,
     };
 
     // Store in exact cache
@@ -352,29 +304,21 @@ export class ContentAwarePositionCache {
    * Update hit rate statistics
    */
   updateHitRate(): void {
-    const totalHits = this.stats.exactHits + this.stats.similarityHits;
     this.stats.hitRate =
-      this.stats.totalLookups > 0 ? (totalHits / this.stats.totalLookups) * 100 : 0;
+      this.stats.totalLookups > 0 ? (this.stats.exactHits / this.stats.totalLookups) * 100 : 0;
   }
 
   /**
    * Get cache statistics
    */
   getStats(): GetStatsResult {
-    const totalHits = this.stats.exactHits + this.stats.similarityHits;
-
     return {
       ...this.stats,
-      totalHits,
+      totalHits: this.stats.exactHits,
       exactHitRate:
         this.stats.totalLookups > 0 ? (this.stats.exactHits / this.stats.totalLookups) * 100 : 0,
-      similarityHitRate:
-        this.stats.totalLookups > 0
-          ? (this.stats.similarityHits / this.stats.totalLookups) * 100
-          : 0,
       cacheSize: this.exactCache.size(),
-      similarityCacheSize: this.similarityCache.size,
-      estimatedTimeSaved: totalHits * this.stats.avgComputeTimeSaved,
+      estimatedTimeSaved: this.stats.exactHits * this.stats.avgComputeTimeSaved,
     };
   }
 
@@ -383,12 +327,10 @@ export class ContentAwarePositionCache {
    */
   clear(): void {
     this.exactCache.clear();
-    this.similarityCache.clear();
 
     // Reset stats but keep configuration
     this.stats = {
       exactHits: 0,
-      similarityHits: 0,
       misses: 0,
       stores: 0,
       totalLookups: 0,
@@ -400,46 +342,12 @@ export class ContentAwarePositionCache {
   }
 
   /**
-   * Set up periodic cleanup of expired entries
-   */
-  setupPeriodicCleanup(): void {
-    this.cleanupIntervalId = window.setInterval(
-      () => {
-        this.cleanupExpiredEntries();
-      },
-      5 * 60 * 1000
-    ); // Every 5 minutes
-  }
-
-  /**
-   * Clean up resources including periodic cleanup timer
+   * Clean up cache resources.
+   * Stale entries are already rejected on read via isValidCacheEntry();
+   * LRU evicts by size. No periodic sweep needed.
    */
   destroy(): void {
-    if (this.cleanupIntervalId !== null) {
-      clearInterval(this.cleanupIntervalId);
-      this.cleanupIntervalId = null;
-    }
     this.exactCache.clear();
-    this.similarityCache.clear();
-  }
-
-  /**
-   * Remove expired entries from similarity cache
-   */
-  cleanupExpiredEntries(): void {
-    const now = Date.now();
-    let removedCount = 0;
-
-    for (const [hash, data] of this.similarityCache.entries()) {
-      if (now - data.timestamp > this.maxCacheAge) {
-        this.similarityCache.delete(hash);
-        removedCount++;
-      }
-    }
-
-    if (removedCount > 0) {
-      logger.log(`🧹 Cleaned up ${removedCount} expired similarity cache entries`);
-    }
   }
 }
 

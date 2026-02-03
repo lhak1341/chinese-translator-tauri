@@ -302,7 +302,19 @@ export class AdaptiveBufferCalculator {
     // Ensure buffer size is within bounds
     bufferSize = Math.max(this.minBufferSize, Math.min(this.maxBufferSize, bufferSize));
 
-    // Cache result
+    // Cache result, evicting stale entries when the cache grows too large.
+    // Plain-object cache has no built-in size limit; without this check entries
+    // accumulate for the lifetime of the singleton.
+    const MAX_CACHE_ENTRIES = 100;
+    if (Object.keys(this.calculationCache).length >= MAX_CACHE_ENTRIES) {
+      const now = Date.now();
+      for (const key of Object.keys(this.calculationCache)) {
+        if (now - this.calculationCache[key].timestamp > this.cacheTimeout) {
+          delete this.calculationCache[key];
+        }
+      }
+    }
+
     this.calculationCache[cacheKey] = {
       bufferSize,
       timestamp: Date.now(),
