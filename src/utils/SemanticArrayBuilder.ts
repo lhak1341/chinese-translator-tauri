@@ -533,64 +533,58 @@ export class SemanticArrayBuilder {
   updateWithCapitalizedText(finalText: string): void {
     if (!finalText) return;
 
-    // MEDIUM-2 FIX: Cache regex patterns to avoid recompilation in loop
-    // HIGH-2 FIX: Add LRU eviction to prevent unbounded cache growth (50K+ entries after 100 translations)
-    const regexCache = new Map<string, RegExp>();
-    const MAX_REGEX_CACHE_SIZE = 100;
+    // Lazy-initialised lowercase cache for the indexOf fallback path
+    let lowerFinal: string | null = null;
 
     for (let i = 0; i < this.translated.length; i++) {
       const originalTranslation = this.translated[i];
-
-      // Skip if empty
       if (!originalTranslation || originalTranslation.length === 0) continue;
 
-      // Get cached regex or create new one
-      let regex = regexCache.get(originalTranslation);
-      if (!regex) {
-        // HIGH-2 FIX: Evict oldest entry if cache is full (LRU eviction)
-        if (regexCache.size >= MAX_REGEX_CACHE_SIZE) {
-          const firstKey = regexCache.keys().next().value;
-          if (firstKey !== undefined) {
-            regexCache.delete(firstKey);
-          }
+      const meta = this.metadata[i];
+
+      // Fast path: position metadata is available — O(1) lookup per unit.
+      // This is the common case after postProcess() has assembled the final text.
+      if (
+        meta.translatedStart >= 0 &&
+        meta.translatedEnd > meta.translatedStart &&
+        meta.translatedEnd <= finalText.length
+      ) {
+        const actualText = finalText.substring(meta.translatedStart, meta.translatedEnd);
+
+        // CRITICAL-2 FIX: Only update when lengths match and casing actually differs
+        if (
+          actualText.length === originalTranslation.length &&
+          actualText !== originalTranslation &&
+          /^[A-ZÀ-ÿ]/.test(actualText) &&
+          actualText.toLowerCase() === originalTranslation.toLowerCase()
+        ) {
+          this.translated[i] = actualText;
+          this.metadata[i].translatedText = actualText;
         }
-        regex = new RegExp(this.escapeRegex(originalTranslation), 'gi');
-        regexCache.set(originalTranslation, regex);
+        continue;
       }
 
-      // Find all case-insensitive matches in final text
-      const matches = [...finalText.matchAll(regex)];
+      // Fallback: position metadata not yet set — use indexOf with a cached lowercase
+      // copy of finalText. indexOf is V8-optimised and avoids the per-unit regex + matchAll
+      // that previously made this O(n × textLength).
+      if (lowerFinal === null) lowerFinal = finalText.toLowerCase();
+      const lowerUnit = originalTranslation.toLowerCase();
+      let searchFrom = 0;
 
-      if (matches.length > 0) {
-        // Prefer capitalized versions
-        let bestMatch = originalTranslation;
+      while (searchFrom <= finalText.length - originalTranslation.length) {
+        const idx = lowerFinal.indexOf(lowerUnit, searchFrom);
+        if (idx === -1) break;
 
-        for (const match of matches) {
-          const matchText = match[0];
-          // If this match is different (capitalized) and starts with uppercase, prefer it
-          if (matchText !== originalTranslation && /^[A-ZÀ-ÿ]/.test(matchText)) {
-            bestMatch = matchText;
-            break;
+        const candidate = finalText.substring(idx, idx + originalTranslation.length);
+        if (candidate !== originalTranslation && /^[A-ZÀ-ÿ]/.test(candidate)) {
+          // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
+          if (candidate.length === originalTranslation.length) {
+            this.translated[i] = candidate;
+            this.metadata[i].translatedText = candidate;
           }
+          break;
         }
-
-        // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
-        if (bestMatch !== originalTranslation) {
-          if (bestMatch.length !== originalTranslation.length) {
-            logger.error('❌ Capitalization changed text length - SKIPPING update!', {
-              index: i,
-              original: originalTranslation,
-              capitalized: bestMatch,
-              originalLength: originalTranslation.length,
-              capitalizedLength: bestMatch.length,
-              impact: 'Would corrupt position mapping',
-            });
-            continue; // Skip this update
-          }
-
-          this.translated[i] = bestMatch;
-          this.metadata[i].translatedText = bestMatch;
-        }
+        searchFrom = idx + 1;
       }
     }
   }

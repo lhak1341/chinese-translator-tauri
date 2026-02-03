@@ -96,91 +96,31 @@ export class DevicePerformanceDetector {
   }
 
   /**
-   * Detect CPU performance through micro-benchmarks
+   * Detect CPU capabilities (core count only).
+   * Micro-benchmarking on the main thread is removed — this is a Tauri desktop app
+   * where virtual scrolling buffer sizing doesn't benefit from a synthetic CPU score.
    */
   async detectCPUCapabilities() {
-    const cpu = {
+    return {
       cores: navigator.hardwareConcurrency || 4,
-      benchmarkScore: 0,
-      operationsPerSecond: 0,
+      benchmarkScore: 75, // Static mid-high score appropriate for desktop
+      operationsPerSecond: 750000,
     };
-
-    try {
-      // Quick CPU benchmark - array operations
-      const iterations = 100000;
-      const startTime = performance.now();
-
-      const arr = new Array(iterations);
-      for (let i = 0; i < iterations; i++) {
-        arr[i] = Math.random() * i;
-      }
-
-      // Sort and filter operations
-      arr.sort((a, b) => a - b);
-      const filtered = arr.filter((x) => x > 0.5);
-
-      const elapsed = performance.now() - startTime;
-      cpu.operationsPerSecond = iterations / (elapsed / 1000);
-
-      // Score based on operations per second (normalize to 0-100)
-      cpu.benchmarkScore = Math.min(100, cpu.operationsPerSecond / 10000);
-    } catch (error) {
-      logger.warn('CPU benchmark failed:', error);
-      cpu.benchmarkScore = 50; // Average score
-      cpu.operationsPerSecond = 500000;
-    }
-
-    return cpu;
   }
 
   /**
-   * Detect graphics/rendering capabilities
+   * Detect graphics capabilities (static for Tauri desktop).
+   * Canvas benchmarking and WebGL probing are removed — neither is relevant to
+   * dictionary table virtual scrolling on a desktop WebView.
    */
   detectGraphicsCapabilities() {
-    const graphics = {
-      webgl: false,
-      webgl2: false,
-      renderer: 'unknown',
-      vendor: 'unknown',
-      canvasScore: 0,
+    return {
+      webgl: true,
+      webgl2: true,
+      renderer: 'desktop',
+      vendor: 'desktop',
+      canvasScore: 80, // Static score; desktop WebView rendering is consistently fast
     };
-
-    try {
-      // WebGL detection
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      const gl2 = canvas.getContext('webgl2');
-
-      graphics.webgl = !!gl;
-      graphics.webgl2 = !!gl2;
-
-      if (gl) {
-        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-        if (debugInfo) {
-          graphics.renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-          graphics.vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
-        }
-      }
-
-      // Canvas rendering benchmark
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        const startTime = performance.now();
-
-        // Draw test operations
-        for (let i = 0; i < 1000; i++) {
-          ctx.fillRect(Math.random() * 100, Math.random() * 100, 10, 10);
-        }
-
-        const elapsed = performance.now() - startTime;
-        graphics.canvasScore = Math.max(0, 100 - elapsed); // Faster = higher score
-      }
-    } catch (error) {
-      logger.warn('Graphics detection failed:', error);
-      graphics.canvasScore = 50;
-    }
-
-    return graphics;
   }
 
   /**
@@ -302,13 +242,8 @@ export class AdaptiveBufferCalculator {
       isScrolling = false,
     } = context;
 
-    // Create cache key
-    const cacheKey = JSON.stringify({
-      containerHeight,
-      itemHeight,
-      totalItems: Math.floor(totalItems / 100) * 100, // Round to nearest 100
-      scrollVelocity: Math.floor(scrollVelocity / 10) * 10, // Round velocity
-    });
+    // Create cache key via string concatenation (avoids JSON.stringify allocation on every call)
+    const cacheKey = `${containerHeight}:${itemHeight}:${Math.floor(totalItems / 100) * 100}:${Math.floor(scrollVelocity / 10) * 10}`;
 
     // Return cached result if recent
     if (

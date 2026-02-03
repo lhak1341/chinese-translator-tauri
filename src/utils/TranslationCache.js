@@ -53,12 +53,18 @@ export class TranslationCache {
 
   /**
    * Generate cache key for multi-dictionary lookup
+   * Caches the joined dictionary key to avoid repeated Array.join() allocations
+   * when the dictionary set hasn't changed between calls.
    * @param {string} text - Text to translate
    * @param {Array} dictionaryNames - Array of dictionary names
    * @returns {string} Cache key
    */
   generateMultiLookupKey(text, dictionaryNames) {
-    return `${dictionaryNames.join(',')}:${text}`;
+    if (dictionaryNames !== this._lastDictNames) {
+      this._lastDictKey = dictionaryNames.join(',');
+      this._lastDictNames = dictionaryNames;
+    }
+    return `${this._lastDictKey}:${text}`;
   }
 
   /**
@@ -203,21 +209,12 @@ export class TranslationCache {
     }
 
     // Lookup cache - O(k) instead of O(n)
-    // More complex: need to check multi-dictionary lookups
+    // Any multi-dictionary lookup that involved this dictionary is now stale
+    // and must be invalidated, even if other dictionaries in the key are unchanged.
     const lookupKeys = this.dictionaryIndex.lookup.get(dictionaryName);
     if (lookupKeys) {
       lookupKeys.forEach((key) => {
-        // Check if key contains other dictionaries we want to keep
-        const dictPart = key.split(':')[0];
-        const dicts = dictPart.split(',');
-
-        if (dicts.length === 1 || dicts.every((d) => d === dictionaryName)) {
-          // Only this dictionary - safe to delete
-          this.lookupCache.delete(key);
-        } else {
-          // Contains other dictionaries - keep it but remove from this dict's index
-          // (Conservative: keep cached result for other dictionaries)
-        }
+        this.lookupCache.delete(key);
       });
       this.dictionaryIndex.lookup.delete(dictionaryName);
     }

@@ -436,22 +436,16 @@ export class SegmentPrecomputer {
       let bestOffset = 0;
 
       // Find the best matching unit at current position with smart conflict resolution
+      // Extract remainingText once per outer iteration — it doesn't change inside the inner loop
+      const remainingText = text.substring(currentPosition);
       for (const unitData of filteredUnits) {
         // Skip already used semantic indices to handle duplicates correctly
         if (usedIndices.has(unitData.index)) continue;
-
-        const remainingText = text.substring(currentPosition);
 
         // Enhanced matching: handle punctuation and quotes
         const matchResult = this.findUnitMatch(remainingText, unitData.unit);
 
         if (matchResult.found) {
-          // Smart conflict resolution: prefer exact boundaries over partial overlaps
-          const _isExactMatch =
-            matchResult.offset === 0 &&
-            (currentPosition + unitData.unit.length >= text.length ||
-              /[\s\r\n,，.。!！?？;；:：[\]]/.test(text[currentPosition + unitData.unit.length]));
-
           // Prioritize longer matches first
           if (unitData.unit.length > bestLength) {
             bestMatch = unitData;
@@ -646,12 +640,21 @@ export class SegmentPrecomputer {
 
     const { original, translated, metadata } = semanticArrays;
 
-    // New approach: Use simple text search but prioritize longer matches
     const segments: Segment[] = [];
     let currentPosition = 0;
     const usedIndices = new Set<number>();
 
-    // Process text character by character
+    // Build first-character index for O(1) candidate lookup instead of scanning all units
+    const firstCharIndex = new Map<string, number[]>();
+    for (let i = 0; i < original.length; i++) {
+      if (!original[i] || original[i].length === 0) continue;
+      const firstChar = original[i][0];
+      if (!firstCharIndex.has(firstChar)) {
+        firstCharIndex.set(firstChar, []);
+      }
+      firstCharIndex.get(firstChar)!.push(i);
+    }
+
     while (currentPosition < text.length) {
       let bestMatch: {
         index: number;
@@ -661,16 +664,18 @@ export class SegmentPrecomputer {
       } | null = null;
       let bestStartPos = -1;
 
-      // Find the best match starting at current position
-      for (let i = 0; i < original.length; i++) {
+      // Only check units whose first character matches the current position
+      const candidateIndices = firstCharIndex.get(text[currentPosition]) || [];
+      for (const i of candidateIndices) {
         if (usedIndices.has(i)) continue;
 
         const unit = original[i];
 
-        // Check if this unit starts exactly at current position
-        const remainingText = text.substring(currentPosition);
-        if (remainingText.startsWith(unit)) {
-          // Found exact match at current position - prefer longer units
+        // Check if unit matches at current position using startsWith with offset (no substring)
+        if (
+          unit.length <= text.length - currentPosition &&
+          text.startsWith(unit, currentPosition)
+        ) {
           if (!bestMatch || unit.length > bestMatch.unit.length) {
             bestMatch = {
               index: i,
@@ -897,39 +902,4 @@ export class SegmentPrecomputer {
   // CRITICAL-2 FIX: Removed duplicate getGraphemeLength() method
   // Now using shared GraphemeHelper.getGraphemeLength() with singleton Intl.Segmenter
   // Eliminates per-call instance creation overhead (0.1-0.5ms × n calls)
-
-  /**
-   * Enhanced matching that handles punctuation and formatting differences
-   * @param remainingText - Text remaining to match against
-   * @param unitText - Semantic unit text to find
-   * @returns True if unit matches at current position
-   */
-  static matchesAtPosition(remainingText: string, unitText: string): boolean {
-    const remaining = remainingText.toLowerCase();
-    const unit = unitText.toLowerCase();
-
-    // First try exact match (fastest)
-    if (remaining.startsWith(unit)) {
-      return true;
-    }
-
-    // Handle punctuation and quotes at the beginning
-    // Skip over opening quotes, punctuation, and brackets
-    let offset = 0;
-    while (
-      offset < remaining.length &&
-      /[\s\r\n"""'''"'「」『』《》〈〉[\]]/.test(remaining[offset])
-    ) {
-      offset++;
-    }
-
-    if (offset > 0) {
-      const textAfterPunctuation = remaining.substring(offset);
-      if (textAfterPunctuation.startsWith(unit)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
 }

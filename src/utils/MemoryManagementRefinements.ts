@@ -158,6 +158,7 @@ export interface MemoryPressureStats {
 export class SmartMemoryPressureDetector {
   private options: Required<MemoryPressureOptions>;
   private memoryHistory: MemoryPressure[];
+  private historyWriteIndex: number;
   private lastCleanup: number;
   private samplingTimer: ReturnType<typeof setInterval> | null;
   private callbacks: Map<string, MemoryEventCallback>;
@@ -179,6 +180,7 @@ export class SmartMemoryPressureDetector {
     };
 
     this.memoryHistory = [];
+    this.historyWriteIndex = 0;
     this.lastCleanup = 0;
     this.samplingTimer = null;
     this.callbacks = new Map();
@@ -226,12 +228,36 @@ export class SmartMemoryPressureDetector {
   }
 
   /**
+   * Get the most recent N samples in chronological order,
+   * correctly handling the circular buffer layout.
+   */
+  private getRecentSamples(count: number): MemoryPressure[] {
+    const available = Math.min(count, this.memoryHistory.length);
+    if (available === 0) return [];
+
+    if (this.memoryHistory.length < this.options.historyLimit) {
+      // Still filling — array is in chronological order
+      return this.memoryHistory.slice(-available);
+    }
+
+    // Circular buffer: most recent is at (historyWriteIndex - 1), wrap around
+    const result: MemoryPressure[] = new Array(available);
+    for (let i = 0; i < available; i++) {
+      const idx =
+        (this.historyWriteIndex - available + i + this.options.historyLimit) %
+        this.options.historyLimit;
+      result[i] = this.memoryHistory[idx];
+    }
+    return result;
+  }
+
+  /**
    * Calculate memory growth rate over time
    */
   getMemoryGrowthRate(): number {
     if (this.memoryHistory.length < 2) return 0;
 
-    const recent = this.memoryHistory.slice(-5); // Last 5 samples
+    const recent = this.getRecentSamples(5);
     if (recent.length < 2) return 0;
 
     const timeDiff = recent[recent.length - 1].timestamp - recent[0].timestamp;
@@ -249,10 +275,12 @@ export class SmartMemoryPressureDetector {
     const sample = () => {
       const pressure = this.getCurrentPressureLevel();
 
-      // Update history
-      this.memoryHistory.push(pressure);
-      if (this.memoryHistory.length > this.options.historyLimit) {
-        this.memoryHistory.shift();
+      // Update history using circular write to avoid O(n) shift
+      if (this.memoryHistory.length < this.options.historyLimit) {
+        this.memoryHistory.push(pressure);
+      } else {
+        this.memoryHistory[this.historyWriteIndex] = pressure;
+        this.historyWriteIndex = (this.historyWriteIndex + 1) % this.options.historyLimit;
       }
 
       // Check if cleanup is needed
@@ -351,7 +379,6 @@ export class SmartMemoryPressureDetector {
   getStats(): MemoryPressureStats | null {
     if (this.memoryHistory.length === 0) return null;
 
-    const recent = this.memoryHistory.slice(-5);
     const current = this.getCurrentPressureLevel();
     const growthRate = this.getMemoryGrowthRate();
 
@@ -553,22 +580,24 @@ export class BackgroundCleanupManager {
    * Force process urgent tasks immediately
    */
   processUrgentTasks(): void {
-    const urgentTasks = this.cleanupQueue.filter((task) => task.priority === 'urgent');
+    const urgentSet = new Set<CleanupTask>();
 
-    urgentTasks.forEach((task) => {
+    for (const task of this.cleanupQueue) {
+      if (task.priority !== 'urgent') continue;
       try {
-        const result = task.task();
+        task.task();
         this.stats.tasksProcessed++;
-
-        // Remove from queue
-        const index = this.cleanupQueue.indexOf(task);
-        if (index > -1) {
-          this.cleanupQueue.splice(index, 1);
-        }
+        urgentSet.add(task);
       } catch (error) {
         logger.warn('Urgent cleanup task failed:', error);
+        urgentSet.add(task); // Remove failed urgent tasks too — they'll be retried via normal queue
       }
-    });
+    }
+
+    // Single-pass removal instead of repeated indexOf + splice
+    if (urgentSet.size > 0) {
+      this.cleanupQueue = this.cleanupQueue.filter((task) => !urgentSet.has(task));
+    }
   }
 
   /**

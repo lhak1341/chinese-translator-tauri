@@ -349,6 +349,13 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
  * @returns {void}
  */
 export function cleanupWasmPatternProcessor() {
+  if (wasmPatternProcessor) {
+    try {
+      wasmPatternProcessor.free();
+    } catch (e) {
+      // free() may fail if WASM memory is already deallocated
+    }
+  }
   wasmPatternProcessor = null;
   wasmModule = null;
   initializationPromise = null;
@@ -356,7 +363,6 @@ export function cleanupWasmPatternProcessor() {
   lastPatternWarningTime = 0;
 
   logger.log('🧹 WASM Pattern Processor cleaned up');
-  // Note: No intervals to clear in this module
 }
 
 /**
