@@ -240,6 +240,39 @@ export class TranslationCache {
   }
 
   /**
+   * Properly dispose of all cache resources
+   * CODE REVIEW FIX (MEDIUM-1): Add dispose() method for consistent cleanup
+   * Called before discarding TranslationCache instance to ensure GC can reclaim memory
+   * Safe to call multiple times (idempotent)
+   */
+  dispose() {
+    // Guard against multiple disposal calls
+    if (this.characterCache === null) {
+      return; // Already disposed
+    }
+
+    // Clear all cache data
+    this.clear();
+
+    // Disable caching to prevent new entries
+    this.isEnabled = false;
+
+    // Nullify cache references for GC
+    this.characterCache = null;
+    this.phraseCache = null;
+    this.patternCache = null;
+    this.lookupCache = null;
+
+    // Nullify dictionary indexes
+    this.dictionaryIndex.character = null;
+    this.dictionaryIndex.phrase = null;
+    this.dictionaryIndex.lookup = null;
+    this.dictionaryIndex = null;
+
+    logger.log('🗑️ TranslationCache disposed');
+  }
+
+  /**
    * Enable or disable caching
    * @param {boolean} enabled - Whether to enable caching
    */
@@ -417,7 +450,7 @@ export class TranslationCache {
     for (const char of charactersToWarm) {
       const result = dictionaryManager.translate(char, ['characters']);
       if (result) {
-        this.cacheCharacter(char, 'characters', result);
+        this.setCharacter(char, 'characters', result);
         charactersWarmed++;
       }
     }
@@ -479,7 +512,7 @@ export class TranslationCache {
     for (const phrase of phrasesToWarm) {
       const result = dictionaryManager.translate(phrase, ['phrases']);
       if (result) {
-        this.cachePhrase(phrase, 'phrases', result);
+        this.setPhrase(phrase, 'phrases', result);
         phrasesWarmed++;
       }
     }
@@ -551,7 +584,7 @@ export class TranslationCache {
 
           const result = dictionaryManager.translate(entry.word, [dictionaryName]);
           if (result) {
-            this.cacheCharacter(entry.word, dictionaryName, result);
+            this.setCharacter(entry.word, dictionaryName, result);
             properNounsWarmed++;
           }
         }
@@ -568,7 +601,7 @@ export class TranslationCache {
 
           const result = dictionaryManager.translate(combo, ['phrases', 'characters']);
           if (result) {
-            this.cachePhrase(combo, 'phrases', result);
+            this.setPhrase(combo, 'phrases', result);
             phrasesWarmed++;
           }
         }

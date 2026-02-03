@@ -718,6 +718,20 @@ export class DictionaryManager {
 
     this.log(DEBUG_LEVELS.INFO, 'Loading dictionaries into trie structures...');
 
+    // CODE REVIEW FIX (CRITICAL-1): Dispose existing tries before clearing to prevent memory leaks
+    // Each dictionary trie contains nested Map structures that need recursive cleanup
+    // Without disposal, 2-10MB per dictionary can leak on reload
+    for (const [name, trie] of this.dictionaries.entries()) {
+      if (trie && typeof trie.dispose === 'function') {
+        try {
+          trie.dispose(); // Recursively clean up trie nodes and their children Maps
+          this.log(DEBUG_LEVELS.DEBUG, `🗑️ Disposed dictionary "${name}" before reload`);
+        } catch (error) {
+          this.log(DEBUG_LEVELS.ERROR, `Error disposing dictionary ${name}:`, error);
+        }
+      }
+    }
+
     // Clear existing dictionaries
     this.dictionaries.clear();
     this.metadata.clear();
@@ -1444,12 +1458,27 @@ export class DictionaryManager {
     this.metadata.clear();
     this.metadata = null;
 
-    this.pendingDictionaries = null;
+    // CODE REVIEW FIX (MEDIUM-2): Clear pending dictionaries defensively
+    // pendingDictionaries contains raw dictionary data (plain objects)
+    // but clear for consistency and safety
+    if (this.pendingDictionaries) {
+      if (typeof this.pendingDictionaries === 'object' && this.pendingDictionaries !== null) {
+        // If it's a Map, clear it; if it's an object, nullify
+        if (typeof this.pendingDictionaries.clear === 'function') {
+          this.pendingDictionaries.clear();
+        }
+      }
+      this.pendingDictionaries = null;
+    }
 
     // Dispose cache
     if (this.cache) {
-      // TranslationCache doesn't have dispose yet, just clear it
-      this.cache.clear();
+      // CODE REVIEW FIX (MEDIUM-1): Use dispose() method for proper cleanup
+      if (typeof this.cache.dispose === 'function') {
+        this.cache.dispose();
+      } else {
+        this.cache.clear(); // Fallback for older implementations
+      }
       this.cache = null;
     }
 

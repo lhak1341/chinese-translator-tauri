@@ -709,8 +709,20 @@ export class WasmDictionaryManager {
 
   /**
    * Clean up resources including memory pool
+   * CODE REVIEW FIX (HIGH-2): Clear WASM dictionaries before nullifying engine
    */
   cleanup() {
+    // CODE REVIEW FIX (HIGH-2): Clear WASM dictionaries before cleanup
+    // Without this, 15MB+ WASM memory may not be released until GC runs
+    if (this.engine && typeof this.engine.clear_all_dictionaries === 'function') {
+      try {
+        this.engine.clear_all_dictionaries();
+        logger.log('🗑️ WASM dictionaries cleared before cleanup');
+      } catch (error) {
+        logger.error('Failed to clear WASM dictionaries during cleanup:', error);
+      }
+    }
+
     if (this.memoryPool) {
       this.memoryPool.cleanup();
     }
