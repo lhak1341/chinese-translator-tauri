@@ -58,28 +58,30 @@
  *     - Text assembly & formatting        (Lines 4500-5556)
  *     - Critical: Position precision for clickable highlighting
  *
- * 11. Core 5-Phase Translation Pipeline  (Lines 5557-6848) [COUPLED]
- *     - translateSinglePass()             (Lines 5580-5733)
- *       • Phase 1: Patterns               (Lines 5589-5592)
- *       • Phase 2: Proper Nouns           (Lines 5594-5601)
- *       • Phase 3: Numbers (WASM)         (Lines 5607-5699)
- *       • Phase 4: Phrases                (Lines 5702-5705)
- *       • Phase 5: Characters             (Lines 5717-5720)
- *     - Helper methods for each phase     (Lines 5734-6848)
+ * 11. Core 5-Phase Translation Pipeline  (Line ~7660) [COUPLED]
+ *     - translateSinglePass()             (Line ~7660)
+ *       • Phase 1: Patterns
+ *       • Phase 2: Proper Nouns
+ *       • Phase 3: Numbers (WASM)
+ *       • Phase 4: Phrases
+ *       • Phase 5: Characters
  *     - Critical: Phase order is IMMUTABLE
  *
- * 12. Cache Management                   (Lines 6849-6908) [EXTENSION]
- *     - invalidateAllCaches()             (Lines 6849-6908)
+ * 12. Cache Management                   [EXTENSION]
+ *     - invalidateAllCaches()
  *     - Unified API for 6 cache systems
  *     - Can be called externally
  *
- * 13. Utility Methods                    (Lines 6909-7503) [MIXED]
- *     - Segment building for highlighting (Lines 6909-7100)
- *     - Performance analysis              (Lines 7400-7503)
- *     - WASM Core Engine stubs (removed)  (Lines 7401-7422)
+ * 13. Utility Methods                    [MIXED]
+ *     - Segment building for highlighting
+ *     - Performance analysis
  *
- * 14. Factory Function                   (Lines 7504-7507) [SAFE]
+ * 14. Factory Function                   (Line 10753) [SAFE]
  *     - createTranslationEngine()
+ *
+ * NOTE: Line numbers in sections 7-10 above are approximate. File is ~10,750 lines.
+ *       Use grep/search for precise locations. Key anchors: translateSinglePass ~7660,
+ *       postProcess ~4263, applyPatterns ~2759, createOptimalPhraseGroups ~2515.
  *
  * =============================================================================
  * ARCHITECTURAL NOTES
@@ -2313,7 +2315,7 @@ export class TranslationEngine {
             tokens[startIndex + j].isGrouped = true;
             tokens[startIndex + j].groupLeader = startIndex;
             tokens[startIndex + j].translated = null; // Mark as consumed
-            tokens[startIndex + j].translationSource = 'phrases_grouped'; // Prevent re-translation
+            tokens[startIndex + j].translationSource = 'phrases_consumed'; // Prevent re-translation
           }
         }
 
@@ -3275,7 +3277,7 @@ export class TranslationEngine {
             tokens[startIndex + j].isGrouped = true;
             tokens[startIndex + j].groupLeader = startIndex;
             tokens[startIndex + j].translated = null;
-            tokens[startIndex + j].translationSource = 'phrases_grouped';
+            tokens[startIndex + j].translationSource = 'phrases_consumed';
           }
         }
 
@@ -3551,8 +3553,11 @@ export class TranslationEngine {
       const currentSemanticToken = semanticTokens[semanticPos];
       const originalTokenIndex = currentSemanticToken.originalIndex;
 
-      // Check if this token is already handled by a pattern
-      if (tokens[originalTokenIndex].translationSource === 'pattern') {
+      // Check if this token is already handled by a pattern (leader or consumed)
+      if (
+        tokens[originalTokenIndex].translationSource === 'pattern' ||
+        tokens[originalTokenIndex].translationSource === 'pattern_consumed'
+      ) {
         continue; // Skip already handled tokens
       }
 
@@ -3573,7 +3578,10 @@ export class TranslationEngine {
             let hasPatternConflict = false;
             for (const matchedToken of matchResult.matched) {
               const tokenIndex = matchedToken.originalIndex;
-              if (tokens[tokenIndex].translationSource === 'pattern') {
+              if (
+                tokens[tokenIndex].translationSource === 'pattern' ||
+                tokens[tokenIndex].translationSource === 'pattern_consumed'
+              ) {
                 hasPatternConflict = true;
                 if (options.debug) {
                   this.log(
@@ -3597,11 +3605,11 @@ export class TranslationEngine {
               tokens[firstTokenIndex].translated = matchResult.translation;
               tokens[firstTokenIndex].translationSource = 'pattern';
 
-              // Clear subsequent matched tokens
+              // Clear subsequent matched tokens (mark as consumed)
               for (let i = 1; i < matchResult.matched.length; i++) {
                 const tokenIndex = matchResult.matched[i].originalIndex;
                 tokens[tokenIndex].translated = null; // Use null instead of '' to prevent re-processing
-                tokens[tokenIndex].translationSource = 'pattern';
+                tokens[tokenIndex].translationSource = 'pattern_consumed';
               }
 
               // Skip past the matched semantic tokens
@@ -3707,12 +3715,12 @@ export class TranslationEngine {
     tokens[startTokenIndex].translated = matchResult.translation;
     tokens[startTokenIndex].translationSource = 'pattern';
 
-    // Mark subsequent matched tokens as empty
+    // Mark subsequent matched tokens as consumed
     for (let i = 1; i < matchResult.matched.length; i++) {
       const tokenIndex = matchResult.matched[i].originalIndex;
       if (tokenIndex < tokens.length) {
         tokens[tokenIndex].translated = null; // Use null to prevent re-processing
-        tokens[tokenIndex].translationSource = 'pattern';
+        tokens[tokenIndex].translationSource = 'pattern_consumed';
       }
     }
   }
@@ -8130,7 +8138,7 @@ export class TranslationEngine {
               }
 
               // Only copy AFTER validation passes (prevents partial corruption)
-              copyWasmTokens(processedTokens, tokens);
+              copyWasmTokens(tokens, processedTokens);
 
               // Post-copy verification (lightweight sanity check)
               if (tokens.some((t) => t.translated === undefined)) {
