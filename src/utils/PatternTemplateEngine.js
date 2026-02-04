@@ -71,9 +71,11 @@ export class PatternTemplateEngine {
   static applyPatternTemplate(template, variables) {
     let result = template;
 
-    // Replace each variable with its resolved value
+    // Replace each variable with its resolved value.
+    // Use a function replacement to prevent $-special-pattern interpretation
+    // (e.g. "$1", "$&") in varValue from being treated as back-references.
     Object.entries(variables).forEach(([varName, varValue]) => {
-      result = result.replace(new RegExp(varName, 'g'), varValue);
+      result = result.replace(new RegExp(varName, 'g'), () => varValue);
     });
 
     return result;

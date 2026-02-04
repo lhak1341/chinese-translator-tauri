@@ -397,12 +397,9 @@ export class TranslationEngine {
     // CRITICAL-2 FIX: Track pattern processor warning to show only once
     this.showedPatternWarning = false;
 
-    // HIGH-2 FIX: Track pattern failures with time-based reset
+    // Track pattern failures with time-based reset / auto-disable
     this.patternFailureCount = 0;
     this.lastPatternSuccessTime = null;
-
-    // CRITICAL-3 FIX: Track pattern processing failures for auto-disable
-    this.patternFailureCount = 0;
 
     // CODE REVIEW FIX (2026-02-01): Track pending cleanup callbacks for proper cancellation
     // Prevents memory leak when translation is aborted before cleanup completes
@@ -423,13 +420,12 @@ export class TranslationEngine {
    * @param {*} data - Optional data to log
    */
   log(level, message, data = null) {
-    // CODE REVIEW FIX (LOW-1): Early exit before evaluating lazy message
-    // Check level first to avoid unnecessary function calls
-    const shouldLog =
-      (globalPerformanceMonitor && true) || // Global monitor handles its own level checking
-      (this.debugLevel >= level && process.env.NODE_ENV === 'development');
-
-    if (!shouldLog && !globalPerformanceMonitor) {
+    // Early exit before evaluating lazy message.
+    // globalPerformanceMonitor does its own level filtering, but we still
+    // gate on debugLevel so the lazy message function is never called
+    // when neither output path would actually log.
+    const levelEnabled = this.debugLevel >= level;
+    if (!levelEnabled && !globalPerformanceMonitor) {
       return; // Skip evaluation entirely
     }
 
@@ -2934,8 +2930,9 @@ export class TranslationEngine {
 
       this.log(DEBUG_LEVELS.DEBUG, '🔍 Starting semantic pattern matching phase');
 
-      // Build variable cache from current token translations (Phase 2 results)
-      // Include phrases for pattern variables (phrases with allowAsPatternVariable can be pattern variables)
+      // Build variable cache by looking up tokens in proper-noun and phrase dictionaries.
+      // This is the fallback path (runs as Phase 1, before Phase 2), so tokens have no
+      // proper-noun translations yet — the cache is populated via dictionary lookups, not token state.
       const patternVariableDictionaries = [...this.activeProperNouns, 'phrases'];
       this.semanticPatternProcessor.buildVariableCache(
         tokens,
@@ -4740,9 +4737,10 @@ export class TranslationEngine {
             tokens[startIndex].groupedWith.push(startIndex + i);
             // Store original value before marking as grouped
             tokens[startIndex + i].originalValue = tokens[startIndex + i].value;
-            // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
+            // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract.
+            // translationSource must contain "_consumed" so validateConsumedTokenContract detects violations.
             tokens[startIndex + i].translated = null; // Must be null - postProcess checks !== null
-            tokens[startIndex + i].translationSource = match.dictionary;
+            tokens[startIndex + i].translationSource = match.dictionary + '_consumed';
             tokens[startIndex + i].isGrouped = true;
             tokens[startIndex + i].groupLeader = startIndex;
           }
@@ -5743,50 +5741,71 @@ export class TranslationEngine {
    * @param {Object} options - Translation options
    */
   async processTokenBatch(tokens, batchIndices, processedTokens, options) {
-    const batchResults = await Promise.all(
+    const dictionary = this.dictionaryManager.getDictionary('characters');
+
+    // Phase A: Concurrent lookups — find matches without mutating tokens.
+    // findLongestMatchAtPosition is a pure trie read; no token state is changed here.
+    const lookupResults = await Promise.all(
       batchIndices.map(async (i) => {
         if (processedTokens.has(i)) {
-          return { index: i, consumed: 0 };
+          return { index: i, match: null };
+        }
+
+        // Skip guard (mirrors tryCharactersAtPosition)
+        if (
+          tokens[i].translated !== null ||
+          (tokens[i].translationSource && !tokens[i].isPatternPartialReset)
+        ) {
+          return { index: i, match: null };
+        }
+
+        if (!dictionary) {
+          return { index: i, match: null };
         }
 
         try {
-          const result = await this.tryCharactersAtPosition(tokens, i, options);
-          return { index: i, consumed: result.consumed };
+          const match = this.findLongestMatchAtPosition(tokens, i, dictionary, 'characters');
+          return { index: i, match };
         } catch (error) {
           this.log(
             DEBUG_LEVELS.ERROR,
-            `🚨 Token batch processing failed at index ${i} ("${tokens[i]?.value}"):`,
+            `🚨 Token batch lookup failed at index ${i} ("${tokens[i]?.value}"):`,
             error
           );
-          return { index: i, consumed: 0 };
+          return { index: i, match: null };
         }
       })
     );
 
-    // Apply results and mark consumed tokens
-    // CRITICAL FIX: Validate no overlaps before applying to detect race conditions
-    batchResults.forEach(({ index, consumed }) => {
-      if (consumed > 0) {
-        // Check for overlapping consumption (race condition detector)
-        let hasOverlap = false;
-        for (let j = 0; j < consumed; j++) {
-          if (processedTokens.has(index + j)) {
-            logger.warn(
-              `⚠️ Race condition detected: token ${index + j} already consumed. Skipping overlapping tokens.`
-            );
-            hasOverlap = true;
-            break;
-          }
-        }
+    // Phase B: Sequential application — each match is applied and processedTokens is
+    // updated before the next match is considered, eliminating mutation races between
+    // concurrent lookups that returned overlapping spans.
+    for (const { index, match } of lookupResults) {
+      if (!match) continue;
 
-        // Only mark tokens if no overlap detected
-        if (!hasOverlap) {
-          for (let j = 0; j < consumed; j++) {
-            processedTokens.add(index + j);
-          }
+      // Overlap check against the up-to-date set (earlier results in this loop
+      // may have already claimed some of these indices).
+      let hasOverlap = false;
+      for (let j = 0; j < match.tokenLength; j++) {
+        if (processedTokens.has(index + j)) {
+          logger.warn(
+            `⚠️ Overlap detected: token ${index + j} already consumed. Skipping match at ${index}.`
+          );
+          hasOverlap = true;
+          break;
         }
       }
-    });
+      if (hasOverlap) continue;
+
+      // Apply the match — this is the only place tokens[] is mutated in this method
+      const matchWithDictName = { ...match, dictionary: 'characters' };
+      this.applyMatchToTokens(tokens, index, matchWithDictName, options);
+
+      // Mark consumed indices so subsequent iterations see them immediately
+      for (let j = 0; j < match.tokenLength; j++) {
+        processedTokens.add(index + j);
+      }
+    }
   }
 
   /**
@@ -7697,14 +7716,15 @@ export class TranslationEngine {
     // CODE REVIEW FIX (HIGH-1): Phase timeout protection
     // Timeout values defined in TranslationConstants.js with rationale
     const withTimeout = (promise, timeoutMs, phaseName) => {
+      let timer;
       return Promise.race([
-        promise,
-        new Promise((_, reject) =>
-          setTimeout(
+        promise.finally(() => clearTimeout(timer)),
+        new Promise((_, reject) => {
+          timer = setTimeout(
             () => reject(new Error(`${phaseName} phase timed out after ${timeoutMs}ms`)),
             timeoutMs
-          )
-        ),
+          );
+        }),
       ]);
     };
 
@@ -8938,7 +8958,7 @@ export class TranslationEngine {
           bestMatch = {
             word: text,
             translation: result,
-            dictionary: dictionary,
+            dictionary: dictionaryName || 'unknown',
             tokenLength: length,
           };
         }

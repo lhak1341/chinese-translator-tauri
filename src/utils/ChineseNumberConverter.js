@@ -157,10 +157,15 @@ export class ChineseNumberConverter {
    */
   static convertSimpleNumber(str) {
     // Handle numbers with 零 (zero placeholder)
+    // Split on the FIRST 零 only; recurse on the remainder to handle multiple 零
+    // e.g. "一千零一百零五" → base="一千", remainder="一百零五" → 1000 + 105
     if (str.includes('零')) {
-      const parts = str.split('零');
-      let base = this.convertSimpleNumber(parts[0]) || 0;
-      let remainder = parseInt(this.convertSimpleNumber(parts[1]) || 0);
+      const firstZeroIndex = str.indexOf('零');
+      const basePart = str.slice(0, firstZeroIndex);
+      const remainderPart = str.slice(firstZeroIndex + 1);
+
+      let base = this.convertSimpleNumber(basePart) || 0;
+      let remainder = remainderPart ? this.convertSimpleNumber(remainderPart) || 0 : 0;
 
       // For numbers >= 100, handle place value correctly
       // e.g., "一百零五" => base=100, remainder=5 => 105
@@ -286,13 +291,15 @@ export class ChineseNumberConverter {
       }
     });
 
-    // Protect poetic patterns using keys from poeticTranslations
+    // Protect poetic patterns. Markers use the sorted-array index as identifier
+    // (not the pattern text itself — Chinese chars inside a marker would be
+    // re-matched by subsequent iterations for shorter patterns like 千千/万万).
+    // Both protect and restore sort by length descending, so forEach indices agree.
     Object.keys(this.POETIC_TRANSLATIONS)
       .sort((a, b) => b.length - a.length) // Longest first
-      .forEach((pattern) => {
+      .forEach((pattern, index) => {
         if (result.includes(pattern)) {
-          // Use index as unique identifier instead of pattern itself
-          const marker = `__POETIC${Object.keys(this.POETIC_TRANSLATIONS).indexOf(pattern)}__`;
+          const marker = `__POETIC${index}__`;
           result = result.replace(new RegExp(this.escapeRegExp(pattern), 'g'), marker);
         }
       });
@@ -611,7 +618,8 @@ export class ChineseNumberConverter {
       );
     });
 
-    // Restore poetic patterns using entries from poeticTranslations
+    // Restore poetic patterns. Sort order must match protectCompounds so that
+    // forEach indices map to the same markers.
     Object.entries(this.POETIC_TRANSLATIONS)
       .sort(([a], [b]) => b.length - a.length)
       .forEach(([_pattern, translation], index) => {
