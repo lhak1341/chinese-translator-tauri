@@ -556,7 +556,7 @@ impl NumberProcessor {
         let second = self.get_number(groups[1].chars().next()?)?;
 
         // Validate that it's a logical consecutive range
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None;
         }
 
@@ -578,7 +578,7 @@ impl NumberProcessor {
         if groups.len() < 2 { return None; }
         let first = self.get_number(groups[0].chars().next()?)?;
         let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None; // Invalid range
         }
         Some(format!("{}-{} vạn", first, second))
@@ -588,7 +588,7 @@ impl NumberProcessor {
         if groups.len() < 2 { return None; }
         let first = self.get_number(groups[0].chars().next()?)?;
         let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None;
         }
         Some(format!("{}-{} ngàn", first, second))
@@ -598,7 +598,7 @@ impl NumberProcessor {
         if groups.len() < 2 { return None; }
         let first = self.get_number(groups[0].chars().next()?)?;
         let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None;
         }
         Some(format!("{}-{}", first * 100, second * 100))
@@ -609,7 +609,7 @@ impl NumberProcessor {
         let hundreds = self.get_number(groups[0].chars().next()?)?;
         let first = self.get_number(groups[1].chars().next()?)?;
         let second = self.get_number(groups[2].chars().next()?)?;
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None;
         }
         let first_total = hundreds * 100 + first * 10;
@@ -621,7 +621,7 @@ impl NumberProcessor {
         if groups.len() < 2 { return None; }
         let first = self.get_number(groups[0].chars().next()?)?;
         let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None;
         }
         Some(format!("{}-{}", first * 10, second * 10))
@@ -631,7 +631,7 @@ impl NumberProcessor {
         if groups.len() < 2 { return None; }
         let first = 10 + self.get_number(groups[0].chars().next()?)?;
         let second = 10 + self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 && second <= first {
+        if second != first + 1 {
             return None;
         }
         Some(format!("{}-{}", first, second))
@@ -642,6 +642,9 @@ impl NumberProcessor {
         let tens = self.get_number(groups[0].chars().next()?)? * 10;
         let first = tens + self.get_number(groups[1].chars().next()?)?;
         let second = tens + self.get_number(groups[2].chars().next()?)?;
+        if second != first + 1 {
+            return None;
+        }
         Some(format!("{}-{}", first, second))
     }
 

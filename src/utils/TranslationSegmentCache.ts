@@ -318,7 +318,6 @@ export class TranslationSegmentCache {
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
     }
     return Math.abs(hash).toString(36);
   }
@@ -677,31 +676,26 @@ export class TranslationSegmentCache {
    */
   private _cleanupOrphanedEntries(): void {
     try {
-      let removedCount = 0;
       const currentPrefix = this.cacheKeyPrefix;
 
-      // Scan all localStorage keys for translation cache entries
+      // Collect keys first — removing during index-based iteration skips entries
+      // because localStorage shifts indices on each removeItem call.
+      const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (!key) continue;
-
-        // Check if it's a translation cache key but not from current session
-        if (key.startsWith('translation-cache-') && !key.startsWith(currentPrefix)) {
-          // Skip metadata keys from other sessions (will be cleaned with their entries)
-          if (key.includes('-metadata-')) {
-            localStorage.removeItem(key);
-            removedCount++;
-            continue;
-          }
-
-          // It's an orphaned cache entry from a previous session
-          localStorage.removeItem(key);
-          removedCount++;
+        if (key && key.startsWith('translation-cache-') && !key.startsWith(currentPrefix)) {
+          keysToRemove.push(key);
         }
       }
 
-      if (removedCount > 0) {
-        logger.log(`🧹 Cleaned up ${removedCount} orphaned cache entries from previous sessions`);
+      for (const key of keysToRemove) {
+        localStorage.removeItem(key);
+      }
+
+      if (keysToRemove.length > 0) {
+        logger.log(
+          `🧹 Cleaned up ${keysToRemove.length} orphaned cache entries from previous sessions`
+        );
       }
     } catch (error) {
       logger.warn('Failed to clean up orphaned cache entries:', error);

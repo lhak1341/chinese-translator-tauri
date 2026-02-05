@@ -41,22 +41,28 @@ impl TrieNode {
     }
 
     pub fn find_matches(&self, text: &str, start_pos: usize) -> Vec<MatchResult> {
-        let mut matches = Vec::new();
         let chars: Vec<char> = text.chars().collect();
-        
+        self.find_matches_slice(&chars, start_pos)
+    }
+
+    /// Find all prefix matches starting at `start_pos` in a pre-collected char slice.
+    /// Callers that iterate over multiple start positions on the same text should
+    /// collect chars once and call this method directly — avoids a Vec<char>
+    /// allocation per position.
+    pub fn find_matches_slice(&self, chars: &[char], start_pos: usize) -> Vec<MatchResult> {
+        let mut matches = Vec::new();
+
         if start_pos >= chars.len() {
             return matches;
         }
-        
+
         let mut current = self;
-        
+
         for i in start_pos..chars.len() {
-            let ch = chars[i];
-            
-            match current.children.get(&ch) {
+            match current.children.get(&chars[i]) {
                 Some(node) => {
                     current = node;
-                    
+
                     if current.is_end_of_word {
                         if let Some(translation) = &current.translation {
                             matches.push(MatchResult {
@@ -72,18 +78,24 @@ impl TrieNode {
                 None => break,
             }
         }
-        
+
         // Matches are accumulated in increasing length order; reverse for longest-first
         matches.reverse();
 
         matches
     }
 
-    /// Find the single longest match starting at `start_pos` — walks the trie once
-    /// without collecting all matches or allocating the result Vec.
+    /// Find the single longest match starting at `start_pos` — walks the trie once,
+    /// collecting only the final longest match rather than all prefix matches.
     pub fn find_longest_match(&self, text: &str, start_pos: usize) -> Option<MatchResult> {
         let chars: Vec<char> = text.chars().collect();
+        self.find_longest_match_slice(&chars, start_pos)
+    }
 
+    /// Find the single longest match in a pre-collected char slice.
+    /// Prefer this over `find_longest_match` when the same text is searched
+    /// at multiple positions — collect chars once and reuse the slice.
+    pub fn find_longest_match_slice(&self, chars: &[char], start_pos: usize) -> Option<MatchResult> {
         if start_pos >= chars.len() {
             return None;
         }

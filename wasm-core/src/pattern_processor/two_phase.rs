@@ -302,6 +302,11 @@ impl TwoPhasePatternProcessor {
         let mut results = Vec::with_capacity(semantic_tokens.len() / 2);
         let mut position = 0;
 
+        // variable_patterns is constant for the entire loop — hoist outside and
+        // reuse a single buffer to avoid allocating a new Vec every iteration.
+        let variable_patterns = self.phase_b_index.get_variable_patterns();
+        let mut candidate_patterns = Vec::with_capacity(variable_patterns.len() + 32);
+
         while position < semantic_tokens.len() {
             // Skip tokens already processed
             if semantic_tokens[position]
@@ -317,11 +322,10 @@ impl TwoPhasePatternProcessor {
             // Get candidate patterns using index (O(1) lookup)
             let first_token = &semantic_tokens[position].value;
             let literal_patterns = self.phase_b_index.get_patterns_by_first_token(first_token);
-            let variable_patterns = self.phase_b_index.get_variable_patterns();
 
-            // Combine both literal-starting and variable-starting patterns
-            // This allows hierarchical composition where X matches Phase A results
-            let mut candidate_patterns = Vec::new();
+            // Combine both literal-starting and variable-starting patterns.
+            // Reuse the pre-allocated buffer — clear and refill each iteration.
+            candidate_patterns.clear();
             candidate_patterns.extend_from_slice(literal_patterns);
             candidate_patterns.extend_from_slice(variable_patterns);
 

@@ -697,22 +697,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     }
   }, [isUpdating, preservedScrollTop]);
 
-  // Notify parent about selection changes
-  useEffect(() => {
-    if (onSelectionChange) {
-      onSelectionChange({
-        selectedEntries,
-        selectedCount: selectedEntries.size,
-        onBulkDelete: handleBulkDelete,
-        isDeleting,
-        showBulkDeleteConfirm,
-        setShowBulkDeleteConfirm,
-        onBulkMove: handleBulkMove,
-        isMoving,
-      });
-    }
-  }, [selectedEntries, isDeleting, showBulkDeleteConfirm, isMoving, onSelectionChange]);
-
   // Selection handlers with scroll preservation
   const handleSelectEntry = useCallback(
     (source: string, isSelected: boolean): void => {
@@ -763,7 +747,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     [filteredEntries, scrollTop]
   );
 
-  const handleBulkDelete = async (): Promise<void> => {
+  const handleBulkDelete = useCallback(async (): Promise<void> => {
     if (selectedEntries.size === 0) return;
 
     setIsDeleting(true);
@@ -784,12 +768,37 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [selectedEntries, selectedDictionary, deleteEntry]);
 
-  const handleBulkMove = (): void => {
+  const handleBulkMove = useCallback((): void => {
     if (selectedEntries.size === 0) return;
     setShowBulkMoveDialog(true);
-  };
+  }, [selectedEntries]);
+
+  // Notify parent about selection changes — placed after handleBulkDelete /
+  // handleBulkMove so the dep array can reference their stable useCallback values.
+  useEffect(() => {
+    if (onSelectionChange) {
+      onSelectionChange({
+        selectedEntries,
+        selectedCount: selectedEntries.size,
+        onBulkDelete: handleBulkDelete,
+        isDeleting,
+        showBulkDeleteConfirm,
+        setShowBulkDeleteConfirm,
+        onBulkMove: handleBulkMove,
+        isMoving,
+      });
+    }
+  }, [
+    selectedEntries,
+    isDeleting,
+    showBulkDeleteConfirm,
+    isMoving,
+    onSelectionChange,
+    handleBulkDelete,
+    handleBulkMove,
+  ]);
 
   // Context menu handlers
   const handleContextMenu = useCallback(
@@ -860,10 +869,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       _index: number;
       actualIndex: number;
       isScrolling: boolean;
+      isSelected: boolean;
     }
 
     const VirtualRowComponent = React.memo<VirtualRowProps>(
-      ({ source, translation, _index, actualIndex, isScrolling }) => {
+      ({ source, translation, _index, actualIndex, isScrolling, isSelected }) => {
         const translationText =
           typeof translation === 'string' ? translation : translation.translation;
         const allowAsPatternVariable =
@@ -984,7 +994,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 display: 'flex',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
-                backgroundColor: selectedEntries.has(source)
+                backgroundColor: isSelected
                   ? 'rgba(16, 185, 129, 0.18)'
                   : actualIndex % 2 === 0
                     ? 'var(--background-color)'
@@ -996,7 +1006,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               <div className={styles.checkboxCell}>
                 <input
                   type="checkbox"
-                  checked={selectedEntries.has(source)}
+                  checked={isSelected}
                   onChange={(e) => handleSelectEntry(source, e.target.checked)}
                   className={styles.checkboxInput}
                   title="Select for deletion"
@@ -1078,7 +1088,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 display: 'flex',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
-                backgroundColor: selectedEntries.has(source)
+                backgroundColor: isSelected
                   ? 'rgba(16, 185, 129, 0.18)'
                   : actualIndex % 2 === 0
                     ? 'var(--background-color)'
@@ -1090,7 +1100,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               <div className={styles.checkboxCell}>
                 <input
                   type="checkbox"
-                  checked={selectedEntries.has(source)}
+                  checked={isSelected}
                   onChange={(e) => handleSelectEntry(source, e.target.checked)}
                   className={styles.checkboxInput}
                   title="Select for deletion"
@@ -1183,7 +1193,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               display: 'flex',
               alignItems: 'center',
               borderBottom: '1px solid var(--border-color)',
-              backgroundColor: selectedEntries.has(source)
+              backgroundColor: isSelected
                 ? 'rgba(16, 185, 129, 0.18)'
                 : actualIndex % 2 === 0
                   ? 'var(--background-color)'
@@ -1205,7 +1215,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             >
               <input
                 type="checkbox"
-                checked={selectedEntries.has(source)}
+                checked={isSelected}
                 onChange={(e) => handleSelectEntry(source, e.target.checked)}
                 style={{ cursor: 'pointer' }}
                 title="Select for deletion"
@@ -1299,7 +1309,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     setEditingEntry,
     selectedDictionary,
     updateEntryWithScrollPreservation,
-    selectedEntries,
     handleSelectEntry,
     handleContextMenu,
   ]);
@@ -1662,6 +1671,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                         _index={index}
                         actualIndex={actualIndex}
                         isScrolling={isScrolling}
+                        isSelected={selectedEntries.has(source)}
                       />
                     );
                   })}

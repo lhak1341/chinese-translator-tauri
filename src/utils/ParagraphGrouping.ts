@@ -74,12 +74,12 @@ export function groupSegmentsIntoParagraphs(segments: Segment[]): Segment[][] {
         }
       } else if (line) {
         // Non-empty text
-        // HIGH-3 FIX: Deep copy metadata to prevent mutation sharing across paragraphs
-        // MEDIUM-3 FIX: Use JSON deep copy to handle nested metadata objects
+        // HIGH-3 FIX: Shallow copy metadata to prevent mutation sharing across paragraphs
+        // Metadata is flat (primitive fields only: phase, confidence, pattern) — verified
         currentParagraph.push({
           ...segment,
           text: line,
-          metadata: segment.metadata ? JSON.parse(JSON.stringify(segment.metadata)) : undefined,
+          metadata: segment.metadata ? { ...segment.metadata } : undefined,
         });
       }
     }

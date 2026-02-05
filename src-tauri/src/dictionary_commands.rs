@@ -848,6 +848,15 @@ pub async fn import_dictionaries(
             continue;
         }
 
+        // Validate the base name to prevent path-traversal writes.
+        // A ZIP entry like "../../evil.json" passes the .ends_with check above
+        // but would escape the dictionaries directory without this validation.
+        let base_name = filename.trim_end_matches(".json");
+        if let Err(e) = validate_dictionary_id(base_name) {
+            errors.push(format!("{}: {}", filename, e));
+            continue;
+        }
+
         // Validate JSON before writing
         let mut contents = String::new();
         file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
