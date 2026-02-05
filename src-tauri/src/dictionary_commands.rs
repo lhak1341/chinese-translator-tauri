@@ -851,7 +851,10 @@ pub async fn import_dictionaries(
         // Validate the base name to prevent path-traversal writes.
         // A ZIP entry like "../../evil.json" passes the .ends_with check above
         // but would escape the dictionaries directory without this validation.
-        let base_name = filename.trim_end_matches(".json");
+        // strip_suffix removes the literal substring ".json"; trim_end_matches
+        // would strip individual characters from the set {'.','j','s','o','n'},
+        // which over-strips names like "son.json" → "".
+        let base_name = filename.strip_suffix(".json").unwrap(); // safe: ends_with checked at line 847
         if let Err(e) = validate_dictionary_id(base_name) {
             errors.push(format!("{}: {}", filename, e));
             continue;

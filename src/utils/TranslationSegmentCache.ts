@@ -318,6 +318,7 @@ export class TranslationSegmentCache {
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
+      hash |= 0; // Truncate to 32-bit integer — required for djb2 in JS
     }
     return Math.abs(hash).toString(36);
   }
