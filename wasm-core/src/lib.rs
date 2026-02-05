@@ -651,8 +651,6 @@ pub fn generate_content_hash(text: &str) -> String {
     for ch in text.chars() {
         let char_code = ch as i32;
         hash = (hash << 5).wrapping_sub(hash).wrapping_add(char_code);
-        // Convert to 32-bit integer (JavaScript behavior)
-        hash = hash & hash;
     }
 
     // Convert to base-36 (JavaScript .toString(36) equivalent)

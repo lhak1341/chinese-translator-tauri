@@ -85,7 +85,7 @@ function normalizeContext(context: CacheContext | string[] | string | null | und
 
   // Handle arrays specially
   if (Array.isArray(context)) {
-    return context.sort().join(',');
+    return [...context].sort().join(',');
   }
 
   // Sort object keys for consistency
@@ -95,7 +95,7 @@ function normalizeContext(context: CacheContext | string[] | string | null | und
     .map((key) => {
       const value = context[key];
       if (Array.isArray(value)) {
-        return `${key}=${value.sort().join(',')}`;
+        return `${key}=${[...value].sort().join(',')}`;
       }
       return `${key}=${value}`;
     });

@@ -47,10 +47,10 @@ impl PatternIndex {
     /// Index multiple patterns
     ///
     /// # Arguments
-    /// * `patterns` - Vector of patterns to index
-    pub fn index_patterns(&mut self, patterns: Vec<SemanticPattern>) {
+    /// * `patterns` - Slice of patterns to index (each is cloned into the index)
+    pub fn index_patterns(&mut self, patterns: &[SemanticPattern]) {
         for pattern in patterns {
-            self.index_pattern(pattern);
+            self.index_pattern(pattern.clone());
         }
     }
 

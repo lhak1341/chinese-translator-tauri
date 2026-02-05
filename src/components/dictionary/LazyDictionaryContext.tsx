@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+} from 'react';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
@@ -806,24 +814,44 @@ export function LazyDictionaryProvider({
     };
   }, []);
 
-  const value: LazyDictionaryContextValue = {
-    dictionaries,
-    isLoading,
-    addEntry,
-    updateEntry,
-    deleteEntry,
-    undo,
-    redo,
-    canUndo: currentHistoryIndex >= 0,
-    canRedo: currentHistoryIndex < history.length - 1,
-    loadDictionary,
-    selectedDictionary,
-    setSelectedDictionary: handleDictionaryChange,
-    getSortingStats,
-    resetSortingStats,
-    loadedDictionaries, // Expose for debugging
-    refreshDictionaryTypes, // MEDIUM-2 FIX: Expose dictionary type refresh
-  };
+  const value = useMemo<LazyDictionaryContextValue>(
+    () => ({
+      dictionaries,
+      isLoading,
+      addEntry,
+      updateEntry,
+      deleteEntry,
+      undo,
+      redo,
+      canUndo: currentHistoryIndex >= 0,
+      canRedo: currentHistoryIndex < history.length - 1,
+      loadDictionary,
+      selectedDictionary,
+      setSelectedDictionary: handleDictionaryChange,
+      getSortingStats,
+      resetSortingStats,
+      loadedDictionaries,
+      refreshDictionaryTypes,
+    }),
+    [
+      dictionaries,
+      isLoading,
+      addEntry,
+      updateEntry,
+      deleteEntry,
+      undo,
+      redo,
+      currentHistoryIndex,
+      history.length,
+      loadDictionary,
+      selectedDictionary,
+      handleDictionaryChange,
+      getSortingStats,
+      resetSortingStats,
+      loadedDictionaries,
+      refreshDictionaryTypes,
+    ]
+  );
 
   return <LazyDictionaryContext.Provider value={value}>{children}</LazyDictionaryContext.Provider>;
 }

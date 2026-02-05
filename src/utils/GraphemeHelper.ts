@@ -72,7 +72,11 @@ class GraphemeHelper {
     if (!text) return 0;
 
     if (this.segmenter) {
-      return Array.from(this.segmenter.segment(text)).length;
+      let count = 0;
+      for (const _ of this.segmenter.segment(text)) {
+        count++;
+      }
+      return count;
     }
 
     // Fallback: Use UTF-16 length (less accurate but safe for most Vietnamese text)

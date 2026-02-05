@@ -113,10 +113,10 @@ impl SegmentMatcher {
 
         // Clear existing trie
         self.root = TrieNode::default();
-        self.units = units.clone();
+        self.units = units;
 
         // Build trie from units
-        for unit in &units {
+        for unit in &self.units {
             if unit.unit.is_empty() {
                 continue;  // Skip empty units
             }

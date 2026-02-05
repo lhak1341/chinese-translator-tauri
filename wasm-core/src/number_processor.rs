@@ -354,16 +354,17 @@ impl NumberProcessor {
     fn format_with_commas(value: u32) -> String {
         let s = value.to_string();
         let bytes = s.as_bytes();
-        let mut result = String::new();
 
+        // Build reversed string with commas, then reverse once — O(n) total
+        let mut reversed = String::with_capacity(s.len() + s.len() / 3);
         for (i, &byte) in bytes.iter().rev().enumerate() {
             if i > 0 && i % 3 == 0 {
-                result.insert(0, ',');
+                reversed.push(',');
             }
-            result.insert(0, byte as char);
+            reversed.push(byte as char);
         }
 
-        result
+        reversed.chars().rev().collect()
     }
 
     /// Find longest number match starting from a position

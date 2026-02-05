@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers'; // REFACTOR (2026-01-28): Consistent error formatting
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark, Zap } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
@@ -78,7 +78,10 @@ const ConfigurationManager: React.FC = () => {
     };
   };
 
-  const categorizedDictionaries = categorizeDictionaries(availableDictionaries);
+  const categorizedDictionaries = useMemo(
+    () => categorizeDictionaries(availableDictionaries),
+    [availableDictionaries]
+  );
 
   // Load available dictionaries on mount
   useEffect(() => {
@@ -472,11 +475,14 @@ const ConfigurationManager: React.FC = () => {
                       document.removeEventListener('mouseup', dragHandlersRef.current.handleUp);
                     }
 
+                    let pendingValue = wasmMemoryLimit;
+
                     const handleMove = (moveEvent: MouseEvent) => {
                       const rect = track.getBoundingClientRect();
                       const percent = (moveEvent.clientX - rect.left) / rect.width;
-                      const value = Math.round(10 + percent * 40);
-                      handleMemoryLimitChange(Math.max(10, Math.min(50, value)));
+                      pendingValue = Math.max(10, Math.min(50, Math.round(10 + percent * 40)));
+                      // Update UI instantly without IPC
+                      setWasmMemoryLimit(pendingValue);
                     };
 
                     const handleUp = () => {
@@ -485,6 +491,8 @@ const ConfigurationManager: React.FC = () => {
                       // Clear ref after cleanup
                       dragHandlersRef.current.handleMove = null;
                       dragHandlersRef.current.handleUp = null;
+                      // Persist to config only once on release
+                      handleMemoryLimitChange(pendingValue);
                     };
 
                     // Store handlers in ref for cleanup on unmount

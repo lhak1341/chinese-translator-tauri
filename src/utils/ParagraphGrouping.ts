@@ -69,7 +69,7 @@ export function groupSegmentsIntoParagraphs(segments: Segment[]): Segment[][] {
           currentParagraph.push({
             ...segment,
             text: line,
-            metadata: segment.metadata ? JSON.parse(JSON.stringify(segment.metadata)) : undefined,
+            metadata: segment.metadata ? { ...segment.metadata } : undefined,
           });
         }
       } else if (line) {

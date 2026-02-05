@@ -8,7 +8,7 @@
  * Use configurationHelpers functions for imperative operations.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import { loadValidatedConfiguration, loadRawConfiguration } from '../utils/configurationHelpers';
 import type { AppConfiguration } from '../types/ComponentTypes';
@@ -64,7 +64,7 @@ export interface UseConfigurationLoaderResult {
  */
 export function useConfigurationLoader(autoLoad: boolean = false): UseConfigurationLoaderResult {
   const [config, setConfig] = useState<AppConfiguration | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(autoLoad);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -123,11 +123,12 @@ export function useConfigurationLoader(autoLoad: boolean = false): UseConfigurat
   }, []);
 
   // Auto-load on mount if requested
-  useState(() => {
+  useEffect(() => {
     if (autoLoad) {
       loadConfig();
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     config,

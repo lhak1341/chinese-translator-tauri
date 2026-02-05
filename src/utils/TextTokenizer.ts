@@ -222,9 +222,7 @@ export class TextTokenizer {
       const wasmTokens = this.wasmTokenizer.tokenize(text);
       if (wasmTokens !== null) {
         // Convert WASM tokens to Token instances
-        return this.postProcessTokens(
-          wasmTokens.map((t: any) => new Token(t.type, t.value, t.start, t.end))
-        );
+        return wasmTokens.map((t: any) => new Token(t.type, t.value, t.start, t.end));
       }
     }
 
@@ -284,29 +282,7 @@ export class TextTokenizer {
       tokens.push(new Token(TokenType.UNKNOWN, remainingText, lastIndex, text.length));
     }
 
-    return this.postProcessTokens(tokens);
-  }
-
-  /**
-   * Post-process tokens to merge related segments
-   *
-   * @param tokens - Raw tokens
-   * @returns Processed tokens
-   */
-  private postProcessTokens(tokens: Token[]): Token[] {
-    const processed: Token[] = [];
-    let i = 0;
-
-    while (i < tokens.length) {
-      const current = tokens[i];
-
-      // DON'T merge Chinese characters - keep them separate for better dictionary matching
-      // This allows partial phrase matching (e.g., "第一" from "第一百三十五节")
-      processed.push(current);
-      i++;
-    }
-
-    return processed;
+    return tokens;
   }
 
   /**

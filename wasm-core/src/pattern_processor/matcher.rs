@@ -8,14 +8,16 @@
 use super::pattern::{SemanticPattern, TokenType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use lazy_static::lazy_static;
 
 // Global profiling state
 lazy_static! {
-    static ref PROFILING_ENABLED: Mutex<bool> = Mutex::new(false);
     static ref PROFILING_DATA: Mutex<MatcherProfilingData> = Mutex::new(MatcherProfilingData::default());
 }
+// AtomicBool avoids mutex overhead on the hot-path read
+static PROFILING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// Semantic token representation (from JavaScript side)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,7 +292,7 @@ impl<'a> PatternMatcher<'a> {
         position: usize,
     ) -> PatternMatchResult {
         // Check global profiling state
-        let profiling_enabled = *PROFILING_ENABLED.lock().unwrap();
+        let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
 
         // Get performance object if profiling is enabled
         let perf = if profiling_enabled {
@@ -535,7 +537,7 @@ impl<'a> PatternMatcher<'a> {
         pattern_index: usize,
     ) -> Option<(String, usize, String)> {
         // Check profiling state
-        let profiling_enabled = *PROFILING_ENABLED.lock().unwrap();
+        let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
         let perf = if profiling_enabled {
             web_sys::window().and_then(|w| w.performance())
         } else {
@@ -553,10 +555,15 @@ impl<'a> PatternMatcher<'a> {
         // Pre-allocate string buffer with estimated capacity
         let mut buffer = String::with_capacity(max_span * 2);  // Estimate 2 bytes per char
 
-        // Profiling accumulators
+        // Profiling accumulators (local — flushed once at function exit)
         let mut total_string_building_time = 0.0;
         let mut total_cache_lookup_time = 0.0;
         let mut total_lookahead_time = 0.0;
+        let mut local_cache_hits: u32 = 0;
+        let mut local_cache_misses: u32 = 0;
+
+        // Result accumulator — avoids early returns that would each need a profiling flush
+        let mut result: Option<(String, usize, String)> = None;
 
         // Try spans from longest to shortest (greedy matching)
         for span in (1..=max_span).rev() {
@@ -586,7 +593,6 @@ impl<'a> PatternMatcher<'a> {
                     // Lookahead verification
                     let start_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
 
-                    // Look ahead: verify that the next pattern token can match after consuming this variable span
                     let next_pattern_token = &pattern.tokens[pattern_index + 1];
                     let next_position = current_position + span;
 
@@ -598,118 +604,65 @@ impl<'a> PatternMatcher<'a> {
 
                     let next_semantic_token = &semantic_tokens[next_position];
 
-                    // Verify next literal token match (only check if it's a literal)
                     if next_pattern_token.token_type == TokenType::Literal {
                         let next_literal = next_pattern_token.value.as_ref().unwrap();
 
-                        // For multi-character literals, check if semantic tokens starting at next_position
-                        // form the literal sequence
-                        if next_literal.len() == 1 {
-                            // Single character literal - direct comparison
-                            if &next_semantic_token.value == next_literal {
-                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                total_lookahead_time += end_lookahead - start_lookahead;
-
-                                // Update profiling data before return
-                                if profiling_enabled {
-                                    let mut data = PROFILING_DATA.lock().unwrap();
-                                    data.var_resolution_attempts += 1;
-                                    data.var_cache_hits += 1;
-                                    data.var_string_building_time += total_string_building_time;
-                                    data.var_cache_lookup_time += total_cache_lookup_time;
-                                    data.var_lookahead_time += total_lookahead_time;
-                                }
-                                return Some((translation, span, text));
-                            } else {
-                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                total_lookahead_time += end_lookahead - start_lookahead;
-                                continue;
-                            }
+                        let lookahead_matched = if next_literal.len() == 1 {
+                            &next_semantic_token.value == next_literal
                         } else {
-                            // Multi-character literal - build sequence and compare
                             let literal_chars: Vec<char> = next_literal.chars().collect();
-
-                            // Check if we have enough tokens remaining
                             if next_position + literal_chars.len() > semantic_tokens.len() {
-                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                total_lookahead_time += end_lookahead - start_lookahead;
-                                continue;
-                            }
-
-                            // Build sequence from semantic tokens
-                            let semantic_sequence: String = semantic_tokens[next_position..next_position + literal_chars.len()]
-                                .iter()
-                                .map(|t| t.value.as_str())
-                                .collect();
-
-                            if &semantic_sequence == next_literal {
-                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                total_lookahead_time += end_lookahead - start_lookahead;
-
-                                // Update profiling data before return
-                                if profiling_enabled {
-                                    let mut data = PROFILING_DATA.lock().unwrap();
-                                    data.var_resolution_attempts += 1;
-                                    data.var_cache_hits += 1;
-                                    data.var_string_building_time += total_string_building_time;
-                                    data.var_cache_lookup_time += total_cache_lookup_time;
-                                    data.var_lookahead_time += total_lookahead_time;
-                                }
-                                return Some((translation, span, text));
+                                false
                             } else {
-                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                total_lookahead_time += end_lookahead - start_lookahead;
-                                continue;
+                                let semantic_sequence: String = semantic_tokens[next_position..next_position + literal_chars.len()]
+                                    .iter()
+                                    .map(|t| t.value.as_str())
+                                    .collect();
+                                &semantic_sequence == next_literal
                             }
-                        }
-                    } else {
-                        // Next token is another variable - accept this span (will be validated in next iteration)
+                        };
+
                         let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
                         total_lookahead_time += end_lookahead - start_lookahead;
 
-                        // Update profiling data before return
-                        if profiling_enabled {
-                            let mut data = PROFILING_DATA.lock().unwrap();
-                            data.var_resolution_attempts += 1;
-                            data.var_cache_hits += 1;
-                            data.var_string_building_time += total_string_building_time;
-                            data.var_cache_lookup_time += total_cache_lookup_time;
-                            data.var_lookahead_time += total_lookahead_time;
+                        if lookahead_matched {
+                            local_cache_hits += 1;
+                            result = Some((translation, span, text));
+                            break;
                         }
-                        return Some((translation, span, text));
+                        // else: continue to shorter span
+                    } else {
+                        // Next token is another variable — accept this span
+                        let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                        total_lookahead_time += end_lookahead - start_lookahead;
+
+                        local_cache_hits += 1;
+                        result = Some((translation, span, text));
+                        break;
                     }
                 } else {
-                    // No more pattern tokens - use longest available span
-                    // Update profiling data before return
-                    if profiling_enabled {
-                        let mut data = PROFILING_DATA.lock().unwrap();
-                        data.var_resolution_attempts += 1;
-                        data.var_cache_hits += 1;
-                        data.var_string_building_time += total_string_building_time;
-                        data.var_cache_lookup_time += total_cache_lookup_time;
-                        data.var_lookahead_time += total_lookahead_time;
-                    }
-                    return Some((translation, span, text));
+                    // No more pattern tokens — use longest available span
+                    local_cache_hits += 1;
+                    result = Some((translation, span, text));
+                    break;
                 }
             } else {
-                // Cache miss - count it
-                if profiling_enabled {
-                    let mut data = PROFILING_DATA.lock().unwrap();
-                    data.var_cache_misses += 1;
-                }
+                local_cache_misses += 1;
             }
         }
 
-        // No match found - update profiling data
+        // Single profiling flush — one mutex acquisition regardless of exit path
         if profiling_enabled {
             let mut data = PROFILING_DATA.lock().unwrap();
             data.var_resolution_attempts += 1;
+            data.var_cache_hits += local_cache_hits;
+            data.var_cache_misses += local_cache_misses;
             data.var_string_building_time += total_string_building_time;
             data.var_cache_lookup_time += total_cache_lookup_time;
             data.var_lookahead_time += total_lookahead_time;
         }
 
-        None
+        result
     }
 
     /// Check if matched tokens have Phase A protection
@@ -863,12 +816,12 @@ pub fn find_best_pattern_match(
 
 /// Enable Rust-side pattern matching profiling
 pub fn enable_matcher_profiling() {
-    *PROFILING_ENABLED.lock().unwrap() = true;
+    PROFILING_ENABLED.store(true, Ordering::Relaxed);
 }
 
 /// Disable Rust-side pattern matching profiling
 pub fn disable_matcher_profiling() {
-    *PROFILING_ENABLED.lock().unwrap() = false;
+    PROFILING_ENABLED.store(false, Ordering::Relaxed);
 }
 
 /// Reset pattern matching profiling data

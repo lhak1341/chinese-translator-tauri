@@ -160,7 +160,7 @@ const StreamingTextRenderer = memo<StreamingTextRendererProps>(
         className={`streaming-text-container ${styles.textContainer} ${isStreaming ? styles.textContainerStreaming : styles.textContainerStatic}`}
       >
         {visibleLines.map((line, index) => (
-          <div key={index} className="streaming-text-line">
+          <div key={lines.length - visibleLines.length + index} className="streaming-text-line">
             {line}
             {/* Add cursor only to the last line while streaming */}
             {index === visibleLines.length - 1 && isStreaming && !isComplete && (

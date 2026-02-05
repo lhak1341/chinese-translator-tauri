@@ -1009,6 +1009,16 @@ pub async fn load_dictionaries_parallel(
                 };
             }
 
+            // SECURITY: Validate file size before reading (matches serial load path)
+            if let Err(e) = validate_file_size(&file_path, MAX_JSON_SIZE_BYTES) {
+                return BatchDictionaryResult {
+                    dictionary_id: dictionary_id.clone(),
+                    success: false,
+                    data: None,
+                    error: Some(e),
+                };
+            }
+
             // Load from file
             match fs::read_to_string(&file_path) {
                 Ok(contents) => {

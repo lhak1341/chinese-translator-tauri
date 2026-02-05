@@ -128,17 +128,17 @@ impl TwoPhasePatternProcessor {
             .iter()
             .filter(|p| {
                 // Composite eligible: Has X variable but not Y (single-variable)
-                p.variables.contains(&"X".to_string()) && !p.variables.contains(&"Y".to_string())
+                p.variables.iter().any(|v| v == "X") && !p.variables.iter().any(|v| v == "Y")
             })
             .cloned()
             .collect();
 
         // Create pattern indices for O(1) first-token lookup
         let mut phase_a_index = PatternIndex::new();
-        phase_a_index.index_patterns(variable_patterns.clone());
+        phase_a_index.index_patterns(&variable_patterns);
 
         let mut phase_b_index = PatternIndex::new();
-        phase_b_index.index_patterns(patterns.clone());
+        phase_b_index.index_patterns(&patterns);
 
         Self {
             all_patterns: patterns,

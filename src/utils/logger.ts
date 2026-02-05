@@ -22,20 +22,25 @@ const isDevelopment = (): boolean => {
   return process.env.NODE_ENV === 'development';
 };
 
+/** Emoji prefixes for each log level (hoisted to avoid per-call allocation) */
+const LOG_PREFIXES: Record<LogLevel, string> = {
+  log: '📝',
+  info: 'ℹ️',
+  warn: '⚠️',
+  error: '❌',
+  debug: '🔍',
+};
+
 /**
  * Format log message with timestamp and emoji prefix
  */
 const formatMessage = (level: LogLevel, ...args: unknown[]): unknown[] => {
-  const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-  const prefixes: Record<LogLevel, string> = {
-    log: '📝',
-    info: 'ℹ️',
-    warn: '⚠️',
-    error: '❌',
-    debug: '🔍',
-  };
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2, '0');
+  const m = now.getMinutes().toString().padStart(2, '0');
+  const s = now.getSeconds().toString().padStart(2, '0');
 
-  return [`[${timestamp}] ${prefixes[level]}`, ...args];
+  return [`[${h}:${m}:${s}] ${LOG_PREFIXES[level]}`, ...args];
 };
 
 /**

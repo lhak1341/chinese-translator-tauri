@@ -61,10 +61,11 @@ impl TrieNode {
         }
     }
 
-    /// Find all matches starting at a position in text
-    pub fn find_matches(&self, text: &str, start_pos: usize) -> Vec<DictionaryMatch> {
+    /// Find all matches starting at a position in a pre-collected char slice.
+    /// Callers must pre-collect `text.chars()` once and pass `&[char]` to avoid
+    /// O(n) allocation per call inside parallel loops.
+    pub fn find_matches(&self, chars: &[char], start_pos: usize) -> Vec<DictionaryMatch> {
         let mut matches = Vec::new();
-        let chars: Vec<char> = text.chars().collect();
 
         if start_pos >= chars.len() {
             return matches;
@@ -217,15 +218,19 @@ fn order_dictionaries(
         .map(|d| (d.name.as_str(), d.clone()))
         .collect();
 
+    // HashSet for O(1) membership test when adding unordered dictionaries
+    let order_set: std::collections::HashSet<&str> =
+        dictionary_order.iter().map(|s| s.as_str()).collect();
+
     for name in dictionary_order {
         if let Some(dict) = dict_map.get(name.as_str()) {
             ordered.push(dict.clone());
         }
     }
 
-    // Add any dictionaries not in the order
+    // Add any dictionaries not in the explicit order
     for dict in dictionaries {
-        if !dictionary_order.contains(&dict.name) {
+        if !order_set.contains(dict.name.as_str()) {
             ordered.push(dict.clone());
         }
     }
@@ -239,10 +244,10 @@ fn build_index_serial(
     dictionaries: &[Dictionary],
 ) -> HashMap<u32, CategorizedMatches> {
     let mut index = HashMap::new();
-    let text_len = text.chars().count();
+    let chars: Vec<char> = text.chars().collect();
 
-    for pos in 0..text_len {
-        let matches = find_all_matches_at_position(text, pos, dictionaries);
+    for pos in 0..chars.len() {
+        let matches = find_all_matches_at_position(&chars, pos, dictionaries);
 
         if !matches.is_empty() {
             let categorized = categorize_matches(matches);
@@ -258,13 +263,14 @@ fn build_index_parallel(
     text: &str,
     dictionaries: &[Dictionary],
 ) -> HashMap<u32, CategorizedMatches> {
-    let text_len = text.chars().count();
+    // Pre-collect chars once; shared read-only across all Rayon threads
+    let chars: Vec<char> = text.chars().collect();
 
     // Process positions in parallel
-    let results: Vec<(u32, CategorizedMatches)> = (0..text_len)
+    let results: Vec<(u32, CategorizedMatches)> = (0..chars.len())
         .into_par_iter()
         .filter_map(|pos| {
-            let matches = find_all_matches_at_position(text, pos, dictionaries);
+            let matches = find_all_matches_at_position(&chars, pos, dictionaries);
 
             if !matches.is_empty() {
                 let categorized = categorize_matches(matches);
@@ -281,14 +287,14 @@ fn build_index_parallel(
 
 /// Find all dictionary matches at a specific position
 fn find_all_matches_at_position(
-    text: &str,
+    chars: &[char],
     start_pos: usize,
     dictionaries: &[Dictionary],
 ) -> Vec<DictionaryMatch> {
     let mut all_matches = Vec::new();
 
     for dict in dictionaries {
-        let mut matches = dict.trie.find_matches(text, start_pos);
+        let mut matches = dict.trie.find_matches(chars, start_pos);
 
         // Set dictionary name and priority
         for match_item in &mut matches {
@@ -341,7 +347,8 @@ mod tests {
         node.translation = Some("xin chào".to_string());
 
         // Test finding matches
-        let matches = trie.find_matches("你好世界", 0);
+        let chars: Vec<char> = "你好世界".chars().collect();
+        let matches = trie.find_matches(&chars, 0);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].word, "你好");
         assert_eq!(matches[0].translation, "xin chào");

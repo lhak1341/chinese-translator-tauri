@@ -73,15 +73,45 @@ impl TrieNode {
             }
         }
         
-        // Sort by length (longest first) for longest-match-first behavior
-        matches.sort_by(|a, b| b.word.len().cmp(&a.word.len()));
-        
+        // Matches are accumulated in increasing length order; reverse for longest-first
+        matches.reverse();
+
         matches
     }
 
+    /// Find the single longest match starting at `start_pos` — walks the trie once
+    /// without collecting all matches or allocating the result Vec.
     pub fn find_longest_match(&self, text: &str, start_pos: usize) -> Option<MatchResult> {
-        let matches = self.find_matches(text, start_pos);
-        matches.into_iter().next() // Already sorted by length, take first
+        let chars: Vec<char> = text.chars().collect();
+
+        if start_pos >= chars.len() {
+            return None;
+        }
+
+        let mut current = self;
+        let mut longest: Option<MatchResult> = None;
+
+        for i in start_pos..chars.len() {
+            match current.children.get(&chars[i]) {
+                Some(node) => {
+                    current = node;
+                    if current.is_end_of_word {
+                        if let Some(translation) = &current.translation {
+                            longest = Some(MatchResult {
+                                word: chars[start_pos..=i].iter().collect(),
+                                translation: translation.clone(),
+                                start_pos,
+                                end_pos: i + 1,
+                                metadata: current.metadata.clone(),
+                            });
+                        }
+                    }
+                }
+                None => break,
+            }
+        }
+
+        longest
     }
 
     pub fn get_entry_count(&self) -> usize {

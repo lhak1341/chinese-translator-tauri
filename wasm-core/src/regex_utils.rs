@@ -138,12 +138,10 @@ impl RegexUtils {
     /// * `true` if text ends with 。！？
     #[wasm_bindgen(js_name = endsWithSentencePunctuation)]
     pub fn ends_with_sentence_punctuation(&self, text: &str) -> bool {
-        if text.is_empty() {
-            return false;
+        match text.chars().last() {
+            Some('。' | '！' | '？') => true,
+            _ => false,
         }
-
-        let last_char = text.chars().last().unwrap().to_string();
-        SENTENCE_END.is_match(&last_char)
     }
 
     /// Split text by sentence-ending punctuation
@@ -165,7 +163,7 @@ impl RegexUtils {
         for ch in text.chars() {
             current.push(ch);
 
-            if SENTENCE_END.is_match(&ch.to_string()) {
+            if matches!(ch, '。' | '！' | '？') {
                 sentences.push(current.clone());
                 current.clear();
             }

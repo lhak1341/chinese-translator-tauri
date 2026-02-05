@@ -2,7 +2,7 @@
  * Semantic Array-Based Clickable Original Component
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
  */
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import type {
   ClickableOriginalSemanticProps,
   SegmentClickPayload,
@@ -136,4 +136,4 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   return <div className={styles.container}>{renderSegments()}</div>;
 };
 
-export default ClickableOriginalSemantic;
+export default React.memo(ClickableOriginalSemantic);

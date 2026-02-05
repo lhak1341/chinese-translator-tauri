@@ -257,14 +257,20 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       return;
     }
 
-    // Call async precomputeSegments
+    // Call async precomputeSegments with cancellation guard
+    let cancelled = false;
     (async () => {
       const computedSegments = await SegmentPrecomputer.precomputeSegments(
         translatedText,
         semanticArrays
       );
-      setSegments(computedSegments);
+      if (!cancelled) {
+        setSegments(computedSegments);
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [translatedText, semanticArrays, direction]);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)

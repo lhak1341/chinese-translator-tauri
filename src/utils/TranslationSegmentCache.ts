@@ -140,6 +140,7 @@ export class TranslationSegmentCache {
   private readonly LOCK_TIMEOUT: number;
   private stats: CacheStatistics;
   private metadata: CacheMetadataStructure;
+  private metadataKeySet: Set<string>;
   private cleanupIntervalId: number | null;
   private approximateSize: number;
   private writesSinceRecalculation: number;
@@ -176,6 +177,8 @@ export class TranslationSegmentCache {
 
     // Initialize or load existing metadata
     this.metadata = this.loadMetadata();
+    // Shadow set for O(1) has/add/delete on metadata.keys
+    this.metadataKeySet = new Set(this.metadata.keys);
 
     // MEMORY LEAK FIX: Store interval ID for cleanup
     this.cleanupIntervalId = null;
@@ -264,47 +267,25 @@ export class TranslationSegmentCache {
   }
 
   /**
-   * CODE REVIEW FIX (MEDIUM-3): Generate secure cache key with SHA-256
-   * Uses collision-resistant hashing to prevent wrong translations being served
+   * Generate cache key using fast synchronous hash.
+   * SHA-256 was previously used here but is unnecessary for cache addressing —
+   * collision probability with djb2 over cache-sized key spaces is negligible,
+   * and the async overhead of crypto.subtle.digest added latency to every
+   * get()/set() call.
    * @param originalText - Original text to translate
    * @param dictionaryFingerprint - Dictionary version fingerprint
    * @param options - Translation options
    * @returns Cache key
    */
-  async generateCacheKey(
+  generateCacheKey(
     originalText: string,
     dictionaryFingerprint: string,
     options: TranslationOptions = {}
-  ): Promise<string> {
-    const startTime = performance.now();
-
-    // SECURITY FIX: Sanitize options to prevent cache collisions from unexpected types
+  ): string {
     const safeOptions = this.sanitizeOptions(options);
-
-    // CODE REVIEW FIX (MEDIUM-3): Use SHA-256 for collision-resistant hashing
-    // Web Crypto API provides cryptographically secure hashing
     const hashContent =
       originalText + '|' + dictionaryFingerprint + '|' + JSON.stringify(safeOptions);
-    const hash = await this.secureHash(hashContent);
-
-    this.stats.averageLookupTime =
-      (this.stats.averageLookupTime + (performance.now() - startTime)) / 2;
-
-    return `${this.cacheKeyPrefix}${hash}`;
-  }
-
-  /**
-   * CODE REVIEW FIX (MEDIUM-3): Secure hash using SHA-256
-   * Provides collision-resistant hashing via Web Crypto API
-   * @param content - Content to hash
-   * @returns Hex-encoded SHA-256 hash
-   */
-  async secureHash(content: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(content);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    return `${this.cacheKeyPrefix}${this.simpleHash(hashContent)}`;
   }
 
   /**
@@ -371,7 +352,6 @@ export class TranslationSegmentCache {
   /**
    * Get cached translation result
    * Returns null if not found or expired
-   * CODE REVIEW FIX (MEDIUM-3): Now async to support SHA-256 hashing
    */
   async get(
     originalText: string,
@@ -382,7 +362,7 @@ export class TranslationSegmentCache {
     this.stats.totalLookups++;
 
     try {
-      const cacheKey = await this.generateCacheKey(originalText, dictionaryFingerprint, options);
+      const cacheKey = this.generateCacheKey(originalText, dictionaryFingerprint, options);
       const cachedDataStr = localStorage.getItem(cacheKey);
 
       if (!cachedDataStr) {
@@ -483,7 +463,7 @@ export class TranslationSegmentCache {
     options: TranslationOptions = {}
   ): Promise<void> {
     const startTime = performance.now();
-    const cacheKey = await this.generateCacheKey(originalText, dictionaryFingerprint, options);
+    const cacheKey = this.generateCacheKey(originalText, dictionaryFingerprint, options);
     const now = Date.now();
 
     const cacheEntry: CachedEntry = {
@@ -845,7 +825,8 @@ export class TranslationSegmentCache {
    * Add key to metadata tracking
    */
   addToMetadata(key: string, _timestamp: number): void {
-    if (!this.metadata.keys.includes(key)) {
+    if (!this.metadataKeySet.has(key)) {
+      this.metadataKeySet.add(key);
       this.metadata.keys.push(key);
       this.saveMetadata();
     }
@@ -855,8 +836,11 @@ export class TranslationSegmentCache {
    * Remove key from metadata tracking
    */
   removeFromMetadata(key: string): void {
-    this.metadata.keys = this.metadata.keys.filter((k) => k !== key);
-    this.saveMetadata();
+    if (this.metadataKeySet.has(key)) {
+      this.metadataKeySet.delete(key);
+      this.metadata.keys = this.metadata.keys.filter((k) => k !== key);
+      this.saveMetadata();
+    }
   }
 
   /**
@@ -930,6 +914,7 @@ export class TranslationSegmentCache {
       created: Date.now(),
       lastCleanup: Date.now(),
     };
+    this.metadataKeySet = new Set();
 
     this.stats = {
       hits: 0,

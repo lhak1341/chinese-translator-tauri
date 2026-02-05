@@ -29,6 +29,12 @@
  */
 export type ByteUnit = 'B' | 'KB' | 'MB' | 'GB' | 'TB';
 
+/** Binary base (hoisted to avoid per-call constant) */
+const K = 1024;
+
+/** Unit labels in order of magnitude (hoisted to avoid per-call allocation) */
+const BYTE_UNITS: ByteUnit[] = ['B', 'KB', 'MB', 'GB', 'TB'];
+
 /**
  * Format bytes to megabytes with specified decimal places
  *
@@ -115,14 +121,12 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
     return '0 B';
   }
 
-  const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes: ByteUnit[] = ['B', 'KB', 'MB', 'GB', 'TB'];
 
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const sizeIndex = Math.min(i, sizes.length - 1);
+  const i = Math.floor(Math.log(bytes) / Math.log(K));
+  const sizeIndex = Math.min(i, BYTE_UNITS.length - 1);
 
-  return `${parseFloat((bytes / Math.pow(k, sizeIndex)).toFixed(dm))} ${sizes[sizeIndex]}`;
+  return `${parseFloat((bytes / Math.pow(K, sizeIndex)).toFixed(dm))} ${BYTE_UNITS[sizeIndex]}`;
 }
 
 /**

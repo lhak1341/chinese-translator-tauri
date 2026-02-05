@@ -17,6 +17,228 @@ import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
 
 /**
+ * Props for BulkMoveDialog extracted component
+ */
+interface BulkMoveDialogProps {
+  selectedDictionary: string;
+  selectedEntries: Set<string>;
+  isMoving: boolean;
+  onSetMoving: (moving: boolean) => void;
+  onClose: () => void;
+  onMoveSuccess: () => void;
+}
+
+/**
+ * Bulk Move Dialog — extracted to module scope to avoid re-creating
+ * a component type (with hooks) on every parent render.
+ */
+const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
+  selectedDictionary,
+  selectedEntries,
+  isMoving,
+  onSetMoving,
+  onClose,
+  onMoveSuccess,
+}) => {
+  const { loadDictionary, dictionaries } = useDictionary();
+  const [selectedTargetDict, setSelectedTargetDict] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
+
+  // Load fresh dictionary list on mount to pick up renamed dictionaries
+  useEffect(() => {
+    const loadDictionaries = async (): Promise<void> => {
+      try {
+        const types = await getDictionaryTypes();
+        const dictionaryList = Object.keys(types)
+          .filter((id) => id !== selectedDictionary)
+          .sort((a, b) => {
+            // Always put 'properNouns' first
+            if (a === 'properNouns') return -1;
+            if (b === 'properNouns') return 1;
+            // Sort custom dictionaries alphabetically
+            return a.localeCompare(b);
+          });
+        setAvailableDictionaries(dictionaryList);
+      } catch (error) {
+        logger.error('Failed to load dictionaries:', error);
+        setError('Failed to load available dictionaries');
+      }
+    };
+
+    loadDictionaries();
+  }, [selectedDictionary]);
+
+  const handleBulkMoveExecute = async (): Promise<void> => {
+    if (!selectedTargetDict) {
+      setError('Please select a target dictionary');
+      return;
+    }
+
+    onSetMoving(true);
+    setError(null);
+
+    try {
+      const entriesToMove = Array.from(selectedEntries);
+
+      // Load fresh dictionary data to avoid stale closure issues
+      const [sourceResult, targetResult] = await Promise.all([
+        window.electronAPI.loadDictionary(selectedDictionary),
+        window.electronAPI.loadDictionary(selectedTargetDict),
+      ]);
+
+      if (!sourceResult.success || !sourceResult.data) {
+        throw new Error('Failed to load source dictionary');
+      }
+      if (!targetResult.success || !targetResult.data) {
+        throw new Error('Failed to load target dictionary');
+      }
+
+      const sourceDictData = { ...sourceResult.data } as Record<string, unknown>;
+      const targetDictData = { ...targetResult.data } as Record<string, unknown>;
+
+      // Batch: Add all entries to target, remove from source
+      for (const source of entriesToMove) {
+        const value = sourceDictData[source];
+        if (value !== undefined) {
+          targetDictData[source] = value;
+          delete sourceDictData[source];
+        }
+      }
+
+      // Save both dictionaries
+      const [saveTargetResult, saveSourceResult] = await Promise.all([
+        window.electronAPI.saveDictionary(selectedTargetDict, targetDictData),
+        window.electronAPI.saveDictionary(selectedDictionary, sourceDictData),
+      ]);
+
+      if (!saveTargetResult.success) {
+        throw new Error(`Failed to save target dictionary: ${saveTargetResult.error}`);
+      }
+      if (!saveSourceResult.success) {
+        throw new Error(`Failed to save source dictionary: ${saveSourceResult.error}`);
+      }
+
+      // Reload dictionaries to update UI state
+      await loadDictionary(selectedDictionary);
+      await loadDictionary(selectedTargetDict);
+
+      onMoveSuccess();
+    } catch (error) {
+      setError(`Failed to move entries: ${(error as Error).message}`);
+      logger.error('Bulk move error:', error);
+    } finally {
+      onSetMoving(false);
+    }
+  };
+
+  // Get dictionary label for display
+  const getSourceDictLabel = (): string => {
+    if (selectedDictionary === 'properNouns') {
+      return 'Proper Nouns (Base)';
+    } else if (selectedDictionary.startsWith('properNouns-')) {
+      return `Proper Nouns - ${selectedDictionary.replace('properNouns-', '')}`;
+    } else {
+      return selectedDictionary.charAt(0).toUpperCase() + selectedDictionary.slice(1);
+    }
+  };
+
+  // Get preview entries (first 3)
+  const previewEntries = Array.from(selectedEntries).slice(0, 3);
+  const hasMore = selectedEntries.size > 3;
+  const currentDict = dictionaries[selectedDictionary];
+
+  return (
+    <div className={styles.bulkMoveOverlay} onClick={onClose}>
+      <div className={styles.bulkMoveModal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.bulkMoveHeader}>
+          <h2 className={styles.bulkMoveTitle}>
+            Move {selectedEntries.size} {selectedEntries.size === 1 ? 'Entry' : 'Entries'}
+          </h2>
+        </div>
+
+        <div className={styles.bulkMoveContent}>
+          {/* Entry Preview */}
+          <div className={styles.bulkMovePreview}>
+            <div className={styles.bulkMovePreviewLabel}>Moving:</div>
+            <div className={styles.bulkMovePreviewList}>
+              {previewEntries.map((source) => {
+                const entry = currentDict?.[source];
+                const translation = typeof entry === 'string' ? entry : entry?.translation || '';
+                return (
+                  <div key={source} className={styles.bulkMovePreviewItem}>
+                    <span className={styles.bulkMovePreviewSource}>"{source}"</span>
+                    <span className={styles.bulkMovePreviewArrow}>→</span>
+                    <span className={styles.bulkMovePreviewTranslation}>"{translation}"</span>
+                  </div>
+                );
+              })}
+            </div>
+            {hasMore && (
+              <div className={styles.bulkMovePreviewMore}>
+                ...and {selectedEntries.size - 3} more{' '}
+                {selectedEntries.size - 3 === 1 ? 'entry' : 'entries'}
+              </div>
+            )}
+          </div>
+
+          {/* Source Dictionary */}
+          <div className={styles.bulkMoveFormGroup}>
+            <label className={styles.bulkMoveLabel}>From:</label>
+            <div className={styles.bulkMoveReadOnlyField}>{getSourceDictLabel()}</div>
+          </div>
+
+          {/* Destination Dictionary */}
+          <div className={styles.bulkMoveFormGroup}>
+            <label className={styles.bulkMoveLabel}>To:</label>
+            <select
+              value={selectedTargetDict}
+              onChange={(e) => setSelectedTargetDict(e.target.value)}
+              disabled={isMoving}
+              className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
+              autoFocus
+            >
+              <option value="">Choose destination dictionary...</option>
+              {availableDictionaries.map((id) => (
+                <option key={id} value={id}>
+                  {id === 'properNouns'
+                    ? 'Proper Nouns (Base)'
+                    : id.startsWith('properNouns-')
+                      ? `Proper Nouns - ${id.replace('properNouns-', '')}`
+                      : id.charAt(0).toUpperCase() + id.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {error && <div className={styles.bulkMoveError}>{error}</div>}
+        </div>
+
+        <div className={styles.bulkMoveActions}>
+          <button onClick={onClose} disabled={isMoving}>
+            Cancel
+          </button>
+          <button
+            onClick={handleBulkMoveExecute}
+            className="primary"
+            disabled={isMoving || !selectedTargetDict}
+          >
+            {isMoving ? (
+              <>
+                <Loader size={16} className="animate-spin" />
+                <span>Moving...</span>
+              </>
+            ) : (
+              `Move ${selectedEntries.size} ${selectedEntries.size === 1 ? 'Entry' : 'Entries'}`
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Dictionary entry value type (can be string or object with metadata)
  */
 type DictionaryEntryValue =
@@ -309,41 +531,14 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     if (!debouncedSearchTerm) return entries;
 
     const searchLower = debouncedSearchTerm.toLowerCase();
-    const isLargeList = entries.length > LARGE_LIST_THRESHOLD;
-
-    if (isLargeList) {
-      // For large lists, process all entries without early termination
-      const filtered: [string, DictionaryEntryValue][] = [];
-      const batchSize = 500;
-
-      for (let i = 0; i < entries.length; i += batchSize) {
-        const batch = entries.slice(i, i + batchSize);
-
-        for (const [source, translation] of batch) {
-          const translationText =
-            typeof translation === 'string' ? translation : translation.translation;
-
-          if (
-            source.toLowerCase().includes(searchLower) ||
-            translationText.toLowerCase().includes(searchLower)
-          ) {
-            filtered.push([source, translation]);
-          }
-        }
-      }
-
-      return filtered;
-    } else {
-      // Standard filtering for smaller lists
-      return entries.filter(([source, translation]) => {
-        const translationText =
-          typeof translation === 'string' ? translation : translation.translation;
-        return (
-          source.toLowerCase().includes(searchLower) ||
-          translationText.toLowerCase().includes(searchLower)
-        );
-      });
-    }
+    return entries.filter(([source, translation]) => {
+      const translationText =
+        typeof translation === 'string' ? translation : translation.translation;
+      return (
+        source.toLowerCase().includes(searchLower) ||
+        translationText.toLowerCase().includes(searchLower)
+      );
+    });
   }, [dictionaries, selectedDictionary, debouncedSearchTerm]);
 
   // Dynamic buffer sizing based on list size
@@ -657,207 +852,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     return undefined;
   }, [contextMenu.visible, closeContextMenu]);
 
-  // Bulk Move Dialog Component
-  const BulkMoveDialog: React.FC = () => {
-    const { loadDictionary, dictionaries } = useDictionary();
-    const [selectedTargetDict, setSelectedTargetDict] = useState<string>('');
-    const [error, setError] = useState<string | null>(null);
-    const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
-
-    // Load fresh dictionary list on mount to pick up renamed dictionaries
-    useEffect(() => {
-      const loadDictionaries = async (): Promise<void> => {
-        try {
-          const types = await getDictionaryTypes();
-          const dictionaryList = Object.keys(types)
-            .filter((id) => id !== selectedDictionary)
-            .sort((a, b) => {
-              // Always put 'properNouns' first
-              if (a === 'properNouns') return -1;
-              if (b === 'properNouns') return 1;
-              // Sort custom dictionaries alphabetically
-              return a.localeCompare(b);
-            });
-          setAvailableDictionaries(dictionaryList);
-        } catch (error) {
-          logger.error('Failed to load dictionaries:', error);
-          setError('Failed to load available dictionaries');
-        }
-      };
-
-      loadDictionaries();
-    }, [selectedDictionary]);
-
-    const handleBulkMoveExecute = async (): Promise<void> => {
-      if (!selectedTargetDict) {
-        setError('Please select a target dictionary');
-        return;
-      }
-
-      setIsMoving(true);
-      setError(null);
-
-      try {
-        const entriesToMove = Array.from(selectedEntries);
-
-        // Load fresh dictionary data to avoid stale closure issues
-        const [sourceResult, targetResult] = await Promise.all([
-          window.electronAPI.loadDictionary(selectedDictionary),
-          window.electronAPI.loadDictionary(selectedTargetDict),
-        ]);
-
-        if (!sourceResult.success || !sourceResult.data) {
-          throw new Error('Failed to load source dictionary');
-        }
-        if (!targetResult.success || !targetResult.data) {
-          throw new Error('Failed to load target dictionary');
-        }
-
-        const sourceDictData = { ...sourceResult.data } as Record<string, unknown>;
-        const targetDictData = { ...targetResult.data } as Record<string, unknown>;
-
-        // Batch: Add all entries to target, remove from source
-        for (const source of entriesToMove) {
-          const value = sourceDictData[source];
-          if (value !== undefined) {
-            targetDictData[source] = value;
-            delete sourceDictData[source];
-          }
-        }
-
-        // Save both dictionaries
-        const [saveTargetResult, saveSourceResult] = await Promise.all([
-          window.electronAPI.saveDictionary(selectedTargetDict, targetDictData),
-          window.electronAPI.saveDictionary(selectedDictionary, sourceDictData),
-        ]);
-
-        if (!saveTargetResult.success) {
-          throw new Error(`Failed to save target dictionary: ${saveTargetResult.error}`);
-        }
-        if (!saveSourceResult.success) {
-          throw new Error(`Failed to save source dictionary: ${saveSourceResult.error}`);
-        }
-
-        // Reload dictionaries to update UI state
-        await loadDictionary(selectedDictionary);
-        await loadDictionary(selectedTargetDict);
-
-        setSelectedEntries(new Set());
-        setShowBulkMoveDialog(false);
-      } catch (error) {
-        setError(`Failed to move entries: ${(error as Error).message}`);
-        logger.error('Bulk move error:', error);
-      } finally {
-        setIsMoving(false);
-      }
-    };
-
-    // Get dictionary label for display
-    const getSourceDictLabel = (): string => {
-      if (selectedDictionary === 'properNouns') {
-        return 'Proper Nouns (Base)';
-      } else if (selectedDictionary.startsWith('properNouns-')) {
-        return `Proper Nouns - ${selectedDictionary.replace('properNouns-', '')}`;
-      } else {
-        return selectedDictionary.charAt(0).toUpperCase() + selectedDictionary.slice(1);
-      }
-    };
-
-    // Get preview entries (first 3)
-    const previewEntries = Array.from(selectedEntries).slice(0, 3);
-    const hasMore = selectedEntries.size > 3;
-    const currentDict = dictionaries[selectedDictionary];
-
-    return (
-      <div className={styles.bulkMoveOverlay} onClick={() => setShowBulkMoveDialog(false)}>
-        <div className={styles.bulkMoveModal} onClick={(e) => e.stopPropagation()}>
-          <div className={styles.bulkMoveHeader}>
-            <h2 className={styles.bulkMoveTitle}>
-              Move {selectedEntries.size} {selectedEntries.size === 1 ? 'Entry' : 'Entries'}
-            </h2>
-          </div>
-
-          <div className={styles.bulkMoveContent}>
-            {/* Entry Preview */}
-            <div className={styles.bulkMovePreview}>
-              <div className={styles.bulkMovePreviewLabel}>Moving:</div>
-              <div className={styles.bulkMovePreviewList}>
-                {previewEntries.map((source) => {
-                  const entry = currentDict?.[source];
-                  const translation = typeof entry === 'string' ? entry : entry?.translation || '';
-                  return (
-                    <div key={source} className={styles.bulkMovePreviewItem}>
-                      <span className={styles.bulkMovePreviewSource}>"{source}"</span>
-                      <span className={styles.bulkMovePreviewArrow}>→</span>
-                      <span className={styles.bulkMovePreviewTranslation}>"{translation}"</span>
-                    </div>
-                  );
-                })}
-              </div>
-              {hasMore && (
-                <div className={styles.bulkMovePreviewMore}>
-                  ...and {selectedEntries.size - 3} more{' '}
-                  {selectedEntries.size - 3 === 1 ? 'entry' : 'entries'}
-                </div>
-              )}
-            </div>
-
-            {/* Source Dictionary */}
-            <div className={styles.bulkMoveFormGroup}>
-              <label className={styles.bulkMoveLabel}>From:</label>
-              <div className={styles.bulkMoveReadOnlyField}>{getSourceDictLabel()}</div>
-            </div>
-
-            {/* Destination Dictionary */}
-            <div className={styles.bulkMoveFormGroup}>
-              <label className={styles.bulkMoveLabel}>To:</label>
-              <select
-                value={selectedTargetDict}
-                onChange={(e) => setSelectedTargetDict(e.target.value)}
-                disabled={isMoving}
-                className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
-                autoFocus
-              >
-                <option value="">Choose destination dictionary...</option>
-                {availableDictionaries.map((id) => (
-                  <option key={id} value={id}>
-                    {id === 'properNouns'
-                      ? 'Proper Nouns (Base)'
-                      : id.startsWith('properNouns-')
-                        ? `Proper Nouns - ${id.replace('properNouns-', '')}`
-                        : id.charAt(0).toUpperCase() + id.slice(1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {error && <div className={styles.bulkMoveError}>{error}</div>}
-          </div>
-
-          <div className={styles.bulkMoveActions}>
-            <button onClick={() => setShowBulkMoveDialog(false)} disabled={isMoving}>
-              Cancel
-            </button>
-            <button
-              onClick={handleBulkMoveExecute}
-              className="primary"
-              disabled={isMoving || !selectedTargetDict}
-            >
-              {isMoving ? (
-                <>
-                  <Loader size={16} className="animate-spin" />
-                  <span>Moving...</span>
-                </>
-              ) : (
-                `Move ${selectedEntries.size} ${selectedEntries.size === 1 ? 'Entry' : 'Entries'}`
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Optimized row component with React.memo
   const VirtualRow = useMemo(() => {
     interface VirtualRowProps {
@@ -865,10 +859,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       translation: DictionaryEntryValue;
       _index: number;
       actualIndex: number;
+      isScrolling: boolean;
     }
 
     const VirtualRowComponent = React.memo<VirtualRowProps>(
-      ({ source, translation, _index, actualIndex }) => {
+      ({ source, translation, _index, actualIndex, isScrolling }) => {
         const translationText =
           typeof translation === 'string' ? translation : translation.translation;
         const allowAsPatternVariable =
@@ -1301,7 +1296,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
     return VirtualRowComponent;
   }, [
-    isScrolling,
     setEditingEntry,
     selectedDictionary,
     updateEntryWithScrollPreservation,
@@ -1667,6 +1661,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                         translation={translation}
                         _index={index}
                         actualIndex={actualIndex}
+                        isScrolling={isScrolling}
                       />
                     );
                   })}
@@ -1789,7 +1784,19 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       )}
 
       {/* Bulk move dialog */}
-      {showBulkMoveDialog && <BulkMoveDialog />}
+      {showBulkMoveDialog && (
+        <BulkMoveDialog
+          selectedDictionary={selectedDictionary}
+          selectedEntries={selectedEntries}
+          isMoving={isMoving}
+          onSetMoving={setIsMoving}
+          onClose={() => setShowBulkMoveDialog(false)}
+          onMoveSuccess={() => {
+            setSelectedEntries(new Set());
+            setShowBulkMoveDialog(false);
+          }}
+        />
+      )}
     </div>
   );
 };

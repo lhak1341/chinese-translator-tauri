@@ -261,6 +261,20 @@ const AppearanceManager: React.FC = () => {
     }
   };
 
+  // Delegated event handlers — data-section/data-property on inputs/buttons
+  // eliminate per-element inline arrow functions (24 → 2 function allocations per render).
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const section = e.target.dataset.section as AppearanceSection;
+    const property = e.target.dataset.property as FontProperty;
+    handleFontChange(section, property, e.target.value);
+  };
+
+  const handleResetClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const section = e.currentTarget.dataset.section as AppearanceSection;
+    const property = e.currentTarget.dataset.property as FontProperty;
+    resetToDefault(section, property);
+  };
+
   if (isLoading) {
     return (
       <div className={styles.loadingContainer}>
@@ -287,13 +301,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.chineseText.fontFamily}
-                  onChange={(e) => handleFontChange('chineseText', 'fontFamily', e.target.value)}
+                  data-section="chineseText"
+                  data-property="fontFamily"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder='e.g., "Noto Sans CJK SC", Arial, sans-serif'
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('chineseText', 'fontFamily')}
+                  data-section="chineseText"
+                  data-property="fontFamily"
+                  onClick={handleResetClick}
                   title="Reset font to default"
                 >
                   <RotateCcw size={14} />
@@ -305,13 +323,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.chineseText.fontSize}
-                  onChange={(e) => handleFontChange('chineseText', 'fontSize', e.target.value)}
+                  data-section="chineseText"
+                  data-property="fontSize"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., 1.25rem, 20px, 14pt"
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('chineseText', 'fontSize')}
+                  data-section="chineseText"
+                  data-property="fontSize"
+                  onClick={handleResetClick}
                   title="Reset size to default"
                 >
                   <RotateCcw size={14} />
@@ -323,13 +345,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.chineseText.letterSpacing}
-                  onChange={(e) => handleFontChange('chineseText', 'letterSpacing', e.target.value)}
+                  data-section="chineseText"
+                  data-property="letterSpacing"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('chineseText', 'letterSpacing')}
+                  data-section="chineseText"
+                  data-property="letterSpacing"
+                  onClick={handleResetClick}
                   title="Reset letter spacing to default"
                 >
                   <RotateCcw size={14} />
@@ -358,13 +384,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.uiFont.fontFamily}
-                  onChange={(e) => handleFontChange('uiFont', 'fontFamily', e.target.value)}
+                  data-section="uiFont"
+                  data-property="fontFamily"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., Inter, system-ui, Arial, sans-serif"
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('uiFont', 'fontFamily')}
+                  data-section="uiFont"
+                  data-property="fontFamily"
+                  onClick={handleResetClick}
                   title="Reset UI font to default"
                 >
                   <RotateCcw size={14} />
@@ -386,15 +416,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.fontFamily}
-                  onChange={(e) =>
-                    handleFontChange('fullTranslation', 'fontFamily', e.target.value)
-                  }
+                  data-section="fullTranslation"
+                  data-property="fontFamily"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder='e.g., Bookerly, "Times New Roman", serif'
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('fullTranslation', 'fontFamily')}
+                  data-section="fullTranslation"
+                  data-property="fontFamily"
+                  onClick={handleResetClick}
                   title="Reset font to default"
                 >
                   <RotateCcw size={14} />
@@ -406,13 +438,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.fontSize}
-                  onChange={(e) => handleFontChange('fullTranslation', 'fontSize', e.target.value)}
+                  data-section="fullTranslation"
+                  data-property="fontSize"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., 1.25rem, 20px, 14pt"
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('fullTranslation', 'fontSize')}
+                  data-section="fullTranslation"
+                  data-property="fontSize"
+                  onClick={handleResetClick}
                   title="Reset size to default"
                 >
                   <RotateCcw size={14} />
@@ -424,15 +460,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.letterSpacing}
-                  onChange={(e) =>
-                    handleFontChange('fullTranslation', 'letterSpacing', e.target.value)
-                  }
+                  data-section="fullTranslation"
+                  data-property="letterSpacing"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('fullTranslation', 'letterSpacing')}
+                  data-section="fullTranslation"
+                  data-property="letterSpacing"
+                  onClick={handleResetClick}
                   title="Reset letter spacing to default"
                 >
                   <RotateCcw size={14} />
@@ -444,15 +482,17 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.paragraphSpacing || '1rem'}
-                  onChange={(e) =>
-                    handleFontChange('fullTranslation', 'paragraphSpacing', e.target.value)
-                  }
+                  data-section="fullTranslation"
+                  data-property="paragraphSpacing"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., 1rem, 16px, 1.5em"
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('fullTranslation', 'paragraphSpacing')}
+                  data-section="fullTranslation"
+                  data-property="paragraphSpacing"
+                  onClick={handleResetClick}
                   title="Reset paragraph spacing to default"
                 >
                   <RotateCcw size={14} />
@@ -493,14 +533,18 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.fontFamily}
-                  onChange={(e) => handleFontChange('characterOnly', 'fontFamily', e.target.value)}
+                  data-section="characterOnly"
+                  data-property="fontFamily"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., Bookerly, Arial, sans-serif"
                   disabled={characterOnlyFollowsFullTranslation}
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('characterOnly', 'fontFamily')}
+                  data-section="characterOnly"
+                  data-property="fontFamily"
+                  onClick={handleResetClick}
                   title="Reset font to default"
                   disabled={characterOnlyFollowsFullTranslation}
                 >
@@ -513,14 +557,18 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.fontSize}
-                  onChange={(e) => handleFontChange('characterOnly', 'fontSize', e.target.value)}
+                  data-section="characterOnly"
+                  data-property="fontSize"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., 1.25rem, 20px, 14pt"
                   disabled={characterOnlyFollowsFullTranslation}
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('characterOnly', 'fontSize')}
+                  data-section="characterOnly"
+                  data-property="fontSize"
+                  onClick={handleResetClick}
                   title="Reset size to default"
                   disabled={characterOnlyFollowsFullTranslation}
                 >
@@ -533,16 +581,18 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.letterSpacing}
-                  onChange={(e) =>
-                    handleFontChange('characterOnly', 'letterSpacing', e.target.value)
-                  }
+                  data-section="characterOnly"
+                  data-property="letterSpacing"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., normal, 0.05em (wider), -0.02em (tighter)"
                   disabled={characterOnlyFollowsFullTranslation}
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('characterOnly', 'letterSpacing')}
+                  data-section="characterOnly"
+                  data-property="letterSpacing"
+                  onClick={handleResetClick}
                   title="Reset letter spacing to default"
                   disabled={characterOnlyFollowsFullTranslation}
                 >
@@ -555,16 +605,18 @@ const AppearanceManager: React.FC = () => {
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.paragraphSpacing || '1rem'}
-                  onChange={(e) =>
-                    handleFontChange('characterOnly', 'paragraphSpacing', e.target.value)
-                  }
+                  data-section="characterOnly"
+                  data-property="paragraphSpacing"
+                  onChange={handleInputChange}
                   onBlur={handleAutoSave}
                   placeholder="e.g., 1rem, 16px, 1.5em"
                   disabled={characterOnlyFollowsFullTranslation}
                 />
                 <button
                   className={styles.resetButton}
-                  onClick={() => resetToDefault('characterOnly', 'paragraphSpacing')}
+                  data-section="characterOnly"
+                  data-property="paragraphSpacing"
+                  onClick={handleResetClick}
                   title="Reset paragraph spacing to default"
                   disabled={characterOnlyFollowsFullTranslation}
                 >

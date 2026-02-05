@@ -69,6 +69,9 @@ export class PunctuationProcessor {
   private readonly OPENING_PUNCT: readonly string[];
   private readonly OPENING_BRACKET_PATTERN: RegExp;
   private readonly SPECIAL_PATTERNS: SpecialPattern[];
+  private readonly SPACED_CLOSE_MIDDLE_OPEN: RegExp;
+  private readonly SPACED_MIDDLE_OPEN: RegExp;
+  private readonly COMMA_OPENING_QUOTE: RegExp;
 
   constructor() {
     // Define punctuation categories for systematic processing
@@ -112,6 +115,16 @@ export class PunctuationProcessor {
       // Exclamation mark + opening bracket: ![ → ! [ (both Chinese and ASCII exclamation marks)
       { regex: /([!！])([[（【(])/g, replacement: '$1 $2' },
     ];
+
+    // Pre-compile spacing-check regexes (used in isAlreadyProperlySpaced hot path)
+    const openingQuotePattern = QuoteProcessor.createOpeningQuoteRegex().source;
+    this.SPACED_CLOSE_MIDDLE_OPEN = new RegExp(
+      `[\\])\\}】》）][.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`
+    );
+    this.SPACED_MIDDLE_OPEN = new RegExp(
+      `[.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`
+    );
+    this.COMMA_OPENING_QUOTE = new RegExp(`([,，])(${openingQuotePattern})`, 'g');
   }
 
   /**
@@ -148,8 +161,8 @@ export class PunctuationProcessor {
 
     if (hasComma && hasQuote) {
       // For comma + opening quote: add space between them (", ")
-      const openingQuoteRegex = QuoteProcessor.createOpeningQuoteRegex();
-      result = result.replace(new RegExp(`([,，])(${openingQuoteRegex.source})`, 'g'), '$1 $2');
+      this.COMMA_OPENING_QUOTE.lastIndex = 0;
+      result = result.replace(this.COMMA_OPENING_QUOTE, '$1 $2');
     }
 
     // Special case: single opening quote should get space before it
@@ -325,24 +338,13 @@ export class PunctuationProcessor {
    * @returns True if already properly spaced
    */
   isAlreadyProperlySpaced(punctuation: string): boolean {
-    // Simple heuristic: if it contains spaces in reasonable positions, it's likely already spaced
-    // This handles cases like "], [" which are already correct
-
-    const openingQuotePattern = QuoteProcessor.createOpeningQuoteRegex().source;
-
     // Pattern: closing + middle + space + opening (e.g., "], [")
-    if (
-      new RegExp(
-        `[\\])\\}】》）][.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`
-      ).test(punctuation)
-    ) {
+    if (this.SPACED_CLOSE_MIDDLE_OPEN.test(punctuation)) {
       return true;
     }
 
     // Pattern: middle + space + opening (e.g., ". [", ", "")
-    if (
-      new RegExp(`[.,!?:;，。！？：；、]\\s+[\\[({【《（${openingQuotePattern}]`).test(punctuation)
-    ) {
+    if (this.SPACED_MIDDLE_OPEN.test(punctuation)) {
       return true;
     }
 

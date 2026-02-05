@@ -32,18 +32,9 @@ export function sanitizeForJson(text: string): string {
     return '';
   }
 
-  return (
-    text
-      // Remove null bytes (U+0000) - breaks JSON parsing
-      .replace(/\u0000/g, '')
-      // Remove unpaired surrogates (U+D800 through U+DFFF)
-      // These are invalid Unicode and cause serialization issues
-      .replace(/[\uD800-\uDFFF]/g, '')
-      // Remove other control characters except newline, carriage return, tab
-      // Control chars: U+0000 to U+001F (except \n=0A, \r=0D, \t=09)
-      // Also remove U+007F (DEL) and U+0080-009F (C1 control codes)
-      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '')
-  );
+  // Single pass: removes null bytes, unpaired surrogates, and control characters
+  // (except \n=0A, \r=0D, \t=09) in one regex scan
+  return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\uD800-\uDFFF]/g, '');
 }
 
 /**
