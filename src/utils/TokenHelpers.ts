@@ -78,8 +78,15 @@ export function getSemanticTokens(tokens: TextToken[]): TextToken[] {
       continue;
     }
 
-    // Only include Chinese tokens
-    if (tokens[i].type === TokenType.CHINESE_WORD || tokens[i].type === TokenType.CHINESE_CHAR) {
+    // Include Chinese tokens AND Latin/Number tokens for pattern matching
+    // BUGFIX: Latin words (like "yuan") and numbers must be included in semantic tokens
+    // so that pattern variables can properly handle mixed Chinese/Latin text
+    if (
+      tokens[i].type === TokenType.CHINESE_WORD ||
+      tokens[i].type === TokenType.CHINESE_CHAR ||
+      tokens[i].type === TokenType.LATIN_WORD ||
+      tokens[i].type === TokenType.NUMBER
+    ) {
       semanticTokens.push({
         ...tokens[i],
         originalIndex: i,
@@ -112,7 +119,13 @@ export function getTokenSpanForText(tokens: TextToken[], startIndex: number, tex
   for (let i = startIndex; i < tokens.length && remainingText.length > 0; i++) {
     const token = tokens[i];
 
-    if (token.type === TokenType.CHINESE_WORD || token.type === TokenType.CHINESE_CHAR) {
+    // BUGFIX: Also match Latin words and numbers, not just Chinese tokens
+    if (
+      token.type === TokenType.CHINESE_WORD ||
+      token.type === TokenType.CHINESE_CHAR ||
+      token.type === TokenType.LATIN_WORD ||
+      token.type === TokenType.NUMBER
+    ) {
       // Use original value if available (for grouped tokens), otherwise use current value
       const valueToCheck = token.originalValue || token.value;
       if (remainingText.startsWith(valueToCheck)) {

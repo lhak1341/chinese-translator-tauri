@@ -85,12 +85,19 @@ class TwoPhasePatternProcessor {
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
 
-      // Skip grouped followers and non-Chinese tokens
+      // Skip grouped followers
       if (token.isGrouped && token.groupLeader !== null) {
         continue;
       }
 
-      if (token.type === 'chinese_char' || token.type === 'chinese_word') {
+      // BUGFIX: Include Latin words and numbers for pattern matching
+      // so that patterns can properly handle mixed Chinese/Latin text like "yuan主厨"
+      if (
+        token.type === 'chinese_char' ||
+        token.type === 'chinese_word' ||
+        token.type === 'latin_word' ||
+        token.type === 'number'
+      ) {
         semanticTokens.push({
           ...token,
           originalIndex: i,

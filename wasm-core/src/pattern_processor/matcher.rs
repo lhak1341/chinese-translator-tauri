@@ -334,6 +334,7 @@ impl<'a> PatternMatcher<'a> {
         let match_start = position;
         let mut current_position = position;
 
+
         // Early Pattern Rejection: Fast-path check for first token
         // If the first pattern token is a literal and doesn't match the first semantic token,
         // we can reject immediately without building strings
@@ -576,6 +577,7 @@ impl<'a> PatternMatcher<'a> {
             let end_string_build = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
             total_string_building_time += end_string_build - start_string_build;
 
+
             // Check cache - only proceed if there's a match
             let start_cache_lookup = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
             let cache_result = self.variable_cache.get(&buffer);
@@ -585,6 +587,7 @@ impl<'a> PatternMatcher<'a> {
             if let Some(cache_entry) = cache_result {
                 let translation = cache_entry.translation.clone();
                 let text = buffer.clone();  // Only clone on cache hit
+
 
                 // Check if there are more pattern tokens after this variable
                 let has_more_pattern_tokens = pattern_index + 1 < pattern.tokens.len();

@@ -97,8 +97,9 @@ npm run tauri:dev  # WASM build (2-3s) → Vite (100-200ms) → Tauri window
 
 **Locations** (Tauri):
 
-- Production: Platform-specific app data directory (macOS: `~/Library/Application Support/com.tauri.dev/dictionaries/`)
-- Development fallback: `src/dictionaries/`
+- Production: Platform-specific app data directory (macOS: `~/Library/Application Support/com.lhak.chinese-translator/dictionaries/`)
+- Development: Same as production (initialized on first run or via "Open Dictionary Folder" button)
+- Source templates: `src/dictionaries/` (copied to app data directory on initialization)
 - Proper noun dictionaries: `properNouns-{NovelName}.json`
 
 ### DO File Architecture This Way
