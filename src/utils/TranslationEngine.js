@@ -1654,7 +1654,8 @@ export class TranslationEngine {
           characterOnlySemanticBuilder.addUnit(
             token.value,
             token.translated,
-            token.translationSource || 'characters'
+            token.translationSource || 'characters',
+            i // Pass tokenIndex to enable position tracking
           );
         }
 
@@ -1737,25 +1738,61 @@ export class TranslationEngine {
         );
       }
 
-      // CRITICAL FIX: Get semantic arrays BEFORE capitalization
-      // The semantic arrays were built with lowercase text (e.g., "vu thị")
-      // If we capitalize first (to "Vu thị"), the segment builder can't match
-      // the lowercase semantic units against the capitalized text
-      // Get semantic arrays from the isolated builder (prevents conflicts with concurrent main translations)
-      // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
-      const semanticArrays = characterOnlySemanticBuilder.getArrays();
+      // CODE REVIEW FIX (2026-02-07): Update semantic arrays to match capitalized text
+      // Previously only capitalized the first unit, causing case mismatches for
+      // units after punctuation (e.g., after periods, after newlines)
+      // Now using updateWithCapitalizedText() to find ALL capitalized variants
+      characterOnlySemanticBuilder.updateWithCapitalizedText(translatedText);
 
-      // CRITICAL FIX: Capitalize semantic arrays to match the capitalized text
-      // This ensures segment builder can match units correctly
-      if (semanticArrays && semanticArrays.translated && semanticArrays.translated.length > 0) {
-        // Capitalize first unit if it exists
-        if (semanticArrays.translated[0]) {
-          const firstUnit = semanticArrays.translated[0];
-          if (firstUnit.length > 0) {
-            semanticArrays.translated[0] = firstUnit.charAt(0).toUpperCase() + firstUnit.slice(1);
+      // CODE REVIEW FIX (2026-02-07): Add position metadata AFTER all text transformations
+      // This fixes duplicate highlighting by tracking exact positions in final text
+      // Must happen after punctuation translation, capitalization, and spacing
+      // to avoid position drift from text modifications
+      {
+        const tempArrays = characterOnlySemanticBuilder.getArrays();
+        let searchPosition = 0;
+
+        for (let i = 0; i < tempArrays.translated.length; i++) {
+          const translatedUnit = tempArrays.translated[i];
+          const metadata = tempArrays.metadata[i];
+
+          // Skip if already has valid position metadata
+          if (
+            metadata &&
+            metadata.translatedStart >= 0 &&
+            metadata.translatedEnd > metadata.translatedStart
+          ) {
+            searchPosition = metadata.translatedEnd;
+            continue;
+          }
+
+          // Find unit position in final text (case-insensitive after capitalization)
+          const lowerText = translatedText.toLowerCase();
+          const lowerUnit = translatedUnit.toLowerCase();
+          const unitPosition = lowerText.indexOf(lowerUnit, searchPosition);
+
+          if (unitPosition !== -1 && metadata && metadata.tokenIndex >= 0) {
+            const startPos = unitPosition;
+            const endPos = unitPosition + translatedUnit.length;
+
+            characterOnlySemanticBuilder.setPositionByMatch(
+              metadata.tokenIndex,
+              translatedUnit,
+              startPos,
+              endPos
+            );
+
+            searchPosition = endPos;
+          } else {
+            // Move past this position to avoid infinite loop
+            searchPosition++;
           }
         }
       }
+
+      // Get semantic arrays from the isolated builder (prevents conflicts with concurrent main translations)
+      // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
+      const semanticArrays = characterOnlySemanticBuilder.getArrays();
 
       if (process.env.NODE_ENV === 'development') {
         batchLog.hotVerbose(
