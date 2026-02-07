@@ -11,6 +11,7 @@
 
 import { logger } from './logger';
 import { getGraphemeLength } from './GraphemeHelper.js';
+import { normalizeVietnameseText } from './TextNormalizationHelpers';
 
 /**
  * Options for segment precomputation
@@ -203,15 +204,17 @@ export class SegmentPrecomputer {
     }
 
     // Normalize text to NFC
-    text = text.normalize('NFC');
+    // CODE REVIEW FIX (2026-02-07): Use shared helper instead of inline .normalize('NFC')
+    text = normalizeVietnameseText(text)!;
 
     const { translated, original, metadata } = semanticArrays;
 
     // Prepare semantic units for WASM
+    // CODE REVIEW FIX (2026-02-07): Use shared helper for array normalization
     const allUnits: UnitData[] = translated
       .map((unit, index) => ({
         index,
-        unit: unit ? unit.normalize('NFC') : unit,
+        unit: normalizeVietnameseText(unit),
         original: original[index],
         metadata: metadata[index],
       }))
@@ -391,7 +394,8 @@ export class SegmentPrecomputer {
     // Vietnamese diacritics can be NFC (precomposed) or NFD (decomposed)
     // Normalizing ensures .length calculations are consistent across all units
     // Example: "màu" NFC=3 chars, NFD=4 chars (m+a+combining-grave+u)
-    text = text.normalize('NFC');
+    // CODE REVIEW FIX (2026-02-07): Use shared helper instead of inline .normalize('NFC')
+    text = normalizeVietnameseText(text)!;
 
     const { translated, original, metadata } = semanticArrays;
 
@@ -407,10 +411,11 @@ export class SegmentPrecomputer {
     // HIGH-5 FIX: Pre-filter empty units to avoid wasting iteration cycles
     // Empty units cannot match any text, filtering saves n iterations per position
     // CRITICAL BUG FIX: Normalize units to NFC for consistent matching with normalized text
+    // CODE REVIEW FIX (2026-02-07): Use shared helper for array normalization
     const allUnits: UnitData[] = translated
       .map((unit, index) => ({
         index,
-        unit: unit ? unit.normalize('NFC') : unit, // Normalize each unit
+        unit: normalizeVietnameseText(unit),
         original: original[index],
         metadata: metadata[index],
       }))

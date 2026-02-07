@@ -13,6 +13,7 @@ import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
 import { logger } from '../utils/logger';
 import { sanitizeString } from '../utils/configValidation';
+import { normalizeVietnameseText } from '../utils/TextNormalizationHelpers';
 
 const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> = ({
   translatedText,
@@ -49,7 +50,8 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
       // Example: NFD "màu" = 4 chars (m+a+`+u) → NFC "màu" = 3 chars (m+à+u)
       // Impact: Positions validated before normalization become invalid after
       // Fix: Normalize first, then validate positions against normalized length
-      const normalizedTranslatedText = translatedText.normalize('NFC');
+      // CODE REVIEW FIX (2026-02-07): Use shared helper instead of inline .normalize('NFC')
+      const normalizedTranslatedText = normalizeVietnameseText(translatedText)!;
 
       const directSegments = [];
       let currentPosition = 0;
