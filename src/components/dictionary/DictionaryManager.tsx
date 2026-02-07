@@ -228,14 +228,22 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       setError(null);
       const result = await window.electronAPI.importDictionaries();
       if (result.success) {
-        // Show success message and reload
+        // Show success message
         setError(`✅ ${result.message}`);
-        setTimeout(() => {
-          setError(null);
-          // Trigger reload of current dictionary
-          setRefreshTimestamp(Date.now());
-          window.location.reload(); // Force full reload to refresh all dictionaries
-        }, 3000);
+
+        // Selective refresh: reload dictionary types and current dictionary
+        // This preserves user context (no full page reload)
+        setRefreshTimestamp(Date.now());
+
+        // Reload the currently selected dictionary to pick up any changes
+        try {
+          await loadDictionary(selectedDictionary);
+        } catch (reloadError) {
+          logger.error('Failed to reload dictionary after import:', reloadError);
+        }
+
+        // Clear success message after 5 seconds
+        setTimeout(() => setError(null), 5000);
       } else {
         setError(`Import failed: ${result.error}`);
       }
@@ -375,31 +383,41 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
                 Move ({selectionState.selectedCount})
               </button>
 
-              <button
-                onClick={() => {
-                  if (selectionState.showBulkDeleteConfirm) {
-                    selectionState.onBulkDelete();
-                  } else {
-                    selectionState.setShowBulkDeleteConfirm(true);
-                  }
-                }}
-                className={`danger ${styles.button}`}
-                disabled={selectionState.isDeleting}
-                title={
-                  selectionState.showBulkDeleteConfirm
-                    ? `Confirm delete ${selectionState.selectedCount} entries`
-                    : `Delete ${selectionState.selectedCount} selected entries`
-                }
-              >
-                {selectionState.isDeleting ? (
-                  <Loader size={15} className="animate-spin" />
-                ) : (
+              {selectionState.showBulkDeleteConfirm ? (
+                <>
+                  <button
+                    onClick={() => selectionState.setShowBulkDeleteConfirm(false)}
+                    className={`secondary ${styles.button}`}
+                    disabled={selectionState.isDeleting}
+                    title="Cancel deletion"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => selectionState.onBulkDelete()}
+                    className={`danger ${styles.button}`}
+                    disabled={selectionState.isDeleting}
+                    title={`Confirm delete ${selectionState.selectedCount} entries`}
+                  >
+                    {selectionState.isDeleting ? (
+                      <Loader size={15} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={15} />
+                    )}
+                    Yes, Delete {selectionState.selectedCount}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => selectionState.setShowBulkDeleteConfirm(true)}
+                  className={`danger ${styles.button}`}
+                  disabled={selectionState.isDeleting}
+                  title={`Delete ${selectionState.selectedCount} selected entries`}
+                >
                   <Trash2 size={15} />
-                )}
-                {selectionState.showBulkDeleteConfirm
-                  ? 'Confirm Delete'
-                  : `Delete (${selectionState.selectedCount})`}
-              </button>
+                  Delete ({selectionState.selectedCount})
+                </button>
+              )}
             </>
           )}
 

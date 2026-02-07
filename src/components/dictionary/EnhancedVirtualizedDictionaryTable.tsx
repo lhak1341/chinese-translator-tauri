@@ -81,35 +81,44 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
     try {
       const entriesToMove = Array.from(selectedEntries);
 
-      // Load fresh dictionary data to avoid stale closure issues
-      const [sourceResult, targetResult] = await Promise.all([
-        window.electronAPI.loadDictionary(selectedDictionary),
-        window.electronAPI.loadDictionary(selectedTargetDict),
-      ]);
+      // Memory-optimized: use dictionaries already loaded in context
+      // instead of loading full dictionaries from backend
+      const sourceDict = dictionaries[selectedDictionary];
+      const targetDict = dictionaries[selectedTargetDict];
 
-      if (!sourceResult.success || !sourceResult.data) {
-        throw new Error('Failed to load source dictionary');
+      if (!sourceDict) {
+        throw new Error('Source dictionary not loaded');
       }
-      if (!targetResult.success || !targetResult.data) {
-        throw new Error('Failed to load target dictionary');
+      if (!targetDict) {
+        throw new Error('Target dictionary not loaded');
       }
 
-      const sourceDictData = { ...sourceResult.data } as Record<string, unknown>;
-      const targetDictData = { ...targetResult.data } as Record<string, unknown>;
+      // Build minimal update objects with only the entries being moved
+      // CODE REVIEW FIX 2026-02-08 (LOW): Use proper type instead of unknown
+      const entriesToAdd: Record<string, DictionaryEntryValue> = {};
+      const entriesToRemove: string[] = [];
 
-      // Batch: Add all entries to target, remove from source
       for (const source of entriesToMove) {
-        const value = sourceDictData[source];
+        const value = sourceDict[source];
         if (value !== undefined) {
-          targetDictData[source] = value;
-          delete sourceDictData[source];
+          entriesToAdd[source] = value;
+          entriesToRemove.push(source);
         }
       }
 
-      // Save both dictionaries
+      // Apply changes to target dictionary (add entries)
+      const updatedTargetDict = { ...targetDict, ...entriesToAdd };
+
+      // Apply changes to source dictionary (remove entries)
+      const updatedSourceDict = { ...sourceDict };
+      for (const source of entriesToRemove) {
+        delete updatedSourceDict[source];
+      }
+
+      // Save both dictionaries with optimized payload
       const [saveTargetResult, saveSourceResult] = await Promise.all([
-        window.electronAPI.saveDictionary(selectedTargetDict, targetDictData),
-        window.electronAPI.saveDictionary(selectedDictionary, sourceDictData),
+        window.electronAPI.saveDictionary(selectedTargetDict, updatedTargetDict),
+        window.electronAPI.saveDictionary(selectedDictionary, updatedSourceDict),
       ]);
 
       if (!saveTargetResult.success) {

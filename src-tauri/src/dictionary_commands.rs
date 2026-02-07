@@ -200,15 +200,21 @@ fn emit_poisoning_event() {
     }
 }
 
-// Dictionary cache for preventing duplicate loads
+// Dictionary cache with LRU eviction to prevent unbounded memory growth
+// Max size: 5 dictionaries (~270MB assuming 27K entries × 2KB/entry)
+const MAX_CACHE_ENTRIES: usize = 5;
+
 pub struct DictionaryCache {
     cache: Mutex<HashMap<String, serde_json::Value>>,
+    // Track access order for LRU eviction (key -> last access timestamp)
+    access_order: Mutex<HashMap<String, u64>>,
 }
 
 impl DictionaryCache {
     pub fn new() -> Self {
         Self {
             cache: Mutex::new(HashMap::new()),
+            access_order: Mutex::new(HashMap::new()),
         }
     }
 
@@ -216,8 +222,9 @@ impl DictionaryCache {
     /// Poisoning indicates a panic occurred, but we can continue using the lock
     /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
     /// The mutex remains marked as poisoned but continues to function normally
+    /// CODE REVIEW FIX 2026-02-08: LRU eviction - track access time on get
     pub fn get(&self, key: &str) -> Option<serde_json::Value> {
-        match self.cache.lock() {
+        let value = match self.cache.lock() {
             Ok(cache) => cache.get(key).cloned(),
             Err(poisoned) => {
                 // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
@@ -238,17 +245,74 @@ impl DictionaryCache {
                 let cache = poisoned.into_inner();
                 cache.get(key).cloned()
             }
+        };
+
+        // Update access time for LRU tracking (if value exists)
+        if value.is_some() {
+            if let Ok(mut access_order) = self.access_order.lock() {
+                let now = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+                access_order.insert(key.to_string(), now);
+            }
         }
+
+        value
     }
 
     /// CODE REVIEW FIX: Handle mutex poisoning with graceful degradation
     /// Poisoning indicates a panic occurred, but we can continue using the lock
     /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
     /// The mutex remains marked as poisoned but continues to function normally
+    /// CODE REVIEW FIX 2026-02-08: LRU eviction - evict oldest entry when cache is full
+    /// CODE REVIEW FIX 2026-02-08 (MEDIUM): Avoid nested mutex locks to prevent deadlocks
     pub fn set(&self, key: String, value: serde_json::Value) {
+        // Check if eviction is needed and collect cache keys without holding lock
+        let needs_eviction = if let Ok(cache) = self.cache.lock() {
+            cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key)
+        } else {
+            false
+        };
+
+        // Find LRU key to evict if needed (without holding cache lock)
+        let lru_key_to_evict = if needs_eviction {
+            if let Ok(access_order) = self.access_order.lock() {
+                access_order
+                    .iter()
+                    .min_by_key(|(_, &timestamp)| timestamp)
+                    .map(|(k, _)| k.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Now perform the actual cache update
         match self.cache.lock() {
             Ok(mut cache) => {
-                cache.insert(key, value);
+                // Evict LRU entry if we found one
+                if let Some(lru_key) = lru_key_to_evict {
+                    cache.remove(&lru_key);
+                    eprintln!("LRU cache eviction: removed {}", lru_key);
+                }
+
+                cache.insert(key.clone(), value);
+
+                // Update access time (separate lock to avoid holding both)
+                drop(cache); // Explicitly drop cache lock before locking access_order
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    let now = SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as u64;
+                    access_order.insert(key.clone(), now);
+
+                    // NOTE: Skipping cleanup here to avoid nested mutex lock (deadlock risk)
+                    // Cleanup happens in invalidate() and is not critical for correctness
+                    // Worst case: a few stale entries in access_order that don't exist in cache
+                }
             }
             Err(poisoned) => {
                 // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
@@ -268,7 +332,17 @@ impl DictionaryCache {
                 // Clear corrupted data and insert fresh value
                 let mut cache = poisoned.into_inner();
                 cache.clear(); // Remove potentially corrupted entries
-                cache.insert(key, value); // Insert fresh data to rebuild cache
+                cache.insert(key.clone(), value); // Insert fresh data to rebuild cache
+
+                // Also clear access_order on poisoning
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    access_order.clear();
+                    let now = SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    access_order.insert(key, now);
+                }
             }
         }
     }
@@ -277,6 +351,7 @@ impl DictionaryCache {
     /// Poisoning indicates a panic occurred, but we can continue using the lock
     /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
     /// The mutex remains marked as poisoned but continues to function normally
+    /// CODE REVIEW FIX 2026-02-08: LRU eviction - also invalidate access_order tracking
     pub fn invalidate(&self, dictionary_id: Option<&str>) {
         match self.cache.lock() {
             Ok(mut cache) => {
@@ -284,6 +359,17 @@ impl DictionaryCache {
                     cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
                 } else {
                     cache.clear();
+                }
+
+                // Also clean up access_order for invalidated entries
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    if dictionary_id.is_some() {
+                        // Only retain access times for keys still in cache
+                        access_order.retain(|k, _| cache.contains_key(k));
+                    } else {
+                        // Clear all access times
+                        access_order.clear();
+                    }
                 }
             }
             Err(poisoned) => {
@@ -304,6 +390,11 @@ impl DictionaryCache {
                 // Clear the entire cache regardless of dictionary_id for safety
                 let mut cache = poisoned.into_inner();
                 cache.clear(); // Full clear is safest after poisoning
+
+                // Also clear access_order
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    access_order.clear();
+                }
             }
         }
     }

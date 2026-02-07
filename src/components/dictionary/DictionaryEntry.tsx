@@ -808,7 +808,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 disabled={isSaving || !translation.trim()}
                 tabIndex={-1}
                 className={styles.utilityButton}
-                title="Capitalize all words"
+                title="Capitalize all words (Title Case)"
               >
                 AAAA
               </button>
