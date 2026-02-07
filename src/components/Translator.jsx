@@ -578,7 +578,19 @@ const Translator = ({ isActive = true }) => {
    */
   useEffect(() => {
     if (engineInitialized && engineRef.current?.wasmManager) {
+      let interval = null;
+
       const checkWasmStatus = () => {
+        // Check if wasmManager is still available
+        if (!engineRef.current?.wasmManager) {
+          // Self-cleanup if wasmManager disappears
+          if (interval) {
+            clearInterval(interval);
+            interval = null;
+          }
+          return;
+        }
+
         const wasmManager = engineRef.current.wasmManager;
         const newStatus = {
           initialized: wasmManager.isInitialized(),
@@ -600,9 +612,13 @@ const Translator = ({ isActive = true }) => {
       checkWasmStatus();
 
       // Set up periodic monitoring
-      const interval = setInterval(checkWasmStatus, UI_TIMEOUTS.WASM_STATUS_CHECK_INTERVAL);
+      interval = setInterval(checkWasmStatus, UI_TIMEOUTS.WASM_STATUS_CHECK_INTERVAL);
 
-      return () => clearInterval(interval);
+      return () => {
+        if (interval) {
+          clearInterval(interval);
+        }
+      };
     }
   }, [engineInitialized, wasmStatus]);
 
@@ -622,11 +638,15 @@ const Translator = ({ isActive = true }) => {
    * Recommends application restart to ensure data integrity.
    */
   useEffect(() => {
-    let unsubscribe;
+    let unsubscribe = null;
+    let isMounted = true;
 
     const setupListener = async () => {
       try {
-        unsubscribe = await listen('dictionary-cache-critical-error', (event) => {
+        const unsub = await listen('dictionary-cache-critical-error', (event) => {
+          // Ignore events after component unmount
+          if (!isMounted) return;
+
           logger.error('🚨 Dictionary cache critical error detected:', event.payload);
 
           const { event_count, message, recommendation } = event.payload;
@@ -641,6 +661,13 @@ const Translator = ({ isActive = true }) => {
             id: TOAST_IDS.CACHE_POISONING,
           });
         });
+
+        // If component already unmounted, cleanup immediately
+        if (isMounted) {
+          unsubscribe = unsub;
+        } else {
+          unsub();
+        }
       } catch (error) {
         logger.error('Failed to set up cache poisoning event listener:', error);
       }
@@ -649,6 +676,7 @@ const Translator = ({ isActive = true }) => {
     setupListener();
 
     return () => {
+      isMounted = false;
       if (unsubscribe) {
         unsubscribe();
       }

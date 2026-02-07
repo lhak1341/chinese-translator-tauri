@@ -156,6 +156,9 @@ export interface MemoryPressureStats {
  * Uses actual memory pressure instead of fixed thresholds
  */
 export class SmartMemoryPressureDetector {
+  private static instances = new Set<SmartMemoryPressureDetector>();
+  private static cleanupHandlerRegistered = false;
+
   private options: Required<MemoryPressureOptions>;
   private memoryHistory: MemoryPressure[];
   private historyWriteIndex: number;
@@ -185,8 +188,29 @@ export class SmartMemoryPressureDetector {
     this.samplingTimer = null;
     this.callbacks = new Map();
 
+    // Register this instance for cleanup tracking
+    SmartMemoryPressureDetector.instances.add(this);
+
+    // Set up global cleanup handler (only once)
+    if (!SmartMemoryPressureDetector.cleanupHandlerRegistered && typeof window !== 'undefined') {
+      SmartMemoryPressureDetector.cleanupHandlerRegistered = true;
+      window.addEventListener('beforeunload', () => {
+        logger.log(
+          `🧹 Cleaning up ${SmartMemoryPressureDetector.instances.size} SmartMemoryPressureDetector instances`
+        );
+        SmartMemoryPressureDetector.instances.forEach((instance) => instance.stop());
+      });
+    }
+
     // Start memory sampling
     this.startSampling();
+
+    // Warn developers to call stop() before destruction
+    if (process.env.NODE_ENV === 'development') {
+      logger.log(
+        '⚠️ SmartMemoryPressureDetector: Call stop() before destroying to prevent memory leak'
+      );
+    }
   }
 
   /**
@@ -371,6 +395,8 @@ export class SmartMemoryPressureDetector {
       clearInterval(this.samplingTimer);
       this.samplingTimer = null;
     }
+    // Remove from instance tracking
+    SmartMemoryPressureDetector.instances.delete(this);
   }
 
   /**
@@ -451,6 +477,7 @@ interface IdleDeadline {
  * Uses requestIdleCallback() for non-urgent memory cleanup
  */
 export class BackgroundCleanupManager {
+  private readonly MAX_QUEUE_SIZE = 100;
   private cleanupQueue: CleanupTask[];
   private isProcessing: boolean;
   private stats: {
@@ -475,6 +502,30 @@ export class BackgroundCleanupManager {
    * Queue cleanup task for background processing
    */
   queueCleanup(task: () => any, priority: CleanupPriority = 'normal'): void {
+    // Prevent unbounded queue growth
+    if (this.cleanupQueue.length >= this.MAX_QUEUE_SIZE) {
+      logger.warn(
+        `⚠️ Cleanup queue full (${this.MAX_QUEUE_SIZE}), attempting to evict low-priority tasks`
+      );
+
+      // Try to remove oldest low-priority task
+      const lowPriorityIndex = this.cleanupQueue.findIndex((t) => t.priority === 'low');
+      if (lowPriorityIndex !== -1) {
+        const evicted = this.cleanupQueue.splice(lowPriorityIndex, 1)[0];
+        logger.log(`🗑️ Evicted low-priority cleanup task: ${evicted.id}`);
+      } else {
+        // Queue is full with urgent/normal tasks - reject new non-urgent tasks
+        if (priority !== 'urgent') {
+          logger.error(
+            `❌ Cannot queue ${priority} cleanup task - queue full with ${this.cleanupQueue.length} urgent/normal tasks`
+          );
+          return;
+        }
+        // Allow urgent tasks even when queue is full
+        logger.warn(`⚠️ Forcing urgent cleanup task into full queue`);
+      }
+    }
+
     const cleanupTask: CleanupTask = {
       id: `cleanup_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       task,

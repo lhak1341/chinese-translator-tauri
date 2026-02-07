@@ -222,10 +222,9 @@ export class OptimizedSemanticArrayBuilder {
     // Track position mapping order (CRITICAL-2: Detect out-of-order calls)
     this.lastPositionSet = -1;
 
-    // Clear regex cache periodically to prevent memory leaks
-    if (this.regexCache.size > this.maxCacheSize) {
-      this.regexCache.clear();
-    }
+    // Clear regex cache on each translation to prevent gradual accumulation
+    // Cache is per-translation state and should be fully cleared
+    this.regexCache.clear();
 
     // CRITICAL FIX: Clear corruption flag on reset (new translation = fresh state)
     this.isCorrupted = false;
