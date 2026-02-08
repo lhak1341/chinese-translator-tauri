@@ -17,6 +17,7 @@ import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
 import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
 import { toast } from '../ToastContext';
+import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 
 /**
  * Props for BulkMoveDialog extracted component
@@ -248,17 +249,6 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
     </div>
   );
 };
-
-/**
- * Dictionary entry value type (can be string or object with metadata)
- */
-type DictionaryEntryValue =
-  | string
-  | {
-      translation: string;
-      allowAsPatternVariable?: boolean;
-      lowPriority?: boolean;
-    };
 
 /**
  * Entry data for editing modal
@@ -796,7 +786,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   }, [isUpdating, preservedScrollTop]);
 
   // Restore scroll position after duplicate rows refresh
+  // CODE REVIEW FIX 2026-02-09 (CRITICAL): Add timeout cleanup and replace hardcoded delay with RAF
   useEffect(() => {
+    // Track RAF ID for cleanup
+    let rafId: number | null = null;
+
     if (
       scrollRestore !== null &&
       scrollRestore !== undefined &&
@@ -804,15 +798,40 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       onScrollSave
     ) {
       const position = scrollRestore;
-      // Use delay to ensure virtualized list has fully re-rendered
-      setTimeout(() => {
+      let attempts = 0;
+      const maxAttempts = 60; // Max 1 second at 60fps
+
+      // Use RAF to wait for virtualized list to finish rendering
+      // More reliable than fixed 300ms delay - adapts to device performance
+      const waitForRender = () => {
+        attempts++;
+
         if (scrollRef.current && onScrollSave) {
-          scrollRef.current.scrollTop = position;
-          setScrollTop(position);
-          onScrollSave(null); // Clear the restore position
+          // Check if we can safely restore scroll
+          // The virtualized list is ready when the container has proper height
+          const container = scrollRef.current;
+          const isReady = container.scrollHeight > 0 && attempts > 3; // Wait at least 3 frames
+
+          if (isReady || attempts >= maxAttempts) {
+            container.scrollTop = position;
+            setScrollTop(position);
+            onScrollSave(null); // Clear the restore position
+          } else {
+            // Try again next frame
+            rafId = requestAnimationFrame(waitForRender);
+          }
         }
-      }, 300);
+      };
+
+      rafId = requestAnimationFrame(waitForRender);
     }
+
+    // Cleanup RAF on unmount or when dependencies change
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, [scrollRestore, onScrollSave]);
 
   // Selection handlers with scroll preservation
@@ -893,16 +912,35 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         }
 
         // Delete from each dictionary using bulkDeleteEntries (more efficient - one save per dictionary)
-        for (const [dictionaryId, sources] of deletionsByDict) {
-          try {
-            const result = await bulkDeleteEntries(dictionaryId, sources);
-            successCount += result.successCount;
-            errors.push(...result.errors);
-          } catch (deleteError) {
-            const errorMsg = `Failed to delete entries from ${dictionaryId}: ${(deleteError as Error).message}`;
-            errors.push(errorMsg);
-            logger.error('Bulk delete error:', deleteError);
+        // CODE REVIEW FIX 2026-02-09 (MEDIUM): Add dictionary existence check and parallelize deletions
+        const deletionPromises = Array.from(deletionsByDict.entries()).map(
+          async ([dictionaryId, sources]) => {
+            try {
+              // Check if dictionary still exists before attempting deletion
+              if (!dictionaries[dictionaryId]) {
+                return {
+                  successCount: 0,
+                  errors: [`Dictionary '${dictionaryId}' no longer exists`],
+                };
+              }
+
+              const result = await bulkDeleteEntries(dictionaryId, sources);
+              return result;
+            } catch (deleteError) {
+              const errorMsg = `Failed to delete entries from ${dictionaryId}: ${(deleteError as Error).message}`;
+              logger.error('Bulk delete error:', deleteError);
+              return { successCount: 0, errors: [errorMsg] };
+            }
           }
+        );
+
+        // Wait for all deletions to complete in parallel
+        const results = await Promise.all(deletionPromises);
+
+        // Aggregate results
+        for (const result of results) {
+          successCount += result.successCount;
+          errors.push(...result.errors);
         }
       } else {
         // Normal mode: selectedEntries contains source strings, all from same dictionary
@@ -960,6 +998,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     selectedDictionary,
     deleteEntry,
     bulkDeleteEntries,
+    dictionaries,
     showDuplicatesMode,
     onRefreshDuplicates,
   ]);

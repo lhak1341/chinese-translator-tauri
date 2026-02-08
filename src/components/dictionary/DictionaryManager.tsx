@@ -279,13 +279,12 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       try {
         // CRITICAL FIX: Load ALL available dictionaries before analyzing
         // This ensures deletion works for entries from any dictionary
+        // CODE REVIEW FIX 2026-02-09 (CRITICAL): Load dictionaries in parallel for better performance
         const allTypes = await getDictionaryTypes();
         const allDictionaryIds = Object.keys(allTypes);
 
-        // Load each dictionary to ensure it's in the context
-        for (const dictId of allDictionaryIds) {
-          await loadDictionary(dictId);
-        }
+        // Load all dictionaries in parallel (much faster than sequential)
+        await Promise.all(allDictionaryIds.map((dictId) => loadDictionary(dictId)));
 
         // Re-read from ref after loading all dictionaries
         const dictionariesToAnalyze = dictionariesRef.current;

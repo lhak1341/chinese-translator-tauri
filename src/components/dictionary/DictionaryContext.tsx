@@ -4,52 +4,12 @@ import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
-
-/**
- * Dictionary data structure (key-value pairs)
- */
-interface DictionaryData {
-  [key: string]: string | DictionaryEntryValue;
-}
-
-/**
- * Dictionary entry value for patterns/phrases with metadata
- */
-interface DictionaryEntryValue {
-  translation: string;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
-
-/**
- * Metadata for dictionary operations
- */
-interface DictionaryEntryMetadata {
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
-
-/**
- * History operation type
- */
-type HistoryOperationType = 'add' | 'update' | 'delete';
-
-/**
- * Delta-based history operation for undo/redo
- * Stores only changed entries instead of entire dictionaries
- * Memory savings: ~98% reduction (5.4GB → 100MB for 100 operations)
- */
-interface HistoryOperation {
-  dictionaryId: string;
-  operation: HistoryOperationType;
-  /** For add/update: new entry data */
-  entry?: { source: string; value: string | DictionaryEntryValue };
-  /** For update/delete: original entry data for rollback */
-  oldEntry?: { source: string; value: string | DictionaryEntryValue };
-  /** For update: old source key if it changed */
-  oldSource?: string;
-  timestamp: number;
-}
+import type {
+  DictionaryData,
+  DictionaryEntryValue,
+  DictionaryEntryMetadata,
+  HistoryOperation,
+} from '../../types/DictionaryTypes';
 
 /**
  * Sorting statistics returned by IncrementalDictionarySorter
@@ -567,13 +527,24 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       const saveResult = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
       if (saveResult.success && saveResult.data) {
-        // Add to history
+        // Add to history - use bulk_delete operation for multiple entries
+        // CODE REVIEW FIX 2026-02-09 (CRITICAL): Store all deleted entries for proper undo
         if (deletedEntries.length > 0) {
-          addToHistory({
-            dictionaryId,
-            operation: 'delete',
-            oldEntry: deletedEntries[0],
-          });
+          if (deletedEntries.length === 1) {
+            // Single entry - use regular delete for backward compatibility
+            addToHistory({
+              dictionaryId,
+              operation: 'delete',
+              oldEntry: deletedEntries[0],
+            });
+          } else {
+            // Multiple entries - use bulk_delete operation
+            addToHistory({
+              dictionaryId,
+              operation: 'bulk_delete',
+              oldEntries: deletedEntries,
+            });
+          }
         }
       } else {
         // Rollback on failure
@@ -631,6 +602,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           // Reverse delete: restore the entry
           if (operation.oldEntry) {
             newDict[operation.oldEntry.source] = operation.oldEntry.value;
+          }
+        } else if (operation.operation === 'bulk_delete') {
+          // CODE REVIEW FIX 2026-02-09 (CRITICAL): Reverse bulk_delete - restore all entries
+          if (operation.oldEntries) {
+            for (const oldEntry of operation.oldEntries) {
+              newDict[oldEntry.source] = oldEntry.value;
+            }
           }
         }
 
@@ -701,6 +679,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           // Redo delete: delete the entry
           if (operation.oldEntry) {
             delete newDict[operation.oldEntry.source];
+          }
+        } else if (operation.operation === 'bulk_delete') {
+          // CODE REVIEW FIX 2026-02-09 (CRITICAL): Redo bulk_delete - delete all entries
+          if (operation.oldEntries) {
+            for (const oldEntry of operation.oldEntries) {
+              delete newDict[oldEntry.source];
+            }
           }
         }
 

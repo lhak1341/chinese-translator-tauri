@@ -5,16 +5,7 @@
  * appears with different translations across dictionaries.
  */
 
-/**
- * Dictionary entry value type (can be string or object with metadata)
- */
-type DictionaryEntryValue =
-  | string
-  | {
-      translation: string;
-      allowAsPatternVariable?: boolean;
-      lowPriority?: boolean;
-    };
+import type { DictionaryEntryValue } from '../types/DictionaryTypes';
 
 /**
  * Represents a single row in the duplicate view table
@@ -198,6 +189,14 @@ export function getDictionaryLabel(dictionaryId: string): string {
  *
  * SECURITY: Validates that neither component contains "::" to prevent ambiguous keys
  *
+ * IMPORTANT: This function throws if source or dictionaryId contains "::", but
+ * parseDuplicateKey can handle source text with "::" using lastIndexOf. This asymmetry
+ * is intentional:
+ * - createDuplicateKey: Prevents CREATION of ambiguous keys (strict validation)
+ * - parseDuplicateKey: Allows PARSING of legacy data with "::" in source (uses lastIndexOf)
+ *
+ * This design prevents new ambiguous keys while gracefully handling existing data.
+ *
  * @param source - Source text
  * @param dictionaryId - Dictionary ID
  * @returns Composite key in format "source::dictionaryId"
@@ -219,7 +218,12 @@ export function createDuplicateKey(source: string, dictionaryId: string): string
  * Parses a composite key back into source and dictionaryId
  *
  * SECURITY: Uses lastIndexOf to handle source text containing "::" separator
- * This prevents DoS attacks and undefined dictionaryId errors
+ * This prevents DoS attacks and undefined dictionaryId errors. By using lastIndexOf,
+ * a key like "a::b::properNouns" is parsed as source="a::b", dictionaryId="properNouns".
+ *
+ * NOTE: While createDuplicateKey prevents creation of keys with "::" in source,
+ * this function can parse such keys if they exist (e.g., from legacy data).
+ * See createDuplicateKey documentation for the rationale behind this asymmetry.
  *
  * @param key - Composite key in format "source::dictionaryId"
  * @returns Object with source and dictionaryId
