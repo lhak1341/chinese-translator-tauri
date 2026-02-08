@@ -91,6 +91,11 @@ interface DictionaryContextValue {
   ) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
+  /** Delete multiple entries from a dictionary in one operation (more efficient than multiple deleteEntry calls) */
+  bulkDeleteEntries: (
+    dictionaryId: string,
+    sources: string[]
+  ) => Promise<{ successCount: number; errors: string[] }>;
   /** Undo last operation */
   undo: () => Promise<boolean>;
   /** Redo previously undone operation */
@@ -517,6 +522,73 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [addToHistory]
   );
 
+  // Bulk delete multiple entries from a dictionary in one operation
+  // More efficient than calling deleteEntry multiple times - saves dictionary only once
+  const bulkDeleteEntries = useCallback(
+    async (
+      dictionaryId: string,
+      sources: string[]
+    ): Promise<{ successCount: number; errors: string[] }> => {
+      if (sources.length === 0) {
+        return { successCount: 0, errors: [] };
+      }
+
+      // Get current dictionary, delete entries, and save
+      // Simplified to avoid React strict mode issues with closure variables
+      const currentDict = dictionaries[dictionaryId];
+      if (!currentDict) {
+        throw new Error(`Dictionary '${dictionaryId}' does not exist`);
+      }
+
+      const oldData = { ...currentDict };
+      const updatedDictionary = { ...oldData };
+      const deletedEntries: Array<{ source: string; value: string | DictionaryEntryValue }> = [];
+      const errors: string[] = [];
+
+      // Delete all specified entries
+      for (const source of sources) {
+        if (updatedDictionary[source] !== undefined) {
+          deletedEntries.push({ source, value: updatedDictionary[source] });
+          delete updatedDictionary[source];
+        } else {
+          errors.push(`Entry "${source}" not found in dictionary`);
+        }
+      }
+
+      const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sources[0]);
+
+      // Update React state
+      setDictionaries((prev) => ({
+        ...prev,
+        [dictionaryId]: sortedDictionary,
+      }));
+
+      // Save dictionary to backend
+      const saveResult = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+
+      if (saveResult.success && saveResult.data) {
+        // Add to history
+        if (deletedEntries.length > 0) {
+          addToHistory({
+            dictionaryId,
+            operation: 'delete',
+            oldEntry: deletedEntries[0],
+          });
+        }
+      } else {
+        // Rollback on failure
+        setDictionaries((prev) => ({
+          ...prev,
+          [dictionaryId]: oldData,
+        }));
+        throw new Error('Failed to save dictionary after bulk delete');
+      }
+
+      return { successCount: deletedEntries.length, errors };
+    },
+    [dictionaries, addToHistory]
+  );
+
   // Undo function - applies delta-based operations in reverse
   // CODE REVIEW FIX 2026-02-08 (CRITICAL): Use functional updates to prevent race conditions
   const undo = useCallback(async (): Promise<boolean> => {
@@ -676,6 +748,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       addEntry,
       updateEntry,
       deleteEntry,
+      bulkDeleteEntries,
       undo,
       redo,
       canUndo: currentHistoryIndex >= 0,
@@ -692,6 +765,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       addEntry,
       updateEntry,
       deleteEntry,
+      bulkDeleteEntries,
       undo,
       redo,
       currentHistoryIndex,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   PlusCircle,
   Undo2,
@@ -10,6 +10,8 @@ import {
   Upload,
   Trash2,
   ArrowRightLeft,
+  Search,
+  X,
 } from 'lucide-react';
 import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
@@ -20,6 +22,7 @@ import HotkeyHandler from '../HotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
+import { findConflictingEntries, type DuplicateRow } from '../../utils/DuplicateAnalyzer';
 
 /**
  * Selection state for bulk operations in Enhanced table
@@ -94,9 +97,22 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   const [isLoadingDictionary, setIsLoadingDictionary] = useState<boolean>(false);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(null);
 
+  // Ref to always access the latest dictionaries (fixes stale closure in refresh callback)
+  const dictionariesRef = useRef(_dictionaries);
+
+  // Update ref whenever dictionaries change
+  useEffect(() => {
+    dictionariesRef.current = _dictionaries;
+  }, [_dictionaries]);
+
   // Filter state for showing all dictionaries
   const [showAllDictionaries, setShowAllDictionaries] = useState<boolean>(false);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
+
+  // Duplicate detection mode state
+  const [showDuplicatesMode, setShowDuplicatesMode] = useState<boolean>(false);
+  const [duplicateRows, setDuplicateRows] = useState<DuplicateRow[]>([]);
+  const [duplicateScrollRestore, setDuplicateScrollRestore] = useState<number | null>(null);
 
   // Load dictionary types including active proper nouns dictionaries
   useEffect(() => {
@@ -253,6 +269,53 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   };
 
+  // Handle finding duplicate entries across all dictionaries
+  // CRITICAL: Wrapped in useCallback to prevent infinite loop when passed as prop
+  // CRITICAL: Uses dictionariesRef.current to always access latest data (fixes stale closure)
+  const handleFindDuplicates = useCallback(
+    async (reloadFromBackend = false): Promise<void> => {
+      setIsLoadingDictionary(true);
+      setError(null);
+      try {
+        // CRITICAL FIX: Load ALL available dictionaries before analyzing
+        // This ensures deletion works for entries from any dictionary
+        const allTypes = await getDictionaryTypes();
+        const allDictionaryIds = Object.keys(allTypes);
+
+        // Load each dictionary to ensure it's in the context
+        for (const dictId of allDictionaryIds) {
+          await loadDictionary(dictId);
+        }
+
+        // Re-read from ref after loading all dictionaries
+        const dictionariesToAnalyze = dictionariesRef.current;
+
+        const duplicates = findConflictingEntries(dictionariesToAnalyze);
+
+        setDuplicateRows(duplicates);
+        setShowDuplicatesMode(true);
+
+        if (duplicates.length === 0) {
+          setError('✅ No duplicate entries found! All entries are unique across dictionaries.');
+          setTimeout(() => setError(null), 5000);
+        }
+      } catch (error) {
+        setError(`Failed to analyze duplicates: ${(error as Error).message}`);
+        logger.error('Error finding duplicates:', error);
+      } finally {
+        setIsLoadingDictionary(false);
+      }
+    },
+    [duplicateRows.length, loadDictionary]
+  ); // Removed _dictionaries - using dictionariesRef.current instead
+
+  // Handle exiting duplicate mode
+  const handleExitDuplicateMode = (): void => {
+    setShowDuplicatesMode(false);
+    setDuplicateRows([]);
+    setError(null);
+  };
+
   // Filter dictionary types based on "Show all dictionaries" checkbox
   const filteredDictionaryTypes = React.useMemo(() => {
     if (showAllDictionaries) {
@@ -313,7 +376,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           className={styles.select}
           value={selectedDictionary}
           onChange={(e) => setSelectedDictionary(e.target.value)}
-          disabled={isLoadingDictionary}
+          disabled={isLoadingDictionary || showDuplicatesMode}
+          style={showDuplicatesMode ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
         >
           {sortedDictionaryEntries.map(([id, { label }]) => (
             <option key={id} value={id}>
@@ -325,12 +389,14 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         <label
           className={styles.filterLabel}
           title="Show all proper nouns dictionaries, including inactive ones"
+          style={showDuplicatesMode ? { opacity: 0.5 } : {}}
         >
           <input
             type="checkbox"
             checked={showAllDictionaries}
             onChange={(e) => setShowAllDictionaries(e.target.checked)}
             className={styles.filterCheckbox}
+            disabled={showDuplicatesMode}
           />
           Show all
         </label>
@@ -356,12 +422,38 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           <button
             onClick={() => setShowAddEntry(true)}
             className={`primary ${styles.button}`}
-            disabled={isLoadingDictionary}
+            disabled={isLoadingDictionary || showDuplicatesMode}
             title="Add new entry"
           >
             <PlusCircle size={15} />
             Add Entry
           </button>
+
+          {!showDuplicatesMode ? (
+            <button
+              onClick={() => handleFindDuplicates()}
+              className={styles.button}
+              style={{
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                borderColor: '#3b82f6',
+              }}
+              disabled={isLoadingDictionary}
+              title="Find entries with same source but different translations across all dictionaries"
+            >
+              <Search size={15} />
+              Find Duplicates
+            </button>
+          ) : (
+            <button
+              onClick={handleExitDuplicateMode}
+              className={`secondary ${styles.button}`}
+              title="Return to normal dictionary view"
+            >
+              <X size={15} />
+              Exit Duplicate View
+            </button>
+          )}
 
           {selectionState && selectionState.selectedCount > 0 && (
             <>
@@ -465,13 +557,41 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         </div>
       )}
 
+      {showDuplicatesMode && duplicateRows.length > 0 && (
+        <div
+          style={{
+            backgroundColor: '#dbeafe',
+            color: '#1e40af',
+            padding: '0.75rem',
+            borderRadius: '0.375rem',
+            marginBottom: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.875rem',
+          }}
+        >
+          <Search size={16} />
+          <span>
+            Showing <strong>{duplicateRows.length}</strong> duplicate entries from{' '}
+            <strong>{new Set(duplicateRows.map((r) => r.dictionaryId)).size}</strong> dictionaries
+          </span>
+        </div>
+      )}
+
       <div className={styles.tableContainer}>
         {useEnhancedVirtualization
           ? React.createElement(EnhancedVirtualizedDictionaryTable as any, {
+              key: showDuplicatesMode ? `duplicates-${duplicateRows.length}` : selectedDictionary,
               selectedDictionary,
               searchRef,
               onSelectionChange: setSelectionState,
               isActive,
+              showDuplicatesMode,
+              duplicateRows,
+              onRefreshDuplicates: handleFindDuplicates,
+              scrollRestore: duplicateScrollRestore,
+              onScrollSave: setDuplicateScrollRestore,
             })
           : React.createElement(VirtualizedDictionaryTable as any, {
               selectedDictionary,

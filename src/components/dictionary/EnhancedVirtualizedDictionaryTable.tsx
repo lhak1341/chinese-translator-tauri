@@ -15,6 +15,8 @@ import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
+import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
+import { toast } from '../ToastContext';
 
 /**
  * Props for BulkMoveDialog extracted component
@@ -312,6 +314,16 @@ interface EnhancedVirtualizedDictionaryTableProps {
   onSelectionChange?: (state: SelectionState) => void;
   /** Whether the parent tab is active (for remeasuring on visibility) */
   isActive?: boolean;
+  /** Whether to show duplicate mode (4-column layout) */
+  showDuplicatesMode?: boolean;
+  /** Duplicate rows to display when in duplicate mode */
+  duplicateRows?: import('../../utils/DuplicateAnalyzer').DuplicateRow[];
+  /** Callback to refresh duplicate view after deletion */
+  onRefreshDuplicates?: (reloadFromBackend?: boolean) => Promise<void>;
+  /** Scroll position to restore (managed by parent to survive unmount/remount) */
+  scrollRestore?: number | null;
+  /** Callback to save scroll position before refresh (pass null to clear) */
+  onScrollSave?: (position: number | null) => void;
 }
 
 // Optimized constants for better performance
@@ -421,13 +433,17 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   searchRef,
   onSelectionChange,
   isActive,
+  showDuplicatesMode = false,
+  duplicateRows = [],
+  onRefreshDuplicates,
+  scrollRestore,
+  onScrollSave,
 }) => {
-  const { dictionaries, deleteEntry, updateEntry, isLoading } = useDictionary();
+  const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, isLoading } = useDictionary();
 
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [editingEntry, setEditingEntry] = useState<EditingEntryData | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
@@ -462,13 +478,19 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     setSearchTerm('');
     setDebouncedSearchTerm('');
     setEditingEntry(null);
-    setDeleteError(null);
     setMoveEntry(null);
     setSelectedEntries(new Set());
     setShowBulkDeleteConfirm(false);
     setScrollTop(0);
     lastScrollTop.current = 0;
   }, [selectedDictionary]);
+
+  // Clear selections when switching between duplicate and normal modes
+  // BUGFIX: Prevents composite keys from persisting when exiting duplicate mode
+  useEffect(() => {
+    setSelectedEntries(new Set());
+    setShowBulkDeleteConfirm(false);
+  }, [showDuplicatesMode]);
 
   // Debounced search term
   useEffect(() => {
@@ -532,6 +554,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   // Optimized filtered entries with early termination for large datasets
   const filteredEntries = useMemo((): [string, DictionaryEntryValue][] => {
+    // In duplicate mode, return empty array (use filteredDuplicateRows instead)
+    if (showDuplicatesMode) {
+      return [];
+    }
+
     const dictionary = dictionaries[selectedDictionary];
     if (!dictionary) return [];
 
@@ -548,7 +575,42 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         translationText.toLowerCase().includes(searchLower)
       );
     });
-  }, [dictionaries, selectedDictionary, debouncedSearchTerm]);
+  }, [dictionaries, selectedDictionary, debouncedSearchTerm, showDuplicatesMode]);
+
+  // Filtered duplicate rows for duplicate mode
+  const filteredDuplicateRows = useMemo(() => {
+    if (!showDuplicatesMode) return [];
+
+    if (!debouncedSearchTerm) return duplicateRows;
+
+    const searchLower = debouncedSearchTerm.toLowerCase();
+    return duplicateRows.filter((row) => {
+      return (
+        row.source.toLowerCase().includes(searchLower) ||
+        row.translation.toLowerCase().includes(searchLower) ||
+        row.dictionaryLabel.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [duplicateRows, debouncedSearchTerm, showDuplicatesMode]);
+
+  // Pre-calculate group indices for alternating backgrounds (memoized for performance)
+  const duplicateGroupIndices = useMemo(() => {
+    if (!showDuplicatesMode || filteredDuplicateRows.length === 0) return [];
+
+    const indices: number[] = [];
+    let groupIndex = 0;
+    let lastSource = '';
+
+    for (const row of filteredDuplicateRows) {
+      if (row.source !== lastSource) {
+        if (lastSource !== '') groupIndex++;
+        lastSource = row.source;
+      }
+      indices.push(groupIndex);
+    }
+
+    return indices;
+  }, [filteredDuplicateRows, showDuplicatesMode]);
 
   // Dynamic buffer sizing based on list size
   // OPTIMIZATION: Adaptive buffer size calculation
@@ -575,22 +637,47 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     // Calculate on significant changes
     const debounceTimer = setTimeout(calculateOptimalBuffer, 100);
     return () => clearTimeout(debounceTimer);
-  }, [containerHeight, filteredEntries.length, scrollVelocity, isScrolling, bufferSize]);
+  }, [
+    containerHeight,
+    filteredEntries.length,
+    filteredDuplicateRows.length,
+    scrollVelocity,
+    isScrolling,
+    bufferSize,
+  ]);
 
   // Optimized visible range calculation with adaptive buffer
   const visibleRange = useMemo(() => {
+    const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
     const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - bufferSize);
     const visibleCount = Math.ceil(containerHeight / ITEM_HEIGHT);
-    const endIndex = Math.min(filteredEntries.length, startIndex + visibleCount + bufferSize * 2);
+    const endIndex = Math.min(totalItems, startIndex + visibleCount + bufferSize * 2);
 
     return { startIndex, endIndex, visibleCount };
-  }, [scrollTop, containerHeight, filteredEntries.length, bufferSize]);
+  }, [
+    scrollTop,
+    containerHeight,
+    filteredEntries.length,
+    filteredDuplicateRows.length,
+    showDuplicatesMode,
+    bufferSize,
+  ]);
 
   const { startIndex, endIndex } = visibleRange;
-  const visibleEntries = filteredEntries.slice(startIndex, endIndex);
 
-  // Calculate virtual scrolling properties
-  const totalHeight = filteredEntries.length * ITEM_HEIGHT;
+  // Use different data source based on mode
+  const visibleEntries = showDuplicatesMode
+    ? [] // Not used in duplicate mode
+    : filteredEntries.slice(startIndex, endIndex);
+
+  const visibleDuplicateRows = showDuplicatesMode
+    ? filteredDuplicateRows.slice(startIndex, endIndex)
+    : [];
+
+  // Calculate virtual scrolling properties based on mode
+  const totalHeight = showDuplicatesMode
+    ? filteredDuplicateRows.length * ITEM_HEIGHT
+    : filteredEntries.length * ITEM_HEIGHT;
   const offsetY = startIndex * ITEM_HEIGHT;
 
   // OPTIMIZATION: Enhanced scroll handler with velocity tracking and performance monitoring
@@ -680,7 +767,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       metadata?: any
     ): Promise<void> => {
       // Capture scroll position before update
-      const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
+      // BUGFIX: Use scrollRef.current directly to avoid infinite loop
+      // scrollTop in deps would cause callback recreation on every scroll → cascade of updates
+      const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
       setPreservedScrollTop(currentScrollTop);
       setIsUpdating(true);
 
@@ -690,7 +779,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         setIsUpdating(false);
       }
     },
-    [updateEntry, scrollTop]
+    [updateEntry]
   );
 
   // Restore scroll position after dictionary updates
@@ -706,37 +795,56 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     }
   }, [isUpdating, preservedScrollTop]);
 
+  // Restore scroll position after duplicate rows refresh
+  useEffect(() => {
+    if (
+      scrollRestore !== null &&
+      scrollRestore !== undefined &&
+      scrollRef.current &&
+      onScrollSave
+    ) {
+      const position = scrollRestore;
+      // Use delay to ensure virtualized list has fully re-rendered
+      setTimeout(() => {
+        if (scrollRef.current && onScrollSave) {
+          scrollRef.current.scrollTop = position;
+          setScrollTop(position);
+          onScrollSave(null); // Clear the restore position
+        }
+      }, 300);
+    }
+  }, [scrollRestore, onScrollSave]);
+
   // Selection handlers with scroll preservation
-  const handleSelectEntry = useCallback(
-    (source: string, isSelected: boolean): void => {
-      // Capture scroll position before selection state change
-      const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
+  const handleSelectEntry = useCallback((source: string, isSelected: boolean): void => {
+    // Capture scroll position before selection state change
+    // BUGFIX: Use scrollRef.current directly to avoid infinite loop
+    const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
 
-      setSelectedEntries((prev) => {
-        const newSet = new Set(prev);
-        if (isSelected) {
-          newSet.add(source);
-        } else {
-          newSet.delete(source);
-        }
-        return newSet;
-      });
+    setSelectedEntries((prev) => {
+      const newSet = new Set(prev);
+      if (isSelected) {
+        newSet.add(source);
+      } else {
+        newSet.delete(source);
+      }
+      return newSet;
+    });
 
-      // Restore scroll position after state update
-      requestAnimationFrame(() => {
-        if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-          scrollRef.current.scrollTop = currentScrollTop;
-          setScrollTop(currentScrollTop);
-        }
-      });
-    },
-    [scrollTop]
-  );
+    // Restore scroll position after state update
+    requestAnimationFrame(() => {
+      if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
+        scrollRef.current.scrollTop = currentScrollTop;
+        setScrollTop(currentScrollTop);
+      }
+    });
+  }, []);
 
   const handleSelectAll = useCallback(
     (isSelected: boolean): void => {
       // Capture scroll position before bulk selection change
-      const currentScrollTop = scrollRef.current?.scrollTop ?? scrollTop;
+      // BUGFIX: Use scrollRef.current directly to avoid infinite loop
+      const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
 
       if (isSelected) {
         const allSources = filteredEntries.map(([source]) => source);
@@ -753,31 +861,108 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         }
       });
     },
-    [filteredEntries, scrollTop]
+    [filteredEntries]
   );
 
   const handleBulkDelete = useCallback(async (): Promise<void> => {
     if (selectedEntries.size === 0) return;
 
     setIsDeleting(true);
-    setDeleteError(null);
+
+    const errors: string[] = [];
+    let successCount = 0;
 
     try {
-      // Process deletions sequentially to prevent file corruption
-      const entriesToDelete = Array.from(selectedEntries);
-      for (const source of entriesToDelete) {
-        await deleteEntry(selectedDictionary, source);
+      if (showDuplicatesMode) {
+        // Duplicate mode: selectedEntries contains composite keys (source::dictionaryId)
+        // Group deletions by dictionary, handling malformed keys gracefully
+        const deletionsByDict = new Map<string, string[]>();
+
+        // Parse all keys first, collecting errors
+        for (const key of selectedEntries) {
+          try {
+            const { source, dictionaryId } = parseDuplicateKey(key);
+            if (!deletionsByDict.has(dictionaryId)) {
+              deletionsByDict.set(dictionaryId, []);
+            }
+            deletionsByDict.get(dictionaryId)!.push(source);
+          } catch (parseError) {
+            errors.push(`Invalid key format: ${key}`);
+            logger.error('Key parsing error:', parseError);
+          }
+        }
+
+        // Delete from each dictionary using bulkDeleteEntries (more efficient - one save per dictionary)
+        for (const [dictionaryId, sources] of deletionsByDict) {
+          try {
+            const result = await bulkDeleteEntries(dictionaryId, sources);
+            successCount += result.successCount;
+            errors.push(...result.errors);
+          } catch (deleteError) {
+            const errorMsg = `Failed to delete entries from ${dictionaryId}: ${(deleteError as Error).message}`;
+            errors.push(errorMsg);
+            logger.error('Bulk delete error:', deleteError);
+          }
+        }
+      } else {
+        // Normal mode: selectedEntries contains source strings, all from same dictionary
+        const entriesToDelete = Array.from(selectedEntries);
+        try {
+          const result = await bulkDeleteEntries(selectedDictionary, entriesToDelete);
+          successCount = result.successCount;
+          errors.push(...result.errors);
+        } catch (deleteError) {
+          errors.push(`Failed to delete entries: ${(deleteError as Error).message}`);
+          logger.error('Bulk delete error:', deleteError);
+        }
       }
 
-      setSelectedEntries(new Set());
-      setShowBulkDeleteConfirm(false);
+      // Report results to user using toast
+      if (errors.length > 0) {
+        if (successCount > 0) {
+          // Partial success
+          toast.warning(
+            `Deleted ${successCount} of ${selectedEntries.size} entries. ${errors.length} failed.`,
+            6000
+          );
+        } else {
+          // All failed
+          toast.error(
+            `Failed to delete ${selectedEntries.size} ${selectedEntries.size === 1 ? 'entry' : 'entries'}.`,
+            6000
+          );
+        }
+      } else {
+        // All succeeded
+        toast.success(
+          `Deleted ${successCount} ${successCount === 1 ? 'entry' : 'entries'} successfully`,
+          3000
+        );
+        setSelectedEntries(new Set());
+        setShowBulkDeleteConfirm(false);
+      }
+
+      // Refresh duplicate view if in duplicate mode (to show updated state)
+      if (showDuplicatesMode && onRefreshDuplicates && onScrollSave) {
+        // Save scroll position for restoration after duplicateRows updates
+        const currentScroll = scrollRef.current?.scrollTop ?? 0;
+        await onRefreshDuplicates();
+        onScrollSave(currentScroll);
+      }
     } catch (error) {
-      setDeleteError(`Failed to delete ${selectedEntries.size} entries`);
+      toast.error(`Critical error during deletion: ${(error as Error).message}`, 6000);
       logger.error('Bulk delete error:', error);
     } finally {
       setIsDeleting(false);
     }
-  }, [selectedEntries, selectedDictionary, deleteEntry]);
+  }, [
+    selectedEntries,
+    selectedDictionary,
+    deleteEntry,
+    bulkDeleteEntries,
+    showDuplicatesMode,
+    onRefreshDuplicates,
+  ]);
 
   const handleBulkMove = useCallback((): void => {
     if (selectedEntries.size === 0) return;
@@ -855,7 +1040,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       await deleteEntry(selectedDictionary, contextMenu.entry.source);
       closeContextMenu();
     } catch (error) {
-      setDeleteError(`Failed to delete entry: ${(error as Error).message}`);
+      toast.error(`Failed to delete entry: ${(error as Error).message}`, 6000);
       closeContextMenu();
     }
   };
@@ -1346,6 +1531,154 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     );
   }
 
+  // Duplicate mode rendering (4-column layout)
+  if (showDuplicatesMode) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Search controls */}
+        <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search duplicates..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              fontSize: '0.875rem',
+              border: '1px solid var(--border-color)',
+              borderRadius: '0.25rem',
+              backgroundColor: 'var(--input-background)',
+              color: 'var(--text-color)',
+            }}
+          />
+        </div>
+
+        {/* Table */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--background-color)',
+              fontWeight: 'bold',
+              fontSize: '0.875rem',
+            }}
+          >
+            <div style={{ width: '40px', padding: '0.5rem 0.75rem', textAlign: 'center' }}>☐</div>
+            <div style={{ width: '20%', padding: '0.5rem 0.75rem' }}>Source Text</div>
+            <div style={{ width: '50%', padding: '0.5rem 0.75rem' }}>Translation</div>
+            <div style={{ width: 'calc(30% - 40px)', padding: '0.5rem 0.75rem' }}>Dictionary</div>
+          </div>
+
+          {/* Rows */}
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            style={{ flex: 1, overflow: 'auto', position: 'relative' }}
+          >
+            <div style={{ height: totalHeight, position: 'relative' }}>
+              <div style={{ transform: `translateY(${offsetY}px)` }}>
+                {visibleDuplicateRows.map((row, index) => {
+                  const key = createDuplicateKey(row.source, row.dictionaryId);
+                  const isSelected = selectedEntries.has(key);
+
+                  // Get pre-calculated group index for alternating backgrounds
+                  const actualIndex = startIndex + index;
+                  const groupIndex = duplicateGroupIndices[actualIndex] || 0;
+
+                  // Alternating group background colors
+                  // Light mode: slightly darker, Dark mode: slightly lighter
+                  // Using opacity-based approach for consistency across themes
+                  const groupBgColor =
+                    groupIndex % 2 === 0
+                      ? 'transparent'
+                      : 'color-mix(in srgb, var(--text-color) 4%, transparent)';
+                  const backgroundColor = isSelected
+                    ? 'var(--accent-light, #e0f2fe)'
+                    : groupBgColor;
+
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        display: 'flex',
+                        borderBottom: '1px solid var(--border-color)',
+                        height: `${ITEM_HEIGHT}px`,
+                        alignItems: 'center',
+                        backgroundColor,
+                      }}
+                    >
+                      <div style={{ width: '40px', padding: '0 0.75rem', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {
+                            const newSet = new Set(selectedEntries);
+                            if (isSelected) {
+                              newSet.delete(key);
+                            } else {
+                              newSet.add(key);
+                            }
+                            setSelectedEntries(newSet);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                          aria-label={`Select ${row.source} from ${row.dictionaryLabel}`}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          width: '20%',
+                          padding: '0 0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {row.source}
+                      </div>
+                      <div
+                        style={{
+                          width: '50%',
+                          padding: '0 0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {row.translation}
+                      </div>
+                      <div
+                        style={{
+                          width: 'calc(30% - 40px)',
+                          padding: '0 0.75rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          fontSize: '0.8125rem',
+                          color: 'var(--text-secondary, #6b7280)',
+                          fontWeight:
+                            row.dictionaryLabel === 'Phrases' ||
+                            row.dictionaryLabel === 'Proper Nouns'
+                              ? 'bold'
+                              : 'normal',
+                        }}
+                      >
+                        {row.dictionaryLabel}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Search controls */}
@@ -1429,23 +1762,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           )}
         </div>
       </div>
-
-      {/* Error display */}
-      {deleteError && (
-        <div
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: 'var(--danger-button-bg)',
-            color: 'var(--danger-button-text)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-          }}
-        >
-          <AlertCircle size={16} />
-          {deleteError}
-        </div>
-      )}
 
       {/* Empty state when no entries */}
       {filteredEntries.length === 0 ? (
