@@ -421,12 +421,25 @@ export class SegmentPrecomputer {
       }))
       .filter((unitData): unitData is UnitData => !!unitData.unit && unitData.unit.length > 0);
 
-    // Sort units by their tokenIndex to ensure text-order processing for duplicates
-    // HIGH-3 FIX: Use optional chaining to prevent crash if metadata is null/undefined
+    // Sort units by tokenIndex (text order), with phase priority as tiebreaker.
+    // When two units share the same tokenIndex (e.g., pattern match + character fallback for
+    // the same token), the higher-priority phase must win in the greedy matcher.
+    // Priority: patterns(1) > properNouns(2) > numbers(3) > phrases(4) > characters/passthrough(5)
+    const getSourcePriority = (source: string | undefined): number => {
+      if (!source) return 9;
+      if (source.includes('pattern')) return 1;
+      if (source.includes('proper') || source === 'properNouns') return 2;
+      if (source.includes('number') || source === 'number_conversion') return 3;
+      if (source.includes('phrase') || source === 'phrases') return 4;
+      return 5; // characters, passthrough, progressive, unknown
+    };
+
     const filteredUnits = allUnits.sort((a, b) => {
       const aIndex = a.metadata?.tokenIndex ?? 0;
       const bIndex = b.metadata?.tokenIndex ?? 0;
-      return aIndex - bIndex;
+      if (aIndex !== bIndex) return aIndex - bIndex;
+      // Tiebreak: higher-priority phase comes first so the greedy matcher picks it
+      return getSourcePriority(a.metadata?.source) - getSourcePriority(b.metadata?.source);
     });
 
     // Build first-character index for O(1) candidate lookup instead of scanning all units.
