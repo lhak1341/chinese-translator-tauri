@@ -4,9 +4,10 @@ import {
   Trash2,
   AlertCircle,
   Loader,
-  // MoveIcon,
   ChevronsUp,
   ChevronsDown,
+  X,
+  AlertTriangle,
 } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
@@ -27,8 +28,6 @@ import type { SemanticType } from '../../constants/SemanticTypes';
 interface BulkMoveDialogProps {
   selectedDictionary: string;
   selectedEntries: Set<string>;
-  isMoving: boolean;
-  onSetMoving: (moving: boolean) => void;
   onClose: () => void;
   onMoveSuccess: () => void;
 }
@@ -40,33 +39,41 @@ interface BulkMoveDialogProps {
 const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
   selectedDictionary,
   selectedEntries,
-  isMoving,
-  onSetMoving,
   onClose,
   onMoveSuccess,
 }) => {
-  const { loadDictionary, dictionaries } = useDictionary();
+  const { bulkMoveEntries, dictionaries } = useDictionary();
   const [selectedTargetDict, setSelectedTargetDict] = useState<string>('');
+  const [isMoving, setIsMoving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
+  const [overwriteWarning, setOverwriteWarning] = useState<string | null>(null);
+  const [availableDictionaries, setAvailableDictionaries] = useState<
+    Array<{ id: string; label: string }>
+  >([]);
 
-  // Load fresh dictionary list on mount to pick up renamed dictionaries
+  // Load fresh dictionary list with full labels on mount
   useEffect(() => {
     const loadDictionaries = async (): Promise<void> => {
       try {
         const types = await getDictionaryTypes();
         const dictionaryList = Object.keys(types)
           .filter((id) => id !== selectedDictionary)
+          .map((id) => {
+            const type = types[id as keyof typeof types];
+            let label = type.label || id;
+            if (id === 'properNouns') label = 'Proper Nouns (Base)';
+            else if (id.startsWith('properNouns-'))
+              label = `Proper Nouns - ${id.replace('properNouns-', '')}`;
+            return { id, label };
+          })
           .sort((a, b) => {
-            // Always put 'properNouns' first
-            if (a === 'properNouns') return -1;
-            if (b === 'properNouns') return 1;
-            // Sort custom dictionaries alphabetically
-            return a.localeCompare(b);
+            if (a.id === 'properNouns') return -1;
+            if (b.id === 'properNouns') return 1;
+            return a.id.localeCompare(b.id);
           });
         setAvailableDictionaries(dictionaryList);
-      } catch (error) {
-        logger.error('Failed to load dictionaries:', error);
+      } catch (err) {
+        logger.error('Failed to load dictionaries:', err);
         setError('Failed to load available dictionaries');
       }
     };
@@ -74,86 +81,55 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
     loadDictionaries();
   }, [selectedDictionary]);
 
+  // Check for entries that would be overwritten in the selected target
+  useEffect(() => {
+    if (!selectedTargetDict || !dictionaries?.[selectedTargetDict]) {
+      setOverwriteWarning(null);
+      return;
+    }
+    const targetDict = dictionaries[selectedTargetDict];
+    const sources = Array.from(selectedEntries);
+    const willOverwrite = sources.filter((s) => targetDict[s] !== undefined);
+    if (willOverwrite.length > 0) {
+      setOverwriteWarning(
+        `${willOverwrite.length} ${willOverwrite.length === 1 ? 'entry' : 'entries'} already exist in target and will be overwritten.`
+      );
+    } else {
+      setOverwriteWarning(null);
+    }
+  }, [selectedTargetDict, dictionaries, selectedEntries]);
+
+  const getTargetLabel = (): string =>
+    availableDictionaries.find((d) => d.id === selectedTargetDict)?.label ?? selectedTargetDict;
+
+  const getSourceDictLabel = (): string => {
+    if (selectedDictionary === 'properNouns') return 'Proper Nouns (Base)';
+    if (selectedDictionary.startsWith('properNouns-'))
+      return `Proper Nouns - ${selectedDictionary.replace('properNouns-', '')}`;
+    return selectedDictionary.charAt(0).toUpperCase() + selectedDictionary.slice(1);
+  };
+
   const handleBulkMoveExecute = async (): Promise<void> => {
     if (!selectedTargetDict) {
       setError('Please select a target dictionary');
       return;
     }
 
-    onSetMoving(true);
+    setIsMoving(true);
     setError(null);
 
     try {
-      const entriesToMove = Array.from(selectedEntries);
-
-      // Memory-optimized: use dictionaries already loaded in context
-      // instead of loading full dictionaries from backend
-      const sourceDict = dictionaries[selectedDictionary];
-      const targetDict = dictionaries[selectedTargetDict];
-
-      if (!sourceDict) {
-        throw new Error('Source dictionary not loaded');
-      }
-      if (!targetDict) {
-        throw new Error('Target dictionary not loaded');
-      }
-
-      // Build minimal update objects with only the entries being moved
-      // CODE REVIEW FIX 2026-02-08 (LOW): Use proper type instead of unknown
-      const entriesToAdd: Record<string, DictionaryEntryValue> = {};
-      const entriesToRemove: string[] = [];
-
-      for (const source of entriesToMove) {
-        const value = sourceDict[source];
-        if (value !== undefined) {
-          entriesToAdd[source] = value;
-          entriesToRemove.push(source);
-        }
-      }
-
-      // Apply changes to target dictionary (add entries)
-      const updatedTargetDict = { ...targetDict, ...entriesToAdd };
-
-      // Apply changes to source dictionary (remove entries)
-      const updatedSourceDict = { ...sourceDict };
-      for (const source of entriesToRemove) {
-        delete updatedSourceDict[source];
-      }
-
-      // Save both dictionaries with optimized payload
-      const [saveTargetResult, saveSourceResult] = await Promise.all([
-        window.electronAPI.saveDictionary(selectedTargetDict, updatedTargetDict),
-        window.electronAPI.saveDictionary(selectedDictionary, updatedSourceDict),
-      ]);
-
-      if (!saveTargetResult.success) {
-        throw new Error(`Failed to save target dictionary: ${saveTargetResult.error}`);
-      }
-      if (!saveSourceResult.success) {
-        throw new Error(`Failed to save source dictionary: ${saveSourceResult.error}`);
-      }
-
-      // Reload dictionaries to update UI state
-      await loadDictionary(selectedDictionary);
-      await loadDictionary(selectedTargetDict);
-
+      await bulkMoveEntries(
+        selectedDictionary,
+        selectedTargetDict,
+        Array.from(selectedEntries),
+        getTargetLabel()
+      );
       onMoveSuccess();
-    } catch (error) {
-      setError(`Failed to move entries: ${(error as Error).message}`);
-      logger.error('Bulk move error:', error);
-    } finally {
-      onSetMoving(false);
-    }
-  };
-
-  // Get dictionary label for display
-  const getSourceDictLabel = (): string => {
-    if (selectedDictionary === 'properNouns') {
-      return 'Proper Nouns (Base)';
-    } else if (selectedDictionary.startsWith('properNouns-')) {
-      return `Proper Nouns - ${selectedDictionary.replace('properNouns-', '')}`;
-    } else {
-      return selectedDictionary.charAt(0).toUpperCase() + selectedDictionary.slice(1);
+    } catch (err) {
+      setError(`Failed to move entries: ${(err as Error).message}`);
+      logger.error('Bulk move error:', err);
+      setIsMoving(false);
     }
   };
 
@@ -163,12 +139,20 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
   const currentDict = dictionaries[selectedDictionary];
 
   return (
-    <div className={styles.bulkMoveOverlay} onClick={onClose}>
+    <div className={styles.bulkMoveOverlay} onClick={isMoving ? undefined : onClose}>
       <div className={styles.bulkMoveModal} onClick={(e) => e.stopPropagation()}>
         <div className={styles.bulkMoveHeader}>
           <h2 className={styles.bulkMoveTitle}>
             Move {selectedEntries.size} {selectedEntries.size === 1 ? 'Entry' : 'Entries'}
           </h2>
+          <button
+            onClick={onClose}
+            disabled={isMoving}
+            className={styles.bulkMoveCloseButton}
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <div className={styles.bulkMoveContent}>
@@ -205,25 +189,35 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
           {/* Destination Dictionary */}
           <div className={styles.bulkMoveFormGroup}>
             <label className={styles.bulkMoveLabel}>To:</label>
-            <select
-              value={selectedTargetDict}
-              onChange={(e) => setSelectedTargetDict(e.target.value)}
-              disabled={isMoving}
-              className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
-              autoFocus
-            >
-              <option value="">Choose destination dictionary...</option>
-              {availableDictionaries.map((id) => (
-                <option key={id} value={id}>
-                  {id === 'properNouns'
-                    ? 'Proper Nouns (Base)'
-                    : id.startsWith('properNouns-')
-                      ? `Proper Nouns - ${id.replace('properNouns-', '')}`
-                      : id.charAt(0).toUpperCase() + id.slice(1)}
-                </option>
-              ))}
-            </select>
+            {availableDictionaries.length === 0 ? (
+              <div className={styles.bulkMoveEmptyState}>
+                No other dictionaries available. Create another dictionary first.
+              </div>
+            ) : (
+              <select
+                value={selectedTargetDict}
+                onChange={(e) => setSelectedTargetDict(e.target.value)}
+                disabled={isMoving}
+                className={`${styles.bulkMoveSelect} ${error ? styles.bulkMoveSelectWithError : ''}`}
+                autoFocus
+              >
+                <option value="">Choose destination dictionary...</option>
+                {availableDictionaries.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
+
+          {/* Overwrite warning */}
+          {overwriteWarning && (
+            <div className={styles.bulkMoveWarning}>
+              <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+              <span>{overwriteWarning}</span>
+            </div>
+          )}
 
           {error && <div className={styles.bulkMoveError}>{error}</div>}
         </div>
@@ -235,7 +229,7 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
           <button
             onClick={handleBulkMoveExecute}
             className="primary"
-            disabled={isMoving || !selectedTargetDict}
+            disabled={isMoving || !selectedTargetDict || availableDictionaries.length === 0}
           >
             {isMoving ? (
               <>
@@ -574,7 +568,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     entry: null,
   });
   const [showBulkMoveDialog, setShowBulkMoveDialog] = useState<boolean>(false);
-  const [isMoving, setIsMoving] = useState<boolean>(false);
   const [containerHeight, setContainerHeight] = useState<number>(600);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [preservedScrollTop, setPreservedScrollTop] = useState<number | null>(null);
@@ -1148,14 +1141,13 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         showBulkDeleteConfirm,
         setShowBulkDeleteConfirm,
         onBulkMove: handleBulkMove,
-        isMoving,
+        isMoving: false,
       });
     }
   }, [
     selectedEntries,
     isDeleting,
     showBulkDeleteConfirm,
-    isMoving,
     onSelectionChange,
     handleBulkDelete,
     handleBulkMove,
@@ -1221,6 +1213,45 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     }
     return undefined;
   }, [contextMenu.visible, closeContextMenu]);
+
+  // Context menu keyboard navigation ref
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Auto-focus first menu item when context menu opens
+  useEffect(() => {
+    if (contextMenu.visible && contextMenuRef.current) {
+      const firstButton =
+        contextMenuRef.current.querySelector<HTMLButtonElement>('[role="menuitem"]');
+      firstButton?.focus();
+    }
+  }, [contextMenu.visible]);
+
+  // Handle keyboard navigation inside context menu
+  const handleContextMenuKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>): void => {
+      if (!contextMenuRef.current) return;
+      const items = Array.from(
+        contextMenuRef.current.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
+      );
+      const focused = document.activeElement as HTMLButtonElement;
+      const currentIndex = items.indexOf(focused);
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        items[(currentIndex + 1) % items.length]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items[(currentIndex - 1 + items.length) % items.length]?.focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeContextMenu();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        closeContextMenu();
+      }
+    },
+    [closeContextMenu]
+  );
 
   // Optimized row component with React.memo
   const VirtualRow = useMemo(() => {
@@ -2400,6 +2431,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       {/* Context menu */}
       {contextMenu.visible && contextMenu.entry && (
         <div
+          ref={contextMenuRef}
+          role="menu"
+          aria-label="Entry actions"
           style={{
             position: 'fixed',
             top: contextMenu.y,
@@ -2413,8 +2447,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             overflow: 'hidden',
           }}
           onClick={(e) => e.stopPropagation()}
+          onKeyDown={handleContextMenuKeyDown}
         >
           <button
+            role="menuitem"
             onClick={handleContextMenuEdit}
             style={{
               width: '100%',
@@ -2437,6 +2473,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           </button>
 
           <button
+            role="menuitem"
             onClick={handleContextMenuMove}
             style={{
               width: '100%',
@@ -2467,6 +2504,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           />
 
           <button
+            role="menuitem"
             onClick={handleContextMenuDelete}
             style={{
               width: '100%',
@@ -2495,8 +2533,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         <BulkMoveDialog
           selectedDictionary={selectedDictionary}
           selectedEntries={selectedEntries}
-          isMoving={isMoving}
-          onSetMoving={setIsMoving}
           onClose={() => setShowBulkMoveDialog(false)}
           onMoveSuccess={() => {
             setSelectedEntries(new Set());

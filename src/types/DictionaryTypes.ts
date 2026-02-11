@@ -36,7 +36,13 @@ export interface DictionaryData {
 /**
  * History operation type for undo/redo
  */
-export type HistoryOperationType = 'add' | 'update' | 'delete' | 'bulk_delete';
+export type HistoryOperationType =
+  | 'add'
+  | 'update'
+  | 'delete'
+  | 'bulk_delete'
+  | 'move'
+  | 'bulk_move';
 
 /**
  * Delta-based history operation for undo/redo
@@ -50,9 +56,11 @@ export interface HistoryOperation {
   entry?: { source: string; value: DictionaryEntryValue };
   /** For update/delete: original entry data for rollback */
   oldEntry?: { source: string; value: DictionaryEntryValue };
-  /** For bulk_delete: all deleted entries for rollback */
+  /** For bulk_delete/bulk_move: all affected entries */
   oldEntries?: Array<{ source: string; value: DictionaryEntryValue }>;
   /** For update: old source key if it changed */
   oldSource?: string;
+  /** For move/bulk_move: the destination dictionary */
+  targetDictionaryId?: string;
   timestamp: number;
 }

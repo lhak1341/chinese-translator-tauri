@@ -89,6 +89,9 @@
 .bulkMoveHeader {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .bulkMoveTitle {
@@ -96,6 +99,32 @@
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-color);
+}
+
+.bulkMoveCloseButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.bulkMoveCloseButton:hover:not(:disabled) {
+  background-color: var(--surface-elevated, var(--surface-color));
+  color: var(--text-color);
+}
+
+.bulkMoveCloseButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .bulkMoveContent {
@@ -107,7 +136,7 @@
 
 /* Entry Preview Section */
 .bulkMovePreview {
-  background-color: var(--secondary-background-color, #f5f5f5);
+  background-color: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1rem;
@@ -118,7 +147,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--secondary-text-color, #666);
+  color: var(--text-secondary, #666);
   margin-bottom: 0.5rem;
   letter-spacing: 0.5px;
 }
@@ -144,7 +173,7 @@
 }
 
 .bulkMovePreviewArrow {
-  color: var(--secondary-text-color, #666);
+  color: var(--text-secondary, #666);
 }
 
 .bulkMovePreviewTranslation {
@@ -154,7 +183,7 @@
 
 .bulkMovePreviewMore {
   font-size: 0.75rem;
-  color: var(--secondary-text-color, #666);
+  color: var(--text-secondary, #666);
   font-style: italic;
   margin-top: 0.25rem;
 }
@@ -175,7 +204,7 @@
 .bulkMoveReadOnlyField {
   padding: 0.625rem 0.75rem;
   border-radius: 6px;
-  background-color: var(--secondary-background-color, #f5f5f5);
+  background-color: var(--surface-color);
   border: 1px solid var(--border-color);
   color: var(--text-color);
   font-size: 0.9rem;
@@ -206,19 +235,41 @@
 .bulkMoveSelect:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: var(--secondary-background-color, #f5f5f5);
+  background-color: var(--surface-color);
 }
 
 .bulkMoveSelectWithError {
   border-color: var(--danger-button-text, #dc2626);
 }
 
+.bulkMoveEmptyState {
+  padding: 0.75rem;
+  border-radius: 6px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary, #666);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+.bulkMoveWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background-color: var(--warning-subtle);
+  border: 1px solid var(--warning-color);
+  color: var(--warning-color);
+  font-size: 0.875rem;
+}
+
 .bulkMoveError {
-  color: var(--danger-button-text, #dc2626);
+  color: var(--error-color, var(--danger-button-text));
   font-size: 0.875rem;
   padding: 0.75rem;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  background-color: var(--error-subtle);
+  border: 1px solid var(--error-color, var(--danger-button-text));
   border-radius: 6px;
   margin-top: 0.5rem;
 }
@@ -229,7 +280,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  background-color: var(--secondary-background-color, #f9fafb);
+  background-color: var(--surface-color);
 }
 
 .bulkMoveActions button {
@@ -252,8 +303,8 @@
 }
 
 .bulkMoveActions button:first-child:hover:not(:disabled) {
-  background-color: var(--secondary-background-color, #f5f5f5);
-  border-color: var(--secondary-text-color, #999);
+  background-color: var(--surface-color);
+  border-color: var(--text-muted, #999);
 }
 
 .bulkMoveActions button.primary {

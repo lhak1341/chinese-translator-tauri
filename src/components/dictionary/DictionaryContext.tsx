@@ -56,6 +56,20 @@ interface DictionaryContextValue {
     dictionaryId: string,
     sources: string[]
   ) => Promise<{ successCount: number; errors: string[] }>;
+  /** Move a single entry between dictionaries atomically with rollback and undo support */
+  moveEntry: (
+    sourceDictId: string,
+    targetDictId: string,
+    source: string,
+    targetDictLabel: string
+  ) => Promise<void>;
+  /** Move multiple entries between dictionaries atomically with rollback and undo support */
+  bulkMoveEntries: (
+    sourceDictId: string,
+    targetDictId: string,
+    sources: string[],
+    targetDictLabel: string
+  ) => Promise<{ movedCount: number; errors: string[] }>;
   /** Undo last operation */
   undo: () => Promise<boolean>;
   /** Redo previously undone operation */
@@ -578,11 +592,200 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [dictionaries, addToHistory]
   );
 
+  // Move a single entry between dictionaries atomically
+  const moveEntry = useCallback(
+    async (
+      sourceDictId: string,
+      targetDictId: string,
+      source: string,
+      targetDictLabel: string
+    ): Promise<void> => {
+      const currentSourceDict = dictionaries[sourceDictId];
+      const currentTargetDict = dictionaries[targetDictId];
+
+      if (!currentSourceDict) throw new Error(`Source dictionary '${sourceDictId}' does not exist`);
+      if (!currentTargetDict) throw new Error(`Target dictionary '${targetDictId}' does not exist`);
+
+      const entryValue = currentSourceDict[source];
+      if (entryValue === undefined)
+        throw new Error(`Entry '${source}' not found in source dictionary`);
+
+      const updatedSourceDict = { ...currentSourceDict };
+      delete updatedSourceDict[source];
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, source);
+      const updatedTargetDict = { ...currentTargetDict, [source]: entryValue };
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, source);
+
+      // Optimistic update
+      setDictionaries((prev) => ({
+        ...prev,
+        [sourceDictId]: sortedSourceDict,
+        [targetDictId]: sortedTargetDict,
+      }));
+
+      const [sourceResult, targetResult] = await Promise.all([
+        window.electronAPI.saveDictionary(sourceDictId, sortedSourceDict),
+        window.electronAPI.saveDictionary(targetDictId, sortedTargetDict),
+      ]);
+
+      if (sourceResult.success && targetResult.success) {
+        addToHistory({
+          dictionaryId: sourceDictId,
+          targetDictionaryId: targetDictId,
+          operation: 'move',
+          oldEntry: { source, value: entryValue },
+        });
+        toast.success(`Entry moved to ${targetDictLabel}`);
+      } else {
+        // Rollback React state
+        setDictionaries((prev) => ({
+          ...prev,
+          [sourceDictId]: currentSourceDict,
+          [targetDictId]: currentTargetDict,
+        }));
+        // Revert whichever save succeeded
+        if (sourceResult.success && !targetResult.success) {
+          await window.electronAPI.saveDictionary(sourceDictId, currentSourceDict).catch(() => {});
+        } else if (!sourceResult.success && targetResult.success) {
+          await window.electronAPI.saveDictionary(targetDictId, currentTargetDict).catch(() => {});
+        }
+        throw new Error('Failed to save dictionaries during move');
+      }
+    },
+    [dictionaries, addToHistory]
+  );
+
+  // Move multiple entries between dictionaries atomically
+  const bulkMoveEntries = useCallback(
+    async (
+      sourceDictId: string,
+      targetDictId: string,
+      sources: string[],
+      targetDictLabel: string
+    ): Promise<{ movedCount: number; errors: string[] }> => {
+      if (sources.length === 0) return { movedCount: 0, errors: [] };
+
+      const currentSourceDict = dictionaries[sourceDictId];
+      const currentTargetDict = dictionaries[targetDictId];
+
+      if (!currentSourceDict) throw new Error(`Source dictionary '${sourceDictId}' does not exist`);
+      if (!currentTargetDict) throw new Error(`Target dictionary '${targetDictId}' does not exist`);
+
+      const movedEntries: Array<{ source: string; value: DictionaryEntryValue }> = [];
+      const errors: string[] = [];
+      const updatedSourceDict = { ...currentSourceDict };
+      const updatedTargetDict = { ...currentTargetDict };
+
+      for (const source of sources) {
+        const value = updatedSourceDict[source];
+        if (value !== undefined) {
+          movedEntries.push({ source, value });
+          updatedTargetDict[source] = value;
+          delete updatedSourceDict[source];
+        } else {
+          errors.push(`Entry "${source}" not found`);
+        }
+      }
+
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sources[0]);
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sources[0]);
+
+      // Optimistic update
+      setDictionaries((prev) => ({
+        ...prev,
+        [sourceDictId]: sortedSourceDict,
+        [targetDictId]: sortedTargetDict,
+      }));
+
+      const [sourceResult, targetResult] = await Promise.all([
+        window.electronAPI.saveDictionary(sourceDictId, sortedSourceDict),
+        window.electronAPI.saveDictionary(targetDictId, sortedTargetDict),
+      ]);
+
+      if (sourceResult.success && targetResult.success) {
+        if (movedEntries.length > 0) {
+          addToHistory({
+            dictionaryId: sourceDictId,
+            targetDictionaryId: targetDictId,
+            operation: 'bulk_move',
+            oldEntries: movedEntries,
+          });
+        }
+        const count = movedEntries.length;
+        toast.success(`Moved ${count} ${count === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`);
+      } else {
+        // Rollback React state
+        setDictionaries((prev) => ({
+          ...prev,
+          [sourceDictId]: currentSourceDict,
+          [targetDictId]: currentTargetDict,
+        }));
+        if (sourceResult.success && !targetResult.success) {
+          await window.electronAPI.saveDictionary(sourceDictId, currentSourceDict).catch(() => {});
+        } else if (!sourceResult.success && targetResult.success) {
+          await window.electronAPI.saveDictionary(targetDictId, currentTargetDict).catch(() => {});
+        }
+        throw new Error('Failed to save dictionaries during bulk move');
+      }
+
+      return { movedCount: movedEntries.length, errors };
+    },
+    [dictionaries, addToHistory]
+  );
+
   // Undo function - applies delta-based operations in reverse
   // CODE REVIEW FIX 2026-02-08 (CRITICAL): Use functional updates to prevent race conditions
   const undo = useCallback(async (): Promise<boolean> => {
     if (currentHistoryIndex >= 0) {
       const operation = history[currentHistoryIndex];
+
+      // Handle cross-dictionary move operations
+      if (
+        (operation.operation === 'move' || operation.operation === 'bulk_move') &&
+        operation.targetDictionaryId
+      ) {
+        const currentDicts = { ...dictionaries };
+        const sourceDict = currentDicts[operation.dictionaryId];
+        const targetDict = currentDicts[operation.targetDictionaryId];
+        if (!sourceDict || !targetDict) {
+          logger.error(`Cannot undo move: dictionaries not found`);
+          return false;
+        }
+
+        const newTargetDict = { ...targetDict };
+        const newSourceDict = { ...sourceDict };
+
+        const entries =
+          operation.operation === 'move'
+            ? operation.oldEntry
+              ? [operation.oldEntry]
+              : []
+            : (operation.oldEntries ?? []);
+
+        for (const e of entries) {
+          delete newTargetDict[e.source];
+          newSourceDict[e.source] = e.value;
+        }
+
+        const sortedSource = sortDictionaryEntries(newSourceDict, operation.dictionaryId);
+        const sortedTarget = sortDictionaryEntries(newTargetDict, operation.targetDictionaryId);
+
+        const [sourceResult, targetResult] = await Promise.all([
+          window.electronAPI.saveDictionary(operation.dictionaryId, sortedSource),
+          window.electronAPI.saveDictionary(operation.targetDictionaryId, sortedTarget),
+        ]);
+
+        if (sourceResult.success && targetResult.success) {
+          setDictionaries((prev) => ({
+            ...prev,
+            [operation.dictionaryId]: sortedSource,
+            [operation.targetDictionaryId!]: sortedTarget,
+          }));
+          setCurrentHistoryIndex((prev) => prev - 1);
+          return true;
+        }
+        return false;
+      }
 
       // Use functional update to get current dictionary state
       let updatedDict: Record<string, string | DictionaryEntryValue> | null = null;
@@ -653,13 +856,60 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
     }
     return false;
-  }, [history, currentHistoryIndex]);
+  }, [history, currentHistoryIndex, dictionaries]);
 
   // Redo function - re-applies delta-based operations
   // CODE REVIEW FIX 2026-02-08 (CRITICAL): Use functional updates to prevent race conditions
   const redo = useCallback(async (): Promise<boolean> => {
     if (currentHistoryIndex < history.length - 1) {
       const operation = history[currentHistoryIndex + 1];
+
+      // Handle cross-dictionary move operations
+      if (
+        (operation.operation === 'move' || operation.operation === 'bulk_move') &&
+        operation.targetDictionaryId
+      ) {
+        const sourceDict = dictionaries[operation.dictionaryId];
+        const targetDict = dictionaries[operation.targetDictionaryId];
+        if (!sourceDict || !targetDict) {
+          logger.error(`Cannot redo move: dictionaries not found`);
+          return false;
+        }
+
+        const newSourceDict = { ...sourceDict };
+        const newTargetDict = { ...targetDict };
+
+        const entries =
+          operation.operation === 'move'
+            ? operation.oldEntry
+              ? [operation.oldEntry]
+              : []
+            : (operation.oldEntries ?? []);
+
+        for (const e of entries) {
+          delete newSourceDict[e.source];
+          newTargetDict[e.source] = e.value;
+        }
+
+        const sortedSource = sortDictionaryEntries(newSourceDict, operation.dictionaryId);
+        const sortedTarget = sortDictionaryEntries(newTargetDict, operation.targetDictionaryId);
+
+        const [sourceResult, targetResult] = await Promise.all([
+          window.electronAPI.saveDictionary(operation.dictionaryId, sortedSource),
+          window.electronAPI.saveDictionary(operation.targetDictionaryId, sortedTarget),
+        ]);
+
+        if (sourceResult.success && targetResult.success) {
+          setDictionaries((prev) => ({
+            ...prev,
+            [operation.dictionaryId]: sortedSource,
+            [operation.targetDictionaryId!]: sortedTarget,
+          }));
+          setCurrentHistoryIndex((prev) => prev + 1);
+          return true;
+        }
+        return false;
+      }
 
       // Use functional update to get current dictionary state
       let updatedDict: Record<string, string | DictionaryEntryValue> | null = null;
@@ -730,7 +980,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
     }
     return false;
-  }, [history, currentHistoryIndex]);
+  }, [history, currentHistoryIndex, dictionaries]);
 
   // Get sorting performance statistics (Phase 6)
   const getSortingStats = useCallback((): SortingStats => {
@@ -752,6 +1002,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       updateEntry,
       deleteEntry,
       bulkDeleteEntries,
+      moveEntry,
+      bulkMoveEntries,
       undo,
       redo,
       canUndo: currentHistoryIndex >= 0,
@@ -769,6 +1021,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       updateEntry,
       deleteEntry,
       bulkDeleteEntries,
+      moveEntry,
+      bulkMoveEntries,
       undo,
       redo,
       currentHistoryIndex,

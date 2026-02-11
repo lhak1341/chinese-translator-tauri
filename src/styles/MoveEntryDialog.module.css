@@ -55,6 +55,9 @@
 .header {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .title {
@@ -62,6 +65,32 @@
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--text-color);
+}
+
+.closeButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.closeButton:hover:not(:disabled) {
+  background-color: var(--surface-elevated, var(--surface-color));
+  color: var(--text-color);
+}
+
+.closeButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Content */
@@ -150,6 +179,17 @@
   border: 1px solid var(--border-color);
   color: var(--text-color);
   font-size: 0.9rem;
+}
+
+/* Empty state when no target dictionaries */
+.emptyState {
+  padding: 0.75rem;
+  border-radius: 6px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary, #666);
+  font-size: 0.875rem;
+  font-style: italic;
 }
 
 /* Select Dropdown */
