@@ -594,23 +594,47 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const lastScrollTop = useRef<number>(0);
   const lastScrollTime = useRef<number>(Date.now());
 
-  // Reset states when dictionary changes
+  // Reset transient states when dictionary changes; search/filter state is global and
+  // only reset when switching to a dictionary type where a filter doesn't apply:
+  //   filterSemanticTypes  → phrases + proper nouns
+  //   filterVariable       → phrases only
+  //   filterPatternType / filterAllowAsVariable / filterLowPriority → patterns only
   useEffect(() => {
-    setSearchTerm('');
-    setDebouncedSearchTerm('');
+    const newIsPatterns = selectedDictionary === 'patterns';
+    const newIsPhrases = selectedDictionary === 'phrases';
+    const newIsProperNouns = selectedDictionary.startsWith('properNouns');
+
+    if (!newIsPatterns) {
+      setFilterPatternType(new Set());
+      setFilterAllowAsVariable(false);
+      setFilterLowPriority(false);
+    }
+    if (!newIsPhrases) {
+      setFilterVariable('all');
+    }
+    if (!newIsPhrases && !newIsProperNouns) {
+      setFilterSemanticTypes(new Set());
+    }
+    // Close filter panel when switching to a dictionary with no filter options
+    if (!newIsPatterns && !newIsPhrases && !newIsProperNouns) {
+      setShowFilterPanel(false);
+    }
+
+    // Always reset transient UI state
     setEditingEntry(null);
     setMoveEntry(null);
     setSelectedEntries(new Set());
     setShowBulkDeleteConfirm(false);
+    setShowBulkMoveDialog(false);
+    setContextMenu({ visible: false, x: 0, y: 0, entry: null });
+    setIsDeleting(false);
+    setIsUpdating(false);
     setScrollTop(0);
+    setPreservedScrollTop(null);
+    setIsScrolling(false);
+    setScrollVelocity(0);
     lastScrollTop.current = 0;
-    setShowFilterPanel(false);
-    setFilterVariable('all');
-    setFilterSemanticTypes(new Set());
-    setFilterPatternType(new Set());
-    setFilterAllowAsVariable(false);
-    setFilterLowPriority(false);
-  }, [selectedDictionary]);
+  }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selections when switching between duplicate and normal modes
   // BUGFIX: Prevents composite keys from persisting when exiting duplicate mode
@@ -1731,12 +1755,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 )}
               </div>
 
-              {/* Semantic type - 12% */}
-              <SemanticTypeToggleCell
-                activeType={semanticType}
-                onSelect={handleSetSemanticType}
-                width="12%"
-              />
+              {/* Semantic type - 12% (only shown when entry is allowed as pattern variable) */}
+              {allowAsPatternVariable ? (
+                <SemanticTypeToggleCell
+                  activeType={semanticType}
+                  onSelect={handleSetSemanticType}
+                  width="12%"
+                />
+              ) : (
+                <div style={{ width: '12%', minWidth: '12%' }} />
+              )}
             </div>
           );
         }

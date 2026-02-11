@@ -581,7 +581,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       <div className={styles.tableContainer}>
         {useEnhancedVirtualization
           ? React.createElement(EnhancedVirtualizedDictionaryTable as any, {
-              key: showDuplicatesMode ? `duplicates-${duplicateRows.length}` : selectedDictionary,
+              key: showDuplicatesMode ? `duplicates-${duplicateRows.length}` : 'dictionary-table',
               selectedDictionary,
               searchRef,
               onSelectionChange: setSelectionState,
