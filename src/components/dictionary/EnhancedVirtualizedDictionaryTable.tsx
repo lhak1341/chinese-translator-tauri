@@ -8,6 +8,7 @@ import {
   ChevronsDown,
   X,
   AlertTriangle,
+  Filter,
 } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
@@ -19,7 +20,7 @@ import { logger } from '../../utils/logger';
 import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
 import { toast } from '../ToastContext';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
-import { SEMANTIC_TYPE_COLORS } from '../../constants/SemanticTypes';
+import { SEMANTIC_TYPE_COLORS, SEMANTIC_TYPES } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
 /**
@@ -577,6 +578,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [bufferSize, setBufferSize] = useState<number>(10); // Start with default, will be optimized
   const [scrollVelocity, setScrollVelocity] = useState<number>(0);
 
+  // Filter panel state
+  const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
+  const [filterVariable, setFilterVariable] = useState<'all' | 'allowed' | 'not-allowed'>('all');
+  const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<string>>(new Set());
+  // Pattern-specific filters
+  const [filterPatternType, setFilterPatternType] = useState<Set<string>>(new Set()); // 'x-only' | 'x-y'
+  const [filterAllowAsVariable, setFilterAllowAsVariable] = useState<boolean>(false);
+  const [filterLowPriority, setFilterLowPriority] = useState<boolean>(false);
+
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -594,6 +604,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     setShowBulkDeleteConfirm(false);
     setScrollTop(0);
     lastScrollTop.current = 0;
+    setShowFilterPanel(false);
+    setFilterVariable('all');
+    setFilterSemanticTypes(new Set());
+    setFilterPatternType(new Set());
+    setFilterAllowAsVariable(false);
+    setFilterLowPriority(false);
   }, [selectedDictionary]);
 
   // Clear selections when switching between duplicate and normal modes
@@ -673,20 +689,74 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     const dictionary = dictionaries[selectedDictionary];
     if (!dictionary) return [];
 
-    const entries = Object.entries(dictionary) as [string, DictionaryEntryValue][];
+    let entries = Object.entries(dictionary) as [string, DictionaryEntryValue][];
 
-    if (!debouncedSearchTerm) return entries;
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      entries = entries.filter(([source, translation]) => {
+        const translationText =
+          typeof translation === 'string' ? translation : translation.translation;
+        return (
+          source.toLowerCase().includes(searchLower) ||
+          translationText.toLowerCase().includes(searchLower)
+        );
+      });
+    }
 
-    const searchLower = debouncedSearchTerm.toLowerCase();
-    return entries.filter(([source, translation]) => {
-      const translationText =
-        typeof translation === 'string' ? translation : translation.translation;
-      return (
-        source.toLowerCase().includes(searchLower) ||
-        translationText.toLowerCase().includes(searchLower)
+    if (filterVariable !== 'all') {
+      entries = entries.filter(([, translation]) => {
+        const allowed =
+          typeof translation === 'object' && translation.allowAsPatternVariable === true;
+        return filterVariable === 'allowed' ? allowed : !allowed;
+      });
+    }
+
+    if (filterPatternType.size > 0) {
+      entries = entries.filter(([source]) => {
+        const hasX = source.includes('X');
+        const hasY = source.includes('Y');
+        const matchXOnly = filterPatternType.has('x-only') && hasX && !hasY;
+        const matchXY = filterPatternType.has('x-y') && hasX && hasY;
+        return matchXOnly || matchXY;
+      });
+    }
+
+    if (filterAllowAsVariable) {
+      entries = entries.filter(
+        ([, translation]) =>
+          typeof translation === 'object' && translation.allowAsPatternVariable === true
       );
-    });
-  }, [dictionaries, selectedDictionary, debouncedSearchTerm, showDuplicatesMode]);
+    }
+
+    if (filterLowPriority) {
+      entries = entries.filter(
+        ([, translation]) => typeof translation === 'object' && translation.lowPriority === true
+      );
+    }
+
+    if (filterSemanticTypes.size > 0) {
+      entries = entries.filter(([, translation]) => {
+        const semType = (typeof translation === 'object' && translation.semanticType) || '';
+        if (filterSemanticTypes.has('none')) {
+          const specificTypes = new Set([...filterSemanticTypes].filter((t) => t !== 'none'));
+          return semType === '' || specificTypes.has(semType);
+        }
+        return filterSemanticTypes.has(semType);
+      });
+    }
+
+    return entries;
+  }, [
+    dictionaries,
+    selectedDictionary,
+    debouncedSearchTerm,
+    showDuplicatesMode,
+    filterVariable,
+    filterSemanticTypes,
+    filterPatternType,
+    filterAllowAsVariable,
+    filterLowPriority,
+  ]);
 
   // Filtered duplicate rows for duplicate mode
   const filteredDuplicateRows = useMemo(() => {
@@ -1462,7 +1532,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   ? 'rgba(16, 185, 129, 0.18)'
                   : actualIndex % 2 === 0
                     ? 'var(--background-color)'
-                    : 'var(--secondary-bg)',
+                    : 'color-mix(in srgb, var(--text-color) 4%, transparent)',
                 willChange: isScrolling ? 'transform' : 'auto',
               }}
             >
@@ -1572,7 +1642,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   ? 'rgba(16, 185, 129, 0.18)'
                   : actualIndex % 2 === 0
                     ? 'var(--background-color)'
-                    : 'var(--secondary-bg)',
+                    : 'color-mix(in srgb, var(--text-color) 4%, transparent)',
                 willChange: isScrolling ? 'transform' : 'auto',
               }}
             >
@@ -1688,7 +1758,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 ? 'rgba(16, 185, 129, 0.18)'
                 : actualIndex % 2 === 0
                   ? 'var(--background-color)'
-                  : 'var(--secondary-bg)',
+                  : 'color-mix(in srgb, var(--text-color) 4%, transparent)',
               willChange: isScrolling ? 'transform' : 'auto',
             }}
           >
@@ -1820,6 +1890,28 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     handleSelectEntry,
     handleContextMenu,
   ]);
+
+  // Determine which filter options are relevant for the selected dictionary
+  const isPatternsDictionary = selectedDictionary === 'patterns';
+  const isPhrasesDictionary = selectedDictionary === 'phrases';
+  const isProperNounsDictionary = selectedDictionary.startsWith('properNouns');
+  const showPatternFilter = isPatternsDictionary;
+  const showVariableFilter = isPhrasesDictionary; // phrases only; patterns use showPatternFilter
+  const showSemanticTypeFilter = isPhrasesDictionary || isProperNounsDictionary;
+  const hasFilterOptions = showPatternFilter || showVariableFilter || showSemanticTypeFilter;
+  const hasActiveFilter =
+    filterVariable !== 'all' ||
+    filterSemanticTypes.size > 0 ||
+    filterPatternType.size > 0 ||
+    filterAllowAsVariable ||
+    filterLowPriority;
+
+  const SEMANTIC_TYPE_SHORT_LABELS: Record<string, string> = {
+    [SEMANTIC_TYPES.PERSON]: 'PER',
+    [SEMANTIC_TYPES.PLACE]: 'PLA',
+    [SEMANTIC_TYPES.CONCEPT]: 'CON',
+    [SEMANTIC_TYPES.OBJECT]: 'OBJ',
+  };
 
   // Performance monitoring for large lists
   const performanceMetrics = useMemo(() => {
@@ -2038,8 +2130,224 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           >
             <ChevronsDown size={16} />
           </button>
+          {hasFilterOptions && (
+            <button
+              onClick={() => setShowFilterPanel((v) => !v)}
+              className="icon"
+              title={showFilterPanel ? 'Hide filters' : 'Filter entries'}
+              style={{
+                padding: '0.5rem',
+                backgroundColor: hasActiveFilter
+                  ? 'var(--accent-color)'
+                  : showFilterPanel
+                    ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)'
+                    : undefined,
+                color: hasActiveFilter ? 'white' : undefined,
+                borderRadius: '4px',
+              }}
+            >
+              <Filter size={16} />
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Filter panel */}
+      {showFilterPanel && hasFilterOptions && (
+        <div
+          style={{
+            padding: '0.5rem 1rem',
+            borderBottom: '1px solid var(--border-color)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '0.75rem',
+            alignItems: 'center',
+            backgroundColor: 'color-mix(in srgb, var(--accent-color) 5%, var(--background-color))',
+          }}
+        >
+          {showPatternFilter && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+                  Pattern:
+                </span>
+                {(
+                  [
+                    ['x-only', 'X only'],
+                    ['x-y', 'X–Y'],
+                  ] as const
+                ).map(([key, label]) => {
+                  const isActive = filterPatternType.has(key);
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => {
+                        setFilterPatternType((prev) => {
+                          const next = new Set(prev);
+                          if (isActive) next.delete(key);
+                          else next.add(key);
+                          return next;
+                        });
+                      }}
+                      style={{
+                        padding: '0.2rem 0.5rem',
+                        fontSize: '0.75rem',
+                        borderRadius: '4px',
+                        border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                        cursor: 'pointer',
+                        backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
+                        color: isActive ? 'white' : 'var(--text-color)',
+                        fontWeight: isActive ? 600 : 400,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+                  Flags:
+                </span>
+                {(
+                  [
+                    [
+                      filterAllowAsVariable,
+                      setFilterAllowAsVariable,
+                      'Allow as Variable',
+                      '#059669',
+                    ],
+                    [filterLowPriority, setFilterLowPriority, 'Low Priority', '#dc2626'],
+                  ] as const
+                ).map(([isActive, setter, label, color]) => (
+                  <button
+                    key={label}
+                    onClick={() => setter((v: boolean) => !v)}
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.75rem',
+                      borderRadius: '4px',
+                      border: `1px solid ${isActive ? color : 'var(--border-color)'}`,
+                      cursor: 'pointer',
+                      backgroundColor: isActive ? color : 'transparent',
+                      color: isActive ? 'white' : 'var(--text-color)',
+                      fontWeight: isActive ? 600 : 400,
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {showVariableFilter && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+                Variable:
+              </span>
+              {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => setFilterVariable(opt)}
+                  style={{
+                    padding: '0.2rem 0.5rem',
+                    fontSize: '0.75rem',
+                    borderRadius: '4px',
+                    border: `1px solid ${filterVariable === opt ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                    cursor: 'pointer',
+                    backgroundColor: filterVariable === opt ? 'var(--accent-color)' : 'transparent',
+                    color: filterVariable === opt ? 'white' : 'var(--text-color)',
+                    fontWeight: filterVariable === opt ? 600 : 400,
+                  }}
+                >
+                  {opt === 'all' ? 'All' : opt === 'allowed' ? 'Allowed' : 'Not Allowed'}
+                </button>
+              ))}
+            </div>
+          )}
+          {showSemanticTypeFilter && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+                Type:
+              </span>
+              {(Object.values(SEMANTIC_TYPES) as SemanticType[]).map((type) => {
+                const isActive = filterSemanticTypes.has(type);
+                return (
+                  <button
+                    key={type}
+                    onClick={() => {
+                      setFilterSemanticTypes((prev) => {
+                        const next = new Set(prev);
+                        if (isActive) next.delete(type);
+                        else next.add(type);
+                        return next;
+                      });
+                    }}
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      fontSize: '0.75rem',
+                      borderRadius: '4px',
+                      border: `1px solid ${isActive ? SEMANTIC_TYPE_COLORS[type] : 'var(--border-color)'}`,
+                      cursor: 'pointer',
+                      backgroundColor: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
+                      color: isActive ? 'white' : 'var(--text-color)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {SEMANTIC_TYPE_SHORT_LABELS[type]}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => {
+                  setFilterSemanticTypes((prev) => {
+                    const next = new Set(prev);
+                    if (next.has('none')) next.delete('none');
+                    else next.add('none');
+                    return next;
+                  });
+                }}
+                style={{
+                  padding: '0.2rem 0.5rem',
+                  fontSize: '0.75rem',
+                  borderRadius: '4px',
+                  border: `1px solid ${filterSemanticTypes.has('none') ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                  cursor: 'pointer',
+                  backgroundColor: filterSemanticTypes.has('none')
+                    ? 'var(--accent-color)'
+                    : 'transparent',
+                  color: filterSemanticTypes.has('none') ? 'white' : 'var(--text-color)',
+                }}
+              >
+                No Type
+              </button>
+            </div>
+          )}
+          {hasActiveFilter && (
+            <button
+              onClick={() => {
+                setFilterVariable('all');
+                setFilterSemanticTypes(new Set());
+                setFilterPatternType(new Set());
+                setFilterAllowAsVariable(false);
+                setFilterLowPriority(false);
+              }}
+              style={{
+                padding: '0.2rem 0.5rem',
+                fontSize: '0.75rem',
+                borderRadius: '4px',
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer',
+                backgroundColor: 'transparent',
+                color: 'var(--muted-text)',
+                marginLeft: 'auto',
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Enhanced entry count indicator with performance metrics */}
       <div
@@ -2097,12 +2405,20 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               lineHeight: '1.8',
             }}
           >
-            {searchTerm ? (
+            {searchTerm || hasActiveFilter ? (
               <>
                 <div style={{ marginBottom: '0.75rem', fontSize: '1.1rem' }}>
-                  No entries matching "{searchTerm}"
+                  {searchTerm
+                    ? `No entries matching "${searchTerm}"`
+                    : 'No entries match the active filters'}
                 </div>
-                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>Try a different search term</div>
+                <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
+                  {searchTerm && hasActiveFilter
+                    ? 'Try a different search term or adjust the filters'
+                    : searchTerm
+                      ? 'Try a different search term'
+                      : 'Try adjusting or clearing the filters'}
+                </div>
               </>
             ) : (
               <>
