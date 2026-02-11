@@ -12,6 +12,8 @@ export type DictionaryEntryValue =
       translation: string;
       allowAsPatternVariable?: boolean;
       lowPriority?: boolean;
+      semanticType?: string;
+      allowedVariableTypes?: Record<string, string[]>;
     };
 
 /**
@@ -20,6 +22,8 @@ export type DictionaryEntryValue =
 export interface DictionaryEntryMetadata {
   allowAsPatternVariable?: boolean;
   lowPriority?: boolean;
+  semanticType?: string;
+  allowedVariableTypes?: Record<string, string[]>;
 }
 
 /**

@@ -18,6 +18,8 @@ import { logger } from '../../utils/logger';
 import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
 import { toast } from '../ToastContext';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
+import { SEMANTIC_TYPE_COLORS } from '../../constants/SemanticTypes';
+import type { SemanticType } from '../../constants/SemanticTypes';
 
 /**
  * Props for BulkMoveDialog extracted component
@@ -255,7 +257,7 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
  */
 interface EditingEntryData {
   source: string;
-  translation: string;
+  translation: string | DictionaryEntryValue;
   allowAsPatternVariable?: boolean;
   lowPriority?: boolean;
 }
@@ -400,6 +402,132 @@ const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
       {active && (type === 'variable' ? '✓ ' : '⬇ ')}
       {config.label}
     </span>
+  );
+};
+
+const SEMANTIC_TYPE_SHORT_LABELS: Record<string, string> = {
+  person: 'PER',
+  place: 'PLA',
+  concept: 'CON',
+  object: 'OBJ',
+};
+
+const SEMANTIC_TYPE_CYCLE_LIST = ['person', 'place', 'concept', 'object'];
+
+/**
+ * Cell with 4 toggleable type chips (PER/PLA/CON/OBJ) for a pattern variable column.
+ */
+const TypeToggleCell: React.FC<{
+  varName: string;
+  hasVariable: boolean;
+  activeTypes: string[];
+  onToggle: (varName: string, type: string) => void;
+}> = ({ varName, hasVariable, activeTypes, onToggle }) => {
+  if (!hasVariable) {
+    return (
+      <div
+        style={{
+          width: '10%',
+          padding: '0 0.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <span style={{ fontSize: '0.65rem', color: '#9ca3af' }}>--</span>
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        width: '10%',
+        padding: '0 0.25rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '2px',
+        flexWrap: 'nowrap',
+      }}
+    >
+      {SEMANTIC_TYPE_CYCLE_LIST.map((type) => {
+        const isActive = activeTypes.includes(type);
+        const label = SEMANTIC_TYPE_SHORT_LABELS[type];
+        const color = SEMANTIC_TYPE_COLORS[type as SemanticType];
+        return (
+          <span
+            key={type}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(varName, type);
+            }}
+            className={styles.metadataBadge}
+            title={`${isActive ? 'Remove' : 'Add'} ${type} for ${varName}`}
+            style={{
+              background: isActive ? color : 'transparent',
+              color: isActive ? 'white' : '#9ca3af',
+              border: isActive ? 'none' : '1px solid #d1d5db',
+              fontSize: '0.6rem',
+              cursor: 'pointer',
+              padding: '1px 3px',
+            }}
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
+ * Cell with 4 toggleable type chips for a single semantic type (radio-style: one active at a time).
+ * Click active type to deselect; click inactive type to select (deselects others).
+ */
+const SemanticTypeToggleCell: React.FC<{
+  activeType: string;
+  onSelect: (type: string) => void;
+  width?: string;
+}> = ({ activeType, onSelect, width = '12%' }) => {
+  return (
+    <div
+      style={{
+        width,
+        padding: '0 0.25rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '2px',
+        flexWrap: 'nowrap',
+      }}
+    >
+      {SEMANTIC_TYPE_CYCLE_LIST.map((type) => {
+        const isActive = activeType === type;
+        const label = SEMANTIC_TYPE_SHORT_LABELS[type];
+        const color = SEMANTIC_TYPE_COLORS[type as SemanticType];
+        return (
+          <span
+            key={type}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(isActive ? '' : type);
+            }}
+            className={styles.metadataBadge}
+            title={isActive ? `${type} (click to remove)` : `Set as ${type}`}
+            style={{
+              background: isActive ? color : 'transparent',
+              color: isActive ? 'white' : '#9ca3af',
+              border: isActive ? 'none' : '1px solid #d1d5db',
+              fontSize: '0.6rem',
+              cursor: 'pointer',
+              padding: '1px 3px',
+            }}
+          >
+            {label}
+          </span>
+        );
+      })}
+    </div>
   );
 };
 
@@ -1059,7 +1187,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     const value = dictionary[contextMenu.entry.source];
     setEditingEntry({
       source: contextMenu.entry.source,
-      translation: typeof value === 'string' ? value : value.translation,
+      translation: value,
       allowAsPatternVariable:
         typeof value === 'object' && value.allowAsPatternVariable ? true : false,
       lowPriority: typeof value === 'object' && value.lowPriority ? true : false,
@@ -1112,6 +1240,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         const allowAsPatternVariable =
           typeof translation === 'object' && translation.allowAsPatternVariable === true;
         const lowPriority = typeof translation === 'object' && translation.lowPriority === true;
+        const semanticType = (typeof translation === 'object' && translation.semanticType) || '';
+        const allowedVariableTypes =
+          (typeof translation === 'object' && translation.allowedVariableTypes) || {};
 
         // State for inline editing
         const [editingSource, setEditingSource] = React.useState(false);
@@ -1132,6 +1263,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
           try {
             const metadata: any = { allowAsPatternVariable, lowPriority };
+            if (semanticType) metadata.semanticType = semanticType;
+            if (Object.keys(allowedVariableTypes).length > 0)
+              metadata.allowedVariableTypes = allowedVariableTypes;
             metadata[field] = value;
 
             // Use scroll-preserving update function
@@ -1147,13 +1281,77 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           }
         };
 
+        // Toggle a specific type on/off for a variable
+        const handleToggleVariableType = async (varName: string, type: string): Promise<void> => {
+          try {
+            const current = allowedVariableTypes[varName] || [];
+            const newAllowedTypes = { ...allowedVariableTypes };
+            const isActive = current.includes(type);
+
+            if (isActive) {
+              // Remove type
+              const filtered = current.filter((t) => t !== type);
+              if (filtered.length > 0) {
+                newAllowedTypes[varName] = filtered;
+              } else {
+                delete newAllowedTypes[varName];
+              }
+            } else {
+              // Add type
+              newAllowedTypes[varName] = [...current, type];
+            }
+
+            const metadata: any = { allowAsPatternVariable, lowPriority };
+            if (semanticType) metadata.semanticType = semanticType;
+            if (Object.keys(newAllowedTypes).length > 0)
+              metadata.allowedVariableTypes = newAllowedTypes;
+
+            await updateEntryWithScrollPreservation(
+              selectedDictionary,
+              source,
+              source,
+              translationText,
+              metadata
+            );
+          } catch (error) {
+            logger.error(`Failed to toggle variable ${varName} type ${type}:`, error);
+          }
+        };
+
+        // Set semantic type directly (single-select for phrases/proper nouns)
+        const handleSetSemanticType = async (newType: string): Promise<void> => {
+          try {
+            const metadata: any = { allowAsPatternVariable, lowPriority };
+            if (newType) metadata.semanticType = newType;
+            if (Object.keys(allowedVariableTypes).length > 0)
+              metadata.allowedVariableTypes = allowedVariableTypes;
+
+            await updateEntryWithScrollPreservation(
+              selectedDictionary,
+              source,
+              source,
+              translationText,
+              metadata
+            );
+          } catch (error) {
+            logger.error('Failed to set semantic type:', error);
+          }
+        };
+
         // Handle text field changes
         const handleTextSave = async (field: 'source' | 'translation'): Promise<void> => {
           try {
             // Only pass metadata for dictionaries that support it
             const metadata =
-              selectedDictionary === 'patterns' || selectedDictionary === 'phrases'
-                ? { allowAsPatternVariable, lowPriority }
+              selectedDictionary === 'patterns' ||
+              selectedDictionary === 'phrases' ||
+              selectedDictionary.startsWith('properNouns')
+                ? {
+                    allowAsPatternVariable,
+                    lowPriority,
+                    ...(semanticType && { semanticType }),
+                    ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
+                  }
                 : {};
 
             if (field === 'source') {
@@ -1217,8 +1415,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           }
         };
 
-        // Render 5-column layout for patterns (with selection checkbox)
+        // Render pattern row: checkbox | source (25%) | translation+badges (55%) | X types (10%) | Y types (10%)
         if (selectedDictionary === 'patterns') {
+          const hasX = source.includes('X');
+          const hasY = source.includes('Y');
           return (
             <div
               onContextMenu={(e) => handleContextMenu(e, source, translationText)}
@@ -1246,8 +1446,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 />
               </div>
 
-              {/* Source Text - calc(35% - 20px) with variable highlighting */}
-              <div className={styles.cell} style={{ width: 'calc(35% - 20px)' }}>
+              {/* Source Text - calc(25% - 20px) with variable highlighting */}
+              <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
                 {editingSource ? (
                   <input
                     type="text"
@@ -1269,8 +1469,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 )}
               </div>
 
-              {/* Translation - calc(65% - 20px) with metadata badges */}
-              <div className={styles.cellEditable} style={{ width: 'calc(65% - 20px)' }}>
+              {/* Translation - 55% with VAR/LP badges */}
+              <div className={styles.cellEditable} style={{ width: '55%' }}>
                 {editingTranslation ? (
                   <input
                     type="text"
@@ -1307,6 +1507,22 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </>
                 )}
               </div>
+
+              {/* X type constraints - 17.5% */}
+              <TypeToggleCell
+                varName="X"
+                hasVariable={hasX}
+                activeTypes={allowedVariableTypes['X'] || []}
+                onToggle={handleToggleVariableType}
+              />
+
+              {/* Y type constraints - 17.5% */}
+              <TypeToggleCell
+                varName="Y"
+                hasVariable={hasY}
+                activeTypes={allowedVariableTypes['Y'] || []}
+                onToggle={handleToggleVariableType}
+              />
             </div>
           );
         }
@@ -1340,10 +1556,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 />
               </div>
 
-              {/* Source Text - calc(35% - 20px) */}
+              {/* Source Text - calc(25% - 20px) */}
               <div
                 style={{
-                  width: 'calc(35% - 20px)',
+                  width: 'calc(25% - 20px)',
                   padding: '0.25rem 0.75rem',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -1371,10 +1587,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 )}
               </div>
 
-              {/* Translation - calc(65% - 20px) with metadata badge */}
+              {/* Translation - calc(63% - 20px) with VAR badge */}
               <div
                 style={{
-                  width: 'calc(65% - 20px)',
+                  width: 'calc(63% - 20px)',
                   padding: '0.25rem 0.75rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -1413,11 +1629,22 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </>
                 )}
               </div>
+
+              {/* Semantic type - 12% */}
+              <SemanticTypeToggleCell
+                activeType={semanticType}
+                onSelect={handleSetSemanticType}
+                width="12%"
+              />
             </div>
           );
         }
 
-        // 3-column layout for simple dictionaries (with selection checkbox)
+        // Layout for simple dictionaries (with selection checkbox)
+        const isProperNoun = selectedDictionary.startsWith('properNouns');
+        const sourceWidth = isProperNoun ? 'calc(25% - 20px)' : 'calc(35% - 20px)';
+        const translationWidth = isProperNoun ? 'calc(63% - 20px)' : 'calc(65% - 20px)';
+
         return (
           <div
             onContextMenu={(e) => handleContextMenu(e, source, translationText)}
@@ -1455,8 +1682,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               />
             </div>
 
-            {/* Source Text - calc(35% - 20px) */}
-            <div className={styles.cell} style={{ width: 'calc(35% - 20px)' }}>
+            {/* Source Text */}
+            <div className={styles.cell} style={{ width: sourceWidth }}>
               {editingSource ? (
                 <input
                   type="text"
@@ -1493,8 +1720,17 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               )}
             </div>
 
-            {/* Translation - calc(65% - 20px) */}
-            <div className={styles.cell} style={{ width: 'calc(65% - 20px)' }}>
+            {/* Translation */}
+            <div
+              className={styles.cell}
+              style={{
+                width: translationWidth,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                overflow: 'hidden',
+              }}
+            >
               {editingTranslation ? (
                 <input
                   type="text"
@@ -1519,8 +1755,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   onClick={() => setEditingTranslation(true)}
                   style={{
                     cursor: 'pointer',
-                    display: 'block',
-                    width: '100%',
+                    flex: 1,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }}
@@ -1530,6 +1765,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </span>
               )}
             </div>
+
+            {/* Semantic type column - only for proper nouns */}
+            {isProperNoun && (
+              <SemanticTypeToggleCell
+                activeType={semanticType}
+                onSelect={handleSetSemanticType}
+                width="12%"
+              />
+            )}
           </div>
         );
       }
@@ -1891,23 +2135,47 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: 'calc(35% - 20px)',
+                      width: 'calc(25% - 20px)',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
                     title="Pattern with highlighted variables"
                   >
-                    Source Text
+                    Source
                   </div>
                   <div
                     style={{
-                      width: 'calc(65% - 20px)',
+                      width: '55%',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
                     title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)"
                   >
                     Translation
+                  </div>
+                  <div
+                    style={{
+                      width: '10%',
+                      padding: '0.5rem 0.25rem',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                    }}
+                    title="Type constraints for variable X"
+                  >
+                    X types
+                  </div>
+                  <div
+                    style={{
+                      width: '10%',
+                      padding: '0.5rem 0.25rem',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                    }}
+                    title="Type constraints for variable Y"
+                  >
+                    Y types
                   </div>
                 </>
               ) : selectedDictionary === 'phrases' ? (
@@ -1934,22 +2202,87 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: 'calc(35% - 20px)',
+                      width: 'calc(25% - 20px)',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
                   >
-                    Source Text
+                    Source
                   </div>
                   <div
                     style={{
-                      width: 'calc(65% - 20px)',
+                      width: 'calc(63% - 20px)',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
                     title="Translation with metadata badge (VAR = Allow as variable)"
                   >
                     Translation
+                  </div>
+                  <div
+                    style={{
+                      width: '12%',
+                      padding: '0.5rem 0.25rem',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                    }}
+                    title="Semantic type"
+                  >
+                    Semantic
+                  </div>
+                </>
+              ) : selectedDictionary.startsWith('properNouns') ? (
+                <>
+                  <div
+                    style={{
+                      width: '40px',
+                      minWidth: '40px',
+                      maxWidth: '40px',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                      }
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                      title="Select all"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(25% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Source
+                  </div>
+                  <div
+                    style={{
+                      width: 'calc(63% - 20px)',
+                      padding: '0.5rem 0.75rem',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    Translation
+                  </div>
+                  <div
+                    style={{
+                      width: '12%',
+                      padding: '0.5rem 0.25rem',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                    }}
+                    title="Semantic type"
+                  >
+                    Semantic
                   </div>
                 </>
               ) : (

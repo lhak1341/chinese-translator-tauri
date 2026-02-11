@@ -812,7 +812,9 @@ export class DictionaryManager {
         for (const [source, target] of Object.entries(dictionary)) {
           if (typeof source === 'string') {
             let translation,
-              allowAsPatternVariable = false;
+              allowAsPatternVariable = false,
+              semanticType = undefined,
+              allowedVariableTypes = undefined;
 
             // Handle both old format (string) and new format (object with metadata)
             if (typeof target === 'string') {
@@ -822,6 +824,8 @@ export class DictionaryManager {
               // New format: "source": {"translation": "...", "allowAsPatternVariable": true}
               translation = target.translation;
               allowAsPatternVariable = target.allowAsPatternVariable === true;
+              semanticType = target.semanticType || undefined;
+              allowedVariableTypes = target.allowedVariableTypes || undefined;
             } else {
               this.log(
                 DEBUG_LEVELS.ERROR,
@@ -842,6 +846,8 @@ export class DictionaryManager {
               priority: priority,
               frequency: this.estimateFrequency(source, dictionaryName),
               allowAsPatternVariable: allowAsPatternVariable,
+              ...(semanticType && { semanticType }),
+              ...(allowedVariableTypes && { allowedVariableTypes }),
             };
 
             trie.insert(source, translation, metadata);

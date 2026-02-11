@@ -277,13 +277,22 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       // Prepare target value with metadata
       let targetValue: string | DictionaryEntryValue = translation;
       if (
-        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+        (dictionaryId === 'phrases' ||
+          dictionaryId === 'patterns' ||
+          dictionaryId.startsWith('properNouns')) &&
+        (metadata.allowAsPatternVariable !== undefined ||
+          metadata.lowPriority !== undefined ||
+          metadata.semanticType !== undefined ||
+          metadata.allowedVariableTypes !== undefined)
       ) {
         targetValue = {
           translation: translation,
           allowAsPatternVariable: metadata.allowAsPatternVariable,
           lowPriority: metadata.lowPriority,
+          ...(metadata.semanticType && { semanticType: metadata.semanticType }),
+          ...(metadata.allowedVariableTypes && {
+            allowedVariableTypes: metadata.allowedVariableTypes,
+          }),
         };
       }
 
@@ -351,13 +360,22 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       // Prepare target value with metadata
       let targetValue: string | DictionaryEntryValue = translation;
       if (
-        (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-        (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+        (dictionaryId === 'phrases' ||
+          dictionaryId === 'patterns' ||
+          dictionaryId.startsWith('properNouns')) &&
+        (metadata.allowAsPatternVariable !== undefined ||
+          metadata.lowPriority !== undefined ||
+          metadata.semanticType !== undefined ||
+          metadata.allowedVariableTypes !== undefined)
       ) {
         targetValue = {
           translation: translation,
           allowAsPatternVariable: metadata.allowAsPatternVariable,
           lowPriority: metadata.lowPriority,
+          ...(metadata.semanticType && { semanticType: metadata.semanticType }),
+          ...(metadata.allowedVariableTypes && {
+            allowedVariableTypes: metadata.allowedVariableTypes,
+          }),
         };
       }
 

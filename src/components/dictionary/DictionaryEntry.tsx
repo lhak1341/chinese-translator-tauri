@@ -4,6 +4,12 @@ import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
 import { logger } from '../../utils/logger';
+import {
+  SEMANTIC_TYPE_LIST,
+  SEMANTIC_TYPE_LABELS,
+  SEMANTIC_TYPE_COLORS,
+} from '../../constants/SemanticTypes';
+import type { SemanticType } from '../../constants/SemanticTypes';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -14,6 +20,8 @@ type DictionaryEntryValue =
       translation: string;
       allowAsPatternVariable?: boolean;
       lowPriority?: boolean;
+      semanticType?: string;
+      allowedVariableTypes?: Record<string, string[]>;
     };
 
 /**
@@ -98,6 +106,12 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     (typeof entry?.translation === 'object' && entry.translation?.lowPriority) ||
       entry?.lowPriority ||
       false
+  );
+  const [semanticType, setSemanticType] = useState<string>(
+    (typeof entry?.translation === 'object' && entry.translation?.semanticType) || ''
+  );
+  const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
+    (typeof entry?.translation === 'object' && entry.translation?.allowedVariableTypes) || {}
   );
 
   // Debug: Log what entry object we received
@@ -614,8 +628,16 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       });
 
       const metadata =
-        activeDictionary === 'phrases' || activeDictionary === 'patterns'
-          ? { allowAsPatternVariable, lowPriority }
+        activeDictionary === 'phrases' ||
+        activeDictionary === 'patterns' ||
+        activeDictionary.startsWith('properNouns')
+          ? {
+              allowAsPatternVariable,
+              lowPriority,
+              ...(semanticType && { semanticType }),
+              ...(activeDictionary === 'patterns' &&
+                Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
+            }
           : {};
 
       // Debug: Log metadata construction
@@ -623,6 +645,8 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
         activeDictionary,
         allowAsPatternVariable,
         lowPriority,
+        semanticType,
+        allowedVariableTypes,
         finalMetadata: metadata,
       });
 
@@ -938,6 +962,88 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               )}
             </div>
           )}
+
+          {/* Semantic type dropdown - for phrases and proper nouns (not patterns — patterns use per-variable constraints instead) */}
+          {(activeDictionary === 'phrases' || activeDictionary.startsWith('properNouns')) && (
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Semantic Type</label>
+              <select
+                value={semanticType}
+                onChange={(e) => setSemanticType(e.target.value)}
+                disabled={isSaving}
+                className={styles.input}
+                style={{ maxWidth: '200px' }}
+              >
+                <option value="">None</option>
+                {SEMANTIC_TYPE_LIST.map((type) => (
+                  <option key={type} value={type}>
+                    {SEMANTIC_TYPE_LABELS[type]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Per-variable type constraints - only for patterns with variables */}
+          {activeDictionary === 'patterns' &&
+            (['X', 'Y'] as const)
+              .filter((v) => source.includes(v))
+              .map((varName) => (
+                <div className={styles.formGroup} key={varName}>
+                  <label className={styles.label}>Variable {varName} allowed types</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {SEMANTIC_TYPE_LIST.map((type) => {
+                      const isActive = (allowedVariableTypes[varName] || []).includes(type);
+                      return (
+                        <span
+                          key={type}
+                          onClick={() => {
+                            if (isSaving) return;
+                            setAllowedVariableTypes((prev) => {
+                              const current = prev[varName] || [];
+                              const next = isActive
+                                ? current.filter((t) => t !== type)
+                                : [...current, type];
+                              if (next.length === 0) {
+                                const { [varName]: _, ...rest } = prev;
+                                return rest;
+                              }
+                              return { ...prev, [varName]: next };
+                            });
+                          }}
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            borderRadius: '4px',
+                            cursor: isSaving ? 'default' : 'pointer',
+                            userSelect: 'none',
+                            background: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
+                            color: isActive ? 'white' : SEMANTIC_TYPE_COLORS[type],
+                            border: `1px solid ${SEMANTIC_TYPE_COLORS[type]}`,
+                            opacity: isSaving ? 0.5 : 1,
+                          }}
+                          title={`${isActive ? 'Remove' : 'Add'} ${SEMANTIC_TYPE_LABELS[type]} constraint for ${varName}`}
+                        >
+                          {SEMANTIC_TYPE_LABELS[type]}
+                        </span>
+                      );
+                    })}
+                  </div>
+                  {!(allowedVariableTypes[varName]?.length > 0) && (
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'var(--text-muted)',
+                        marginTop: '0.25rem',
+                      }}
+                    >
+                      No constraints — {varName} matches all variable entries
+                    </div>
+                  )}
+                </div>
+              ))}
 
           {error && <div className={styles.errorMessage}>{error}</div>}
 

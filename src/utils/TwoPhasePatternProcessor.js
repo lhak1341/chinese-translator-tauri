@@ -131,6 +131,27 @@ class TwoPhasePatternProcessor {
       return cache;
     }
 
+    // Performance optimization: pre-scan patterns for required variable types
+    // If patterns specify allowedVariableTypes, we can skip cache entries of unneeded types
+    let requiredTypes = null;
+    for (const pattern of this.processedPatterns) {
+      if (pattern.metadata?.allowedVariableTypes) {
+        if (!requiredTypes) requiredTypes = new Set();
+        for (const types of Object.values(pattern.metadata.allowedVariableTypes)) {
+          for (const t of types) {
+            requiredTypes.add(t);
+          }
+        }
+      }
+    }
+
+    // Helper: check if an entry's type should be included in the cache
+    const shouldInclude = (entryType) => {
+      if (!requiredTypes) return true; // No patterns have constraints
+      if (!entryType) return true; // Untyped entries always included
+      return requiredTypes.has(entryType); // Skip if type not needed by any pattern
+    };
+
     // Filter out 'phrases' from proper noun dictionaries
     const actualProperNounDictionaries = activeProperNouns.filter((dict) => dict !== 'phrases');
 
@@ -138,11 +159,14 @@ class TwoPhasePatternProcessor {
     const start1 = performance.now();
     for (const token of tokens) {
       if (token.translated && token.translationSource?.includes('properNoun')) {
-        cache[token.value] = {
-          translation: token.translated,
-          source: token.translationSource,
-          type: 'proper_noun',
-        };
+        const entryType = token.metadata?.semanticType || 'proper_noun';
+        if (shouldInclude(entryType === 'proper_noun' ? null : entryType)) {
+          cache[token.value] = {
+            translation: token.translated,
+            source: token.translationSource,
+            type: entryType,
+          };
+        }
       }
     }
     if (this.internalProfiling.enabled) {
@@ -158,11 +182,14 @@ class TwoPhasePatternProcessor {
       // Check single token
       const singleResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
       if (singleResult?.metadata?.allowAsPatternVariable) {
-        cache[tokens[i].value] = {
-          translation: singleResult.translation,
-          source: 'phrases_pattern_variable',
-          type: 'phrase',
-        };
+        const singleType = singleResult.metadata?.semanticType || 'phrase';
+        if (shouldInclude(singleType === 'phrase' ? null : singleType)) {
+          cache[tokens[i].value] = {
+            translation: singleResult.translation,
+            source: 'phrases_pattern_variable',
+            type: singleType,
+          };
+        }
       }
 
       // Check multi-character combinations (up to 6 characters)
@@ -173,11 +200,14 @@ class TwoPhasePatternProcessor {
           .join('');
         const multiResult = dictionaryManager.translate(combinedText, ['phrases']);
         if (multiResult?.metadata?.allowAsPatternVariable) {
-          cache[combinedText] = {
-            translation: multiResult.translation,
-            source: 'phrases_pattern_variable',
-            type: 'phrase',
-          };
+          const multiType = multiResult.metadata?.semanticType || 'phrase';
+          if (shouldInclude(multiType === 'phrase' ? null : multiType)) {
+            cache[combinedText] = {
+              translation: multiResult.translation,
+              source: 'phrases_pattern_variable',
+              type: multiType,
+            };
+          }
         }
       }
     }
@@ -194,11 +224,14 @@ class TwoPhasePatternProcessor {
         actualProperNounDictionaries
       );
       if (properNounResult) {
-        cache[token.value] = {
-          translation: properNounResult.translation,
-          source: properNounResult.dictionary + '_pattern_variable',
-          type: 'proper_noun',
-        };
+        const pnType = properNounResult.metadata?.semanticType || 'proper_noun';
+        if (shouldInclude(pnType === 'proper_noun' ? null : pnType)) {
+          cache[token.value] = {
+            translation: properNounResult.translation,
+            source: properNounResult.dictionary + '_pattern_variable',
+            type: pnType,
+          };
+        }
       }
     }
     if (this.internalProfiling.enabled) {
@@ -222,11 +255,14 @@ class TwoPhasePatternProcessor {
 
       for (const match of allProperNounMatches) {
         if (match.word && match.translation) {
-          cache[match.word] = {
-            translation: match.translation,
-            source: match.dictionary + '_fulltext_scan',
-            type: 'proper_noun',
-          };
+          const matchType = match.metadata?.semanticType || 'proper_noun';
+          if (shouldInclude(matchType === 'proper_noun' ? null : matchType)) {
+            cache[match.word] = {
+              translation: match.translation,
+              source: match.dictionary + '_fulltext_scan',
+              type: matchType,
+            };
+          }
         }
       }
     }
