@@ -74,7 +74,7 @@
 
 /* Entry Preview Section */
 .entryPreview {
-  background-color: var(--secondary-background-color, #f5f5f5);
+  background-color: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 1rem;
@@ -85,7 +85,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  color: var(--secondary-text-color, #666);
+  color: var(--text-secondary, #666);
   margin-bottom: 0.5rem;
   letter-spacing: 0.5px;
 }
@@ -104,7 +104,7 @@
 }
 
 .previewArrow {
-  color: var(--secondary-text-color, #666);
+  color: var(--text-secondary, #666);
   font-weight: bold;
 }
 
@@ -146,7 +146,7 @@
 .readOnlyField {
   padding: 0.625rem 0.75rem;
   border-radius: 6px;
-  background-color: var(--secondary-background-color, #f5f5f5);
+  background-color: var(--surface-color);
   border: 1px solid var(--border-color);
   color: var(--text-color);
   font-size: 0.9rem;
@@ -178,7 +178,7 @@
 .select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: var(--secondary-background-color, #f5f5f5);
+  background-color: var(--surface-color);
 }
 
 .selectWithError {
@@ -199,15 +199,15 @@
 }
 
 .notificationWarning {
-  background-color: #fef3c7;
-  border: 1px solid #f59e0b;
-  color: #92400e;
+  background-color: var(--warning-subtle);
+  border: 1px solid var(--warning-color);
+  color: var(--warning-color);
 }
 
 .notificationInfo {
-  background-color: #dbeafe;
-  border: 1px solid #3b82f6;
-  color: #1e3a8a;
+  background-color: var(--info-subtle);
+  border: 1px solid var(--info-color);
+  color: var(--info-color);
 }
 
 .notificationIcon {
@@ -223,11 +223,11 @@
 
 /* Error Message */
 .error {
-  color: var(--danger-button-text, #dc2626);
+  color: var(--error-color, var(--danger-button-text));
   font-size: 0.875rem;
   padding: 0.75rem;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  background-color: var(--error-subtle);
+  border: 1px solid var(--error-color, var(--danger-button-text));
   border-radius: 6px;
   margin-top: 0.5rem;
 }
@@ -239,7 +239,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  background-color: var(--secondary-background-color, #f9fafb);
+  background-color: var(--surface-color);
 }
 
 /* Buttons */
@@ -264,8 +264,8 @@
 }
 
 .cancelButton:hover:not(:disabled) {
-  background-color: var(--secondary-background-color, #f5f5f5);
-  border-color: var(--secondary-text-color, #999);
+  background-color: var(--surface-elevated, var(--surface-color));
+  border-color: var(--text-muted, #999);
 }
 
 .cancelButton:disabled {

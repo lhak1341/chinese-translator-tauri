@@ -509,8 +509,8 @@ pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Res
             entry.ok().and_then(|e| {
                 let file_name = e.file_name();
                 let file_str = file_name.to_str()?;
-                if file_str.starts_with("properNouns") && file_str.ends_with(".json") {
-                    Some(file_str.trim_end_matches(".json").to_string())
+                if file_str.starts_with("properNouns") && file_str.ends_with(".json") && !file_str.ends_with(".trie.json") {
+                    Some(file_str.strip_suffix(".json").unwrap_or(file_str).to_string())
                 } else {
                     None
                 }
