@@ -73,7 +73,7 @@ export function useTranslationController(options = {}) {
       timeoutRefs.current.clear();
     }
 
-    const translationId = Date.now() + Math.random(); // Ensure uniqueness
+    const translationId = `${Date.now()}-${Math.random()}`; // String concat avoids float64 precision loss
     const controller = new AbortController();
 
     // Register controller
