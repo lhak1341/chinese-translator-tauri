@@ -664,31 +664,45 @@ pub async fn load_dictionary(
     }
 }
 
-#[tauri::command]
-pub async fn load_configuration(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let config_path = app_data_dir.join("config.json");
+fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    app_handle.path().app_data_dir().map_err(|e| e.to_string())
+}
 
+fn load_json_file_with_default(
+    path: &PathBuf,
+    default: serde_json::Value,
+) -> Result<DictionaryResponse, String> {
     // SECURITY: Check file size before reading to prevent DoS
-    if config_path.exists() {
-        validate_file_size(&config_path, MAX_JSON_SIZE_BYTES)?;
+    if path.exists() {
+        validate_file_size(path, MAX_JSON_SIZE_BYTES)?;
     }
-
-    match fs::read_to_string(&config_path) {
+    match fs::read_to_string(path) {
         Ok(contents) => {
-            let data: serde_json::Value = serde_json::from_str(&contents)
-                .map_err(|e| e.to_string())?;
+            let data: serde_json::Value =
+                serde_json::from_str(&contents).map_err(|e| e.to_string())?;
             Ok(DictionaryResponse::ok_with_data(data))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // Return default configuration
-            let default_config = serde_json::json!({
-                "activeProperNouns": ["properNouns"]
-            });
-            Ok(DictionaryResponse::ok_with_data(default_config))
+            Ok(DictionaryResponse::ok_with_data(default))
         }
         Err(e) => Err(e.to_string()),
     }
+}
+
+fn save_json_file(
+    path: &PathBuf,
+    data: &serde_json::Value,
+) -> Result<DictionaryResponse, String> {
+    let json_string = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
+    fs::write(path, json_string).map_err(|e| e.to_string())?;
+    Ok(DictionaryResponse::ok())
+}
+
+#[tauri::command]
+pub async fn load_configuration(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
+    let default_config = serde_json::json!({ "activeProperNouns": ["properNouns"] });
+    load_json_file_with_default(&config_path, default_config)
 }
 
 #[tauri::command]
@@ -696,57 +710,34 @@ pub async fn save_configuration(
     app_handle: tauri::AppHandle,
     config: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let config_path = app_data_dir.join("config.json");
-
-    let json_string = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-    fs::write(&config_path, json_string).map_err(|e| e.to_string())?;
-
-    Ok(DictionaryResponse::ok())
+    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
+    save_json_file(&config_path, &config)
 }
 
 #[tauri::command]
 pub async fn load_appearance_settings(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let appearance_path = app_data_dir.join("appearance.json");
-
-    // SECURITY: Check file size before reading to prevent DoS
-    if appearance_path.exists() {
-        validate_file_size(&appearance_path, MAX_JSON_SIZE_BYTES)?;
-    }
-
-    match fs::read_to_string(&appearance_path) {
-        Ok(contents) => {
-            let data: serde_json::Value = serde_json::from_str(&contents)
-                .map_err(|e| e.to_string())?;
-            Ok(DictionaryResponse::ok_with_data(data))
+    let appearance_path = get_app_data_dir(&app_handle)?.join("appearance.json");
+    let default_appearance = serde_json::json!({
+        "chineseText": {
+            "fontFamily": "\"Noto Sans CJK SC\", SimSun, \"Microsoft YaHei\", Inter, system-ui, Arial, sans-serif",
+            "fontSize": "1.25rem",
+            "letterSpacing": "normal"
+        },
+        "fullTranslation": {
+            "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
+            "fontSize": "1.25rem",
+            "letterSpacing": "normal"
+        },
+        "characterOnly": {
+            "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
+            "fontSize": "1.25rem",
+            "letterSpacing": "normal"
+        },
+        "uiFont": {
+            "fontFamily": "Inter, system-ui, Arial, sans-serif"
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            // Return default appearance settings
-            let default_appearance = serde_json::json!({
-                "chineseText": {
-                    "fontFamily": "\"Noto Sans CJK SC\", SimSun, \"Microsoft YaHei\", Inter, system-ui, Arial, sans-serif",
-                    "fontSize": "1.25rem",
-                    "letterSpacing": "normal"
-                },
-                "fullTranslation": {
-                    "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
-                    "fontSize": "1.25rem",
-                    "letterSpacing": "normal"
-                },
-                "characterOnly": {
-                    "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
-                    "fontSize": "1.25rem",
-                    "letterSpacing": "normal"
-                },
-                "uiFont": {
-                    "fontFamily": "Inter, system-ui, Arial, sans-serif"
-                }
-            });
-            Ok(DictionaryResponse::ok_with_data(default_appearance))
-        }
-        Err(e) => Err(e.to_string()),
-    }
+    });
+    load_json_file_with_default(&appearance_path, default_appearance)
 }
 
 #[tauri::command]
@@ -754,13 +745,8 @@ pub async fn save_appearance_settings(
     app_handle: tauri::AppHandle,
     appearance_settings: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let appearance_path = app_data_dir.join("appearance.json");
-
-    let json_string = serde_json::to_string_pretty(&appearance_settings).map_err(|e| e.to_string())?;
-    fs::write(&appearance_path, json_string).map_err(|e| e.to_string())?;
-
-    Ok(DictionaryResponse::ok())
+    let appearance_path = get_app_data_dir(&app_handle)?.join("appearance.json");
+    save_json_file(&appearance_path, &appearance_settings)
 }
 
 #[tauri::command]
@@ -1139,8 +1125,7 @@ pub async fn rename_proper_nouns_dictionary(
     cache.invalidate(Some(&old_dictionary_id));
 
     // Update config.json to replace old name with new name
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
-    let config_path = app_data_dir.join("config.json");
+    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
 
     if config_path.exists() {
         match fs::read_to_string(&config_path) {

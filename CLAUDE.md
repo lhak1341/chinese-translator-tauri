@@ -199,6 +199,8 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 
 **`DictionaryCache` Rust mutex pattern** (2026-02-12): Always collect needed data while holding the `cache` lock, then `drop(cache)` explicitly before acquiring `access_order`. Nested lock (holding `cache` while locking `access_order`) is a deadlock risk. See `set()` in `dictionary_commands.rs` for the canonical pattern.
 
+**Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): When moving test files, `vi.doMock('path/nonexistent.js', ...)` key is the _attempted_ resolution path from the test file's directory — not a normalized absolute path. For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'` (→ `src/wasm/`); test in `src/utils/__tests__/` must use `'../../wasm/translation_wasm_core.js'` (also → `src/wasm/`). Applies to all `vi.doMock`/`vi.mock` calls for non-existent modules.
+
 ### Logging Best Practices
 
 **Environment-aware logging** (2026-01-18): Use `logger` utility instead of `console.*`

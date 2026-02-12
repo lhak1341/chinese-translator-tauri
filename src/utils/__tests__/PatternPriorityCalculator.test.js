@@ -234,6 +234,63 @@ describe('calculatePatternPriority', () => {
       // Expected: 80 (10 variables: 10*8) + 30 (length: 10*3) + 0 (no literal-first) = 110
       expect(priority).toBe(110);
     });
+
+    test('should cap excessive variable count to prevent overflow', () => {
+      const tokens = Array(150).fill({ type: 'variable' });
+      const variables = Array(150).fill({ name: 'X' });
+
+      const priority = calculatePatternPriority(tokens, variables);
+
+      // Should cap variables at 100: (100 × 8) + (100 × 3) = 1100
+      expect(priority).toBe(1100);
+    });
+
+    test('should cap excessive token count to prevent overflow', () => {
+      const tokens = Array(150).fill({ type: 'literal' });
+      const variables = [];
+
+      const priority = calculatePatternPriority(tokens, variables);
+
+      // Should cap tokens at 100: (0 × 8) + (100 × 3) + 5 = 305
+      expect(priority).toBe(305);
+    });
+
+    test('should return 0 for invalid tokens array (null)', () => {
+      const priority = calculatePatternPriority(null, []);
+      expect(priority).toBe(0);
+    });
+
+    test('should return 0 for invalid variables array (null)', () => {
+      const tokens = [{ type: 'literal' }];
+      const priority = calculatePatternPriority(tokens, null);
+      expect(priority).toBe(0);
+    });
+
+    test('should return 0 for undefined inputs', () => {
+      const priority = calculatePatternPriority(undefined, undefined);
+      expect(priority).toBe(0);
+    });
+
+    test('should return 0 for tokens with missing type property', () => {
+      const tokens = [{ type: 'literal' }, {}, { type: 'variable' }];
+      const variables = [{ name: 'X' }];
+      const priority = calculatePatternPriority(tokens, variables);
+      expect(priority).toBe(0);
+    });
+
+    test('should return 0 for tokens with invalid type values', () => {
+      const tokens = [{ type: 'literal' }, { type: 'invalid' }, { type: 'variable' }];
+      const variables = [{ name: 'X' }];
+      const priority = calculatePatternPriority(tokens, variables);
+      expect(priority).toBe(0);
+    });
+
+    test('should return 0 for non-array tokens input', () => {
+      const tokens = { 0: { type: 'literal' }, length: 1 }; // Array-like but not Array
+      const variables = [];
+      const priority = calculatePatternPriority(tokens, variables);
+      expect(priority).toBe(0);
+    });
   });
 });
 

@@ -20,6 +20,7 @@ import type {
   DictionaryData,
   DictionaryEntryValue,
   DictionaryEntryMetadata,
+  SortingStats,
 } from '../../types/DictionaryTypes';
 
 /**
@@ -32,21 +33,6 @@ interface HistoryOperation {
   oldData: DictionaryData;
   newData: DictionaryData;
   timestamp: number;
-}
-
-/**
- * Sorting statistics returned by IncrementalDictionarySorter
- */
-interface SortingStats {
-  fullSorts: number;
-  incrementalSorts: number;
-  timeSaved: number;
-  averageFullSortTime: number;
-  averageIncrementalSortTime: number;
-  totalSorts: number;
-  timeSavedSeconds: string;
-  efficiencyGain: string;
-  incrementalPercentage: string;
 }
 
 /**

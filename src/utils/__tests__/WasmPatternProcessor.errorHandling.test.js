@@ -1,176 +1,376 @@
 /**
- * WASM Pattern Processor Error Handling Tests
+ * Tests for WasmPatternProcessor Error Handling
  *
- * Tests CRITICAL-2: WASM Pattern Processor Graceful Degradation
- * Verifies that pattern processor degrades gracefully instead of crashing
- * when WASM fails to initialize or encounters processing errors
+ * Verifies graceful degradation when WASM fails:
+ * - Returns empty results instead of throwing
+ * - One-time user notifications
+ * - Proper fallback behavior
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Mock react-hot-toast
+// Mock toast utility
+const mockToast = vi.fn();
+mockToast.warning = vi.fn();
+mockToast.error = vi.fn();
 vi.mock('../toast', () => ({
-  default: {
-    warning: vi.fn(),
-  },
+  default: mockToast,
 }));
 
-// Mock logger
-vi.mock('../logger', () => ({
-  logger: {
-    log: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
+// CODE REVIEW FIX: Mock hash verification for WASM binary integrity checks
+vi.mock('../wasmIntegrityVerifier', () => ({
+  verifyWasmBinaryIntegrity: vi.fn(async () => ({ valid: true, errors: [], warnings: [] })),
+  verifyWasmModule: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
+  verifyWasmInstance: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
 }));
 
-import {
-  processTokensWasm,
-  isWasmPatternProcessorAvailable,
-  hasWasmPatternProcessorFailed,
-} from '../WasmPatternProcessor.js';
-import { logger } from '../logger';
+// CODE REVIEW FIX: Mock fetch for WASM binary loading
+global.fetch = vi.fn(async () => ({
+  ok: true,
+  arrayBuffer: async () => new ArrayBuffer(8),
+}));
 
-describe('WASM Pattern Processor Error Handling', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+// Reset module state before tests
+beforeEach(async () => {
+  // Clear all mocks and reset modules
+  vi.resetModules();
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('WasmPatternProcessor Error Handling', () => {
+  describe('Initialization Failures', () => {
+    it('should return false when WASM module fails to load', async () => {
+      // Re-import with failing WASM
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.reject(new Error('WASM load failed'))),
+      }));
+
+      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when pattern processor creation fails', async () => {
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          throw new Error('Processor creation failed');
+        }),
+      }));
+
+      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when initialization returns false', async () => {
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => false), // Initialization fails
+            isInitialized: vi.fn(() => false),
+          };
+        }),
+      }));
+
+      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+
+      expect(result).toBe(false);
+    });
+
+    it('should not re-initialize if already initialized', async () => {
+      const mockInit = vi.fn(() => true);
+      const mockIsInitialized = vi.fn(() => true);
+      const mockGetStats = vi.fn(() => ({ phaseAPatterns: 5 }));
+
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: mockInit,
+            getStatistics: mockGetStats,
+            isInitialized: mockIsInitialized,
+          };
+        }),
+      }));
+
+      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+
+      // First initialization - should call initialize
+      const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result1).toBe(true);
+      expect(mockInit).toHaveBeenCalledTimes(1);
+
+      // Second attempt - should return early without calling initialize again
+      const result2 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result2).toBe(true);
+      expect(mockInit).toHaveBeenCalledTimes(1); // Still only called once
+    });
   });
 
-  describe('CRITICAL-2: Graceful degradation when WASM not initialized', () => {
-    it('should return empty array when WASM not initialized', async () => {
-      // Note: WASM is not initialized in test environment by default
+  describe('Processing Failures', () => {
+    it('should return empty results when not initialized', async () => {
+      // Don't initialize, just call processTokens
+      const { processTokensWasm } = await import('../WasmPatternProcessor.js');
 
-      const semanticTokens = [
-        { value: '在', translated: null, translationSource: null },
-        { value: 'X', translated: null, translationSource: null },
-        { value: 'Y', translated: null, translationSource: null },
-        { value: '中', translated: null, translationSource: null },
-      ];
+      const tokens = [{ value: '在', type: 'chinese_char' }];
+      const result = await processTokensWasm(tokens, {});
 
-      const variableCache = new Map();
-
-      // Action: Process tokens without WASM initialized
-      const response = await processTokensWasm(semanticTokens, variableCache);
-
-      // Assert: Returns structured error response instead of throwing
-      expect(response).toEqual({
-        success: false,
-        results: [],
-        error: expect.stringContaining('WASM Pattern Processor not initialized'),
-      });
-      expect(response.success).toBe(false);
-      expect(Array.isArray(response.results)).toBe(true);
-      expect(response.results).toEqual([]);
-
-      // Assert: Warning was logged via logger
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('WASM Pattern Processor not initialized')
-      );
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Translation will continue with lower quality')
-      );
+      expect(result.success).toBe(false);
+      expect(result.results).toEqual([]);
+      expect(result.error).toContain('not initialized');
     });
 
-    it('should allow translation to continue without patterns', async () => {
-      const semanticTokens = [
-        { value: '你好', translated: null, translationSource: null },
-        { value: '世界', translated: null, translationSource: null },
-      ];
+    it('should return empty results when processing throws error', async () => {
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => true),
+            processTokens: vi.fn(() => {
+              throw new Error('Processing failed');
+            }),
+            isInitialized: vi.fn(() => true),
+            getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+          };
+        }),
+      }));
 
-      const variableCache = new Map();
+      const { initializeWasmPatternProcessor, processTokensWasm } =
+        await import('../WasmPatternProcessor.js');
 
-      // Action: Process tokens without WASM
-      const response = await processTokensWasm(semanticTokens, variableCache);
+      const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result1).toBe(true);
 
-      // Assert: No exception thrown, returns safely with structured response
-      expect(response.success).toBe(false);
-      expect(response.results).toEqual([]);
-      expect(response.error).toBeDefined();
-      expect(() => processTokensWasm(semanticTokens, variableCache)).not.toThrow();
+      const tokens = [{ value: '在', type: 'chinese_char' }];
+      const result = await processTokensWasm(tokens, {});
+
+      expect(result.success).toBe(false);
+      expect(result.results).toEqual([]);
+      // Error message should mention the processing error
+      expect(result.error).toContain('WASM pattern processing error');
     });
 
-    it('should report WASM as unavailable when not initialized', () => {
-      // Assert: WASM is reported as unavailable
+    it('should handle null/undefined tokens gracefully', async () => {
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => true),
+            processTokens: vi.fn(() => []),
+            isInitialized: vi.fn(() => true),
+            getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+          };
+        }),
+      }));
+
+      const { initializeWasmPatternProcessor, processTokensWasm } =
+        await import('../WasmPatternProcessor.js');
+
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result).toBe(true);
+
+      // Test null tokens
+      const result1 = await processTokensWasm(null, {});
+      expect(result1.results).toEqual([]);
+
+      // Test undefined tokens
+      const result2 = await processTokensWasm(undefined, {});
+      expect(result2.results).toEqual([]);
+    });
+  });
+
+  describe('Status Checking', () => {
+    it('should correctly report availability status', async () => {
+      const mockIsInitialized = vi.fn(() => true);
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => true),
+            isInitialized: mockIsInitialized,
+            getStatistics: vi.fn(() => ({ phaseAPatterns: 10 })),
+          };
+        }),
+      }));
+
+      const { initializeWasmPatternProcessor, isWasmPatternProcessorAvailable } =
+        await import('../WasmPatternProcessor.js');
+
+      // Before initialization
       expect(isWasmPatternProcessorAvailable()).toBe(false);
+
+      // After successful initialization
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result).toBe(true);
+      expect(isWasmPatternProcessorAvailable()).toBe(true);
+      expect(mockIsInitialized).toHaveBeenCalled();
+    });
+
+    it('should correctly report failure status', async () => {
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.reject(new Error('Load failed'))),
+      }));
+
+      const { initializeWasmPatternProcessor, hasWasmPatternProcessorFailed } =
+        await import('../WasmPatternProcessor.js');
+
+      // Before initialization
+      expect(hasWasmPatternProcessorFailed()).toBe(false);
+
+      // After failed initialization
+      await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(hasWasmPatternProcessorFailed()).toBe(true);
     });
   });
 
-  describe('CRITICAL-2: Error handling during pattern processing', () => {
-    it('should handle processing errors gracefully', async () => {
-      // This test verifies the try-catch in processTokensWasm
-      // Even if WASM throws an error, we catch it and return structured error response
+  describe('Re-initialization', () => {
+    it('should allow re-initialization with new patterns', async () => {
+      const mockInit = vi.fn(() => true);
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: mockInit,
+            getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+            isInitialized: vi.fn(() => true),
+          };
+        }),
+      }));
 
-      const semanticTokens = [{ value: '测试', translated: null, translationSource: null }];
+      const { initializeWasmPatternProcessor, reinitializeWasmPatternProcessor } =
+        await import('../WasmPatternProcessor.js');
 
-      const variableCache = new Map();
+      // Initial setup
+      const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result1).toBe(true);
+      expect(mockInit).toHaveBeenCalledTimes(1);
 
-      // Action: Process tokens (will fail because WASM not initialized)
-      const response = await processTokensWasm(semanticTokens, variableCache);
+      // Re-initialize with new patterns (clears state and re-initializes)
+      const result2 = await reinitializeWasmPatternProcessor({ X中Y: 'Y trong X' });
 
-      // Assert: Returns structured error response instead of propagating error
-      expect(response.success).toBe(false);
-      expect(response.results).toEqual([]);
-      expect(Array.isArray(response.results)).toBe(true);
-      expect(response.error).toBeDefined();
+      expect(result2).toBe(true);
+      expect(mockInit).toHaveBeenCalledTimes(2); // Called twice (initial + reinit)
     });
 
-    it('should log errors without throwing', async () => {
-      const semanticTokens = [{ value: '在XY中', translated: null, translationSource: null }];
+    it('should clear failure state on re-initialization', async () => {
+      let shouldFail = true;
+      const mockInit = vi.fn(() => true);
 
-      const variableCache = new Map();
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => {
+          if (shouldFail) {
+            return Promise.reject(new Error('First attempt fails'));
+          }
+          return Promise.resolve();
+        }),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: mockInit,
+            isInitialized: vi.fn(() => true),
+            getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+          };
+        }),
+      }));
 
-      // Action: Process tokens
-      const response = await processTokensWasm(semanticTokens, variableCache);
+      const {
+        initializeWasmPatternProcessor,
+        reinitializeWasmPatternProcessor,
+        hasWasmPatternProcessorFailed,
+      } = await import('../WasmPatternProcessor.js');
 
-      // Assert: Warning logged via logger but no exception
-      expect(logger.warn).toHaveBeenCalled();
-      expect(response.success).toBe(false);
-      expect(response.results).toEqual([]);
-    });
+      // First attempt fails
+      const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result1).toBe(false);
+      expect(hasWasmPatternProcessorFailed()).toBe(true);
+
+      // CODE REVIEW FIX: Wait for cooldown period (5 seconds) before retry
+      // The race condition fix adds a cooldown to prevent duplicate initialization attempts
+      await new Promise((resolve) => setTimeout(resolve, 5500)); // Wait 5.5s (cooldown is 5s)
+
+      // Second attempt succeeds (clears failure state)
+      shouldFail = false;
+      const result2 = await reinitializeWasmPatternProcessor({ X的Y: 'Y của X' });
+
+      expect(result2).toBe(true);
+      expect(hasWasmPatternProcessorFailed()).toBe(false); // Failure cleared
+      expect(mockInit).toHaveBeenCalledTimes(1); // Called once on successful reinit
+    }, 10000); // 10 second timeout to accommodate 5.5s cooldown wait
   });
 
-  describe('Status reporting', () => {
-    it('should correctly report initialization failure status', () => {
-      // In test environment, WASM fails to load automatically
-      // The module sets initializationFailed = true on import failure
+  describe('Statistics', () => {
+    it('should return null when not initialized', async () => {
+      const { getWasmPatternProcessorStats } = await import('../WasmPatternProcessor.js');
 
-      // Assert: Status functions work correctly
-      expect(typeof isWasmPatternProcessorAvailable()).toBe('boolean');
-      expect(typeof hasWasmPatternProcessorFailed()).toBe('boolean');
-    });
-  });
+      const stats = getWasmPatternProcessorStats();
 
-  describe('Edge cases', () => {
-    it('should handle empty token array', async () => {
-      const semanticTokens = [];
-      const variableCache = new Map();
-
-      // Action: Process empty array
-      const response = await processTokensWasm(semanticTokens, variableCache);
-
-      // Assert: Returns structured response safely
-      expect(response.success).toBe(false);
-      expect(response.results).toEqual([]);
+      expect(stats).toBeNull();
     });
 
-    it('should handle null variable cache', async () => {
-      const semanticTokens = [{ value: '测试', translated: null, translationSource: null }];
+    it('should return statistics when initialized', async () => {
+      const mockStats = {
+        phaseAPatterns: 10,
+        phaseBPatterns: 20,
+        totalPatterns: 30,
+      };
+      const mockGetStats = vi.fn(() => mockStats);
 
-      // Action: Process with null cache (WASM would handle this)
-      const response = await processTokensWasm(semanticTokens, null);
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => true),
+            getStatistics: mockGetStats,
+            isInitialized: vi.fn(() => true),
+          };
+        }),
+      }));
 
-      // Assert: Returns structured response safely (WASM not initialized)
-      expect(response.success).toBe(false);
-      expect(response.results).toEqual([]);
+      const { initializeWasmPatternProcessor, getWasmPatternProcessorStats } =
+        await import('../WasmPatternProcessor.js');
+
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+      expect(result).toBe(true);
+
+      const stats = getWasmPatternProcessorStats();
+
+      expect(stats).toEqual(mockStats);
+      expect(mockGetStats).toHaveBeenCalled();
     });
 
-    it('should handle undefined parameters gracefully', async () => {
-      // Action: Call with undefined (edge case)
-      const response = await processTokensWasm(undefined, undefined);
+    it('should handle statistics errors gracefully', async () => {
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => true),
+            getStatistics: vi.fn(() => {
+              throw new Error('Stats failed');
+            }),
+            isInitialized: vi.fn(() => true),
+          };
+        }),
+      }));
 
-      // Assert: Returns structured response instead of crashing
-      expect(response.success).toBe(false);
-      expect(response.results).toEqual([]);
+      const { initializeWasmPatternProcessor, getWasmPatternProcessorStats } =
+        await import('../WasmPatternProcessor.js');
+
+      await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+
+      const stats = getWasmPatternProcessorStats();
+
+      expect(stats).toBeNull();
     });
   });
 });

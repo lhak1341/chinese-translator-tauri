@@ -63,6 +63,21 @@ export interface MoveEntryData {
 }
 
 /**
+ * Sorting statistics returned by IncrementalDictionarySorter
+ */
+export interface SortingStats {
+  fullSorts: number;
+  incrementalSorts: number;
+  timeSaved: number;
+  averageFullSortTime: number;
+  averageIncrementalSortTime: number;
+  totalSorts: number;
+  timeSavedSeconds: string;
+  efficiencyGain: string;
+  incrementalPercentage: string;
+}
+
+/**
  * Delta-based history operation for undo/redo
  * Stores only changed entries instead of entire dictionaries
  * Memory savings: ~98% reduction (5.4GB → 100MB for 100 operations)

@@ -18,7 +18,11 @@ export class DictionaryError extends Error {
  * Used to distinguish validation errors from other errors for toast notification control
  */
 export class ValidationError extends DictionaryError {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    public readonly field?: string,
+    public readonly value?: unknown
+  ) {
     super(message);
     this.name = 'ValidationError';
   }

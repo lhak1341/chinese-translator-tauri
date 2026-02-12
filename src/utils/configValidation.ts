@@ -11,15 +11,10 @@
 
 import { logger } from './logger';
 import type { AppConfiguration } from '../types/ComponentTypes';
-
-/**
- * Result structure from electronAPI operations
- */
-export interface ElectronAPIResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
+import { ValidationError } from './errors';
+export { ValidationError } from './errors';
+import type { ElectronResult } from './resultHelpers';
+export type { ElectronResult as ElectronAPIResult } from './resultHelpers';
 
 /**
  * Validated configuration with safe defaults
@@ -55,20 +50,6 @@ export interface Dictionary {
 }
 
 /**
- * Validation error with context
- */
-export class ValidationError extends Error {
-  constructor(
-    message: string,
-    public readonly field?: string,
-    public readonly value?: unknown
-  ) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
-
-/**
  * Validate electronAPI result structure
  *
  * @param result - Raw result from electronAPI call
@@ -76,10 +57,7 @@ export class ValidationError extends Error {
  * @returns Validated result
  * @throws ValidationError if structure is invalid
  */
-export function validateElectronResult<T>(
-  result: unknown,
-  operation: string
-): ElectronAPIResult<T> {
+export function validateElectronResult<T>(result: unknown, operation: string): ElectronResult<T> {
   if (!result || typeof result !== 'object') {
     throw new ValidationError(
       `${operation} returned invalid result: expected object, got ${typeof result}`,
@@ -110,7 +88,7 @@ export function validateElectronResult<T>(
   }
 
   // At this point we know obj has a boolean 'success' field, so it's safe to cast
-  return obj as unknown as ElectronAPIResult<T>;
+  return obj as unknown as ElectronResult<T>;
 }
 
 /**

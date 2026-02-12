@@ -10,22 +10,8 @@ import type {
   DictionaryEntryValue,
   DictionaryEntryMetadata,
   HistoryOperation,
+  SortingStats,
 } from '../../types/DictionaryTypes';
-
-/**
- * Sorting statistics returned by IncrementalDictionarySorter
- */
-interface SortingStats {
-  fullSorts: number;
-  incrementalSorts: number;
-  timeSaved: number;
-  averageFullSortTime: number;
-  averageIncrementalSortTime: number;
-  totalSorts: number;
-  timeSavedSeconds: string;
-  efficiencyGain: string;
-  incrementalPercentage: string;
-}
 
 /**
  * Dictionary Context value
