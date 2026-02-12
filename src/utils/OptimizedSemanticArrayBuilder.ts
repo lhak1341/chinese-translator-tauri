@@ -686,14 +686,7 @@ export class OptimizedSemanticArrayBuilder {
   }
 
   /**
-   * Update with capitalized text using position metadata (preferred) or regex fallback.
-   *
-   * Must be called AFTER position tracking (setPositionByMatch) so that metadata
-   * positions can be used to extract the exact casing at each unit's location in
-   * the final text. This correctly handles duplicate words: e.g. "Bạn" (sentence
-   * start, position 0) vs "bạn" (mid-sentence, position 20) — the regex-only approach
-   * previously set BOTH to "Bạn" because it found the capitalized form first.
-   *
+   * Update with capitalized text using cached regex patterns
    * @param finalText - The final capitalized text
    */
   updateWithCapitalizedText(finalText: string): void {
@@ -707,38 +700,17 @@ export class OptimizedSemanticArrayBuilder {
       // Skip if empty
       if (!originalTranslation || originalTranslation.length === 0) continue;
 
-      const meta = this.metadata[i];
-
-      // Preferred path: use exact position metadata to extract the actual casing.
-      // This is precise for duplicates — each unit's position was set independently
-      // by the preceding position-tracking loop.
-      if (
-        meta &&
-        meta.translatedStart >= 0 &&
-        meta.translatedEnd > meta.translatedStart &&
-        meta.translatedEnd <= finalText.length
-      ) {
-        const actualText = finalText.substring(meta.translatedStart, meta.translatedEnd);
-        if (
-          actualText !== originalTranslation &&
-          actualText.length === originalTranslation.length &&
-          this.uppercasePattern.test(actualText)
-        ) {
-          this.translated[i] = actualText;
-        }
-        continue;
-      }
-
-      // Fallback: no position metadata — use regex to find the first capitalized match.
-      // This path is taken when position tracking hasn't run yet or the unit was skipped.
+      // Use cached regex pattern
       const regex = this.getCachedRegex(originalTranslation);
       const matches = [...finalText.matchAll(regex)];
 
       if (matches.length > 0) {
+        // Find best capitalized match
         let bestMatch = originalTranslation;
 
         for (const match of matches) {
           const matchText = match[0];
+          // If different and capitalized, prefer it
           if (matchText !== originalTranslation && this.uppercasePattern.test(matchText)) {
             bestMatch = matchText;
             break;
@@ -756,7 +728,7 @@ export class OptimizedSemanticArrayBuilder {
               capitalizedLength: bestMatch.length,
               impact: 'Would corrupt position mapping',
             });
-            continue;
+            continue; // Skip this update
           }
 
           this.translated[i] = bestMatch;

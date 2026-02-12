@@ -1738,10 +1738,16 @@ export class TranslationEngine {
         );
       }
 
-      // Set position metadata BEFORE updateWithCapitalizedText so that
-      // updateWithCapitalizedText can use exact position metadata to extract the actual
-      // casing from the final text, rather than regex-searching globally and incorrectly
-      // capitalizing every duplicate occurrence of the same word.
+      // CODE REVIEW FIX (2026-02-07): Update semantic arrays to match capitalized text
+      // Previously only capitalized the first unit, causing case mismatches for
+      // units after punctuation (e.g., after periods, after newlines)
+      // Now using updateWithCapitalizedText() to find ALL capitalized variants
+      characterOnlySemanticBuilder.updateWithCapitalizedText(translatedText);
+
+      // CODE REVIEW FIX (2026-02-07): Add position metadata AFTER all text transformations
+      // This fixes duplicate highlighting by tracking exact positions in final text
+      // Must happen after punctuation translation, capitalization, and spacing
+      // to avoid position drift from text modifications
       {
         const tempArrays = characterOnlySemanticBuilder.getArrays();
         let searchPosition = 0;
@@ -1783,12 +1789,6 @@ export class TranslationEngine {
           }
         }
       }
-
-      // CODE REVIEW FIX (2026-02-07): Update semantic arrays to match capitalized text.
-      // Runs AFTER position tracking so updateWithCapitalizedText can use exact position
-      // metadata to extract the actual casing at each unit's location in the final text.
-      // This correctly handles duplicate words: "Bạn" (sentence start) vs "bạn" (mid-sentence).
-      characterOnlySemanticBuilder.updateWithCapitalizedText(translatedText);
 
       // Get semantic arrays from the isolated builder (prevents conflicts with concurrent main translations)
       // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
@@ -7345,62 +7345,8 @@ export class TranslationEngine {
     // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
     result = this.applyFinalCleanup(result).normalize('NFC');
 
-    // Step 8: Rebuild segments against the cleaned result text.
-    // applyFinalCleanup inserts spaces between non-digit and digit chars
-    // (e.g., "Thứ580" → "Thứ 580"), shifting all positions in reconstructed.segments.
-    // Re-scan result to insert "spacing" segments for those gaps.
-    {
-      const cleanedSegments = [];
-      let segSearchPos = 0;
-      const lowerResult = result.normalize('NFC').toLowerCase();
-
-      for (const seg of reconstructed.segments) {
-        const segText = seg.translatedText || seg.text;
-        if (!segText) continue;
-
-        const lowerSegText = segText.normalize('NFC').toLowerCase();
-        const pos = lowerResult.indexOf(lowerSegText, segSearchPos);
-
-        if (pos >= 0) {
-          // Insert a spacing segment for any gap created by applyFinalCleanup
-          if (pos > segSearchPos) {
-            cleanedSegments.push({
-              type: 'spacing',
-              start: segSearchPos,
-              end: pos,
-              text: result.substring(segSearchPos, pos),
-              isClickable: false,
-              chunkIndex: seg.chunkIndex,
-            });
-          }
-
-          const actualLen = lowerSegText.length;
-          const actualText = result.substring(pos, pos + actualLen);
-          cleanedSegments.push({
-            ...seg,
-            start: pos,
-            end: pos + actualLen,
-            text: actualText,
-            translatedText: seg.translatedText ? actualText : seg.translatedText,
-          });
-          segSearchPos = pos + actualLen;
-        }
-        // If a segment can't be found, skip it — this shouldn't happen in practice
-      }
-
-      // Capture any trailing text (punctuation, spacing, etc.) after the last matched segment
-      if (segSearchPos < result.length) {
-        cleanedSegments.push({
-          type: 'remaining',
-          start: segSearchPos,
-          end: result.length,
-          text: result.substring(segSearchPos),
-          isClickable: false,
-        });
-      }
-
-      this.prebuiltSegments = cleanedSegments;
-    }
+    // Step 8: Store prebuilt segments for instant clickable highlighting
+    this.prebuiltSegments = reconstructed.segments;
 
     const translationTime = performance.now() - startTime;
     this.log(
