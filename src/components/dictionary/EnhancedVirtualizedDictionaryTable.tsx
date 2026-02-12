@@ -17,7 +17,12 @@ import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
-import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
+import {
+  createDuplicateKey,
+  parseDuplicateKey,
+  getDictionaryDropdownLabel,
+  compareDictionaryOrder,
+} from '../../utils/DuplicateAnalyzer';
 import { toast } from '../ToastContext';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 import { SEMANTIC_TYPE_COLORS, SEMANTIC_TYPES } from '../../constants/SemanticTypes';
@@ -59,19 +64,8 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
         const types = await getDictionaryTypes();
         const dictionaryList = Object.keys(types)
           .filter((id) => id !== selectedDictionary)
-          .map((id) => {
-            const type = types[id as keyof typeof types];
-            let label = type.label || id;
-            if (id === 'properNouns') label = 'Proper Nouns (Base)';
-            else if (id.startsWith('properNouns-'))
-              label = `Proper Nouns - ${id.replace('properNouns-', '')}`;
-            return { id, label };
-          })
-          .sort((a, b) => {
-            if (a.id === 'properNouns') return -1;
-            if (b.id === 'properNouns') return 1;
-            return a.id.localeCompare(b.id);
-          });
+          .map((id) => ({ id, label: getDictionaryDropdownLabel(id) }))
+          .sort(compareDictionaryOrder);
         setAvailableDictionaries(dictionaryList);
       } catch (err) {
         logger.error('Failed to load dictionaries:', err);
@@ -317,7 +311,6 @@ interface EnhancedVirtualizedDictionaryTableProps {
 const ITEM_HEIGHT = 40; // Height of each table row in pixels
 // OPTIMIZATION: Dynamic buffer sizing replaced fixed BUFFER_SIZE = 10
 // Now calculated based on device performance, viewport, and memory pressure
-const _SCROLL_THROTTLE_MS = 16; // 60fps throttling for scroll events
 const SEARCH_DEBOUNCE_MS = 150; // Debounce search input
 const LARGE_LIST_THRESHOLD = 1000; // When to apply additional optimizations
 
@@ -401,10 +394,10 @@ const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
 };
 
 const SEMANTIC_TYPE_SHORT_LABELS: Record<string, string> = {
-  person: 'PER',
-  place: 'PLA',
-  concept: 'CON',
-  object: 'OBJ',
+  [SEMANTIC_TYPES.PERSON]: 'PER',
+  [SEMANTIC_TYPES.PLACE]: 'PLA',
+  [SEMANTIC_TYPES.CONCEPT]: 'CON',
+  [SEMANTIC_TYPES.OBJECT]: 'OBJ',
 };
 
 const SEMANTIC_TYPE_CYCLE_LIST = ['person', 'place', 'concept', 'object'];
@@ -955,13 +948,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     }
   }, [totalHeight]);
 
-  // Forward search input ref
-  useEffect(() => {
-    if (searchRef && searchRef.current) {
-      // Focus search when requested
-    }
-  }, [searchRef]);
-
   // Wrapped updateEntry function that preserves scroll position
   const updateEntryWithScrollPreservation = useCallback(
     async (
@@ -1384,13 +1370,19 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           if (!editingTranslation) setTempTranslation(translationText);
         }, [translationText, editingTranslation]);
 
+        // Builds the base metadata object shared across all metadata-update handlers
+        const buildBaseMetadata = (): any => {
+          const m: any = { allowAsPatternVariable, lowPriority };
+          if (semanticType) m.semanticType = semanticType;
+          if (Object.keys(allowedVariableTypes).length > 0)
+            m.allowedVariableTypes = allowedVariableTypes;
+          return m;
+        };
+
         // Handle checkbox changes for patterns - preserve scroll position
         const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
           try {
-            const metadata: any = { allowAsPatternVariable, lowPriority };
-            if (semanticType) metadata.semanticType = semanticType;
-            if (Object.keys(allowedVariableTypes).length > 0)
-              metadata.allowedVariableTypes = allowedVariableTypes;
+            const metadata = buildBaseMetadata();
             metadata[field] = value;
 
             // Use scroll-preserving update function
@@ -1426,10 +1418,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               newAllowedTypes[varName] = [...current, type];
             }
 
-            const metadata: any = { allowAsPatternVariable, lowPriority };
-            if (semanticType) metadata.semanticType = semanticType;
+            const metadata = buildBaseMetadata();
             if (Object.keys(newAllowedTypes).length > 0)
               metadata.allowedVariableTypes = newAllowedTypes;
+            else delete metadata.allowedVariableTypes;
 
             await updateEntryWithScrollPreservation(
               selectedDictionary,
@@ -1446,10 +1438,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         // Set semantic type directly (single-select for phrases/proper nouns)
         const handleSetSemanticType = async (newType: string): Promise<void> => {
           try {
-            const metadata: any = { allowAsPatternVariable, lowPriority };
+            const metadata = buildBaseMetadata();
             if (newType) metadata.semanticType = newType;
-            if (Object.keys(allowedVariableTypes).length > 0)
-              metadata.allowedVariableTypes = allowedVariableTypes;
+            else delete metadata.semanticType;
 
             await updateEntryWithScrollPreservation(
               selectedDictionary,
@@ -1933,13 +1924,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     filterPatternType.size > 0 ||
     filterAllowAsVariable ||
     filterLowPriority;
-
-  const SEMANTIC_TYPE_SHORT_LABELS: Record<string, string> = {
-    [SEMANTIC_TYPES.PERSON]: 'PER',
-    [SEMANTIC_TYPES.PLACE]: 'PLA',
-    [SEMANTIC_TYPES.CONCEPT]: 'CON',
-    [SEMANTIC_TYPES.OBJECT]: 'OBJ',
-  };
 
   // Performance monitoring for large lists
   const performanceMetrics = useMemo(() => {

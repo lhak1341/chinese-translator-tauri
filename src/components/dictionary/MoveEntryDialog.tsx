@@ -4,6 +4,7 @@ import { getDictionaryTypes } from './DictionaryTypes';
 import { X, AlertTriangle, Info } from 'lucide-react';
 import styles from '../../styles/MoveEntryDialog.module.css';
 import { logger } from '../../utils/logger';
+import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/DuplicateAnalyzer';
 
 /**
  * Dictionary entry to be moved (basic structure from context menu)
@@ -97,38 +98,12 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
       try {
         const types = await getDictionaryTypes();
 
-        const sourceType = types[currentDictionary as keyof typeof types];
-        if (sourceType) {
-          setSourceDictionaryLabel(sourceType.label || currentDictionary);
-        } else if (currentDictionary === 'properNouns') {
-          setSourceDictionaryLabel('Proper Nouns (Base)');
-        } else if (currentDictionary.startsWith('properNouns-')) {
-          setSourceDictionaryLabel(
-            `Proper Nouns - ${currentDictionary.replace('properNouns-', '')}`
-          );
-        } else {
-          setSourceDictionaryLabel(
-            currentDictionary.charAt(0).toUpperCase() + currentDictionary.slice(1)
-          );
-        }
+        setSourceDictionaryLabel(getDictionaryDropdownLabel(currentDictionary));
 
         const dictionaryList: AvailableDictionary[] = Object.keys(types)
           .filter((id) => id !== currentDictionary)
-          .map((id) => {
-            const type = types[id as keyof typeof types];
-            let label = type.label || id;
-            if (id === 'properNouns') {
-              label = 'Proper Nouns (Base)';
-            } else if (id.startsWith('properNouns-')) {
-              label = `Proper Nouns - ${id.replace('properNouns-', '')}`;
-            }
-            return { id, label };
-          })
-          .sort((a, b) => {
-            if (a.id === 'properNouns') return -1;
-            if (b.id === 'properNouns') return 1;
-            return a.id.localeCompare(b.id);
-          });
+          .map((id) => ({ id, label: getDictionaryDropdownLabel(id) }))
+          .sort(compareDictionaryOrder);
 
         setAvailableDictionaries(dictionaryList);
       } catch (err) {

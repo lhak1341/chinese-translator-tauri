@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
-import VirtualizedDictionaryTable from './VirtualizedDictionaryTable';
 import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryTable';
 import DictionaryEntry from './DictionaryEntry';
 import HotkeyHandler from '../HotkeyHandler';
@@ -23,6 +22,7 @@ import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
 import { findConflictingEntries, type DuplicateRow } from '../../utils/DuplicateAnalyzer';
+import { toast } from '../ToastContext';
 
 /**
  * Selection state for bulk operations in Enhanced table
@@ -70,10 +70,6 @@ interface DictionaryManagerProps {
  * @returns Dictionary management interface
  */
 const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActive }) => {
-  // Feature flag for enhanced virtualized table
-  // Always use enhanced virtualization for better UX (direct editing)
-  const useEnhancedVirtualization = true;
-
   // Get dictionary operations and state from context
   const {
     undo,
@@ -92,7 +88,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     useState<DictionaryTypesCollection>(DICTIONARY_TYPES);
   const [showAddEntry, setShowAddEntry] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [updateError, _setUpdateError] = useState<string | null>(null);
   const [refreshTimestamp, setRefreshTimestamp] = useState<number>(Date.now());
   const [isLoadingDictionary, setIsLoadingDictionary] = useState<boolean>(false);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(null);
@@ -226,9 +221,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       setError(null);
       const result = await window.electronAPI.exportDictionaries();
       if (result.success) {
-        // Show success message
-        setError(`✅ ${result.message}`);
-        setTimeout(() => setError(null), 5000);
+        toast.success(result.message ?? 'Export complete');
       } else {
         setError(`Export failed: ${result.error}`);
       }
@@ -244,8 +237,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       setError(null);
       const result = await window.electronAPI.importDictionaries();
       if (result.success) {
-        // Show success message
-        setError(`✅ ${result.message}`);
+        toast.success(result.message ?? 'Import complete');
 
         // Selective refresh: reload dictionary types and current dictionary
         // This preserves user context (no full page reload)
@@ -257,9 +249,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         } catch (reloadError) {
           logger.error('Failed to reload dictionary after import:', reloadError);
         }
-
-        // Clear success message after 5 seconds
-        setTimeout(() => setError(null), 5000);
       } else {
         setError(`Import failed: ${result.error}`);
       }
@@ -295,8 +284,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         setShowDuplicatesMode(true);
 
         if (duplicates.length === 0) {
-          setError('✅ No duplicate entries found! All entries are unique across dictionaries.');
-          setTimeout(() => setError(null), 5000);
+          toast.success('No duplicate entries found! All entries are unique across dictionaries.');
         }
       } catch (error) {
         setError(`Failed to analyze duplicates: ${(error as Error).message}`);
@@ -549,12 +537,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           {error}
         </div>
       )}
-      {updateError && (
-        <div className={styles.error}>
-          <AlertCircle size={15} />
-          {updateError}
-        </div>
-      )}
 
       {showDuplicatesMode && duplicateRows.length > 0 && (
         <div
@@ -579,24 +561,18 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       )}
 
       <div className={styles.tableContainer}>
-        {useEnhancedVirtualization
-          ? React.createElement(EnhancedVirtualizedDictionaryTable as any, {
-              key: showDuplicatesMode ? `duplicates-${duplicateRows.length}` : 'dictionary-table',
-              selectedDictionary,
-              searchRef,
-              onSelectionChange: setSelectionState,
-              isActive,
-              showDuplicatesMode,
-              duplicateRows,
-              onRefreshDuplicates: handleFindDuplicates,
-              scrollRestore: duplicateScrollRestore,
-              onScrollSave: setDuplicateScrollRestore,
-            })
-          : React.createElement(VirtualizedDictionaryTable as any, {
-              selectedDictionary,
-              searchRef,
-              isActive,
-            })}
+        {React.createElement(EnhancedVirtualizedDictionaryTable as any, {
+          key: showDuplicatesMode ? `duplicates-${duplicateRows.length}` : 'dictionary-table',
+          selectedDictionary,
+          searchRef,
+          onSelectionChange: setSelectionState,
+          isActive,
+          showDuplicatesMode,
+          duplicateRows,
+          onRefreshDuplicates: handleFindDuplicates,
+          scrollRestore: duplicateScrollRestore,
+          onScrollSave: setDuplicateScrollRestore,
+        })}
       </div>
 
       {showAddEntry &&
