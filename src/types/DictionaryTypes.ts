@@ -45,6 +45,24 @@ export type HistoryOperationType =
   | 'bulk_move';
 
 /**
+ * Entry data structure for editing or creating dictionary entries
+ */
+export interface EditingEntryData {
+  source: string;
+  translation: string | DictionaryEntryValue;
+  allowAsPatternVariable?: boolean;
+  lowPriority?: boolean;
+}
+
+/**
+ * Entry data structure for moving a dictionary entry to another dictionary
+ */
+export interface MoveEntryData {
+  source: string;
+  translation: string;
+}
+
+/**
  * Delta-based history operation for undo/redo
  * Stores only changed entries instead of entire dictionaries
  * Memory savings: ~98% reduction (5.4GB → 100MB for 100 operations)

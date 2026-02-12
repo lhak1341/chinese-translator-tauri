@@ -13,35 +13,11 @@ import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import { logger } from '../../utils/logger';
 import styles from '../../styles/DictionaryTable.module.css';
-
-/**
- * Dictionary entry value type (can be string or object with metadata)
- */
-type DictionaryEntryValue =
-  | string
-  | {
-      translation: string;
-      allowAsPatternVariable?: boolean;
-      lowPriority?: boolean;
-    };
-
-/**
- * Dictionary entry data structure for editing
- */
-interface EditingEntryData {
-  source: string;
-  translation: string;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
-
-/**
- * Dictionary entry data structure for moving
- */
-interface MoveEntryData {
-  source: string;
-  translation: string;
-}
+import type {
+  DictionaryEntryValue,
+  EditingEntryData,
+  MoveEntryData,
+} from '../../types/DictionaryTypes';
 
 /**
  * Props for DictionaryTable component

@@ -315,6 +315,3 @@ export function resetRollbackMonitoring() {
   LEGACY_REMOVAL_FLAGS.forceParallelProcessing = false;
   LEGACY_REMOVAL_FLAGS.emergencyLegacyRestore = false;
 }
-
-// Export monitoring state for testing
-export const _rollbackMonitoring = rollbackMonitoring;

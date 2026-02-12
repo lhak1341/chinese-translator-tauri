@@ -24,7 +24,11 @@ import {
   compareDictionaryOrder,
 } from '../../utils/DuplicateAnalyzer';
 import { toast } from '../ToastContext';
-import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
+import type {
+  DictionaryEntryValue,
+  EditingEntryData,
+  MoveEntryData,
+} from '../../types/DictionaryTypes';
 import { SEMANTIC_TYPE_COLORS, SEMANTIC_TYPES } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
@@ -240,24 +244,6 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
     </div>
   );
 };
-
-/**
- * Entry data for editing modal
- */
-interface EditingEntryData {
-  source: string;
-  translation: string | DictionaryEntryValue;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
-
-/**
- * Entry data for move dialog
- */
-interface MoveEntryData {
-  source: string;
-  translation: string;
-}
 
 /**
  * Selection state passed to parent component

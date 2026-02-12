@@ -10,29 +10,7 @@ import {
   SEMANTIC_TYPE_COLORS,
 } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
-
-/**
- * Dictionary entry value type (can be string or object with metadata)
- */
-type DictionaryEntryValue =
-  | string
-  | {
-      translation: string;
-      allowAsPatternVariable?: boolean;
-      lowPriority?: boolean;
-      semanticType?: string;
-      allowedVariableTypes?: Record<string, string[]>;
-    };
-
-/**
- * Entry data structure for editing or creating entries
- */
-interface EditingEntryData {
-  source: string;
-  translation: string | DictionaryEntryValue;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
+import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
 
 /**
  * Existing entry detection data

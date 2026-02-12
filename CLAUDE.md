@@ -191,6 +191,7 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 - 🚩 **`this.*`, `setState`, refs** - State dependencies prevent extraction
 - ✅ **Pure functions, no side effects** - Safe to extract to `src/utils/`
 - ✅ **React hooks managing one concern** - Extract to `src/hooks/`
+- ✅ **CSS modules** - All module CSS lives in `src/styles/ComponentName.module.css`, not co-located with components
 
 **After extracting Phase 1, reload broke** (2026-01-30): Removed constants still referenced. Always grep for usage before removing infrastructure.
 
@@ -304,14 +305,15 @@ npm run tauri:build     # Build production app
 
 ### Key Files
 
-| Purpose          | File                                | Lines | Why Coupled                |
-| ---------------- | ----------------------------------- | ----- | -------------------------- |
-| Translation Core | `TranslationEngine.js`              | 7,464 | 5-phase state coordination |
-| UI Coordination  | `Translator.jsx`                    | 1,967 | Cross-mode synchronization |
-| WASM Number      | `wasm-core/src/number_processor.rs` | -     | Native performance         |
-| WASM Pattern     | `wasm-core/src/pattern_processor/`  | -     | 10-50x speedup             |
-| WASM Dictionary  | `wasm-core/src/lib.rs`              | -     | 27,000+ entries            |
-| Rust Lookup      | `src-tauri/src/lookup_index.rs`     | -     | Backend trie indexing      |
+| Purpose          | File                                | Lines | Why Coupled                                                                                            |
+| ---------------- | ----------------------------------- | ----- | ------------------------------------------------------------------------------------------------------ |
+| Translation Core | `TranslationEngine.js`              | 7,464 | 5-phase state coordination                                                                             |
+| UI Coordination  | `Translator.jsx`                    | 1,967 | Cross-mode synchronization                                                                             |
+| Shared TS types  | `src/types/DictionaryTypes.ts`      | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.) |
+| WASM Number      | `wasm-core/src/number_processor.rs` | -     | Native performance                                                                                     |
+| WASM Pattern     | `wasm-core/src/pattern_processor/`  | -     | 10-50x speedup                                                                                         |
+| WASM Dictionary  | `wasm-core/src/lib.rs`              | -     | 27,000+ entries                                                                                        |
+| Rust Lookup      | `src-tauri/src/lookup_index.rs`     | -     | Backend trie indexing                                                                                  |
 
 **Extracted Utilities** (2026-01-30, see `docs/code-review/REFACTORING_EXTRACTION_2026-01-30.md`):
 
@@ -362,6 +364,8 @@ npm test              # Watch mode
 npm test -- --run     # Run once (CI)
 npm run test:coverage # Coverage report
 ```
+
+**Test file placement**: Utility tests go in `src/utils/__tests__/`, component tests in `src/components/__tests__/`. Never place `.test.ts` files directly alongside source files in `src/utils/`.
 
 📖 **Testing Details**: [docs/guides/development.md](docs/guides/development.md#testing-infrastructure)
 

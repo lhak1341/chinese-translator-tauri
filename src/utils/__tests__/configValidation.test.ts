@@ -20,7 +20,7 @@ import {
   type ElectronAPIResult,
   type AppConfiguration,
   type Dictionary,
-} from './configValidation';
+} from '../configValidation';
 
 describe('validateElectronResult', () => {
   it('should validate successful result with data', () => {

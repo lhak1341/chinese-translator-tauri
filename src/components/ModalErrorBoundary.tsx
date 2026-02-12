@@ -1,5 +1,6 @@
 import React from 'react';
 import { logger } from '../utils/logger';
+import styles from '../styles/ModalErrorBoundary.module.css';
 
 /**
  * ModalErrorBoundary Component
@@ -12,12 +13,18 @@ import { logger } from '../utils/logger';
  * <ModalErrorBoundary onClose={closeModal}>
  *   <MyModal />
  * </ModalErrorBoundary>
+ *
+ * <ModalErrorBoundary onClose={closeModal} title="Failed to load Settings">
+ *   <SettingsModal />
+ * </ModalErrorBoundary>
  * ```
  */
 
 interface ModalErrorBoundaryProps {
   children: React.ReactNode;
   onClose: () => void;
+  /** Title shown in the error card. Defaults to a generic message. */
+  title?: string;
 }
 
 interface ModalErrorBoundaryState {
@@ -64,36 +71,13 @@ class ModalErrorBoundary extends React.Component<ModalErrorBoundaryProps, ModalE
 
   render(): React.ReactNode {
     if (this.state.hasError) {
-      // Inline error UI for modals
+      const title = this.props.title ?? '❌ Failed to load dialog';
       return (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={this.handleClose}
-        >
-          <div
-            style={{
-              backgroundColor: '#fff',
-              borderRadius: '8px',
-              padding: '2rem',
-              maxWidth: '500px',
-              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ color: '#dc2626', marginTop: 0 }}>❌ Failed to load Quick Add</h2>
-            <p style={{ color: '#4b5563', marginBottom: '1.5rem' }}>
-              An error occurred while opening the Quick Add dialog.
+        <div className={styles.overlay} onClick={this.handleClose}>
+          <div className={styles.errorCard} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.title}>{title}</h2>
+            <p className={styles.description}>
+              An error occurred while loading this dialog.
               {this.state.error && (
                 <>
                   <br />
@@ -102,31 +86,11 @@ class ModalErrorBoundary extends React.Component<ModalErrorBoundaryProps, ModalE
                 </>
               )}
             </p>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                onClick={this.handleRetry}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#3b82f6',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
-              >
+            <div className={styles.actions}>
+              <button onClick={this.handleRetry} className={styles.tryAgainButton}>
                 Try Again
               </button>
-              <button
-                onClick={this.handleClose}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#6b7280',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={this.handleClose} className={styles.closeButton}>
                 Close
               </button>
             </div>
