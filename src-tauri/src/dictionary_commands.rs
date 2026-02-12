@@ -340,7 +340,7 @@ impl DictionaryCache {
                     let now = SystemTime::now()
                         .duration_since(SystemTime::UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_secs();
+                        .as_millis() as u64;
                     access_order.insert(key, now);
                 }
             }
@@ -352,24 +352,23 @@ impl DictionaryCache {
     /// CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Self-healing mutex recovery
     /// The mutex remains marked as poisoned but continues to function normally
     /// CODE REVIEW FIX 2026-02-08: LRU eviction - also invalidate access_order tracking
+    /// CODE REVIEW FIX 2026-02-12: Avoid nested mutex locks to prevent deadlocks
+    /// (matches the pattern already used in set())
     pub fn invalidate(&self, dictionary_id: Option<&str>) {
-        match self.cache.lock() {
+        // Step 1: Perform cache invalidation, collecting surviving keys for access_order cleanup.
+        // The cache guard is explicitly dropped before we acquire access_order — same pattern as
+        // set() — to prevent the nested-lock deadlock that existed in the previous implementation.
+        let surviving_keys: Option<Vec<String>> = match self.cache.lock() {
             Ok(mut cache) => {
                 if let Some(id) = dictionary_id {
                     cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
+                    let keys = cache.keys().cloned().collect();
+                    drop(cache); // Release before acquiring access_order
+                    Some(keys)
                 } else {
                     cache.clear();
-                }
-
-                // Also clean up access_order for invalidated entries
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    if dictionary_id.is_some() {
-                        // Only retain access times for keys still in cache
-                        access_order.retain(|k, _| cache.contains_key(k));
-                    } else {
-                        // Clear all access times
-                        access_order.clear();
-                    }
+                    drop(cache); // Release before acquiring access_order
+                    None
                 }
             }
             Err(poisoned) => {
@@ -387,14 +386,19 @@ impl DictionaryCache {
                 eprintln!("Application will continue running - restart recommended when convenient");
 
                 // IMPORTANT: Continue using the lock! into_inner() gives us the guard
-                // Clear the entire cache regardless of dictionary_id for safety
                 let mut cache = poisoned.into_inner();
                 cache.clear(); // Full clear is safest after poisoning
+                // cache guard dropped when this Err block ends
+                None
+            }
+        };
+        // cache lock is now released — safe to acquire access_order independently
 
-                // Also clear access_order
-                if let Ok(mut access_order) = self.access_order.lock() {
-                    access_order.clear();
-                }
+        // Step 2: Clean up access_order to match the surviving cache entries.
+        if let Ok(mut access_order) = self.access_order.lock() {
+            match surviving_keys {
+                Some(ref keys) => access_order.retain(|k, _| keys.contains(k)),
+                None => access_order.clear(),
             }
         }
     }
@@ -459,6 +463,33 @@ pub struct DictionaryResponse {
     message: Option<String>,
 }
 
+impl DictionaryResponse {
+    /// Success with no payload.
+    fn ok() -> Self {
+        Self { success: true, data: None, error: None, dictionaries: None, message: None }
+    }
+
+    /// Success carrying a JSON data blob.
+    fn ok_with_data(data: serde_json::Value) -> Self {
+        Self { success: true, data: Some(data), error: None, dictionaries: None, message: None }
+    }
+
+    /// Success carrying a list of dictionary IDs.
+    fn ok_with_dicts(dictionaries: Vec<String>) -> Self {
+        Self { success: true, data: None, error: None, dictionaries: Some(dictionaries), message: None }
+    }
+
+    /// Success carrying a human-readable message.
+    fn ok_with_message(message: impl Into<String>) -> Self {
+        Self { success: true, data: None, error: None, dictionaries: None, message: Some(message.into()) }
+    }
+
+    /// Failure carrying an error description.
+    fn err(error: impl Into<String>) -> Self {
+        Self { success: false, data: None, error: Some(error.into()), dictionaries: None, message: None }
+    }
+}
+
 // Get the dictionary directory path
 fn get_dictionary_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     let app_data_dir = app_handle
@@ -486,13 +517,7 @@ pub async fn open_dictionary_folder(app_handle: tauri::AppHandle) -> Result<Dict
         .open_path(dictionary_path.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| e.to_string())?;
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: None,
-    })
+    Ok(DictionaryResponse::ok())
 }
 
 #[tauri::command]
@@ -518,13 +543,7 @@ pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Res
         })
         .collect();
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: Some(proper_nouns_dicts),
-        message: None,
-    })
+    Ok(DictionaryResponse::ok_with_dicts(proper_nouns_dicts))
 }
 
 #[tauri::command]
@@ -540,13 +559,7 @@ pub async fn create_proper_nouns_dictionary(
 
     // Check if file already exists
     if file_path.exists() {
-        return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some("Dictionary already exists".to_string()),
-            dictionaries: None,
-            message: None,
-        });
+        return Ok(DictionaryResponse::err("Dictionary already exists"));
     }
 
     // Create empty dictionary
@@ -557,13 +570,7 @@ pub async fn create_proper_nouns_dictionary(
     fs::write(&file_path, json_string)
         .map_err(|e| e.to_string())?;
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: None,
-    })
+    Ok(DictionaryResponse::ok())
 }
 
 #[tauri::command]
@@ -614,13 +621,7 @@ pub async fn save_dictionary(
         &fs::read_to_string(&file_path).map_err(|e| e.to_string())?
     ).map_err(|e| e.to_string())?;
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: Some(verify_data),
-        error: None,
-        dictionaries: None,
-        message: None,
-    })
+    Ok(DictionaryResponse::ok_with_data(verify_data))
 }
 
 #[tauri::command]
@@ -639,13 +640,7 @@ pub async fn load_dictionary(
 
     // Check cache first
     if let Some(cached_data) = cache.get(&cache_key) {
-        return Ok(DictionaryResponse {
-            success: true,
-            data: Some(cached_data),
-            error: None,
-            dictionaries: None,
-            message: None,
-        });
+        return Ok(DictionaryResponse::ok_with_data(cached_data));
     }
 
     // SECURITY: Check file size before reading
@@ -660,22 +655,10 @@ pub async fn load_dictionary(
             // Cache the result
             cache.set(cache_key, data.clone());
 
-            Ok(DictionaryResponse {
-                success: true,
-                data: Some(data),
-                error: None,
-                dictionaries: None,
-                message: None,
-            })
+            Ok(DictionaryResponse::ok_with_data(data))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Ok(DictionaryResponse {
-                success: false,
-                data: None,
-                error: Some("File not found".to_string()),
-                dictionaries: None,
-                message: None,
-            })
+            Ok(DictionaryResponse::err("File not found"))
         }
         Err(e) => Err(e.to_string()),
     }
@@ -695,26 +678,14 @@ pub async fn load_configuration(app_handle: tauri::AppHandle) -> Result<Dictiona
         Ok(contents) => {
             let data: serde_json::Value = serde_json::from_str(&contents)
                 .map_err(|e| e.to_string())?;
-            Ok(DictionaryResponse {
-                success: true,
-                data: Some(data),
-                error: None,
-                dictionaries: None,
-                message: None,
-            })
+            Ok(DictionaryResponse::ok_with_data(data))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             // Return default configuration
             let default_config = serde_json::json!({
                 "activeProperNouns": ["properNouns"]
             });
-            Ok(DictionaryResponse {
-                success: true,
-                data: Some(default_config),
-                error: None,
-                dictionaries: None,
-                message: None,
-            })
+            Ok(DictionaryResponse::ok_with_data(default_config))
         }
         Err(e) => Err(e.to_string()),
     }
@@ -731,13 +702,7 @@ pub async fn save_configuration(
     let json_string = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(&config_path, json_string).map_err(|e| e.to_string())?;
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: None,
-    })
+    Ok(DictionaryResponse::ok())
 }
 
 #[tauri::command]
@@ -754,13 +719,7 @@ pub async fn load_appearance_settings(app_handle: tauri::AppHandle) -> Result<Di
         Ok(contents) => {
             let data: serde_json::Value = serde_json::from_str(&contents)
                 .map_err(|e| e.to_string())?;
-            Ok(DictionaryResponse {
-                success: true,
-                data: Some(data),
-                error: None,
-                dictionaries: None,
-                message: None,
-            })
+            Ok(DictionaryResponse::ok_with_data(data))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             // Return default appearance settings
@@ -784,13 +743,7 @@ pub async fn load_appearance_settings(app_handle: tauri::AppHandle) -> Result<Di
                     "fontFamily": "Inter, system-ui, Arial, sans-serif"
                 }
             });
-            Ok(DictionaryResponse {
-                success: true,
-                data: Some(default_appearance),
-                error: None,
-                dictionaries: None,
-                message: None,
-            })
+            Ok(DictionaryResponse::ok_with_data(default_appearance))
         }
         Err(e) => Err(e.to_string()),
     }
@@ -807,13 +760,7 @@ pub async fn save_appearance_settings(
     let json_string = serde_json::to_string_pretty(&appearance_settings).map_err(|e| e.to_string())?;
     fs::write(&appearance_path, json_string).map_err(|e| e.to_string())?;
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: None,
-    })
+    Ok(DictionaryResponse::ok())
 }
 
 #[tauri::command]
@@ -837,13 +784,7 @@ pub async fn export_dictionaries(
 
     let file_path = match file_path {
         Some(path) => path.as_path().ok_or("Invalid file path")?.to_path_buf(),
-        None => return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some("Export cancelled".to_string()),
-            dictionaries: None,
-            message: None,
-        })
+        None => return Ok(DictionaryResponse::err("Export cancelled")),
     };
 
     // Create ZIP file
@@ -883,13 +824,7 @@ pub async fn export_dictionaries(
 
     zip.finish().map_err(|e| e.to_string())?;
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: Some(format!("Exported {} dictionaries successfully", file_count)),
-    })
+    Ok(DictionaryResponse::ok_with_message(format!("Exported {} dictionaries successfully", file_count)))
 }
 
 #[tauri::command]
@@ -913,13 +848,7 @@ pub async fn import_dictionaries(
 
     let file_path = match file_path {
         Some(path) => path.as_path().ok_or("Invalid file path")?.to_path_buf(),
-        None => return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some("Import cancelled".to_string()),
-            dictionaries: None,
-            message: None,
-        })
+        None => return Ok(DictionaryResponse::err("Import cancelled")),
     };
 
     // Open ZIP file
@@ -979,7 +908,7 @@ pub async fn import_dictionaries(
     Ok(DictionaryResponse {
         success: file_count > 0,
         data: None,
-        error: if !errors.is_empty() { Some(errors.join(", ")) } else { None },
+        error: if errors.is_empty() { None } else { Some(errors.join(", ")) },
         dictionaries: None,
         message: Some(message),
     })
@@ -1043,13 +972,7 @@ pub async fn reset_dictionaries(
         "Dictionaries reset successfully. No backup created."
     };
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: Some(message.to_string()),
-    })
+    Ok(DictionaryResponse::ok_with_message(message))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -1189,23 +1112,11 @@ pub async fn rename_proper_nouns_dictionary(
 
     // Validate dictionary IDs
     if old_dictionary_id == "properNouns" {
-        return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some("Cannot rename the default 'properNouns' dictionary".to_string()),
-            dictionaries: None,
-            message: None,
-        });
+        return Ok(DictionaryResponse::err("Cannot rename the default 'properNouns' dictionary"));
     }
 
     if !old_dictionary_id.starts_with("properNouns-") || !new_dictionary_id.starts_with("properNouns-") {
-        return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some("Both dictionary IDs must start with 'properNouns-'".to_string()),
-            dictionaries: None,
-            message: None,
-        });
+        return Ok(DictionaryResponse::err("Both dictionary IDs must start with 'properNouns-'"));
     }
 
     let old_file_path = dictionary_path.join(format!("{}.json", old_dictionary_id));
@@ -1213,24 +1124,12 @@ pub async fn rename_proper_nouns_dictionary(
 
     // Check old file exists
     if !old_file_path.exists() {
-        return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Dictionary '{}' not found", old_dictionary_id)),
-            dictionaries: None,
-            message: None,
-        });
+        return Ok(DictionaryResponse::err(format!("Dictionary '{}' not found", old_dictionary_id)));
     }
 
     // Check new file doesn't exist
     if new_file_path.exists() {
-        return Ok(DictionaryResponse {
-            success: false,
-            data: None,
-            error: Some(format!("Dictionary '{}' already exists", new_dictionary_id)),
-            dictionaries: None,
-            message: None,
-        });
+        return Ok(DictionaryResponse::err(format!("Dictionary '{}' already exists", new_dictionary_id)));
     }
 
     // Rename the file
@@ -1280,13 +1179,7 @@ pub async fn rename_proper_nouns_dictionary(
         }
     }
 
-    Ok(DictionaryResponse {
-        success: true,
-        data: None,
-        error: None,
-        dictionaries: None,
-        message: Some(format!("Renamed '{}' to '{}'", old_dictionary_id, new_dictionary_id)),
-    })
+    Ok(DictionaryResponse::ok_with_message(format!("Renamed '{}' to '{}'", old_dictionary_id, new_dictionary_id)))
 }
 
 // ============================================================================

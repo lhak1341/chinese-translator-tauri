@@ -9,39 +9,23 @@ import React, {
 } from 'react';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
-import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
 import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { ValidationError, SaveError, isValidationError } from '../../utils/errors';
+import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
+import { sortDictionaryEntries } from '../../utils/dictionaryHelpers';
+import type {
+  DictionaryData,
+  DictionaryEntryValue,
+  DictionaryEntryMetadata,
+} from '../../types/DictionaryTypes';
 
 /**
- * Dictionary data structure (key-value pairs)
- */
-interface DictionaryData {
-  [key: string]: string | DictionaryEntryValue;
-}
-
-/**
- * Dictionary entry value for patterns/phrases with metadata
- */
-interface DictionaryEntryValue {
-  translation: string;
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
-
-/**
- * Metadata for dictionary operations
- */
-interface DictionaryEntryMetadata {
-  allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
-}
-
-/**
- * History operation for undo/redo
+ * History operation for undo/redo (snapshot-based design used by LazyDictionaryContext).
+ * Note: DictionaryContext uses a delta-based HistoryOperation from DictionaryTypes.ts;
+ * this context predates that refactoring and stores full before/after snapshots.
  */
 interface HistoryOperation {
   dictionaryId: string;
@@ -127,20 +111,6 @@ const MAX_HISTORY = 100;
 // MEDIUM-1 FIX: Dynamic preload delay calculation
 // Default delay used as fallback if measurement fails
 const DEFAULT_PRELOAD_DELAY = 1000; // ms to wait before preloading other dictionaries
-
-const sortDictionaryEntries = (
-  dictionary: DictionaryData,
-  dictionaryId: string = 'unknown',
-  changedKey: string | null = null,
-  oldKey: string | null = null
-): DictionaryData => {
-  return dictionarySorter.sortDictionary(
-    dictionary,
-    dictionaryId,
-    changedKey ?? undefined,
-    oldKey ?? undefined
-  ) as DictionaryData;
-};
 
 /**
  * LazyDictionaryProvider Component

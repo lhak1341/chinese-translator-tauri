@@ -72,13 +72,11 @@ export async function callWasmWithTimeout(
 ) {
   const { logTimeout = true, throwOnTimeout = true, fallbackValue = null } = options;
 
+  let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
-    const timeoutId = setTimeout(() => {
+    timeoutId = setTimeout(() => {
       reject(new TimeoutError(operationName, timeoutMs));
     }, timeoutMs);
-
-    // Store timeoutId for potential cleanup
-    timeoutPromise._timeoutId = timeoutId;
   });
 
   try {
@@ -86,16 +84,12 @@ export async function callWasmWithTimeout(
     const result = await Promise.race([operation(), timeoutPromise]);
 
     // Clear timeout if operation completes first
-    if (timeoutPromise._timeoutId) {
-      clearTimeout(timeoutPromise._timeoutId);
-    }
+    clearTimeout(timeoutId);
 
     return result;
   } catch (error) {
     // Clear timeout on error
-    if (timeoutPromise._timeoutId) {
-      clearTimeout(timeoutPromise._timeoutId);
-    }
+    clearTimeout(timeoutId);
 
     if (error instanceof TimeoutError) {
       if (logTimeout) {

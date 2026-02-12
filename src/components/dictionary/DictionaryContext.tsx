@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
+import { sortDictionaryEntries } from '../../utils/dictionaryHelpers';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import type {
@@ -102,22 +103,6 @@ const DictionaryContext = createContext<DictionaryContextValue | undefined>(unde
 
 // Maximum number of operations to keep in history
 const MAX_HISTORY = 100;
-
-// Helper function to sort dictionary entries by length and then alphabetically
-// Phase 6: Now uses incremental sorting for better performance
-const sortDictionaryEntries = (
-  dictionary: DictionaryData,
-  dictionaryId: string = 'unknown',
-  changedKey: string | null = null,
-  oldKey: string | null = null
-): DictionaryData => {
-  return dictionarySorter.sortDictionary(
-    dictionary,
-    dictionaryId,
-    changedKey ?? undefined,
-    oldKey ?? undefined
-  ) as DictionaryData;
-};
 
 /**
  * DictionaryProvider Component

@@ -195,6 +195,10 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 
 **After extracting Phase 1, reload broke** (2026-01-30): Removed constants still referenced. Always grep for usage before removing infrastructure.
 
+**`HistoryOperation` type divergence — DO NOT swap** (2026-02-12): `LazyDictionaryContext.tsx` uses a snapshot-based `HistoryOperation` (`oldData`/`newData: DictionaryData`). The canonical `src/types/DictionaryTypes.ts` version is delta-based (individual entries). These are architecturally incompatible — `LazyDictionaryContext.tsx` must keep its local definition.
+
+**`DictionaryCache` Rust mutex pattern** (2026-02-12): Always collect needed data while holding the `cache` lock, then `drop(cache)` explicitly before acquiring `access_order`. Nested lock (holding `cache` while locking `access_order`) is a deadlock risk. See `set()` in `dictionary_commands.rs` for the canonical pattern.
+
 ### Logging Best Practices
 
 **Environment-aware logging** (2026-01-18): Use `logger` utility instead of `console.*`
@@ -299,21 +303,23 @@ npm test                # Run tests
 npm run type-check      # TypeScript checking (0 errors expected)
 npm run format          # Format all code
 npm run tauri:build     # Build production app
+cargo check --manifest-path src-tauri/Cargo.toml  # Rust type-check (do NOT use cd + cargo check — zoxide breaks it in Bash tool)
 ```
 
 📖 **All Commands**: [docs/guides/development.md](docs/guides/development.md#development-commands)
 
 ### Key Files
 
-| Purpose          | File                                | Lines | Why Coupled                                                                                            |
-| ---------------- | ----------------------------------- | ----- | ------------------------------------------------------------------------------------------------------ |
-| Translation Core | `TranslationEngine.js`              | 7,464 | 5-phase state coordination                                                                             |
-| UI Coordination  | `Translator.jsx`                    | 1,967 | Cross-mode synchronization                                                                             |
-| Shared TS types  | `src/types/DictionaryTypes.ts`      | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.) |
-| WASM Number      | `wasm-core/src/number_processor.rs` | -     | Native performance                                                                                     |
-| WASM Pattern     | `wasm-core/src/pattern_processor/`  | -     | 10-50x speedup                                                                                         |
-| WASM Dictionary  | `wasm-core/src/lib.rs`              | -     | 27,000+ entries                                                                                        |
-| Rust Lookup      | `src-tauri/src/lookup_index.rs`     | -     | Backend trie indexing                                                                                  |
+| Purpose           | File                                | Lines | Why Coupled                                                                                            |
+| ----------------- | ----------------------------------- | ----- | ------------------------------------------------------------------------------------------------------ |
+| Translation Core  | `TranslationEngine.js`              | 7,464 | 5-phase state coordination                                                                             |
+| UI Coordination   | `Translator.jsx`                    | 1,967 | Cross-mode synchronization                                                                             |
+| Shared TS types   | `src/types/DictionaryTypes.ts`      | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.) |
+| WASM Number       | `wasm-core/src/number_processor.rs` | -     | Native performance                                                                                     |
+| WASM Pattern      | `wasm-core/src/pattern_processor/`  | -     | 10-50x speedup                                                                                         |
+| WASM Dictionary   | `wasm-core/src/lib.rs`              | -     | 27,000+ entries                                                                                        |
+| Rust Lookup       | `src-tauri/src/lookup_index.rs`     | -     | Backend trie indexing                                                                                  |
+| Shared dict utils | `src/utils/dictionaryHelpers.ts`    | -     | `sortDictionaryEntries` shared by DictionaryContext + LazyDictionaryContext                            |
 
 **Extracted Utilities** (2026-01-30, see `docs/code-review/REFACTORING_EXTRACTION_2026-01-30.md`):
 
