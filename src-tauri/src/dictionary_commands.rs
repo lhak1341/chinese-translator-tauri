@@ -1398,3 +1398,268 @@ pub fn check_dictionary_cache_health(app: AppHandle) -> CacheHealthResponse {
         },
     }
 }
+
+// ============================================================================
+// Unit Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_cache() -> DictionaryCache {
+        DictionaryCache::new()
+    }
+
+    // ── Basic get / set ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_get_returns_none_for_missing_key() {
+        let cache = make_cache();
+        assert!(cache.get("missing_key").is_none());
+    }
+
+    #[test]
+    fn test_set_then_get_round_trips_value() {
+        let cache = make_cache();
+        let value = serde_json::json!({"chinese": "你好", "vietnamese": "xin chào"});
+        cache.set("dict1:path".to_string(), value.clone());
+        assert_eq!(cache.get("dict1:path"), Some(value));
+    }
+
+    #[test]
+    fn test_set_overwrites_existing_key() {
+        let cache = make_cache();
+        cache.set("key".to_string(), serde_json::json!({"v": 1}));
+        cache.set("key".to_string(), serde_json::json!({"v": 2}));
+        assert_eq!(cache.get("key"), Some(serde_json::json!({"v": 2})));
+    }
+
+    #[test]
+    fn test_get_returns_none_for_key_with_no_prior_set() {
+        let cache = make_cache();
+        cache.set("dict1:path".to_string(), serde_json::json!({}));
+        // Different key — should still be missing
+        assert!(cache.get("dict2:other").is_none());
+    }
+
+    // ── access_order tracks get and set ──────────────────────────────────────
+
+    #[test]
+    fn test_set_records_access_order_entry() {
+        let cache = make_cache();
+        cache.set("k".to_string(), serde_json::json!(null));
+        let access_order = cache.access_order.lock().unwrap();
+        assert!(access_order.contains_key("k"), "set() should populate access_order");
+    }
+
+    #[test]
+    fn test_get_updates_access_order_on_hit() {
+        let cache = make_cache();
+        cache.set("k".to_string(), serde_json::json!(null));
+        let ts_after_set = *cache.access_order.lock().unwrap().get("k").unwrap();
+        // Access the entry to update its timestamp
+        cache.get("k");
+        let ts_after_get = *cache.access_order.lock().unwrap().get("k").unwrap();
+        // Timestamps should be >= (same millisecond or later)
+        assert!(ts_after_get >= ts_after_set);
+    }
+
+    #[test]
+    fn test_get_does_not_pollute_access_order_on_miss() {
+        let cache = make_cache();
+        cache.get("nonexistent");
+        let access_order = cache.access_order.lock().unwrap();
+        assert!(!access_order.contains_key("nonexistent"),
+            "get() on missing key must not insert into access_order");
+    }
+
+    // ── Timestamp is in milliseconds (regression for as_secs bug) ────────────
+
+    #[test]
+    fn test_access_order_timestamp_is_milliseconds_not_seconds() {
+        let cache = make_cache();
+        cache.set("k".to_string(), serde_json::json!(null));
+
+        let ts = *cache.access_order.lock().unwrap().get("k").unwrap();
+
+        // Any millisecond timestamp after 2020-01-01 is > 1_577_836_800_000.
+        // A seconds-based timestamp for the same date would be ~1_577_836_800
+        // (1000x smaller). This assertion would fail if as_secs() were used.
+        assert!(ts > 1_577_836_800_000,
+            "Timestamp {} looks like seconds, not milliseconds (expected > 1_577_836_800_000)",
+            ts);
+    }
+
+    // ── invalidate by dictionary ID ──────────────────────────────────────────
+
+    #[test]
+    fn test_invalidate_by_id_removes_matching_prefix_only() {
+        let cache = make_cache();
+        cache.set("dict1:pathA".to_string(), serde_json::json!({"a": 1}));
+        cache.set("dict1:pathB".to_string(), serde_json::json!({"b": 2}));
+        cache.set("dict2:pathA".to_string(), serde_json::json!({"c": 3}));
+
+        cache.invalidate(Some("dict1"));
+
+        assert!(cache.get("dict1:pathA").is_none(), "dict1:pathA should be evicted");
+        assert!(cache.get("dict1:pathB").is_none(), "dict1:pathB should be evicted");
+        assert!(cache.get("dict2:pathA").is_some(), "dict2:pathA should be untouched");
+    }
+
+    #[test]
+    fn test_invalidate_by_id_cleans_access_order_for_evicted_keys() {
+        let cache = make_cache();
+        cache.set("dict1:path".to_string(), serde_json::json!(null));
+        cache.set("dict2:path".to_string(), serde_json::json!(null));
+
+        cache.invalidate(Some("dict1"));
+
+        let access_order = cache.access_order.lock().unwrap();
+        assert!(!access_order.contains_key("dict1:path"),
+            "access_order should not retain evicted key dict1:path");
+        // dict2:path may or may not be in access_order depending on whether get() was called
+    }
+
+    #[test]
+    fn test_invalidate_by_id_does_not_remove_nonexistent_prefix() {
+        let cache = make_cache();
+        cache.set("dict1:path".to_string(), serde_json::json!(null));
+
+        // Invalidating a prefix that doesn't exist should be a no-op
+        cache.invalidate(Some("ghost_dict"));
+
+        assert!(cache.get("dict1:path").is_some(), "unrelated entry should survive");
+    }
+
+    // ── invalidate(None) — full clear ────────────────────────────────────────
+
+    #[test]
+    fn test_invalidate_none_clears_all_entries() {
+        let cache = make_cache();
+        cache.set("dict1:path".to_string(), serde_json::json!(null));
+        cache.set("dict2:path".to_string(), serde_json::json!(null));
+
+        cache.invalidate(None);
+
+        assert!(cache.get("dict1:path").is_none());
+        assert!(cache.get("dict2:path").is_none());
+    }
+
+    #[test]
+    fn test_invalidate_none_clears_access_order() {
+        let cache = make_cache();
+        cache.set("k".to_string(), serde_json::json!(null));
+        cache.get("k"); // ensure access_order has an entry
+
+        cache.invalidate(None);
+
+        let access_order = cache.access_order.lock().unwrap();
+        assert!(access_order.is_empty(),
+            "access_order should be empty after full invalidate");
+    }
+
+    #[test]
+    fn test_invalidate_none_on_empty_cache_is_safe() {
+        let cache = make_cache();
+        // Should not panic
+        cache.invalidate(None);
+        assert!(cache.get("anything").is_none());
+    }
+
+    // ── LRU eviction when cache is full ──────────────────────────────────────
+
+    #[test]
+    fn test_cache_does_not_exceed_max_entries() {
+        let cache = make_cache();
+
+        // Insert MAX_CACHE_ENTRIES + 1 distinct entries
+        for i in 0..=MAX_CACHE_ENTRIES {
+            cache.set(format!("dict{}:path", i), serde_json::json!({"id": i}));
+        }
+
+        let cache_guard = cache.cache.lock().unwrap();
+        assert_eq!(cache_guard.len(), MAX_CACHE_ENTRIES,
+            "Cache size should not exceed MAX_CACHE_ENTRIES after LRU eviction");
+    }
+
+    #[test]
+    fn test_newly_inserted_key_is_retrievable_after_eviction() {
+        let cache = make_cache();
+
+        // Fill to capacity
+        for i in 0..MAX_CACHE_ENTRIES {
+            cache.set(format!("dict{}:path", i), serde_json::json!({"id": i}));
+        }
+
+        // One more entry triggers eviction
+        cache.set("newest:path".to_string(), serde_json::json!({"id": 999}));
+
+        // The newest entry must still be present
+        assert!(cache.get("newest:path").is_some(),
+            "The most recently inserted entry should survive LRU eviction");
+    }
+
+    // ── No deadlock: invalidate does not nested-lock ──────────────────────────
+
+    #[test]
+    fn test_invalidate_then_set_and_get_are_consistent() {
+        // If invalidate() deadlocked, this test would hang.
+        // Running in a unit test with a timeout via the test harness is the
+        // practical check; the structural fix is verified by code inspection.
+        let cache = make_cache();
+        cache.set("d:k".to_string(), serde_json::json!("before"));
+        cache.invalidate(Some("d"));
+        assert!(cache.get("d:k").is_none());
+
+        cache.set("d:k".to_string(), serde_json::json!("after"));
+        assert_eq!(cache.get("d:k"), Some(serde_json::json!("after")));
+    }
+
+    // ── DictionaryResponse constructors ──────────────────────────────────────
+
+    #[test]
+    fn test_response_ok_has_success_true_and_all_none() {
+        let r = DictionaryResponse::ok();
+        assert!(r.success);
+        assert!(r.data.is_none());
+        assert!(r.error.is_none());
+        assert!(r.dictionaries.is_none());
+        assert!(r.message.is_none());
+    }
+
+    #[test]
+    fn test_response_ok_with_data_sets_data_field() {
+        let data = serde_json::json!({"key": "val"});
+        let r = DictionaryResponse::ok_with_data(data.clone());
+        assert!(r.success);
+        assert_eq!(r.data, Some(data));
+        assert!(r.error.is_none());
+    }
+
+    #[test]
+    fn test_response_ok_with_dicts_sets_dictionaries_field() {
+        let dicts = vec!["properNouns-A".to_string(), "properNouns-B".to_string()];
+        let r = DictionaryResponse::ok_with_dicts(dicts.clone());
+        assert!(r.success);
+        assert_eq!(r.dictionaries, Some(dicts));
+        assert!(r.data.is_none());
+    }
+
+    #[test]
+    fn test_response_ok_with_message_sets_message_field() {
+        let r = DictionaryResponse::ok_with_message("Exported 5 dictionaries");
+        assert!(r.success);
+        assert_eq!(r.message.as_deref(), Some("Exported 5 dictionaries"));
+        assert!(r.error.is_none());
+    }
+
+    #[test]
+    fn test_response_err_has_success_false_and_error_string() {
+        let r = DictionaryResponse::err("Dictionary not found");
+        assert!(!r.success);
+        assert_eq!(r.error.as_deref(), Some("Dictionary not found"));
+        assert!(r.data.is_none());
+        assert!(r.message.is_none());
+    }
+}
