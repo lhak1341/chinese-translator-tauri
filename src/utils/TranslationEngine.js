@@ -141,7 +141,7 @@ import {
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
 } from './PositionMappingUtils.js';
-import { copyWasmTokens } from '../../types/WasmTypes.js';
+import { copyWasmTokens } from './WasmBoundaryValidation';
 import {
   getLegacySystemStatus,
   checkRollbackTriggers,

@@ -245,7 +245,7 @@ export class EnhancedDictionaryManager extends DictionaryManager {
 
     try {
       // Import validation function
-      const { validateWasmDictionaryMatch } = await import('../../types/WasmTypes.ts');
+      const { validateWasmDictionaryMatch } = await import('./WasmBoundaryValidation');
 
       // Test each dictionary with its first entry
       for (const { name, entries } of allDictionaries) {

@@ -17,12 +17,8 @@ import MoveEntryDialog from './MoveEntryDialog';
 import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
-import {
-  createDuplicateKey,
-  parseDuplicateKey,
-  getDictionaryDropdownLabel,
-  compareDictionaryOrder,
-} from '../../utils/DuplicateAnalyzer';
+import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
+import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
 import { toast } from '../ToastContext';
 import type {
   DictionaryEntryValue,

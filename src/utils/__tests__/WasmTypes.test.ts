@@ -10,6 +10,10 @@
  * - Rust `Option<String>` serializes to `undefined` (not `null`)
  * - If not converted, "undefined" appears as literal text in translations
  * - Post-processing relies on `translated: null` to skip consumed tokens
+ *
+ * NOTE: Imports from root-level types/WasmTypes.ts (the canonical TypeScript
+ * implementation). This path resolves to {project_root}/types/WasmTypes.ts
+ * regardless of which __tests__/ directory the test lives in.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
@@ -467,7 +471,7 @@ describe('copyWasmTokens', () => {
 
       copyWasmTokens(source, target);
 
-      // First token should remain unchanged
+      // First token should remain unchanged (source[0].translationSource is null → not copied)
       expect(target[0].translated).toBe('原文');
       expect(target[0].translationSource).toBe('original');
 

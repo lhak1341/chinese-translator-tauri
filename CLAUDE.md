@@ -201,6 +201,14 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 
 **Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): When moving test files, `vi.doMock('path/nonexistent.js', ...)` key is the _attempted_ resolution path from the test file's directory — not a normalized absolute path. For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'` (→ `src/wasm/`); test in `src/utils/__tests__/` must use `'../../wasm/translation_wasm_core.js'` (also → `src/wasm/`). Applies to all `vi.doMock`/`vi.mock` calls for non-existent modules.
 
+**Dual `WasmTypes` implementations — DO NOT confuse** (2026-02-13): Two separate files with OPPOSITE `copyWasmTokens` conventions:
+
+- `types/WasmTypes.ts` (project ROOT, not `src/`) — `copyWasmTokens(source, target)`: source=WASM output (param1, read-only), target=JS tokens (param2, written to). Used by ALL test files via `'../../../types/WasmTypes.js'`.
+- `src/utils/WasmBoundaryValidation.ts` — `copyWasmTokens(sourceTokens, wasmTokens)`: sourceTokens=JS destination (param1, written to), wasmTokens=WASM output (param2, read). Used by `TranslationEngine.js`.
+  Swapping imports between production code and tests will silently reverse the copy direction.
+
+**`'../../../types/WasmTypes.js'` test import resolves to project root** (2026-02-13): From any `src/**/__tests__/` directory, three `../` levels exit to the project root, so `'../../../types/WasmTypes.js'` → `{project_root}/types/WasmTypes.ts` (Vite resolves `.js` → `.ts`). The same path works from both `src/types/__tests__/` and `src/utils/__tests__/`.
+
 ### Logging Best Practices
 
 **Environment-aware logging** (2026-01-18): Use `logger` utility instead of `console.*`
@@ -312,16 +320,18 @@ cargo check --manifest-path src-tauri/Cargo.toml  # Rust type-check (do NOT use 
 
 ### Key Files
 
-| Purpose           | File                                | Lines | Why Coupled                                                                                            |
-| ----------------- | ----------------------------------- | ----- | ------------------------------------------------------------------------------------------------------ |
-| Translation Core  | `TranslationEngine.js`              | 7,464 | 5-phase state coordination                                                                             |
-| UI Coordination   | `Translator.jsx`                    | 1,967 | Cross-mode synchronization                                                                             |
-| Shared TS types   | `src/types/DictionaryTypes.ts`      | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.) |
-| WASM Number       | `wasm-core/src/number_processor.rs` | -     | Native performance                                                                                     |
-| WASM Pattern      | `wasm-core/src/pattern_processor/`  | -     | 10-50x speedup                                                                                         |
-| WASM Dictionary   | `wasm-core/src/lib.rs`              | -     | 27,000+ entries                                                                                        |
-| Rust Lookup       | `src-tauri/src/lookup_index.rs`     | -     | Backend trie indexing                                                                                  |
-| Shared dict utils | `src/utils/dictionaryHelpers.ts`    | -     | `sortDictionaryEntries` shared by DictionaryContext + LazyDictionaryContext                            |
+| Purpose               | File                                  | Lines | Why Coupled                                                                                                                   |
+| --------------------- | ------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Translation Core      | `TranslationEngine.js`                | 7,464 | 5-phase state coordination                                                                                                    |
+| UI Coordination       | `Translator.jsx`                      | 1,967 | Cross-mode synchronization                                                                                                    |
+| Shared TS types       | `src/types/DictionaryTypes.ts`        | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.)                        |
+| WASM Number           | `wasm-core/src/number_processor.rs`   | -     | Native performance                                                                                                            |
+| WASM Pattern          | `wasm-core/src/pattern_processor/`    | -     | 10-50x speedup                                                                                                                |
+| WASM Dictionary       | `wasm-core/src/lib.rs`                | -     | 27,000+ entries                                                                                                               |
+| Rust Lookup           | `src-tauri/src/lookup_index.rs`       | -     | Backend trie indexing                                                                                                         |
+| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | -     | `sortDictionaryEntries` + `getDictionaryLabel`/`getDictionaryDropdownLabel`/`compareDictionaryOrder` shared across components |
+| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | -     | Runtime validation; `copyWasmTokens` param1=JS dest, param2=WASM source                                                       |
+| WASM boundary (types) | `types/WasmTypes.ts` (root-level)     | -     | Canonical TS interfaces + runtime validation for tests; `copyWasmTokens` param1=WASM source, param2=JS dest                   |
 
 **Extracted Utilities** (2026-01-30, see `docs/code-review/REFACTORING_EXTRACTION_2026-01-30.md`):
 
@@ -375,7 +385,7 @@ npm run test:coverage # Coverage report
 
 **Test file placement**: Utility tests go in `src/utils/__tests__/`, component tests in `src/components/__tests__/`. Never place `.test.ts` files directly alongside source files in `src/utils/`.
 
-**`src/test/` is deleted** (2026-02-13): This directory contained stale duplicates of `src/utils/__tests__/` files. It has been removed. Do not recreate it — all new tests go in `src/utils/__tests__/` or `src/components/__tests__/`.
+**`src/test/` stale duplicates removed** (2026-02-13): The duplicate test files in `src/test/` were removed — they were stale copies of files in `src/utils/__tests__/`. However, `src/test/setup.ts` **must remain**: it is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). Deleting it would break all 541 tests. All new tests go in `src/utils/__tests__/` or `src/components/__tests__/`.
 
 📖 **Testing Details**: [docs/guides/development.md](docs/guides/development.md#testing-infrastructure)
 

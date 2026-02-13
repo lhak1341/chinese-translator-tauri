@@ -16,15 +16,18 @@
  * 6. Error propagation (fail fast on invalid data)
  */
 
-import { logger } from '../utils/logger';
+import { logger } from './logger';
+import type { WasmToken } from '../types/WasmTypes';
+
+export type { WasmToken };
 
 /**
  * Validate and sanitize a WASM token
- * @param {any} token - Token from WASM
- * @returns {Object} Validated token
+ * @param token - Token from WASM
+ * @returns Validated token
  * @throws {Error} If token structure is invalid
  */
-export function validateWasmToken(token) {
+export function validateWasmToken(token: any): WasmToken {
   if (!token || typeof token !== 'object') {
     throw new Error(`Invalid token: expected object, got ${typeof token}`);
   }
@@ -71,12 +74,12 @@ export function validateWasmToken(token) {
  * Validate and copy WASM tokens array
  * Two-phase validation prevents partial corruption
  *
- * @param {Array} sourceTokens - Original token array
- * @param {Array} wasmTokens - Tokens from WASM
- * @returns {Array} Validated tokens
+ * @param sourceTokens - Original token array (DESTINATION — modified in-place)
+ * @param wasmTokens - Tokens from WASM (SOURCE — read-only)
+ * @returns sourceTokens after applying validated WASM results
  * @throws {Error} If validation fails
  */
-export function copyWasmTokens(sourceTokens, wasmTokens) {
+export function copyWasmTokens(sourceTokens: any[], wasmTokens: any[]): any[] {
   // Phase 1: Validate structure before modifying
   if (!Array.isArray(sourceTokens)) {
     throw new Error('Source tokens must be an array');
@@ -89,17 +92,17 @@ export function copyWasmTokens(sourceTokens, wasmTokens) {
   // CRITICAL: Array length must be preserved
   if (sourceTokens.length !== wasmTokens.length) {
     throw new Error(
-      `WASM violated array length invariance: ${sourceTokens.length} → ${wasmTokens.length}`
+      `Token array length mismatch: source=${sourceTokens.length}, target=${wasmTokens.length}`
     );
   }
 
   // Pre-validate all tokens (fail fast before any modification)
-  const validatedTokens = [];
+  const validatedTokens: WasmToken[] = [];
   for (let i = 0; i < wasmTokens.length; i++) {
     try {
       validatedTokens.push(validateWasmToken(wasmTokens[i]));
     } catch (error) {
-      throw new Error(`Token validation failed at index ${i}: ${error.message}`);
+      throw new Error(`Token validation failed at index ${i}: ${(error as Error).message}`);
     }
   }
 
@@ -119,11 +122,11 @@ export function copyWasmTokens(sourceTokens, wasmTokens) {
 
 /**
  * Validate WASM pattern match result
- * @param {any} match - Pattern match from WASM
- * @returns {Object} Validated pattern match
+ * @param match - Pattern match from WASM
+ * @returns Validated pattern match
  * @throws {Error} If match structure is invalid
  */
-export function validateWasmPatternMatch(match) {
+export function validateWasmPatternMatch(match: any): Record<string, unknown> {
   if (!match || typeof match !== 'object') {
     throw new Error(`Invalid pattern match: expected object, got ${typeof match}`);
   }
@@ -168,11 +171,11 @@ export function validateWasmPatternMatch(match) {
 
 /**
  * Validate WASM dictionary match result
- * @param {any} match - Dictionary match from WASM
- * @returns {Object} Validated dictionary match
+ * @param match - Dictionary match from WASM
+ * @returns Validated dictionary match
  * @throws {Error} If match structure is invalid
  */
-export function validateWasmDictionaryMatch(match) {
+export function validateWasmDictionaryMatch(match: any): Record<string, unknown> {
   if (!match || typeof match !== 'object') {
     throw new Error(`Invalid dictionary match: expected object, got ${typeof match}`);
   }
@@ -208,11 +211,11 @@ export function validateWasmDictionaryMatch(match) {
 
 /**
  * Validate Rust lookup match result
- * @param {any} match - Lookup match from Rust backend
- * @returns {Object} Validated lookup match
+ * @param match - Lookup match from Rust backend
+ * @returns Validated lookup match
  * @throws {Error} If match structure is invalid
  */
-export function validateRustLookupMatch(match) {
+export function validateRustLookupMatch(match: any): Record<string, unknown> {
   if (!match || typeof match !== 'object') {
     throw new Error(`Invalid lookup match: expected object, got ${typeof match}`);
   }
@@ -250,10 +253,10 @@ export const MAX_WASM_METADATA_SIZE = 10240;
 
 /**
  * Validate metadata size
- * @param {string} metadataString - Serialized metadata
- * @returns {boolean} True if within size limit
+ * @param metadataString - Serialized metadata
+ * @returns True if within size limit
  */
-export function isMetadataSizeValid(metadataString) {
+export function isMetadataSizeValid(metadataString: string | null | undefined): boolean {
   if (!metadataString) return true;
   return metadataString.length <= MAX_WASM_METADATA_SIZE;
 }

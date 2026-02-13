@@ -107,6 +107,16 @@ export function useDictionaryConfig() {
       // Load configuration at operation time (CRITICAL: do not cache in state)
       let selectedDictionary = 'properNouns'; // Default fallback
 
+      // Fallback: choose the first active custom proper noun (properNouns-*) alphabetically
+      const selectFirstCustomProperNoun = () => {
+        const customProperNouns = activeProperNouns.filter((dict) =>
+          dict.startsWith('properNouns-')
+        );
+        if (customProperNouns.length > 0) {
+          selectedDictionary = customProperNouns.sort()[0];
+        }
+      };
+
       try {
         // REFACTOR (2026-01-28): Use centralized configuration loading utility
         const validatedConfig = await loadValidatedConfiguration();
@@ -116,29 +126,12 @@ export function useDictionaryConfig() {
         if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
           selectedDictionary = defaultQuickAddDictionary;
         } else {
-          // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
-          const customProperNouns = activeProperNouns.filter((dict) =>
-            dict.startsWith('properNouns-')
-          );
-
-          if (customProperNouns.length > 0) {
-            // Choose the first one alphabetically if multiple are active
-            selectedDictionary = customProperNouns.sort()[0];
-          }
+          selectFirstCustomProperNoun();
         }
       } catch (error) {
         logger.error('Error loading default Cmd-5 dictionary:', error);
         // Fall through to default fallback behavior
-
-        // Fallback: Filter active proper nouns to find custom ones (properNouns-*)
-        const customProperNouns = activeProperNouns.filter((dict) =>
-          dict.startsWith('properNouns-')
-        );
-
-        if (customProperNouns.length > 0) {
-          // Choose the first one alphabetically if multiple are active
-          selectedDictionary = customProperNouns.sort()[0];
-        }
+        selectFirstCustomProperNoun();
       }
 
       // CRITICAL: Set ALL state together in a single atomic update

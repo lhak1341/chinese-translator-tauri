@@ -4,7 +4,7 @@ import { getDictionaryTypes } from './DictionaryTypes';
 import { X, AlertTriangle, Info } from 'lucide-react';
 import styles from '../../styles/MoveEntryDialog.module.css';
 import { logger } from '../../utils/logger';
-import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/DuplicateAnalyzer';
+import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
 
 /**
  * Dictionary entry to be moved (basic structure from context menu)
