@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NumberProcessor } from '../NumberProcessor.js';
 
 // Mock WASM module
-vi.mock('../wasm/translation_wasm_core.js', () => ({
+vi.mock('../../wasm/translation_wasm_core.js', () => ({
   default: vi.fn(() => Promise.resolve()),
   NumberProcessor: vi.fn(() => ({
     processTokens: vi.fn((tokens) => {

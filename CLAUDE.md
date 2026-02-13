@@ -375,6 +375,8 @@ npm run test:coverage # Coverage report
 
 **Test file placement**: Utility tests go in `src/utils/__tests__/`, component tests in `src/components/__tests__/`. Never place `.test.ts` files directly alongside source files in `src/utils/`.
 
+**`src/test/` is deleted** (2026-02-13): This directory contained stale duplicates of `src/utils/__tests__/` files. It has been removed. Do not recreate it — all new tests go in `src/utils/__tests__/` or `src/components/__tests__/`.
+
 📖 **Testing Details**: [docs/guides/development.md](docs/guides/development.md#testing-infrastructure)
 
 ---

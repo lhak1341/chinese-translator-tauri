@@ -5,11 +5,26 @@ import charactersDict from '../../dictionaries/characters.json';
 import conversionDict from '../../dictionaries/conversion.json';
 import punctuationDict from '../../dictionaries/punctuation.json';
 import { logger } from '../../utils/logger.js';
+import type { DictionaryData } from '../../types/DictionaryTypes.js';
+
+const MAX_ENTRY_LENGTH = 10000;
+
+export interface DictionaryTypeDefinition {
+  id: string;
+  label: string;
+  description: string;
+  data: DictionaryData | null;
+  validate: (source: string, translation: string) => string | null;
+}
+
+export interface DictionaryInfo {
+  label: string | undefined;
+  description: string | undefined;
+}
 
 // Basic validation for all dictionary entries
-const baseValidation = (source, translation) => {
+const baseValidation = (source: string, translation: string): string | null => {
   // SECURITY FIX: Prevent DoS via huge dictionary entries
-  const MAX_ENTRY_LENGTH = 10000;
 
   if (!source.trim() || !translation.trim()) {
     return 'Both source and translation are required';
@@ -27,13 +42,13 @@ const baseValidation = (source, translation) => {
 };
 
 // Base dictionary types without proper nouns
-const baseDictionaryTypes = {
+const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
   patterns: {
     id: 'patterns',
     label: 'Structural Patterns',
     description: 'Pattern-based structural translations',
-    data: patternsDict,
-    validate: (source, translation) => {
+    data: patternsDict as DictionaryData,
+    validate: (source: string, translation: string): string | null => {
       // LOW-2 FIX: Enhanced pattern validation to catch variable mismatches
       // Extract all variables (X, Y, Z) from both source and translation
       const sourceVars = new Set(source.match(/[XYZ]/g) || []);
@@ -64,34 +79,38 @@ const baseDictionaryTypes = {
     id: 'phrases',
     label: 'Common Phrases',
     description: 'Multi-character phrase translations',
-    data: phrasesDict,
+    data: phrasesDict as DictionaryData,
     validate: baseValidation,
   },
   characters: {
     id: 'characters',
     label: 'Characters',
     description: 'Individual character translations',
-    data: charactersDict,
+    data: charactersDict as DictionaryData,
     validate: baseValidation,
   },
   punctuation: {
     id: 'punctuation',
     label: 'Punctuation',
     description: 'Punctuation mark conversions',
-    data: punctuationDict,
+    data: punctuationDict as DictionaryData,
     validate: baseValidation,
   },
   conversion: {
     id: 'conversion',
     label: 'Character Conversion',
     description: 'Traditional to simplified character mappings',
-    data: conversionDict,
+    data: conversionDict as DictionaryData,
     validate: baseValidation,
   },
 };
 
 // Helper functions
-export const validateDictionaryEntry = (dictionaryId, source, translation) => {
+export const validateDictionaryEntry = (
+  dictionaryId: string,
+  source: string,
+  translation: string
+): string | null => {
   // If it's a proper nouns dictionary, just use base validation
   if (dictionaryId.startsWith('properNouns')) {
     return baseValidation(source, translation);
@@ -105,17 +124,17 @@ export const validateDictionaryEntry = (dictionaryId, source, translation) => {
   return dictionaryType.validate(source, translation);
 };
 
-export const getDefaultDictionary = (dictionaryId) => {
+export const getDefaultDictionary = (dictionaryId: string): DictionaryData => {
   if (dictionaryId === 'properNouns') {
-    return properNounsDict;
+    return properNounsDict as DictionaryData;
   }
   if (dictionaryId.startsWith('properNouns-')) {
     return {};
   }
-  return DICTIONARY_TYPES[dictionaryId]?.data || {};
+  return DICTIONARY_TYPES[dictionaryId]?.data ?? {};
 };
 
-export const getDictionaryInfo = (dictionaryId) => {
+export const getDictionaryInfo = (dictionaryId: string): DictionaryInfo => {
   if (dictionaryId.startsWith('properNouns-')) {
     return {
       label: `Proper Nouns - ${dictionaryId.replace('properNouns-', '')}`,
@@ -127,14 +146,17 @@ export const getDictionaryInfo = (dictionaryId) => {
 };
 
 // Function to generate dictionary types including all proper nouns dictionaries
-export const getDictionaryTypes = async () => {
+export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTypeDefinition>> => {
   try {
     // Get list of all proper nouns dictionaries first
     const listResult = await window.electronAPI.listProperNounsDictionaries();
-    const allProperNouns = listResult.success ? listResult.dictionaries : ['properNouns'];
+    // The runtime API returns string[] IDs; ElectronTypes.d.ts mistypes it as DictionaryInfo[]
+    const allProperNouns: string[] = listResult.success
+      ? (listResult.dictionaries as unknown as string[])
+      : ['properNouns'];
 
     // Create proper nouns dictionary types for all available dictionaries
-    const properNounsTypes = {};
+    const properNounsTypes: Record<string, DictionaryTypeDefinition> = {};
     for (const dictId of allProperNouns) {
       properNounsTypes[dictId] = {
         id: dictId,
@@ -143,7 +165,7 @@ export const getDictionaryTypes = async () => {
             ? 'Proper Nouns'
             : `Proper Nouns - ${dictId.replace('properNouns-', '')}`,
         description: 'Context-specific translations for names and titles',
-        data: dictId === 'properNouns' ? properNounsDict : null, // null indicates dynamic loading needed
+        data: dictId === 'properNouns' ? (properNounsDict as DictionaryData) : null, // null indicates dynamic loading needed
         validate: baseValidation,
       };
     }
@@ -160,12 +182,12 @@ export const getDictionaryTypes = async () => {
 };
 
 // Export initial dictionary types for immediate use
-export const DICTIONARY_TYPES = {
+export const DICTIONARY_TYPES: Record<string, DictionaryTypeDefinition> = {
   properNouns: {
     id: 'properNouns',
     label: 'Proper Nouns',
     description: 'Context-specific translations for names and titles',
-    data: properNounsDict,
+    data: properNounsDict as DictionaryData,
     validate: baseValidation,
   },
   ...baseDictionaryTypes,
