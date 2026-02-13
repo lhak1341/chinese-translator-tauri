@@ -9,10 +9,10 @@ import { describe, it, expect } from 'vitest';
 import {
   createDuplicateKey,
   parseDuplicateKey,
-  getDictionaryLabel,
   findConflictingEntries,
   type DuplicateRow,
 } from '../DuplicateAnalyzer';
+import { getDictionaryLabel } from '../dictionaryHelpers';
 
 describe('DuplicateAnalyzer', () => {
   describe('createDuplicateKey', () => {

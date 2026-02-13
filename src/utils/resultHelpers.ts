@@ -4,6 +4,10 @@
  * REFACTOR (2026-01-28): Utilities for handling ElectronAPI result patterns.
  * Reduces boilerplate `if (result.success && result.data)` checks across 12+ call sites.
  *
+ * NOTE (2026-02-13): The `ElectronResult` type is used by `configValidation.ts`.
+ * The runtime functions (`throwIfFailed`, `getOrDefault`, `wrapOperation`, etc.)
+ * are NOT yet integrated at the 12+ call sites — migration was prepared but not completed.
+ *
  * ElectronAPI operations return results in the format:
  * { success: boolean, data?: T, error?: string }
  *

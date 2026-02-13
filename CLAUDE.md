@@ -366,7 +366,7 @@ window.performanceDashboard.checkCachePerformance();
 
 **Test Runner**: Vitest with React Testing Library
 
-**Coverage**: 541 tests across 25 files (4,408% increase from baseline)
+**Coverage**: 1,057 tests across 43 files
 
 - Utility functions (245 tests)
 - WASM boundaries (57 tests)
@@ -385,7 +385,13 @@ npm run test:coverage # Coverage report
 
 **Test file placement**: Utility tests go in `src/utils/__tests__/`, component tests in `src/components/__tests__/`. Never place `.test.ts` files directly alongside source files in `src/utils/`.
 
-**`src/test/` stale duplicates removed** (2026-02-13): The duplicate test files in `src/test/` were removed — they were stale copies of files in `src/utils/__tests__/`. However, `src/test/setup.ts` **must remain**: it is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). Deleting it would break all 541 tests. All new tests go in `src/utils/__tests__/` or `src/components/__tests__/`.
+**`src/test/` stale duplicates removed** (2026-02-13): The duplicate test files in `src/test/` were removed — they were stale copies of files in `src/utils/__tests__/`. However, `src/test/setup.ts` **must remain**: it is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). Deleting it would break all tests. All new tests go in `src/utils/__tests__/` or `src/components/__tests__/`.
+
+**`AppConfiguration` import path**: Always import from `src/types/ComponentTypes`, NOT from `configValidation`. `configValidation.ts` does not re-export it.
+
+**`getDictionaryLabel` / `getDictionaryDropdownLabel` / `compareDictionaryOrder`**: Import directly from `dictionaryHelpers`. The re-export through `DuplicateAnalyzer` was removed (2026-02-13).
+
+**`useConfigurationLoader.ts` deleted (2026-02-13)**: Hook existed with no callers or tests. Imperative equivalent is `loadValidatedConfiguration()` in `configurationHelpers.ts`.
 
 📖 **Testing Details**: [docs/guides/development.md](docs/guides/development.md#testing-infrastructure)
 

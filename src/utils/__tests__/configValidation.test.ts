@@ -18,9 +18,9 @@ import {
   sanitizeString,
   ValidationError,
   type ElectronAPIResult,
-  type AppConfiguration,
   type Dictionary,
 } from '../configValidation';
+import type { AppConfiguration } from '../../types/ComponentTypes';
 
 describe('validateElectronResult', () => {
   it('should validate successful result with data', () => {

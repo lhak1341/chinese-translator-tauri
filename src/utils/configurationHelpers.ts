@@ -8,7 +8,7 @@
  */
 
 import { logger } from './logger';
-import { validateElectronResult, validateConfiguration } from './configValidation';
+import { validateElectronResult } from './configValidation';
 import type { AppConfiguration } from '../types/ComponentTypes';
 
 /**

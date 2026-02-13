@@ -11,7 +11,6 @@ import {
   getDictionaryDropdownLabel,
   compareDictionaryOrder,
 } from './dictionaryHelpers';
-export { getDictionaryLabel, getDictionaryDropdownLabel, compareDictionaryOrder };
 
 /**
  * Represents a single row in the duplicate view table
