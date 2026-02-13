@@ -23,10 +23,15 @@ struct TrieNode {
     /// Child nodes indexed by character
     children: HashMap<char, TrieNode>,
 
-    /// Unit index if this node represents a complete unit (None otherwise)
-    unit_index: Option<usize>,
+    // CODE REVIEW FIX (CRITICAL-3): Store ALL unit indices at this trie node.
+    // Using Option<usize> caused last-writer-wins: when two semantic units share
+    // the same translated text (e.g. two source words both mapping to "bạn"),
+    // the second build_index insert silently overwrote the first unit_index,
+    // breaking click-highlighting for that unit entirely.
+    /// All unit indices for units that end at this trie node
+    unit_indices: Vec<usize>,
 
-    /// Unit length (number of characters)
+    /// Unit length (number of characters) — same for all units sharing this node
     unit_length: usize,
 }
 
@@ -129,8 +134,8 @@ impl SegmentMatcher {
                 node = node.children.entry(*ch).or_default();
             }
 
-            // Mark end of unit
-            node.unit_index = Some(unit.index);
+            // Mark end of unit — push so all units with identical translated text are kept
+            node.unit_indices.push(unit.index);
             node.unit_length = chars.len();
         }
 
@@ -152,39 +157,42 @@ impl SegmentMatcher {
 
         while position < chars.len() {
             let mut node = &self.root;
-            let mut last_match: Option<(usize, usize, usize)> = None;  // (unit_index, length, offset)
+            // (unit_indices, length, advance_offset) — Vec because multiple units may share the same translated text
+            let mut last_match: Option<(Vec<usize>, usize, usize)> = None;
 
             // Walk trie to find longest match at this position
             for (offset, &ch) in chars[position..].iter().enumerate() {
                 if let Some(next_node) = node.children.get(&ch) {
                     node = next_node;
 
-                    // Record match if this node represents a complete unit.
+                    // Record match if this node represents complete unit(s).
                     // No used_indices guard: the same unit may appear at multiple text
                     // positions (e.g., "bạn" occurs twice) and each occurrence should
                     // produce a separate SegmentMatch so the JS consumer can highlight
                     // every instance correctly.
-                    if let Some(unit_index) = node.unit_index {
-                        last_match = Some((unit_index, node.unit_length, offset + 1));
+                    if !node.unit_indices.is_empty() {
+                        last_match = Some((node.unit_indices.clone(), node.unit_length, offset + 1));
                     }
                 } else {
                     break;  // No more matches possible at this position
                 }
             }
 
-            if let Some((unit_index, length, offset)) = last_match {
-                // Found a match - add to results
-                let unit = &self.units[unit_index];
-
-                matches.push(SegmentMatch {
-                    position,
-                    length,
-                    offset: 0,  // Offset is always 0 in trie matching
-                    unit_index,
-                    original: unit.original.clone(),
-                    translated: unit.unit.clone(),
-                    metadata: unit.metadata.clone(),
-                });
+            if let Some((unit_indices, length, offset)) = last_match {
+                // Found a match — emit one SegmentMatch per unit that ends here.
+                // Multiple units share a node when two source terms have the same translation.
+                for unit_index in &unit_indices {
+                    let unit = &self.units[*unit_index];
+                    matches.push(SegmentMatch {
+                        position,
+                        length,
+                        offset: 0,  // Offset is always 0 in trie matching
+                        unit_index: *unit_index,
+                        original: unit.original.clone(),
+                        translated: unit.unit.clone(),
+                        metadata: unit.metadata.clone(),
+                    });
+                }
 
                 position += offset;  // Skip matched text
             } else {

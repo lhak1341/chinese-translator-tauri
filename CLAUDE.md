@@ -205,6 +205,10 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 
 **`SegmentMatcher::find_matches` — do NOT re-add `used_indices`** (2026-02-13): Removed `HashSet<usize>` that blocked the same `unit_index` from matching at more than one text position. The same translated word (e.g., "bạn") can legitimately appear twice; `used_indices` silently dropped the second match, breaking highlight positions. The trie's length-greedy advance already prevents overlapping matches.
 
+**`SegmentMatcher` trie: `unit_indices: Vec<usize>`, not `Option<usize>`** (2026-02-13): `TrieNode.unit_indices` is a `Vec` so multiple semantic units with the same translated text all have their index stored. Reverting to `Option<usize>` re-introduces last-writer-wins: the second `build_index` insert silently drops the first unit's click-highlighting.
+
+**`EMERGENCY_CLEANUP_THRESHOLD = 10`, `CRITICAL_CLEANUP_THRESHOLD = 20`** (2026-02-13): Raised from 3/5 — keeping only 3–5 segments after cleanup wiped almost all clickable highlighting (expected max ≤35). Regression test at `src/utils/__tests__/TranslationEngine.regression.test.js:247` hardcodes these values; update both together if they ever change.
+
 **Tauri read commands need the same ID validation as write commands** (2026-02-13): `list_proper_nouns_dictionaries` (and any future list/read command) must call `validate_dictionary_id()` inside its `filter_map` before returning IDs to the frontend. Previously only mutating commands validated — a crafted filename passing the `starts_with`/`ends_with` guards could return an invalid ID that later fails at use.
 
 **Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): When moving test files, `vi.doMock('path/nonexistent.js', ...)` key is the _attempted_ resolution path from the test file's directory — not a normalized absolute path. For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'` (→ `src/wasm/`); test in `src/utils/__tests__/` must use `'../../wasm/translation_wasm_core.js'` (also → `src/wasm/`). Applies to all `vi.doMock`/`vi.mock` calls for non-existent modules.
@@ -322,6 +326,7 @@ npm run type-check      # TypeScript checking (0 errors expected)
 npm run format          # Format all code
 npm run tauri:build     # Build production app
 cargo check --manifest-path src-tauri/Cargo.toml  # Rust type-check (do NOT use cd + cargo check — zoxide breaks it in Bash tool)
+cargo check --manifest-path wasm-core/Cargo.toml   # WASM core type-check (separate crate — run both when modifying Rust)
 ```
 
 📖 **All Commands**: [docs/guides/development.md](docs/guides/development.md#development-commands)

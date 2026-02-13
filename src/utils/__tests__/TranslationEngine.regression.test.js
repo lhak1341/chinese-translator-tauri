@@ -241,11 +241,13 @@ describe('TranslationEngine Regression Tests', () => {
     });
 
     it('should use documented threshold values', () => {
-      // Verify actual values match documentation
+      // Verify actual values match documentation.
+      // CODE REVIEW FIX (HIGH-4): EMERGENCY raised 3→10, CRITICAL raised 5→20
+      // to preserve meaningful clickable highlighting after pressure cleanups.
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER).toBe(75);
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP).toBe(35);
-      expect(MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD).toBe(3);
-      expect(MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD).toBe(5);
+      expect(MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD).toBe(10);
+      expect(MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD).toBe(20);
     });
   });
 });

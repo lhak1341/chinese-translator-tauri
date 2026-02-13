@@ -787,12 +787,16 @@ pub async fn export_dictionaries(
         .collect();
 
     // Parallel read all files into memory
+    // CODE REVIEW FIX (MEDIUM-7): Validate file size before reading, consistent with
+    // load_dictionary which calls validate_file_size. Without this, an externally-grown
+    // file bypassing the write path could cause a DoS via unbounded memory allocation.
     let file_contents: Vec<_> = entries
         .par_iter()
         .filter_map(|entry| {
             let path = entry.path();
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
                 let file_name = path.file_name()?.to_str()?.to_string();
+                validate_file_size(&path, MAX_JSON_SIZE_BYTES).ok()?;
                 let contents = fs::read_to_string(&path).ok()?;
                 Some((file_name, contents))
             } else {

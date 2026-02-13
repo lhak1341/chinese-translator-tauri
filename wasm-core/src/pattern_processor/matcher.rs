@@ -635,13 +635,20 @@ impl<'a> PatternMatcher<'a> {
                         }
                         // else: continue to shorter span
                     } else {
-                        // Next token is another variable — accept this span
+                        // CODE REVIEW FIX (MEDIUM-8): Next token is another variable.
+                        // Do NOT break here — continue iterating to find the SHORTEST
+                        // valid span for this variable. Taking the longest span greedily
+                        // can exhaust tokens that the following variable needs to match,
+                        // causing the whole pattern to silently fail with no backtracking.
+                        // The span loop runs max_span → 1, so continuing lets later
+                        // iterations overwrite result with progressively shorter spans;
+                        // the loop's final update will be the shortest cache-hit span.
                         let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
                         total_lookahead_time += end_lookahead - start_lookahead;
 
                         local_cache_hits += 1;
                         result = Some((translation, span, text));
-                        break;
+                        // intentionally no break — keep iterating for a shorter span
                     }
                 } else {
                     // No more pattern tokens — use longest available span
@@ -806,8 +813,15 @@ pub fn find_best_pattern_match(
 
         if match_result.success {
             let priority = pattern.metadata.priority;
-            let match_length = match_result.end_position.unwrap_or(position) -
-                             match_result.start_position.unwrap_or(position) + 1;
+            // CODE REVIEW FIX (CRITICAL-1+5): Use matched_tokens.len() instead of the
+            // original_index span (end - start + 1). The original_index values are offsets
+            // into the full token array; the gap between them is meaningless when non-semantic
+            // tokens (punctuation, whitespace) exist between matched semantic tokens.
+            // Using the span also risked usize underflow if end_position < start_position.
+            let match_length = match_result.matched_tokens
+                .as_ref()
+                .map(|t| t.len())
+                .unwrap_or(0);
 
             // Prefer longer matches first, then higher priority
             let is_better = match_length > best_length ||

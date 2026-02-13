@@ -138,15 +138,21 @@ export const MEMORY_THRESHOLDS: MemoryThresholds = {
 
   /**
    * Emergency cleanup threshold (rarely hit)
-   * Used in critical memory situations
+   * Used in critical memory situations.
+   * CODE REVIEW FIX (HIGH-4): Raised from 3 → 10. Keeping only 3 segments after
+   * emergency cleanup wiped essentially all clickable highlighting (expected max ≤35).
+   * 10 preserves a minimal but functional set of highlights even under pressure.
    */
-  EMERGENCY_CLEANUP_THRESHOLD: 3,
+  EMERGENCY_CLEANUP_THRESHOLD: 10,
 
   /**
    * Critical memory cleanup threshold
-   * Used when memory pressure is detected
+   * Used when memory pressure is detected.
+   * CODE REVIEW FIX (HIGH-4): Raised from 5 → 20. Keeping only 5 segments after
+   * critical cleanup was almost as destructive as emergency. 20 keeps reasonable
+   * highlighting coverage while still aggressively reducing segment count.
    */
-  CRITICAL_CLEANUP_THRESHOLD: 5,
+  CRITICAL_CLEANUP_THRESHOLD: 20,
 } as const;
 
 /**

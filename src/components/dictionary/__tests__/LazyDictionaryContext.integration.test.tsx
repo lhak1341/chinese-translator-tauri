@@ -307,7 +307,11 @@ describe('LazyDictionaryContext Integration Tests', () => {
       ]);
 
       await waitFor(() => {
-        expect(result.current.loadedDictionaries.size).toBe(4); // Initial + 3 new
+        // CODE REVIEW FIX (HIGH-6): Use toBeGreaterThanOrEqual instead of toBe(4).
+        // The hook's schedulePreload fires after 100ms and may load 'phrases'/'characters'
+        // before or during waitFor's polling window, pushing size above 4 non-deterministically.
+        // The four specific has() assertions below are the real correctness checks.
+        expect(result.current.loadedDictionaries.size).toBeGreaterThanOrEqual(4);
       });
 
       // All dictionaries should be loaded
