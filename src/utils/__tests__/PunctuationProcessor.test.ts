@@ -1,0 +1,295 @@
+/**
+ * Tests for PunctuationProcessor
+ *
+ * Every translation passes through punctuation processing on its way to the UI.
+ * A prior session produced a full debug document from a spacing bug
+ * (PUNCTUATION_SPACING_DEBUG_2026-02-02.md). These tests guard those cases.
+ */
+
+import { describe, test, expect, beforeEach } from 'vitest';
+import { PunctuationProcessor } from '../PunctuationProcessor';
+import { QUOTE_TYPES } from '../QuoteProcessor';
+
+describe('PunctuationProcessor', () => {
+  let processor: PunctuationProcessor;
+
+  beforeEach(() => {
+    processor = new PunctuationProcessor();
+  });
+
+  // -------------------------------------------------------------------------
+  // processSequence — special patterns
+  // -------------------------------------------------------------------------
+
+  describe('processSequence — special patterns', () => {
+    test('colon followed by double quote gets a space: :→ : "', () => {
+      const result = processor.processSequence(':"');
+      expect(result).toBe(': "');
+    });
+
+    test('colon followed by curly open quote', () => {
+      const result = processor.processSequence(`:${QUOTE_TYPES.CURLY_OPEN_DOUBLE}`);
+      expect(result).toContain(': ');
+    });
+
+    test('period followed by double quote gets a space: ." → . "', () => {
+      const result = processor.processSequence('."');
+      expect(result).toBe('. "');
+    });
+
+    test('period followed by opening bracket: .[ → . [', () => {
+      const result = processor.processSequence('.[');
+      expect(result).toBe('. [');
+    });
+
+    test('question mark followed by opening bracket: ?[ → ? [', () => {
+      const result = processor.processSequence('?[');
+      expect(result).toBe('? [');
+    });
+
+    test('exclamation followed by opening bracket: ![ → ! [', () => {
+      const result = processor.processSequence('![');
+      expect(result).toBe('! [');
+    });
+
+    test('Chinese period followed by opening bracket: 。[ → 。 [', () => {
+      const result = processor.processSequence('。[');
+      expect(result).toBe('。 [');
+    });
+
+    test('colon followed by opening bracket: :( → : (', () => {
+      const result = processor.processSequence(':(');
+      expect(result).toBe(': (');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // processSequence — trailing space
+  // -------------------------------------------------------------------------
+
+  describe('processSequence — trailing space', () => {
+    test('comma with hasNextChunk=true gets trailing space', () => {
+      const result = processor.processSequence(',', true);
+      expect(result.endsWith(' ')).toBe(true);
+    });
+
+    test('period with hasNextChunk=true gets trailing space', () => {
+      const result = processor.processSequence('.', true);
+      expect(result.endsWith(' ')).toBe(true);
+    });
+
+    test('period with hasNextChunk=false does not get trailing space', () => {
+      const result = processor.processSequence('.', false);
+      expect(result).not.toMatch(/ $/);
+    });
+
+    test('opening bracket does not get trailing space (content follows bracket directly)', () => {
+      const result = processor.processSequence('(', true);
+      expect(result).not.toMatch(/ $/);
+    });
+
+    test('opening square bracket does not get trailing space', () => {
+      const result = processor.processSequence('[', true);
+      expect(result).not.toMatch(/ $/);
+    });
+
+    test('forward slash / does not get trailing space (division operator)', () => {
+      const result = processor.processSequence('/', true);
+      expect(result).not.toMatch(/ $/);
+    });
+
+    test('closing bracket ) with hasNextChunk=true gets trailing space', () => {
+      const result = processor.processSequence(')', true);
+      expect(result.endsWith(' ')).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // processSequence — single opening quote
+  // -------------------------------------------------------------------------
+
+  describe('processSequence — single opening quote with hasNextChunk', () => {
+    test('single double-quote gets space prepended when hasNextChunk=true', () => {
+      const result = processor.processSequence('"', true);
+      expect(result.startsWith(' ')).toBe(true);
+    });
+
+    test('single curly open double-quote gets space prepended', () => {
+      const result = processor.processSequence(QUOTE_TYPES.CURLY_OPEN_DOUBLE, true);
+      expect(result.startsWith(' ')).toBe(true);
+    });
+
+    test('single opening quote with hasNextChunk=false does not prepend space', () => {
+      const result = processor.processSequence('"', false);
+      expect(result).not.toMatch(/^ /);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // processSequence — comma + opening quote combo
+  // -------------------------------------------------------------------------
+
+  describe('processSequence — comma + quote', () => {
+    test('comma + double-quote inserts space between them: ," → , "', () => {
+      const result = processor.processSequence(',"');
+      expect(result).toContain(', ');
+    });
+
+    test('Chinese comma + double-quote inserts space', () => {
+      const result = processor.processSequence('，"');
+      expect(result).toContain('，');
+      expect(result).toContain('"');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // processSequence — empty input
+  // -------------------------------------------------------------------------
+
+  describe('processSequence — edge cases', () => {
+    test('empty string returns empty string', () => {
+      expect(processor.processSequence('')).toBe('');
+    });
+
+    test('already-spaced sequence is returned as-is', () => {
+      const alreadySpaced = '. [';
+      const result = processor.processSequence(alreadySpaced);
+      expect(result).toBe(alreadySpaced);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // parseComponents
+  // -------------------------------------------------------------------------
+
+  describe('parseComponents', () => {
+    test('closing bracket goes into closing array', () => {
+      const components = processor.parseComponents(']');
+      expect(components.closing).toContain(']');
+      expect(components.middle).toHaveLength(0);
+      expect(components.opening).toHaveLength(0);
+    });
+
+    test('comma goes into middle array', () => {
+      const components = processor.parseComponents(',');
+      expect(components.middle).toContain(',');
+    });
+
+    test('opening bracket goes into opening array', () => {
+      const components = processor.parseComponents('[');
+      expect(components.opening).toContain('[');
+    });
+
+    test('],[ is parsed as closing=], middle=empty, opening=[', () => {
+      const components = processor.parseComponents('],[');
+      expect(components.closing).toContain(']');
+      expect(components.opening).toContain('[');
+    });
+
+    test('), is parsed as closing=), middle=,', () => {
+      const components = processor.parseComponents('),');
+      expect(components.closing).toContain(')');
+      expect(components.middle).toContain(',');
+    });
+
+    test('Chinese punctuation is correctly categorised', () => {
+      // 】 is closing, 、 is middle, 【 is opening
+      const components = processor.parseComponents('】、【');
+      expect(components.closing).toContain('】');
+      expect(components.middle).toContain('、');
+      expect(components.opening).toContain('【');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // hasOpeningElements / hasClosingElements
+  // -------------------------------------------------------------------------
+
+  describe('hasOpeningElements / hasClosingElements', () => {
+    test('opening bracket detected', () => {
+      expect(processor.hasOpeningElements('[')).toBe(true);
+    });
+
+    test('closing bracket detected', () => {
+      expect(processor.hasClosingElements(']')).toBe(true);
+    });
+
+    test('pure middle punctuation has no opening or closing', () => {
+      expect(processor.hasOpeningElements(',')).toBe(false);
+      expect(processor.hasClosingElements(',')).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // isAlreadyProperlySpaced
+  // -------------------------------------------------------------------------
+
+  describe('isAlreadyProperlySpaced', () => {
+    test('closing+middle no space is NOT already properly spaced', () => {
+      expect(processor.isAlreadyProperlySpaced('],')).toBe(false);
+    });
+
+    test('empty string is not properly spaced (returns false)', () => {
+      expect(processor.isAlreadyProperlySpaced('')).toBe(false);
+    });
+
+    test('plain comma is not properly spaced', () => {
+      expect(processor.isAlreadyProperlySpaced(',')).toBe(false);
+    });
+
+    test('plain punctuation without spaces is not detected as already-spaced', () => {
+      // Single middle punctuation has no spacing information
+      expect(processor.isAlreadyProperlySpaced('.')).toBe(false);
+      expect(processor.isAlreadyProperlySpaced('!')).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // applySpacingRules
+  // -------------------------------------------------------------------------
+
+  describe('applySpacingRules', () => {
+    test('closing-only adds trailing space when hasNextChunk=true and no middle/opening', () => {
+      const components = { closing: [')'], middle: [], opening: [] };
+      const result = processor.applySpacingRules(components, true);
+      expect(result.endsWith(' ')).toBe(true);
+    });
+
+    test('closing + middle: adds trailing space after middle when no opening follows', () => {
+      const components = { closing: [')'], middle: ['.'], opening: [] };
+      const result = processor.applySpacingRules(components, true);
+      // Standard order: closing, then middle with trailing space
+      expect(result).toContain(')');
+      expect(result).toContain('.');
+    });
+
+    test('opening-only bracket does not get trailing space', () => {
+      const components = { closing: [], middle: [], opening: ['['] };
+      const result = processor.applySpacingRules(components, true);
+      expect(result).not.toMatch(/ $/);
+    });
+
+    test('middle + opening: opening element is included in result', () => {
+      const components = { closing: [], middle: ['.'], opening: ['['] };
+      const result = processor.applySpacingRules(components, true);
+      expect(result).toContain('.');
+      expect(result).toContain('[');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getDebugInfo
+  // -------------------------------------------------------------------------
+
+  describe('getDebugInfo', () => {
+    test('returns original, processed, components, and flags', () => {
+      const info = processor.getDebugInfo('].');
+      expect(info.original).toBe('].');
+      expect(info.components.closing).toContain(']');
+      expect(info.components.middle).toContain('.');
+      expect(info.hasClosing).toBe(true);
+      expect(info.hasOpening).toBe(false);
+      expect(typeof info.processed).toBe('string');
+    });
+  });
+});

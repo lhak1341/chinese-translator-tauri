@@ -379,7 +379,7 @@ window.performanceDashboard.checkCachePerformance();
 
 **Test Runner**: Vitest with React Testing Library
 
-**Coverage**: 1,057 tests across 43 files
+**Coverage**: 1,246 tests across 50 files (+ 21 Rust tests in src-tauri)
 
 - Utility functions (245 tests)
 - WASM boundaries (57 tests)
@@ -405,6 +405,20 @@ npm run test:coverage # Coverage report
 **`getDictionaryLabel` / `getDictionaryDropdownLabel` / `compareDictionaryOrder`**: Import directly from `dictionaryHelpers`. The re-export through `DuplicateAnalyzer` was removed (2026-02-13).
 
 **`useConfigurationLoader.ts` deleted (2026-02-13)**: Hook existed with no callers or tests. Imperative equivalent is `loadValidatedConfiguration()` in `configurationHelpers.ts`.
+
+**Vitest matchers — no `toEndWith`/`toStartWith`** (2026-02-13): Vitest uses Chai, not jest-extended. Use `.endsWith(' ')` + `.toBe(true)`, or `toMatch(/ $/)`, instead of `toEndWith`/`toStartWith`.
+
+**`SegmentPrecomputer.findUnitMatch` space-absorption** (2026-02-13): `normalizeText` trims leading whitespace, so `findUnitMatch(' tốt', 'tốt')` returns `{found:true, offset:0}` — the space gets absorbed into the segment. Test text-reconstruction (`segments.map(s=>s.text).join('')`) rather than individual `.text` values when units follow spaces.
+
+**`SegmentPrecomputer.precomputeSegmentsJS` — empty arrays**: Returns `[]` immediately via early-exit guard — does NOT produce non-semantic text segments for the input.
+
+**`createRenderSegments` with `highlightedUnitIndex=-1`**: Non-semantic segments have `unitIndex=-1`; they become `isHighlighted=true` when caller passes `-1` as the highlighted index. Use `99` (or any non-matching value) in tests verifying non-semantic segments are unhighlighted.
+
+**React Testing Library paragraph selector** (2026-02-13): `container.querySelectorAll('div > div')` matches both the component container AND paragraph children (RTL wraps everything in an extra div). Use `div > div > div` to select only paragraph-level divs inside a two-level component.
+
+**`PunctuationProcessor.isAlreadyProperlySpaced` regex — brackets not matched** (2026-02-13): `openingQuotePattern` from `QuoteProcessor.createOpeningQuoteRegex().source` returns the full `[...]` pattern including brackets, embedded inside another `[...]` class — the outer class closes early. The regex matches opening _quotes_ but NOT literal `[`/`(` brackets. Write tests using quote chars, not bracket chars.
+
+**Rust tests for `lookup_index_engine.rs`** (2026-02-13): Run with `cargo test --manifest-path src-tauri/Cargo.toml lookup_index_engine`. 21 tests now cover trie matching, char-vs-byte index correctness, serial/parallel parity, categorization, and `build_comprehensive_lookup_index` guards.
 
 📖 **Testing Details**: [docs/guides/development.md](docs/guides/development.md#testing-infrastructure)
 
