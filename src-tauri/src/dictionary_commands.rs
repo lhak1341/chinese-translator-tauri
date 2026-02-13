@@ -267,35 +267,33 @@ impl DictionaryCache {
     /// The mutex remains marked as poisoned but continues to function normally
     /// CODE REVIEW FIX 2026-02-08: LRU eviction - evict oldest entry when cache is full
     /// CODE REVIEW FIX 2026-02-08 (MEDIUM): Avoid nested mutex locks to prevent deadlocks
+    /// CODE REVIEW FIX 2026-02-13 (IMPORTANT-4): Eliminate TOCTOU race — eviction check and
+    /// insert now happen inside one cache lock acquisition.  The LRU key is found first
+    /// (holding only access_order), then the cache lock is taken once to check the condition
+    /// freshly, evict if still necessary, and insert — all atomically.
     pub fn set(&self, key: String, value: serde_json::Value) {
-        // Check if eviction is needed and collect cache keys without holding lock
-        let needs_eviction = if let Ok(cache) = self.cache.lock() {
-            cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key)
-        } else {
-            false
-        };
-
-        // Find LRU key to evict if needed (without holding cache lock)
-        let lru_key_to_evict = if needs_eviction {
-            if let Ok(access_order) = self.access_order.lock() {
-                access_order
-                    .iter()
-                    .min_by_key(|(_, &timestamp)| timestamp)
-                    .map(|(k, _)| k.clone())
-            } else {
-                None
-            }
+        // Step 1: Find the LRU candidate while holding only access_order (no cache lock).
+        // This read may become stale by the time we act on it, but the consequence is at
+        // worst a harmless redundant eviction or a missed eviction corrected next call.
+        let lru_key_to_evict: Option<String> = if let Ok(access_order) = self.access_order.lock() {
+            access_order
+                .iter()
+                .min_by_key(|(_, &timestamp)| timestamp)
+                .map(|(k, _)| k.clone())
         } else {
             None
         };
 
-        // Now perform the actual cache update
+        // Step 2: Acquire the cache lock once, check the eviction condition freshly,
+        // evict if needed, and insert — all within the same critical section to prevent TOCTOU.
         match self.cache.lock() {
             Ok(mut cache) => {
-                // Evict LRU entry if we found one
-                if let Some(lru_key) = lru_key_to_evict {
-                    cache.remove(&lru_key);
-                    eprintln!("LRU cache eviction: removed {}", lru_key);
+                // Re-check eviction condition under the lock (eliminates TOCTOU window)
+                if cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key) {
+                    if let Some(ref lru_key) = lru_key_to_evict {
+                        cache.remove(lru_key);
+                        eprintln!("LRU cache eviction: removed {}", lru_key);
+                    }
                 }
 
                 cache.insert(key.clone(), value);
@@ -535,7 +533,10 @@ pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Res
                 let file_name = e.file_name();
                 let file_str = file_name.to_str()?;
                 if file_str.starts_with("properNouns") && file_str.ends_with(".json") && !file_str.ends_with(".trie.json") {
-                    Some(file_str.strip_suffix(".json").unwrap_or(file_str).to_string())
+                    // SECURITY: strip suffix then validate before returning to frontend
+                    let base_name = file_str.strip_suffix(".json")?;
+                    validate_dictionary_id(base_name).ok()?;
+                    Some(base_name.to_string())
                 } else {
                     None
                 }

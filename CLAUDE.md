@@ -199,6 +199,14 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 
 **`DictionaryCache` Rust mutex pattern** (2026-02-12): Always collect needed data while holding the `cache` lock, then `drop(cache)` explicitly before acquiring `access_order`. Nested lock (holding `cache` while locking `access_order`) is a deadlock risk. See `set()` in `dictionary_commands.rs` for the canonical pattern.
 
+**Rust `.len()` vs `.chars().count()` for Chinese text** (2026-02-13): In WASM/Rust code, always use `.chars().count()` when comparing _character_ lengths of strings that may contain Chinese or mixed-script text. `.len()` returns _byte_ count — one Chinese character is 3 bytes, so byte comparisons silently mis-rank pattern lengths. Affected: `matcher.rs` Phase A override, any length-based priority logic.
+
+**Rust HashMap iteration order in template substitution** (2026-02-13): `HashMap` iteration is non-deterministic. When substituting multiple named variables into a template (e.g., `build_result` in `matcher.rs`), collect into a `Vec`, sort by key length descending, then iterate — ensures longest variable name matches first and results are deterministic across runs.
+
+**`SegmentMatcher::find_matches` — do NOT re-add `used_indices`** (2026-02-13): Removed `HashSet<usize>` that blocked the same `unit_index` from matching at more than one text position. The same translated word (e.g., "bạn") can legitimately appear twice; `used_indices` silently dropped the second match, breaking highlight positions. The trie's length-greedy advance already prevents overlapping matches.
+
+**Tauri read commands need the same ID validation as write commands** (2026-02-13): `list_proper_nouns_dictionaries` (and any future list/read command) must call `validate_dictionary_id()` inside its `filter_map` before returning IDs to the frontend. Previously only mutating commands validated — a crafted filename passing the `starts_with`/`ends_with` guards could return an invalid ID that later fails at use.
+
 **Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): When moving test files, `vi.doMock('path/nonexistent.js', ...)` key is the _attempted_ resolution path from the test file's directory — not a normalized absolute path. For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'` (→ `src/wasm/`); test in `src/utils/__tests__/` must use `'../../wasm/translation_wasm_core.js'` (also → `src/wasm/`). Applies to all `vi.doMock`/`vi.mock` calls for non-existent modules.
 
 **Dual `WasmTypes` implementations — DO NOT confuse** (2026-02-13): Two separate files with OPPOSITE `copyWasmTokens` conventions:

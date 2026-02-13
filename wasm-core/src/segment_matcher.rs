@@ -147,7 +147,6 @@ impl SegmentMatcher {
     pub fn find_matches(&self, text: &str) -> Result<JsValue, JsValue> {
         let mut matches = Vec::new();
         let chars: Vec<char> = text.chars().collect();
-        let mut used_indices = std::collections::HashSet::new();
 
         let mut position = 0;
 
@@ -160,12 +159,13 @@ impl SegmentMatcher {
                 if let Some(next_node) = node.children.get(&ch) {
                     node = next_node;
 
-                    // Record match if this node represents a complete unit
+                    // Record match if this node represents a complete unit.
+                    // No used_indices guard: the same unit may appear at multiple text
+                    // positions (e.g., "bạn" occurs twice) and each occurrence should
+                    // produce a separate SegmentMatch so the JS consumer can highlight
+                    // every instance correctly.
                     if let Some(unit_index) = node.unit_index {
-                        // Only use if not already used (handles duplicates)
-                        if !used_indices.contains(&unit_index) {
-                            last_match = Some((unit_index, node.unit_length, offset + 1));
-                        }
+                        last_match = Some((unit_index, node.unit_length, offset + 1));
                     }
                 } else {
                     break;  // No more matches possible at this position
@@ -186,7 +186,6 @@ impl SegmentMatcher {
                     metadata: unit.metadata.clone(),
                 });
 
-                used_indices.insert(unit_index);
                 position += offset;  // Skip matched text
             } else {
                 position += 1;  // No match, advance one character

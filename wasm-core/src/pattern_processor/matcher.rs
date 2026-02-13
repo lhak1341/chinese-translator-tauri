@@ -492,7 +492,7 @@ impl<'a> PatternMatcher<'a> {
                 matched_tokens.iter().map(|t| t.value.as_str()).collect();
             let max_phase_a_length = self.get_max_phase_a_length(&matched_tokens);
 
-            if current_matched_text.len() <= max_phase_a_length {
+            if current_matched_text.chars().count() <= max_phase_a_length {
                 update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                 return PatternMatchResult::failure(Some(
                     "Phase A match is longer or equal length".to_string(),
@@ -689,7 +689,7 @@ impl<'a> PatternMatcher<'a> {
         for token in matched_tokens {
             if token.protected_by_phase_a.unwrap_or(false) {
                 if let Some(phase_a_result) = &token.phase_a_result {
-                    let length = phase_a_result.original_text.len();
+                    let length = phase_a_result.original_text.chars().count();
                     max_length = std::cmp::max(max_length, length);
                 }
             }
@@ -734,24 +734,31 @@ pub fn build_result(template: &str, variables: &HashMap<String, String>) -> Stri
     let mut result = String::with_capacity(template.len() + extra_capacity);
     let mut chars = template.chars().peekable();
 
+    // Sort variables by name length descending so longer names match before prefixes
+    // (e.g., "XY" matches before "X" if both are variable names)
+    let mut sorted_vars: Vec<(&String, &String)> = variables.iter().collect();
+    sorted_vars.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+
     while let Some(ch) = chars.next() {
         // Check if this could be the start of a variable name
         // Variables are typically single characters (X, Y, Z) or multi-character names
-        // Try to match against all variable names
+        // Try to match against all variable names (longest first for determinism)
         let mut matched = false;
 
-        for (var_name, translation) in variables {
+        for (var_name, translation) in &sorted_vars {
+            // var_name: &&String, translation: &&String (from &Vec<(&String, &String)>)
             if !var_name.is_empty() && ch == var_name.chars().next().unwrap() {
                 // Check if the full variable name matches at this position
+                let var_char_count = var_name.chars().count();
                 let remaining_chars: String = std::iter::once(ch)
-                    .chain(chars.clone().take(var_name.len() - 1))
+                    .chain(chars.clone().take(var_char_count - 1))
                     .collect();
 
-                if remaining_chars == *var_name {
+                if remaining_chars.as_str() == var_name.as_str() {
                     // Match found - substitute translation
                     result.push_str(translation);
                     // Skip the remaining characters of the variable name
-                    for _ in 0..(var_name.len() - 1) {
+                    for _ in 0..(var_char_count - 1) {
                         chars.next();
                     }
                     matched = true;

@@ -290,7 +290,10 @@ export class LRUCache<K = string, V = any> {
       hitRate: `${hitRate}%`,
       size: this.cache.size,
       maxSize: this.maxSize,
-      memoryEfficiency: `${this.cache.size}/${this.maxSize} (${((this.cache.size / this.maxSize) * 100).toFixed(1)}%)`,
+      memoryEfficiency:
+        this.maxSize === 0
+          ? `${this.cache.size}/0 (N/A)`
+          : `${this.cache.size}/${this.maxSize} (${((this.cache.size / this.maxSize) * 100).toFixed(1)}%)`,
     };
   }
 
