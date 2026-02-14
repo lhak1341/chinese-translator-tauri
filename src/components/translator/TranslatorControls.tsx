@@ -1,6 +1,7 @@
 import React from 'react';
 import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Database, Activity } from 'lucide-react';
 import styles from '../../styles/TranslatorControls.module.css';
+import type { ThrottledStreamingState } from '../../types/UITypes';
 
 /**
  * Performance statistics for translation operations
@@ -36,16 +37,6 @@ interface RegressionHealth {
 interface ProgressInfo {
   currentBatch: number;
   totalBatches: number;
-  completedChunks: number;
-  totalChunks: number;
-}
-
-/**
- * Throttled streaming state for UI updates
- */
-interface ThrottledStreamingState {
-  isStreaming: boolean;
-  progress: number;
   completedChunks: number;
   totalChunks: number;
 }

@@ -5,14 +5,7 @@ import { X, AlertTriangle, Info } from 'lucide-react';
 import styles from '../../styles/MoveEntryDialog.module.css';
 import { logger } from '../../utils/logger';
 import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
-
-/**
- * Dictionary entry to be moved (basic structure from context menu)
- */
-interface DictionaryEntry {
-  source: string;
-  translation: string;
-}
+import type { MoveEntryData, DictionaryEntryMetadata } from '../../types/DictionaryTypes';
 
 /**
  * Full entry data with all metadata extracted from dictionary
@@ -20,12 +13,7 @@ interface DictionaryEntry {
 interface FullEntryData {
   source: string;
   translation: string;
-  metadata?: {
-    allowAsPatternVariable?: boolean;
-    lowPriority?: boolean;
-    semanticType?: string;
-    allowedVariableTypes?: Record<string, string[]>;
-  };
+  metadata?: DictionaryEntryMetadata;
 }
 
 /**
@@ -40,7 +28,7 @@ interface AvailableDictionary {
  * Props for MoveEntryDialog component
  */
 interface MoveEntryDialogProps {
-  entry: DictionaryEntry;
+  entry: MoveEntryData;
   onClose: () => void;
   currentDictionary: string;
 }

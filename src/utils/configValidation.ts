@@ -28,7 +28,12 @@ export interface ValidatedConfiguration {
 }
 
 /**
- * Dictionary entry types
+ * Dictionary entry types used by raw JSON validation.
+ *
+ * NOTE: This is a separate type from `DictionaryEntryValue` in
+ * `src/types/DictionaryTypes.ts`. The metadata schemas differ (this one uses
+ * `priority`/`isVariable`; the canonical type uses `allowAsPatternVariable`/
+ * `semanticType`). TODO: align metadata schemas and consolidate into one type.
  */
 export type DictionaryEntry =
   | string // Simple translation
@@ -174,13 +179,19 @@ function getDefaultConfiguration(): ValidatedConfiguration {
 }
 
 /**
- * Validate dictionary entry
+ * Validate a raw (untyped) dictionary entry from a JSON file.
+ *
+ * Renamed from `validateDictionaryEntry` to avoid a name collision with
+ * the `validateDictionaryEntry` in
+ * `src/components/dictionary/DictionaryTypes.ts`, which has a completely
+ * different signature (checks dictionary-type-specific rules, e.g. patterns
+ * must have variables X/Y/Z).
  *
  * @param entry - Raw dictionary entry
  * @param source - Source text (for error messages)
  * @returns Validated entry or null if invalid
  */
-export function validateDictionaryEntry(entry: unknown, source: string): DictionaryEntry | null {
+export function validateRawDictionaryEntry(entry: unknown, source: string): DictionaryEntry | null {
   // Simple string translation
   if (typeof entry === 'string') {
     return entry;
@@ -280,7 +291,7 @@ export function validateDictionary(dict: unknown, dictionaryId: string): Diction
     }
 
     // Validate entry
-    const validatedEntry = validateDictionaryEntry(entry, source);
+    const validatedEntry = validateRawDictionaryEntry(entry, source);
     if (validatedEntry !== null) {
       validated[source] = validatedEntry;
     } else {

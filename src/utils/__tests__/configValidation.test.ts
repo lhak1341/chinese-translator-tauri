@@ -13,7 +13,7 @@ import {
   validateElectronResult,
   validateConfiguration,
   validateDictionary,
-  validateDictionaryEntry,
+  validateRawDictionaryEntry,
   validateDictionaryList,
   sanitizeString,
   ValidationError,
@@ -210,10 +210,10 @@ describe('validateConfiguration', () => {
   });
 });
 
-describe('validateDictionaryEntry', () => {
+describe('validateRawDictionaryEntry', () => {
   it('should validate simple string entry', () => {
     const entry = 'Vietnamese translation';
-    const result = validateDictionaryEntry(entry, '中文');
+    const result = validateRawDictionaryEntry(entry, '中文');
 
     expect(result).toBe('Vietnamese translation');
   });
@@ -228,7 +228,7 @@ describe('validateDictionaryEntry', () => {
       },
     };
 
-    const result = validateDictionaryEntry(entry, '中文');
+    const result = validateRawDictionaryEntry(entry, '中文');
 
     expect(result).toEqual(entry);
   });
@@ -239,7 +239,7 @@ describe('validateDictionaryEntry', () => {
       // Missing translation
     };
 
-    const result = validateDictionaryEntry(entry, '中文');
+    const result = validateRawDictionaryEntry(entry, '中文');
 
     expect(result).toBeNull();
   });
@@ -254,7 +254,7 @@ describe('validateDictionaryEntry', () => {
       },
     };
 
-    const result = validateDictionaryEntry(entry, '中文');
+    const result = validateRawDictionaryEntry(entry, '中文');
 
     expect(result).toEqual({
       translation: 'Vietnamese translation',
@@ -274,7 +274,7 @@ describe('validateDictionaryEntry', () => {
       },
     };
 
-    const result = validateDictionaryEntry(entry, '中文');
+    const result = validateRawDictionaryEntry(entry, '中文');
 
     expect(result).toHaveProperty('metadata');
     const metadata = (result as { metadata: Record<string, unknown> }).metadata;
@@ -283,14 +283,14 @@ describe('validateDictionaryEntry', () => {
   });
 
   it('should return null for null/undefined entries', () => {
-    expect(validateDictionaryEntry(null, '中文')).toBeNull();
-    expect(validateDictionaryEntry(undefined, '中文')).toBeNull();
+    expect(validateRawDictionaryEntry(null, '中文')).toBeNull();
+    expect(validateRawDictionaryEntry(undefined, '中文')).toBeNull();
   });
 
   it('should return null for invalid types', () => {
-    expect(validateDictionaryEntry(123, '中文')).toBeNull();
-    expect(validateDictionaryEntry(true, '中文')).toBeNull();
-    expect(validateDictionaryEntry([], '中文')).toBeNull();
+    expect(validateRawDictionaryEntry(123, '中文')).toBeNull();
+    expect(validateRawDictionaryEntry(true, '中文')).toBeNull();
+    expect(validateRawDictionaryEntry([], '中文')).toBeNull();
   });
 });
 

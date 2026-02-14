@@ -5,6 +5,7 @@ import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
 import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
 import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
+import type { ThrottledStreamingState } from '../../types/UITypes';
 import { logger } from '../../utils/logger';
 import styles from '../../styles/TranslatorDisplayPanels.module.css';
 
@@ -26,17 +27,6 @@ interface SemanticUnit {
 interface PrebuiltSegment {
   text: string;
   unitIndex: number;
-}
-
-/**
- * Throttled streaming state for UI updates
- */
-interface ThrottledStreamingState {
-  isStreaming: boolean;
-  progress: number;
-  partialText: string;
-  completedChunks: number;
-  totalChunks: number;
 }
 
 /**

@@ -475,6 +475,87 @@ open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
 
 ---
 
+## Gotchas Reference
+
+Accumulated pitfalls confirmed across development sessions. Organized by area.
+
+### Architecture / Extraction
+
+**After extracting Phase 1, reload broke** (2026-01-30): Removed constants still referenced. Always grep for usage before removing infrastructure.
+
+**`HistoryOperation` type divergence — DO NOT swap** (2026-02-12): `LazyDictionaryContext.tsx` uses a local snapshot-based `HistoryOperation` (`oldData`/`newData: DictionaryData`). The canonical `src/types/DictionaryTypes.ts` version is delta-based (individual entries). These are architecturally incompatible — `LazyDictionaryContext.tsx` must keep its local definition.
+
+### JavaScript / TypeScript
+
+**Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `callWasmWithTimeout()` in `wasmOperationTimeout.js` uses `Promise.race([operation(), timeoutPromise])`. If `operation()` makes a synchronous WASM call, the JS thread is blocked for the full call duration — the timeout fires only _after_ WASM returns, not during it. True interruption requires a Web Worker.
+
+**Idle-callback index loop — always snapshot queue length before loop** (2026-02-14): When using an index-based while loop over a queue inside a `requestIdleCallback` handler, capture `const initialQueueLength = this.cleanupQueue.length` _before_ the loop. If the catch block pushes retry tasks, `cleanupQueue.length` grows and the loop re-executes the retry task in the same callback — defeating deferred-retry intent. `BackgroundCleanupManager.processQueue` (`MemoryManagementRefinements.ts`) is the canonical fix.
+
+**`EMERGENCY_CLEANUP_THRESHOLD = 10`, `CRITICAL_CLEANUP_THRESHOLD = 20`** (2026-02-13): Raised from 3/5 — keeping only 3–5 segments after cleanup wiped almost all clickable highlighting (expected max ≤35). Regression test at `src/utils/__tests__/TranslationEngine.regression.test.js:247` hardcodes these values; update both together if they ever change.
+
+**Adjacent variable tokens in WASM patterns are unreliable — avoid in pattern authoring** (2026-02-14): `wasm-core/src/pattern_processor/matcher.rs:638-651` uses a greedy shortest-span heuristic when two consecutive variable tokens appear in a pattern (no backtracking). Patterns with a single variable token, or variables separated by at least one literal token, work reliably.
+
+### Types / Imports
+
+**Dual `WasmTypes` implementations — DO NOT confuse** (2026-02-13): Two files with OPPOSITE `copyWasmTokens` conventions:
+
+- `types/WasmTypes.ts` (project ROOT, not `src/`) — `copyWasmTokens(source, target)`: source=WASM output (param1, read-only), target=JS tokens (param2, written to). Used by ALL test files via `'../../../types/WasmTypes.js'`.
+- `src/utils/WasmBoundaryValidation.ts` — `copyWasmTokens(sourceTokens, wasmTokens)`: sourceTokens=JS destination (param1, written to), wasmTokens=WASM output (param2, read). Used by `TranslationEngine.js`.
+
+Swapping imports between production code and tests will silently reverse the copy direction.
+
+**`'../../../types/WasmTypes.js'` test import resolves to project root** (2026-02-13): From any `src/**/__tests__/` directory, three `../` levels exit to the project root, so `'../../../types/WasmTypes.js'` → `{project_root}/types/WasmTypes.ts` (Vite resolves `.js` → `.ts`). The same path works from both `src/types/__tests__/` and `src/utils/__tests__/`.
+
+**`validateDictionaryEntry` renamed — DO NOT revert** (2026-02-14): `configValidation.ts` exports `validateRawDictionaryEntry` (raw JSON structural validation). The name `validateDictionaryEntry` belongs to `src/components/dictionary/DictionaryTypes.ts` (dictionary-type-specific rules, different signature). Same name was a maintenance collision.
+
+**Canonical homes for shared component types** (2026-02-14): `ThrottledStreamingState` → `UITypes.d.ts`. `DictionaryEntryMetadata`, `MoveEntryData`, `EditingEntryData` → `DictionaryTypes.ts`. Import from these files; do not redeclare locally in components.
+
+**`AppConfiguration` import path**: Always import from `src/types/ComponentTypes`, NOT from `configValidation`. `configValidation.ts` does not re-export it.
+
+**`getDictionaryLabel` / `getDictionaryDropdownLabel` / `compareDictionaryOrder`**: Import directly from `dictionaryHelpers`. The re-export through `DuplicateAnalyzer` was removed (2026-02-13).
+
+**`useConfigurationLoader.ts` deleted (2026-02-13)**: Hook existed with no callers or tests. Imperative equivalent is `loadValidatedConfiguration()` in `configurationHelpers.ts`.
+
+### Rust / WASM Backend
+
+**`DictionaryCache` Rust mutex pattern** (2026-02-12): Always collect needed data while holding the `cache` lock, then `drop(cache)` explicitly before acquiring `access_order`. Nested lock (holding `cache` while locking `access_order`) is a deadlock risk. See `set()` in `dictionary_commands.rs` for the canonical pattern.
+
+**Rust `.len()` vs `.chars().count()` for Chinese text** (2026-02-13): In WASM/Rust code, always use `.chars().count()` when comparing _character_ lengths of strings that may contain Chinese or mixed-script text. `.len()` returns _byte_ count — one Chinese character is 3 bytes, so byte comparisons silently mis-rank pattern lengths. Affected: `matcher.rs` Phase A override, any length-based priority logic.
+
+**Rust `HashMap` iteration order in template substitution** (2026-02-13): `HashMap` iteration is non-deterministic. When substituting multiple named variables into a template (e.g., `build_result` in `matcher.rs`), collect into a `Vec`, sort by key length descending, then iterate — ensures longest variable name matches first and results are deterministic across runs.
+
+**`SegmentMatcher::find_matches` — do NOT re-add `used_indices`** (2026-02-13): Removed `HashSet<usize>` that blocked the same `unit_index` from matching at more than one text position. The same translated word (e.g., "bạn") can legitimately appear twice; `used_indices` silently dropped the second match, breaking highlight positions. The trie's length-greedy advance already prevents overlapping matches.
+
+**`SegmentMatcher` trie: `unit_indices: Vec<usize>`, not `Option<usize>`** (2026-02-13): `TrieNode.unit_indices` is a `Vec` so multiple semantic units with the same translated text all have their index stored. Reverting to `Option<usize>` re-introduces last-writer-wins: the second `build_index` insert silently drops the first unit's click-highlighting.
+
+**All Rust write helpers that accept `serde_json::Value` need `MAX_JSON_SIZE_BYTES` check** (2026-02-14): Any function that calls `fs::write` with user-supplied JSON must check `json_string.len() > MAX_JSON_SIZE_BYTES` before writing. When adding new write helpers, always mirror the size guard already in `save_dictionary`.
+
+**ZIP entry read path needs two guards** (2026-02-14): When iterating ZIP entries with `archive.by_index(i)`, always apply: (1) `|| filename.ends_with(".trie.json")` exclusion alongside the `.json` check, and (2) `file.size() > MAX_JSON_SIZE_BYTES` before `file.read_to_string()`. Missing either allows trie-cache pollution or ZIP-bomb DoS. See `import_dictionaries` in `dictionary_commands.rs` for the canonical pattern.
+
+**Tauri read commands need the same ID validation as write commands** (2026-02-13): `list_proper_nouns_dictionaries` (and any future list/read command) must call `validate_dictionary_id()` inside its `filter_map` before returning IDs to the frontend.
+
+**Rust tests for `lookup_index_engine.rs`**: Run with `cargo test --manifest-path src-tauri/Cargo.toml lookup_index_engine`. 21 tests cover trie matching, char-vs-byte index correctness, serial/parallel parity, categorization, and `build_comprehensive_lookup_index` guards.
+
+### Testing Gotchas
+
+**`src/test/setup.ts` MUST NOT be deleted**: It is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). The duplicate test files in `src/test/` were removed (stale copies of `src/utils/__tests__/`), but `setup.ts` was not.
+
+**Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import — not the test file's directory. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'`; test in `src/utils/__tests__/` uses `'../../wasm/translation_wasm_core.js'` (both → `src/wasm/`).
+
+**Vitest matchers — no `toEndWith`/`toStartWith`** (2026-02-13): Vitest uses Chai, not jest-extended. Use `.endsWith(' ')` + `.toBe(true)`, or `toMatch(/ $/)`.
+
+**`SegmentPrecomputer.findUnitMatch` space-absorption** (2026-02-13): `normalizeText` trims leading whitespace, so `findUnitMatch(' tốt', 'tốt')` returns `{found:true, offset:0}`. Test text-reconstruction (`segments.map(s=>s.text).join('')`) rather than individual `.text` values when units follow spaces.
+
+**`SegmentPrecomputer.precomputeSegmentsJS` — empty arrays**: Returns `[]` immediately via early-exit guard — does NOT produce non-semantic text segments for the input.
+
+**`createRenderSegments` with `highlightedUnitIndex=-1`**: Non-semantic segments have `unitIndex=-1`; they become `isHighlighted=true` when caller passes `-1` as the highlighted index. Use `99` (or any non-matching value) in tests verifying non-semantic segments are unhighlighted.
+
+**React Testing Library paragraph selector** (2026-02-13): `container.querySelectorAll('div > div')` matches both the component container AND paragraph children (RTL wraps everything in an extra div). Use `div > div > div` to select only paragraph-level divs inside a two-level component.
+
+**`PunctuationProcessor.isAlreadyProperlySpaced` regex — brackets not matched** (2026-02-13): `openingQuotePattern` embedded inside another `[...]` class closes early. The regex matches opening _quotes_ but NOT literal `[`/`(` brackets. Write tests using quote chars, not bracket chars.
+
+---
+
 ## Related Guides
 
 - [Architecture Guide](./architecture.md) - System architecture and WASM acceleration

@@ -279,39 +279,3 @@ export function updatePerformanceBaselines(metrics) {
     baselines.avgMemoryUsage = baselines.avgMemoryUsage * 0.9 + metrics.memoryUsage * 0.1;
   }
 }
-
-/**
- * Get rollback system status and history
- * @returns {Object} Complete rollback monitoring state
- */
-export function getRollbackStatus() {
-  return {
-    monitoringActive: rollbackMonitoring.monitoringActive,
-    consecutiveFailures: rollbackMonitoring.consecutiveFailures,
-    lastRollbackTime: rollbackMonitoring.lastRollbackTime,
-    rollbackHistory: rollbackMonitoring.rollbackHistory,
-    performanceBaselines: rollbackMonitoring.performanceBaselines,
-    currentFlags: LEGACY_REMOVAL_FLAGS,
-    rollbackTriggers: ROLLBACK_TRIGGERS,
-  };
-}
-
-/**
- * Reset rollback monitoring state (use carefully - for testing only)
- */
-export function resetRollbackMonitoring() {
-  rollbackMonitoring = {
-    consecutiveFailures: 0,
-    lastRollbackTime: null,
-    rollbackHistory: [],
-    performanceBaselines: {},
-    monitoringActive: false,
-  };
-
-  // Reset flags to safe defaults
-  LEGACY_REMOVAL_FLAGS.enableLegacyPatternRemoval = false;
-  LEGACY_REMOVAL_FLAGS.enableSequentialFallbackRemoval = false;
-  LEGACY_REMOVAL_FLAGS.forceTwoPhasePatterns = false;
-  LEGACY_REMOVAL_FLAGS.forceParallelProcessing = false;
-  LEGACY_REMOVAL_FLAGS.emergencyLegacyRestore = false;
-}
