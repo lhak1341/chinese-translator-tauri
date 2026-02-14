@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { TabId } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
@@ -53,6 +53,13 @@ export function useHotkeyHandler({
   onFocusSearch,
   activeTab,
 }: HotkeyHandlerOptions): void {
+  // Use refs so canUndo/canRedo don't force the keydown listener to be torn down
+  // and re-registered on every undo/redo history change (stale-dep anti-pattern).
+  const canUndoRef = useRef(canUndo);
+  canUndoRef.current = canUndo;
+  const canRedoRef = useRef(canRedo);
+  canRedoRef.current = canRedo;
+
   useEffect(() => {
     const copySelectedText = async (): Promise<boolean> => {
       try {
@@ -157,10 +164,10 @@ export function useHotkeyHandler({
 
           switch (event.key.toLowerCase()) {
             case 'z':
-              if (event.shiftKey && canRedo) {
+              if (event.shiftKey && canRedoRef.current) {
                 event.preventDefault();
                 onRedo?.();
-              } else if (canUndo) {
+              } else if (canUndoRef.current) {
                 event.preventDefault();
                 onUndo?.();
               }
@@ -186,8 +193,6 @@ export function useHotkeyHandler({
     onRedo,
     onAddEntry,
     onQuickAdd,
-    canUndo,
-    canRedo,
     onTabSwitch,
     onQuickAddCharacter,
     onQuickAddPhrase,

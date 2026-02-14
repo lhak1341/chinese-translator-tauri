@@ -396,7 +396,7 @@ impl NumberProcessor {
                     // the same byte-length sequence are all tried; the last successful converter
                     // wins (declaration order is tie-breaker).  With >, any pattern after the
                     // first match at a given length was silently ignored.
-                    if test_sequence.len() >= longest_length {
+                    if test_sequence.chars().count() >= longest_length {
                         // Extract capture groups as strings
                         let groups: Vec<&str> = captures.iter()
                             .skip(1) // Skip full match
@@ -412,7 +412,7 @@ impl NumberProcessor {
                                 start_index,
                                 end_index,
                             });
-                            longest_length = test_sequence.len();
+                            longest_length = test_sequence.chars().count();
                         }
                     }
                 }
@@ -514,8 +514,8 @@ impl NumberProcessor {
             }
         }
 
-        // Single digit
-        if text.len() == 1 {
+        // Single digit — use chars().count(), not len() (Chinese chars are 3 bytes each)
+        if text.chars().count() == 1 {
             let ch = text.chars().next()?;
             return self.get_number(ch);
         }

@@ -56,7 +56,7 @@ fn validate_dictionary_id(dictionary_id: &str) -> Result<(), String> {
     }
 
     // Enforce maximum length
-    if dictionary_id.len() > MAX_DICTIONARY_ID_LENGTH {
+    if dictionary_id.chars().count() > MAX_DICTIONARY_ID_LENGTH {
         return Err(format!(
             "Invalid dictionary ID: maximum length is {} characters",
             MAX_DICTIONARY_ID_LENGTH
@@ -413,7 +413,10 @@ impl DictionaryCache {
         // Step 2: Clean up access_order to match the surviving cache entries.
         if let Ok(mut access_order) = self.access_order.lock() {
             match surviving_keys {
-                Some(ref keys) => access_order.retain(|k, _| keys.contains(k)),
+                Some(ref keys) => {
+                    let keys_set: std::collections::HashSet<&String> = keys.iter().collect();
+                    access_order.retain(|k, _| keys_set.contains(k));
+                }
                 None => access_order.clear(),
             }
         }
@@ -602,15 +605,14 @@ pub async fn save_dictionary(
     // SECURITY: Validate dictionary ID to prevent path traversal
     validate_dictionary_id(&dictionary_id)?;
 
-    // SECURITY: Check entry count before saving
-    if let Some(obj) = data.as_object() {
-        if obj.len() > MAX_DICTIONARY_ENTRIES {
-            return Err(format!(
-                "Dictionary too large: {} entries (max: {})",
-                obj.len(),
-                MAX_DICTIONARY_ENTRIES
-            ));
-        }
+    // SECURITY: Require a JSON object — arrays and other types bypass entry-count validation
+    let obj = data.as_object().ok_or_else(|| "Dictionary data must be a JSON object".to_string())?;
+    if obj.len() > MAX_DICTIONARY_ENTRIES {
+        return Err(format!(
+            "Dictionary too large: {} entries (max: {})",
+            obj.len(),
+            MAX_DICTIONARY_ENTRIES
+        ));
     }
 
     let dictionary_path = get_dictionary_path(&app_handle)?;
@@ -920,9 +922,10 @@ pub async fn import_dictionaries(
         // Validate JSON before writing — use .take() so decompressed output is
         // hard-capped even if the ZIP header lied about the uncompressed size.
         let mut contents = String::new();
-        file.take(MAX_JSON_SIZE_BYTES as u64 + 1)
-            .read_to_string(&mut contents)
-            .map_err(|e| e.to_string())?;
+        if let Err(e) = file.take(MAX_JSON_SIZE_BYTES as u64 + 1).read_to_string(&mut contents) {
+            errors.push(format!("{}: read error: {}", filename, e));
+            continue;
+        }
         if contents.len() > MAX_JSON_SIZE_BYTES {
             errors.push(format!(
                 "{}: decompressed content exceeds size limit ({} MB max)",

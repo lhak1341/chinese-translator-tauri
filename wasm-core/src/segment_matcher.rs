@@ -198,6 +198,11 @@ impl SegmentMatcher {
                     break;
                 }
                 for unit_index in &unit_indices {
+                    // Re-check inside the inner loop: multiple units sharing a node
+                    // can push M entries in one batch, violating the outer check.
+                    if matches.len() >= MAX_MATCHES {
+                        break;
+                    }
                     let unit = &self.units[*unit_index];
                     matches.push(SegmentMatch {
                         position,
