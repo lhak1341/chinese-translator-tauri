@@ -695,6 +695,15 @@ fn save_json_file(
     data: &serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
     let json_string = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
+    // SECURITY: Mirror the size check in save_dictionary (line 607) — defend-in-depth
+    // against a malicious or buggy frontend payload bloating config files on disk.
+    if json_string.len() > MAX_JSON_SIZE_BYTES {
+        return Err(format!(
+            "Config too large: {} MB (max: {} MB)",
+            json_string.len() / 1024 / 1024,
+            MAX_JSON_SIZE_BYTES / 1024 / 1024
+        ));
+    }
     fs::write(path, json_string).map_err(|e| e.to_string())?;
     Ok(DictionaryResponse::ok())
 }
@@ -854,8 +863,9 @@ pub async fn import_dictionaries(
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
         let filename = file.name().to_string();
 
-        // Only process JSON files
-        if !filename.ends_with(".json") {
+        // Only process JSON files; exclude .trie.json cache files (consistent with
+        // list_proper_nouns_dictionaries which also excludes them at line 535).
+        if !filename.ends_with(".json") || filename.ends_with(".trie.json") {
             continue;
         }
 
@@ -865,9 +875,23 @@ pub async fn import_dictionaries(
         // strip_suffix removes the literal substring ".json"; trim_end_matches
         // would strip individual characters from the set {'.','j','s','o','n'},
         // which over-strips names like "son.json" → "".
-        let base_name = filename.strip_suffix(".json").unwrap(); // safe: ends_with checked at line 847
+        let base_name = filename.strip_suffix(".json").unwrap(); // safe: ends_with checked above
         if let Err(e) = validate_dictionary_id(base_name) {
             errors.push(format!("{}: {}", filename, e));
+            continue;
+        }
+
+        // SECURITY: Check uncompressed size before reading to prevent ZIP-bomb DoS.
+        // file.size() returns the uncompressed size; a crafted ZIP can compress
+        // gigabytes into a small .zip payload, exhausting memory at read time.
+        // This mirrors validate_file_size() used on all other read paths.
+        if file.size() > MAX_JSON_SIZE_BYTES as u64 {
+            errors.push(format!(
+                "{}: file too large ({} MB, max: {} MB)",
+                filename,
+                file.size() / 1024 / 1024,
+                MAX_JSON_SIZE_BYTES as u64 / 1024 / 1024
+            ));
             continue;
         }
 

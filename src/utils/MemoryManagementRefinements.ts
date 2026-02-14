@@ -558,11 +558,15 @@ export class BackgroundCleanupManager {
       const startTime = performance.now();
 
       // Index-based iteration: avoids O(n) shift() on every loop body.
-      // Retried tasks are pushed to the end and are naturally included
-      // in subsequent iterations (cleanupQueue.length grows).
       // After the loop a single slice() removes all consumed entries in O(n).
+      // BUGFIX: Capture length BEFORE the loop. Retry-failed tasks are pushed
+      // to the end (see catch block below), growing cleanupQueue.length. Without
+      // this snapshot the while-condition sees the grown length and re-executes
+      // the retry task in the same idle callback — defeating deferred-retry intent
+      // and risking idle-budget overrun. Retried tasks are picked up next idle turn.
       let head = 0;
-      while (deadline.timeRemaining() > 5 && head < this.cleanupQueue.length) {
+      const initialQueueLength = this.cleanupQueue.length;
+      while (deadline.timeRemaining() > 5 && head < initialQueueLength) {
         const task = this.cleanupQueue[head];
         head++;
 
