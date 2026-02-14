@@ -191,8 +191,11 @@ pub fn build_comprehensive_lookup_index(
     dictionary_order: &[String],
     options: &IndexBuildOptions,
 ) -> HashMap<u32, CategorizedMatches> {
-    // Skip for short texts
-    if text.len() < options.min_text_length || !options.enable_indexing {
+    // CODE REVIEW FIX (HIGH-3): Use chars().count() not .len() (byte count).
+    // For Chinese text each character is 3 UTF-8 bytes, so .len() is always 3×
+    // the character count. dictionary_commands.rs checks char count; this must
+    // match to avoid an inconsistent effective threshold.
+    if text.chars().count() < options.min_text_length || !options.enable_indexing {
         return HashMap::new();
     }
 

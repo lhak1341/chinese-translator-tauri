@@ -392,7 +392,11 @@ impl NumberProcessor {
             // Test against all patterns
             for pattern in PATTERNS.iter() {
                 if let Some(captures) = pattern.regex.captures(&test_sequence) {
-                    if test_sequence.len() > longest_length {
+                    // CODE REVIEW FIX (CRITICAL-1): Use >= so that multiple patterns matching
+                    // the same byte-length sequence are all tried; the last successful converter
+                    // wins (declaration order is tie-breaker).  With >, any pattern after the
+                    // first match at a given length was silently ignored.
+                    if test_sequence.len() >= longest_length {
                         // Extract capture groups as strings
                         let groups: Vec<&str> = captures.iter()
                             .skip(1) // Skip full match

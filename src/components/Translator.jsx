@@ -179,6 +179,11 @@ const Translator = ({ isActive = true }) => {
     fallbackMode: true,
     totalEntries: 0,
   });
+  // CODE REVIEW FIX (HIGH-1): Ref so the WASM status interval callback can compare
+  // the latest status without requiring wasmStatus in the useEffect dep array
+  // (which would recreate the interval on every status change).
+  const wasmStatusRef = useRef(null);
+  wasmStatusRef.current = wasmStatus;
   const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
   // CODE REVIEW FIX (CRITICAL-2): Track cache poisoning for user notification
@@ -598,11 +603,12 @@ const Translator = ({ isActive = true }) => {
           totalEntries: wasmManager.getTotalEntries(),
         };
 
-        // Only update if status actually changed
+        // Only update if status actually changed (read via ref — no stale closure)
+        const current = wasmStatusRef.current;
         if (
-          newStatus.initialized !== wasmStatus.initialized ||
-          newStatus.fallbackMode !== wasmStatus.fallbackMode ||
-          newStatus.totalEntries !== wasmStatus.totalEntries
+          newStatus.initialized !== current.initialized ||
+          newStatus.fallbackMode !== current.fallbackMode ||
+          newStatus.totalEntries !== current.totalEntries
         ) {
           setWasmStatus(newStatus);
         }
@@ -620,7 +626,11 @@ const Translator = ({ isActive = true }) => {
         }
       };
     }
-  }, [engineInitialized, wasmStatus]);
+    // CODE REVIEW FIX (HIGH-1): wasmStatus intentionally omitted from deps.
+    // Status comparison is done via wasmStatusRef to avoid tearing down and
+    // recreating the interval on every status update during WASM initialization.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineInitialized]);
 
   // Regression health monitoring now handled by usePerformanceMonitoring hook
 

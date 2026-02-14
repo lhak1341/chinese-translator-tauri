@@ -150,6 +150,13 @@ impl SegmentMatcher {
      */
     #[wasm_bindgen(js_name = findMatches)]
     pub fn find_matches(&self, text: &str) -> Result<JsValue, JsValue> {
+        // CODE REVIEW FIX (HIGH-4): Bound total output size to prevent N×M explosion.
+        // If N text positions match and M semantic units share the same translated text,
+        // the output is N×M SegmentMatch objects.  For typical novel text this is harmless,
+        // but an adversarial/unusual dictionary could produce millions of matches.
+        // 100,000 matches ≈ a few MB across the WASM boundary — well beyond any real use-case.
+        const MAX_MATCHES: usize = 100_000;
+
         let mut matches = Vec::new();
         let chars: Vec<char> = text.chars().collect();
 
@@ -185,6 +192,11 @@ impl SegmentMatcher {
                 // Output multiplier: if N text positions match and M units share the same
                 // translated text, the JS consumer receives up to N×M SegmentMatch objects.
                 // WasmSegmentMatcher.js handles this by indexing into semanticUnits[match.unit_index].
+                if matches.len() >= MAX_MATCHES {
+                    // Cap exceeded — return partial results.  Remaining text won't be
+                    // highlighted, but this prevents an unbounded N×M memory allocation.
+                    break;
+                }
                 for unit_index in &unit_indices {
                     let unit = &self.units[*unit_index];
                     matches.push(SegmentMatch {

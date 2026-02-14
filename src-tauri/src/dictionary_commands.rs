@@ -294,6 +294,16 @@ impl DictionaryCache {
                         cache.remove(lru_key);
                         eprintln!("LRU cache eviction: removed {}", lru_key);
                     }
+                    // CODE REVIEW FIX (HIGH-2): lru_key_to_evict may point to a stale key
+                    // that was already evicted from `cache` but not yet from `access_order`.
+                    // In that case cache.remove() above was a no-op and the cache is still full.
+                    // Evict any remaining entry so the insert below never exceeds MAX_CACHE_ENTRIES.
+                    if cache.len() >= MAX_CACHE_ENTRIES {
+                        if let Some(fallback_key) = cache.keys().next().map(|k| k.clone()) {
+                            eprintln!("LRU cache stale-key fallback eviction: removed {}", fallback_key);
+                            cache.remove(&fallback_key);
+                        }
+                    }
                 }
 
                 cache.insert(key.clone(), value);
@@ -307,9 +317,17 @@ impl DictionaryCache {
                         .as_millis() as u64;
                     access_order.insert(key.clone(), now);
 
-                    // NOTE: Skipping cleanup here to avoid nested mutex lock (deadlock risk)
-                    // Cleanup happens in invalidate() and is not critical for correctness
-                    // Worst case: a few stale entries in access_order that don't exist in cache
+                    // NOTE: Skipping cleanup here to avoid nested mutex lock (deadlock risk).
+                    // Cleanup happens in invalidate() and is not critical for correctness.
+                    // Worst case: a few stale entries in access_order that don't exist in cache.
+                    // CODE REVIEW NOTE (MEDIUM-2): There is also a known benign race between
+                    // get() updating access_order and a concurrent set() reading it.  Between
+                    // releasing the cache lock in get() and acquiring access_order, a set() on
+                    // the same key could evict it; the subsequent access_order update in get()
+                    // then creates a phantom "recently accessed" entry for an evicted key.
+                    // With MAX_CACHE_ENTRIES = 5 this is self-correcting on the next invalidate()
+                    // and has no impact on correctness or capacity safety (HIGH-2 fix above
+                    // ensures we never exceed MAX_CACHE_ENTRIES even with stale candidates).
                 }
             }
             Err(poisoned) => {
@@ -860,7 +878,7 @@ pub async fn import_dictionaries(
 
     // Extract each file
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let file = archive.by_index(i).map_err(|e| e.to_string())?;
         let filename = file.name().to_string();
 
         // Only process JSON files; exclude .trie.json cache files (consistent with
@@ -881,10 +899,14 @@ pub async fn import_dictionaries(
             continue;
         }
 
-        // SECURITY: Check uncompressed size before reading to prevent ZIP-bomb DoS.
-        // file.size() returns the uncompressed size; a crafted ZIP can compress
-        // gigabytes into a small .zip payload, exhausting memory at read time.
-        // This mirrors validate_file_size() used on all other read paths.
+        // SECURITY: Defend against ZIP-bomb DoS (MEDIUM-3 fix).
+        //
+        // file.size() returns the *reported* uncompressed size from the ZIP central
+        // directory — an attacker-controlled value.  A crafted archive can report
+        // size() = 0 while decompressing to gigabytes.  The header check below is
+        // kept as a fast pre-flight, but the authoritative guard is the .take() limit
+        // on the actual read: reading stops after MAX_JSON_SIZE_BYTES + 1 bytes
+        // regardless of what the header claims.
         if file.size() > MAX_JSON_SIZE_BYTES as u64 {
             errors.push(format!(
                 "{}: file too large ({} MB, max: {} MB)",
@@ -895,9 +917,20 @@ pub async fn import_dictionaries(
             continue;
         }
 
-        // Validate JSON before writing
+        // Validate JSON before writing — use .take() so decompressed output is
+        // hard-capped even if the ZIP header lied about the uncompressed size.
         let mut contents = String::new();
-        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
+        file.take(MAX_JSON_SIZE_BYTES as u64 + 1)
+            .read_to_string(&mut contents)
+            .map_err(|e| e.to_string())?;
+        if contents.len() > MAX_JSON_SIZE_BYTES {
+            errors.push(format!(
+                "{}: decompressed content exceeds size limit ({} MB max)",
+                filename,
+                MAX_JSON_SIZE_BYTES / 1024 / 1024
+            ));
+            continue;
+        }
 
         match serde_json::from_str::<serde_json::Value>(&contents) {
             Ok(_) => {
@@ -981,10 +1014,16 @@ pub async fn reset_dictionaries(
     // Clear cache
     cache.invalidate(None);
 
+    // CODE REVIEW FIX (CRITICAL-2): Dictionaries directory is now empty — warn the user
+    // explicitly.  There are no bundled source templates to restore automatically; the user
+    // must import dictionaries (or restore from the backup) before translation will work.
     let message = if create_backup {
-        "Dictionaries reset successfully. Backup created in dictionaries_backup folder."
+        "Dictionaries reset successfully. Backup saved to dictionaries_backup/. \
+        The dictionaries directory is now empty — import your dictionaries or restore from \
+        the backup to resume translation."
     } else {
-        "Dictionaries reset successfully. No backup created."
+        "Dictionaries reset successfully. No backup created. \
+        The dictionaries directory is now empty — import your dictionaries to resume translation."
     };
 
     Ok(DictionaryResponse::ok_with_message(message))

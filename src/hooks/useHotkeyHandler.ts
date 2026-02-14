@@ -86,86 +86,95 @@ export function useHotkeyHandler({
     };
 
     const handleKeyDown = async (event: KeyboardEvent): Promise<void> => {
-      const target = event.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-        return;
-      }
+      // CODE REVIEW FIX (MEDIUM-1): Wrap the entire body in try-catch.
+      // addEventListener ignores the returned Promise, so any unhandled rejection
+      // from an async callback becomes an unhandled promise rejection.  The inner
+      // handleQuickAdd already catches its own errors, but synchronous throws from
+      // optional-chained callbacks (onTabSwitch, onRedo, etc.) would escape without this.
+      try {
+        const target = event.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+          return;
+        }
 
-      if (event.metaKey || event.ctrlKey) {
-        if (event.shiftKey) {
-          switch (event.key) {
-            case '1':
-              event.preventDefault();
-              onTabSwitch?.('translator');
-              break;
-            case '2':
-              event.preventDefault();
-              onTabSwitch?.('dictionary');
-              break;
-            case '3':
-              event.preventDefault();
-              onTabSwitch?.('configuration');
-              break;
-            case '4':
-              event.preventDefault();
-              onTabSwitch?.('appearance');
-              break;
-            case 'n':
-              event.preventDefault();
-              onQuickAdd?.();
-              break;
-            case 'v':
-              event.preventDefault();
-              onTranslateFromClipboard?.();
-              break;
-          }
-        } else {
-          switch (event.key) {
-            case '1':
-              await handleQuickAdd(event, onQuickAddCharacter, 'Quick Add Character');
-              break;
-            case '2':
-              await handleQuickAdd(event, onQuickAddPhrase, 'Quick Add Phrase');
-              break;
-            case '3':
-              await handleQuickAdd(event, onQuickAddProperNoun, 'Quick Add Proper Noun');
-              break;
-            case '4':
-              await handleQuickAdd(event, onQuickAddPattern, 'Quick Add Pattern');
-              break;
-            case '5':
-              await handleQuickAdd(
-                event,
-                onQuickAddCustomProperNoun,
-                'Quick Add Custom Proper Noun'
-              );
-              break;
-            case 'l':
-              if (activeTab === 'dictionary') {
+        if (event.metaKey || event.ctrlKey) {
+          if (event.shiftKey) {
+            switch (event.key) {
+              case '1':
                 event.preventDefault();
-                onFocusSearch?.();
+                onTabSwitch?.('translator');
+                break;
+              case '2':
+                event.preventDefault();
+                onTabSwitch?.('dictionary');
+                break;
+              case '3':
+                event.preventDefault();
+                onTabSwitch?.('configuration');
+                break;
+              case '4':
+                event.preventDefault();
+                onTabSwitch?.('appearance');
+                break;
+              case 'n':
+                event.preventDefault();
+                onQuickAdd?.();
+                break;
+              case 'v':
+                event.preventDefault();
+                onTranslateFromClipboard?.();
+                break;
+            }
+          } else {
+            switch (event.key) {
+              case '1':
+                await handleQuickAdd(event, onQuickAddCharacter, 'Quick Add Character');
+                break;
+              case '2':
+                await handleQuickAdd(event, onQuickAddPhrase, 'Quick Add Phrase');
+                break;
+              case '3':
+                await handleQuickAdd(event, onQuickAddProperNoun, 'Quick Add Proper Noun');
+                break;
+              case '4':
+                await handleQuickAdd(event, onQuickAddPattern, 'Quick Add Pattern');
+                break;
+              case '5':
+                await handleQuickAdd(
+                  event,
+                  onQuickAddCustomProperNoun,
+                  'Quick Add Custom Proper Noun'
+                );
+                break;
+              case 'l':
+                if (activeTab === 'dictionary') {
+                  event.preventDefault();
+                  onFocusSearch?.();
+                }
+                break;
+            }
+          }
+
+          switch (event.key.toLowerCase()) {
+            case 'z':
+              if (event.shiftKey && canRedo) {
+                event.preventDefault();
+                onRedo?.();
+              } else if (canUndo) {
+                event.preventDefault();
+                onUndo?.();
+              }
+              break;
+            case 'r':
+              if (activeTab === 'translator') {
+                event.preventDefault();
+                onReloadDictionary?.();
               }
               break;
           }
         }
-
-        switch (event.key.toLowerCase()) {
-          case 'z':
-            if (event.shiftKey && canRedo) {
-              event.preventDefault();
-              onRedo?.();
-            } else if (canUndo) {
-              event.preventDefault();
-              onUndo?.();
-            }
-            break;
-          case 'r':
-            if (activeTab === 'translator') {
-              event.preventDefault();
-              onReloadDictionary?.();
-            }
-            break;
-        }
+      } catch (error) {
+        logger.error('Hotkey handler error:', error);
       }
     };
 

@@ -110,10 +110,14 @@ The five most likely to cause **silent bugs**:
 - **`copyWasmTokens` param reversal**: `WasmBoundaryValidation.ts` (prod): param1=JS dest, param2=WASM source. `types/WasmTypes.ts` (tests): param1=WASM source, param2=JS dest. Swapping causes silent data loss.
 - **`validateRawDictionaryEntry`**: Renamed from `validateDictionaryEntry` in `configValidation.ts` to avoid collision with same-named fn in `DictionaryTypes.ts` (different signature). DO NOT revert.
 - **`HistoryOperation` type**: `LazyDictionaryContext.tsx` uses a local snapshot-based version (`oldData`/`newData`); `DictionaryTypes.ts` is delta-based. Architecturally incompatible — keep local.
-- **Rust `.chars().count()` not `.len()`**: `.len()` is byte count; one Chinese char = 3 bytes. Byte comparisons silently mis-rank pattern lengths.
+- **Rust `.chars().count()` not `.len()`**: `.len()` is byte count; one Chinese char = 3 bytes. Byte comparisons silently mis-rank pattern lengths. Affects both `dictionary_commands.rs` AND `lookup_index_engine.rs` — keep in sync.
 - **Canonical type homes**: `ThrottledStreamingState` → `UITypes.d.ts`. `DictionaryEntryMetadata`, `MoveEntryData`, `EditingEntryData` → `DictionaryTypes.ts`. Do not redeclare locally.
 - **`ClickableTranslationOptimized` paragraph logic**: Uses "break on every `\n`" (inline `useMemo`). DO NOT replace with `groupSegmentsIntoParagraphs` — that utility uses Chinese-indentation detection, incompatible with Vietnamese translated text.
 - **`validateApiResult`** (was `validateElectronResult`): renamed in `configValidation.ts`. `Translator.jsx` is JS — `type-check` won't catch stale imports there. Always grep `Translator.jsx` after renaming exported functions.
+- **`reset_dictionaries` leaves empty dir**: No bundled templates exist. After reset, the dictionaries directory is empty — translation fails until the user re-imports. Never silently succeed; always warn in the response message.
+- **ZIP-bomb guard must use `.take()`**: `file.size()` from the `zip` crate is attacker-controlled (ZIP central directory header). Use `file.take(MAX_BYTES as u64 + 1).read_to_string(&mut s)` then check `s.len()` for the authoritative size guard.
+- **Rust longest-match loops: use `>=` not `>`**: `if sequence.len() >= longest_length` allows multiple same-length patterns to be tried (last successful converter wins). Using `>` silently drops all but the first matching pattern at a given sequence length.
+- **React interval + stale dep**: Never list frequently-updating state (e.g. `wasmStatus`) in a `useEffect` dep array that creates a `setInterval` — it recreates the interval on every update. Use `const ref = useRef(state); ref.current = state;` and read `ref.current` inside the callback instead.
 
 ### Essential Commands
 
