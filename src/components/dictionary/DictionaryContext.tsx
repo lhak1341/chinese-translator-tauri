@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
-import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
-import { sortDictionaryEntries } from '../../utils/dictionaryHelpers';
+import {
+  sortDictionaryEntries,
+  getSortingStats,
+  resetSortingStats,
+} from '../../utils/dictionaryHelpers';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import type {
@@ -953,15 +956,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     return false;
   }, [history, currentHistoryIndex, dictionaries]);
 
-  // Get sorting performance statistics (Phase 6)
-  const getSortingStats = useCallback((): SortingStats => {
-    return dictionarySorter.getStats() as SortingStats;
-  }, []);
-
-  // Reset sorting performance statistics (Phase 6)
-  const resetSortingStats = useCallback((): void => {
-    dictionarySorter.resetStats();
-  }, []);
+  // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
+  // no useCallback wrapper needed; pass them directly in the value object below.
 
   // Create the context value object
   // Memoized to prevent unnecessary re-renders of all consumers when Provider re-renders
@@ -1000,8 +996,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       history.length,
       loadDictionary,
       selectedDictionary,
-      getSortingStats,
-      resetSortingStats,
     ]
   );
 

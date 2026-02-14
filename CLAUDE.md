@@ -197,6 +197,8 @@ window.translationEngine.translationSegments.length; // Expected: ≤35
 
 **`HistoryOperation` type divergence — DO NOT swap** (2026-02-12): `LazyDictionaryContext.tsx` uses a snapshot-based `HistoryOperation` (`oldData`/`newData: DictionaryData`). The canonical `src/types/DictionaryTypes.ts` version is delta-based (individual entries). These are architecturally incompatible — `LazyDictionaryContext.tsx` must keep its local definition.
 
+**Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `callWasmWithTimeout()` in `wasmOperationTimeout.js` uses `Promise.race([operation(), timeoutPromise])`. If `operation()` makes a synchronous WASM call, the JS thread is blocked for the full call duration — the timeout fires only _after_ WASM returns, not during it. True interruption requires a Web Worker. Wiring the timeout is still useful for documentation intent and future async refactors, but provides no real-time protection for synchronous WASM paths.
+
 **`DictionaryCache` Rust mutex pattern** (2026-02-12): Always collect needed data while holding the `cache` lock, then `drop(cache)` explicitly before acquiring `access_order`. Nested lock (holding `cache` while locking `access_order`) is a deadlock risk. See `set()` in `dictionary_commands.rs` for the canonical pattern.
 
 **Rust `.len()` vs `.chars().count()` for Chinese text** (2026-02-13): In WASM/Rust code, always use `.chars().count()` when comparing _character_ lengths of strings that may contain Chinese or mixed-script text. `.len()` returns _byte_ count — one Chinese character is 3 bytes, so byte comparisons silently mis-rank pattern lengths. Affected: `matcher.rs` Phase A override, any length-based priority logic.
@@ -333,18 +335,18 @@ cargo check --manifest-path wasm-core/Cargo.toml   # WASM core type-check (separ
 
 ### Key Files
 
-| Purpose               | File                                  | Lines | Why Coupled                                                                                                                   |
-| --------------------- | ------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Translation Core      | `TranslationEngine.js`                | 7,464 | 5-phase state coordination                                                                                                    |
-| UI Coordination       | `Translator.jsx`                      | 1,967 | Cross-mode synchronization                                                                                                    |
-| Shared TS types       | `src/types/DictionaryTypes.ts`        | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.)                        |
-| WASM Number           | `wasm-core/src/number_processor.rs`   | -     | Native performance                                                                                                            |
-| WASM Pattern          | `wasm-core/src/pattern_processor/`    | -     | 10-50x speedup                                                                                                                |
-| WASM Dictionary       | `wasm-core/src/lib.rs`                | -     | 27,000+ entries                                                                                                               |
-| Rust Lookup           | `src-tauri/src/lookup_index.rs`       | -     | Backend trie indexing                                                                                                         |
-| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | -     | `sortDictionaryEntries` + `getDictionaryLabel`/`getDictionaryDropdownLabel`/`compareDictionaryOrder` shared across components |
-| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | -     | Runtime validation; `copyWasmTokens` param1=JS dest, param2=WASM source                                                       |
-| WASM boundary (types) | `types/WasmTypes.ts` (root-level)     | -     | Canonical TS interfaces + runtime validation for tests; `copyWasmTokens` param1=WASM source, param2=JS dest                   |
+| Purpose               | File                                  | Lines | Why Coupled                                                                                                                                                           |
+| --------------------- | ------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Translation Core      | `TranslationEngine.js`                | 7,464 | 5-phase state coordination                                                                                                                                            |
+| UI Coordination       | `Translator.jsx`                      | 1,967 | Cross-mode synchronization                                                                                                                                            |
+| Shared TS types       | `src/types/DictionaryTypes.ts`        | -     | Canonical home for cross-component types (DictionaryEntryValue, EditingEntryData, MoveEntryData, etc.)                                                                |
+| WASM Number           | `wasm-core/src/number_processor.rs`   | -     | Native performance                                                                                                                                                    |
+| WASM Pattern          | `wasm-core/src/pattern_processor/`    | -     | 10-50x speedup                                                                                                                                                        |
+| WASM Dictionary       | `wasm-core/src/lib.rs`                | -     | 27,000+ entries                                                                                                                                                       |
+| Rust Lookup           | `src-tauri/src/lookup_index.rs`       | -     | Backend trie indexing                                                                                                                                                 |
+| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | -     | `sortDictionaryEntries` + `getDictionaryLabel`/`getDictionaryDropdownLabel`/`compareDictionaryOrder` + `getSortingStats`/`resetSortingStats` shared across components |
+| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | -     | Runtime validation; `copyWasmTokens` param1=JS dest, param2=WASM source                                                                                               |
+| WASM boundary (types) | `types/WasmTypes.ts` (root-level)     | -     | Canonical TS interfaces + runtime validation for tests; `copyWasmTokens` param1=WASM source, param2=JS dest                                                           |
 
 **Extracted Utilities** (2026-01-30, see `docs/code-review/REFACTORING_EXTRACTION_2026-01-30.md`):
 

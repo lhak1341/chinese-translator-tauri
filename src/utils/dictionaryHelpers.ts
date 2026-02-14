@@ -1,5 +1,5 @@
 import { dictionarySorter } from './IncrementalDictionarySorter.js';
-import type { DictionaryData } from '../types/DictionaryTypes';
+import type { DictionaryData, SortingStats } from '../types/DictionaryTypes';
 
 /**
  * Converts a dictionary ID to a human-readable label.
@@ -67,4 +67,20 @@ export const sortDictionaryEntries = (
     changedKey ?? undefined,
     oldKey ?? undefined
   ) as DictionaryData;
+};
+
+/**
+ * Get performance statistics from the incremental dictionary sorter.
+ * Centralised here so context files don't need a direct dictionarySorter import.
+ */
+export const getSortingStats = (): SortingStats => {
+  return dictionarySorter.getStats() as SortingStats;
+};
+
+/**
+ * Reset performance statistics on the incremental dictionary sorter.
+ * Centralised here so context files don't need a direct dictionarySorter import.
+ */
+export const resetSortingStats = (): void => {
+  dictionarySorter.resetStats();
 };

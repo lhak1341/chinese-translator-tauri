@@ -14,8 +14,11 @@ import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { ValidationError, SaveError, isValidationError } from '../../utils/errors';
-import { dictionarySorter } from '../../utils/IncrementalDictionarySorter.js';
-import { sortDictionaryEntries } from '../../utils/dictionaryHelpers';
+import {
+  sortDictionaryEntries,
+  getSortingStats,
+  resetSortingStats,
+} from '../../utils/dictionaryHelpers';
 import type {
   DictionaryData,
   DictionaryEntryValue,
@@ -742,13 +745,8 @@ export function LazyDictionaryProvider({
     return false;
   }, [history, currentHistoryIndex]);
 
-  const getSortingStats = useCallback((): SortingStats => {
-    return dictionarySorter.getStats() as SortingStats;
-  }, []);
-
-  const resetSortingStats = useCallback((): void => {
-    dictionarySorter.resetStats();
-  }, []);
+  // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
+  // no useCallback wrapper needed; pass them directly in the value object below.
 
   // MEDIUM-2 FIX: Refresh dictionary type metadata
   // Call this after creating new dictionaries to update available types
@@ -802,8 +800,6 @@ export function LazyDictionaryProvider({
       loadDictionary,
       selectedDictionary,
       handleDictionaryChange,
-      getSortingStats,
-      resetSortingStats,
       loadedDictionaries,
       refreshDictionaryTypes,
     ]

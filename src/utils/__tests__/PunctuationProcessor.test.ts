@@ -37,6 +37,10 @@ describe('PunctuationProcessor', () => {
       expect(result).toBe('. "');
     });
 
+    // These three tests exercise the SPECIAL_PATTERNS direct-regex path in PunctuationProcessor
+    // (lines 112-116: /([.。])/g, /([?？])/g, /([!！])/g each followed by [[（【(]).
+    // They do NOT exercise openingQuotePattern — per CLAUDE.md, that regex matches opening
+    // quote characters but NOT literal brackets like `[` or `(`.
     test('period followed by opening bracket: .[ → . [', () => {
       const result = processor.processSequence('.[');
       expect(result).toBe('. [');

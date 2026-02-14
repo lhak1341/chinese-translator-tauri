@@ -4,10 +4,10 @@
  * Prevents long-running WASM operations from blocking the UI indefinitely.
  * Provides configurable timeouts with automatic cleanup.
  *
- * NOTE (2026-02-13): This module is NOT currently wired into any production WASM call sites.
- * The utilities exist and are tested but provide zero runtime timeout protection until
- * integrated into WasmPatternProcessor.js, WasmNumberProcessor.js, or similar.
- * To deploy: wrap WASM calls with callWasmWithTimeout() at the call site.
+ * NOTE (2026-02-14): Integrated into WasmPatternProcessor.js:processTokensWasm() for the
+ * highest-risk WASM call path. Because processTokens() is synchronous WASM, the timeout
+ * cannot interrupt a truly hung call — it fires only after WASM returns. Protection against
+ * truly blocking WASM would require a Web Worker. WasmNumberProcessor.js remains unwired.
  *
  * CODE REVIEW FIX (MEDIUM-8): Add timeout protection for WASM operations
  *

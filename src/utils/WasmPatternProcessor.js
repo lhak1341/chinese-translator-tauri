@@ -57,6 +57,7 @@ import {
   verifyWasmBinaryIntegrity,
 } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 import { fetchWasmBinary } from './wasmBinaryCache'; // CODE REVIEW FIX 2026-02-01 (HIGH-1): Shared WASM binary cache
+import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout'; // CODE REVIEW FIX (MEDIUM-8): Timeout protection
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
@@ -253,11 +254,22 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   }
 
   try {
-    // Call WASM Pattern Processor
-    const results = wasmPatternProcessor.processTokens(semanticTokens, variableCache);
+    // Call WASM Pattern Processor with timeout protection.
+    // NOTE: processTokens() is synchronous WASM — JavaScript cannot pre-empt a running
+    // synchronous WASM call, so the timeout fires only after WASM returns. This wrapper
+    // does NOT protect against truly hung (infinite-loop) WASM, but it does:
+    //   1. Document the intended time budget for pattern processing
+    //   2. Provide a graceful fallback if a future async refactor makes the call interruptible
+    //   3. Protect against edge cases where processTokens returns a rejected Promise
+    const results = await callWasmWithTimeout(
+      () => wasmPatternProcessor.processTokens(semanticTokens, variableCache),
+      DEFAULT_WASM_TIMEOUTS.PATTERN_MATCHING,
+      'pattern-processing',
+      { throwOnTimeout: false, fallbackValue: [] }
+    );
     return {
       success: true,
-      results: results,
+      results: results ?? [],
     };
   } catch (error) {
     const errorMsg = `WASM pattern processing error: ${error.message}`;

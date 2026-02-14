@@ -181,6 +181,10 @@ impl SegmentMatcher {
             if let Some((unit_indices, length, offset)) = last_match {
                 // Found a match — emit one SegmentMatch per unit that ends here.
                 // Multiple units share a node when two source terms have the same translation.
+                //
+                // Output multiplier: if N text positions match and M units share the same
+                // translated text, the JS consumer receives up to N×M SegmentMatch objects.
+                // WasmSegmentMatcher.js handles this by indexing into semanticUnits[match.unit_index].
                 for unit_index in &unit_indices {
                     let unit = &self.units[*unit_index];
                     matches.push(SegmentMatch {
