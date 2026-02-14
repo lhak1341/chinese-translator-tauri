@@ -17,7 +17,7 @@ import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import { useDictionary } from './DictionaryContext';
 import EnhancedVirtualizedDictionaryTable from './EnhancedVirtualizedDictionaryTable';
 import DictionaryEntry from './DictionaryEntry';
-import HotkeyHandler from '../HotkeyHandler';
+import { useHotkeyHandler } from '../../hooks/useHotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
@@ -336,7 +336,15 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     });
   }, [filteredDictionaryTypes]);
 
-  // Style definitions for consistent layout
+  useHotkeyHandler({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onAddEntry: () => setShowAddEntry(true),
+    canUndo,
+    canRedo,
+    activeTab: 'dictionary',
+  });
+
   // Show loading state while dictionaries are being loaded
   if (isLoading) {
     return (
@@ -350,14 +358,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // Main component render
   return (
     <div className={styles.container}>
-      {React.createElement(HotkeyHandler as any, {
-        onUndo: handleUndo,
-        onRedo: handleRedo,
-        onAddEntry: () => setShowAddEntry(true),
-        canUndo,
-        canRedo,
-        activeTab: 'dictionary',
-      })}
       <div className={styles.header}>
         <select
           className={styles.select}

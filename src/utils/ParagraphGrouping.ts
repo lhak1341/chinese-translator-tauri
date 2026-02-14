@@ -51,10 +51,10 @@ export function groupSegmentsIntoParagraphs(segments: Segment[]): Segment[][] {
       const line = lines[i];
 
       if (line === '\n') {
-        // Check if next line (if exists) starts with indentation or is empty
+        // Check if next line (if exists) is blank (double newline) or starts with indentation
         const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
 
-        if (nextLine === '\n' || nextLine.match(/^[\u3000\s　]+/)) {
+        if (nextLine === '' || nextLine.match(/^[\u3000\s　]+/)) {
           // Next line is blank or starts with indentation - paragraph break
           if (currentParagraph.length > 0) {
             result.push(currentParagraph);

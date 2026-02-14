@@ -13,8 +13,8 @@ import { logger } from './logger';
 import type { AppConfiguration } from '../types/ComponentTypes';
 import { ValidationError } from './errors';
 export { ValidationError } from './errors';
-import type { ElectronResult } from './resultHelpers';
-export type { ElectronResult as ElectronAPIResult } from './resultHelpers';
+import type { ApiResult } from './resultHelpers';
+export type { ApiResult as ElectronAPIResult } from './resultHelpers';
 
 /**
  * Validated configuration with safe defaults
@@ -62,7 +62,7 @@ export interface Dictionary {
  * @returns Validated result
  * @throws ValidationError if structure is invalid
  */
-export function validateElectronResult<T>(result: unknown, operation: string): ElectronResult<T> {
+export function validateApiResult<T>(result: unknown, operation: string): ApiResult<T> {
   if (!result || typeof result !== 'object') {
     throw new ValidationError(
       `${operation} returned invalid result: expected object, got ${typeof result}`,
@@ -93,7 +93,7 @@ export function validateElectronResult<T>(result: unknown, operation: string): E
   }
 
   // At this point we know obj has a boolean 'success' field, so it's safe to cast
-  return obj as unknown as ElectronResult<T>;
+  return obj as unknown as ApiResult<T>;
 }
 
 /**

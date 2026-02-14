@@ -16,7 +16,7 @@ import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
 import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
-import { validateElectronResult, validateDictionary } from '../utils/configValidation';
+import { validateApiResult, validateDictionary } from '../utils/configValidation';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';

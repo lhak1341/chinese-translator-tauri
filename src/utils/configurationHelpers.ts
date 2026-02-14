@@ -8,7 +8,7 @@
  */
 
 import { logger } from './logger';
-import { validateElectronResult } from './configValidation';
+import { validateApiResult } from './configValidation';
 import type { AppConfiguration } from '../types/ComponentTypes';
 
 /**
@@ -31,7 +31,7 @@ import type { AppConfiguration } from '../types/ComponentTypes';
  */
 export async function loadValidatedConfiguration(): Promise<AppConfiguration> {
   const rawResult = await window.electronAPI.loadConfiguration();
-  const result = validateElectronResult<AppConfiguration>(rawResult, 'loadConfiguration');
+  const result = validateApiResult<AppConfiguration>(rawResult, 'loadConfiguration');
 
   if (result.success && result.data) {
     // Basic validation - ensure we have an object

@@ -113,6 +113,9 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 
   // Group segments into paragraphs (every newline creates a paragraph break)
+  // Note: ClickableTranslationOptimized uses "break on every \n" semantics for Vietnamese
+  // translated text. This differs from the shared groupSegmentsIntoParagraphs utility, which
+  // uses Chinese-indentation-based paragraph detection. Do not replace with the shared utility.
   const paragraphs = useMemo(() => {
     if (renderSegments.length === 0) return [];
 
@@ -122,19 +125,16 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
     for (let i = 0; i < renderSegments.length; i++) {
       const segment = renderSegments[i];
 
-      // If segment contains newline, split it into multiple parts
       if (segment.text.includes('\n')) {
         const parts = segment.text.split('\n');
 
         for (let j = 0; j < parts.length; j++) {
           const part = parts[j];
 
-          // Add non-empty part to current paragraph
           if (part) {
             currentParagraph.push({ ...segment, text: part });
           }
 
-          // After each part except the last, end the paragraph
           if (j < parts.length - 1) {
             if (currentParagraph.length > 0) {
               result.push(currentParagraph);
@@ -143,12 +143,10 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
           }
         }
       } else {
-        // No newline, just add to current paragraph
         currentParagraph.push(segment);
       }
     }
 
-    // Add final paragraph if any segments remain
     if (currentParagraph.length > 0) {
       result.push(currentParagraph);
     }

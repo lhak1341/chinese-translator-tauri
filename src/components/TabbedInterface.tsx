@@ -4,7 +4,7 @@ import Translator from './Translator';
 import DictionaryManager from './dictionary/DictionaryManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
-import HotkeyHandler from './HotkeyHandler';
+import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
 import ErrorBoundary from './ErrorBoundary';
 import styles from '../styles/TabbedInterface.module.css';
 
@@ -42,14 +42,14 @@ const TabbedInterface: React.FC = () => {
     }
   };
 
+  useHotkeyHandler({
+    onTabSwitch: handleTabChange,
+    onFocusSearch: handleFocusSearch,
+    activeTab,
+  });
+
   return (
     <div className={styles.container}>
-      <HotkeyHandler
-        onTabSwitch={handleTabChange}
-        onFocusSearch={handleFocusSearch}
-        activeTab={activeTab}
-      />
-
       {/* Navigation Bar */}
       <nav className={styles.nav}>
         {TABS.map((tab) => {

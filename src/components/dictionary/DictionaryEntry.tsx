@@ -11,6 +11,11 @@ import {
 } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
+import {
+  titleCaseWords,
+  titleCaseExceptLastN,
+  moveLastNWordsToBeginning,
+} from '../../utils/wordTransformHelpers';
 
 /**
  * Existing entry detection data
@@ -489,92 +494,20 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   };
 
   // Capitalization handlers
-  const handleCapitalizeAll = (): void => {
-    const words = translation.split(' ');
-    const capitalizedWords = words.map(
-      (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    );
-    setTranslation(capitalizedWords.join(' '));
-  };
-
-  const handleCapitalizeExceptLast = (): void => {
-    const words = translation.split(' ');
-    if (words.length === 0) return;
-
-    const capitalizedWords = words.map((word, index) => {
-      if (index === words.length - 1) {
-        // Last word: lowercase
-        return word.toLowerCase();
-      } else {
-        // Other words: capitalize first letter
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      }
-    });
-    setTranslation(capitalizedWords.join(' '));
-  };
-
-  const handleCapitalizeExceptLastTwo = (): void => {
-    const words = translation.split(' ');
-    if (words.length === 0) return;
-
-    const capitalizedWords = words.map((word, index) => {
-      if (index >= words.length - 2) {
-        // Last two words: lowercase
-        return word.toLowerCase();
-      } else {
-        // Other words: capitalize first letter
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      }
-    });
-    setTranslation(capitalizedWords.join(' '));
-  };
-
-  const handleCapitalizeExceptLastThree = (): void => {
-    const words = translation.split(' ');
-    if (words.length === 0) return;
-
-    const capitalizedWords = words.map((word, index) => {
-      if (index >= words.length - 3) {
-        // Last three words: lowercase
-        return word.toLowerCase();
-      } else {
-        // Other words: capitalize first letter
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      }
-    });
-    setTranslation(capitalizedWords.join(' '));
-  };
-
-  const handleLowercaseAll = (): void => {
-    setTranslation(translation.toLowerCase());
-  };
-
-  const handleMoveLastWordToBeginning = (): void => {
-    const words = translation.split(' ');
-    if (words.length < 2) return; // Need at least 2 words to reorder
-
-    const lastWord = words[words.length - 1];
-    const remainingWords = words.slice(0, -1);
-    setTranslation([lastWord, ...remainingWords].join(' '));
-  };
-
-  const handleMoveLastTwoWordsToBeginning = (): void => {
-    const words = translation.split(' ');
-    if (words.length < 3) return; // Need at least 3 words to reorder
-
-    const lastTwoWords = words.slice(-2);
-    const remainingWords = words.slice(0, -2);
-    setTranslation([...lastTwoWords, ...remainingWords].join(' '));
-  };
-
-  const handleMoveLastThreeWordsToBeginning = (): void => {
-    const words = translation.split(' ');
-    if (words.length < 4) return; // Need at least 4 words to reorder
-
-    const lastThreeWords = words.slice(-3);
-    const remainingWords = words.slice(0, -3);
-    setTranslation([...lastThreeWords, ...remainingWords].join(' '));
-  };
+  const handleCapitalizeAll = (): void => setTranslation(titleCaseWords(translation));
+  const handleCapitalizeExceptLast = (): void =>
+    setTranslation(titleCaseExceptLastN(translation, 1));
+  const handleCapitalizeExceptLastTwo = (): void =>
+    setTranslation(titleCaseExceptLastN(translation, 2));
+  const handleCapitalizeExceptLastThree = (): void =>
+    setTranslation(titleCaseExceptLastN(translation, 3));
+  const handleLowercaseAll = (): void => setTranslation(translation.toLowerCase());
+  const handleMoveLastWordToBeginning = (): void =>
+    setTranslation(moveLastNWordsToBeginning(translation, 1));
+  const handleMoveLastTwoWordsToBeginning = (): void =>
+    setTranslation(moveLastNWordsToBeginning(translation, 2));
+  const handleMoveLastThreeWordsToBeginning = (): void =>
+    setTranslation(moveLastNWordsToBeginning(translation, 3));
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();

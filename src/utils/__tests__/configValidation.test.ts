@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  validateElectronResult,
+  validateApiResult,
   validateConfiguration,
   validateDictionary,
   validateRawDictionaryEntry,
@@ -22,14 +22,14 @@ import {
 } from '../configValidation';
 import type { AppConfiguration } from '../../types/ComponentTypes';
 
-describe('validateElectronResult', () => {
+describe('validateApiResult', () => {
   it('should validate successful result with data', () => {
     const input = {
       success: true,
       data: { test: 'value' },
     };
 
-    const result = validateElectronResult(input, 'testOperation');
+    const result = validateApiResult(input, 'testOperation');
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ test: 'value' });
@@ -41,7 +41,7 @@ describe('validateElectronResult', () => {
       error: 'Test error',
     };
 
-    const result = validateElectronResult(input, 'testOperation');
+    const result = validateApiResult(input, 'testOperation');
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Test error');
@@ -49,15 +49,15 @@ describe('validateElectronResult', () => {
 
   it('should throw on non-object result', () => {
     expect(() => {
-      validateElectronResult('not an object', 'testOperation');
+      validateApiResult('not an object', 'testOperation');
     }).toThrow(ValidationError);
 
     expect(() => {
-      validateElectronResult(null, 'testOperation');
+      validateApiResult(null, 'testOperation');
     }).toThrow(ValidationError);
 
     expect(() => {
-      validateElectronResult(undefined, 'testOperation');
+      validateApiResult(undefined, 'testOperation');
     }).toThrow(ValidationError);
   });
 
@@ -67,7 +67,7 @@ describe('validateElectronResult', () => {
     };
 
     expect(() => {
-      validateElectronResult(input, 'testOperation');
+      validateApiResult(input, 'testOperation');
     }).toThrow(ValidationError);
   });
 
@@ -78,7 +78,7 @@ describe('validateElectronResult', () => {
     };
 
     expect(() => {
-      validateElectronResult(input, 'testOperation');
+      validateApiResult(input, 'testOperation');
     }).toThrow(ValidationError);
   });
 
@@ -90,7 +90,7 @@ describe('validateElectronResult', () => {
       // No data field
     };
 
-    validateElectronResult(input, 'testOperation');
+    validateApiResult(input, 'testOperation');
 
     // Should not throw, but should warn
     expect(warnSpy).toHaveBeenCalled();
@@ -105,7 +105,7 @@ describe('validateElectronResult', () => {
       // No error field
     };
 
-    validateElectronResult(input, 'testOperation');
+    validateApiResult(input, 'testOperation');
 
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();

@@ -248,6 +248,8 @@ describe('ClickableTranslationOptimized — click handler', () => {
 
 describe('ClickableTranslationOptimized — paragraph splitting', () => {
   test('newline in segment text creates multiple paragraph divs', () => {
+    // This component breaks on every \n (not just \n\n or indented lines).
+    // Vietnamese translated text uses single newlines between paragraphs.
     const segs = [
       makeSegment({
         text: 'bạn\ntốt',

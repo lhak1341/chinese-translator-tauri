@@ -112,6 +112,8 @@ The five most likely to cause **silent bugs**:
 - **`HistoryOperation` type**: `LazyDictionaryContext.tsx` uses a local snapshot-based version (`oldData`/`newData`); `DictionaryTypes.ts` is delta-based. Architecturally incompatible — keep local.
 - **Rust `.chars().count()` not `.len()`**: `.len()` is byte count; one Chinese char = 3 bytes. Byte comparisons silently mis-rank pattern lengths.
 - **Canonical type homes**: `ThrottledStreamingState` → `UITypes.d.ts`. `DictionaryEntryMetadata`, `MoveEntryData`, `EditingEntryData` → `DictionaryTypes.ts`. Do not redeclare locally.
+- **`ClickableTranslationOptimized` paragraph logic**: Uses "break on every `\n`" (inline `useMemo`). DO NOT replace with `groupSegmentsIntoParagraphs` — that utility uses Chinese-indentation detection, incompatible with Vietnamese translated text.
+- **`validateApiResult`** (was `validateElectronResult`): renamed in `configValidation.ts`. `Translator.jsx` is JS — `type-check` won't catch stale imports there. Always grep `Translator.jsx` after renaming exported functions.
 
 ### Essential Commands
 
@@ -127,15 +129,16 @@ cargo check --manifest-path wasm-core/Cargo.toml   # WASM core (separate crate, 
 
 ### Key Files
 
-| Purpose               | File                                  | Notes                                            |
-| --------------------- | ------------------------------------- | ------------------------------------------------ |
-| Translation Core      | `TranslationEngine.js`                | 5-phase state coordination                       |
-| UI Coordination       | `Translator.jsx`                      | Cross-mode synchronization                       |
-| Shared TS types       | `src/types/DictionaryTypes.ts`        | Canonical dict/entry/metadata types              |
-| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | `sortDictionaryEntries`, labels, ordering        |
-| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | `copyWasmTokens` param1=JS dest, param2=WASM src |
-| WASM boundary (tests) | `types/WasmTypes.ts` (root-level)     | `copyWasmTokens` param1=WASM src, param2=JS dest |
-| Shared UI types       | `src/types/UITypes.d.ts`              | `ThrottledStreamingState` and other UI types     |
+| Purpose               | File                                  | Notes                                                   |
+| --------------------- | ------------------------------------- | ------------------------------------------------------- |
+| Translation Core      | `TranslationEngine.js`                | 5-phase state coordination                              |
+| UI Coordination       | `Translator.jsx`                      | Cross-mode synchronization                              |
+| Shared TS types       | `src/types/DictionaryTypes.ts`        | Canonical dict/entry/metadata types                     |
+| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | `sortDictionaryEntries`, labels, ordering               |
+| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | `copyWasmTokens` param1=JS dest, param2=WASM src        |
+| WASM boundary (tests) | `types/WasmTypes.ts` (root-level)     | `copyWasmTokens` param1=WASM src, param2=JS dest        |
+| Shared UI types       | `src/types/UITypes.d.ts`              | `ThrottledStreamingState` and other UI types            |
+| Keyboard shortcuts    | `src/hooks/useHotkeyHandler.ts`       | Logic lives here; `HotkeyHandler.tsx` is a thin wrapper |
 
 **Intentionally JavaScript (never migrate)**: `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 
@@ -143,7 +146,7 @@ cargo check --manifest-path wasm-core/Cargo.toml   # WASM core (separate crate, 
 
 ## Testing
 
-**Runner**: Vitest + React Testing Library. **1,246 tests, 50 files** (+ 21 Rust). Run: `npm test -- --run`.
+**Runner**: Vitest + React Testing Library. **1,267 tests, 51 files** (+ 21 Rust). Run: `npm test -- --run`.
 
 **File placement**: Utility tests → `src/utils/__tests__/`. Component tests → `src/components/__tests__/`. Never alongside source files in `src/utils/`.
 

@@ -82,26 +82,7 @@ export default function TranslatorDisplayPanels({
 }: TranslatorDisplayPanelsProps): React.ReactElement {
   // Debug: Log when component mounts
   React.useEffect(() => {
-    let mounted = true;
-
     logger.log('TranslatorDisplayPanels mounted');
-    // Check for and CLEAR any saved layout in localStorage that might override defaults
-    const keys = Object.keys(localStorage).filter(
-      (key) =>
-        key.includes('panel') ||
-        key.includes('layout') ||
-        key.includes('Group') ||
-        key.includes('main-layout') ||
-        key.includes('left-column')
-    );
-    if (keys.length > 0 && mounted) {
-      logger.log('Found and clearing localStorage keys that might affect layout:', keys);
-      keys.forEach((key) => localStorage.removeItem(key));
-    }
-
-    return () => {
-      mounted = false;
-    };
   }, []);
 
   return (

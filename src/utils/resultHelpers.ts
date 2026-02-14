@@ -1,16 +1,16 @@
 /**
  * Result Helper Utilities
  *
- * REFACTOR (2026-01-28): Utilities for handling ElectronAPI result patterns.
+ * REFACTOR (2026-01-28): Utilities for handling Tauri API result patterns.
  * Reduces boilerplate `if (result.success && result.data)` checks across 12+ call sites.
  *
- * NOTE (2026-02-14): The `ElectronResult` type is used by `configValidation.ts`.
+ * NOTE (2026-02-14): `ApiResult` (renamed from `ElectronResult`) is used by `configValidation.ts`.
  * The runtime functions (`throwIfFailed`, `getOrDefault`, `wrapOperation`, etc.) are
- * available but not yet used at call sites — this is a Tauri app, not Electron, so
- * "ElectronAPI" naming is a misnomer. No production code currently uses the result.success
- * boilerplate these helpers were designed to replace; migrate call sites as they arise.
+ * available but not yet used at call sites. Migrate as they arise:
+ * TODO: adopt in Translator.jsx (loadDictionary call sites)
+ * TODO: adopt in configurationHelpers.ts (loadConfiguration call site)
  *
- * ElectronAPI operations return results in the format:
+ * Tauri API operations return results in the format:
  * { success: boolean, data?: T, error?: string }
  *
  * These utilities provide type-safe result handling with consistent error messages.
@@ -21,7 +21,7 @@ import { logger } from './logger';
 /**
  * ElectronAPI result structure
  */
-export interface ElectronResult<T> {
+export interface ApiResult<T> {
   success: boolean;
   data?: T;
   error?: string;
@@ -55,7 +55,7 @@ export interface ElectronResult<T> {
  * );
  * processDictionary(data);
  */
-export function throwIfFailed<T>(result: ElectronResult<T>, operationName: string): T {
+export function throwIfFailed<T>(result: ApiResult<T>, operationName: string): T {
   if (result.success && result.data !== undefined) {
     return result.data;
   }
@@ -84,7 +84,7 @@ export function throwIfFailed<T>(result: ElectronResult<T>, operationName: strin
  * );
  * // Always has a valid config (from API or fallback)
  */
-export function getOrDefault<T>(result: ElectronResult<T>, fallback: T, operationName?: string): T {
+export function getOrDefault<T>(result: ApiResult<T>, fallback: T, operationName?: string): T {
   if (result.success && result.data !== undefined) {
     return result.data;
   }
@@ -116,20 +116,20 @@ export function getOrDefault<T>(result: ElectronResult<T>, fallback: T, operatio
  *   showError(result.error);
  * }
  */
-export function isSuccess<T>(result: ElectronResult<T>): result is ElectronResult<T> & { data: T } {
+export function isSuccess<T>(result: ApiResult<T>): result is ApiResult<T> & { data: T } {
   return result.success && result.data !== undefined;
 }
 
 /**
  * Wrap async operation with standardized error handling
  *
- * Executes async operation and converts thrown errors into ElectronResult format.
+ * Executes async operation and converts thrown errors into ApiResult format.
  * Useful for wrapping operations that may throw.
  *
  * @template T - Type of data returned on success
  * @param operation - Async operation to execute
  * @param operationName - Operation name for error messages
- * @returns {Promise<ElectronResult<T>>} Result object
+ * @returns {Promise<ApiResult<T>>} Result object
  *
  * @example
  * const result = await wrapOperation(
@@ -149,7 +149,7 @@ export function isSuccess<T>(result: ElectronResult<T>): result is ElectronResul
 export async function wrapOperation<T>(
   operation: () => Promise<T>,
   operationName: string
-): Promise<ElectronResult<T>> {
+): Promise<ApiResult<T>> {
   try {
     const data = await operation();
     return { success: true, data };
@@ -173,7 +173,7 @@ export async function wrapOperation<T>(
  * @template U - Output data type
  * @param result - ElectronAPI result object
  * @param transform - Transformation function
- * @returns {ElectronResult<U>} Transformed result
+ * @returns {ApiResult<U>} Transformed result
  *
  * @example
  * const dictResult = await window.electronAPI.loadDictionary('characters');
@@ -183,10 +183,7 @@ export async function wrapOperation<T>(
  *   console.log('Dictionary has', entryCount.data, 'entries');
  * }
  */
-export function mapResult<T, U>(
-  result: ElectronResult<T>,
-  transform: (data: T) => U
-): ElectronResult<U> {
+export function mapResult<T, U>(result: ApiResult<T>, transform: (data: T) => U): ApiResult<U> {
   if (isSuccess(result)) {
     try {
       const transformed = transform(result.data);
