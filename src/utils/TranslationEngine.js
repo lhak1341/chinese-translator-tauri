@@ -7737,12 +7737,41 @@ export class TranslationEngine {
 
     // CODE REVIEW 2026-01-27: Phase priority mapping (for validation)
     // Lower numbers = higher priority (earlier phases override later phases)
+    // Keys must match the actual translationSource strings written onto tokens,
+    // NOT the phase names used in REQUIRED_PHASE_ORDER.
     const PHASE_PRIORITIES = {
-      patterns: 1,
-      properNouns: 2,
-      numbers: 3,
+      // Phase 1 — Pattern (all possible source strings from JS and WASM paths)
+      pattern: 1,
+      hierarchical_pattern: 1,
+      hierarchical_patterns: 1,
+      hierarchical_patterns_composite: 1,
+      // Phase 2 — Proper noun: source is the dynamic dictionary name (e.g. 'properNouns-MyNovel').
+      // Dynamic names are resolved by getSourcePriority() below; no static keys here.
+      // Phase 3 — Number
+      number_conversion: 3,
+      number_plus_liang_fix: 3,
+      // Phase 4 — Phrase
       phrases: 4,
+      // Phase 5 — Character
       characters: 5,
+    };
+
+    // Returns the phase priority for a leader translationSource string.
+    // Returns null for consumed sources (they are not leaders).
+    // Returns 2 for dynamic proper-noun dictionary names (Phase 2).
+    // Returns 999 for unrecognised sources so priority violations are not silently missed.
+    const getSourcePriority = (translationSource) => {
+      if (!translationSource || translationSource.includes('_consumed')) {
+        return null;
+      }
+      if (Object.prototype.hasOwnProperty.call(PHASE_PRIORITIES, translationSource)) {
+        return PHASE_PRIORITIES[translationSource];
+      }
+      // Dynamic proper-noun dictionary names (e.g. 'properNouns-MyNovel')
+      if (this.activeProperNouns && this.activeProperNouns.includes(translationSource)) {
+        return 2;
+      }
+      return 999;
     };
 
     const validatePhaseOrder = (phaseName) => {
@@ -7775,11 +7804,19 @@ export class TranslationEngine {
 
     // CODE REVIEW FIX (CRITICAL-3): Consumed token contract validation
     // Ensures phases correctly mark consumed tokens with { translated: null, translationSource: "X_consumed" }
+    // Contract has two directions:
+    //   (A) consumed leaders  — translationSource includes "_consumed" → translated MUST be null
+    //   (B) translation leaders — translationSource set, no "_consumed" → translated MUST NOT be null
+    //       (a leader with translated=null is silently skipped by postProcess, deleting characters)
     const validateConsumedTokenContract = (phaseName) => {
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        if (token.translationSource && token.translationSource.includes('consumed')) {
-          // Consumed tokens MUST have translated=null (not undefined!)
+        if (!token.translationSource) {
+          continue;
+        }
+
+        if (token.translationSource.includes('consumed')) {
+          // Direction A: consumed tokens MUST have translated=null (not undefined!)
           if (token.translated !== null) {
             logger.error(
               `🚨 ${phaseName} consumed token contract violation at token ${i}: ` +
@@ -7788,6 +7825,18 @@ export class TranslationEngine {
             );
             // Force correct state to prevent "undefined" appearing in output
             token.translated = null;
+          }
+        } else {
+          // Direction B: leader tokens MUST have translated !== null.
+          // If a leader has translated=null, postProcess skips it and those characters
+          // vanish from the output silently.
+          if (token.translated === null) {
+            logger.error(
+              `🚨 ${phaseName} leader token contract violation at token ${i}: ` +
+                `translationSource="${token.translationSource}" but translated=null ` +
+                `(token value="${token.value}" — characters will be deleted from output)`
+            );
+            // Do not auto-correct: we don't know the right translation; log for investigation.
           }
         }
       }
@@ -7809,8 +7858,10 @@ export class TranslationEngine {
 
         // Only validate if current phase actually modified this token
         if (wasModified && before.translationSource) {
-          // Get priority of the phase that originally set this translation
-          const sourcePriority = PHASE_PRIORITIES[before.translationSource] || 999;
+          // Get priority of the phase that originally set this translation.
+          // getSourcePriority() handles dynamic proper-noun dict names and returns null
+          // for consumed sources (which are not leaders and should not be checked here).
+          const sourcePriority = getSourcePriority(before.translationSource) ?? 999;
 
           // ERROR: Current phase overrode higher-priority phase
           if (currentPriority > sourcePriority) {
@@ -8101,11 +8152,16 @@ export class TranslationEngine {
               }
 
               // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Track pre-WASM consumed tokens
-              // Ensure WASM doesn't overwrite tokens consumed by earlier phases (patterns, proper nouns)
-              const preWasmConsumedIndices = new Set();
+              // Ensure WASM doesn't overwrite tokens consumed by earlier phases (patterns, proper nouns).
+              // Store full snapshots (not just indices) so we can detect truthy→truthy source changes
+              // (e.g. WASM changing 'pattern' → 'number_conversion' would pass a simple falsiness check).
+              const preWasmTokenState = new Map();
               for (let i = 0; i < tokens.length; i++) {
                 if (tokens[i].translationSource) {
-                  preWasmConsumedIndices.add(i);
+                  preWasmTokenState.set(i, {
+                    translationSource: tokens[i].translationSource,
+                    translated: tokens[i].translated,
+                  });
                 }
               }
 
@@ -8156,21 +8212,21 @@ export class TranslationEngine {
                 );
               }
 
-              // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Validate WASM didn't overwrite consumed tokens
-              // Check that all previously consumed tokens still have their translationSource
-              for (const idx of preWasmConsumedIndices) {
-                if (!processedTokens[idx].translationSource) {
+              // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Validate WASM didn't overwrite consumed tokens.
+              // Compare full snapshots so we catch both:
+              //   - WASM clearing a source   ('pattern' → null/undefined)
+              //   - WASM replacing a source  ('pattern' → 'number_conversion') — previously undetected
+              for (const [idx, originalState] of preWasmTokenState) {
+                if (processedTokens[idx].translationSource !== originalState.translationSource) {
                   logger.error(
-                    `🚨 WASM violated phase priority: cleared consumed token at index ${idx}. ` +
-                      `Original source: ${tokens[idx].translationSource}`
+                    `🚨 WASM violated phase priority at index ${idx}: ` +
+                      `translationSource changed from "${originalState.translationSource}" ` +
+                      `to "${processedTokens[idx].translationSource ?? '(cleared)'}"`
                   );
 
-                  // Restore original translationSource to preserve phase priority
-                  processedTokens[idx].translationSource = tokens[idx].translationSource;
-                  // Also restore translated state if it was consumed
-                  if (tokens[idx].translated === null) {
-                    processedTokens[idx].translated = null;
-                  }
+                  // Restore original state to preserve phase priority
+                  processedTokens[idx].translationSource = originalState.translationSource;
+                  processedTokens[idx].translated = originalState.translated;
                 }
               }
 

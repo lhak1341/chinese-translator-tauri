@@ -31,6 +31,14 @@ npm run tauri:dev  # WASM build (2-3s) → Vite (100-200ms) → Tauri window
 
 Each phase consumes tokens (`translated: null, translationSource: "X_consumed"`); later phases only process unconsumed tokens. Changing order breaks conflict resolution.
 
+- **`translationSource` strings written per phase** (must match exactly in any validator — phase names like `'patterns'` are NOT the source strings):
+  - Phase 1 Pattern: `'pattern'`, `'hierarchical_pattern'`, `'hierarchical_patterns'`, `'hierarchical_patterns_composite'`
+  - Phase 2 Proper noun: dynamic — equals `match.dictionary` (e.g. `'properNouns-MyNovel'`); check membership via `this.activeProperNouns`
+  - Phase 3 Number: `'number_conversion'` (WASM), `'number_plus_liang_fix'` (post-process fixup)
+  - Phase 4 Phrase: `'phrases'`; Phase 5 Character: `'characters'`
+  - `getSourcePriority()` in `translateSinglePass` resolves all of the above to a numeric priority (1–5).
+- **Consumed token contract is two-directional**: (A) `*_consumed` source → `translated` must be `null`; (B) non-`_consumed` source → `translated` must NOT be `null`. A leader with `translationSource` set and `translated=null` is silently skipped by `postProcess()`'s `if (token.translationSource) { continue }` — those characters vanish from output with no warning. Both directions are validated by `validateConsumedTokenContract()`.
+
 📖 **Details**: [docs/guides/architecture.md](docs/guides/architecture.md#5-phase-translation-pipeline)
 
 ### Dual-Path Architecture (CRITICAL for debugging)
