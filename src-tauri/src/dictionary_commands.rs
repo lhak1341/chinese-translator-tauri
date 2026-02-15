@@ -922,7 +922,9 @@ pub async fn import_dictionaries(
 
         match serde_json::from_str::<serde_json::Value>(&contents) {
             Ok(_) => {
-                let output_path = dictionary_path.join(&filename);
+                // Use validated base_name (not raw filename from ZIP header) to build the
+                // output path, eliminating the distance between validation and use.
+                let output_path = dictionary_path.join(format!("{}.json", base_name));
                 if let Err(e) = fs::write(&output_path, &contents) {
                     errors.push(format!("{}: write error: {}", filename, e));
                     continue;

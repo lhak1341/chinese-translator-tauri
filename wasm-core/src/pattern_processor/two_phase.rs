@@ -482,6 +482,17 @@ impl TwoPhasePatternProcessor {
                     continue; // Not hierarchical composition, just the same pattern in both phases
                 }
 
+                // Require Phase A's token range to be contained within Phase B's token range.
+                // Without this guard, two unrelated patterns covering disjoint token spans (e.g.
+                // tokens 0-1 and tokens 5-8) can spuriously match whenever their translated
+                // strings share a common substring (e.g. "và", "là", "của"), producing an
+                // incorrectly merged result spanning the full combined range.
+                let phase_a_within_phase_b = phase_a_result.start_index >= phase_b_result.start_index
+                    && phase_a_result.end_index <= phase_b_result.end_index;
+                if !phase_a_within_phase_b {
+                    continue;
+                }
+
                 // Check if Phase B translation contains Phase A translation
                 if phase_b_result.translation.contains(&phase_a_result.translation) {
                     // Hierarchical composition detected!

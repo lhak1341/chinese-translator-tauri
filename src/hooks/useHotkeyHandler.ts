@@ -53,14 +53,42 @@ export function useHotkeyHandler({
   onFocusSearch,
   activeTab,
 }: HotkeyHandlerOptions): void {
-  // Use refs so canUndo/canRedo/activeTab don't force the keydown listener to be
-  // torn down and re-registered on every state change (stale-dep anti-pattern).
+  // Use refs so frequently-updating props don't force the keydown listener to be
+  // torn down and re-registered on every change (stale-dep anti-pattern).
+  // Each value is read at key-press time, so capturing via ref at render time is sufficient.
   const canUndoRef = useRef(canUndo);
   canUndoRef.current = canUndo;
   const canRedoRef = useRef(canRedo);
   canRedoRef.current = canRedo;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+
+  const onTranslateFromClipboardRef = useRef(onTranslateFromClipboard);
+  onTranslateFromClipboardRef.current = onTranslateFromClipboard;
+  const onUndoRef = useRef(onUndo);
+  onUndoRef.current = onUndo;
+  const onRedoRef = useRef(onRedo);
+  onRedoRef.current = onRedo;
+  const onAddEntryRef = useRef(onAddEntry);
+  onAddEntryRef.current = onAddEntry;
+  const onQuickAddRef = useRef(onQuickAdd);
+  onQuickAddRef.current = onQuickAdd;
+  const onTabSwitchRef = useRef(onTabSwitch);
+  onTabSwitchRef.current = onTabSwitch;
+  const onQuickAddCharacterRef = useRef(onQuickAddCharacter);
+  onQuickAddCharacterRef.current = onQuickAddCharacter;
+  const onQuickAddPhraseRef = useRef(onQuickAddPhrase);
+  onQuickAddPhraseRef.current = onQuickAddPhrase;
+  const onQuickAddProperNounRef = useRef(onQuickAddProperNoun);
+  onQuickAddProperNounRef.current = onQuickAddProperNoun;
+  const onQuickAddPatternRef = useRef(onQuickAddPattern);
+  onQuickAddPatternRef.current = onQuickAddPattern;
+  const onQuickAddCustomProperNounRef = useRef(onQuickAddCustomProperNoun);
+  onQuickAddCustomProperNounRef.current = onQuickAddCustomProperNoun;
+  const onReloadDictionaryRef = useRef(onReloadDictionary);
+  onReloadDictionaryRef.current = onReloadDictionary;
+  const onFocusSearchRef = useRef(onFocusSearch);
+  onFocusSearchRef.current = onFocusSearch;
 
   useEffect(() => {
     const copySelectedText = async (): Promise<boolean> => {
@@ -111,54 +139,58 @@ export function useHotkeyHandler({
             switch (event.key) {
               case '1':
                 event.preventDefault();
-                onTabSwitch?.('translator');
+                onTabSwitchRef.current?.('translator');
                 break;
               case '2':
                 event.preventDefault();
-                onTabSwitch?.('dictionary');
+                onTabSwitchRef.current?.('dictionary');
                 break;
               case '3':
                 event.preventDefault();
-                onTabSwitch?.('configuration');
+                onTabSwitchRef.current?.('configuration');
                 break;
               case '4':
                 event.preventDefault();
-                onTabSwitch?.('appearance');
+                onTabSwitchRef.current?.('appearance');
                 break;
               case 'n':
                 event.preventDefault();
-                onQuickAdd?.();
+                onQuickAddRef.current?.();
                 break;
               case 'v':
                 event.preventDefault();
-                onTranslateFromClipboard?.();
+                onTranslateFromClipboardRef.current?.();
                 break;
             }
           } else {
             switch (event.key) {
               case '1':
-                await handleQuickAdd(event, onQuickAddCharacter, 'Quick Add Character');
+                await handleQuickAdd(event, onQuickAddCharacterRef.current, 'Quick Add Character');
                 break;
               case '2':
-                await handleQuickAdd(event, onQuickAddPhrase, 'Quick Add Phrase');
+                await handleQuickAdd(event, onQuickAddPhraseRef.current, 'Quick Add Phrase');
                 break;
               case '3':
-                await handleQuickAdd(event, onQuickAddProperNoun, 'Quick Add Proper Noun');
+                await handleQuickAdd(
+                  event,
+                  onQuickAddProperNounRef.current,
+                  'Quick Add Proper Noun'
+                );
                 break;
               case '4':
-                await handleQuickAdd(event, onQuickAddPattern, 'Quick Add Pattern');
+                await handleQuickAdd(event, onQuickAddPatternRef.current, 'Quick Add Pattern');
                 break;
               case '5':
                 await handleQuickAdd(
                   event,
-                  onQuickAddCustomProperNoun,
+                  onQuickAddCustomProperNounRef.current,
                   'Quick Add Custom Proper Noun'
                 );
                 break;
               case 'l':
                 if (activeTabRef.current === 'dictionary') {
                   event.preventDefault();
-                  onFocusSearch?.();
+                  onFocusSearchRef.current?.();
                 }
                 break;
             }
@@ -168,16 +200,16 @@ export function useHotkeyHandler({
             case 'z':
               if (event.shiftKey && canRedoRef.current) {
                 event.preventDefault();
-                onRedo?.();
+                onRedoRef.current?.();
               } else if (!event.shiftKey && canUndoRef.current) {
                 event.preventDefault();
-                onUndo?.();
+                onUndoRef.current?.();
               }
               break;
             case 'r':
               if (activeTabRef.current === 'translator') {
                 event.preventDefault();
-                onReloadDictionary?.();
+                onReloadDictionaryRef.current?.();
               }
               break;
           }
@@ -189,19 +221,5 @@ export function useHotkeyHandler({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [
-    onTranslateFromClipboard,
-    onUndo,
-    onRedo,
-    onAddEntry,
-    onQuickAdd,
-    onTabSwitch,
-    onQuickAddCharacter,
-    onQuickAddPhrase,
-    onQuickAddProperNoun,
-    onQuickAddPattern,
-    onQuickAddCustomProperNoun,
-    onReloadDictionary,
-    onFocusSearch,
-  ]);
+  }, []); // All props read via refs — no deps needed, listener is registered once
 }
