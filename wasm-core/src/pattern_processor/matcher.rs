@@ -617,7 +617,7 @@ impl<'a> PatternMatcher<'a> {
                     if next_pattern_token.token_type == TokenType::Literal {
                         let next_literal = next_pattern_token.value.as_ref().unwrap();
 
-                        let lookahead_matched = if next_literal.len() == 1 {
+                        let lookahead_matched = if next_literal.chars().count() == 1 {
                             &next_semantic_token.value == next_literal
                         } else {
                             let literal_chars: Vec<char> = next_literal.chars().collect();

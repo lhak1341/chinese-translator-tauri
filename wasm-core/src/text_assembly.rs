@@ -222,7 +222,7 @@ impl TextAssembler {
             );
             positions_array.push(current_position);
 
-            current_position += segment.original.len();
+            current_position += segment.original.chars().count();
         }
 
         // Update stats

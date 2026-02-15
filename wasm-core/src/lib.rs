@@ -217,12 +217,12 @@ impl DictionaryEngine {
             );
             
             // Simple checksum calculation
-            checksum = checksum.wrapping_add(entry.chinese.len() as u64);
-            checksum = checksum.wrapping_add(entry.vietnamese.len() as u64);
+            checksum = checksum.wrapping_add(entry.chinese.chars().count() as u64);
+            checksum = checksum.wrapping_add(entry.vietnamese.chars().count() as u64);
         }
-        
+
         let entry_count = trie.get_entry_count();
-        
+
         // Create versioned dictionary
         let version_id = js_sys::Date::now() as u64; // Use timestamp as version
         let version = DictionaryVersion {
@@ -327,8 +327,8 @@ impl DictionaryEngine {
                     entry.vietnamese.clone(),
                     entry.metadata.clone(),
                 );
-                checksum = checksum.wrapping_add(entry.chinese.len() as u64);
-                checksum = checksum.wrapping_add(entry.vietnamese.len() as u64);
+                checksum = checksum.wrapping_add(entry.chinese.chars().count() as u64);
+                checksum = checksum.wrapping_add(entry.vietnamese.chars().count() as u64);
             }
 
             let entry_count = trie.get_entry_count();
@@ -379,10 +379,10 @@ impl DictionaryEngine {
     fn estimate_dictionary_size(&self, entries: &[DictionaryEntry]) -> usize {
         let mut size = 0;
         for entry in entries {
-            // Estimate: each character ~4 bytes (UTF-8), plus trie node overhead
-            size += entry.chinese.len() * 4;
-            size += entry.vietnamese.len() * 4;
-            size += entry.metadata.as_ref().map(|m| m.len() * 2).unwrap_or(0);
+            // Estimate: each character ~4 bytes (trie node pointer overhead), plus trie node overhead
+            size += entry.chinese.chars().count() * 4;
+            size += entry.vietnamese.chars().count() * 4;
+            size += entry.metadata.as_ref().map(|m| m.chars().count() * 2).unwrap_or(0);
             size += 64; // Estimated trie node overhead
         }
         size
