@@ -107,7 +107,7 @@ impl Drop for VersionedDictionary {
     fn drop(&mut self) {
         // Log in development to verify cleanup happens
         // Production builds can optimize this away
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions, target_arch = "wasm32"))]
         web_sys::console::log_1(&format!(
             "🗑️ Dropping VersionedDictionary (v{}, {} entries)",
             self.version.version,
@@ -553,6 +553,7 @@ pub fn reset_matcher_profiling() {
     pattern_processor::matcher::reset_matcher_profiling();
 }
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn print_matcher_profiling_report() {
     pattern_processor::matcher::print_matcher_profiling_report();

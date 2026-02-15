@@ -295,6 +295,7 @@ impl<'a> PatternMatcher<'a> {
         let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
 
         // Get performance object if profiling is enabled
+        #[cfg(target_arch = "wasm32")]
         let perf = if profiling_enabled {
             let window = web_sys::window();
             if window.is_none() {
@@ -308,8 +309,11 @@ impl<'a> PatternMatcher<'a> {
         } else {
             None
         };
+        #[cfg(not(target_arch = "wasm32"))]
+        let perf: Option<web_sys::Performance> = None;
 
         let start_total = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+        #[cfg(target_arch = "wasm32")]
         if profiling_enabled && start_total == 0.0 {
             web_sys::console::log_1(&"🔍 DEBUG: start_total is 0.0".into());
         }
@@ -539,11 +543,14 @@ impl<'a> PatternMatcher<'a> {
     ) -> Option<(String, usize, String)> {
         // Check profiling state
         let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
+        #[cfg(target_arch = "wasm32")]
         let perf = if profiling_enabled {
             web_sys::window().and_then(|w| w.performance())
         } else {
             None
         };
+        #[cfg(not(target_arch = "wasm32"))]
+        let perf: Option<web_sys::Performance> = None;
 
         // MEDIUM FIX: Define magic number as named constant
         // OPTIMIZATION: Limit max_span to 6 based on dictionary analysis
@@ -854,6 +861,7 @@ pub fn reset_matcher_profiling() {
 }
 
 /// Print pattern matching profiling report to console
+#[cfg(target_arch = "wasm32")]
 pub fn print_matcher_profiling_report() {
     use web_sys::console;
 

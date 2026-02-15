@@ -53,12 +53,14 @@ export function useHotkeyHandler({
   onFocusSearch,
   activeTab,
 }: HotkeyHandlerOptions): void {
-  // Use refs so canUndo/canRedo don't force the keydown listener to be torn down
-  // and re-registered on every undo/redo history change (stale-dep anti-pattern).
+  // Use refs so canUndo/canRedo/activeTab don't force the keydown listener to be
+  // torn down and re-registered on every state change (stale-dep anti-pattern).
   const canUndoRef = useRef(canUndo);
   canUndoRef.current = canUndo;
   const canRedoRef = useRef(canRedo);
   canRedoRef.current = canRedo;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   useEffect(() => {
     const copySelectedText = async (): Promise<boolean> => {
@@ -79,7 +81,7 @@ export function useHotkeyHandler({
       callback: ((text?: string) => void | Promise<void>) | undefined,
       label: string
     ): Promise<void> => {
-      if (activeTab !== 'translator') return;
+      if (activeTabRef.current !== 'translator') return;
       event.preventDefault();
       try {
         const copied = await copySelectedText();
@@ -154,7 +156,7 @@ export function useHotkeyHandler({
                 );
                 break;
               case 'l':
-                if (activeTab === 'dictionary') {
+                if (activeTabRef.current === 'dictionary') {
                   event.preventDefault();
                   onFocusSearch?.();
                 }
@@ -167,13 +169,13 @@ export function useHotkeyHandler({
               if (event.shiftKey && canRedoRef.current) {
                 event.preventDefault();
                 onRedo?.();
-              } else if (canUndoRef.current) {
+              } else if (!event.shiftKey && canUndoRef.current) {
                 event.preventDefault();
                 onUndo?.();
               }
               break;
             case 'r':
-              if (activeTab === 'translator') {
+              if (activeTabRef.current === 'translator') {
                 event.preventDefault();
                 onReloadDictionary?.();
               }
@@ -201,6 +203,5 @@ export function useHotkeyHandler({
     onQuickAddCustomProperNoun,
     onReloadDictionary,
     onFocusSearch,
-    activeTab,
   ]);
 }

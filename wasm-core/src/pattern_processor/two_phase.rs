@@ -430,12 +430,12 @@ impl TwoPhasePatternProcessor {
             let a_length = a
                 .pattern
                 .as_ref()
-                .map(|p| p.original_pattern.len())
+                .map(|p| p.original_pattern.chars().count())
                 .unwrap_or(a.end_index - a.start_index + 1);
             let b_length = b
                 .pattern
                 .as_ref()
-                .map(|p| p.original_pattern.len())
+                .map(|p| p.original_pattern.chars().count())
                 .unwrap_or(b.end_index - b.start_index + 1);
             b_length.cmp(&a_length) // Descending order
         });
