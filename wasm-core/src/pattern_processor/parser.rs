@@ -66,17 +66,10 @@ pub fn parse_pattern(
             i += 1;
             position += 1;
         } else {
-            // Literal token - group consecutive non-variable characters
-            let mut literal = String::new();
-            let literal_start = position;
-
-            while i < chars.len() && !chars[i].is_ascii_uppercase() {
-                literal.push(chars[i]);
-                i += 1;
-            }
-
-            tokens.push(PatternToken::literal(literal, literal_start));
-            position += 1; // Increment position once for the entire multi-char literal
+            // Literal token - one token per character (matches 1:1 with text tokens)
+            tokens.push(PatternToken::literal(ch.to_string(), position));
+            i += 1;
+            position += 1;
         }
     }
 

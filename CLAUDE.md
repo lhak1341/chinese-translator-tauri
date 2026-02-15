@@ -112,6 +112,8 @@ The five most likely to cause **silent bugs**:
 - **`HistoryOperation` type**: `LazyDictionaryContext.tsx` uses a local snapshot-based version (`oldData`/`newData`); `DictionaryTypes.ts` is delta-based. Architecturally incompatible — keep local.
 - **Rust `.chars().count()` not `.len()`**: `.len()` is byte count; one Chinese char = 3 bytes. Byte comparisons silently mis-rank pattern lengths. Affects `dictionary_commands.rs`, `lookup_index_engine.rs`, AND `wasm-core/src/number_processor.rs` — keep in sync across all three.
 - **Canonical type homes**: `ThrottledStreamingState` → `UITypes.d.ts`. `DictionaryEntryMetadata`, `MoveEntryData`, `EditingEntryData` → `DictionaryTypes.ts`. Do not redeclare locally.
+- **`web_sys::console` in wasm-core causes SIGABRT on native tests**: `log_1`/`error_1`/`warn_1` use `#[rustc_nounwind]` FFI — panic aborts the entire test process (not catchable). Any `web_sys::console` call reachable from non-WASM tests MUST be `#[cfg(target_arch = "wasm32")]` gated.
+- **`PatternMatchResult::success()` sets `pattern: None`**: The struct stores `pattern_id` (the `original_pattern` string) instead of cloning the full pattern. Tests must use `result.pattern_id.as_deref().unwrap()`, not `result.pattern.as_ref().unwrap()`.
 - **`ClickableTranslationOptimized` paragraph logic**: Uses "break on every `\n`" (inline `useMemo`). DO NOT replace with `groupSegmentsIntoParagraphs` — that utility uses Chinese-indentation detection, incompatible with Vietnamese translated text.
 - **`validateApiResult`** (was `validateElectronResult`): renamed in `configValidation.ts`. `Translator.jsx` is JS — `type-check` won't catch stale imports there. Always grep `Translator.jsx` after renaming exported functions.
 - **`reset_dictionaries` leaves empty dir**: No bundled templates exist. After reset, the dictionaries directory is empty — translation fails until the user re-imports. Never silently succeed; always warn in the response message.
@@ -132,8 +134,7 @@ npm run type-check      # TypeScript checking (0 errors expected)
 npm run format          # Format all code
 cargo check --manifest-path src-tauri/Cargo.toml  # Rust type-check (NOT cd + cargo — zoxide breaks it)
 cargo check --manifest-path wasm-core/Cargo.toml   # WASM core (separate crate, run both when touching Rust)
-# NOTE: `cargo test` on wasm-core fails (pre-existing Vec vs &[] mismatches in pattern_processor test
-# blocks). Use `cargo check` to verify correctness; the lib tests cannot run until those are fixed.
+cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-core tests (96 tests)
 ```
 
 ### Key Files

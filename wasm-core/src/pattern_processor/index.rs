@@ -212,7 +212,7 @@ mod tests {
             parse_pattern("Y是Z".to_string(), "Z là Y".to_string(), None, false, false),
         ];
 
-        index.index_patterns(patterns);
+        index.index_patterns(&patterns);
 
         // Check literal-starting patterns
         assert_eq!(index.get_patterns_by_first_token("这").len(), 1);
@@ -260,7 +260,7 @@ mod tests {
             parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, false),
         ];
 
-        index.index_patterns(patterns);
+        index.index_patterns(&patterns);
 
         let all_patterns = index.get_all_patterns();
         assert_eq!(all_patterns.len(), 3);

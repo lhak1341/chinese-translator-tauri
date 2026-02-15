@@ -100,7 +100,7 @@ mod integration_tests {
 
         // Index all patterns
         let mut index = PatternIndex::new();
-        index.index_patterns(patterns);
+        index.index_patterns(&patterns);
 
         // Verify indexing
         assert_eq!(index.unique_first_tokens(), 2); // "X", "在"

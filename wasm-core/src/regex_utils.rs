@@ -339,9 +339,9 @@ mod tests {
         let text = "句子一。句子二！";
         let positions = utils.find_chinese_punctuation(text);
 
-        // UTF-8 character indices
+        // UTF-8 byte offsets: each Chinese char is 3 bytes
         assert_eq!(positions.len(), 2);
-        assert!(positions.contains(&9));  // Position of 。
-        assert!(positions.contains(&22)); // Position of ！
+        assert!(positions.contains(&9));  // Position of 。 (byte 9)
+        assert!(positions.contains(&21)); // Position of ！ (byte 21)
     }
 }

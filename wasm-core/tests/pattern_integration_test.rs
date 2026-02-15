@@ -79,7 +79,7 @@ fn test_index_real_patterns() {
     // Parse and index patterns
     let patterns = parse_patterns_dict(patterns_dict);
     let mut index = PatternIndex::new();
-    index.index_patterns(patterns);
+    index.index_patterns(&patterns);
 
     // Verify indexing
     assert!(
@@ -191,7 +191,7 @@ fn test_complete_workflow() {
 
     // Step 3: Create and populate index
     let mut index = PatternIndex::new();
-    index.index_patterns(patterns);
+    index.index_patterns(&patterns);
 
     // Step 4: Verify lookup performance
     // Simulate looking up patterns for text starting with "这"

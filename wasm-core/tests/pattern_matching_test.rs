@@ -36,7 +36,8 @@ fn test_simple_literal_pattern_match() {
     // Tokens: ["这", "些"]
     let tokens = vec![create_token("这", 0), create_token("些", 1)];
 
-    let matcher = PatternMatcher::new(HashMap::new());
+    let cache = HashMap::new();
+    let matcher = PatternMatcher::new(&cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match");
@@ -73,7 +74,7 @@ fn test_single_variable_pattern_match() {
         },
     );
 
-    let matcher = PatternMatcher::new(variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match");
@@ -122,7 +123,7 @@ fn test_multi_variable_pattern_match() {
         },
     );
 
-    let matcher = PatternMatcher::new(variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match");
@@ -166,7 +167,7 @@ fn test_multi_token_variable_resolution() {
         },
     );
 
-    let matcher = PatternMatcher::new(variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match with multi-token variable");
@@ -219,7 +220,7 @@ fn test_variable_backtracking_with_lookahead() {
         },
     );
 
-    let matcher = PatternMatcher::new(variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match with backtracking");
@@ -244,7 +245,8 @@ fn test_pattern_match_failure_not_enough_tokens() {
     // Tokens: ["这", "些"] - not enough for two variables
     let tokens = vec![create_token("这", 0), create_token("些", 1)];
 
-    let matcher = PatternMatcher::new(HashMap::new());
+    let cache = HashMap::new();
+    let matcher = PatternMatcher::new(&cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(!result.success, "Pattern should fail - not enough tokens");
@@ -268,7 +270,8 @@ fn test_pattern_match_failure_literal_mismatch() {
         create_token("人", 2),
     ];
 
-    let matcher = PatternMatcher::new(HashMap::new());
+    let cache = HashMap::new();
+    let matcher = PatternMatcher::new(&cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(!result.success, "Pattern should fail - literal mismatch");
@@ -293,7 +296,8 @@ fn test_pattern_match_failure_variable_not_in_cache() {
     ];
 
     // Empty variable cache - "未知" not cached
-    let matcher = PatternMatcher::new(HashMap::new());
+    let cache = HashMap::new();
+    let matcher = PatternMatcher::new(&cache);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(
@@ -366,10 +370,7 @@ fn test_pattern_competition_higher_priority_wins() {
 
     assert!(best_match.is_some(), "Should find a match");
     let result = best_match.unwrap();
-    assert_eq!(
-        result.pattern.as_ref().unwrap().original_pattern,
-        "这些XY"
-    );
+    assert_eq!(result.pattern_id.as_deref().unwrap(), "这些XY");
     assert_eq!(result.result.as_ref().unwrap(), "những người mạnh mẽ này");
 }
 
@@ -425,10 +426,7 @@ fn test_pattern_competition_low_priority_loses() {
     let result = best_match.unwrap();
 
     // Should select "在X眼中" (priority 19) over "在XY中" (priority 17)
-    assert_eq!(
-        result.pattern.as_ref().unwrap().original_pattern,
-        "在X眼中"
-    );
+    assert_eq!(result.pattern_id.as_deref().unwrap(), "在X眼中");
     assert_eq!(
         result.result.as_ref().unwrap(),
         "ở trong mắt những ma soái kia"

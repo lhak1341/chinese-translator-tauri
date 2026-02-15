@@ -86,13 +86,8 @@ impl PositionMapper {
             for i in (0..needle_len).rev() {
                 if haystack_bytes[pos + i] != needle_bytes[i] {
                     matched = false;
-                    // Shift by bad character rule
-                    let shift_char = if pos + needle_len < haystack_len {
-                        haystack_bytes[pos + needle_len] as usize
-                    } else {
-                        0
-                    };
-                    pos += shifts[shift_char];
+                    // Shift by bad character rule (last char in current window)
+                    pos += shifts[haystack_bytes[pos + needle_len - 1] as usize];
                     break;
                 }
             }

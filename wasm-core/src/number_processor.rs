@@ -114,10 +114,13 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
                     });
                 }
                 Err(e) => {
+                    #[cfg(target_arch = "wasm32")]
                     web_sys::console::error_1(&format!(
                         "❌ Failed to compile {} regex: {}. Pattern disabled.",
                         $name, e
                     ).into());
+                    #[cfg(not(target_arch = "wasm32"))]
+                    eprintln!("❌ Failed to compile {} regex: {}. Pattern disabled.", $name, e);
                     // CODE REVIEW NOTE (MEDIUM-5): Add to COMPILATION_WARNINGS here
                 }
             }
@@ -252,6 +255,7 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
         "Numbers like 十七 (17) where tens digit is implicit"
     );
 
+    #[cfg(target_arch = "wasm32")]
     web_sys::console::log_1(&format!(
         "🔢 Initialized {} number conversion patterns",
         patterns.len()
@@ -280,6 +284,7 @@ impl NumberProcessor {
         number_map.insert('十', 10);
         number_map.insert('零', 0);
 
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&"🔢 WASM NumberProcessor initialized".into());
 
         NumberProcessor { number_map }
@@ -305,6 +310,7 @@ impl NumberProcessor {
 
             // Try to find longest number match starting from this position
             if let Some(number_match) = self.find_longest_number_match(&tokens, i) {
+                #[cfg(target_arch = "wasm32")]
                 web_sys::console::log_1(&format!(
                     "🔢 Number converted: \"{}\" → \"{}\" ({})",
                     number_match.original_text,
@@ -658,8 +664,8 @@ mod tests {
         // Validate all patterns compiled successfully
         assert!(!PATTERNS.is_empty(), "No patterns loaded - all regex compilation failed");
 
-        // Should have all 15 patterns
-        assert_eq!(PATTERNS.len(), 15, "Expected 15 patterns, got {}", PATTERNS.len());
+        // Should have all 16 patterns
+        assert_eq!(PATTERNS.len(), 16, "Expected 16 patterns, got {}", PATTERNS.len());
     }
 
     #[test]
