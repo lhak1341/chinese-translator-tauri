@@ -7,6 +7,7 @@ pub struct MatchResult {
     pub translation: String,
     pub start_pos: usize,
     pub end_pos: usize,
+    pub priority: u8,
     pub metadata: Option<String>,
 }
 
@@ -16,6 +17,7 @@ pub struct TrieNode {
     is_end_of_word: bool,
     translation: Option<String>,
     metadata: Option<String>,
+    priority: u8,
 }
 
 impl TrieNode {
@@ -25,19 +27,31 @@ impl TrieNode {
             is_end_of_word: false,
             translation: None,
             metadata: None,
+            priority: 5,
         }
     }
 
     pub fn insert(&mut self, word: &str, translation: String, metadata: Option<String>) {
+        self.insert_with_priority(word, translation, 5, metadata);
+    }
+
+    pub fn insert_with_priority(
+        &mut self,
+        word: &str,
+        translation: String,
+        priority: u8,
+        metadata: Option<String>,
+    ) {
         let mut current = self;
-        
+
         for ch in word.chars() {
             current = current.children.entry(ch).or_insert_with(TrieNode::new);
         }
-        
+
         current.is_end_of_word = true;
         current.translation = Some(translation);
         current.metadata = metadata;
+        current.priority = priority;
     }
 
     pub fn find_matches(&self, text: &str, start_pos: usize) -> Vec<MatchResult> {
@@ -70,6 +84,7 @@ impl TrieNode {
                                 translation: translation.clone(),
                                 start_pos,
                                 end_pos: i + 1,
+                                priority: current.priority,
                                 metadata: current.metadata.clone(),
                             });
                         }
@@ -114,6 +129,7 @@ impl TrieNode {
                                 translation: translation.clone(),
                                 start_pos,
                                 end_pos: i + 1,
+                                priority: current.priority,
                                 metadata: current.metadata.clone(),
                             });
                         }
@@ -128,16 +144,85 @@ impl TrieNode {
 
     pub fn get_entry_count(&self) -> usize {
         let mut count = 0;
-        
+
         if self.is_end_of_word {
             count += 1;
         }
-        
+
         for child in self.children.values() {
             count += child.get_entry_count();
         }
-        
+
         count
+    }
+
+    /// Find all matches starting at `start_pos`, ordered shortest to longest.
+    /// Use this when the caller needs all prefix matches in ascending length order.
+    /// For longest-first ordering use `find_matches` / `find_matches_slice`.
+    pub fn find_all_matches(&self, text: &str, start_pos: usize) -> Vec<MatchResult> {
+        let chars: Vec<char> = text.chars().collect();
+        self.find_all_matches_slice(&chars, start_pos)
+    }
+
+    /// Slice variant of `find_all_matches` — avoids repeated `Vec<char>` allocation.
+    pub fn find_all_matches_slice(&self, chars: &[char], start_pos: usize) -> Vec<MatchResult> {
+        let mut matches = Vec::new();
+
+        if start_pos >= chars.len() {
+            return matches;
+        }
+
+        let mut current = self;
+
+        for i in start_pos..chars.len() {
+            match current.children.get(&chars[i]) {
+                Some(node) => {
+                    current = node;
+                    if current.is_end_of_word {
+                        if let Some(translation) = &current.translation {
+                            matches.push(MatchResult {
+                                word: chars[start_pos..=i].iter().collect(),
+                                translation: translation.clone(),
+                                start_pos,
+                                end_pos: i + 1,
+                                priority: current.priority,
+                                metadata: current.metadata.clone(),
+                            });
+                        }
+                    }
+                }
+                None => break,
+            }
+        }
+
+        // Shortest to longest (natural accumulation order — no reversal)
+        matches
+    }
+
+    /// Returns `(node_count, entry_count, max_depth)` for debugging / statistics.
+    pub fn get_stats(&self) -> (usize, usize, usize) {
+        let mut node_count = 0;
+        let mut max_depth = 0;
+        self.get_stats_recursive(0, &mut max_depth, &mut node_count);
+        let entry_count = self.get_entry_count();
+        (node_count, entry_count, max_depth)
+    }
+
+    fn get_stats_recursive(&self, depth: usize, max_depth: &mut usize, node_count: &mut usize) {
+        *node_count += 1;
+        *max_depth = (*max_depth).max(depth);
+        for child in self.children.values() {
+            child.get_stats_recursive(depth + 1, max_depth, node_count);
+        }
+    }
+
+    /// Clear all entries, resetting to an empty trie.
+    pub fn clear(&mut self) {
+        self.children.clear();
+        self.translation = None;
+        self.metadata = None;
+        self.is_end_of_word = false;
+        self.priority = 5;
     }
 }
 

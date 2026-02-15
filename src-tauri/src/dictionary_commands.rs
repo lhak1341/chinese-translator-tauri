@@ -123,6 +123,19 @@ pub fn init_app_handle(handle: tauri::AppHandle) {
     let _ = APP_HANDLE.set(handle);
 }
 
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+fn record_mutex_poisoning() {
+    MUTEX_POISONED.store(true, Ordering::SeqCst);
+    POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
+    emit_poisoning_event();
+}
+
 /// CODE REVIEW FIX (CRITICAL-2): Emit mutex poisoning event immediately
 /// Notifies frontend as soon as poisoning is detected, not just on health check
 /// CODE REVIEW FIX (2026-02-01): Added stderr fallback for early startup failures
@@ -136,11 +149,7 @@ pub fn init_app_handle(handle: tauri::AppHandle) {
 fn emit_poisoning_event() {
     let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
 
-    // Get current time in milliseconds
-    let now_ms = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+    let now_ms = now_ms();
 
     let last_notify = LAST_POISONING_NOTIFICATION.load(Ordering::SeqCst);
 
@@ -227,12 +236,7 @@ impl DictionaryCache {
         let value = match self.cache.lock() {
             Ok(cache) => cache.get(key).cloned(),
             Err(poisoned) => {
-                // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
-                MUTEX_POISONED.store(true, Ordering::SeqCst);
-                POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
-
-                // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
-                emit_poisoning_event();
+                record_mutex_poisoning();
 
                 // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
                 eprintln!("WARNING: Cache mutex poisoned during get - continuing with degraded reliability");
@@ -250,11 +254,7 @@ impl DictionaryCache {
         // Update access time for LRU tracking (if value exists)
         if value.is_some() {
             if let Ok(mut access_order) = self.access_order.lock() {
-                let now = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64;
-                access_order.insert(key.to_string(), now);
+                access_order.insert(key.to_string(), now_ms());
             }
         }
 
@@ -311,11 +311,7 @@ impl DictionaryCache {
                 // Update access time (separate lock to avoid holding both)
                 drop(cache); // Explicitly drop cache lock before locking access_order
                 if let Ok(mut access_order) = self.access_order.lock() {
-                    let now = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as u64;
-                    access_order.insert(key.clone(), now);
+                    access_order.insert(key.clone(), now_ms());
 
                     // NOTE: Skipping cleanup here to avoid nested mutex lock (deadlock risk).
                     // Cleanup happens in invalidate() and is not critical for correctness.
@@ -331,12 +327,7 @@ impl DictionaryCache {
                 }
             }
             Err(poisoned) => {
-                // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
-                MUTEX_POISONED.store(true, Ordering::SeqCst);
-                POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
-
-                // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
-                emit_poisoning_event();
+                record_mutex_poisoning();
 
                 // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
                 eprintln!("WARNING: Cache mutex poisoned during set - continuing with degraded reliability");
@@ -353,11 +344,7 @@ impl DictionaryCache {
                 // Also clear access_order on poisoning
                 if let Ok(mut access_order) = self.access_order.lock() {
                     access_order.clear();
-                    let now = SystemTime::now()
-                        .duration_since(SystemTime::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as u64;
-                    access_order.insert(key, now);
+                    access_order.insert(key, now_ms());
                 }
             }
         }
@@ -388,12 +375,7 @@ impl DictionaryCache {
                 }
             }
             Err(poisoned) => {
-                // CODE REVIEW FIX (2026-01-30): Track poisoning events for frontend monitoring
-                MUTEX_POISONED.store(true, Ordering::SeqCst);
-                POISONING_EVENT_COUNT.fetch_add(1, Ordering::SeqCst);
-
-                // CODE REVIEW FIX (CRITICAL-2): Emit event immediately to notify frontend
-                emit_poisoning_event();
+                record_mutex_poisoning();
 
                 // CODE REVIEW FIX 2026-02-01 (IMPORTANT-3): Graceful recovery without restart
                 eprintln!("WARNING: Cache mutex poisoned during invalidation - continuing with degraded reliability");

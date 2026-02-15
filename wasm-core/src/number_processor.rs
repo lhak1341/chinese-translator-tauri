@@ -55,44 +55,31 @@ pub struct NumberProcessor {
 // CODE REVIEW FIX (CRITICAL-3): Move regex out of parse_chinese_number loop
 // Prevents O(n) regex allocations during recursive parsing
 // CODE REVIEW FIX (2026-02-01): Enhanced error messages for WASM debugging
+
+macro_rules! parse_regex {
+    ($name:literal, $pattern:literal) => {
+        Regex::new($pattern).expect(concat!(
+            "CRITICAL: ", $name, " regex compilation failed in number_processor.rs. \
+             This indicates a compile-time bug in the regex pattern. \
+             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
+        ))
+    };
+}
+
 lazy_static! {
     // Parsing patterns (used in recursive parse_chinese_number)
     static ref THOUSANDS_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])千(.*)").expect(
-            "CRITICAL: THOUSANDS_RE regex compilation failed in number_processor.rs. \
-             This indicates a compile-time bug in the regex pattern. \
-             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
-        );
+        parse_regex!("THOUSANDS_RE", r"([一二两三四五六七八九])千(.*)");
     static ref HUNDREDS_ZERO_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])百零([一二两三四五六七八九])").expect(
-            "CRITICAL: HUNDREDS_ZERO_RE regex compilation failed in number_processor.rs. \
-             This indicates a compile-time bug in the regex pattern. \
-             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
-        );
+        parse_regex!("HUNDREDS_ZERO_RE", r"([一二两三四五六七八九])百零([一二两三四五六七八九])");
     static ref HUNDREDS_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])百(.*)").expect(
-            "CRITICAL: HUNDREDS_RE regex compilation failed in number_processor.rs. \
-             This indicates a compile-time bug in the regex pattern. \
-             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
-        );
+        parse_regex!("HUNDREDS_RE", r"([一二两三四五六七八九])百(.*)");
     static ref ZERO_TENS_RE: Regex =
-        Regex::new(r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$").expect(
-            "CRITICAL: ZERO_TENS_RE regex compilation failed in number_processor.rs. \
-             This indicates a compile-time bug in the regex pattern. \
-             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
-        );
+        parse_regex!("ZERO_TENS_RE", r"^零([一二两三四五六七八九])?十([一二三四五六七八九])?$");
     static ref TENS_RE: Regex =
-        Regex::new(r"([一二两三四五六七八九])十([一二三四五六七八九])?").expect(
-            "CRITICAL: TENS_RE regex compilation failed in number_processor.rs. \
-             This indicates a compile-time bug in the regex pattern. \
-             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
-        );
+        parse_regex!("TENS_RE", r"([一二两三四五六七八九])十([一二三四五六七八九])?");
     static ref IMPLICIT_TENS_PARSE_RE: Regex =
-        Regex::new(r"^十([一二三四五六七八九])$").expect(
-            "CRITICAL: IMPLICIT_TENS_PARSE_RE regex compilation failed in number_processor.rs. \
-             This indicates a compile-time bug in the regex pattern. \
-             Please report at: https://github.com/lhak1341/chinese-translator-tauri/issues"
-        );
+        parse_regex!("IMPLICIT_TENS_PARSE_RE", r"^十([一二三四五六七八九])$");
 }
 
 // ============================================================================
@@ -554,16 +541,19 @@ impl NumberProcessor {
         Some(Self::format_with_commas(value))
     }
 
-    fn convert_percentage_range(&self, groups: &[&str]) -> Option<String> {
+    /// Extracts two consecutive single-digit numbers from `groups[0]` and `groups[1]`,
+    /// returning `None` if either group is missing, non-numeric, or the values
+    /// are not consecutive (second != first + 1).
+    fn extract_consecutive_pair(&self, groups: &[&str]) -> Option<(u32, u32)> {
         if groups.len() < 2 { return None; }
         let first = self.get_number(groups[0].chars().next()?)?;
         let second = self.get_number(groups[1].chars().next()?)?;
+        if second != first + 1 { return None; }
+        Some((first, second))
+    }
 
-        // Validate that it's a logical consecutive range
-        if second != first + 1 {
-            return None;
-        }
-
+    fn convert_percentage_range(&self, groups: &[&str]) -> Option<String> {
+        let (first, second) = self.extract_consecutive_pair(groups)?;
         Some(format!("{}-{}%", first * 10, second * 10))
     }
 
@@ -579,77 +569,45 @@ impl NumberProcessor {
     }
 
     fn convert_ten_thousand_range(&self, groups: &[&str]) -> Option<String> {
-        if groups.len() < 2 { return None; }
-        let first = self.get_number(groups[0].chars().next()?)?;
-        let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 {
-            return None; // Invalid range
-        }
+        let (first, second) = self.extract_consecutive_pair(groups)?;
         Some(format!("{}-{} vạn", first, second))
     }
 
     fn convert_thousand_range(&self, groups: &[&str]) -> Option<String> {
-        if groups.len() < 2 { return None; }
-        let first = self.get_number(groups[0].chars().next()?)?;
-        let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 {
-            return None;
-        }
+        let (first, second) = self.extract_consecutive_pair(groups)?;
         Some(format!("{}-{} ngàn", first, second))
     }
 
     fn convert_hundreds_range(&self, groups: &[&str]) -> Option<String> {
-        if groups.len() < 2 { return None; }
-        let first = self.get_number(groups[0].chars().next()?)?;
-        let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 {
-            return None;
-        }
+        let (first, second) = self.extract_consecutive_pair(groups)?;
         Some(format!("{}-{}", first * 100, second * 100))
     }
 
     fn convert_hundreds_plus_tens_range(&self, groups: &[&str]) -> Option<String> {
         if groups.len() < 3 { return None; }
         let hundreds = self.get_number(groups[0].chars().next()?)?;
-        let first = self.get_number(groups[1].chars().next()?)?;
-        let second = self.get_number(groups[2].chars().next()?)?;
-        if second != first + 1 {
-            return None;
-        }
+        let (first, second) = self.extract_consecutive_pair(&groups[1..])?;
         let first_total = hundreds * 100 + first * 10;
         let second_total = hundreds * 100 + second * 10;
         Some(format!("{}-{}", first_total, second_total))
     }
 
     fn convert_number_range(&self, groups: &[&str]) -> Option<String> {
-        if groups.len() < 2 { return None; }
-        let first = self.get_number(groups[0].chars().next()?)?;
-        let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 {
-            return None;
-        }
+        let (first, second) = self.extract_consecutive_pair(groups)?;
         Some(format!("{}-{}", first * 10, second * 10))
     }
 
     fn convert_teen_age_range(&self, groups: &[&str]) -> Option<String> {
-        if groups.len() < 2 { return None; }
-        let first = 10 + self.get_number(groups[0].chars().next()?)?;
-        let second = 10 + self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 {
-            return None;
-        }
-        Some(format!("{}-{}", first, second))
+        let (base_first, _) = self.extract_consecutive_pair(groups)?;
+        let first = 10 + base_first;
+        Some(format!("{}-{}", first, first + 1))
     }
 
     fn convert_tens_based_range(&self, groups: &[&str]) -> Option<String> {
         if groups.len() < 3 { return None; }
         let tens = self.get_number(groups[0].chars().next()?)? * 10;
-        let first = tens + self.get_number(groups[1].chars().next()?)?;
-        let second = tens + self.get_number(groups[2].chars().next()?)?;
-        if second != first + 1 {
-            return None;
-        }
-        Some(format!("{}-{}", first, second))
+        let (base_first, base_second) = self.extract_consecutive_pair(&groups[1..])?;
+        Some(format!("{}-{}", tens + base_first, tens + base_second))
     }
 
     fn convert_hundreds_with_zero(&self, groups: &[&str]) -> Option<String> {
