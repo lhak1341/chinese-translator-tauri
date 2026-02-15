@@ -272,16 +272,19 @@ impl DictionaryCache {
     /// (holding only access_order), then the cache lock is taken once to check the condition
     /// freshly, evict if still necessary, and insert — all atomically.
     pub fn set(&self, key: String, value: serde_json::Value) {
-        // Step 1: Find the LRU candidate while holding only access_order (no cache lock).
-        // This read may become stale by the time we act on it, but the consequence is at
-        // worst a harmless redundant eviction or a missed eviction corrected next call.
-        let lru_key_to_evict: Option<String> = if let Ok(access_order) = self.access_order.lock() {
-            access_order
+        // Step 1: Collect all LRU candidates sorted oldest-first while holding only access_order.
+        // Keeping the full sorted list (rather than just the minimum) means the eviction loop
+        // below can skip stale candidates and still remove the true LRU entry, eliminating the
+        // need for a random-key fallback in the common concurrent-access case.
+        let lru_candidates: Vec<String> = if let Ok(access_order) = self.access_order.lock() {
+            let mut entries: Vec<(String, u64)> = access_order
                 .iter()
-                .min_by_key(|(_, &timestamp)| timestamp)
-                .map(|(k, _)| k.clone())
+                .map(|(k, &v)| (k.clone(), v))
+                .collect();
+            entries.sort_by_key(|(_, ts)| *ts); // oldest first
+            entries.into_iter().map(|(k, _)| k).collect()
         } else {
-            None
+            Vec::new()
         };
 
         // Step 2: Acquire the cache lock once, check the eviction condition freshly,
@@ -290,17 +293,22 @@ impl DictionaryCache {
             Ok(mut cache) => {
                 // Re-check eviction condition under the lock (eliminates TOCTOU window)
                 if cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key) {
-                    if let Some(ref lru_key) = lru_key_to_evict {
-                        cache.remove(lru_key);
-                        eprintln!("LRU cache eviction: removed {}", lru_key);
+                    // Try candidates in oldest-first order; stale candidates (already evicted
+                    // from cache but still in access_order) return None from remove() and are
+                    // skipped, so the loop naturally finds the true LRU entry.
+                    let mut evicted = false;
+                    for candidate in &lru_candidates {
+                        if cache.remove(candidate).is_some() {
+                            eprintln!("LRU cache eviction: removed {}", candidate);
+                            evicted = true;
+                            break;
+                        }
                     }
-                    // CODE REVIEW FIX (HIGH-2): lru_key_to_evict may point to a stale key
-                    // that was already evicted from `cache` but not yet from `access_order`.
-                    // In that case cache.remove() above was a no-op and the cache is still full.
-                    // Evict any remaining entry so the insert below never exceeds MAX_CACHE_ENTRIES.
-                    if cache.len() >= MAX_CACHE_ENTRIES {
+                    // Last resort: all access_order candidates were stale (access_order fully
+                    // out of sync with cache). Evict any entry to keep capacity safe.
+                    if !evicted {
                         if let Some(fallback_key) = cache.keys().next().map(|k| k.clone()) {
-                            eprintln!("LRU cache stale-key fallback eviction: removed {}", fallback_key);
+                            eprintln!("LRU cache last-resort eviction: removed {}", fallback_key);
                             cache.remove(&fallback_key);
                         }
                     }
@@ -619,12 +627,7 @@ pub async fn save_dictionary(
     // Invalidate cache for this dictionary
     cache.invalidate(Some(&dictionary_id));
 
-    // Verify the file was written
-    let verify_data: serde_json::Value = serde_json::from_str(
-        &fs::read_to_string(&file_path).map_err(|e| e.to_string())?
-    ).map_err(|e| e.to_string())?;
-
-    Ok(DictionaryResponse::ok_with_data(verify_data))
+    Ok(DictionaryResponse::ok_with_data(data))
 }
 
 #[tauri::command]
@@ -920,7 +923,10 @@ pub async fn import_dictionaries(
         match serde_json::from_str::<serde_json::Value>(&contents) {
             Ok(_) => {
                 let output_path = dictionary_path.join(&filename);
-                fs::write(&output_path, &contents).map_err(|e| e.to_string())?;
+                if let Err(e) = fs::write(&output_path, &contents) {
+                    errors.push(format!("{}: write error: {}", filename, e));
+                    continue;
+                }
                 file_count += 1;
             }
             Err(e) => {

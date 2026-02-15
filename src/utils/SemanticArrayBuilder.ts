@@ -12,7 +12,6 @@
 import { logger } from './logger';
 import { validatePosition } from './PositionValidationHelpers.js';
 import { getFirstGrapheme } from './GraphemeHelper.js';
-import { WasmPositionMapper, isWasmPositionMapperAvailable } from './WasmPositionMapper.js';
 
 /**
  * Semantic metadata for a single translation unit

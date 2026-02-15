@@ -24,11 +24,12 @@ impl PositionMapper {
 
     /// Find position of search_text in the internal text using Boyer-Moore-Horspool
     ///
-    /// Returns: Option<(start_position, end_position)>
+    /// Returns: Option<[char_start, char_end]> as character indices (JS-compatible,
+    /// not byte offsets — one Chinese or Vietnamese char counts as 1, not 3 bytes).
     ///
     /// Arguments:
     /// - search_text: Text to search for
-    /// - start_offset: Where to start searching from
+    /// - start_offset: Character index to start searching from (JS-compatible)
     /// - case_sensitive: Whether to match case
     #[wasm_bindgen]
     pub fn find_position(
@@ -49,10 +50,22 @@ impl PositionMapper {
             search_text.to_lowercase()
         };
 
-        // Use Boyer-Moore-Horspool algorithm
-        let position = self.boyer_moore_horspool(haystack, &needle, start_offset)?;
+        // Convert char-index start_offset to a byte offset for the internal search.
+        // nth() returns None when start_offset is past the end, in which case
+        // we set the byte start to haystack.len() so the search immediately returns None.
+        let byte_start = haystack
+            .char_indices()
+            .nth(start_offset)
+            .map(|(i, _)| i)
+            .unwrap_or(haystack.len());
 
-        Some(vec![position, position + needle.len()])
+        // Use Boyer-Moore-Horspool algorithm (operates on bytes internally)
+        let byte_pos = self.boyer_moore_horspool(haystack, &needle, byte_start)?;
+
+        // Convert byte position to char indices (JS-compatible)
+        let char_start = haystack[..byte_pos].chars().count();
+        let char_end = char_start + needle.chars().count();
+        Some(vec![char_start, char_end])
     }
 
     /// Boyer-Moore-Horspool string search algorithm
@@ -100,8 +113,8 @@ impl PositionMapper {
         None
     }
 
-    /// Find all occurrences of search_text
-    /// Returns array of [start, end] positions
+    /// Find all non-overlapping occurrences of search_text
+    /// Returns flat array of [char_start, char_end, ...] as character indices (JS-compatible)
     #[wasm_bindgen]
     pub fn find_all_positions(
         &self,
@@ -109,14 +122,30 @@ impl PositionMapper {
         case_sensitive: bool,
     ) -> Vec<usize> {
         let mut results = Vec::new();
-        let mut current_offset = 0;
 
-        while let Some(positions) = self.find_position(search_text, current_offset, case_sensitive) {
-            let start = positions[0];
-            let end = positions[1];
-            results.push(start);
-            results.push(end);
-            current_offset = start + 1; // Move past this match
+        let haystack = if case_sensitive {
+            &self.text
+        } else {
+            &self.normalized_text
+        };
+        let needle = if case_sensitive {
+            search_text.to_string()
+        } else {
+            search_text.to_lowercase()
+        };
+
+        let needle_byte_len = needle.len();
+        let needle_char_len = needle.chars().count();
+        let mut current_byte_offset = 0;
+
+        while let Some(byte_pos) = self.boyer_moore_horspool(haystack, &needle, current_byte_offset) {
+            // Convert byte position to char indices (JS-compatible)
+            let char_start = haystack[..byte_pos].chars().count();
+            let char_end = char_start + needle_char_len;
+            results.push(char_start);
+            results.push(char_end);
+            // Advance past the full match in byte space (non-overlapping, multi-byte-safe)
+            current_byte_offset = byte_pos + needle_byte_len;
         }
 
         results
@@ -128,10 +157,10 @@ impl PositionMapper {
         self.text.clone()
     }
 
-    /// Get text length
+    /// Get text length as character count (JS-compatible; not byte count)
     #[wasm_bindgen]
     pub fn length(&self) -> usize {
-        self.text.len()
+        self.text.chars().count()
     }
 }
 
@@ -177,14 +206,33 @@ mod tests {
     #[test]
     fn test_chinese_text() {
         let mapper = PositionMapper::new("你好世界，你好中国".to_string());
+        // "你好" starts at char 0, ends at char 2 (not byte 0..6)
         let result = mapper.find_position("你好", 0, true);
-        assert!(result.is_some());
+        assert_eq!(result, Some(vec![0, 2]));
+    }
+
+    #[test]
+    fn test_chinese_text_second_occurrence() {
+        let mapper = PositionMapper::new("你好世界，你好中国".to_string());
+        // "你好" appears again at char index 5 (after 你好世界，)
+        let results = mapper.find_all_positions("你好", true);
+        assert_eq!(results, vec![0, 2, 5, 7]);
     }
 
     #[test]
     fn test_vietnamese_text() {
+        // "thế" starts at char 9 in "Xin chào thế giới" (X=0 i=1 n=2 ' '=3 c=4 h=5 à=6 o=7 ' '=8 t=9... wait)
+        // "Xin chào thế giới": X(0)i(1)n(2) (3)c(4)h(5)à(6)o(7) (8)t(9)h(10)ế(11) (12)g(13)i(14)ớ(15)i(16)
+        // "thế giới" starts at char 9
         let mapper = PositionMapper::new("Xin chào thế giới".to_string());
         let result = mapper.find_position("thế giới", 0, true);
-        assert!(result.is_some());
+        assert_eq!(result, Some(vec![9, 17]));
+    }
+
+    #[test]
+    fn test_length_char_count() {
+        // "你好" is 2 chars but 6 bytes — length() must return 2
+        let mapper = PositionMapper::new("你好".to_string());
+        assert_eq!(mapper.length(), 2);
     }
 }

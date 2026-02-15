@@ -122,6 +122,8 @@ The five most likely to cause **silent bugs**:
 - **Rust longest-match loops: use `>=` not `>`**: `if sequence.len() >= longest_length` allows multiple same-length patterns to be tried (last successful converter wins). Using `>` silently drops all but the first matching pattern at a given sequence length.
 - **React stale dep in effects with event subscriptions**: Never list frequently-updating state in a `useEffect` dep array that creates a `setInterval` or calls `addEventListener` — it recreates the subscription on every update (listener churn, brief unresponsive windows). Use `const ref = useRef(state); ref.current = state;` and read `ref.current` inside the callback. Applies to: `wasmStatus` interval (Translator.jsx), `canUndo`/`canRedo` keydown listener (useHotkeyHandler.ts).
 - **`DictionaryTable.tsx` / `VirtualizedDictionaryTable.tsx` are deleted** (2026-02-15): Only `EnhancedVirtualizedDictionaryTable` is the active table component. Do not recreate the deleted files.
+- **`WasmPositionMapper` is an incomplete feature** (2026-02-15): Initialized in `App.jsx`, but never instantiated in any production code path. Dead import removed from `SemanticArrayBuilder.ts`. Do not assume WASM position mapping is active; do not add new call sites without intentionally building out the feature.
+- **`grep -E` fails in this shell**: `grep` is aliased to `rg`; `-E` means encoding to rg (not extended regex), so `grep -E "foo|bar"` in Bash pipes errors silently. Use the `Grep` tool or chain single-pattern greps instead.
 - **Single trie implementation in `wasm-core`**: `wasm-core/src/trie.rs::TrieNode` is the only trie node — `dictionary_trie.rs` imports and delegates to it. Do NOT add a second `TrieNode` to `dictionary_trie.rs`. `find_matches` / `find_matches_slice` return longest-first; `find_all_matches` / `find_all_matches_slice` return shortest-first.
 
 ### Essential Commands
@@ -134,7 +136,7 @@ npm run type-check      # TypeScript checking (0 errors expected)
 npm run format          # Format all code
 cargo check --manifest-path src-tauri/Cargo.toml  # Rust type-check (NOT cd + cargo — zoxide breaks it)
 cargo check --manifest-path wasm-core/Cargo.toml   # WASM core (separate crate, run both when touching Rust)
-cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-core tests (96 tests)
+cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-core tests (98 tests)
 ```
 
 ### Key Files
