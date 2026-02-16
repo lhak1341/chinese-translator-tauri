@@ -158,8 +158,9 @@ impl DictionaryEngine {
         let memory_limit_mb = 15;
         
         // Log initialization
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&format!(
-            "🦀 WASM Dictionary Engine initialized (Memory limit: {}MB)", 
+            "🦀 WASM Dictionary Engine initialized (Memory limit: {}MB)",
             memory_limit_mb
         ).into());
         
@@ -175,8 +176,9 @@ impl DictionaryEngine {
     pub fn new_with_config(memory_limit_mb: usize) -> DictionaryEngine {
         console_error_panic_hook::set_once();
         
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&format!(
-            "🦀 WASM Dictionary Engine initialized with custom config (Memory limit: {}MB)", 
+            "🦀 WASM Dictionary Engine initialized with custom config (Memory limit: {}MB)",
             memory_limit_mb
         ).into());
         
@@ -224,7 +226,10 @@ impl DictionaryEngine {
         let entry_count = trie.get_entry_count();
 
         // Create versioned dictionary
+        #[cfg(target_arch = "wasm32")]
         let version_id = js_sys::Date::now() as u64; // Use timestamp as version
+        #[cfg(not(target_arch = "wasm32"))]
+        let version_id = 0u64;
         let version = DictionaryVersion {
             version: version_id,
             timestamp: version_id,
@@ -242,6 +247,7 @@ impl DictionaryEngine {
         
         // Verify we're still within memory limits after loading
         if !self.performance_stats.check_memory_limit() {
+            #[cfg(target_arch = "wasm32")]
             web_sys::console::warn_1(&format!(
                 "⚠️ Memory usage ({:.1}MB) exceeded limit ({:.1}MB) for dictionary '{}'",
                 self.performance_stats.memory_usage_bytes as f64 / (1024.0 * 1024.0),
@@ -252,6 +258,7 @@ impl DictionaryEngine {
         
         self.total_entries += entry_count;
         self.dictionaries.insert(name.to_string(), versioned_dict);
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&format!(
             "📚 Loaded dictionary '{}': {} entries (v{}, {}KB)",
             name,
@@ -287,6 +294,7 @@ impl DictionaryEngine {
         let batch: Vec<BatchDictionary> = serde_wasm_bindgen::from_value(batch_data)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse batch data: {}", e)))?;
 
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&format!(
             "🚀 Batch loading {} dictionaries with {} total entries",
             batch.len(),
@@ -306,6 +314,7 @@ impl DictionaryEngine {
             if self.performance_stats.memory_usage_bytes + estimated_size
                 > self.performance_stats.memory_limit_bytes
             {
+                #[cfg(target_arch = "wasm32")]
                 web_sys::console::warn_1(&format!(
                     "⚠️ Skipping dictionary '{}' - would exceed memory limit (current: {}MB, dict: {}MB, limit: {}MB)",
                     dict.name,
@@ -332,7 +341,10 @@ impl DictionaryEngine {
             }
 
             let entry_count = trie.get_entry_count();
+            #[cfg(target_arch = "wasm32")]
             let version_id = js_sys::Date::now() as u64;
+            #[cfg(not(target_arch = "wasm32"))]
+            let version_id = 0u64;
 
             let version = DictionaryVersion {
                 version: version_id,
@@ -358,12 +370,14 @@ impl DictionaryEngine {
         let success = loaded_count == total_dicts;
 
         if success {
+            #[cfg(target_arch = "wasm32")]
             web_sys::console::log_1(&format!(
                 "✅ Batch loading succeeded: {}/{} dictionaries loaded",
                 loaded_count,
                 total_dicts
             ).into());
         } else {
+            #[cfg(target_arch = "wasm32")]
             web_sys::console::warn_1(&format!(
                 "⚠️ Batch loading partial success: {}/{} dictionaries loaded. Failed: {:?}",
                 loaded_count,
@@ -390,11 +404,13 @@ impl DictionaryEngine {
 
     #[wasm_bindgen]
     pub fn find_matches(&mut self, dictionary_name: &str, text: &str, start_pos: usize) -> JsValue {
+        #[cfg(target_arch = "wasm32")]
         let start_time = js_sys::Date::now();
-        
+
         let matches = match self.dictionaries.get(dictionary_name) {
             Some(versioned_dict) => versioned_dict.trie.find_matches(text, start_pos),
             None => {
+                #[cfg(target_arch = "wasm32")]
                 web_sys::console::warn_1(&format!(
                     "Dictionary '{}' not found",
                     dictionary_name
@@ -402,8 +418,11 @@ impl DictionaryEngine {
                 Vec::new()
             }
         };
-        
+
+        #[cfg(target_arch = "wasm32")]
         let elapsed_ms = js_sys::Date::now() - start_time;
+        #[cfg(not(target_arch = "wasm32"))]
+        let elapsed_ms = 0.0f64;
         self.performance_stats.record_lookup(elapsed_ms);
         
         serde_wasm_bindgen::to_value(&matches).unwrap_or(JsValue::NULL)
@@ -411,11 +430,13 @@ impl DictionaryEngine {
 
     #[wasm_bindgen]
     pub fn find_longest_match(&mut self, dictionary_name: &str, text: &str, start_pos: usize) -> JsValue {
+        #[cfg(target_arch = "wasm32")]
         let start_time = js_sys::Date::now();
-        
+
         let longest_match = match self.dictionaries.get(dictionary_name) {
             Some(versioned_dict) => versioned_dict.trie.find_longest_match(text, start_pos),
             None => {
+                #[cfg(target_arch = "wasm32")]
                 web_sys::console::warn_1(&format!(
                     "Dictionary '{}' not found",
                     dictionary_name
@@ -423,8 +444,11 @@ impl DictionaryEngine {
                 None
             }
         };
-        
+
+        #[cfg(target_arch = "wasm32")]
         let elapsed_ms = js_sys::Date::now() - start_time;
+        #[cfg(not(target_arch = "wasm32"))]
+        let elapsed_ms = 0.0f64;
         self.performance_stats.record_lookup(elapsed_ms);
         
         serde_wasm_bindgen::to_value(&longest_match).unwrap_or(JsValue::NULL)
@@ -459,6 +483,7 @@ impl DictionaryEngine {
         self.dictionaries.clear();
         self.total_entries = 0;
         self.performance_stats.memory_usage_bytes = 0;
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&"🗑️ All dictionaries cleared".into());
     }
 
@@ -487,9 +512,10 @@ impl DictionaryEngine {
                 self.performance_stats.memory_usage_bytes.saturating_sub(old_size);
             self.total_entries = self.total_entries.saturating_sub(old_dict.version.entry_count);
             
+            #[cfg(target_arch = "wasm32")]
             web_sys::console::log_1(&format!(
-                "🗑️ Removed old dictionary '{}' (v{})", 
-                name, 
+                "🗑️ Removed old dictionary '{}' (v{})",
+                name,
                 old_dict.version.version
             ).into());
         }
@@ -538,16 +564,19 @@ impl DictionaryEngine {
 // (cache.rs, dictionary.rs, pattern_*.rs, etc.)
 
 // Rust-side pattern matching profiling functions
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn enable_matcher_profiling() {
     pattern_processor::matcher::enable_matcher_profiling();
 }
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn disable_matcher_profiling() {
     pattern_processor::matcher::disable_matcher_profiling();
 }
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn reset_matcher_profiling() {
     pattern_processor::matcher::reset_matcher_profiling();

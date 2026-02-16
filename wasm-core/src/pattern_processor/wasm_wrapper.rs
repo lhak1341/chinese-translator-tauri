@@ -65,7 +65,9 @@ impl WasmPatternProcessor {
         self.processor = TwoPhasePatternProcessor::new(patterns.clone());
         self.initialized = true;
 
+        #[cfg(target_arch = "wasm32")]
         let stats = self.processor.get_statistics();
+        #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(
             &format!(
                 "✅ WASM Pattern Processor initialized: {} total patterns ({} variable, {} composite-eligible)",

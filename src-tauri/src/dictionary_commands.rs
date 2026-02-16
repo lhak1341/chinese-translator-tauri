@@ -87,6 +87,41 @@ fn validate_file_size(path: &PathBuf, max_size: usize) -> Result<(), String> {
     Ok(())
 }
 
+/// SECURITY: Check JSON nesting depth iteratively to prevent stack overflow.
+///
+/// serde_json's deserializer already enforces a 128-level recursion limit, so by
+/// the time a `serde_json::Value` reaches Tauri command handlers it is bounded.
+/// This check is defense-in-depth for values constructed internally or passed
+/// through paths that bypass deserialization.  Uses BFS to avoid recursive stack
+/// growth in the checker itself.
+fn check_json_depth(value: &serde_json::Value, max_depth: usize) -> Result<(), String> {
+    use std::collections::VecDeque;
+    let mut queue: VecDeque<(&serde_json::Value, usize)> = VecDeque::new();
+    queue.push_back((value, 0));
+    while let Some((val, depth)) = queue.pop_front() {
+        if depth > max_depth {
+            return Err(format!(
+                "JSON nesting too deep (max: {} levels)",
+                max_depth
+            ));
+        }
+        match val {
+            serde_json::Value::Array(arr) => {
+                for item in arr {
+                    queue.push_back((item, depth + 1));
+                }
+            }
+            serde_json::Value::Object(obj) => {
+                for (_, v) in obj {
+                    queue.push_back((v, depth + 1));
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 /// SECURITY: Sanitize I/O errors to prevent information disclosure
 fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
     match error.kind() {
@@ -291,47 +326,56 @@ impl DictionaryCache {
         // evict if needed, and insert — all within the same critical section to prevent TOCTOU.
         match self.cache.lock() {
             Ok(mut cache) => {
-                // Re-check eviction condition under the lock (eliminates TOCTOU window)
+                // Re-check eviction condition under the lock (eliminates TOCTOU window).
+                // Declared outside the if-block so access_order cleanup below can use it.
+                let mut evicted_key: Option<String> = None;
                 if cache.len() >= MAX_CACHE_ENTRIES && !cache.contains_key(&key) {
                     // Try candidates in oldest-first order; stale candidates (already evicted
                     // from cache but still in access_order) return None from remove() and are
                     // skipped, so the loop naturally finds the true LRU entry.
-                    let mut evicted = false;
                     for candidate in &lru_candidates {
                         if cache.remove(candidate).is_some() {
                             eprintln!("LRU cache eviction: removed {}", candidate);
-                            evicted = true;
+                            evicted_key = Some(candidate.clone());
                             break;
                         }
                     }
                     // Last resort: all access_order candidates were stale (access_order fully
                     // out of sync with cache). Evict any entry to keep capacity safe.
-                    if !evicted {
+                    if evicted_key.is_none() {
                         if let Some(fallback_key) = cache.keys().next().map(|k| k.clone()) {
                             eprintln!("LRU cache last-resort eviction: removed {}", fallback_key);
                             cache.remove(&fallback_key);
+                            evicted_key = Some(fallback_key);
                         }
                     }
                 }
 
                 cache.insert(key.clone(), value);
 
-                // Update access time (separate lock to avoid holding both)
-                drop(cache); // Explicitly drop cache lock before locking access_order
+                // Update access time and clean up the evicted key's phantom entry.
+                // The cache lock is dropped first so acquiring access_order is safe
+                // (no nested lock, no deadlock risk).
+                drop(cache);
                 if let Ok(mut access_order) = self.access_order.lock() {
                     access_order.insert(key.clone(), now_ms());
 
-                    // NOTE: Skipping cleanup here to avoid nested mutex lock (deadlock risk).
-                    // Cleanup happens in invalidate() and is not critical for correctness.
-                    // Worst case: a few stale entries in access_order that don't exist in cache.
-                    // CODE REVIEW NOTE (MEDIUM-2): There is also a known benign race between
-                    // get() updating access_order and a concurrent set() reading it.  Between
-                    // releasing the cache lock in get() and acquiring access_order, a set() on
-                    // the same key could evict it; the subsequent access_order update in get()
-                    // then creates a phantom "recently accessed" entry for an evicted key.
-                    // With MAX_CACHE_ENTRIES = 5 this is self-correcting on the next invalidate()
-                    // and has no impact on correctness or capacity safety (HIGH-2 fix above
-                    // ensures we never exceed MAX_CACHE_ENTRIES even with stale candidates).
+                    // Remove the evicted key's phantom entry.  Without this, access_order
+                    // accumulates one stale entry per eviction and grows without bound across
+                    // a session that switches dictionaries (MAX_CACHE_ENTRIES=5 means every
+                    // set() on a new key triggers an eviction).  The cache lock is already
+                    // released above so this is a single-lock operation with no deadlock risk.
+                    if let Some(evicted) = evicted_key {
+                        access_order.remove(&evicted);
+                    }
+
+                    // CODE REVIEW NOTE (MEDIUM-2): There is a benign race between get()
+                    // updating access_order and a concurrent set() reading it.  Between
+                    // releasing the cache lock in get() and acquiring access_order, a set()
+                    // on the same key could evict it; the subsequent access_order update in
+                    // get() creates a phantom entry for an evicted key.  This is bounded to
+                    // at most one phantom entry per concurrent get/set pair and resolves on
+                    // the next eviction cycle, so it has no correctness or capacity impact.
                 }
             }
             Err(poisoned) => {
@@ -658,6 +702,21 @@ pub async fn load_dictionary(
             let data: serde_json::Value = serde_json::from_str(&contents)
                 .map_err(|e| format!("Invalid JSON format: {}", e))?;
 
+            // SECURITY: Enforce entry-count cap on load, not just on save.
+            // A file written externally or imported from a ZIP could contain more
+            // entries than MAX_DICTIONARY_ENTRIES without hitting save_dictionary's
+            // guard, causing unbounded trie memory growth.
+            if let Some(obj) = data.as_object() {
+                if obj.len() > MAX_DICTIONARY_ENTRIES {
+                    return Err(format!(
+                        "Dictionary '{}' has too many entries ({}, max: {})",
+                        dictionary_id,
+                        obj.len(),
+                        MAX_DICTIONARY_ENTRIES
+                    ));
+                }
+            }
+
             // Cache the result
             cache.set(cache_key, data.clone());
 
@@ -699,6 +758,12 @@ fn save_json_file(
     path: &PathBuf,
     data: &serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
+    // SECURITY: Check nesting depth before serializing. serde_json::to_string_pretty
+    // operates on an already-deserialized Value (heap-allocated), so stack overflow
+    // during serialization is not the primary risk — but pathological nesting can
+    // cause unbounded recursion in the Rust drop path for deeply-nested Values.
+    // Config data should never exceed a few levels deep.
+    check_json_depth(data, 50)?;
     let json_string = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
     // SECURITY: Mirror the size check in save_dictionary (line 607) — defend-in-depth
     // against a malicious or buggy frontend payload bloating config files on disk.
@@ -810,6 +875,14 @@ pub async fn export_dictionaries(
             let path = entry.path();
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("json") {
                 let file_name = path.file_name()?.to_str()?.to_string();
+                // SECURITY: Validate the filename before embedding it in the ZIP entry name.
+                // A filename containing path separators (e.g. "../evil.json") created outside
+                // the app would be embedded verbatim in the export, producing a ZIP that could
+                // be used to traverse paths in other tools.  Import already validates on its
+                // side, but the export should not produce corrupt/dangerous ZIPs regardless.
+                // strip_suffix avoids the over-stripping hazard of trim_end_matches(".json").
+                let base_name = file_name.strip_suffix(".json").unwrap_or(&file_name);
+                validate_dictionary_id(base_name).ok()?;
                 validate_file_size(&path, MAX_JSON_SIZE_BYTES).ok()?;
                 let contents = fs::read_to_string(&path).ok()?;
                 Some((file_name, contents))
@@ -865,7 +938,17 @@ pub async fn import_dictionaries(
 
     // Extract each file
     for i in 0..archive.len() {
-        let file = archive.by_index(i).map_err(|e| e.to_string())?;
+        // Use match instead of ? so a single corrupted entry accumulates an error and
+        // continues, consistent with the rest of the loop body.  Using ? here would
+        // abort the whole import, lose progress on already-written files, and skip the
+        // cache.invalidate(None) call below.
+        let file = match archive.by_index(i) {
+            Ok(f) => f,
+            Err(e) => {
+                errors.push(format!("entry {}: read error: {}", i, e));
+                continue;
+            }
+        };
         let filename = file.name().to_string();
 
         // Only process JSON files; exclude .trie.json cache files (consistent with
@@ -1097,6 +1180,23 @@ pub async fn load_dictionaries_parallel(
                 Ok(contents) => {
                     match serde_json::from_str::<serde_json::Value>(&contents) {
                         Ok(data) => {
+                            // SECURITY: Enforce entry-count cap (matches serial load path).
+                            if let Some(obj) = data.as_object() {
+                                if obj.len() > MAX_DICTIONARY_ENTRIES {
+                                    return BatchDictionaryResult {
+                                        dictionary_id: dictionary_id.clone(),
+                                        success: false,
+                                        data: None,
+                                        error: Some(format!(
+                                            "Dictionary '{}' has too many entries ({}, max: {})",
+                                            dictionary_id,
+                                            obj.len(),
+                                            MAX_DICTIONARY_ENTRIES
+                                        )),
+                                    };
+                                }
+                            }
+
                             // Cache the result (thread-safe)
                             cache.set(cache_key, data.clone());
 
