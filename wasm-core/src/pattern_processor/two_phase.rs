@@ -73,11 +73,12 @@ impl PatternProcessingResult {
 
         let original_text: String = matched_tokens.iter().map(|t| t.value.as_str()).collect();
 
-        // Determine translation source based on the source type
+        // Determine translation source based on the source type.
+        // These strings must match the JS PHASE_PRIORITIES table in TranslationEngine.js.
         let translation_source = if source.starts_with("phaseA") {
-            Some("hierarchical_patterns_phaseA".to_string())
+            Some("hierarchical_pattern".to_string())
         } else if source.starts_with("phaseB") {
-            Some("hierarchical_patterns_phaseB".to_string())
+            Some("hierarchical_patterns".to_string())
         } else {
             Some("hierarchical_patterns".to_string())
         };

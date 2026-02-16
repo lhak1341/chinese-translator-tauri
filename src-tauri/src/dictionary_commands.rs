@@ -286,10 +286,23 @@ impl DictionaryCache {
             }
         };
 
-        // Update access time for LRU tracking (if value exists)
+        // Update access time for LRU tracking (if value exists).
+        // Re-check that the key is still in cache before inserting into access_order:
+        // between releasing the cache lock above and acquiring access_order here, a
+        // concurrent set() (e.g. from load_dictionaries_parallel) could evict this key
+        // and remove its access_order entry.  Inserting it back would create a phantom
+        // entry that accumulates with each parallel load cycle.  The extra lock
+        // acquisition is cheap relative to the dictionary-load work happening in parallel.
         if value.is_some() {
-            if let Ok(mut access_order) = self.access_order.lock() {
-                access_order.insert(key.to_string(), now_ms());
+            let still_in_cache = self
+                .cache
+                .lock()
+                .map(|c| c.contains_key(key))
+                .unwrap_or(false);
+            if still_in_cache {
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    access_order.insert(key.to_string(), now_ms());
+                }
             }
         }
 
@@ -1004,7 +1017,18 @@ pub async fn import_dictionaries(
         }
 
         match serde_json::from_str::<serde_json::Value>(&contents) {
-            Ok(_) => {
+            Ok(data) => {
+                // SECURITY: Enforce entry-count cap to prevent oversized dictionaries from
+                // being written to disk and later causing unbounded trie memory growth.
+                if let Some(obj) = data.as_object() {
+                    if obj.len() > MAX_DICTIONARY_ENTRIES {
+                        errors.push(format!(
+                            "{}: dictionary exceeds maximum entry count ({} max, got {})",
+                            filename, MAX_DICTIONARY_ENTRIES, obj.len()
+                        ));
+                        continue;
+                    }
+                }
                 // Use validated base_name (not raw filename from ZIP header) to build the
                 // output path, eliminating the distance between validation and use.
                 let output_path = dictionary_path.join(format!("{}.json", base_name));

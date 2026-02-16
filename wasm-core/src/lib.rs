@@ -684,7 +684,8 @@ pub fn generate_content_hash(text: &str) -> String {
     }
 
     // Convert to base-36 (JavaScript .toString(36) equivalent)
-    let abs_hash = hash.abs() as u32;
+    // wrapping_abs avoids panic on i32::MIN in debug builds
+    let abs_hash = hash.wrapping_abs() as u32;
     base36_encode(abs_hash)
 }
 

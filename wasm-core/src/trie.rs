@@ -143,16 +143,15 @@ impl TrieNode {
     }
 
     pub fn get_entry_count(&self) -> usize {
+        // Iterative BFS/DFS to avoid stack overflow on deep tries (e.g. crafted long keys).
         let mut count = 0;
-
-        if self.is_end_of_word {
-            count += 1;
+        let mut stack: Vec<&TrieNode> = vec![self];
+        while let Some(node) = stack.pop() {
+            if node.is_end_of_word {
+                count += 1;
+            }
+            stack.extend(node.children.values());
         }
-
-        for child in self.children.values() {
-            count += child.get_entry_count();
-        }
-
         count
     }
 
@@ -208,11 +207,15 @@ impl TrieNode {
         (node_count, entry_count, max_depth)
     }
 
-    fn get_stats_recursive(&self, depth: usize, max_depth: &mut usize, node_count: &mut usize) {
-        *node_count += 1;
-        *max_depth = (*max_depth).max(depth);
-        for child in self.children.values() {
-            child.get_stats_recursive(depth + 1, max_depth, node_count);
+    fn get_stats_recursive(&self, _start_depth: usize, max_depth: &mut usize, node_count: &mut usize) {
+        // Iterative DFS with explicit depth tracking to avoid stack overflow on deep tries.
+        let mut stack: Vec<(&TrieNode, usize)> = vec![(self, 0)];
+        while let Some((node, depth)) = stack.pop() {
+            *node_count += 1;
+            *max_depth = (*max_depth).max(depth);
+            for child in node.children.values() {
+                stack.push((child, depth + 1));
+            }
         }
     }
 
