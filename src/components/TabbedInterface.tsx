@@ -51,13 +51,17 @@ const TabbedInterface: React.FC = () => {
   return (
     <div className={styles.container}>
       {/* Navigation Bar */}
-      <nav className={styles.nav}>
+      <nav className={styles.nav} role="tablist" aria-label="Application tabs">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`panel-${tab.id}`}
+              id={`tab-${tab.id}`}
               onClick={() => handleTabChange(tab.id)}
               className={`${styles.tabButton} ${isActive ? styles.tabButtonActive : styles.tabButtonInactive}`}
               title={`Switch to ${tab.label} (Cmd/Ctrl + Shift + ${tab.shortcut})`}
@@ -72,6 +76,9 @@ const TabbedInterface: React.FC = () => {
       {/* Content Area */}
       <div className={styles.content}>
         <div
+          role="tabpanel"
+          id="panel-translator"
+          aria-labelledby="tab-translator"
           className={`${styles.componentWrapper} ${activeTab === 'translator' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
           <ErrorBoundary>
@@ -79,6 +86,9 @@ const TabbedInterface: React.FC = () => {
           </ErrorBoundary>
         </div>
         <div
+          role="tabpanel"
+          id="panel-dictionary"
+          aria-labelledby="tab-dictionary"
           className={`${styles.componentWrapper} ${activeTab === 'dictionary' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
           <DictionaryManager
@@ -87,11 +97,17 @@ const TabbedInterface: React.FC = () => {
           />
         </div>
         <div
+          role="tabpanel"
+          id="panel-configuration"
+          aria-labelledby="tab-configuration"
           className={`${styles.componentWrapper} ${activeTab === 'configuration' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
           <ConfigurationManager />
         </div>
         <div
+          role="tabpanel"
+          id="panel-appearance"
+          aria-labelledby="tab-appearance"
           className={`${styles.componentWrapper} ${styles.componentWrapperScroll} ${activeTab === 'appearance' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
           <AppearanceManager />

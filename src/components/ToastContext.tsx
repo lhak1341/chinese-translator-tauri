@@ -203,7 +203,13 @@ export const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToastInternal();
 
   return (
-    <div className={styles.toastContainer}>
+    <div
+      className={styles.toastContainer}
+      role="region"
+      aria-label="Notifications"
+      aria-live="polite"
+      aria-relevant="additions"
+    >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
       ))}

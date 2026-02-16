@@ -3,8 +3,8 @@
 
 /* Error Banner Styles */
 .errorBanner {
-  background-color: #fef2f2;
-  border-left: 4px solid #dc2626;
+  background-color: var(--error-subtle, #fef2f2);
+  border-left: 4px solid var(--error-color, var(--danger-button-text, #dc2626));
   padding: 1rem;
   margin-bottom: 1rem;
   border-radius: 4px;
@@ -12,8 +12,8 @@
 
 /* CODE REVIEW FIX (CRITICAL-2): Critical warning banner for cache poisoning */
 .criticalWarningBanner {
-  background-color: #fffbeb;
-  border-left: 4px solid #f59e0b;
+  background-color: var(--warning-subtle, #fffbeb);
+  border-left: 4px solid var(--warning-color, #f59e0b);
   padding: 1rem;
   margin-bottom: 1rem;
   border-radius: 4px;
@@ -28,11 +28,11 @@
 }
 
 .errorTitle {
-  color: #dc2626;
+  color: var(--error-color, var(--danger-button-text, #dc2626));
 }
 
 .errorMessage {
-  color: #991b1b;
+  color: var(--danger-button-text, #991b1b);
   margin-bottom: 0.75rem;
 }
 
@@ -42,8 +42,8 @@
 }
 
 .errorButton {
-  background-color: #dc2626;
-  color: white;
+  background-color: var(--danger-button-bg, #dc2626);
+  color: var(--danger-button-text, white);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -52,11 +52,11 @@
 }
 
 .errorButton:hover {
-  background-color: #b91c1c;
+  opacity: 0.85;
 }
 
 .errorButtonSecondary {
-  background-color: #9ca3af;
+  background-color: var(--text-muted, #9ca3af);
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -66,7 +66,7 @@
 }
 
 .errorButtonSecondary:hover {
-  background-color: #6b7280;
+  opacity: 0.85;
 }
 
 /* Container Styles */
@@ -76,16 +76,16 @@
   height: 100%;
   padding: 1rem;
   box-sizing: border-box;
-  background-color: white;
+  background-color: var(--background-color);
 }
 
 /* Stats Container */
 .statsContainer {
   margin-top: 1rem;
   padding: 1rem;
-  background-color: #f9fafb;
+  background-color: var(--secondary-bg, #f9fafb);
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color, #e5e7eb);
 }
 
 .statsGrid {
@@ -96,21 +96,21 @@
 
 .statItem {
   padding: 0.75rem;
-  background-color: white;
+  background-color: var(--background-color, white);
   border-radius: 4px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color, #e5e7eb);
 }
 
 .statLabel {
   font-size: 0.875rem;
-  color: #6b7280;
+  color: var(--text-muted, #6b7280);
   margin-bottom: 0.25rem;
 }
 
 .statValue {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-color, #111827);
 }
 
 /* Text Display Styles */

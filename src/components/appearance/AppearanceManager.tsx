@@ -296,8 +296,11 @@ const AppearanceManager: React.FC = () => {
             <h3 className={styles.sectionTitle}>Chinese Text Box</h3>
             <div className={styles.controlGroup}>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Font:</label>
+                <label htmlFor="ct-font" className={styles.label}>
+                  Font:
+                </label>
                 <input
+                  id="ct-font"
                   type="text"
                   className={styles.input}
                   value={appearance.chineseText.fontFamily}
@@ -318,8 +321,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Size:</label>
+                <label htmlFor="ct-size" className={styles.label}>
+                  Size:
+                </label>
                 <input
+                  id="ct-size"
                   type="text"
                   className={styles.input}
                   value={appearance.chineseText.fontSize}
@@ -340,8 +346,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Letter Spacing:</label>
+                <label htmlFor="ct-spacing" className={styles.label}>
+                  Letter Spacing:
+                </label>
                 <input
+                  id="ct-spacing"
                   type="text"
                   className={styles.input}
                   value={appearance.chineseText.letterSpacing}
@@ -379,8 +388,11 @@ const AppearanceManager: React.FC = () => {
             <h3 className={styles.sectionTitle}>UI Font</h3>
             <div className={styles.controlGroup}>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Font:</label>
+                <label htmlFor="ui-font" className={styles.label}>
+                  Font:
+                </label>
                 <input
+                  id="ui-font"
                   type="text"
                   className={styles.input}
                   value={appearance.uiFont.fontFamily}
@@ -411,8 +423,11 @@ const AppearanceManager: React.FC = () => {
             <h3 className={styles.sectionTitle}>Full Translation Box</h3>
             <div className={styles.controlGroup}>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Font:</label>
+                <label htmlFor="ft-font" className={styles.label}>
+                  Font:
+                </label>
                 <input
+                  id="ft-font"
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.fontFamily}
@@ -433,8 +448,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Size:</label>
+                <label htmlFor="ft-size" className={styles.label}>
+                  Size:
+                </label>
                 <input
+                  id="ft-size"
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.fontSize}
@@ -455,8 +473,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Letter Spacing:</label>
+                <label htmlFor="ft-spacing" className={styles.label}>
+                  Letter Spacing:
+                </label>
                 <input
+                  id="ft-spacing"
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.letterSpacing}
@@ -477,8 +498,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Paragraph Spacing:</label>
+                <label htmlFor="ft-paragraph" className={styles.label}>
+                  Paragraph Spacing:
+                </label>
                 <input
+                  id="ft-paragraph"
                   type="text"
                   className={styles.input}
                   value={appearance.fullTranslation.paragraphSpacing || '1rem'}
@@ -528,8 +552,11 @@ const AppearanceManager: React.FC = () => {
                 </label>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Font:</label>
+                <label htmlFor="co-font" className={styles.label}>
+                  Font:
+                </label>
                 <input
+                  id="co-font"
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.fontFamily}
@@ -552,8 +579,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Size:</label>
+                <label htmlFor="co-size" className={styles.label}>
+                  Size:
+                </label>
                 <input
+                  id="co-size"
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.fontSize}
@@ -576,8 +606,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Letter Spacing:</label>
+                <label htmlFor="co-spacing" className={styles.label}>
+                  Letter Spacing:
+                </label>
                 <input
+                  id="co-spacing"
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.letterSpacing}
@@ -600,8 +633,11 @@ const AppearanceManager: React.FC = () => {
                 </button>
               </div>
               <div className={styles.controlRow}>
-                <label className={styles.label}>Paragraph Spacing:</label>
+                <label htmlFor="co-paragraph" className={styles.label}>
+                  Paragraph Spacing:
+                </label>
                 <input
+                  id="co-paragraph"
                   type="text"
                   className={styles.input}
                   value={appearance.characterOnly.paragraphSpacing || '1rem'}

@@ -459,8 +459,30 @@ const ConfigurationManager: React.FC = () => {
                 {/* Thumb */}
                 <div
                   className={styles.sliderThumb}
+                  role="slider"
+                  aria-label="WASM Memory Limit"
+                  aria-valuenow={wasmMemoryLimit}
+                  aria-valuemin={10}
+                  aria-valuemax={50}
+                  aria-valuetext={`${wasmMemoryLimit}MB`}
+                  tabIndex={0}
                   style={{
                     left: `calc(${((wasmMemoryLimit - 10) / 40) * 100}% - 8px)`,
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      handleMemoryLimitChange(Math.min(50, wasmMemoryLimit + 1));
+                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      handleMemoryLimitChange(Math.max(10, wasmMemoryLimit - 1));
+                    } else if (e.key === 'Home') {
+                      e.preventDefault();
+                      handleMemoryLimitChange(10);
+                    } else if (e.key === 'End') {
+                      e.preventDefault();
+                      handleMemoryLimitChange(50);
+                    }
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();

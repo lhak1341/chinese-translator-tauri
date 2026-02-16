@@ -2583,7 +2583,7 @@ const Translator = ({ isActive = true }) => {
 
       {/* CRITICAL-3 FIX: Show initialization error banner */}
       {initializationError && (
-        <div className={styles.errorBanner}>
+        <div className={styles.errorBanner} role="alert">
           <div className={styles.errorHeader}>
             <strong className={styles.errorTitle}>⚠️ Translation Engine Error</strong>
           </div>
@@ -2604,7 +2604,7 @@ const Translator = ({ isActive = true }) => {
 
       {/* CODE REVIEW FIX (CRITICAL-2): Show cache poisoning warning banner */}
       {cachePoisoningDetected && (
-        <div className={styles.criticalWarningBanner}>
+        <div className={styles.criticalWarningBanner} role="alert">
           <div className={styles.errorHeader}>
             <strong className={styles.errorTitle}>🚨 Critical: Dictionary Cache Corruption</strong>
           </div>

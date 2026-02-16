@@ -27,7 +27,6 @@
   flex-direction: column;
   max-height: calc(100vh - 2rem);
   overflow: hidden;
-  text-align: center;
 }
 
 .header {
@@ -42,23 +41,27 @@
 }
 
 .formContainer {
-  padding: 20px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .formGroup {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
 .label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.labelCentered {
+  text-align: center;
 }
 
 .input {
@@ -122,9 +125,29 @@
 .utilityActions {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: 0.375rem;
   flex-wrap: wrap;
-  justify-content: center;
+}
+
+.utilityGroup {
+  flex: 1;
+  display: flex;
+  gap: 0.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem 0.3rem;
+  margin: 0;
+}
+
+.utilityGroup .utilityButton {
+  flex: 1;
+}
+
+.utilityGroupLegend {
+  font-size: 0.65rem;
+  color: var(--text-muted, #6b7280);
+  padding: 0 0.25rem;
+  line-height: 1;
 }
 
 .utilityButton {
@@ -137,6 +160,7 @@
   cursor: pointer;
   min-height: auto;
   font-family: monospace;
+  white-space: nowrap;
 }
 
 .utilityButton:disabled {

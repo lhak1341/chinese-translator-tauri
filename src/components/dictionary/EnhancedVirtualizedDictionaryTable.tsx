@@ -2472,6 +2472,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       style={{ cursor: 'pointer' }}
                       title="Select all"
+                      aria-label="Select all entries"
                     />
                   </div>
                   <div
@@ -2539,6 +2540,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       style={{ cursor: 'pointer' }}
                       title="Select all"
+                      aria-label="Select all entries"
                     />
                   </div>
                   <div
@@ -2593,6 +2595,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       style={{ cursor: 'pointer' }}
                       title="Select all"
+                      aria-label="Select all entries"
                     />
                   </div>
                   <div
@@ -2646,6 +2649,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       onChange={(e) => handleSelectAll(e.target.checked)}
                       style={{ cursor: 'pointer' }}
                       title="Select all"
+                      aria-label="Select all entries"
                     />
                   </div>
                   <div
@@ -2762,21 +2766,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           <button
             role="menuitem"
             onClick={handleContextMenuEdit}
-            style={{
-              width: '100%',
-              padding: '0.75rem 1rem',
-              border: 'none',
-              background: 'none',
-              textAlign: 'left',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.875rem',
-              color: 'var(--text-color)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--secondary-bg)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            className={styles.contextMenuItem}
           >
             <Edit2 size={14} />
             <span>Edit Entry</span>
@@ -2785,21 +2775,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           <button
             role="menuitem"
             onClick={handleContextMenuMove}
-            style={{
-              width: '100%',
-              padding: '0.75rem 1rem',
-              border: 'none',
-              background: 'none',
-              textAlign: 'left',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.875rem',
-              color: 'var(--text-color)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--secondary-bg)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            className={styles.contextMenuItem}
           >
             <ChevronsUp size={14} />
             <span>Move to...</span>
@@ -2816,21 +2792,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           <button
             role="menuitem"
             onClick={handleContextMenuDelete}
-            style={{
-              width: '100%',
-              padding: '0.75rem 1rem',
-              border: 'none',
-              background: 'none',
-              textAlign: 'left',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              fontSize: '0.875rem',
-              color: 'var(--danger-button-text)',
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+            className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
           >
             <Trash2 size={14} />
             <span>Delete Entry</span>

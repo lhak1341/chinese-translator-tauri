@@ -109,8 +109,8 @@ export default function TranslatorControls({
       {/* Add Entry */}
       <button
         onClick={handleQuickAddProperNoun}
-        title="Quick Add Entry (Cmd/Ctrl + 1-5)"
-        aria-label="Quick add dictionary entry"
+        title="Quick Add Entry (Cmd/Ctrl + 1-5 for specific dictionary types)"
+        aria-label="Quick add proper noun dictionary entry"
         className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonEnabled}`}
       >
         <PlusCircle size={15} aria-hidden="true" />
@@ -141,7 +141,7 @@ export default function TranslatorControls({
 
       {/* Progress or Stats */}
       {progressInfo ? (
-        <div className={styles.progressIndicator}>
+        <div className={styles.progressIndicator} role="status" aria-live="polite">
           <div className={styles.pulseDot} />
           Batch {progressInfo.currentBatch}/{progressInfo.totalBatches}
         </div>

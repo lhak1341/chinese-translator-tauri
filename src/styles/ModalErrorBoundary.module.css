@@ -14,7 +14,7 @@
 }
 
 .errorCard {
-  background-color: white;
+  background-color: var(--background-color, white);
   border-radius: 8px;
   padding: 2rem;
   max-width: 500px;
@@ -22,7 +22,7 @@
 }
 
 .title {
-  color: #dc2626;
+  color: var(--error-color, var(--danger-button-text, #dc2626));
   margin-top: 0;
   font-size: 1.25rem;
   font-weight: bold;
@@ -30,7 +30,7 @@
 }
 
 .description {
-  color: #4b5563;
+  color: var(--text-muted, #4b5563);
   margin-bottom: 1.5rem;
   line-height: 1.6;
 }
@@ -42,7 +42,7 @@
 
 .tryAgainButton {
   padding: 0.5rem 1rem;
-  background-color: #3b82f6;
+  background-color: var(--primary-color, #3b82f6);
   color: white;
   border: none;
   border-radius: 4px;
@@ -51,12 +51,12 @@
 }
 
 .tryAgainButton:hover {
-  background-color: #2563eb;
+  background-color: var(--primary-hover-color, #2563eb);
 }
 
 .closeButton {
   padding: 0.5rem 1rem;
-  background-color: #6b7280;
+  background-color: var(--text-muted, #6b7280);
   color: white;
   border: none;
   border-radius: 4px;
@@ -65,5 +65,5 @@
 }
 
 .closeButton:hover {
-  background-color: #4b5563;
+  opacity: 0.85;
 }

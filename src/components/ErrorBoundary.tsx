@@ -152,8 +152,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               <strong>💡 Troubleshooting tips:</strong>
               <ul className={styles.troubleshootingList}>
                 <li>Try clicking "Reload Dictionary" button (Cmd/Ctrl+R) to clear caches</li>
-                <li>Check the browser console for more detailed error information</li>
-                <li>If the error persists, try clearing browser cache and restarting</li>
+                <li>Check the developer console (View → Developer Tools) for more detail</li>
+                <li>If the error persists, try restarting the application</li>
               </ul>
             </div>
           </div>

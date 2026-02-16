@@ -419,3 +419,34 @@
 .patternVariable {
   font-weight: 700;
 }
+
+/* Context Menu Items */
+.contextMenuItem {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-color);
+}
+
+.contextMenuItem:hover,
+.contextMenuItem:focus-visible {
+  background-color: var(--secondary-bg);
+  outline: none;
+}
+
+.contextMenuItemDanger {
+  color: var(--danger-button-text);
+}
+
+.contextMenuItemDanger:hover,
+.contextMenuItemDanger:focus-visible {
+  background-color: rgba(239, 68, 68, 0.1);
+  outline: none;
+}

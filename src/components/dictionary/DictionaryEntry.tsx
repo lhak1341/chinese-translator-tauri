@@ -596,16 +596,30 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
   return (
     <div className={styles.overlay} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dict-entry-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && !isSaving) onClose();
+        }}
+      >
         <div className={styles.header}>
-          <h2 className={styles.title}>{entry ? 'Edit Entry' : 'Quick New Entry'}</h2>
+          <h2 id="dict-entry-dialog-title" className={styles.title}>
+            {entry ? 'Edit Entry' : 'Quick New Entry'}
+          </h2>
         </div>
 
         <form onSubmit={handleSubmit} className={styles.formContainer}>
           {allowDictionarySelection && (
             <div className={styles.formGroup}>
-              <label className={styles.label}>Dictionary</label>
+              <label htmlFor="entry-dictionary" className={styles.label}>
+                Dictionary
+              </label>
               <select
+                id="entry-dictionary"
                 value={activeDictionary}
                 onChange={handleDictionaryChange}
                 className={`${styles.input} ${error ? styles.error : ''} ${isSaving ? styles.saving : ''}`}
@@ -620,8 +634,11 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             </div>
           )}
           <div className={styles.formGroup}>
-            <label className={styles.label}>Source Text</label>
+            <label htmlFor="entry-source" className={styles.label}>
+              Source Text
+            </label>
             <input
+              id="entry-source"
               ref={sourceInputRef}
               type="text"
               value={source}
@@ -733,99 +750,12 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.label}>Translation</label>
-
-            {/* Helper buttons: Capitalization and Word Reordering */}
-            <div className={styles.utilityActions}>
-              {/* Capitalization Group */}
-              <button
-                type="button"
-                onClick={handleCapitalizeAll}
-                disabled={isSaving || !translation.trim()}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Capitalize all words (Title Case)"
-              >
-                AAAA
-              </button>
-              <button
-                type="button"
-                onClick={handleCapitalizeExceptLast}
-                disabled={isSaving || !translation.trim()}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Capitalize all words except the last one"
-              >
-                ---a
-              </button>
-              <button
-                type="button"
-                onClick={handleCapitalizeExceptLastTwo}
-                disabled={isSaving || !translation.trim()}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Capitalize all words except the last two"
-              >
-                --aa
-              </button>
-              <button
-                type="button"
-                onClick={handleCapitalizeExceptLastThree}
-                disabled={isSaving || !translation.trim()}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Capitalize all words except the last three"
-              >
-                -aaa
-              </button>
-              <button
-                type="button"
-                onClick={handleLowercaseAll}
-                disabled={isSaving || !translation.trim()}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Lowercase all words"
-              >
-                aaaa
-              </button>
-
-              {/* Separator */}
-              <div className={styles.separator} />
-
-              {/* Word Reordering Group */}
-              <button
-                type="button"
-                onClick={handleMoveLastWordToBeginning}
-                disabled={isSaving || translation.trim().split(' ').length < 2}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Move last word to beginning"
-              >
-                ←1
-              </button>
-              <button
-                type="button"
-                onClick={handleMoveLastTwoWordsToBeginning}
-                disabled={isSaving || translation.trim().split(' ').length < 3}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Move last 2 words to beginning"
-              >
-                ←2
-              </button>
-              <button
-                type="button"
-                onClick={handleMoveLastThreeWordsToBeginning}
-                disabled={isSaving || translation.trim().split(' ').length < 4}
-                tabIndex={-1}
-                className={styles.utilityButton}
-                title="Move last 3 words to beginning"
-              >
-                ←3
-              </button>
-            </div>
+            <label htmlFor="entry-translation" className={styles.label}>
+              Translation
+            </label>
 
             <input
+              id="entry-translation"
               ref={translationInputRef}
               type="text"
               value={translation}
@@ -834,6 +764,99 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               className={`${styles.input} ${error ? styles.error : ''} ${isSaving ? styles.saving : ''}`}
               disabled={isSaving}
             />
+
+            {/* Helper buttons: Capitalization and Word Reordering */}
+            <div className={styles.utilityActions}>
+              {/* Capitalization Group */}
+              <fieldset className={styles.utilityGroup}>
+                <legend className={styles.utilityGroupLegend}>Capitalize</legend>
+                <button
+                  type="button"
+                  onClick={handleCapitalizeAll}
+                  disabled={isSaving || !translation.trim()}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Capitalize all words (Title Case)"
+                >
+                  AAAA
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCapitalizeExceptLast}
+                  disabled={isSaving || !translation.trim()}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Capitalize all words except the last one"
+                >
+                  ---a
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCapitalizeExceptLastTwo}
+                  disabled={isSaving || !translation.trim()}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Capitalize all words except the last two"
+                >
+                  --aa
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCapitalizeExceptLastThree}
+                  disabled={isSaving || !translation.trim()}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Capitalize all words except the last three"
+                >
+                  -aaa
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLowercaseAll}
+                  disabled={isSaving || !translation.trim()}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Lowercase all words"
+                >
+                  aaaa
+                </button>
+              </fieldset>
+
+              {/* Word Reordering Group */}
+              <fieldset className={styles.utilityGroup}>
+                <legend className={styles.utilityGroupLegend}>Move to front</legend>
+                <button
+                  type="button"
+                  onClick={handleMoveLastWordToBeginning}
+                  disabled={isSaving || translation.trim().split(' ').length < 2}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Move last word to beginning"
+                >
+                  ←1
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMoveLastTwoWordsToBeginning}
+                  disabled={isSaving || translation.trim().split(' ').length < 3}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Move last 2 words to beginning"
+                >
+                  ←2
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMoveLastThreeWordsToBeginning}
+                  disabled={isSaving || translation.trim().split(' ').length < 4}
+                  tabIndex={-1}
+                  className={styles.utilityButton}
+                  title="Move last 3 words to beginning"
+                >
+                  ←3
+                </button>
+              </fieldset>
+            </div>
           </div>
 
           {(activeDictionary === 'phrases' || activeDictionary === 'patterns') && (
@@ -875,24 +898,89 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             </div>
           )}
 
-          {/* Semantic type dropdown - for phrases and proper nouns (not patterns — patterns use per-variable constraints instead) */}
+          {/* Semantic type badge picker - for phrases and proper nouns (not patterns — patterns use per-variable constraints instead) */}
           {(activeDictionary === 'phrases' || activeDictionary.startsWith('properNouns')) && (
             <div className={styles.formGroup}>
-              <label className={styles.label}>Semantic Type</label>
-              <select
-                value={semanticType}
-                onChange={(e) => setSemanticType(e.target.value)}
-                disabled={isSaving}
-                className={styles.input}
-                style={{ maxWidth: '200px' }}
+              <label className={`${styles.label} ${styles.labelCentered}`}>Semantic Type</label>
+              <div
+                role="radiogroup"
+                aria-label="Semantic type"
+                style={{
+                  display: 'flex',
+                  gap: '0.4rem',
+                  flexWrap: 'wrap',
+                  justifyContent: 'center',
+                }}
               >
-                <option value="">None</option>
-                {SEMANTIC_TYPE_LIST.map((type) => (
-                  <option key={type} value={type}>
-                    {SEMANTIC_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </select>
+                <span
+                  role="radio"
+                  aria-checked={semanticType === ''}
+                  tabIndex={isSaving ? -1 : 0}
+                  onClick={() => {
+                    if (!isSaving) setSemanticType('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (!isSaving) setSemanticType('');
+                    }
+                  }}
+                  style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    cursor: isSaving ? 'default' : 'pointer',
+                    userSelect: 'none',
+                    background: semanticType === '' ? 'var(--text-muted, #6b7280)' : 'transparent',
+                    color: semanticType === '' ? 'white' : 'var(--text-muted, #6b7280)',
+                    border: '1px solid var(--text-muted, #6b7280)',
+                    opacity: isSaving ? 0.5 : 1,
+                  }}
+                  title="No semantic type"
+                >
+                  None
+                </span>
+                {SEMANTIC_TYPE_LIST.map((type) => {
+                  const isSelected = semanticType === type;
+                  const handleSelect = () => {
+                    if (isSaving) return;
+                    setSemanticType(isSelected ? '' : type);
+                  };
+                  return (
+                    <span
+                      key={type}
+                      role="radio"
+                      aria-checked={isSelected}
+                      tabIndex={isSaving ? -1 : 0}
+                      onClick={handleSelect}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleSelect();
+                        }
+                      }}
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        borderRadius: '4px',
+                        cursor: isSaving ? 'default' : 'pointer',
+                        userSelect: 'none',
+                        background: isSelected ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
+                        color: isSelected ? 'white' : SEMANTIC_TYPE_COLORS[type],
+                        border: `1px solid ${SEMANTIC_TYPE_COLORS[type]}`,
+                        opacity: isSaving ? 0.5 : 1,
+                      }}
+                      title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
+                    >
+                      {SEMANTIC_TYPE_LABELS[type]}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -906,22 +994,32 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {SEMANTIC_TYPE_LIST.map((type) => {
                       const isActive = (allowedVariableTypes[varName] || []).includes(type);
+                      const handleToggle = () => {
+                        if (isSaving) return;
+                        setAllowedVariableTypes((prev) => {
+                          const current = prev[varName] || [];
+                          const next = isActive
+                            ? current.filter((t) => t !== type)
+                            : [...current, type];
+                          if (next.length === 0) {
+                            const { [varName]: _, ...rest } = prev;
+                            return rest;
+                          }
+                          return { ...prev, [varName]: next };
+                        });
+                      };
                       return (
                         <span
                           key={type}
-                          onClick={() => {
-                            if (isSaving) return;
-                            setAllowedVariableTypes((prev) => {
-                              const current = prev[varName] || [];
-                              const next = isActive
-                                ? current.filter((t) => t !== type)
-                                : [...current, type];
-                              if (next.length === 0) {
-                                const { [varName]: _, ...rest } = prev;
-                                return rest;
-                              }
-                              return { ...prev, [varName]: next };
-                            });
+                          role="checkbox"
+                          aria-checked={isActive}
+                          tabIndex={isSaving ? -1 : 0}
+                          onClick={handleToggle}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleToggle();
+                            }
                           }}
                           style={{
                             display: 'inline-block',

@@ -376,7 +376,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         <label
           className={styles.filterLabel}
           title="Show all proper nouns dictionaries, including inactive ones"
-          style={showDuplicatesMode ? { opacity: 0.5 } : {}}
+          style={showDuplicatesMode ? { opacity: 0.5, pointerEvents: 'none' } : {}}
+          aria-disabled={showDuplicatesMode}
         >
           <input
             type="checkbox"
@@ -419,12 +420,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
           {!showDuplicatesMode ? (
             <button
               onClick={() => handleFindDuplicates()}
-              className={styles.button}
-              style={{
-                backgroundColor: '#3b82f6',
-                color: 'white',
-                borderColor: '#3b82f6',
-              }}
+              className={`${styles.button} ${styles.buttonPrimary}`}
               disabled={isLoadingDictionary}
               title="Find entries with same source but different translations across all dictionaries"
             >
@@ -532,26 +528,14 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       </div>
 
       {error && (
-        <div className={styles.error}>
+        <div className={styles.error} role="alert">
           <AlertCircle size={15} />
           {error}
         </div>
       )}
 
       {showDuplicatesMode && duplicateRows.length > 0 && (
-        <div
-          style={{
-            backgroundColor: '#dbeafe',
-            color: '#1e40af',
-            padding: '0.75rem',
-            borderRadius: '0.375rem',
-            marginBottom: '0.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontSize: '0.875rem',
-          }}
-        >
+        <div className={styles.duplicateInfoBanner}>
           <Search size={16} />
           <span>
             Showing <strong>{duplicateRows.length}</strong> duplicate entries from{' '}

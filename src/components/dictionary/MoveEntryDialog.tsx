@@ -206,6 +206,9 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
     <div className={styles.overlay} onClick={isMoving ? undefined : onClose}>
       <div
         className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="move-entry-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         tabIndex={-1}
@@ -213,7 +216,9 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
       >
         {/* Header */}
         <div className={styles.header}>
-          <h2 className={styles.title}>Move Entry</h2>
+          <h2 id="move-entry-dialog-title" className={styles.title}>
+            Move Entry
+          </h2>
           <button
             onClick={onClose}
             disabled={isMoving}
@@ -263,13 +268,16 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
 
           {/* Destination dictionary */}
           <div className={styles.formGroup}>
-            <label className={styles.label}>To:</label>
+            <label htmlFor="move-target-dict" className={styles.label}>
+              To:
+            </label>
             {availableDictionaries.length === 0 ? (
               <div className={styles.emptyState}>
                 No other dictionaries available. Create another dictionary first.
               </div>
             ) : (
               <select
+                id="move-target-dict"
                 value={selectedDictionary}
                 onChange={(e) => setSelectedDictionary(e.target.value)}
                 disabled={isMoving}

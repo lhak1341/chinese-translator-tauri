@@ -130,7 +130,12 @@ export function useHotkeyHandler({
       // optional-chained callbacks (onTabSwitch, onRedo, etc.) would escape without this.
       try {
         const target = event.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+        ) {
           return;
         }
 

@@ -114,6 +114,28 @@
   margin-bottom: 0.5rem;
 }
 
+.buttonPrimary {
+  background-color: var(--primary-color, #3b82f6);
+  color: white;
+  border-color: var(--primary-color, #3b82f6);
+}
+
+.buttonPrimary:hover {
+  opacity: 0.85;
+}
+
+.duplicateInfoBanner {
+  background-color: var(--info-subtle, var(--secondary-bg, #dbeafe));
+  color: var(--info-color, var(--primary-color, #1e40af));
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
 .tableContainer {
   flex: 1;
   min-height: 0;
