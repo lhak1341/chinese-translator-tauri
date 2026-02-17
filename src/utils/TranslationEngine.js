@@ -7946,7 +7946,7 @@ export class TranslationEngine {
         // Post-phase validation — O(n) checks gated to debug builds
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('patterns');
-          validatePhasePriority('patterns', PHASE_PRIORITIES.patterns, tokensBeforePhase1);
+          validatePhasePriority('patterns', 1, tokensBeforePhase1);
         }
         checkSemanticArrayCorruption('patterns');
       } catch (error) {
@@ -8016,7 +8016,7 @@ export class TranslationEngine {
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('properNouns');
-          validatePhasePriority('properNouns', PHASE_PRIORITIES.properNouns, tokensBeforePhase2);
+          validatePhasePriority('properNouns', 2, tokensBeforePhase2);
         }
         checkSemanticArrayCorruption('properNouns');
       } catch (error) {
@@ -8380,7 +8380,7 @@ export class TranslationEngine {
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('numbers');
-          validatePhasePriority('numbers', PHASE_PRIORITIES.numbers, tokensBeforePhase3);
+          validatePhasePriority('numbers', 3, tokensBeforePhase3);
         }
         checkSemanticArrayCorruption('numbers');
 

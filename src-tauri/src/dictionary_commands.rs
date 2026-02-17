@@ -1338,9 +1338,8 @@ pub async fn rename_proper_nouns_dictionary(
                         }
                     }
 
-                    // Save updated config
-                    let json_string = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-                    fs::write(&config_path, json_string).map_err(|e| e.to_string())?;
+                    // Save updated config (via helper to enforce depth + size guards)
+                    save_json_file(&config_path, &config)?;
                 }
             }
             Err(_) => {
