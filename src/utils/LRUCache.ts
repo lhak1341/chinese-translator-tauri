@@ -13,8 +13,6 @@
  * @template V - Value type (defaults to any)
  */
 
-import type { CacheStats } from '../types/CacheTypes';
-
 /**
  * Internal cache statistics structure
  */

@@ -13,7 +13,6 @@
  */
 
 import { SmartMemoryPressureDetector, MemoryPressure } from './MemoryManagementRefinements.js';
-import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import { logger } from './logger';
 
 /**

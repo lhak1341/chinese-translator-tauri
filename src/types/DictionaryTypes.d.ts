@@ -6,33 +6,6 @@
  */
 
 /**
- * Metadata for dictionary entries
- * Used by patterns to control matching behavior and priority
- */
-export interface DictionaryEntryMetadata {
-  /** Whether this entry can be used as a variable in pattern matching */
-  allowAsPatternVariable?: boolean;
-
-  /** Reduce priority by 12 points for pattern competition (same-length conflicts) */
-  lowPriority?: boolean;
-
-  /** Restrict which variable types can use this entry (e.g., {'X': ['proper-noun']}) */
-  allowedVariableTypes?: Record<string, string[]>;
-
-  /** Translation phase that uses this entry (1=pattern, 2=properNoun, 3=number, 4=phrase, 5=character) */
-  phase?: number;
-
-  /** Confidence score for translation quality (0-1) */
-  confidence?: number;
-
-  /** Frequency of usage (for optimization) */
-  frequency?: number;
-
-  /** Additional custom metadata */
-  [key: string]: any;
-}
-
-/**
  * Dictionary entry structure
  * Base format for all dictionary types (patterns, phrases, characters, etc.)
  */
@@ -282,27 +255,6 @@ export interface PatternMatchResult {
 
   /** Reason for match failure */
   failureReason?: string;
-}
-
-/**
- * Dictionary manager configuration
- * Options for initializing DictionaryManager
- */
-export interface DictionaryManagerConfig {
-  /** Enable caching for dictionary lookups */
-  enableCache?: boolean;
-
-  /** Maximum cache size */
-  maxCacheSize?: number;
-
-  /** Dictionaries directory path */
-  dictionariesPath?: string;
-
-  /** Load dictionaries in parallel */
-  parallelLoad?: boolean;
-
-  /** Enable performance tracking */
-  enableProfiling?: boolean;
 }
 
 /**

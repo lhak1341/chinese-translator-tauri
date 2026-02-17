@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     // JavaScript + TypeScript coexistence
-    "allowJs": true,                    // Allow JavaScript files
-    "checkJs": false,                   // Don't type-check JS files yet (gradual migration)
+    "allowJs": true, // Allow JavaScript files
+    "checkJs": false, // Don't type-check JS files yet (gradual migration)
 
     // Module system
     "module": "ESNext",
@@ -24,11 +24,11 @@
     "alwaysStrict": true,
 
     // Additional checks
-    "noUnusedLocals": false,            // Too noisy initially, enable later
-    "noUnusedParameters": false,        // Too noisy initially, enable later
+    "noUnusedLocals": true, // Enforce no unused locals in TypeScript files
+    "noUnusedParameters": false, // Too noisy initially, enable later
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": false,  // Enable later for safer array access
+    "noUncheckedIndexedAccess": false, // Enable later for safer array access
 
     // Path resolution (matches jsconfig.json)
     "baseUrl": ".",
@@ -37,15 +37,15 @@
     },
 
     // Output configuration
-    "noEmit": true,                     // No compilation, just type checking
-    "skipLibCheck": true,               // Skip checking node_modules types
+    "noEmit": true, // No compilation, just type checking
+    "skipLibCheck": true, // Skip checking node_modules types
     "forceConsistentCasingInFileNames": true,
 
     // Advanced options
-    "resolveJsonModule": true,          // Allow importing JSON files
-    "esModuleInterop": true,            // Better CommonJS/ESM interop
+    "resolveJsonModule": true, // Allow importing JSON files
+    "esModuleInterop": true, // Better CommonJS/ESM interop
     "allowSyntheticDefaultImports": true,
-    "isolatedModules": true,            // Each file must be independently transpilable
+    "isolatedModules": true, // Each file must be independently transpilable
 
     // Type acquisition
     "types": ["node", "react", "react-dom"],
@@ -58,18 +58,20 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.d.ts",
-    "src/**/*.js",      // Include JS files for JSDoc type checking
-    "src/**/*.jsx"      // Include JSX files for type checking
+    "src/**/*.js", // Include JS files for JSDoc type checking
+    "src/**/*.jsx" // Include JSX files for type checking
   ],
   "exclude": [
     "node_modules",
     "dist",
     "build",
-    "wasm-core/target",  // Exclude Rust build artifacts
+    "wasm-core/target", // Exclude Rust build artifacts
     "scripts",
     "**/*.spec.ts",
+    "**/*.spec.tsx",
     "**/*.spec.js",
     "**/*.test.ts",
+    "**/*.test.tsx",
     "**/*.test.js"
   ],
 

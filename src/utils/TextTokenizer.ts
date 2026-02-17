@@ -146,38 +146,17 @@ export interface TextAnalysis {
 }
 
 /**
- * Regex patterns for token matching
- */
-interface TokenPatterns {
-  chineseChar: RegExp;
-  latinWord: RegExp;
-  number: RegExp;
-  punctuation: RegExp;
-  whitespace: RegExp;
-}
-
-/**
  * Text Tokenizer class
  *
  * Segments text into meaningful units for optimized translation processing.
  * Handles Chinese characters, Latin words, numbers, punctuation, and whitespace.
  */
 export class TextTokenizer {
-  private patterns: TokenPatterns;
   private tokenRegex: RegExp;
   private wasmTokenizer: WasmTextTokenizer | null = null;
   private wasmInitialized: boolean = false;
 
   constructor() {
-    // Regex patterns for different token types
-    this.patterns = {
-      chineseChar: /[\u4e00-\u9fff]/,
-      latinWord: /[A-Za-z]+/,
-      number: /\d+/,
-      punctuation: /[^\w\s\u4e00-\u9fff]/,
-      whitespace: /\s+/,
-    };
-
     // Compiled regex for efficient matching - capture individual Chinese characters
     this.tokenRegex = new RegExp(
       `([\u4e00-\u9fff])|([A-Za-z]+)|(\\d+)|([^\\w\\s\u4e00-\u9fff]+)|(\\s+)`,

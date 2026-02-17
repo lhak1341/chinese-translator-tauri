@@ -67,8 +67,6 @@ export type LoadingCallback = (state: LoadingState) => void;
  */
 export class DebouncedProgressHandler {
   private delay: number;
-  private pendingUpdate: any;
-  private lastUpdate: number;
   private timeoutId: ReturnType<typeof setTimeout> | null;
   private latestProgressData: ProgressData | null;
   private callbacks: {
@@ -79,8 +77,6 @@ export class DebouncedProgressHandler {
 
   constructor(delay: number = 100) {
     this.delay = delay;
-    this.pendingUpdate = null;
-    this.lastUpdate = 0;
     this.timeoutId = null;
 
     // Store latest progress data
@@ -146,7 +142,6 @@ export class DebouncedProgressHandler {
       this.callbacks.semanticArrays(data.semanticArrays);
     }
 
-    this.lastUpdate = performance.now();
     this.timeoutId = null;
   }
 

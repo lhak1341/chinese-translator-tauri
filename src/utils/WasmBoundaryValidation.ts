@@ -27,28 +27,29 @@ export type { WasmToken };
  * @returns Validated token
  * @throws {Error} If token structure is invalid
  */
-export function validateWasmToken(token: any): WasmToken {
+export function validateWasmToken(token: unknown): WasmToken {
   if (!token || typeof token !== 'object') {
     throw new Error(`Invalid token: expected object, got ${typeof token}`);
   }
+  const t = token as Record<string, unknown>;
 
   // Required fields
-  if (typeof token.value !== 'string') {
-    throw new Error(`Invalid token.value: expected string, got ${typeof token.value}`);
+  if (typeof t.value !== 'string') {
+    throw new Error(`Invalid token.value: expected string, got ${typeof t.value}`);
   }
 
   // CRITICAL: Convert undefined to null (Rust Option::None → undefined in JS)
-  const translated = token.translated === undefined ? null : token.translated;
-  const translationSource = token.translationSource === undefined ? null : token.translationSource;
+  const translated = t.translated === undefined ? null : t.translated;
+  const translationSource = t.translationSource === undefined ? null : t.translationSource;
 
   // Validate translated type (must be null or string)
   if (translated !== null && typeof translated !== 'string') {
     logger.warn(`⚠️ Token has invalid translated type: ${typeof translated}, converting to null`);
     return {
-      ...token,
+      ...t,
       translated: null,
       translationSource,
-    };
+    } as WasmToken;
   }
 
   // Validate translationSource type (must be null or string)
@@ -57,17 +58,17 @@ export function validateWasmToken(token: any): WasmToken {
       `⚠️ Token has invalid translationSource type: ${typeof translationSource}, converting to null`
     );
     return {
-      ...token,
+      ...t,
       translated,
       translationSource: null,
-    };
+    } as WasmToken;
   }
 
   return {
-    ...token,
+    ...t,
     translated,
     translationSource,
-  };
+  } as WasmToken;
 }
 
 /**
@@ -79,7 +80,10 @@ export function validateWasmToken(token: any): WasmToken {
  * @returns sourceTokens after applying validated WASM results
  * @throws {Error} If validation fails
  */
-export function copyWasmTokens(sourceTokens: any[], wasmTokens: any[]): any[] {
+export function copyWasmTokens(
+  sourceTokens: Record<string, unknown>[],
+  wasmTokens: unknown[]
+): Record<string, unknown>[] {
   // Phase 1: Validate structure before modifying
   if (!Array.isArray(sourceTokens)) {
     throw new Error('Source tokens must be an array');
@@ -126,46 +130,45 @@ export function copyWasmTokens(sourceTokens: any[], wasmTokens: any[]): any[] {
  * @returns Validated pattern match
  * @throws {Error} If match structure is invalid
  */
-export function validateWasmPatternMatch(match: any): Record<string, unknown> {
+export function validateWasmPatternMatch(match: unknown): Record<string, unknown> {
   if (!match || typeof match !== 'object') {
     throw new Error(`Invalid pattern match: expected object, got ${typeof match}`);
   }
+  const m = match as Record<string, unknown>;
 
   // Required fields
-  if (typeof match.originalText !== 'string') {
+  if (typeof m.originalText !== 'string') {
     throw new Error(
-      `Pattern match missing originalText: expected string, got ${typeof match.originalText}`
+      `Pattern match missing originalText: expected string, got ${typeof m.originalText}`
     );
   }
 
-  if (typeof match.translation !== 'string') {
+  if (typeof m.translation !== 'string') {
     throw new Error(
-      `Pattern match missing translation: expected string, got ${typeof match.translation}`
+      `Pattern match missing translation: expected string, got ${typeof m.translation}`
     );
   }
 
-  if (typeof match.startIndex !== 'number') {
+  if (typeof m.startIndex !== 'number') {
     throw new Error(
-      `Pattern match missing startIndex: expected number, got ${typeof match.startIndex}`
+      `Pattern match missing startIndex: expected number, got ${typeof m.startIndex}`
     );
   }
 
-  if (typeof match.endIndex !== 'number') {
-    throw new Error(
-      `Pattern match missing endIndex: expected number, got ${typeof match.endIndex}`
-    );
+  if (typeof m.endIndex !== 'number') {
+    throw new Error(`Pattern match missing endIndex: expected number, got ${typeof m.endIndex}`);
   }
 
   // Convert undefined to null
   return {
-    originalText: match.originalText,
-    translation: match.translation,
-    startIndex: match.startIndex,
-    endIndex: match.endIndex,
-    pattern: match.pattern === undefined ? null : match.pattern,
-    variables: match.variables === undefined ? null : match.variables,
-    source: match.source || 'pattern',
-    translationSource: match.translationSource === undefined ? null : match.translationSource,
+    originalText: m.originalText,
+    translation: m.translation,
+    startIndex: m.startIndex,
+    endIndex: m.endIndex,
+    pattern: m.pattern === undefined ? null : m.pattern,
+    variables: m.variables === undefined ? null : m.variables,
+    source: m.source || 'pattern',
+    translationSource: m.translationSource === undefined ? null : m.translationSource,
   };
 }
 
@@ -175,37 +178,38 @@ export function validateWasmPatternMatch(match: any): Record<string, unknown> {
  * @returns Validated dictionary match
  * @throws {Error} If match structure is invalid
  */
-export function validateWasmDictionaryMatch(match: any): Record<string, unknown> {
+export function validateWasmDictionaryMatch(match: unknown): Record<string, unknown> {
   if (!match || typeof match !== 'object') {
     throw new Error(`Invalid dictionary match: expected object, got ${typeof match}`);
   }
+  const m = match as Record<string, unknown>;
 
   // Required fields
-  if (typeof match.word !== 'string') {
-    throw new Error(`Dictionary match missing word: expected string, got ${typeof match.word}`);
+  if (typeof m.word !== 'string') {
+    throw new Error(`Dictionary match missing word: expected string, got ${typeof m.word}`);
   }
 
-  if (typeof match.translation !== 'string') {
+  if (typeof m.translation !== 'string') {
     throw new Error(
-      `Dictionary match missing translation: expected string, got ${typeof match.translation}`
+      `Dictionary match missing translation: expected string, got ${typeof m.translation}`
     );
   }
 
   // Infer length from word if not provided
-  const length = typeof match.length === 'number' ? match.length : match.word.length;
+  const length = typeof m.length === 'number' ? m.length : (m.word as string).length;
 
   // Default priority if not provided
-  const priority = typeof match.priority === 'number' ? match.priority : 0;
+  const priority = typeof m.priority === 'number' ? m.priority : 0;
 
   return {
-    word: match.word,
-    translation: match.translation,
-    startPos: match.startPos === undefined ? 0 : match.startPos,
-    endPos: match.endPos === undefined ? match.startPos + length : match.endPos,
+    word: m.word,
+    translation: m.translation,
+    startPos: m.startPos === undefined ? 0 : m.startPos,
+    endPos: m.endPos === undefined ? ((m.startPos as number) ?? 0) + length : m.endPos,
     length,
     priority,
-    metadata: match.metadata === undefined ? null : match.metadata,
-    dictionary: match.dictionary || 'unknown',
+    metadata: m.metadata === undefined ? null : m.metadata,
+    dictionary: m.dictionary || 'unknown',
   };
 }
 
@@ -215,33 +219,32 @@ export function validateWasmDictionaryMatch(match: any): Record<string, unknown>
  * @returns Validated lookup match
  * @throws {Error} If match structure is invalid
  */
-export function validateRustLookupMatch(match: any): Record<string, unknown> {
+export function validateRustLookupMatch(match: unknown): Record<string, unknown> {
   if (!match || typeof match !== 'object') {
     throw new Error(`Invalid lookup match: expected object, got ${typeof match}`);
   }
+  const m = match as Record<string, unknown>;
 
   // Required fields
-  if (typeof match.character !== 'string') {
-    throw new Error(
-      `Lookup match missing character: expected string, got ${typeof match.character}`
-    );
+  if (typeof m.character !== 'string') {
+    throw new Error(`Lookup match missing character: expected string, got ${typeof m.character}`);
   }
 
-  if (typeof match.translation !== 'string') {
+  if (typeof m.translation !== 'string') {
     throw new Error(
-      `Lookup match missing translation: expected string, got ${typeof match.translation}`
+      `Lookup match missing translation: expected string, got ${typeof m.translation}`
     );
   }
 
   // Infer length from character if not provided
-  const length = typeof match.length === 'number' ? match.length : match.character.length;
+  const length = typeof m.length === 'number' ? m.length : (m.character as string).length;
 
   return {
-    character: match.character,
-    translation: match.translation,
+    character: m.character,
+    translation: m.translation,
     length,
-    dictionary: match.dictionary || 'characters',
-    metadata: match.metadata === undefined ? null : match.metadata,
+    dictionary: m.dictionary || 'characters',
+    metadata: m.metadata === undefined ? null : m.metadata,
   };
 }
 

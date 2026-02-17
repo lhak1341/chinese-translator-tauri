@@ -135,14 +135,6 @@ interface CorruptionTelemetryWithState extends CorruptionTelemetry {
   isCurrentlyCorrupted: boolean;
 }
 
-/**
- * Metadata defaults frozen object type
- */
-interface MetadataDefault {
-  readonly source: string;
-  readonly tokenIndex: number;
-}
-
 export class SemanticArrayBuilder {
   private original: string[] = [];
   private translated: string[] = [];
@@ -155,20 +147,7 @@ export class SemanticArrayBuilder {
   // Position tracking (for out-of-order detection)
   private lastPositionSet: number = -1;
 
-  // Metadata object pool (frozen for performance)
-  private readonly metadataDefaults: Readonly<Record<string, Readonly<MetadataDefault>>>;
-
   constructor() {
-    // Metadata object pool for performance optimization
-    // Reuse frozen objects for common metadata patterns to reduce allocations
-    this.metadataDefaults = Object.freeze({
-      phrases: Object.freeze({ source: 'phrases', tokenIndex: -1 }),
-      characters: Object.freeze({ source: 'characters', tokenIndex: -1 }),
-      properNouns: Object.freeze({ source: 'properNouns', tokenIndex: -1 }),
-      patterns: Object.freeze({ source: 'patterns', tokenIndex: -1 }),
-      numbers: Object.freeze({ source: 'numbers', tokenIndex: -1 }),
-    });
-
     // CODE REVIEW FIX (CRITICAL-2): Telemetry for corruption tracking
     this.corruptionTelemetry = {
       totalCorruptions: 0,
@@ -586,13 +565,6 @@ export class SemanticArrayBuilder {
         searchFrom = idx + 1;
       }
     }
-  }
-
-  /**
-   * Escape special regex characters
-   */
-  private escapeRegex(string: string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**

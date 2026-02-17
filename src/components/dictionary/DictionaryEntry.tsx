@@ -9,7 +9,6 @@ import {
   SEMANTIC_TYPE_LABELS,
   SEMANTIC_TYPE_COLORS,
 } from '../../constants/SemanticTypes';
-import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
 import {
   titleCaseWords,

@@ -136,8 +136,6 @@ export class TranslationSegmentCache {
   private cacheKeyPrefix: string;
   private metadataKey: string;
   private _operationLock: Promise<void>;
-  private readonly LOCK_KEY: string;
-  private readonly LOCK_TIMEOUT: number;
   private stats: CacheStatistics;
   private metadata: CacheMetadataStructure;
   private metadataKeySet: Set<string>;
@@ -161,8 +159,6 @@ export class TranslationSegmentCache {
     // Prevents cache metadata corruption from concurrent translations
     // Without this: Translation A and B both read metadata → A writes → B overwrites → A's entry orphaned
     this._operationLock = Promise.resolve();
-    this.LOCK_KEY = `${this.cacheKeyPrefix}lock`;
-    this.LOCK_TIMEOUT = 5000; // 5 second timeout to prevent deadlock
 
     // Performance tracking
     this.stats = {

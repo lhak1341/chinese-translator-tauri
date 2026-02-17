@@ -26,9 +26,6 @@ import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { translationSegmentCache } from '../utils/TranslationSegmentCache.js';
 import { batchLog } from '../utils/BatchLogger.js';
-import { debugObjectPool } from '../utils/DebugObjectPool.js';
-import { adaptiveChunker } from '../utils/AdaptiveChunker.js';
-import { globalPerformanceMonitor } from '../utils/PerformanceMonitor.js';
 import { systemPerformanceMonitor } from '../utils/ProactivePerformanceDetector.js';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/UIResponsiveness.js';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
@@ -40,7 +37,6 @@ import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
 } from '../reducers/highlightingReducer.js';
-import { buildPositionMappings } from '../utils/PositionMappingBuilder.js';
 import { scrollToHighlightedElement } from '../utils/ScrollHelpers';
 import { parallelDictionaryLoader } from '../utils/ParallelDictionaryLoader.js';
 
@@ -86,14 +82,6 @@ import { parallelDictionaryLoader } from '../utils/ParallelDictionaryLoader.js';
 // Purpose: Reducers and pure state transformation functions
 // Extraction Status: ✅ ALL EXTRACTED
 // - highlightingReducer → src/reducers/highlightingReducer.js (68 lines)
-// - buildPositionMappings → src/utils/PositionMappingBuilder.js (146 lines)
-// ============================================================================
-// Total extracted: 214 lines, ~8% file size reduction
-// Benefits:
-// - Better testability (pure functions, easy to unit test)
-// - Reusability across components
-// - Cleaner separation of concerns
-// - Reduced Translator.jsx complexity
 // ============================================================================
 
 // ============================================================================
@@ -219,36 +207,6 @@ const Translator = ({ isActive = true }) => {
       clearHighlighting();
     }
   }, [semanticArrays, clearHighlighting]);
-
-  // Simplified performance monitoring state
-  const [_showAdvancedStats, _setShowAdvancedStats] = useState(false);
-  // performanceStats and regressionHealth now managed by usePerformanceMonitoring hook
-
-  // Advanced stats (only when needed)
-  const [_advancedStats, setAdvancedStats] = useState({
-    // Cache details
-    cacheHits: 0,
-    cacheMisses: 0,
-    cacheSize: 0,
-
-    // Memory pool details
-    poolEnabled: false,
-    poolReuseRate: 0,
-    poolSavedTime: 0,
-    poolWastedMemory: 0,
-
-    // Semantic array details
-    semanticEnabled: false,
-    semanticEfficiency: 0,
-    semanticUnits: 0,
-    semanticRegexHitRate: 0,
-
-    // Performance details
-    totalTime: 0,
-    opsPerSec: 0,
-    minTime: 0,
-    maxTime: 0,
-  });
 
   // New optimized engine
   const engineRef = useRef(null);
@@ -1363,64 +1321,6 @@ const Translator = ({ isActive = true }) => {
   // MEDIUM-1 FIX: Clipboard translation debouncing to prevent double-clicks
   const isClipboardBusy = useRef(false);
 
-  // Optimized performance monitoring with reduced overhead
-  // updatePerformanceStats now provided by usePerformanceMonitoring hook
-
-  /**
-   * Updates all performance statistics (cache, pool, semantic, timing)
-   *
-   * Optimization: Only updates advanced stats when they're visible in UI.
-   * Always updates cache hit rate for simple performance display.
-   *
-   * Gathers metrics from:
-   * - translationSegmentCache: Cache hits/misses/size
-   * - debugObjectPool: Reuse rate, GC reduction, memory stats
-   * - globalPerformanceMonitor: Total time, ops/sec, min/max time
-   *
-   * Called after dictionary reload to show updated statistics.
-   *
-   * @returns {void}
-   */
-  const updateAllStats = useCallback(() => {
-    // Always update cache hit rate for simple display
-    updateCacheHitRate(translationSegmentCache);
-
-    // Only update advanced stats if they're being displayed (performance optimization)
-    if (_showAdvancedStats) {
-      const poolStats = debugObjectPool.getAllStats();
-      const _adaptiveStats = adaptiveChunker.getAdaptationStats();
-      const monitorMetrics = globalPerformanceMonitor.getMetrics();
-
-      setAdvancedStats({
-        cacheHits: cacheStats.hits,
-        cacheMisses: cacheStats.misses,
-        cacheSize: cacheStats.cacheSize,
-
-        poolEnabled: poolStats.enabled,
-        poolReuseRate: poolStats.enabled ? parseFloat(poolStats.summary.overallReuseRate) : 0,
-        poolSavedTime: poolStats.enabled
-          ? parseFloat(poolStats.summary.gcReductionEstimate.replace(/[^0-9.]/g, '')) || 0
-          : 0,
-        poolWastedMemory: 0, // Will be calculated if needed
-
-        semanticEnabled: false, // Will be updated by semantic stats if available
-        semanticEfficiency: 0,
-        semanticUnits: 0,
-        semanticRegexHitRate: 0,
-
-        totalTime: monitorMetrics.totalOperations * monitorMetrics.avgTime,
-        opsPerSec: monitorMetrics.opsPerSecond,
-        minTime: monitorMetrics.minTime,
-        maxTime: monitorMetrics.maxTime,
-      });
-    }
-  }, [_showAdvancedStats, updateCacheHitRate]);
-
-  // Define setSemanticStats if needed for advanced stats
-  const setSemanticStats = () => {
-    // This function exists for compatibility but is not used in the optimized version
-  };
-
   /**
    * Translates Chinese text using character-only mode (individual character dictionary lookups)
    *
@@ -2413,8 +2313,8 @@ const Translator = ({ isActive = true }) => {
                   setCharacterOnlyText(dualResults.characterResult.translatedText);
                   setCharacterOnlySemanticArrays(dualResults.characterResult.semanticArrays);
 
-                  // Update statistics after dictionary reload (optimized)
-                  updateAllStats();
+                  // Update cache hit rate after dictionary reload
+                  updateCacheHitRate(translationSegmentCache);
                 } catch (_optimizedError) {
                   logger.error(
                     '🔄 Optimized reload translation failed, falling back to sequential:',

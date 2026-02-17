@@ -10,18 +10,6 @@ import { logger } from '../../utils/logger';
 import styles from '../../styles/TranslatorDisplayPanels.module.css';
 
 /**
- * Individual semantic unit mapping original to translated text
- */
-interface SemanticUnit {
-  originalStart: number;
-  originalEnd: number;
-  translatedStart: number;
-  translatedEnd: number;
-  originalText: string;
-  translatedText: string;
-}
-
-/**
  * Prebuilt segment for optimized rendering
  */
 interface PrebuiltSegment {

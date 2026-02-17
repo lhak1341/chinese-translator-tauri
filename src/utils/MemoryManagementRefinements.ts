@@ -574,7 +574,7 @@ export class BackgroundCleanupManager {
           const taskStartTime = performance.now();
 
           // Execute the cleanup task
-          const result = task.task();
+          task.task();
 
           const taskDuration = performance.now() - taskStartTime;
 
@@ -848,12 +848,10 @@ export interface ProfilerStats {
  */
 export class ComponentMemoryProfiler {
   private profiles: Map<string, ComponentProfile | ComponentStats>;
-  private globalBaseline: MemorySnapshot | null;
   private samplingEnabled: boolean;
 
   constructor() {
     this.profiles = new Map();
-    this.globalBaseline = null;
     this.samplingEnabled = true;
   }
 

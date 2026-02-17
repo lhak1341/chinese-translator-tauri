@@ -26,7 +26,7 @@
  */
 
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
-import { createTranslationEngine } from '../TranslationEngineFactory.js';
+import { TranslationEngine } from '../TranslationEngine.js';
 
 // SKIP: These tests require WASM and Tauri APIs which aren't available in Node.js CI environment
 // TODO: Move to Playwright for browser-based testing with WASM support
@@ -92,7 +92,11 @@ describe.skip('TranslationEngine - 5-Phase Pipeline Integration', () => {
     };
 
     // Initialize engine with test dictionaries
-    engine = createTranslationEngine();
+    engine = new TranslationEngine({
+      debugLevel: 0,
+      enableMemoryMonitoring: false,
+      enablePerformanceMonitoring: false,
+    });
     await engine.initialize(mockDictionaries, {
       useWasmPatternProcessor: false, // Disable WASM for simpler testing
       useWasmNumberProcessor: false,
