@@ -213,6 +213,7 @@ impl BoundaryOptimizer {
     /// * Processed JavaScript Array
     #[wasm_bindgen(js_name = processTokensZeroCopy)]
     pub fn process_tokens_zero_copy(&mut self, tokens_array: &Array) -> Result<Array, JsValue> {
+        #[cfg(target_arch = "wasm32")]
         let start = js_sys::Date::now();
 
         // Read tokens with zero-copy
@@ -232,7 +233,10 @@ impl BoundaryOptimizer {
         // Write back with zero-copy
         let result = write_tokens_zero_copy(&processed)?;
 
+        #[cfg(target_arch = "wasm32")]
         let elapsed = js_sys::Date::now() - start;
+        #[cfg(not(target_arch = "wasm32"))]
+        let elapsed = 0.0f64;
         self.stats.zero_copy_calls += 1;
         self.stats.total_zero_copy_time += elapsed;
 
@@ -248,6 +252,7 @@ impl BoundaryOptimizer {
     /// * Binary-serialized result
     #[wasm_bindgen(js_name = processTokensBinary)]
     pub fn process_tokens_binary(&mut self, tokens_binary: &[u8]) -> Result<Vec<u8>, JsValue> {
+        #[cfg(target_arch = "wasm32")]
         let start = js_sys::Date::now();
 
         // Deserialize from binary
@@ -269,7 +274,10 @@ impl BoundaryOptimizer {
         let result = serialize_binary(&processed)
             .map_err(|e| JsValue::from_str(&e))?;
 
+        #[cfg(target_arch = "wasm32")]
         let elapsed = js_sys::Date::now() - start;
+        #[cfg(not(target_arch = "wasm32"))]
+        let elapsed = 0.0f64;
         self.stats.binary_calls += 1;
         self.stats.total_binary_time += elapsed;
 
