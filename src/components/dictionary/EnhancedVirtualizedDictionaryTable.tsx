@@ -603,6 +603,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     setContextMenu({ visible: false, x: 0, y: 0, entry: null });
     setIsDeleting(false);
     setIsUpdating(false);
+    // Reset DOM scroll position as well as React state.
+    // Without the DOM reset, a stale browser scrollTop (from the previous
+    // dictionary) can persist even after scrollTop state is zeroed.  The
+    // browser only auto-constrains scrollTop when the new totalHeight is
+    // SMALLER than the old scroll position; when the new list is long enough
+    // to contain the old position the DOM stays put but React renders as
+    // though scrollTop=0 — mismatching offsetY leaves the viewport empty.
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
     setScrollTop(0);
     setPreservedScrollTop(null);
     setIsScrolling(false);
@@ -633,6 +643,18 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       }
     };
   }, [searchTerm]);
+
+  // Reset scroll position when search term changes.
+  // Without this, a stale `scrollTop` state can cause `startIndex` to exceed
+  // `filteredEntries.length`, rendering no rows — the spacer background colour
+  // then looks like "alternating shading stopped".
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+    setScrollTop(0);
+    lastScrollTop.current = 0;
+  }, [debouncedSearchTerm]);
 
   // Remeasure container height when tab becomes active (fixes virtualization on tab switch)
   useEffect(() => {
@@ -828,9 +850,17 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   // Optimized visible range calculation with adaptive buffer
   const visibleRange = useMemo(() => {
     const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
-    const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - bufferSize);
+    // bufferSize can be a non-integer (e.g. 22.5 from the 'medium' tier 1.5× multiplier).
+    // Floor it here so that startIndex, offsetY, and backgroundPositionY are all integers —
+    // a fractional startIndex produces sub-pixel row positioning and a wrong gradient phase.
+    const buffer = Math.floor(bufferSize);
+    // Clamp startIndex to [0, totalItems) so that a stale scrollTop (from before a
+    // search that shrank filteredEntries) never pushes startIndex beyond the list end,
+    // which would make visibleEntries empty and leave the spacer background visible.
+    const rawStart = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - buffer);
+    const startIndex = Math.min(rawStart, Math.max(0, totalItems - 1));
     const visibleCount = Math.ceil(containerHeight / ITEM_HEIGHT);
-    const endIndex = Math.min(totalItems, startIndex + visibleCount + bufferSize * 2);
+    const endIndex = Math.min(totalItems, startIndex + visibleCount + buffer * 2);
 
     return { startIndex, endIndex, visibleCount };
   }, [
@@ -865,11 +895,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       const frameStartTime = performance.now();
       const newScrollTop = e.currentTarget.scrollTop;
       const currentTime = Date.now();
-
-      // Only update if scroll position changed significantly (reduce re-renders)
-      if (Math.abs(newScrollTop - lastScrollTop.current) < 5) {
-        return;
-      }
 
       // Calculate scroll velocity
       const timeDelta = currentTime - lastScrollTime.current;
@@ -1320,13 +1345,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       source: string;
       translation: DictionaryEntryValue;
       _index: number;
-      actualIndex: number;
       isScrolling: boolean;
       isSelected: boolean;
     }
 
     const VirtualRowComponent = React.memo<VirtualRowProps>(
-      ({ source, translation, _index, actualIndex, isScrolling, isSelected }) => {
+      ({ source, translation, _index, isScrolling, isSelected }) => {
         const translationText =
           typeof translation === 'string' ? translation : translation.translation;
         const allowAsPatternVariable =
@@ -1524,11 +1548,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 display: 'flex',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
-                backgroundColor: isSelected
-                  ? 'rgba(16, 185, 129, 0.18)'
-                  : actualIndex % 2 === 0
-                    ? 'var(--background-color)'
-                    : 'color-mix(in srgb, var(--text-color) 4%, transparent)',
+                backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
                 willChange: isScrolling ? 'transform' : 'auto',
               }}
             >
@@ -1634,11 +1654,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 display: 'flex',
                 alignItems: 'center',
                 borderBottom: '1px solid var(--border-color)',
-                backgroundColor: isSelected
-                  ? 'rgba(16, 185, 129, 0.18)'
-                  : actualIndex % 2 === 0
-                    ? 'var(--background-color)'
-                    : 'color-mix(in srgb, var(--text-color) 4%, transparent)',
+                backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
                 willChange: isScrolling ? 'transform' : 'auto',
               }}
             >
@@ -1754,11 +1770,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               display: 'flex',
               alignItems: 'center',
               borderBottom: '1px solid var(--border-color)',
-              backgroundColor: isSelected
-                ? 'rgba(16, 185, 129, 0.18)'
-                : actualIndex % 2 === 0
-                  ? 'var(--background-color)'
-                  : 'color-mix(in srgb, var(--text-color) 4%, transparent)',
+              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
               willChange: isScrolling ? 'transform' : 'auto',
             }}
           >
@@ -2694,12 +2706,19 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   willChange: 'transform',
                 }}
               >
-                {/* Visible entries container with transform optimization */}
+                {/* Visible entries container with transform optimization.
+                    The repeating gradient lives here (not on the spacer) so that
+                    transparent rows look through to their DIRECT parent and see the
+                    correct stripe at their slice-local y-coordinate.
+                    backgroundPositionY shifts the gradient phase so that slice-index 0
+                    matches the global parity of startIndex: if startIndex is odd the
+                    first row of the rendered slice should show the odd stripe. */}
                 <div
                   style={{
                     transform: `translateY(${offsetY}px)`,
-                    // Optimize compositing during scroll
                     willChange: isScrolling ? 'transform' : 'auto',
+                    backgroundImage: `repeating-linear-gradient(to bottom, var(--background-color) 0px, var(--background-color) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT * 2}px)`,
+                    backgroundPositionY: `${(startIndex % 2) * ITEM_HEIGHT}px`,
                   }}
                 >
                   {visibleEntries.map(([source, translation], index) => {
@@ -2710,7 +2729,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                         source={source}
                         translation={translation}
                         _index={index}
-                        actualIndex={actualIndex}
                         isScrolling={isScrolling}
                         isSelected={selectedEntries.has(source)}
                       />

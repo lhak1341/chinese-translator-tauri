@@ -82,7 +82,7 @@ pub struct DictionaryEngine {
 
 #[derive(Debug, Clone)]
 struct PerformanceStats {
-    total_lookups: u32,
+    total_lookups: u64, // u64 prevents silent wrap-around in long sessions (u32 overflows after ~4B lookups)
     total_time_ms: f64,
     memory_usage_bytes: usize,
     memory_limit_bytes: usize,
@@ -196,6 +196,17 @@ impl DictionaryEngine {
         let entries: Vec<DictionaryEntry> = serde_wasm_bindgen::from_value(entries)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse dictionary entries: {}", e)))?;
         
+        // SECURITY: Entry-count cap — mirrors the Tauri backend limit.
+        // The backend enforces this before sending data to JS, but the WASM engine
+        // is callable directly from JS (dev tools, tests), so we defend here too.
+        const MAX_ENTRIES: usize = 50_000;
+        if entries.len() > MAX_ENTRIES {
+            return Err(JsValue::from_str(&format!(
+                "Dictionary '{}' too large: {} entries (max: {})",
+                name, entries.len(), MAX_ENTRIES
+            )));
+        }
+
         // Check memory limit before loading
         let estimated_size = self.estimate_dictionary_size(&entries);
         if estimated_size > self.memory_limit_mb * 1024 * 1024 {
@@ -306,7 +317,19 @@ impl DictionaryEngine {
 
         // Load each dictionary sequentially
         // Note: We do sequential loading inside the batch to maintain memory limits
+        const MAX_ENTRIES: usize = 50_000;
         for dict in &batch {
+            // SECURITY: Entry-count cap (same limit as Tauri backend and load_dictionary).
+            if dict.entries.len() > MAX_ENTRIES {
+                #[cfg(target_arch = "wasm32")]
+                web_sys::console::warn_1(&format!(
+                    "⚠️ Skipping dictionary '{}' - too many entries ({} > {})",
+                    dict.name, dict.entries.len(), MAX_ENTRIES
+                ).into());
+                failed_dictionaries.push(dict.name.clone());
+                continue;
+            }
+
             // Estimate total memory requirement
             let estimated_size = self.estimate_dictionary_size(&dict.entries);
 

@@ -141,6 +141,8 @@ The five most likely to cause **silent bugs**:
 - **`EnhancedVirtualizedDictionaryTable` context menu buttons use CSS classes** (2026-02-17): `Edit Entry`, `Move to...`, `Delete Entry` now use `.contextMenuItem` / `.contextMenuItemDanger` from the CSS module with `:hover, :focus-visible` rules. Previously used JS `onMouseEnter`/`onMouseLeave` inline — do not revert.
 - **`validatePhasePriority` must use literal priority numbers**: `PHASE_PRIORITIES` keys are `translationSource` strings (`'pattern'`, `'phrases'`, etc.) — not phase-group labels. `PHASE_PRIORITIES.patterns` / `.properNouns` / `.numbers` are all `undefined`. Always call `validatePhasePriority('phaseName', 1|2|3|4|5, tokens)` with a literal number, never `PHASE_PRIORITIES.*`.
 - **All config.json writes must use `save_json_file()`**: Never write config files directly via `serde_json::to_string_pretty` + `fs::write`. The `save_json_file` helper enforces `check_json_depth(data, 50)` and the 10MB size cap. Applies to any Tauri command that persists config state.
+- **`AdaptiveBufferCalculator` non-integer `bufferSize` corrupts virtual scroll** (`EnhancedVirtualizedDictionaryTable.tsx`): Medium tier returns `visibleItems * 1.5` (e.g. `15 * 1.5 = 22.5`). Subtracting non-integer buffer gives fractional `startIndex`; `1.5 % 2 = 1.5` → `backgroundPositionY = 60px` — wrong phase, stripes misalign mid-row. Always `const buffer = Math.floor(bufferSize)` at the top of `visibleRange` useMemo.
+- **CSS `repeating-linear-gradient` for virtual scroll row shading: put gradient on rows container, NOT spacer** (`EnhancedVirtualizedDictionaryTable.tsx`): CSS `background` uses the element's **layout** y-position, not visual/transformed position — `translateY` is irrelevant. With gradient on the spacer, rows always see it at slice-local y (layout y=0..N), causing parity flips on every scroll. Place gradient on the rows container (direct parent of rows); use `backgroundPositionY: (startIndex % 2) * ITEM_HEIGHT + 'px'` for phase correction; set all row `backgroundColor` to `transparent`.
 
 ### Essential Commands
 
@@ -174,7 +176,7 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 
 ## Testing
 
-**Runner**: Vitest + React Testing Library. **1,267 tests, 51 files** (+ 21 Rust). Run: `npm test -- --run`.
+**Runner**: Vitest + React Testing Library. **1,252 tests, 50 files** (+ 21 Rust). Run: `npm test -- --run`.
 
 **File placement**: Utility tests → `src/utils/__tests__/`. Component tests → `src/components/__tests__/`. Never alongside source files in `src/utils/`.
 

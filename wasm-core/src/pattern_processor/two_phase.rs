@@ -498,7 +498,10 @@ impl TwoPhasePatternProcessor {
                 if phase_b_result.translation.contains(&phase_a_result.translation) {
                     // Hierarchical composition detected!
                     let combined_result = PatternProcessingResult {
-                        original_text: format!("{}{}", phase_a_result.original_text, phase_b_result.original_text),
+                        // Phase A is contained within Phase B (guaranteed by the range
+                        // containment guard above), so Phase B's original_text already
+                        // covers the full span.  Concatenating would duplicate Phase A chars.
+                        original_text: phase_b_result.original_text.clone(),
                         translation: phase_b_result.translation.clone(),
                         pattern: phase_b_result.pattern.clone(),
                         variables: phase_b_result.variables.clone(),

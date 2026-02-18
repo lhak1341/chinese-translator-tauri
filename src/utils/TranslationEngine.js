@@ -8462,7 +8462,7 @@ export class TranslationEngine {
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('phrases');
-          validatePhasePriority('phrases', PHASE_PRIORITIES.phrases, tokensBeforePhase4);
+          validatePhasePriority('phrases', 4, tokensBeforePhase4); // literal per CLAUDE.md — PHASE_PRIORITIES.* is fragile if keys are renamed
         }
         checkSemanticArrayCorruption('phrases');
       } catch (error) {
@@ -8558,7 +8558,7 @@ export class TranslationEngine {
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('characters');
-          validatePhasePriority('characters', PHASE_PRIORITIES.characters, tokensBeforePhase5);
+          validatePhasePriority('characters', 5, tokensBeforePhase5); // literal per CLAUDE.md — PHASE_PRIORITIES.* is fragile if keys are renamed
         }
         checkSemanticArrayCorruption('characters');
       } catch (error) {

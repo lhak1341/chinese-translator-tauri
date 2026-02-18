@@ -989,8 +989,17 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               .filter((v) => source.includes(v))
               .map((varName) => (
                 <div className={styles.formGroup} key={varName}>
-                  <label className={styles.label}>Variable {varName} allowed types</label>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <label className={`${styles.label} ${styles.labelCentered}`}>
+                    Variable {varName} allowed types
+                  </label>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '0.5rem',
+                      flexWrap: 'wrap',
+                      justifyContent: 'center',
+                    }}
+                  >
                     {SEMANTIC_TYPE_LIST.map((type) => {
                       const isActive = (allowedVariableTypes[varName] || []).includes(type);
                       const handleToggle = () => {
@@ -1046,6 +1055,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                         fontSize: '0.75rem',
                         color: 'var(--text-muted)',
                         marginTop: '0.25rem',
+                        textAlign: 'center',
                       }}
                     >
                       No constraints — {varName} matches all variable entries

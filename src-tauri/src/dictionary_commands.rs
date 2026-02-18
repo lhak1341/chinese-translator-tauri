@@ -668,6 +668,9 @@ pub async fn save_dictionary(
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     // Save the data
+    // SECURITY: Depth guard mirrors save_json_file — prevents deeply-nested values
+    // from causing recursive stack growth in the Rust drop path.
+    check_json_depth(&data, 50)?;
     let json_string = serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?;
 
     // SECURITY: Check JSON size before writing
@@ -1020,14 +1023,24 @@ pub async fn import_dictionaries(
             Ok(data) => {
                 // SECURITY: Enforce entry-count cap to prevent oversized dictionaries from
                 // being written to disk and later causing unbounded trie memory growth.
-                if let Some(obj) = data.as_object() {
-                    if obj.len() > MAX_DICTIONARY_ENTRIES {
+                // Explicitly reject non-objects (arrays, scalars) — `if let Some(obj)`
+                // would silently allow them through and skip the entry-count guard.
+                let obj = match data.as_object() {
+                    Some(o) => o,
+                    None => {
                         errors.push(format!(
-                            "{}: dictionary exceeds maximum entry count ({} max, got {})",
-                            filename, MAX_DICTIONARY_ENTRIES, obj.len()
+                            "{}: dictionary must be a JSON object, not array or other type",
+                            filename
                         ));
                         continue;
                     }
+                };
+                if obj.len() > MAX_DICTIONARY_ENTRIES {
+                    errors.push(format!(
+                        "{}: dictionary exceeds maximum entry count ({} max, got {})",
+                        filename, MAX_DICTIONARY_ENTRIES, obj.len()
+                    ));
+                    continue;
                 }
                 // Use validated base_name (not raw filename from ZIP header) to build the
                 // output path, eliminating the distance between validation and use.
