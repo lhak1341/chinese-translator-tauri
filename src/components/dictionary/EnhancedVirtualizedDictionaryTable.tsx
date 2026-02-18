@@ -500,6 +500,560 @@ const SemanticTypeToggleCell: React.FC<{
   );
 };
 
+interface VirtualRowProps {
+  source: string;
+  translation: DictionaryEntryValue;
+  _index: number;
+  isScrolling: boolean;
+  isSelected: boolean;
+  selectedDictionary: string;
+  onUpdateEntry: (
+    dictionaryId: string,
+    oldSource: string,
+    newSource: string,
+    translation: string,
+    metadata?: any
+  ) => Promise<void>;
+  onSelectEntry: (source: string, isSelected: boolean) => void;
+  onContextMenu: (e: React.MouseEvent, source: string, translation: string) => void;
+}
+
+const VirtualRowComponent = React.memo<VirtualRowProps>(
+  ({
+    source,
+    translation,
+    _index,
+    isScrolling,
+    isSelected,
+    selectedDictionary,
+    onUpdateEntry,
+    onSelectEntry,
+    onContextMenu,
+  }) => {
+    const translationText = typeof translation === 'string' ? translation : translation.translation;
+    const allowAsPatternVariable =
+      typeof translation === 'object' && translation.allowAsPatternVariable === true;
+    const lowPriority = typeof translation === 'object' && translation.lowPriority === true;
+    const semanticType = (typeof translation === 'object' && translation.semanticType) || '';
+    const allowedVariableTypes =
+      (typeof translation === 'object' && translation.allowedVariableTypes) || {};
+
+    // State for inline editing
+    const [editingSource, setEditingSource] = React.useState(false);
+    const [editingTranslation, setEditingTranslation] = React.useState(false);
+    const [tempSource, setTempSource] = React.useState(source);
+    const [tempTranslation, setTempTranslation] = React.useState(translationText);
+
+    // Update temp values when props change (after save)
+    React.useEffect(() => {
+      if (!editingSource) setTempSource(source);
+    }, [source, editingSource]);
+
+    React.useEffect(() => {
+      if (!editingTranslation) setTempTranslation(translationText);
+    }, [translationText, editingTranslation]);
+
+    // Builds the base metadata object shared across all metadata-update handlers
+    const buildBaseMetadata = (): any => {
+      const m: any = { allowAsPatternVariable, lowPriority };
+      if (semanticType) m.semanticType = semanticType;
+      if (Object.keys(allowedVariableTypes).length > 0)
+        m.allowedVariableTypes = allowedVariableTypes;
+      return m;
+    };
+
+    // Handle checkbox changes for patterns - preserve scroll position
+    const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
+      try {
+        const metadata = buildBaseMetadata();
+        metadata[field] = value;
+
+        // Use scroll-preserving update function
+        await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
+      } catch (error) {
+        logger.error(`Failed to update ${field}:`, error);
+      }
+    };
+
+    // Toggle a specific type on/off for a variable
+    const handleToggleVariableType = async (varName: string, type: string): Promise<void> => {
+      try {
+        const current = allowedVariableTypes[varName] || [];
+        const newAllowedTypes = { ...allowedVariableTypes };
+        const isActive = current.includes(type);
+
+        if (isActive) {
+          // Remove type
+          const filtered = current.filter((t) => t !== type);
+          if (filtered.length > 0) {
+            newAllowedTypes[varName] = filtered;
+          } else {
+            delete newAllowedTypes[varName];
+          }
+        } else {
+          // Add type
+          newAllowedTypes[varName] = [...current, type];
+        }
+
+        const metadata = buildBaseMetadata();
+        if (Object.keys(newAllowedTypes).length > 0)
+          metadata.allowedVariableTypes = newAllowedTypes;
+        else delete metadata.allowedVariableTypes;
+
+        await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
+      } catch (error) {
+        logger.error(`Failed to toggle variable ${varName} type ${type}:`, error);
+      }
+    };
+
+    // Set semantic type directly (single-select for phrases/proper nouns)
+    const handleSetSemanticType = async (newType: string): Promise<void> => {
+      try {
+        const metadata = buildBaseMetadata();
+        if (newType) metadata.semanticType = newType;
+        else delete metadata.semanticType;
+
+        await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
+      } catch (error) {
+        logger.error('Failed to set semantic type:', error);
+      }
+    };
+
+    // Handle text field changes
+    const handleTextSave = async (field: 'source' | 'translation'): Promise<void> => {
+      try {
+        // Only pass metadata for dictionaries that support it
+        const metadata =
+          selectedDictionary === 'patterns' ||
+          selectedDictionary === 'phrases' ||
+          selectedDictionary.startsWith('properNouns')
+            ? {
+                allowAsPatternVariable,
+                lowPriority,
+                ...(semanticType && { semanticType }),
+                ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
+              }
+            : {};
+
+        if (field === 'source') {
+          if (tempSource !== source && tempSource.trim()) {
+            await onUpdateEntry(
+              selectedDictionary,
+              source,
+              tempSource.trim(),
+              translationText,
+              metadata
+            );
+          }
+          setEditingSource(false);
+        } else if (field === 'translation') {
+          if (tempTranslation !== translationText && tempTranslation.trim()) {
+            await onUpdateEntry(
+              selectedDictionary,
+              source,
+              source,
+              tempTranslation.trim(),
+              metadata
+            );
+          }
+          setEditingTranslation(false);
+        }
+      } catch (error) {
+        logger.error(`Failed to update ${field}:`, error);
+        // Reset to original value on error
+        if (field === 'source') {
+          setTempSource(source);
+          setEditingSource(false);
+        } else {
+          setTempTranslation(translationText);
+          setEditingTranslation(false);
+        }
+      }
+    };
+
+    // Handle text field cancellation
+    const handleTextCancel = (field: 'source' | 'translation'): void => {
+      if (field === 'source') {
+        setTempSource(source);
+        setEditingSource(false);
+      } else {
+        setTempTranslation(translationText);
+        setEditingTranslation(false);
+      }
+    };
+
+    // Handle keyboard events for text editing
+    const handleKeyDown = (
+      e: React.KeyboardEvent<HTMLInputElement>,
+      field: 'source' | 'translation'
+    ): void => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleTextSave(field);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleTextCancel(field);
+      }
+    };
+
+    // Render pattern row: checkbox | source (25%) | translation+badges (55%) | X types (10%) | Y types (10%)
+    if (selectedDictionary === 'patterns') {
+      const hasX = source.includes('X');
+      const hasY = source.includes('Y');
+      return (
+        <div
+          onContextMenu={(e) => onContextMenu(e, source, translationText)}
+          style={{
+            height: ITEM_HEIGHT,
+            display: 'flex',
+            alignItems: 'center',
+            borderBottom: '1px solid var(--border-color)',
+            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+            willChange: isScrolling ? 'transform' : 'auto',
+          }}
+        >
+          {/* Selection Checkbox - 40px */}
+          <div className={styles.checkboxCell}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => onSelectEntry(source, e.target.checked)}
+              className={styles.checkboxInput}
+              title="Select for deletion"
+            />
+          </div>
+
+          {/* Source Text - calc(25% - 20px) with variable highlighting */}
+          <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
+            {editingSource ? (
+              <input
+                type="text"
+                value={tempSource}
+                onChange={(e) => setTempSource(e.target.value)}
+                onBlur={() => handleTextSave('source')}
+                onKeyDown={(e) => handleKeyDown(e, 'source')}
+                autoFocus
+                className={styles.inlineEditInput}
+              />
+            ) : (
+              <span
+                onClick={() => setEditingSource(true)}
+                className={styles.clickableText}
+                title="Click to edit"
+              >
+                {highlightPatternVariables(source)}
+              </span>
+            )}
+          </div>
+
+          {/* Translation - 55% with VAR/LP badges */}
+          <div className={styles.cellEditable} style={{ width: '55%' }}>
+            {editingTranslation ? (
+              <input
+                type="text"
+                value={tempTranslation}
+                onChange={(e) => setTempTranslation(e.target.value)}
+                onBlur={() => handleTextSave('translation')}
+                onKeyDown={(e) => handleKeyDown(e, 'translation')}
+                autoFocus
+                className={styles.inlineEditInput}
+              />
+            ) : (
+              <>
+                <span
+                  onClick={() => setEditingTranslation(true)}
+                  className={styles.clickableText}
+                  title="Click to edit"
+                >
+                  {translationText}
+                </span>
+                <div className={styles.badgeContainer}>
+                  <MetadataBadge
+                    type="variable"
+                    active={allowAsPatternVariable}
+                    onClick={() =>
+                      handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
+                    }
+                  />
+                  <MetadataBadge
+                    type="lowPriority"
+                    active={lowPriority}
+                    onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* X type constraints - 17.5% */}
+          <TypeToggleCell
+            varName="X"
+            hasVariable={hasX}
+            activeTypes={allowedVariableTypes['X'] || []}
+            onToggle={handleToggleVariableType}
+          />
+
+          {/* Y type constraints - 17.5% */}
+          <TypeToggleCell
+            varName="Y"
+            hasVariable={hasY}
+            activeTypes={allowedVariableTypes['Y'] || []}
+            onToggle={handleToggleVariableType}
+          />
+        </div>
+      );
+    }
+
+    // 3-column layout for phrases (with selection + Variable badge)
+    if (selectedDictionary === 'phrases') {
+      return (
+        <div
+          onContextMenu={(e) => onContextMenu(e, source, translationText)}
+          style={{
+            height: ITEM_HEIGHT,
+            display: 'flex',
+            alignItems: 'center',
+            borderBottom: '1px solid var(--border-color)',
+            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+            willChange: isScrolling ? 'transform' : 'auto',
+          }}
+        >
+          {/* Selection Checkbox - 40px */}
+          <div className={styles.checkboxCell}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => onSelectEntry(source, e.target.checked)}
+              className={styles.checkboxInput}
+              title="Select for deletion"
+            />
+          </div>
+
+          {/* Source Text - calc(25% - 20px) */}
+          <div
+            style={{
+              width: 'calc(25% - 20px)',
+              padding: '0.25rem 0.75rem',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {editingSource ? (
+              <input
+                type="text"
+                value={tempSource}
+                onChange={(e) => setTempSource(e.target.value)}
+                onBlur={() => handleTextSave('source')}
+                onKeyDown={(e) => handleKeyDown(e, 'source')}
+                autoFocus
+                className={styles.inlineEditInput}
+              />
+            ) : (
+              <span
+                onClick={() => setEditingSource(true)}
+                className={styles.clickableText}
+                title="Click to edit"
+              >
+                {source}
+              </span>
+            )}
+          </div>
+
+          {/* Translation - calc(63% - 20px) with VAR badge */}
+          <div
+            style={{
+              width: 'calc(63% - 20px)',
+              padding: '0.25rem 0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              overflow: 'hidden',
+            }}
+          >
+            {editingTranslation ? (
+              <input
+                type="text"
+                value={tempTranslation}
+                onChange={(e) => setTempTranslation(e.target.value)}
+                onBlur={() => handleTextSave('translation')}
+                onKeyDown={(e) => handleKeyDown(e, 'translation')}
+                autoFocus
+                className={styles.inlineEditInput}
+              />
+            ) : (
+              <>
+                <span
+                  onClick={() => setEditingTranslation(true)}
+                  className={styles.clickableText}
+                  title="Click to edit"
+                >
+                  {translationText}
+                </span>
+                <div className={styles.badgeContainer}>
+                  <MetadataBadge
+                    type="variable"
+                    active={allowAsPatternVariable}
+                    onClick={() =>
+                      handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Semantic type - 12% (only shown when entry is allowed as pattern variable) */}
+          {allowAsPatternVariable ? (
+            <SemanticTypeToggleCell
+              activeType={semanticType}
+              onSelect={handleSetSemanticType}
+              width="12%"
+            />
+          ) : (
+            <div style={{ width: '12%', minWidth: '12%' }} />
+          )}
+        </div>
+      );
+    }
+
+    // Layout for simple dictionaries (with selection checkbox)
+    const isProperNoun = selectedDictionary.startsWith('properNouns');
+    const sourceWidth = isProperNoun ? 'calc(25% - 20px)' : 'calc(35% - 20px)';
+    const translationWidth = isProperNoun ? 'calc(63% - 20px)' : 'calc(65% - 20px)';
+
+    return (
+      <div
+        onContextMenu={(e) => onContextMenu(e, source, translationText)}
+        style={{
+          height: ITEM_HEIGHT,
+          display: 'flex',
+          alignItems: 'center',
+          borderBottom: '1px solid var(--border-color)',
+          backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+          willChange: isScrolling ? 'transform' : 'auto',
+        }}
+      >
+        {/* Selection Checkbox - 40px */}
+        <div
+          style={{
+            width: '40px',
+            minWidth: '40px',
+            maxWidth: '40px',
+            padding: '0.25rem 0.75rem',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onSelectEntry(source, e.target.checked)}
+            style={{ cursor: 'pointer' }}
+            title="Select for deletion"
+          />
+        </div>
+
+        {/* Source Text */}
+        <div className={styles.cell} style={{ width: sourceWidth }}>
+          {editingSource ? (
+            <input
+              type="text"
+              value={tempSource}
+              onChange={(e) => setTempSource(e.target.value)}
+              onBlur={() => handleTextSave('source')}
+              onKeyDown={(e) => handleKeyDown(e, 'source')}
+              autoFocus
+              style={{
+                width: '100%',
+                border: '1px solid var(--accent-color)',
+                borderRadius: '2px',
+                padding: '2px 4px',
+                fontSize: 'inherit',
+                fontFamily: 'inherit',
+                backgroundColor: 'var(--background-color)',
+                color: 'var(--text-color)',
+              }}
+            />
+          ) : (
+            <span
+              onClick={() => setEditingSource(true)}
+              style={{
+                cursor: 'pointer',
+                display: 'block',
+                width: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title="Click to edit"
+            >
+              {source}
+            </span>
+          )}
+        </div>
+
+        {/* Translation */}
+        <div
+          className={styles.cell}
+          style={{
+            width: translationWidth,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            overflow: 'hidden',
+          }}
+        >
+          {editingTranslation ? (
+            <input
+              type="text"
+              value={tempTranslation}
+              onChange={(e) => setTempTranslation(e.target.value)}
+              onBlur={() => handleTextSave('translation')}
+              onKeyDown={(e) => handleKeyDown(e, 'translation')}
+              autoFocus
+              style={{
+                width: '100%',
+                border: '1px solid var(--accent-color)',
+                borderRadius: '2px',
+                padding: '2px 4px',
+                fontSize: 'inherit',
+                fontFamily: 'inherit',
+                backgroundColor: 'var(--background-color)',
+                color: 'var(--text-color)',
+              }}
+            />
+          ) : (
+            <span
+              onClick={() => setEditingTranslation(true)}
+              style={{
+                cursor: 'pointer',
+                flex: 1,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+              title="Click to edit"
+            >
+              {translationText}
+            </span>
+          )}
+        </div>
+
+        {/* Semantic type column - only for proper nouns */}
+        {isProperNoun && (
+          <SemanticTypeToggleCell
+            activeType={semanticType}
+            onSelect={handleSetSemanticType}
+            width="12%"
+          />
+        )}
+      </div>
+    );
+  }
+);
+
+VirtualRowComponent.displayName = 'VirtualRowComponent';
+
 /**
  * Enhanced Virtualized Dictionary Table
  * Optimized for handling 10,000+ dictionary entries with smooth performance
@@ -1203,7 +1757,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   }, [
     selectedEntries,
     selectedDictionary,
-    deleteEntry,
     bulkDeleteEntries,
     dictionaries,
     showDuplicatesMode,
@@ -1339,569 +1892,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     [closeContextMenu]
   );
 
-  // Optimized row component with React.memo
-  const VirtualRow = useMemo(() => {
-    interface VirtualRowProps {
-      source: string;
-      translation: DictionaryEntryValue;
-      _index: number;
-      isScrolling: boolean;
-      isSelected: boolean;
-    }
-
-    const VirtualRowComponent = React.memo<VirtualRowProps>(
-      ({ source, translation, _index, isScrolling, isSelected }) => {
-        const translationText =
-          typeof translation === 'string' ? translation : translation.translation;
-        const allowAsPatternVariable =
-          typeof translation === 'object' && translation.allowAsPatternVariable === true;
-        const lowPriority = typeof translation === 'object' && translation.lowPriority === true;
-        const semanticType = (typeof translation === 'object' && translation.semanticType) || '';
-        const allowedVariableTypes =
-          (typeof translation === 'object' && translation.allowedVariableTypes) || {};
-
-        // State for inline editing
-        const [editingSource, setEditingSource] = React.useState(false);
-        const [editingTranslation, setEditingTranslation] = React.useState(false);
-        const [tempSource, setTempSource] = React.useState(source);
-        const [tempTranslation, setTempTranslation] = React.useState(translationText);
-
-        // Update temp values when props change (after save)
-        React.useEffect(() => {
-          if (!editingSource) setTempSource(source);
-        }, [source, editingSource]);
-
-        React.useEffect(() => {
-          if (!editingTranslation) setTempTranslation(translationText);
-        }, [translationText, editingTranslation]);
-
-        // Builds the base metadata object shared across all metadata-update handlers
-        const buildBaseMetadata = (): any => {
-          const m: any = { allowAsPatternVariable, lowPriority };
-          if (semanticType) m.semanticType = semanticType;
-          if (Object.keys(allowedVariableTypes).length > 0)
-            m.allowedVariableTypes = allowedVariableTypes;
-          return m;
-        };
-
-        // Handle checkbox changes for patterns - preserve scroll position
-        const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
-          try {
-            const metadata = buildBaseMetadata();
-            metadata[field] = value;
-
-            // Use scroll-preserving update function
-            await updateEntryWithScrollPreservation(
-              selectedDictionary,
-              source,
-              source,
-              translationText,
-              metadata
-            );
-          } catch (error) {
-            logger.error(`Failed to update ${field}:`, error);
-          }
-        };
-
-        // Toggle a specific type on/off for a variable
-        const handleToggleVariableType = async (varName: string, type: string): Promise<void> => {
-          try {
-            const current = allowedVariableTypes[varName] || [];
-            const newAllowedTypes = { ...allowedVariableTypes };
-            const isActive = current.includes(type);
-
-            if (isActive) {
-              // Remove type
-              const filtered = current.filter((t) => t !== type);
-              if (filtered.length > 0) {
-                newAllowedTypes[varName] = filtered;
-              } else {
-                delete newAllowedTypes[varName];
-              }
-            } else {
-              // Add type
-              newAllowedTypes[varName] = [...current, type];
-            }
-
-            const metadata = buildBaseMetadata();
-            if (Object.keys(newAllowedTypes).length > 0)
-              metadata.allowedVariableTypes = newAllowedTypes;
-            else delete metadata.allowedVariableTypes;
-
-            await updateEntryWithScrollPreservation(
-              selectedDictionary,
-              source,
-              source,
-              translationText,
-              metadata
-            );
-          } catch (error) {
-            logger.error(`Failed to toggle variable ${varName} type ${type}:`, error);
-          }
-        };
-
-        // Set semantic type directly (single-select for phrases/proper nouns)
-        const handleSetSemanticType = async (newType: string): Promise<void> => {
-          try {
-            const metadata = buildBaseMetadata();
-            if (newType) metadata.semanticType = newType;
-            else delete metadata.semanticType;
-
-            await updateEntryWithScrollPreservation(
-              selectedDictionary,
-              source,
-              source,
-              translationText,
-              metadata
-            );
-          } catch (error) {
-            logger.error('Failed to set semantic type:', error);
-          }
-        };
-
-        // Handle text field changes
-        const handleTextSave = async (field: 'source' | 'translation'): Promise<void> => {
-          try {
-            // Only pass metadata for dictionaries that support it
-            const metadata =
-              selectedDictionary === 'patterns' ||
-              selectedDictionary === 'phrases' ||
-              selectedDictionary.startsWith('properNouns')
-                ? {
-                    allowAsPatternVariable,
-                    lowPriority,
-                    ...(semanticType && { semanticType }),
-                    ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
-                  }
-                : {};
-
-            if (field === 'source') {
-              if (tempSource !== source && tempSource.trim()) {
-                await updateEntryWithScrollPreservation(
-                  selectedDictionary,
-                  source,
-                  tempSource.trim(),
-                  translationText,
-                  metadata
-                );
-              }
-              setEditingSource(false);
-            } else if (field === 'translation') {
-              if (tempTranslation !== translationText && tempTranslation.trim()) {
-                await updateEntryWithScrollPreservation(
-                  selectedDictionary,
-                  source,
-                  source,
-                  tempTranslation.trim(),
-                  metadata
-                );
-              }
-              setEditingTranslation(false);
-            }
-          } catch (error) {
-            logger.error(`Failed to update ${field}:`, error);
-            // Reset to original value on error
-            if (field === 'source') {
-              setTempSource(source);
-              setEditingSource(false);
-            } else {
-              setTempTranslation(translationText);
-              setEditingTranslation(false);
-            }
-          }
-        };
-
-        // Handle text field cancellation
-        const handleTextCancel = (field: 'source' | 'translation'): void => {
-          if (field === 'source') {
-            setTempSource(source);
-            setEditingSource(false);
-          } else {
-            setTempTranslation(translationText);
-            setEditingTranslation(false);
-          }
-        };
-
-        // Handle keyboard events for text editing
-        const handleKeyDown = (
-          e: React.KeyboardEvent<HTMLInputElement>,
-          field: 'source' | 'translation'
-        ): void => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            handleTextSave(field);
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            handleTextCancel(field);
-          }
-        };
-
-        // Render pattern row: checkbox | source (25%) | translation+badges (55%) | X types (10%) | Y types (10%)
-        if (selectedDictionary === 'patterns') {
-          const hasX = source.includes('X');
-          const hasY = source.includes('Y');
-          return (
-            <div
-              onContextMenu={(e) => handleContextMenu(e, source, translationText)}
-              style={{
-                height: ITEM_HEIGHT,
-                display: 'flex',
-                alignItems: 'center',
-                borderBottom: '1px solid var(--border-color)',
-                backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-                willChange: isScrolling ? 'transform' : 'auto',
-              }}
-            >
-              {/* Selection Checkbox - 40px */}
-              <div className={styles.checkboxCell}>
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={(e) => handleSelectEntry(source, e.target.checked)}
-                  className={styles.checkboxInput}
-                  title="Select for deletion"
-                />
-              </div>
-
-              {/* Source Text - calc(25% - 20px) with variable highlighting */}
-              <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
-                {editingSource ? (
-                  <input
-                    type="text"
-                    value={tempSource}
-                    onChange={(e) => setTempSource(e.target.value)}
-                    onBlur={() => handleTextSave('source')}
-                    onKeyDown={(e) => handleKeyDown(e, 'source')}
-                    autoFocus
-                    className={styles.inlineEditInput}
-                  />
-                ) : (
-                  <span
-                    onClick={() => setEditingSource(true)}
-                    className={styles.clickableText}
-                    title="Click to edit"
-                  >
-                    {highlightPatternVariables(source)}
-                  </span>
-                )}
-              </div>
-
-              {/* Translation - 55% with VAR/LP badges */}
-              <div className={styles.cellEditable} style={{ width: '55%' }}>
-                {editingTranslation ? (
-                  <input
-                    type="text"
-                    value={tempTranslation}
-                    onChange={(e) => setTempTranslation(e.target.value)}
-                    onBlur={() => handleTextSave('translation')}
-                    onKeyDown={(e) => handleKeyDown(e, 'translation')}
-                    autoFocus
-                    className={styles.inlineEditInput}
-                  />
-                ) : (
-                  <>
-                    <span
-                      onClick={() => setEditingTranslation(true)}
-                      className={styles.clickableText}
-                      title="Click to edit"
-                    >
-                      {highlightPatternVariables(translationText)}
-                    </span>
-                    <div className={styles.badgeContainer}>
-                      <MetadataBadge
-                        type="variable"
-                        active={allowAsPatternVariable}
-                        onClick={() =>
-                          handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
-                        }
-                      />
-                      <MetadataBadge
-                        type="lowPriority"
-                        active={lowPriority}
-                        onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* X type constraints - 17.5% */}
-              <TypeToggleCell
-                varName="X"
-                hasVariable={hasX}
-                activeTypes={allowedVariableTypes['X'] || []}
-                onToggle={handleToggleVariableType}
-              />
-
-              {/* Y type constraints - 17.5% */}
-              <TypeToggleCell
-                varName="Y"
-                hasVariable={hasY}
-                activeTypes={allowedVariableTypes['Y'] || []}
-                onToggle={handleToggleVariableType}
-              />
-            </div>
-          );
-        }
-
-        // 3-column layout for phrases (with selection + Variable badge)
-        if (selectedDictionary === 'phrases') {
-          return (
-            <div
-              onContextMenu={(e) => handleContextMenu(e, source, translationText)}
-              style={{
-                height: ITEM_HEIGHT,
-                display: 'flex',
-                alignItems: 'center',
-                borderBottom: '1px solid var(--border-color)',
-                backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-                willChange: isScrolling ? 'transform' : 'auto',
-              }}
-            >
-              {/* Selection Checkbox - 40px */}
-              <div className={styles.checkboxCell}>
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={(e) => handleSelectEntry(source, e.target.checked)}
-                  className={styles.checkboxInput}
-                  title="Select for deletion"
-                />
-              </div>
-
-              {/* Source Text - calc(25% - 20px) */}
-              <div
-                style={{
-                  width: 'calc(25% - 20px)',
-                  padding: '0.25rem 0.75rem',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {editingSource ? (
-                  <input
-                    type="text"
-                    value={tempSource}
-                    onChange={(e) => setTempSource(e.target.value)}
-                    onBlur={() => handleTextSave('source')}
-                    onKeyDown={(e) => handleKeyDown(e, 'source')}
-                    autoFocus
-                    className={styles.inlineEditInput}
-                  />
-                ) : (
-                  <span
-                    onClick={() => setEditingSource(true)}
-                    className={styles.clickableText}
-                    title="Click to edit"
-                  >
-                    {source}
-                  </span>
-                )}
-              </div>
-
-              {/* Translation - calc(63% - 20px) with VAR badge */}
-              <div
-                style={{
-                  width: 'calc(63% - 20px)',
-                  padding: '0.25rem 0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  overflow: 'hidden',
-                }}
-              >
-                {editingTranslation ? (
-                  <input
-                    type="text"
-                    value={tempTranslation}
-                    onChange={(e) => setTempTranslation(e.target.value)}
-                    onBlur={() => handleTextSave('translation')}
-                    onKeyDown={(e) => handleKeyDown(e, 'translation')}
-                    autoFocus
-                    className={styles.inlineEditInput}
-                  />
-                ) : (
-                  <>
-                    <span
-                      onClick={() => setEditingTranslation(true)}
-                      className={styles.clickableText}
-                      title="Click to edit"
-                    >
-                      {translationText}
-                    </span>
-                    <div className={styles.badgeContainer}>
-                      <MetadataBadge
-                        type="variable"
-                        active={allowAsPatternVariable}
-                        onClick={() =>
-                          handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
-                        }
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Semantic type - 12% (only shown when entry is allowed as pattern variable) */}
-              {allowAsPatternVariable ? (
-                <SemanticTypeToggleCell
-                  activeType={semanticType}
-                  onSelect={handleSetSemanticType}
-                  width="12%"
-                />
-              ) : (
-                <div style={{ width: '12%', minWidth: '12%' }} />
-              )}
-            </div>
-          );
-        }
-
-        // Layout for simple dictionaries (with selection checkbox)
-        const isProperNoun = selectedDictionary.startsWith('properNouns');
-        const sourceWidth = isProperNoun ? 'calc(25% - 20px)' : 'calc(35% - 20px)';
-        const translationWidth = isProperNoun ? 'calc(63% - 20px)' : 'calc(65% - 20px)';
-
-        return (
-          <div
-            onContextMenu={(e) => handleContextMenu(e, source, translationText)}
-            style={{
-              height: ITEM_HEIGHT,
-              display: 'flex',
-              alignItems: 'center',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-              willChange: isScrolling ? 'transform' : 'auto',
-            }}
-          >
-            {/* Selection Checkbox - 40px */}
-            <div
-              style={{
-                width: '40px',
-                minWidth: '40px',
-                maxWidth: '40px',
-                padding: '0.25rem 0.75rem',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={(e) => handleSelectEntry(source, e.target.checked)}
-                style={{ cursor: 'pointer' }}
-                title="Select for deletion"
-              />
-            </div>
-
-            {/* Source Text */}
-            <div className={styles.cell} style={{ width: sourceWidth }}>
-              {editingSource ? (
-                <input
-                  type="text"
-                  value={tempSource}
-                  onChange={(e) => setTempSource(e.target.value)}
-                  onBlur={() => handleTextSave('source')}
-                  onKeyDown={(e) => handleKeyDown(e, 'source')}
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    border: '1px solid var(--accent-color)',
-                    borderRadius: '2px',
-                    padding: '2px 4px',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit',
-                    backgroundColor: 'var(--background-color)',
-                    color: 'var(--text-color)',
-                  }}
-                />
-              ) : (
-                <span
-                  onClick={() => setEditingSource(true)}
-                  style={{
-                    cursor: 'pointer',
-                    display: 'block',
-                    width: '100%',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                  title="Click to edit"
-                >
-                  {source}
-                </span>
-              )}
-            </div>
-
-            {/* Translation */}
-            <div
-              className={styles.cell}
-              style={{
-                width: translationWidth,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                overflow: 'hidden',
-              }}
-            >
-              {editingTranslation ? (
-                <input
-                  type="text"
-                  value={tempTranslation}
-                  onChange={(e) => setTempTranslation(e.target.value)}
-                  onBlur={() => handleTextSave('translation')}
-                  onKeyDown={(e) => handleKeyDown(e, 'translation')}
-                  autoFocus
-                  style={{
-                    width: '100%',
-                    border: '1px solid var(--accent-color)',
-                    borderRadius: '2px',
-                    padding: '2px 4px',
-                    fontSize: 'inherit',
-                    fontFamily: 'inherit',
-                    backgroundColor: 'var(--background-color)',
-                    color: 'var(--text-color)',
-                  }}
-                />
-              ) : (
-                <span
-                  onClick={() => setEditingTranslation(true)}
-                  style={{
-                    cursor: 'pointer',
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                  title="Click to edit"
-                >
-                  {translationText}
-                </span>
-              )}
-            </div>
-
-            {/* Semantic type column - only for proper nouns */}
-            {isProperNoun && (
-              <SemanticTypeToggleCell
-                activeType={semanticType}
-                onSelect={handleSetSemanticType}
-                width="12%"
-              />
-            )}
-          </div>
-        );
-      }
-    );
-
-    VirtualRowComponent.displayName = 'VirtualRowComponent';
-
-    return VirtualRowComponent;
-  }, [
-    setEditingEntry,
-    selectedDictionary,
-    updateEntryWithScrollPreservation,
-    handleSelectEntry,
-    handleContextMenu,
-  ]);
+  // Optimized row component with React.memo (defined at module scope to prevent type churn)
+  const VirtualRow = VirtualRowComponent;
 
   // Determine which filter options are relevant for the selected dictionary
   const isPatternsDictionary = selectedDictionary === 'patterns';
@@ -2731,6 +2723,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                         _index={index}
                         isScrolling={isScrolling}
                         isSelected={selectedEntries.has(source)}
+                        selectedDictionary={selectedDictionary}
+                        onUpdateEntry={updateEntryWithScrollPreservation}
+                        onSelectEntry={handleSelectEntry}
+                        onContextMenu={handleContextMenu}
                       />
                     );
                   })}

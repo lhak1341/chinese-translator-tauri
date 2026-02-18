@@ -268,7 +268,7 @@ export class AdaptiveBufferCalculator {
         bufferSize = Math.min(this.maxBufferSize, visibleItems * 2); // 2x visible items
         break;
       case 'medium':
-        bufferSize = Math.min(this.maxBufferSize, visibleItems * 1.5); // 1.5x visible items
+        bufferSize = Math.min(this.maxBufferSize, Math.floor(visibleItems * 1.5)); // 1.5x visible items
         break;
       case 'low':
         bufferSize = Math.min(this.maxBufferSize, visibleItems * 1); // 1x visible items

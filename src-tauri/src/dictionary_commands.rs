@@ -190,7 +190,7 @@ fn emit_poisoning_event() {
 
     // Rate limiting: Only notify once per cooldown period
     // This prevents 100+ notifications per second during degraded operation
-    if last_notify > 0 && (now_ms - last_notify) < NOTIFICATION_COOLDOWN_MS {
+    if last_notify > 0 && now_ms.saturating_sub(last_notify) < NOTIFICATION_COOLDOWN_MS {
         // Skip notification - still within cooldown period
         return;
     }
@@ -618,10 +618,18 @@ pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Res
 #[tauri::command]
 pub async fn create_proper_nouns_dictionary(
     app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
     dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
     // SECURITY: Validate dictionary ID to prevent path traversal
     validate_dictionary_id(&dictionary_id)?;
+
+    // SECURITY: Enforce prefix to prevent overwriting system dictionaries (characters, phrases, etc.)
+    if !dictionary_id.starts_with("properNouns") {
+        return Ok(DictionaryResponse::err(
+            "Dictionary ID must start with 'properNouns'",
+        ));
+    }
 
     let dictionary_path = get_dictionary_path(&app_handle)?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
@@ -638,6 +646,9 @@ pub async fn create_proper_nouns_dictionary(
         .map_err(|e| format!("Failed to serialize empty dictionary: {}", e))?;
     fs::write(&file_path, json_string)
         .map_err(|e| e.to_string())?;
+
+    // Invalidate any stale cache entry for this dictionary (defensive: handles delete/re-create cycles)
+    cache.invalidate(Some(&dictionary_id));
 
     Ok(DictionaryResponse::ok())
 }

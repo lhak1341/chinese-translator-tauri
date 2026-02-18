@@ -514,6 +514,7 @@ impl TwoPhasePatternProcessor {
                     };
 
                     hierarchical_results.push(combined_result);
+                    break; // One hierarchical composition per Phase B result is sufficient
                 }
             }
         }
