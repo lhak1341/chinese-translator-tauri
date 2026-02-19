@@ -1,14 +1,20 @@
 /**
- * Parity tests for resolveGlobalConflicts() / matcher.rs::find_best_pattern_match()
+ * Parity tests for resolveGlobalConflicts() greedy interval scheduling algorithm.
  *
- * CRITICAL: THREE implementations of the same greedy interval scheduling algorithm must
- * stay identical in behaviour:
- *   1. TranslationEngine.js::resolveGlobalConflicts() ~line 2709
- *   2. wasm-core/src/pattern_processor/matcher.rs::find_best_pattern_match()
+ * CRITICAL: TWO JS implementations of the same algorithm must stay identical:
+ *   1. TranslationEngine.js::resolveGlobalConflicts() ~line 2709  (Phase 4 — phrases)
+ *   2. TranslationEngine.js::resolveMatchConflicts()  ~line 2381  (Phase 2 — proper nouns)
  *   3. The pure reference implementation below (source of truth for this test suite)
  *
- * Any change to the sort order or selection logic MUST be applied to all three and these
- * tests MUST continue to pass.
+ * Rust parity validator (independent implementation, catches divergence at cargo test time):
+ *   wasm-core/tests/conflict_resolution_parity_test.rs
+ *
+ * NOTE: wasm-core/src/pattern_processor/matcher.rs::find_best_pattern_match() is NOT a
+ * counterpart of this algorithm — it selects the best pattern at a single position (Phase 1,
+ * different problem). Do not confuse the two.
+ *
+ * Any change to the sort order or selection logic MUST be applied to all three JS/Rust
+ * implementations and these tests MUST continue to pass.
  *
  * ALGORITHM (LENGTH-FIRST greedy interval scheduling):
  *   1. Sort candidates: longer first → type priority (phrase < pattern) → earlier start first

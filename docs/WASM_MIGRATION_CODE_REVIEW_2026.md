@@ -80,20 +80,19 @@ The `TextAssembler` WASM module only handles concern #1 (string building + seman
 **What it does**: Given N candidate phrase/pattern matches, sorts by length-first then type priority, then greedily selects non-overlapping matches (interval scheduling). O(n log n) sort + O(n²) worst-case selection.
 **`this.*` usage**: Only `this.log()` — logging only, not state
 
-**Why it's a WASM candidate**:
-The JSDoc comment at line 2701 says explicitly:
+**Status: DO NOT MIGRATE — evaluated and rejected (2026-02-20)**
 
-> "CRITICAL: This must match Rust implementation (`matcher.rs:find_best_pattern_match`)"
+**The original premise was wrong.** `find_best_pattern_match()` in `matcher.rs` is **not** a counterpart of this function. It selects the best pattern at a _single position_ during Phase 1; `resolveGlobalConflicts()` runs greedy interval scheduling across _all positions at once_ (Phase 4). The JSDoc comment claiming parity was incorrect.
 
-The **same algorithm already exists in `wasm-core/src/pattern_processor/matcher.rs`**. These two implementations are required to stay in sync by hand — any divergence silently corrupts translation output. Consolidating them into a single Rust implementation eliminates the dual-maintenance risk.
+**Three independent reasons WASM is not viable here**:
 
-**Migration complexity**: MEDIUM — The algorithm is straightforward to expose via WASM, but requires serializing `allMatches` (JS objects with `type`, `startIndex`, `endIndex`, `length`, `pattern`, `match.word` fields) as JSON to pass the boundary. Deserialization overhead may partially offset savings.
-**Estimated performance gain**: LOW (per translation call) / HIGH (maintenance) — For 50–200 matches per phrase resolution, the sort + greedy select is fast in JS. Gain per call: ~0.1–0.5ms. But the **dual-implementation risk** (silent sync bugs) is the real argument here.
-**Risks**:
+1. **Serialization overhead dominates**: 100–500 match objects × 70–200 bytes each = 7–100 KB JSON per call. `JSON.stringify` + `JSON.parse` alone costs 5–20 ms; the JS implementation runs in <1 ms. WASM would be 5–20× **slower**.
+2. **Not a bottleneck**: Pure greedy scheduling — O(n log n) sort + one linear scan. V8 handles 500 matches in <1 ms. No algorithmic complexity advantage to move to Rust.
+3. **High correctness risks**: Pattern matches lack a `length` field in production (phrases have it); WASM deserialization creates new objects, breaking object-identity semantics; `undefined` fields are silently dropped by `JSON.stringify`.
 
-- Match objects are complex nested JS structures; JSON serialization adds overhead
-- If WASM falls back to JS on error, both implementations must stay correct
-- `resolveMatchConflicts()` (line ~2381) has similar logic but with additional proper-noun compound-word rules — would need to be evaluated separately
+**What was done instead**: Added a test-only Rust implementation of the same greedy algorithm in `wasm-core/tests/conflict_resolution_parity_test.rs` (15 tests, no `#[wasm_bindgen]`). If anyone edits the sort comparator or selection logic in either JS version, `cargo test` catches it immediately without any production overhead.
+
+**Real sibling**: `resolveMatchConflicts()` (~line 2381, Phase 2) uses the same greedy logic in JS. Changes to `resolveGlobalConflicts()` must be manually mirrored there.
 
 ---
 
@@ -192,16 +191,11 @@ grep -r "applySmartCapitalizationToBatch" src/
 
 ---
 
-### Issue 5 — `resolveGlobalConflicts()` has a dual-implementation maintenance risk [HIGH]
+### Issue 5 — ~~`resolveGlobalConflicts()` has a dual-implementation maintenance risk~~ RESOLVED (2026-02-20)
 
-**Location**: Line ~2701: "CRITICAL: This must match Rust implementation (`matcher.rs:find_best_pattern_match`)"
+The original issue was based on a false premise: `find_best_pattern_match()` (Rust `matcher.rs`) is not a counterpart of `resolveGlobalConflicts()` — they solve different problems. The misleading JSDoc comment claiming parity has been corrected.
 
-Two implementations of the same greedy interval scheduling algorithm exist — one in JS, one in Rust. Any correctness change to one must be manually mirrored in the other, with no automated check. This is a silent bug vector.
-
-**Fix options**:
-
-1. (**Preferred**) Expose the Rust `find_best_pattern_match` via a WASM batch API and remove the JS version
-2. (**Simpler**) Add a unit test that verifies JS and WASM produce identical output for a representative set of inputs, so divergence is caught
+The real maintenance risk (algorithmic divergence between `resolveGlobalConflicts()` Phase 4 and `resolveMatchConflicts()` Phase 2, both JS) is now covered by a Rust parity validator: `wasm-core/tests/conflict_resolution_parity_test.rs` — 15 tests, catches divergence at `cargo test` time with zero production overhead.
 
 ---
 
@@ -239,13 +233,13 @@ No pure computation utilities found that would benefit from WASM migration. `Tra
 
 ## Migration Priority Order (Top 5)
 
-| Priority | Candidate                                                                   | Complexity | Gain                      | Rationale                                          |
-| -------- | --------------------------------------------------------------------------- | ---------- | ------------------------- | -------------------------------------------------- |
-| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)         | MEDIUM     | MEDIUM                    | `assembleWithSpacing()` live in postProcess()      |
-| 2        | Consolidate `resolveGlobalConflicts()` into Rust                            | MEDIUM     | MEDIUM (maintenance HIGH) | Dual-impl bug risk; Rust version already exists    |
-| 3        | Connect `findPositionOptimized()` to `PositionMapper`                       | MEDIUM     | MEDIUM                    | Existing Rust API; algorithmic gain for long texts |
-| 4        | Fix `cleanupFormatting()` debug log guards                                  | LOW        | LOW                       | Production noise from hardcoded number checks      |
-| 5        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch` | LOW        | LOW                       | Code quality; eliminates duplication and dead code |
+| Priority | Candidate                                                                      | Complexity | Gain   | Rationale                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------ | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)            | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                             |
+| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20) | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead |
+| 3        | Connect `findPositionOptimized()` to `PositionMapper`                          | MEDIUM     | MEDIUM | Existing Rust API; algorithmic gain for long texts                                                                        |
+| 4        | Fix `cleanupFormatting()` debug log guards                                     | LOW        | LOW    | Production noise from hardcoded number checks                                                                             |
+| 5        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`    | LOW        | LOW    | Code quality; eliminates duplication and dead code                                                                        |
 
 ---
 

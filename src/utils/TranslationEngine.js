@@ -2699,8 +2699,11 @@ export class TranslationEngine {
   /**
    * Global conflict resolution using longest-match-first with smart prioritization
    *
-   * CRITICAL: This must match Rust implementation (matcher.rs:find_best_pattern_match)
-   * Both use LENGTH-FIRST selection: (1) Prefer longer matches, (2) Use calculated priority as tiebreaker
+   * NOTE: find_best_pattern_match() in matcher.rs is NOT a Rust counterpart of this function —
+   * that selects the best pattern at a single position (Phase 1). This function runs greedy
+   * interval scheduling across ALL positions at once (Phase 4). The real sibling with similar
+   * logic is resolveMatchConflicts() (~line 2381, Phase 2) — changes to one must mirror the other.
+   * Rust parity validator: wasm-core/tests/conflict_resolution_parity_test.rs
    * Match length indicates better context coverage and prevents substring collisions
    *
    * @param {Array} allMatches - All potential matches from all positions
