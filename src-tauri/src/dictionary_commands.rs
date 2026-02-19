@@ -354,9 +354,12 @@ impl DictionaryCache {
                         }
                     }
                     // Last resort: all access_order candidates were stale (access_order fully
-                    // out of sync with cache). Evict any entry to keep capacity safe.
+                    // out of sync with cache). Evict the lexicographically smallest key for
+                    // deterministic behaviour — HashMap iteration order varies across runs,
+                    // so keys().next() would pick an arbitrary entry each time, making
+                    // eviction patterns non-reproducible and hard to debug.
                     if evicted_key.is_none() {
-                        if let Some(fallback_key) = cache.keys().next().map(|k| k.clone()) {
+                        if let Some(fallback_key) = cache.keys().min().cloned() {
                             eprintln!("LRU cache last-resort eviction: removed {}", fallback_key);
                             cache.remove(&fallback_key);
                             evicted_key = Some(fallback_key);
@@ -632,6 +635,7 @@ pub async fn create_proper_nouns_dictionary(
     }
 
     let dictionary_path = get_dictionary_path(&app_handle)?;
+    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     // Check if file already exists
@@ -1051,6 +1055,13 @@ pub async fn import_dictionaries(
                         "{}: dictionary exceeds maximum entry count ({} max, got {})",
                         filename, MAX_DICTIONARY_ENTRIES, obj.len()
                     ));
+                    continue;
+                }
+                // SECURITY: Enforce nesting depth cap — mirrors save_dictionary and save_json_file.
+                // serde_json limits deserialization to 128 levels, but deep Values cause
+                // unbounded recursion in the Rust drop path; cap at 50 as defense-in-depth.
+                if let Err(e) = check_json_depth(&data, 50) {
+                    errors.push(format!("{}: {}", filename, e));
                     continue;
                 }
                 // Use validated base_name (not raw filename from ZIP header) to build the
