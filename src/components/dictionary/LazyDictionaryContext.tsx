@@ -13,7 +13,7 @@ import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
-import { ValidationError, SaveError, isValidationError } from '../../utils/errors';
+import { ValidationError, SaveError, isValidationError, isSaveError } from '../../utils/errors';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import {
   sortDictionaryEntries,
@@ -98,6 +98,25 @@ interface LazyDictionaryProviderProps {
 const LazyDictionaryContext = createContext<LazyDictionaryContextValue | undefined>(undefined);
 
 const MAX_HISTORY = 100;
+
+async function invalidateTranslationEngineCache(dictionaryId: string): Promise<void> {
+  if (!window.translationEngine) return;
+  try {
+    if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+      await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
+      logger.log('✅ Dictionary caches cleared');
+    } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+      await window.translationEngine.invalidateAllCaches(dictionaryId);
+      logger.log('✅ All caches cleared');
+    }
+  } catch (cacheError) {
+    toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+      duration: TOAST_DURATIONS.LOAD_FAILURE,
+      id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
+    });
+    logger.warn('Cache invalidation failed (non-critical):', cacheError);
+  }
+}
 // MEDIUM-1 FIX: Dynamic preload delay calculation
 // Default delay used as fallback if measurement fails
 const DEFAULT_PRELOAD_DELAY = 1000; // ms to wait before preloading other dictionaries
@@ -122,6 +141,8 @@ export function LazyDictionaryProvider({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [history, setHistory] = useState<HistoryOperation[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
+  const currentHistoryIndexRef = useRef(currentHistoryIndex);
+  currentHistoryIndexRef.current = currentHistoryIndex;
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
   const [dictionaryTypes, setDictionaryTypes] = useState<DictionaryTypesCollection>({});
 
@@ -356,7 +377,7 @@ export function LazyDictionaryProvider({
   const addToHistory = useCallback(
     (dictionaryId: string, oldData: DictionaryData, newData: DictionaryData): void => {
       setHistory((prevHistory) => {
-        const newHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+        const newHistory = prevHistory.slice(0, currentHistoryIndexRef.current + 1);
         newHistory.push({
           dictionaryId,
           oldData: structuredClone(oldData), // Deep copy prevents mutation
@@ -370,7 +391,7 @@ export function LazyDictionaryProvider({
       });
       setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
     },
-    [currentHistoryIndex]
+    [] // stable — reads currentHistoryIndex via ref to avoid stale closure on rapid operations
   );
 
   // Dictionary operations (same as before but with lazy loading check)
@@ -427,30 +448,7 @@ export function LazyDictionaryProvider({
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry added successfully');
 
-          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
-          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
-          // Dictionary add/update/delete only needs 3 caches cleared (not all 6)
-          if (window.translationEngine) {
-            try {
-              // Prefer targeted invalidation if available (more efficient)
-              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
-                await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
-                logger.log('✅ Dictionary caches cleared after adding entry');
-              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
-                // Fallback to full invalidation if targeted method not available
-                await window.translationEngine.invalidateAllCaches(dictionaryId);
-                logger.log('✅ All caches cleared after adding entry');
-              }
-            } catch (cacheError) {
-              // Don't fail the operation if cache invalidation fails
-              // Dictionary was saved successfully - cache will be invalidated on reload
-              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: TOAST_DURATIONS.LOAD_FAILURE,
-                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
-              });
-              logger.warn('Cache invalidation failed (non-critical):', cacheError);
-            }
-          }
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           // Rollback optimistic update
           setDictionaries((prev) => ({
@@ -539,25 +537,7 @@ export function LazyDictionaryProvider({
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry updated successfully');
 
-          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
-          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
-          if (window.translationEngine) {
-            try {
-              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
-                await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
-                logger.log('✅ Dictionary caches cleared after updating entry');
-              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
-                await window.translationEngine.invalidateAllCaches(dictionaryId);
-                logger.log('✅ All caches cleared after updating entry');
-              }
-            } catch (cacheError) {
-              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: TOAST_DURATIONS.LOAD_FAILURE,
-                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
-              });
-              logger.warn('Cache invalidation failed (non-critical):', cacheError);
-            }
-          }
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           // Rollback optimistic update
           setDictionaries((prev) => ({
@@ -602,25 +582,7 @@ export function LazyDictionaryProvider({
           addToHistory(dictionaryId, oldData, result.data);
           toast.success('Entry deleted successfully');
 
-          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
-          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
-          if (window.translationEngine) {
-            try {
-              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
-                await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
-                logger.log('✅ Dictionary caches cleared after deleting entry');
-              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
-                await window.translationEngine.invalidateAllCaches(dictionaryId);
-                logger.log('✅ All caches cleared after deleting entry');
-              }
-            } catch (cacheError) {
-              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: TOAST_DURATIONS.LOAD_FAILURE,
-                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
-              });
-              logger.warn('Cache invalidation failed (non-critical):', cacheError);
-            }
-          }
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           // Rollback optimistic update
           setDictionaries((prev) => ({
@@ -633,7 +595,12 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         logger.error('Error deleting dictionary entry:', error);
-        toast.error(`Could not delete entry: ${extractErrorMessage(error)}`);
+        // Guard against double toast: SaveError already showed a toast before throwing;
+        // ValidationError shows its own toast at the throw site (though deleteEntry has none,
+        // added here for consistency with addEntry/updateEntry).
+        if (!isValidationError(error) && !isSaveError(error)) {
+          toast.error(`Could not delete entry: ${extractErrorMessage(error)}`);
+        }
         throw error; // Re-throw for caller handling
       }
     },
@@ -658,25 +625,7 @@ export function LazyDictionaryProvider({
           setCurrentHistoryIndex((prev) => prev - 1);
           toast.success('Change undone');
 
-          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
-          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
-          if (window.translationEngine) {
-            try {
-              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
-                await window.translationEngine.invalidateDictionaryCaches(operation.dictionaryId);
-                logger.log('✅ Dictionary caches cleared after undo');
-              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
-                await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
-                logger.log('✅ All caches cleared after undo');
-              }
-            } catch (cacheError) {
-              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: TOAST_DURATIONS.LOAD_FAILURE,
-                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
-              });
-              logger.warn('Cache invalidation failed (non-critical):', cacheError);
-            }
-          }
+          await invalidateTranslationEngineCache(operation.dictionaryId);
 
           return true;
         } else {
@@ -709,25 +658,7 @@ export function LazyDictionaryProvider({
           setCurrentHistoryIndex((prev) => prev + 1);
           toast.success('Change redone');
 
-          // ARCHITECTURAL FIX: Invalidate caches when dictionary changes
-          // MEDIUM-PRIORITY FIX: Use targeted invalidation for better performance
-          if (window.translationEngine) {
-            try {
-              if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
-                await window.translationEngine.invalidateDictionaryCaches(operation.dictionaryId);
-                logger.log('✅ Dictionary caches cleared after redo');
-              } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
-                await window.translationEngine.invalidateAllCaches(operation.dictionaryId);
-                logger.log('✅ All caches cleared after redo');
-              }
-            } catch (cacheError) {
-              toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
-                duration: TOAST_DURATIONS.LOAD_FAILURE,
-                id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
-              });
-              logger.warn('Cache invalidation failed (non-critical):', cacheError);
-            }
-          }
+          await invalidateTranslationEngineCache(operation.dictionaryId);
 
           return true;
         } else {

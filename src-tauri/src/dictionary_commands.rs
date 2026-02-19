@@ -607,7 +607,8 @@ pub async fn open_dictionary_folder(app_handle: tauri::AppHandle) -> Result<Dict
 pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
-    let entries = fs::read_dir(&dictionary_path).map_err(|e| e.to_string())?;
+    let entries = fs::read_dir(&dictionary_path)
+        .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
 
     let proper_nouns_dicts: Vec<String> = entries
         .filter_map(|entry| {
@@ -659,7 +660,7 @@ pub async fn create_proper_nouns_dictionary(
     let json_string = serde_json::to_string_pretty(&empty_dict)
         .map_err(|e| format!("Failed to serialize empty dictionary: {}", e))?;
     fs::write(&file_path, json_string)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| sanitize_io_error(e, "dictionary file"))?;
 
     // Invalidate any stale cache entry for this dictionary (defensive: handles delete/re-create cycles)
     cache.invalidate(Some(&dictionary_id));
@@ -1136,17 +1137,19 @@ pub async fn reset_dictionaries(
 
         // Copy all files to backup
         if dictionary_path.exists() {
-            let entries = fs::read_dir(&dictionary_path).map_err(|e| e.to_string())?;
+            let entries = fs::read_dir(&dictionary_path)
+                .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
 
             for entry in entries {
-                let entry = entry.map_err(|e| e.to_string())?;
+                let entry = entry.map_err(|e| sanitize_io_error(e, "directory entry"))?;
                 let path = entry.path();
 
                 if path.is_file() {
                     let file_name = path.file_name()
                         .ok_or("Invalid filename")?;
                     let backup_path = backup_dir.join(file_name);
-                    fs::copy(&path, &backup_path).map_err(|e| e.to_string())?;
+                    fs::copy(&path, &backup_path)
+                        .map_err(|e| sanitize_io_error(e, "backup file"))?;
                 }
             }
         }
@@ -1154,7 +1157,8 @@ pub async fn reset_dictionaries(
 
     // Remove all existing dictionary files
     if dictionary_path.exists() {
-        fs::remove_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+        fs::remove_dir_all(&dictionary_path)
+            .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
     }
 
     // Recreate dictionary directory
