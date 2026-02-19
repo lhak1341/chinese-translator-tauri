@@ -180,25 +180,15 @@ These are bugs/smells independent of the WASM migration question.
 
 ---
 
-### Issue 2 — `capitalizationRules` constant duplicated across two methods [LOW]
+### Issue 2 — ~~`capitalizationRules` constant duplicated across two methods~~ RESOLVED (pre-existing, 82f732b)
 
-**Locations**: `applySmartCapitalization()` line ~9099 and `applySmartCapitalizationToBatch()` line ~9442
-
-The 26-entry `capitalizationRules` object is copy-pasted verbatim in both methods. `applySmartCapitalizationToBatch()` is even marked `// DEPRECATED` in the JSDoc. This duplication means a rule change must be made in two places.
-
-**Fix**: Hoist `capitalizationRules` to a module-level `const` outside the class. Then remove `applySmartCapitalizationToBatch()` if it's genuinely deprecated (verify with grep first).
+Both `applySmartCapitalizationToBatch()` and `applyBatchCapitalization()` were deleted as dead code in commit `82f732b` (2026-02-20). With only `applySmartCapitalization()` remaining, `capitalizationRules` is now defined exactly once — as a local `const` inside that method. Hoisting to module-level is no longer needed.
 
 ---
 
-### Issue 3 — `applySmartCapitalizationToBatch()` is marked deprecated but not removed [LOW]
+### Issue 3 — ~~`applySmartCapitalizationToBatch()` is marked deprecated but not removed~~ RESOLVED (pre-existing, 82f732b)
 
-**Location**: Line ~9434, 60+ lines
-
-The JSDoc says `@deprecated` and the comment says "DEPRECATED". If no callers remain, this is dead code. Verify and remove.
-
-```bash
-grep -r "applySmartCapitalizationToBatch" src/
-```
+Deleted in commit `82f732b` (2026-02-20) as dead code (0 call sites, `@deprecated` JSDoc confirmed).
 
 ---
 
@@ -216,13 +206,9 @@ The real maintenance risk (algorithmic divergence between `resolveGlobalConflict
 
 ---
 
-### Issue 6 — `applyBatchCapitalization()` (~line 9557) may be additional dead code [LOW]
+### Issue 6 — ~~`applyBatchCapitalization()` may be additional dead code~~ RESOLVED (pre-existing, 82f732b)
 
-A third capitalization function exists alongside `applySmartCapitalization` and the deprecated `applySmartCapitalizationToBatch`. Verify call sites:
-
-```bash
-grep -n "applyBatchCapitalization" src/utils/TranslationEngine.js
-```
+Deleted in commit `82f732b` (2026-02-20) alongside `applySmartCapitalizationToBatch()` — 0 call sites confirmed.
 
 ---
 
@@ -250,14 +236,14 @@ No pure computation utilities found that would benefit from WASM migration. `Tra
 
 ## Migration Priority Order (Top 5)
 
-| Priority | Candidate                                                                                               | Complexity | Gain   | Rationale                                                                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------------------- | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)                                     | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                                             |
-| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20)                          | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead                 |
-| 3        | ~~Connect `findPositionOptimized()` to `PositionMapper`~~ **REJECTED** (2026-02-20)                     | —          | —      | All 3 functions dead code (deleted); boundary overhead > gain; production positions already from `assembleWithSpacing()`                  |
-| 4 (orig) | ~~Bundle `applyFinalCleanup`/`applyLightFormatting`/`capitalizeFirstLetter`~~ **REJECTED** (2026-02-20) | —          | —      | Functions on 3 separate paths; `cleanupFormatting` has dict-lookup blocker; dead `else` branch + dead `applyCapitalizationToText` deleted |
-| 5 (orig) | ~~Fix `cleanupFormatting()` debug log guards~~ **ALREADY FIXED** (pre-existing)                         | —          | —      | `process.env.NODE_ENV === 'development'` guard was already present                                                                        |
-| 6        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`                             | LOW        | LOW    | Code quality; eliminates duplication and dead code                                                                                        |
+| Priority | Candidate                                                                                                            | Complexity | Gain   | Rationale                                                                                                                                 |
+| -------- | -------------------------------------------------------------------------------------------------------------------- | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)                                                  | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                                             |
+| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20)                                       | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead                 |
+| 3        | ~~Connect `findPositionOptimized()` to `PositionMapper`~~ **REJECTED** (2026-02-20)                                  | —          | —      | All 3 functions dead code (deleted); boundary overhead > gain; production positions already from `assembleWithSpacing()`                  |
+| 4 (orig) | ~~Bundle `applyFinalCleanup`/`applyLightFormatting`/`capitalizeFirstLetter`~~ **REJECTED** (2026-02-20)              | —          | —      | Functions on 3 separate paths; `cleanupFormatting` has dict-lookup blocker; dead `else` branch + dead `applyCapitalizationToText` deleted |
+| 5 (orig) | ~~Fix `cleanupFormatting()` debug log guards~~ **ALREADY FIXED** (pre-existing)                                      | —          | —      | `process.env.NODE_ENV === 'development'` guard was already present                                                                        |
+| 6        | ~~Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`~~ **RESOLVED** (pre-existing, 82f732b) | —          | —      | Both dead functions deleted; single remaining `capitalizationRules` definition is local — no hoist needed                                 |
 
 ---
 
