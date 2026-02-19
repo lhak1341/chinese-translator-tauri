@@ -150,6 +150,8 @@ The five most likely to cause **silent bugs**:
 - **Rust `u64` timestamp subtraction: always use `.saturating_sub()`**: `SystemTime::now()` is not monotonic on macOS — clock-backwards adjustment makes `now - last` underflow as `u64`, panicking in debug or wrapping to a huge number in release (bypasses rate limiters). Use `now_ms.saturating_sub(last_notify)`. Affects `emit_poisoning_event` in `dictionary_commands.rs`.
 - **CSS `repeating-linear-gradient` for virtual scroll row shading: put gradient on rows container, NOT spacer** (`EnhancedVirtualizedDictionaryTable.tsx`): CSS `background` uses the element's **layout** y-position, not visual/transformed position — `translateY` is irrelevant. With gradient on the spacer, rows always see it at slice-local y (layout y=0..N), causing parity flips on every scroll. Place gradient on the rows container (direct parent of rows); use `backgroundPositionY: (startIndex % 2) * ITEM_HEIGHT + 'px'` for phase correction; set all row `backgroundColor` to `transparent`.
 - **`resolveGlobalConflicts()` has a dual Rust implementation**: `TranslationEngine.js::resolveGlobalConflicts()` (~line 2709) and `wasm-core/src/pattern_processor/matcher.rs::find_best_pattern_match()` implement the same greedy length-first interval scheduling algorithm. Algorithm changes MUST be applied to both. Parity spec: `src/utils/__tests__/TranslationEngine.resolveConflicts.test.js`.
+- **WASM singleton modules must call `.initialize().catch(warn)` at module bottom**: Any `src/utils/Wasm*.js` that exports a singleton (e.g. `wasmTextAssembler`, `processNumbersWasm`) must trigger background init at import time so WASM is ready before first call. Pattern: `singleton.initialize().catch((err) => { logger.warn('...', err); });` at end of file. Missing this forces every first caller onto the slow JS fallback path.
+- **`needs_space()` / `needsSpace()` are the canonical postProcess spacing rules**: The 9 spacing rules that determine inter-segment spaces in translated output live in `wasm-core/src/text_assembly.rs::needs_space()` (Rust) and `src/utils/WasmTextAssembler.js::needsSpace()` (JS fallback). Both must stay in sync. Parity spec: `src/utils/__tests__/TranslationEngine.textAssembly.test.js`.
 
 ### Essential Commands
 
@@ -161,22 +163,22 @@ npm run type-check      # TypeScript checking (0 errors expected)
 npm run format          # Format all code
 cargo check --manifest-path src-tauri/Cargo.toml  # Rust type-check (NOT cd + cargo — zoxide breaks it)
 cargo check --manifest-path wasm-core/Cargo.toml   # WASM core (separate crate, run both when touching Rust)
-cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-core tests (98 tests)
+cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-core tests (94 unit tests)
 ```
 
 ### Key Files
 
-| Purpose               | File                                  | Notes                                                                       |
-| --------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
-| Translation Core      | `TranslationEngine.js`                | 5-phase state coordination                                                  |
-| UI Coordination       | `Translator.jsx`                      | Cross-mode synchronization                                                  |
-| Shared TS types       | `src/types/DictionaryTypes.ts`        | Canonical dict/entry/metadata types                                         |
-| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | `sortDictionaryEntries`, labels, ordering                                   |
-| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | `copyWasmTokens` param1=JS dest, param2=WASM src                            |
-| WASM boundary (tests) | `types/WasmTypes.ts` (root-level)     | `copyWasmTokens` param1=WASM src, param2=JS dest                            |
-| Shared UI types       | `src/types/UITypes.d.ts`              | `ThrottledStreamingState` and other UI types                                |
-| Keyboard shortcuts    | `src/hooks/useHotkeyHandler.ts`       | Logic lives here; `HotkeyHandler.tsx` is a thin wrapper                     |
-| WASM text assembly    | `src/utils/WasmTextAssembler.js`      | Wraps `text_assembly.rs::TextAssembler` — NOT wired to TranslationEngine.js |
+| Purpose               | File                                  | Notes                                                                                                                                                                     |
+| --------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Translation Core      | `TranslationEngine.js`                | 5-phase state coordination                                                                                                                                                |
+| UI Coordination       | `Translator.jsx`                      | Cross-mode synchronization                                                                                                                                                |
+| Shared TS types       | `src/types/DictionaryTypes.ts`        | Canonical dict/entry/metadata types                                                                                                                                       |
+| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | `sortDictionaryEntries`, labels, ordering                                                                                                                                 |
+| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | `copyWasmTokens` param1=JS dest, param2=WASM src                                                                                                                          |
+| WASM boundary (tests) | `types/WasmTypes.ts` (root-level)     | `copyWasmTokens` param1=WASM src, param2=JS dest                                                                                                                          |
+| Shared UI types       | `src/types/UITypes.d.ts`              | `ThrottledStreamingState` and other UI types                                                                                                                              |
+| Keyboard shortcuts    | `src/hooks/useHotkeyHandler.ts`       | Logic lives here; `HotkeyHandler.tsx` is a thin wrapper                                                                                                                   |
+| WASM text assembly    | `src/utils/WasmTextAssembler.js`      | Wraps `text_assembly.rs::TextAssembler`; `assembleWithSpacing()` powers postProcess() Step 2; spacing rules live in `needs_space()` (Rust) + `needsSpace()` (JS fallback) |
 
 **Intentionally JavaScript (never migrate)**: `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 
@@ -184,7 +186,7 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 
 ## Testing
 
-**Runner**: Vitest + React Testing Library. **1,267 tests, 51 files** (+ 21 Rust). Run: `npm test -- --run`.
+**Runner**: Vitest + React Testing Library. **1,303 tests, 52 files** (+ 94 Rust). Run: `npm test -- --run`.
 
 **File placement**: Utility tests → `src/utils/__tests__/`. Component tests → `src/components/__tests__/`. Never alongside source files in `src/utils/`.
 

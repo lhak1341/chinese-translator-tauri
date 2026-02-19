@@ -3,7 +3,7 @@
 **Date**: 2026-02-19
 **Scope**: `TranslationEngine.js` (10,854 lines) + supporting utilities
 **Goal**: Identify pure computation currently in JS that could be moved to the existing `wasm-core` crate
-**Status**: Research / Decision Record — no code changes
+**Status**: Research / Decision Record — Candidate 1 implemented (2026-02-20)
 
 ---
 
@@ -17,19 +17,19 @@ The most actionable finding is **not a new migration, but an incomplete one**: `
 
 ## What Is Already in WASM (Do Not Duplicate)
 
-| Rust Module                                 | JS Counterpart                 | Status                                                  |
-| ------------------------------------------- | ------------------------------ | ------------------------------------------------------- |
-| `number_processor.rs`                       | `WasmNumberProcessor.js`       | ✅ Active (5–10× speedup)                               |
-| `pattern_processor/` (two-phase)            | `WasmPatternProcessor.js`      | ✅ Active (10–50× for 2000+ chars)                      |
-| `position_mapper.rs` (Boyer-Moore-Horspool) | Used in `semanticArrayBuilder` | ✅ Active (3–5× speedup)                                |
-| `text_assembly.rs`                          | `WasmTextAssembler.js`         | ⚠️ Built but NOT wired to TranslationEngine.js          |
-| `dictionary_trie.rs`                        | `WasmDictionaryTrie.js`        | ⚠️ Built, disabled (2× slower due to boundary overhead) |
-| `string_processor.rs`                       | `WasmStringProcessor.js`       | ✅ Active (token cache)                                 |
-| `text_tokenizer.rs`                         | `WasmTextTokenizer.js`         | ✅ Active                                               |
-| `text_chunker.rs`                           | `WasmTextChunker.js`           | ✅ Active                                               |
-| `segment_matcher.rs`                        | Used via `SegmentMatcher`      | ✅ Active                                               |
-| `wasm_boundary.rs`                          | `BoundaryOptimizer`            | ✅ Active                                               |
-| `regex_utils.rs`                            | `WasmRegexUtils.js`            | ✅ Active                                               |
+| Rust Module                                 | JS Counterpart                 | Status                                                                       |
+| ------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| `number_processor.rs`                       | `WasmNumberProcessor.js`       | ✅ Active (5–10× speedup)                                                    |
+| `pattern_processor/` (two-phase)            | `WasmPatternProcessor.js`      | ✅ Active (10–50× for 2000+ chars)                                           |
+| `position_mapper.rs` (Boyer-Moore-Horspool) | Used in `semanticArrayBuilder` | ✅ Active (3–5× speedup)                                                     |
+| `text_assembly.rs`                          | `WasmTextAssembler.js`         | ✅ Active — `assembleWithSpacing()` powers postProcess() Step 2 (2026-02-20) |
+| `dictionary_trie.rs`                        | `WasmDictionaryTrie.js`        | ⚠️ Built, disabled (2× slower due to boundary overhead)                      |
+| `string_processor.rs`                       | `WasmStringProcessor.js`       | ✅ Active (token cache)                                                      |
+| `text_tokenizer.rs`                         | `WasmTextTokenizer.js`         | ✅ Active                                                                    |
+| `text_chunker.rs`                           | `WasmTextChunker.js`           | ✅ Active                                                                    |
+| `segment_matcher.rs`                        | Used via `SegmentMatcher`      | ✅ Active                                                                    |
+| `wasm_boundary.rs`                          | `BoundaryOptimizer`            | ✅ Active                                                                    |
+| `regex_utils.rs`                            | `WasmRegexUtils.js`            | ✅ Active                                                                    |
 
 ---
 
@@ -46,8 +46,12 @@ The most actionable finding is **not a new migration, but an incomplete one**: `
 - `WasmTextAssembler.js` already wraps it with a production-ready JS API
 - The wrapper is imported in `OptimizationBenchmarks.js` but **never imported in `TranslationEngine.js`**
 
-**The blocker — why it's not already done**:
-The current `postProcess()` assembly loop interweaves three concerns in one pass:
+**Status: COMPLETED (2026-02-20)**
+
+`assemble_with_spacing()` added to `TextAssembler` (Rust) with all 9 spacing rules via `needs_space()`. `WasmTextAssembler.js::assembleWithSpacing()` wraps it with JS fallback. `TranslationEngine.js` imports and calls it; the ~148-line Step 2 loop is replaced. Parity tests: `src/utils/__tests__/TranslationEngine.textAssembly.test.js` (36 tests).
+
+**Historical note — what the blocker was**:
+The original `postProcess()` assembly loop interweaved three concerns in one pass:
 
 1. **String building**: `result += current.text` + conditional spacing
 2. **Semantic array position recording**: `semanticArrayBuilder.setPositionByMatch(tokenIndex, text, start, end)` per segment
@@ -182,11 +186,9 @@ grep -r "applySmartCapitalizationToBatch" src/
 
 ---
 
-### Issue 4 — `WasmTextAssembler` is dead code in production [MEDIUM]
+### Issue 4 — ~~`WasmTextAssembler` is dead code in production~~ RESOLVED (2026-02-20)
 
-**Location**: `src/utils/WasmTextAssembler.js`
-
-The wrapper exists, the Rust module is proven, but it's never imported in `TranslationEngine.js`. It only appears in `OptimizationBenchmarks.js`. This is the main gap identified in Candidate 1 above — the infrastructure is ready, the integration is not.
+`assembleWithSpacing()` is now imported and called in `TranslationEngine.js::postProcess()`. The 9 spacing rules live in `needs_space()` (Rust) and `needsSpace()` (JS fallback in `WasmTextAssembler.js`).
 
 ---
 
@@ -239,7 +241,7 @@ No pure computation utilities found that would benefit from WASM migration. `Tra
 
 | Priority | Candidate                                                                   | Complexity | Gain                      | Rationale                                          |
 | -------- | --------------------------------------------------------------------------- | ---------- | ------------------------- | -------------------------------------------------- |
-| 1        | Wire `TextAssembler` into `postProcess()`                                   | MEDIUM     | MEDIUM                    | Infrastructure complete; largest unclaimed speedup |
+| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)         | MEDIUM     | MEDIUM                    | `assembleWithSpacing()` live in postProcess()      |
 | 2        | Consolidate `resolveGlobalConflicts()` into Rust                            | MEDIUM     | MEDIUM (maintenance HIGH) | Dual-impl bug risk; Rust version already exists    |
 | 3        | Connect `findPositionOptimized()` to `PositionMapper`                       | MEDIUM     | MEDIUM                    | Existing Rust API; algorithmic gain for long texts |
 | 4        | Fix `cleanupFormatting()` debug log guards                                  | LOW        | LOW                       | Production noise from hardcoded number checks      |

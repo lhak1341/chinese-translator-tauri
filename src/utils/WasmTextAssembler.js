@@ -140,6 +140,33 @@ export class WasmTextAssemblerWrapper {
     }
   }
 
+  /**
+   * Assemble segments with token-type-based spacing and position tracking.
+   *
+   * Mirrors the 9 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
+   *
+   * @param {Array<{text: string, tokenType: string, tokenIndex: number}>} segments
+   * @returns {{ translatedText: string, positions: Array<{tokenIndex: number, text: string, start: number, end: number}> }}
+   */
+  assembleWithSpacing(segments) {
+    if (!this.initialized || !this.assembler) {
+      return this.jsAssembleWithSpacing(segments);
+    }
+    try {
+      const json = JSON.stringify(
+        segments.map((s) => ({
+          text: s.text,
+          tokenType: s.tokenType,
+          tokenIndex: s.tokenIndex,
+        }))
+      );
+      return JSON.parse(this.assembler.assembleWithSpacing(json));
+    } catch (error) {
+      logger.error('WASM assembleWithSpacing failed, falling back:', error);
+      return this.jsAssembleWithSpacing(segments);
+    }
+  }
+
   // ============================================================================
   // JavaScript Fallback Implementations
   // ============================================================================
@@ -203,6 +230,46 @@ export class WasmTextAssemblerWrapper {
   }
 
   /**
+   * JavaScript fallback for spacing-aware assembly.
+   *
+   * Exact port of the Step 2 loop from `TranslationEngine.js:postProcess()`.
+   * Returns `{ translatedText, positions }` where positions have `start`/`end`
+   * as character indices (JS `.length` units) in the assembled translated text.
+   *
+   * @private
+   * @param {Array<{text: string, tokenType: string, tokenIndex: number}>} segments
+   * @returns {{ translatedText: string, positions: Array<{tokenIndex: number, text: string, start: number, end: number}> }}
+   */
+  jsAssembleWithSpacing(segments) {
+    if (!segments || segments.length === 0) {
+      return { translatedText: '', positions: [] };
+    }
+
+    let translatedText = '';
+    let currentPosition = 0;
+    const positions = [];
+
+    for (let i = 0; i < segments.length; i++) {
+      const current = segments[i];
+      const next = i < segments.length - 1 ? segments[i + 1] : null;
+
+      const start = currentPosition;
+      translatedText += current.text;
+      currentPosition += current.text.length;
+      const end = currentPosition;
+
+      positions.push({ tokenIndex: current.tokenIndex, text: current.text, start, end });
+
+      if (next && needsSpace(current.tokenType, next.tokenType, current.text, next.text)) {
+        translatedText += ' ';
+        currentPosition += 1;
+      }
+    }
+
+    return { translatedText, positions };
+  }
+
+  /**
    * JavaScript fallback for translated text only
    *
    * @private
@@ -229,5 +296,74 @@ export async function createWasmTextAssembler() {
   return assembler;
 }
 
+// ============================================================================
+// Spacing Rule Helper (used by jsAssembleWithSpacing)
+// ============================================================================
+
+/**
+ * Returns true when `tokenType` is a Chinese character or word type.
+ * @param {string} tokenType
+ * @returns {boolean}
+ */
+function isChinese(tokenType) {
+  return tokenType === 'chinese_char' || tokenType === 'chinese_word';
+}
+
+/**
+ * Determine whether a space should be inserted between `current` and `next`.
+ *
+ * Exact port of the 9 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
+ * Token type strings match `TextTokenizer.ts` `TokenType` enum values.
+ *
+ * @param {string} currentType
+ * @param {string} nextType
+ * @param {string} currentText
+ * @param {string} nextText
+ * @returns {boolean}
+ */
+export function needsSpace(currentType, nextType, currentText, nextText) {
+  // Rule 1: Chinese → Chinese
+  if (isChinese(currentType) && isChinese(nextType)) return true;
+  // Rule 2: Chinese → opening punctuation (bracket/paren)
+  if (
+    isChinese(currentType) &&
+    nextType === 'punctuation' &&
+    (nextText.includes('[') || nextText.includes('('))
+  )
+    return true;
+  // Rule 3: Chinese → punctuation starting with digit
+  if (isChinese(currentType) && nextType === 'punctuation' && /^\d/.test(nextText)) return true;
+  // Rule 4: punctuation → Chinese (not opening quote/bracket)
+  if (
+    currentType === 'punctuation' &&
+    isChinese(nextType) &&
+    !currentText.startsWith('"') &&
+    !currentText.startsWith('\u201c') &&
+    !currentText.endsWith('"') &&
+    !currentText.endsWith('\u201c') &&
+    !currentText.includes('[') &&
+    !currentText.includes('(')
+  )
+    return true;
+  // Rule 5: Chinese → latin_word
+  if (isChinese(currentType) && nextType === 'latin_word') return true;
+  // Rule 6: latin_word → Chinese
+  if (currentType === 'latin_word' && isChinese(nextType)) return true;
+  // Rule 7: Chinese → number
+  if (isChinese(currentType) && nextType === 'number') return true;
+  // Rule 8: number → Chinese
+  if (currentType === 'number' && isChinese(nextType)) return true;
+  // Rule 9: Chinese → unknown
+  if (isChinese(currentType) && nextType === 'unknown') return true;
+  // Rule 10: unknown → Chinese
+  if (currentType === 'unknown' && isChinese(nextType)) return true;
+  return false;
+}
+
 // Export singleton instance
 export const wasmTextAssembler = new WasmTextAssemblerWrapper();
+
+// Auto-initialize in background (same pattern as WasmNumberProcessor.js)
+wasmTextAssembler.initialize().catch((err) => {
+  logger.warn('Background WASM TextAssembler initialization failed:', err);
+});
