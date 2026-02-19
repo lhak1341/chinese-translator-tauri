@@ -946,6 +946,7 @@ pub async fn import_dictionaries(
     limiters.check_export_import()?;
 
     let dictionary_path = get_dictionary_path(&app_handle)?;
+    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
 
     // Use dialog to get file to import
     use tauri_plugin_dialog::DialogExt;
