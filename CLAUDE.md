@@ -149,6 +149,7 @@ The five most likely to cause **silent bugs**:
 - **`VirtualRowComponent` is at module scope** (2026-02-18): Defined before `EnhancedVirtualizedDictionaryTable` with props `selectedDictionary`, `onUpdateEntry`, `onSelectEntry`, `onContextMenu`. Do NOT wrap in `useMemo` — any dep change creates a new React component _type_, unmounting all rows and destroying inline edit state (`editingSource`, `tempSource`, etc.).
 - **Rust `u64` timestamp subtraction: always use `.saturating_sub()`**: `SystemTime::now()` is not monotonic on macOS — clock-backwards adjustment makes `now - last` underflow as `u64`, panicking in debug or wrapping to a huge number in release (bypasses rate limiters). Use `now_ms.saturating_sub(last_notify)`. Affects `emit_poisoning_event` in `dictionary_commands.rs`.
 - **CSS `repeating-linear-gradient` for virtual scroll row shading: put gradient on rows container, NOT spacer** (`EnhancedVirtualizedDictionaryTable.tsx`): CSS `background` uses the element's **layout** y-position, not visual/transformed position — `translateY` is irrelevant. With gradient on the spacer, rows always see it at slice-local y (layout y=0..N), causing parity flips on every scroll. Place gradient on the rows container (direct parent of rows); use `backgroundPositionY: (startIndex % 2) * ITEM_HEIGHT + 'px'` for phase correction; set all row `backgroundColor` to `transparent`.
+- **`resolveGlobalConflicts()` has a dual Rust implementation**: `TranslationEngine.js::resolveGlobalConflicts()` (~line 2709) and `wasm-core/src/pattern_processor/matcher.rs::find_best_pattern_match()` implement the same greedy length-first interval scheduling algorithm. Algorithm changes MUST be applied to both. Parity spec: `src/utils/__tests__/TranslationEngine.resolveConflicts.test.js`.
 
 ### Essential Commands
 
@@ -165,16 +166,17 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 
 ### Key Files
 
-| Purpose               | File                                  | Notes                                                   |
-| --------------------- | ------------------------------------- | ------------------------------------------------------- |
-| Translation Core      | `TranslationEngine.js`                | 5-phase state coordination                              |
-| UI Coordination       | `Translator.jsx`                      | Cross-mode synchronization                              |
-| Shared TS types       | `src/types/DictionaryTypes.ts`        | Canonical dict/entry/metadata types                     |
-| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | `sortDictionaryEntries`, labels, ordering               |
-| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | `copyWasmTokens` param1=JS dest, param2=WASM src        |
-| WASM boundary (tests) | `types/WasmTypes.ts` (root-level)     | `copyWasmTokens` param1=WASM src, param2=JS dest        |
-| Shared UI types       | `src/types/UITypes.d.ts`              | `ThrottledStreamingState` and other UI types            |
-| Keyboard shortcuts    | `src/hooks/useHotkeyHandler.ts`       | Logic lives here; `HotkeyHandler.tsx` is a thin wrapper |
+| Purpose               | File                                  | Notes                                                                       |
+| --------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
+| Translation Core      | `TranslationEngine.js`                | 5-phase state coordination                                                  |
+| UI Coordination       | `Translator.jsx`                      | Cross-mode synchronization                                                  |
+| Shared TS types       | `src/types/DictionaryTypes.ts`        | Canonical dict/entry/metadata types                                         |
+| Shared dict utils     | `src/utils/dictionaryHelpers.ts`      | `sortDictionaryEntries`, labels, ordering                                   |
+| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts` | `copyWasmTokens` param1=JS dest, param2=WASM src                            |
+| WASM boundary (tests) | `types/WasmTypes.ts` (root-level)     | `copyWasmTokens` param1=WASM src, param2=JS dest                            |
+| Shared UI types       | `src/types/UITypes.d.ts`              | `ThrottledStreamingState` and other UI types                                |
+| Keyboard shortcuts    | `src/hooks/useHotkeyHandler.ts`       | Logic lives here; `HotkeyHandler.tsx` is a thin wrapper                     |
+| WASM text assembly    | `src/utils/WasmTextAssembler.js`      | Wraps `text_assembly.rs::TextAssembler` — NOT wired to TranslationEngine.js |
 
 **Intentionally JavaScript (never migrate)**: `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 
@@ -182,7 +184,7 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 
 ## Testing
 
-**Runner**: Vitest + React Testing Library. **1,252 tests, 50 files** (+ 21 Rust). Run: `npm test -- --run`.
+**Runner**: Vitest + React Testing Library. **1,267 tests, 51 files** (+ 21 Rust). Run: `npm test -- --run`.
 
 **File placement**: Utility tests → `src/utils/__tests__/`. Component tests → `src/components/__tests__/`. Never alongside source files in `src/utils/`.
 
@@ -206,3 +208,5 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 - **[Troubleshooting Guide](docs/guides/troubleshooting.md)** — Debugging and fixes
 - **[Performance Guide](docs/guides/performance.md)** — Optimization and profiling
 - **[ADRs](docs/adr/)** · **[Archive](docs/archive/)**
+- **[GUI Framework Evaluation](docs/GUI_FRAMEWORK_EVALUATION_2026.md)** — Tauri vs. iced/egui/gpui/Dioxus; verdict: stay on Tauri
+- **[WASM Migration Code Review](docs/WASM_MIGRATION_CODE_REVIEW_2026.md)** — Pure computation candidates for wasm-core migration

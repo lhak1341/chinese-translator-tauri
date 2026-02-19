@@ -5005,10 +5005,12 @@ export class TranslationEngine {
    * @returns {string} Cleaned text
    */
   cleanupFormatting(text, options) {
-    // DEBUG: Log when processing text with numbers
-    if (text.includes('23') || text.includes('30')) {
-      logger.log('🔍 DEBUG: cleanupFormatting INPUT:', text.substring(0, 200));
-      logger.log('🔍 DEBUG: useChunking option:', options.useChunking);
+    if (process.env.NODE_ENV === 'development') {
+      // DEBUG: Log when processing text with numbers
+      if (text.includes('23') || text.includes('30')) {
+        logger.log('🔍 DEBUG: cleanupFormatting INPUT:', text.substring(0, 200));
+        logger.log('🔍 DEBUG: useChunking option:', options.useChunking);
+      }
     }
 
     let result = text;
@@ -5106,9 +5108,11 @@ export class TranslationEngine {
     // Capitalize first letter after closing quotes (period + quote + space + text)
     //     result = result.replace(/[.!?][""]\s+./g, match => match.toUpperCase()); // " and "
 
-    // DEBUG: Log output when processing text with numbers
-    if (result.includes('23') || result.includes('30')) {
-      logger.log('🔍 DEBUG: cleanupFormatting OUTPUT:', result.substring(0, 200));
+    if (process.env.NODE_ENV === 'development') {
+      // DEBUG: Log output when processing text with numbers
+      if (result.includes('23') || result.includes('30')) {
+        logger.log('🔍 DEBUG: cleanupFormatting OUTPUT:', result.substring(0, 200));
+      }
     }
 
     return result;
@@ -9423,247 +9427,6 @@ export class TranslationEngine {
     const finalCapitalizedText = this.applyFinalCleanup(capitalizedText);
 
     return finalCapitalizedText;
-  }
-
-  /**
-   * Apply smart capitalization to current batch only (progressive) - DEPRECATED
-   * @param {TextChunk[]} batchChunks - Current batch chunks to process
-   * @param {TextChunk[]} allChunks - All chunks for context lookup
-   * @param {number} batchStartIndex - Starting index of batch in all chunks
-   */
-  applySmartCapitalizationToBatch(batchChunks, allChunks, batchStartIndex) {
-    if (!batchChunks || batchChunks.length === 0) return;
-
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `📝 Progressive capitalization: Processing ${batchChunks.length} chunks in batch starting at ${batchStartIndex}`
-    );
-
-    // Define capitalization rules (same as applySmartCapitalization)
-    const capitalizationRules = {
-      start: true, // Beginning of text
-      linebreak: true, // After line breaks (new paragraph)
-      '.': true, // After period
-      '!': true, // After exclamation
-      '?': true, // After question mark
-      '。': true, // Chinese period
-      '．': true, // Chinese middle dot (also used as period)
-      '！': true, // Chinese exclamation
-      '？': true, // Chinese question mark
-      ':': true, // After colon
-      '：': true, // Chinese colon
-      ',': false, // After comma - NO capitalization
-      '，': false, // Chinese comma - NO capitalization
-      ';': false, // After semicolon - NO capitalization
-      '；': false, // Chinese semicolon - NO capitalization
-      '[': false, // After opening bracket - NO capitalization
-      ']': false, // After closing bracket - NO capitalization
-      '(': false, // After opening parenthesis - NO capitalization
-      ')': false, // After closing parenthesis - NO capitalization
-      '…': true, // After ellipsis - YES capitalization
-      '……': true, // After Chinese double ellipsis - YES capitalization
-      '"': false, // After straight quote - NO capitalization
-      '\u201c': false, // After curly opening quote - NO capitalization
-      '\u201d': false, // After curly closing quote - NO capitalization
-      '\u2018': false, // After curly opening apostrophe - NO capitalization
-      '\u2019': false, // After curly closing apostrophe - NO capitalization
-      "'": false, // After straight apostrophe - NO capitalization
-      '': false, // After no punctuation - NO capitalization
-    };
-
-    // Process each chunk in the current batch only
-    for (let i = 0; i < batchChunks.length; i++) {
-      const chunk = batchChunks[i];
-      if (!chunk.translated) continue;
-
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `📝 Processing batch chunk ${i}: "${chunk.translated}" (started by: "${chunk.startedBy}")`
-      );
-
-      // Check for basic capitalization rules
-      let shouldCapitalize = capitalizationRules[chunk.startedBy];
-
-      // Handle multi-character punctuation sequences
-      if (!shouldCapitalize && chunk.startedBy) {
-        const sentenceEnders = ['.', '!', '?', '。', '．', '！', '？'];
-        const colonMarks = [':', '：'];
-        const ellipsisMarks = ['…', '……'];
-
-        const hasSentenceEnder = sentenceEnders.some((punct) => chunk.startedBy.includes(punct));
-        const hasColon = colonMarks.some((punct) => chunk.startedBy.includes(punct));
-        const hasEllipsis = ellipsisMarks.some((punct) => chunk.startedBy.includes(punct));
-
-        if (hasSentenceEnder || hasColon || hasEllipsis) {
-          shouldCapitalize = true;
-          const reason = hasSentenceEnder ? 'sentence ender' : hasColon ? 'colon' : 'ellipsis';
-          this.log(
-            DEBUG_LEVELS.VERBOSE,
-            `📝 Multi-char punctuation capitalization: "${chunk.startedBy}" contains ${reason}`
-          );
-        }
-      }
-
-      // Special handling for opening quotes with cross-chunk context
-      if (!shouldCapitalize && chunk.startedBy) {
-        const isOpeningQuote = QuoteProcessor.isOpeningQuote(chunk.startedBy);
-
-        if (isOpeningQuote) {
-          // Calculate absolute chunk index for context lookup
-          const absoluteChunkIndex = batchStartIndex + i;
-          const previousChunk = absoluteChunkIndex > 0 ? allChunks[absoluteChunkIndex - 1] : null;
-
-          // Sentence start detection (same logic as applySmartCapitalization)
-          const isAtSentenceStart =
-            !previousChunk ||
-            previousChunk.lineBreaks ||
-            chunk.startedBy === 'start' ||
-            (previousChunk && !previousChunk.content.trim());
-
-          if (isAtSentenceStart) {
-            shouldCapitalize = true;
-            this.log(
-              DEBUG_LEVELS.VERBOSE,
-              `📝 Opening quote at sentence start: "${chunk.startedBy}" triggers capitalization`
-            );
-          }
-        }
-      }
-
-      // Apply capitalization if needed
-      if (shouldCapitalize) {
-        const isAlreadyCapitalized =
-          chunk.translated.charAt(0) === chunk.translated.charAt(0).toUpperCase();
-
-        if (!isAlreadyCapitalized) {
-          const oldText = chunk.translated;
-          chunk.translated = chunk.translated.charAt(0).toUpperCase() + chunk.translated.slice(1);
-
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `📝 Capitalized: "${oldText}" → "${chunk.translated}" (started by: "${chunk.startedBy}")`
-          );
-        }
-      }
-    }
-  }
-
-  /**
-   * Apply smart capitalization to batch chunks with cross-chunk context for opening quotes (LEGACY)
-   * @param {TextChunk[]} batchChunks - Current batch chunks to process
-   * @param {TextChunk[]} allChunks - All chunks for context lookup
-   * @param {number} batchStartIndex - Starting index of batch in all chunks
-   */
-  applyBatchCapitalization(batchChunks, allChunks, batchStartIndex) {
-    if (!batchChunks || batchChunks.length === 0) return;
-
-    this.log(
-      DEBUG_LEVELS.DEBUG,
-      `📝 Batch capitalization: Processing ${batchChunks.length} chunks starting at index ${batchStartIndex}`
-    );
-
-    // Define capitalization rules (same as existing logic)
-    const capitalizationRules = {
-      start: true, // Beginning of text
-      linebreak: true, // After line breaks (new paragraph)
-      '.': true, // After period
-      '!': true, // After exclamation
-      '?': true, // After question mark
-      '。': true, // Chinese period
-      '．': true, // Chinese middle dot (also used as period)
-      '！': true, // Chinese exclamation
-      '？': true, // Chinese question mark
-      ':': true, // After colon
-      '：': true, // Chinese colon
-      ',': false, // After comma - NO capitalization
-      '，': false, // Chinese comma - NO capitalization
-      ';': false, // After semicolon - NO capitalization
-      '；': false, // Chinese semicolon - NO capitalization
-      '[': false, // After opening bracket - NO capitalization
-      ']': false, // After closing bracket - NO capitalization
-      '(': false, // After opening parenthesis - NO capitalization
-      ')': false, // After closing parenthesis - NO capitalization
-      '…': true, // After ellipsis - YES capitalization
-      '……': true, // After Chinese double ellipsis - YES capitalization
-      '"': false, // After straight quote - NO capitalization
-      '\u201c': false, // After curly opening quote - NO capitalization
-      '\u201d': false, // After curly closing quote - NO capitalization
-      '\u2018': false, // After curly opening apostrophe - NO capitalization
-      '\u2019': false, // After curly closing apostrophe - NO capitalization
-      "'": false, // After straight apostrophe - NO capitalization
-      '': false, // After no punctuation - NO capitalization
-    };
-
-    // Process each chunk in the batch
-    for (let i = 0; i < batchChunks.length; i++) {
-      const chunk = batchChunks[i];
-      if (!chunk.translated) continue;
-
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `📝 Processing chunk ${i}: "${chunk.translated}" (started by: "${chunk.startedBy}")`
-      );
-
-      // Check for advanced capitalization rules
-      let shouldCapitalize = capitalizationRules[chunk.startedBy];
-
-      // Handle multi-character punctuation sequences (same logic as existing)
-      if (!shouldCapitalize && chunk.startedBy) {
-        const sentenceEnders = ['.', '!', '?', '。', '．', '！', '？'];
-        const colonMarks = [':', '：'];
-        const ellipsisMarks = ['…', '……'];
-
-        const hasSentenceEnder = sentenceEnders.some((punct) => chunk.startedBy.includes(punct));
-        const hasColon = colonMarks.some((punct) => chunk.startedBy.includes(punct));
-        const hasEllipsis = ellipsisMarks.some((punct) => chunk.startedBy.includes(punct));
-
-        if (hasSentenceEnder || hasColon || hasEllipsis) {
-          shouldCapitalize = true;
-        }
-      }
-
-      // Special handling for opening quotes (needs cross-chunk context)
-      if (!shouldCapitalize && chunk.startedBy) {
-        const isOpeningQuote = QuoteProcessor.isOpeningQuote(chunk.startedBy);
-
-        if (isOpeningQuote) {
-          // Calculate absolute chunk index in all chunks
-          const absoluteChunkIndex = batchStartIndex + i;
-          const previousChunk = absoluteChunkIndex > 0 ? allChunks[absoluteChunkIndex - 1] : null;
-
-          // Simplified sentence start detection (matching applySmartCapitalization logic)
-          const isAtSentenceStart =
-            !previousChunk ||
-            previousChunk.lineBreaks ||
-            chunk.startedBy === 'start' ||
-            (previousChunk && !previousChunk.content.trim());
-
-          if (isAtSentenceStart) {
-            shouldCapitalize = true;
-            this.log(
-              DEBUG_LEVELS.VERBOSE,
-              `📝 Opening quote at sentence start: "${chunk.startedBy}" triggers capitalization`
-            );
-          }
-        }
-      }
-
-      // Apply capitalization if needed (same logic as existing)
-      if (shouldCapitalize) {
-        const isAlreadyCapitalized =
-          chunk.translated.charAt(0) === chunk.translated.charAt(0).toUpperCase();
-
-        if (!isAlreadyCapitalized) {
-          const oldText = chunk.translated;
-          chunk.translated = chunk.translated.charAt(0).toUpperCase() + chunk.translated.slice(1);
-
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `📝 Capitalized: "${oldText}" → "${chunk.translated}" (started by: "${chunk.startedBy}")`
-          );
-        }
-      }
-    }
   }
 
   /**
