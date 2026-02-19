@@ -215,6 +215,15 @@ fn emit_poisoning_event() {
             0   // Informational: restart when convenient
         };
 
+        // Derive RFC3339 timestamp from the same now_ms already used for rate-limiting,
+        // avoiding a second clock call via chrono::Utc::now().
+        let timestamp = {
+            use chrono::TimeZone;
+            chrono::Utc.timestamp_millis_opt(now_ms as i64)
+                .single()
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| now_ms.to_string())
+        };
         let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
             "type": "mutex_poisoning",
             "event_count": event_count,
@@ -228,7 +237,7 @@ fn emit_poisoning_event() {
             } else {
                 "Save your work and restart the application to ensure data integrity.".to_string()
             },
-            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "timestamp": timestamp,
             "last_notification_ms": now_ms,
             "cooldown_ms": NOTIFICATION_COOLDOWN_MS,
             "auto_restart_recommended_in_seconds": auto_restart_seconds
@@ -568,6 +577,14 @@ fn get_dictionary_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String>
     Ok(app_data_dir.join("dictionaries"))
 }
 
+/// Return the dictionary directory path, creating it if it does not exist.
+/// Uses sanitize_io_error so callers never leak OS-level path information.
+fn get_or_create_dictionary_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let path = get_dictionary_path(app_handle)?;
+    fs::create_dir_all(&path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
+    Ok(path)
+}
+
 // Get cache key for dictionary
 fn get_cache_key(dictionary_id: &str, file_path: &PathBuf) -> String {
     format!("{}:{}", dictionary_id, file_path.display())
@@ -575,10 +592,7 @@ fn get_cache_key(dictionary_id: &str, file_path: &PathBuf) -> String {
 
 #[tauri::command]
 pub async fn open_dictionary_folder(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-
-    // Create directory if it doesn't exist
-    fs::create_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
     // Open folder using opener plugin
     use tauri_plugin_opener::OpenerExt;
@@ -591,10 +605,7 @@ pub async fn open_dictionary_folder(app_handle: tauri::AppHandle) -> Result<Dict
 
 #[tauri::command]
 pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-
-    // Create directory if it doesn't exist
-    fs::create_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
     let entries = fs::read_dir(&dictionary_path).map_err(|e| e.to_string())?;
 
@@ -634,8 +645,7 @@ pub async fn create_proper_nouns_dictionary(
         ));
     }
 
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     // Check if file already exists
@@ -677,8 +687,7 @@ pub async fn save_dictionary(
         ));
     }
 
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
@@ -747,6 +756,11 @@ pub async fn load_dictionary(
                     ));
                 }
             }
+
+            // SECURITY: Depth guard — mirrors import_dictionaries and save_dictionary.
+            // A file written externally with pathological nesting bypasses the import
+            // path guard, so both load paths must enforce it before caching.
+            check_json_depth(&data, 50)?;
 
             // Cache the result
             cache.set(cache_key, data.clone());
@@ -945,8 +959,7 @@ pub async fn import_dictionaries(
     // SECURITY: Rate limit to prevent abuse
     limiters.check_export_import()?;
 
-    let dictionary_path = get_dictionary_path(&app_handle)?;
-    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
     // Use dialog to get file to import
     use tauri_plugin_dialog::DialogExt;
@@ -1119,7 +1132,7 @@ pub async fn reset_dictionaries(
             .ok_or("Could not get parent directory")?
             .join("dictionaries_backup");
 
-        fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&backup_dir).map_err(|e| sanitize_io_error(e, "backup directory"))?;
 
         // Copy all files to backup
         if dictionary_path.exists() {
@@ -1145,7 +1158,7 @@ pub async fn reset_dictionaries(
     }
 
     // Recreate dictionary directory
-    fs::create_dir_all(&dictionary_path).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dictionary_path).map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
 
     // Clear cache
     cache.invalidate(None);
@@ -1178,6 +1191,16 @@ pub struct BatchDictionaryResult {
     error: Option<String>,
 }
 
+impl BatchDictionaryResult {
+    fn ok(id: &str, data: serde_json::Value) -> Self {
+        Self { dictionary_id: id.to_string(), success: true, data: Some(data), error: None }
+    }
+
+    fn err(id: &str, error: impl Into<String>) -> Self {
+        Self { dictionary_id: id.to_string(), success: false, data: None, error: Some(error.into()) }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct BatchDictionaryResponse {
     results: Vec<BatchDictionaryResult>,
@@ -1204,12 +1227,7 @@ pub async fn load_dictionaries_parallel(
         .map(|dictionary_id| {
             // SECURITY: Validate dictionary ID to prevent path traversal
             if let Err(e) = validate_dictionary_id(dictionary_id) {
-                return BatchDictionaryResult {
-                    dictionary_id: dictionary_id.clone(),
-                    success: false,
-                    data: None,
-                    error: Some(e),
-                };
+                return BatchDictionaryResult::err(dictionary_id, e);
             }
 
             let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
@@ -1217,22 +1235,12 @@ pub async fn load_dictionaries_parallel(
 
             // Check cache first (thread-safe)
             if let Some(cached_data) = cache.get(&cache_key) {
-                return BatchDictionaryResult {
-                    dictionary_id: dictionary_id.clone(),
-                    success: true,
-                    data: Some(cached_data),
-                    error: None,
-                };
+                return BatchDictionaryResult::ok(dictionary_id, cached_data);
             }
 
             // SECURITY: Validate file size before reading (matches serial load path)
             if let Err(e) = validate_file_size(&file_path, MAX_JSON_SIZE_BYTES) {
-                return BatchDictionaryResult {
-                    dictionary_id: dictionary_id.clone(),
-                    success: false,
-                    data: None,
-                    error: Some(e),
-                };
+                return BatchDictionaryResult::err(dictionary_id, e);
             }
 
             // Load from file
@@ -1243,52 +1251,38 @@ pub async fn load_dictionaries_parallel(
                             // SECURITY: Enforce entry-count cap (matches serial load path).
                             if let Some(obj) = data.as_object() {
                                 if obj.len() > MAX_DICTIONARY_ENTRIES {
-                                    return BatchDictionaryResult {
-                                        dictionary_id: dictionary_id.clone(),
-                                        success: false,
-                                        data: None,
-                                        error: Some(format!(
+                                    return BatchDictionaryResult::err(
+                                        dictionary_id,
+                                        format!(
                                             "Dictionary '{}' has too many entries ({}, max: {})",
                                             dictionary_id,
                                             obj.len(),
                                             MAX_DICTIONARY_ENTRIES
-                                        )),
-                                    };
+                                        ),
+                                    );
                                 }
+                            }
+
+                            // SECURITY: Depth guard — mirrors load_dictionary and import_dictionaries.
+                            if let Err(e) = check_json_depth(&data, 50) {
+                                return BatchDictionaryResult::err(dictionary_id, e);
                             }
 
                             // Cache the result (thread-safe)
                             cache.set(cache_key, data.clone());
 
-                            BatchDictionaryResult {
-                                dictionary_id: dictionary_id.clone(),
-                                success: true,
-                                data: Some(data),
-                                error: None,
-                            }
+                            BatchDictionaryResult::ok(dictionary_id, data)
                         }
-                        Err(e) => BatchDictionaryResult {
-                            dictionary_id: dictionary_id.clone(),
-                            success: false,
-                            data: None,
-                            error: Some(format!("JSON parse error: {}", e)),
-                        },
+                        Err(e) => BatchDictionaryResult::err(
+                            dictionary_id,
+                            format!("JSON parse error: {}", e),
+                        ),
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    BatchDictionaryResult {
-                        dictionary_id: dictionary_id.clone(),
-                        success: false,
-                        data: None,
-                        error: Some("File not found".to_string()),
-                    }
+                    BatchDictionaryResult::err(dictionary_id, "File not found")
                 }
-                Err(e) => BatchDictionaryResult {
-                    dictionary_id: dictionary_id.clone(),
-                    success: false,
-                    data: None,
-                    error: Some(e.to_string()),
-                },
+                Err(e) => BatchDictionaryResult::err(dictionary_id, e.to_string()),
             }
         })
         .collect();

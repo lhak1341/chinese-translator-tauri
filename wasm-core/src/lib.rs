@@ -61,6 +61,9 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
+// Shared entry-count cap — mirrors MAX_DICTIONARY_ENTRIES in the Tauri backend.
+const MAX_DICTIONARY_ENTRIES: usize = 50_000;
+
 // Enable better error messages in debug mode
 pub use console_error_panic_hook::set_once as set_panic_hook;
 
@@ -199,11 +202,10 @@ impl DictionaryEngine {
         // SECURITY: Entry-count cap — mirrors the Tauri backend limit.
         // The backend enforces this before sending data to JS, but the WASM engine
         // is callable directly from JS (dev tools, tests), so we defend here too.
-        const MAX_ENTRIES: usize = 50_000;
-        if entries.len() > MAX_ENTRIES {
+        if entries.len() > MAX_DICTIONARY_ENTRIES {
             return Err(JsValue::from_str(&format!(
                 "Dictionary '{}' too large: {} entries (max: {})",
-                name, entries.len(), MAX_ENTRIES
+                name, entries.len(), MAX_DICTIONARY_ENTRIES
             )));
         }
 
@@ -317,14 +319,13 @@ impl DictionaryEngine {
 
         // Load each dictionary sequentially
         // Note: We do sequential loading inside the batch to maintain memory limits
-        const MAX_ENTRIES: usize = 50_000;
         for dict in &batch {
             // SECURITY: Entry-count cap (same limit as Tauri backend and load_dictionary).
-            if dict.entries.len() > MAX_ENTRIES {
+            if dict.entries.len() > MAX_DICTIONARY_ENTRIES {
                 #[cfg(target_arch = "wasm32")]
                 web_sys::console::warn_1(&format!(
                     "⚠️ Skipping dictionary '{}' - too many entries ({} > {})",
-                    dict.name, dict.entries.len(), MAX_ENTRIES
+                    dict.name, dict.entries.len(), MAX_DICTIONARY_ENTRIES
                 ).into());
                 failed_dictionaries.push(dict.name.clone());
                 continue;

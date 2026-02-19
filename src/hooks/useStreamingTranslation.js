@@ -77,14 +77,6 @@ export function useStreamingTranslation(throttleMs = 100) {
   }, []);
 
   /**
-   * Set progress information
-   * @param {Object} info - Progress information
-   */
-  const setProgress = useCallback((info) => {
-    setProgressInfo(info);
-  }, []);
-
-  /**
    * Set partial semantic arrays
    * @param {Object} arrays - Partial semantic arrays
    */
@@ -115,7 +107,7 @@ export function useStreamingTranslation(throttleMs = 100) {
     partialSemanticArrays,
     throttledStreamingState,
     updateStreaming,
-    setProgress,
+    setProgress: setProgressInfo,
     setPartialArrays,
     resetStreaming,
   };

@@ -14,6 +14,7 @@ import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { ValidationError, SaveError, isValidationError } from '../../utils/errors';
+import { extractErrorMessage } from '../../utils/errorHelpers';
 import {
   sortDictionaryEntries,
   getSortingStats,
@@ -200,7 +201,7 @@ export function LazyDictionaryProvider({
           logger.error(`Error loading dictionary ${dictionaryId}:`, error);
 
           // HIGH-1 FIX: Notify user of load error
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          const errorMsg = extractErrorMessage(error);
           toast.error(
             `Error loading ${dictionaryId} dictionary: ${errorMsg}. Please try reloading.`,
             {
@@ -465,8 +466,7 @@ export function LazyDictionaryProvider({
         // CODE QUALITY FIX: Use type-safe error checking instead of brittle string matching
         // Only show toast if not a validation error (validation errors already show toast)
         if (!isValidationError(error)) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-          toast.error(`Could not add entry: ${errorMsg}`);
+          toast.error(`Could not add entry: ${extractErrorMessage(error)}`);
         }
         throw error; // Re-throw for caller handling
       }
@@ -573,8 +573,7 @@ export function LazyDictionaryProvider({
         // CODE QUALITY FIX: Use type-safe error checking instead of brittle string matching
         // Only show toast if not a validation error (validation errors already show toast)
         if (!isValidationError(error)) {
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-          toast.error(`Could not update entry: ${errorMsg}`);
+          toast.error(`Could not update entry: ${extractErrorMessage(error)}`);
         }
         throw error; // Re-throw for caller handling
       }
@@ -634,9 +633,7 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         logger.error('Error deleting dictionary entry:', error);
-        toast.error(
-          `Could not delete entry: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
+        toast.error(`Could not delete entry: ${extractErrorMessage(error)}`);
         throw error; // Re-throw for caller handling
       }
     },
@@ -687,7 +684,7 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         logger.error('Error during undo:', error);
-        toast.error(`Undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        toast.error(`Undo failed: ${extractErrorMessage(error)}`);
       }
     }
     // Note: No toast for "nothing to undo" - button should be disabled in this state
@@ -738,7 +735,7 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         logger.error('Error during redo:', error);
-        toast.error(`Redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        toast.error(`Redo failed: ${extractErrorMessage(error)}`);
       }
     }
     // Note: No toast for "nothing to redo" - button should be disabled in this state

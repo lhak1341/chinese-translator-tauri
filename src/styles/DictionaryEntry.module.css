@@ -2,17 +2,9 @@
 /* Extracted from inline styles for CSP hardening */
 
 .overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  composes: modalOverlay from './shared.module.css';
   background-color: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 1rem;
-  z-index: 1000;
 }
 
 .modal {
