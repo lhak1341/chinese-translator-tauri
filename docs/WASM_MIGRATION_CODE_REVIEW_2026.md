@@ -127,18 +127,31 @@ The "zero additional boundary cost" insight in the original note only holds if A
 
 ### Candidate 4 — `findPositionOptimized()` and `buildSegmentsFromSemanticArrays()` batch position finding (LOW-MEDIUM PRIORITY)
 
-**Functions**:
+**Status: DO NOT MIGRATE — all three functions are dead code, deleted (2026-02-20)**
 
-- `findPositionOptimized()` line ~10607: windowed `indexOf` with a 1000-char window + Map cache. No `this.*` state.
-- `buildSegmentsFromSemanticArrays()` line ~10269: linear `indexOf` scan over semantic arrays. No `this.*` state.
-  **`this.*` usage**: Only `this.log()` and `this.debugLevel`
+All three functions in this candidate had zero external call sites. Deleted:
 
-**Why it's a WASM candidate**:
-`PositionMapper` already exists in Rust (`position_mapper.rs`) using Boyer-Moore-Horspool (O(n/m) vs `indexOf`'s O(n)). The `findPositionOptimized()` function is doing effectively the same work — windowed string search — that `PositionMapper` was designed for. If position finding is called many times per translation (which it is for large texts), replacing it with a single batch call to `PositionMapper` could meaningfully reduce total time.
+| Function                            | Lines (original) | Status                                                                           |
+| ----------------------------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `buildSegmentsFromSemanticArrays()` | 9869–9932        | Dead — 0 call sites. Also had a stacked orphaned JSDoc block.                    |
+| `buildSimpleWordLevelSegments()`    | 10016–10142      | Dead — 0 call sites. The only caller of `findPositionOptimized`.                 |
+| `findPositionOptimized()`           | 10144–10184      | Dead by transitivity — only called from the dead `buildSimpleWordLevelSegments`. |
 
-**Migration complexity**: MEDIUM — Requires extending the batch API of `PositionMapper` or connecting these functions to the existing `PositionMapper` WASM export.
-**Estimated performance gain**: MEDIUM — For long texts with many segments, repeated `indexOf` in the 10,000+ char translated output could take 1–5ms total. BM-Horspool amortizes well across a batch.
-**Risks**: The windowed cache in `findPositionOptimized()` is there to avoid re-scanning from 0 every time; the Rust implementation needs to preserve this incremental behavior.
+**Why WASM migration was never viable (even if live)**:
+
+1. **Boundary overhead dominates**: `findPositionOptimized()` would be called 100–1000 times per translation (once per semantic unit). Each WASM crossing costs ~0.2–0.5 ms in string copy + allocation. That totals 20–500 ms, versus JS windowed `indexOf` at ~0.01 ms per call (1–10 ms total).
+
+2. **Cache strategy incompatibility**: `findPositionOptimized()` uses an inter-call Map cache (`"${target}:${quantizedPos}"` keys) — each call knows where the previous one left off. `PositionMapper` has no inter-call state; each `find_position()` call is an independent Boyer-Moore-Horspool scan. Replicating the window cache in Rust would require WASM-side state between calls (complex, no gain).
+
+3. **Production position tracking already handled**: Since Candidate 1 (DONE), `assembleWithSpacing()` returns `positions[]` per segment as a byproduct of text assembly. The position tracking these functions were designed for is now solved at zero extra cost.
+
+4. **`PositionMapper` Rust module is not imported in any JS code**: `WasmPositionMapper.js` was deleted in session 5 (2026-02-17). The Rust module remains in `wasm-core` but is unused from the JS side. The only `PositionMapper` references in `src/` are type definitions for an `AcceleratedPositionMapper` interface — a completely separate concept.
+
+**Original assessment** (for reference):
+
+- Migration complexity: MEDIUM
+- Estimated performance gain: MEDIUM (for long texts with many segments)
+- Risk: windowed cache must preserve incremental behavior in Rust
 
 ---
 
@@ -237,13 +250,14 @@ No pure computation utilities found that would benefit from WASM migration. `Tra
 
 ## Migration Priority Order (Top 5)
 
-| Priority | Candidate                                                                                               | Complexity | Gain   | Rationale                                                                                                                 |
-| -------- | ------------------------------------------------------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)                                     | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                             |
-| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20)                          | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead |
-| 3        | ~~Bundle `applyFinalCleanup`/`applyLightFormatting`/`capitalizeFirstLetter`~~ **REJECTED** (2026-02-20) | —          | —      | Functions on 3 separate paths; `cleanupFormatting` has dict-lookup blocker; dead code fixed instead                       |
-| 4        | ~~Fix `cleanupFormatting()` debug log guards~~ **ALREADY FIXED** (pre-existing)                         | —          | —      | `process.env.NODE_ENV === 'development'` guard was already present                                                        |
-| 5        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`                             | LOW        | LOW    | Code quality; eliminates duplication and dead code                                                                        |
+| Priority | Candidate                                                                                               | Complexity | Gain   | Rationale                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------- | ---------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)                                     | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                                             |
+| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20)                          | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead                 |
+| 3        | ~~Connect `findPositionOptimized()` to `PositionMapper`~~ **REJECTED** (2026-02-20)                     | —          | —      | All 3 functions dead code (deleted); boundary overhead > gain; production positions already from `assembleWithSpacing()`                  |
+| 4 (orig) | ~~Bundle `applyFinalCleanup`/`applyLightFormatting`/`capitalizeFirstLetter`~~ **REJECTED** (2026-02-20) | —          | —      | Functions on 3 separate paths; `cleanupFormatting` has dict-lookup blocker; dead `else` branch + dead `applyCapitalizationToText` deleted |
+| 5 (orig) | ~~Fix `cleanupFormatting()` debug log guards~~ **ALREADY FIXED** (pre-existing)                         | —          | —      | `process.env.NODE_ENV === 'development'` guard was already present                                                                        |
+| 6        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`                             | LOW        | LOW    | Code quality; eliminates duplication and dead code                                                                                        |
 
 ---
 
