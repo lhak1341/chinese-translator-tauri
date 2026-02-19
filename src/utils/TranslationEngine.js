@@ -4928,18 +4928,16 @@ export class TranslationEngine {
       result = result.replace(/\s+([.,!?:;，。！？：；\])}】》）])/g, '$1');
       // Skip remaining spacing rules when called from chunking
       return result;
-    }
-
-    if (options.useChunking !== false) {
+    } else {
       // Add space after punctuation (except at end of string or when followed by closing quotes)
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 Before punctuation spacing:', JSON.stringify(result));
-      result = result.replace(/([.,!?:;，。！？：；])(?!\s|$|[“”"])/g, '$1 ');
+      result = result.replace(/([.,!?:;，。！？：；])(?!\s|$|[“””])/g, '$1 ');
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 After punctuation spacing:', JSON.stringify(result));
       // Note: Line 615 uses mixed quote characters (literal curly + straight quotes)
 
       // Special case: Add space between colon and opening quote (colon-quote combinations)
       result = result.replace(/:\u201c/g, ': \u201c'); // Vietnamese colon + curly quote (after punctuation conversion)
-      result = result.replace(/:"(?!\s)/g, ': "'); // Regular quote version
+      result = result.replace(/:”(?!\s)/g, ': “'); // Regular quote version
     }
 
     // Remove excessive spaces but preserve line breaks
@@ -9276,23 +9274,6 @@ export class TranslationEngine {
     this.textChunker.translatePunctuation(currentBatch, this.punctuationDict);
 
     // Capitalization is handled at the final level (not per-batch)
-  }
-
-  /**
-   * Apply capitalization to reconstructed text (progressive)
-   * @param {string} text - Reconstructed text from chunks
-   * @param {TextChunk[]} allChunks - All chunks for context
-   * @returns {string} Text with proper capitalization
-   */
-  applyCapitalizationToText(text, allChunks) {
-    // Apply smart capitalization to all chunks first
-    this.applySmartCapitalization(allChunks);
-
-    // Then reconstruct the text with capitalized chunks
-    const capitalizedText = this.textChunker.reconstructText(allChunks);
-    const finalCapitalizedText = this.applyFinalCleanup(capitalizedText);
-
-    return finalCapitalizedText;
   }
 
   /**

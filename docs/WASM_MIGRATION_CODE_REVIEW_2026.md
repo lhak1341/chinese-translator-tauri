@@ -98,19 +98,30 @@ The `TextAssembler` WASM module only handles concern #1 (string building + seman
 
 ### Candidate 3 — `applyFinalCleanup()` + `capitalizeFirstLetter()` + `applyLightFormatting()` as a bundled string post-processor (LOW PRIORITY)
 
-**Functions**:
+**Status: DO NOT MIGRATE — evaluated and rejected (2026-02-20)**
 
-- `applyFinalCleanup()` line ~9376: 4 regex operations on final output string (space before numerals, collapse spaces, trim line boundaries)
-- `capitalizeFirstLetter()` line ~9278: regex match + splice to capitalize first Vietnamese letter
-- `applyLightFormatting()` line ~9305: 8 regex operations (spacing, capitalization after sentence enders)
-  **`this.*` usage**: None — all three are fully pure (only `this.log()` in debug mode)
+**The bundling premise is false.** The three functions are on three separate execution paths and cannot share a single WASM boundary crossing:
 
-**Why it's a WASM candidate**:
-All three are pure `string → string` transformations. Bundled into a single Rust function called once per translation, the boundary crossing overhead would be amortized once over the entire output string.
+| Function                               | Execution path                                                                      | WASM viable?                                                                                                |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `cleanupFormatting()` (most impactful) | `postProcess()` hot path, line 4483                                                 | ❌ Line 4917: calls `this.dictionaryManager.translate()` for 27 Chinese punctuation chars — must stay in JS |
+| `applyFinalCleanup()`                  | Chunked paths only (lines 6652, 7216, 9308, 9347) — **not** in main `postProcess()` | ❌ 4 simple regexes (<0.05ms), not in hot path                                                              |
+| `applyLightFormatting()`               | Character-only mode only (line 1733) — no WASM in that path at all                  | ❌ Would add WASM overhead where none exists                                                                |
+| `capitalizeFirstLetter()`              | Per-chunk during smart capitalization (line 9076)                                   | ❌ Per-chunk scope, one regex, would require restructuring                                                  |
 
-**Migration complexity**: LOW — These are simple regex/string operations with no state. Translating them to Rust is straightforward.
-**Estimated performance gain**: LOW — These functions run once per translation on a short output string (~100–3000 chars). V8 regex is extremely fast. Expected savings: <0.5ms per translation. Not worth it alone.
-**Note**: If `TextAssembler` (Candidate 1) is connected, `applyFinalCleanup()` could be included as a final Rust post-processing step at zero additional boundary cost.
+The "zero additional boundary cost" insight in the original note only holds if ALL post-processing could run inside the existing `assemble_with_spacing()` WASM call. But `cleanupFormatting()` must run in JS (dictionary lookups), so there is always a JS step between WASM assembly and any potential final WASM post-processing — negating the bundling benefit.
+
+**Two additional issues found during investigation** (both fixed in this session):
+
+1. **Dead code in `cleanupFormatting()` (lines 4933–4943)**: The second `if (options.useChunking !== false)` block was unreachable — the first block always `return`s early, so the condition at line 4933 was always false. Result: space-after-punctuation rules and colon-quote special cases never executed. Fixed: changed to `} else {` so these rules now apply for non-chunking mode.
+
+2. **`applyCapitalizationToText()` was dead code (line 9287)**: Zero call sites anywhere in `src/`. Deleted.
+
+**Original assessment** (for reference):
+
+- Migration complexity: LOW — simple regex/string operations
+- Estimated performance gain: LOW — V8 regex is fast; expected savings <0.5ms
+- Note: "If `TextAssembler` (Candidate 1) is connected, `applyFinalCleanup()` could be included as a final Rust post-processing step at zero additional boundary cost" — this note was incorrect; the boundary cost is NOT zero because `cleanupFormatting()` must run in JS between assembly and any final post-processing.
 
 ---
 
@@ -146,20 +157,13 @@ All three are pure `string → string` transformations. Bundled into a single Ru
 
 These are bugs/smells independent of the WASM migration question.
 
-### Issue 1 — Hardcoded debug check for specific numbers in `cleanupFormatting()` [MEDIUM]
+### Issue 1 — ~~Hardcoded debug check for specific numbers in `cleanupFormatting()`~~ RESOLVED (already fixed before this review)
 
-**Location**: `cleanupFormatting()` lines ~5009–5012 and ~5110–5112
+**Original concern**: `'23'`/`'30'` debug checks ran in production (no `process.env.NODE_ENV` guard).
 
-```js
-if (text.includes('23') || text.includes('30')) {
-  logger.log('🔍 DEBUG: cleanupFormatting INPUT:', text.substring(0, 200));
-  ...
-}
-```
+**Actual state**: Both debug blocks ARE wrapped in `if (process.env.NODE_ENV === 'development')` (lines 4874 and 4977 in the current code). The outer guard was already present when this review was written. No action needed.
 
-These are hardcoded to specific test values (`'23'` and `'30'`) that appear to have been added while debugging a specific fraction `(23/30)` issue. They run in production (no `process.env.NODE_ENV` guard). Every string containing "23" or "30" triggers `logger.log()` — which is any string with those digit sequences (page numbers, years, percentages, etc.).
-
-**Fix**: Wrap in `process.env.NODE_ENV === 'development'` (like the similar checks at lines 4435 and 4607 already do), or remove entirely since the root bug has been fixed.
+**Related fix**: The dead code issue in `cleanupFormatting()` discovered during Candidate 3 evaluation (lines 4933–4943 `else` block unreachable) WAS fixed — see Candidate 3 section.
 
 ---
 
@@ -233,13 +237,13 @@ No pure computation utilities found that would benefit from WASM migration. `Tra
 
 ## Migration Priority Order (Top 5)
 
-| Priority | Candidate                                                                      | Complexity | Gain   | Rationale                                                                                                                 |
-| -------- | ------------------------------------------------------------------------------ | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
-| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)            | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                             |
-| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20) | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead |
-| 3        | Connect `findPositionOptimized()` to `PositionMapper`                          | MEDIUM     | MEDIUM | Existing Rust API; algorithmic gain for long texts                                                                        |
-| 4        | Fix `cleanupFormatting()` debug log guards                                     | LOW        | LOW    | Production noise from hardcoded number checks                                                                             |
-| 5        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`    | LOW        | LOW    | Code quality; eliminates duplication and dead code                                                                        |
+| Priority | Candidate                                                                                               | Complexity | Gain   | Rationale                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------- | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------- |
+| 1        | ~~Wire `TextAssembler` into `postProcess()`~~ **DONE** (2026-02-20)                                     | MEDIUM     | MEDIUM | `assembleWithSpacing()` live in postProcess()                                                                             |
+| 2        | ~~Consolidate `resolveGlobalConflicts()` into Rust~~ **REJECTED** (2026-02-20)                          | —          | —      | Premise wrong: `find_best_pattern_match` is a different algorithm; WASM 5–20× slower; Rust parity validator added instead |
+| 3        | ~~Bundle `applyFinalCleanup`/`applyLightFormatting`/`capitalizeFirstLetter`~~ **REJECTED** (2026-02-20) | —          | —      | Functions on 3 separate paths; `cleanupFormatting` has dict-lookup blocker; dead code fixed instead                       |
+| 4        | ~~Fix `cleanupFormatting()` debug log guards~~ **ALREADY FIXED** (pre-existing)                         | —          | —      | `process.env.NODE_ENV === 'development'` guard was already present                                                        |
+| 5        | Hoist `capitalizationRules` + remove dead `applySmartCapitalizationToBatch`                             | LOW        | LOW    | Code quality; eliminates duplication and dead code                                                                        |
 
 ---
 
