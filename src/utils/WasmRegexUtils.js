@@ -174,6 +174,3 @@ export async function createWasmRegexUtils() {
   await utils.initialize();
   return utils;
 }
-
-// Export singleton instance
-export const wasmRegexUtils = new WasmRegexUtilsWrapper();

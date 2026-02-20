@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::num::NonZeroU32;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{Emitter, Manager, State};
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 use rayon::prelude::*;
@@ -807,7 +807,7 @@ fn save_json_file(
     // Config data should never exceed a few levels deep.
     check_json_depth(data, 50)?;
     let json_string = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
-    // SECURITY: Mirror the size check in save_dictionary (line 607) — defend-in-depth
+    // SECURITY: Mirror the size check in save_dictionary — defend-in-depth
     // against a malicious or buggy frontend payload bloating config files on disk.
     if json_string.len() > MAX_JSON_SIZE_BYTES {
         return Err(format!(
@@ -997,7 +997,7 @@ pub async fn import_dictionaries(
         let filename = file.name().to_string();
 
         // Only process JSON files; exclude .trie.json cache files (consistent with
-        // list_proper_nouns_dictionaries which also excludes them at line 535).
+        // list_proper_nouns_dictionaries which also excludes them).
         if !filename.ends_with(".json") || filename.ends_with(".trie.json") {
             continue;
         }
@@ -1429,24 +1429,9 @@ pub struct LookupIndexResponse {
 /// Build a trie from dictionary entries
 fn build_trie_from_entries(entries: &[DictionaryEntry]) -> TrieNode {
     let mut trie = TrieNode::new();
-
     for entry in entries {
-        let mut current = &mut trie;
-
-        // Navigate/create path for this word
-        for ch in entry.chinese.chars() {
-            current = current
-                .children
-                .entry(ch)
-                .or_insert_with(TrieNode::new);
-        }
-
-        // Mark end of word and store translation
-        current.is_end_of_word = true;
-        current.translation = Some(entry.vietnamese.clone());
-        current.metadata = entry.metadata.clone();
+        trie.insert(&entry.chinese, entry.vietnamese.clone(), entry.metadata.clone());
     }
-
     trie
 }
 
@@ -1570,19 +1555,14 @@ pub struct CacheHealthResponse {
 /// Frontend can call this periodically or when dictionary operations behave unexpectedly.
 /// If poisoning is detected, frontend should notify user and suggest application restart.
 #[tauri::command]
-pub fn check_dictionary_cache_health(app: AppHandle) -> CacheHealthResponse {
+pub fn check_dictionary_cache_health() -> CacheHealthResponse {
     let mutex_poisoned = MUTEX_POISONED.load(Ordering::SeqCst);
     let event_count = POISONING_EVENT_COUNT.load(Ordering::SeqCst);
 
-    // Emit event to frontend if poisoning detected
+    // Re-emit via the rate-limited helper so polling callers cannot bypass the
+    // 60-second NOTIFICATION_COOLDOWN_MS guard that prevents frontend spam.
     if mutex_poisoned {
-        let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
-            "type": "mutex_poisoning",
-            "event_count": event_count,
-            "severity": "critical",
-            "message": "Dictionary cache corruption detected. Application restart recommended.",
-            "recommendation": "Save your work and restart the application to ensure data integrity."
-        }));
+        emit_poisoning_event();
     }
 
     CacheHealthResponse {

@@ -509,8 +509,10 @@ impl TwoPhasePatternProcessor {
                         translation: phase_b_result.translation.clone(),
                         pattern: phase_b_result.pattern.clone(),
                         variables: phase_b_result.variables.clone(),
-                        start_index: phase_a_result.start_index.min(phase_b_result.start_index),
-                        end_index: phase_a_result.end_index.max(phase_b_result.end_index),
+                        // Range containment invariant (lines 495-496) guarantees Phase B's span
+                        // encompasses Phase A's, so Phase B's indices are always the outer bounds.
+                        start_index: phase_b_result.start_index,
+                        end_index: phase_b_result.end_index,
                         source: "hierarchical_composition".to_string(),
                         translation_source: Some("hierarchical_patterns_composite".to_string()),
                         phase_a: Some(Box::new(phase_a_result.clone())),

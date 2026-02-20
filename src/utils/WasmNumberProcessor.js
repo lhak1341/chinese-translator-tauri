@@ -301,11 +301,9 @@ initializeWasmNumberProcessor().catch((err) => {
   logger.warn('Background WASM NumberProcessor initialization failed:', err);
   initializationFailed = true; // Mark initialization as failed to prevent retries
   wasmNumberProcessor = null; // Clear partial state
-
-  // CODE REVIEW FIX (CRITICAL-1): Set cooldown before clearing promise cache
-  // This prevents concurrent imports during same module load cycle from creating duplicate initialization attempts
   retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
-  setTimeout(() => {
-    initializationPromise = null; // Clear cache after cooldown
-  }, RETRY_COOLDOWN_MS);
+  // Clear promise immediately — initializationFailed already blocks new init calls,
+  // so keeping a stale promise would cause getWasmNumberProcessorStatus() to falsely
+  // report { initializing: true } for the entire cooldown window.
+  initializationPromise = null;
 });

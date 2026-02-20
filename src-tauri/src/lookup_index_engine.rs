@@ -61,6 +61,17 @@ impl TrieNode {
         }
     }
 
+    /// Insert a word into the trie with its translation and optional metadata.
+    pub fn insert(&mut self, word: &str, translation: String, metadata: Option<String>) {
+        let mut current = self;
+        for ch in word.chars() {
+            current = current.children.entry(ch).or_insert_with(TrieNode::new);
+        }
+        current.is_end_of_word = true;
+        current.translation = Some(translation);
+        current.metadata = metadata;
+    }
+
     /// Find all matches starting at a position in a pre-collected char slice.
     /// Callers must pre-collect `text.chars()` once and pass `&[char]` to avoid
     /// O(n) allocation per call inside parallel loops.
