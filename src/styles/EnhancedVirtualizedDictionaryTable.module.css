@@ -45,15 +45,6 @@
   animation: fadeIn 0.15s ease-out;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 .bulkMoveModal {
   background-color: var(--background-color);
   border-radius: 8px;
@@ -65,17 +56,6 @@
   position: relative;
   border: 1px solid var(--border-color);
   animation: slideIn 0.2s ease-out;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .bulkMoveHeader {

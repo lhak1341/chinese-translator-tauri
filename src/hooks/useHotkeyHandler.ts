@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { TabId } from '../types/ComponentTypes';
+import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 
@@ -116,7 +117,7 @@ export function useHotkeyHandler({
         const text = copied ? await navigator.clipboard.readText() : '';
         await callback?.(text);
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        const errorMsg = extractErrorMessage(error);
         toast.error(`Failed to open ${label}: ${errorMsg}`);
         logger.error(`${label} error:`, error);
       }

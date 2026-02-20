@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../../utils/errors';
 import { extractErrorMessage } from '../../utils/errorHelpers';
+import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import {
   sortDictionaryEntries,
   getSortingStats,
@@ -265,7 +266,7 @@ export function LazyDictionaryProvider({
 
       preloadTimeoutRef.current = setTimeout(async () => {
         const remainingDicts = allDictionaries.filter(
-          (id) => id !== currentDict && !loadedDictionaries.has(id)
+          (id) => id !== currentDict && !loadedDictionariesRef.current.has(id)
         );
 
         // Load dictionaries one at a time to avoid blocking
@@ -280,7 +281,7 @@ export function LazyDictionaryProvider({
         }
       }, dynamicDelay);
     },
-    [loadedDictionaries, loadDictionaryImmediate]
+    [loadDictionaryImmediate]
   );
 
   // Load dictionary types and configuration on mount
@@ -351,29 +352,7 @@ export function LazyDictionaryProvider({
   );
 
   // Persist selected dictionary
-  useEffect(() => {
-    const saveSelectedDictionary = async (): Promise<void> => {
-      try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        const currentConfig = configResult.success && configResult.data ? configResult.data : {};
-
-        const saveResult = await window.electronAPI.saveConfiguration({
-          ...currentConfig,
-          lastSelectedDictionary: selectedDictionary,
-        } as any);
-
-        if (!saveResult.success) {
-          logger.error('Failed to save selected dictionary:', saveResult.error);
-        }
-      } catch (error) {
-        logger.error('Failed to save selected dictionary:', error);
-      }
-    };
-
-    if (selectedDictionary && !isLoading) {
-      saveSelectedDictionary();
-    }
-  }, [selectedDictionary, isLoading]);
+  usePersistSelectedDictionary(selectedDictionary, isLoading);
 
   // Helper function to add operations to history
   // HIGH-1 FIX: Deep copy dictionary data to prevent history corruption

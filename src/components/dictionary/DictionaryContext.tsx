@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
 import {
@@ -177,41 +178,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   }, []);
 
   // Persist selected dictionary to configuration
-  useEffect(() => {
-    let isMounted = true;
-
-    const saveSelectedDictionary = async (): Promise<void> => {
-      try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (!isMounted) return;
-
-        const currentConfig = configResult.success && configResult.data ? configResult.data : {};
-
-        const saveResult = await window.electronAPI.saveConfiguration({
-          ...currentConfig,
-          lastSelectedDictionary: selectedDictionary,
-        } as any);
-        if (!isMounted) return;
-
-        if (!saveResult.success) {
-          logger.error('Failed to save selected dictionary:', saveResult.error);
-        }
-      } catch (error) {
-        if (isMounted) {
-          logger.error('Failed to save selected dictionary:', error);
-        }
-      }
-    };
-
-    // Only save if we have a selected dictionary and aren't in initial loading
-    if (selectedDictionary && !isLoading) {
-      saveSelectedDictionary();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedDictionary, isLoading]);
+  usePersistSelectedDictionary(selectedDictionary, isLoading);
 
   // Function to load a specific dictionary
   const loadDictionary = useCallback(async (dictionaryId: string): Promise<void> => {

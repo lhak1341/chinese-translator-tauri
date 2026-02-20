@@ -154,3 +154,8 @@ export class WasmStringProcessor {
 
 // Export singleton instance
 export const wasmStringProcessor = new WasmStringProcessor();
+
+// Trigger background initialization at import time so WASM is ready before first call
+wasmStringProcessor.initialize().catch((err) => {
+  logger.warn('Background WASM StringProcessor initialization failed:', err);
+});

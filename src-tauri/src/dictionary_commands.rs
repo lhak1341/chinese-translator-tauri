@@ -38,21 +38,9 @@ const MAX_DICTIONARY_ID_LENGTH: usize = 100;
 /// - Non-alphanumeric characters (except hyphen)
 /// - Excessively long IDs
 fn validate_dictionary_id(dictionary_id: &str) -> Result<(), String> {
-    // Check for path traversal sequences
-    if dictionary_id.contains("..") || dictionary_id.contains('/') || dictionary_id.contains('\\') {
-        return Err("Invalid dictionary ID: path separators not allowed".to_string());
-    }
-
-
-    // Check for null bytes (can bypass extension checks)
-    if dictionary_id.contains('\0') {
-        return Err("Invalid dictionary ID: null bytes not allowed".to_string());
-    }
-
-    // Blacklist dangerous characters (allow Unicode for international names)
-    // Block: control characters (including null bytes checked above)
-    if dictionary_id.chars().any(|c| c.is_control()) {
-        return Err("Invalid dictionary ID: control characters not allowed".to_string());
+    // Must not be empty
+    if dictionary_id.is_empty() {
+        return Err("Invalid dictionary ID: cannot be empty".to_string());
     }
 
     // Enforce maximum length
@@ -63,9 +51,14 @@ fn validate_dictionary_id(dictionary_id: &str) -> Result<(), String> {
         ));
     }
 
-    // Must not be empty
-    if dictionary_id.is_empty() {
-        return Err("Invalid dictionary ID: cannot be empty".to_string());
+    // Check for path traversal sequences
+    if dictionary_id.contains("..") || dictionary_id.contains('/') || dictionary_id.contains('\\') {
+        return Err("Invalid dictionary ID: path separators not allowed".to_string());
+    }
+
+    // Block control characters (includes null bytes — is_control() covers '\0')
+    if dictionary_id.chars().any(|c| c.is_control()) {
+        return Err("Invalid dictionary ID: control characters not allowed".to_string());
     }
 
     Ok(())

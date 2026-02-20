@@ -220,41 +220,11 @@ impl DictionaryEngine {
             )));
         }
         
-        let mut trie = TrieNode::new();
-        
-        // Calculate checksum for integrity verification
-        let mut checksum = 0u64;
-        for entry in &entries {
-            trie.insert(
-                &entry.chinese,
-                entry.vietnamese.clone(),
-                entry.metadata.clone(),
-            );
-            
-            // Simple checksum calculation
-            checksum = checksum.wrapping_add(entry.chinese.chars().count() as u64);
-            checksum = checksum.wrapping_add(entry.vietnamese.chars().count() as u64);
-        }
-
-        let entry_count = trie.get_entry_count();
-
-        // Create versioned dictionary
+        let versioned_dict = Self::build_versioned_dictionary(&entries);
+        let entry_count = versioned_dict.version.entry_count;
         #[cfg(target_arch = "wasm32")]
-        let version_id = js_sys::Date::now() as u64; // Use timestamp as version
-        #[cfg(not(target_arch = "wasm32"))]
-        let version_id = 0u64;
-        let version = DictionaryVersion {
-            version: version_id,
-            timestamp: version_id,
-            entry_count,
-            checksum,
-        };
-        
-        let versioned_dict = VersionedDictionary {
-            trie,
-            version,
-        };
-        
+        let version_id = versioned_dict.version.version;
+
         // Update memory usage tracking
         self.performance_stats.memory_usage_bytes += estimated_size;
         
@@ -350,37 +320,8 @@ impl DictionaryEngine {
                 continue;
             }
 
-            // Build trie
-            let mut trie = TrieNode::new();
-            let mut checksum = 0u64;
-
-            for entry in &dict.entries {
-                trie.insert(
-                    &entry.chinese,
-                    entry.vietnamese.clone(),
-                    entry.metadata.clone(),
-                );
-                checksum = checksum.wrapping_add(entry.chinese.chars().count() as u64);
-                checksum = checksum.wrapping_add(entry.vietnamese.chars().count() as u64);
-            }
-
-            let entry_count = trie.get_entry_count();
-            #[cfg(target_arch = "wasm32")]
-            let version_id = js_sys::Date::now() as u64;
-            #[cfg(not(target_arch = "wasm32"))]
-            let version_id = 0u64;
-
-            let version = DictionaryVersion {
-                version: version_id,
-                timestamp: version_id,
-                entry_count,
-                checksum,
-            };
-
-            let versioned_dict = VersionedDictionary {
-                trie,
-                version,
-            };
+            let versioned_dict = Self::build_versioned_dictionary(&dict.entries);
+            let entry_count = versioned_dict.version.entry_count;
 
             // Update tracking
             self.performance_stats.memory_usage_bytes += estimated_size;
@@ -411,6 +352,31 @@ impl DictionaryEngine {
         }
 
         Ok(success)
+    }
+
+    /// Build a VersionedDictionary from a slice of entries.
+    /// Shared by load_dictionary and load_dictionaries_batch to eliminate duplicated
+    /// trie-build + checksum + versioning logic.
+    fn build_versioned_dictionary(entries: &[DictionaryEntry]) -> VersionedDictionary {
+        let mut trie = TrieNode::new();
+        let mut checksum = 0u64;
+        for entry in entries {
+            trie.insert(&entry.chinese, entry.vietnamese.clone(), entry.metadata.clone());
+            checksum = checksum.wrapping_add(entry.chinese.chars().count() as u64);
+            checksum = checksum.wrapping_add(entry.vietnamese.chars().count() as u64);
+        }
+        let entry_count = trie.get_entry_count();
+        #[cfg(target_arch = "wasm32")]
+        let version_id = js_sys::Date::now() as u64;
+        #[cfg(not(target_arch = "wasm32"))]
+        let version_id = 0u64;
+        let version = DictionaryVersion {
+            version: version_id,
+            timestamp: version_id,
+            entry_count,
+            checksum,
+        };
+        VersionedDictionary { trie, version }
     }
 
     // Helper method to estimate dictionary memory usage
