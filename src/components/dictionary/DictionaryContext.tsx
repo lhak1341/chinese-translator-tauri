@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
@@ -9,6 +17,7 @@ import {
 } from '../../utils/dictionaryHelpers';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
+import { ValidationError, SaveError } from '../../utils/errors';
 import type {
   DictionaryData,
   DictionaryEntryValue,
@@ -114,6 +123,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [history, setHistory] = useState<HistoryOperation[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
+  // Ref-mirror so addToHistory reads the latest index without being recreated on every undo/redo
+  const currentHistoryIndexRef = useRef(currentHistoryIndex);
+  currentHistoryIndexRef.current = currentHistoryIndex;
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
   // Load initial dictionaries and configuration
@@ -200,7 +212,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   const addToHistory = useCallback(
     (operation: Omit<HistoryOperation, 'timestamp'>): void => {
       setHistory((prevHistory) => {
-        const newHistory = prevHistory.slice(0, currentHistoryIndex + 1);
+        const newHistory = prevHistory.slice(0, currentHistoryIndexRef.current + 1);
         newHistory.push({
           ...operation,
           timestamp: Date.now(),
@@ -212,7 +224,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       });
       setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
     },
-    [currentHistoryIndex]
+    [] // stable — reads currentHistoryIndex via currentHistoryIndexRef.current
   );
 
   // Add a new entry to a dictionary
@@ -226,7 +238,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       const validationError = validateDictionaryEntry(dictionaryId, source, translation);
       if (validationError) {
         toast.error(validationError);
-        throw new Error(validationError);
+        throw new ValidationError(validationError);
+      }
+
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new Error(msg);
       }
 
       // Prepare target value with metadata
@@ -256,11 +274,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
       setDictionaries((prevDictionaries) => {
-        // Validate dictionary exists before operations
-        if (!prevDictionaries[dictionaryId]) {
-          throw new Error(`Dictionary '${dictionaryId}' does not exist`);
-        }
-
         oldData = { ...prevDictionaries[dictionaryId] };
 
         const updatedDictionary = { ...oldData, [source]: targetValue };
@@ -291,10 +304,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [dictionaryId]: oldData!,
         }));
         toast.error('Failed to save dictionary changes');
-        throw new Error('Failed to save dictionary changes');
+        throw new SaveError('Failed to save dictionary changes');
       }
     },
-    [addToHistory]
+    [dictionaries, addToHistory]
   );
 
   // Update an existing entry
@@ -309,7 +322,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
       if (validationError) {
         toast.error(validationError);
-        throw new Error(validationError);
+        throw new ValidationError(validationError);
+      }
+
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new Error(msg);
       }
 
       // Prepare target value with metadata
@@ -340,11 +359,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
       setDictionaries((prevDictionaries) => {
-        // Validate dictionary exists before operations
-        if (!prevDictionaries[dictionaryId]) {
-          throw new Error(`Dictionary '${dictionaryId}' does not exist`);
-        }
-
         oldData = { ...prevDictionaries[dictionaryId] };
         // Capture old entry for delta-based undo
         oldEntryValue = oldData[oldSource];
@@ -395,26 +409,27 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [dictionaryId]: oldData!,
         }));
         toast.error('Failed to save dictionary changes');
-        throw new Error('Failed to save dictionary changes');
+        throw new SaveError('Failed to save dictionary changes');
       }
     },
-    [addToHistory]
+    [dictionaries, addToHistory]
   );
 
   // Delete an entry
   const deleteEntry = useCallback(
     async (dictionaryId: string, source: string): Promise<void> => {
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
       // Capture old entry and update state atomically using functional update
       let oldData: Record<string, string | DictionaryEntryValue> | undefined;
       let oldEntryValue: string | DictionaryEntryValue | undefined;
       let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
 
       setDictionaries((prevDictionaries) => {
-        // Validate dictionary exists before operations
-        if (!prevDictionaries[dictionaryId]) {
-          throw new Error(`Dictionary '${dictionaryId}' does not exist`);
-        }
-
         oldData = { ...prevDictionaries[dictionaryId] };
         // Capture old entry for delta-based undo
         oldEntryValue = oldData[source];
@@ -449,10 +464,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [dictionaryId]: oldData!,
         }));
         toast.error('Failed to delete dictionary entry');
-        throw new Error('Failed to delete dictionary entry');
+        throw new SaveError('Failed to delete dictionary entry');
       }
     },
-    [addToHistory]
+    [dictionaries, addToHistory]
   );
 
   // Bulk delete multiple entries from a dictionary in one operation

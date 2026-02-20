@@ -91,13 +91,4 @@
   color: var(--streaming-text-primary);
 }
 
-/* Pulse Animation (for streaming indicator) */
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
+/* Pulse Animation — references global @keyframes pulse defined in index.css */

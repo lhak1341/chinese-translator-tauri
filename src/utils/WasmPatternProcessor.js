@@ -172,11 +172,11 @@ export async function initializeWasmPatternProcessor(patternsDict) {
       wasmPatternProcessor = null;
       wasmModule = null;
 
-      // Set cooldown before clearing promise cache
+      // Set cooldown and immediately clear promise so callers don't await a settled
+      // failed promise (would show false "initializing" status for RETRY_COOLDOWN_MS).
+      // The retryAllowedAfter guard already blocks new init attempts during cooldown.
       retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
-      setTimeout(() => {
-        initializationPromise = null; // Clear cache after cooldown
-      }, RETRY_COOLDOWN_MS);
+      initializationPromise = null;
 
       return false;
     }

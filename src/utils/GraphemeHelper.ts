@@ -14,6 +14,7 @@
  */
 
 import { logger } from './logger.js';
+import { extractErrorMessage } from './errorHelpers';
 
 /**
  * GraphemeHelper - Singleton for grapheme-aware text operations
@@ -54,7 +55,7 @@ class GraphemeHelper {
       } catch (error: unknown) {
         logger.warn(
           '⚠️ Failed to create Intl.Segmenter, falling back to UTF-16 length:',
-          error instanceof Error ? error.message : String(error)
+          extractErrorMessage(error)
         );
         this.segmenter = null;
       }

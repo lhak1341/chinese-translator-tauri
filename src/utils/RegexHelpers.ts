@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { extractErrorMessage } from './errorHelpers';
 
 /**
  * Regex Helper Utilities
@@ -67,10 +68,7 @@ export function precompilePatterns(
       patterns.set(source, pattern);
     } catch (error: unknown) {
       // Skip invalid patterns
-      logger.warn(
-        `Failed to compile pattern for "${source}":`,
-        error instanceof Error ? error.message : String(error)
-      );
+      logger.warn(`Failed to compile pattern for "${source}":`, extractErrorMessage(error));
     }
   }
 
@@ -106,10 +104,7 @@ export function precompileSortedPatterns(
       const pattern = new RegExp(escapeRegExp(source), flags);
       return { source, translation, pattern };
     } catch (error: unknown) {
-      logger.warn(
-        `Failed to compile pattern for "${source}":`,
-        error instanceof Error ? error.message : String(error)
-      );
+      logger.warn(`Failed to compile pattern for "${source}":`, extractErrorMessage(error));
       // Return entry with null pattern to skip during processing
       return { source, translation, pattern: null };
     }

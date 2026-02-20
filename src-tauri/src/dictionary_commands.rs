@@ -989,8 +989,8 @@ pub async fn import_dictionaries(
         // cache.invalidate(None) call below.
         let file = match archive.by_index(i) {
             Ok(f) => f,
-            Err(e) => {
-                errors.push(format!("entry {}: read error: {}", i, e));
+            Err(_) => {
+                errors.push(format!("entry {}: failed to read ZIP entry", i));
                 continue;
             }
         };
@@ -1036,7 +1036,7 @@ pub async fn import_dictionaries(
         // hard-capped even if the ZIP header lied about the uncompressed size.
         let mut contents = String::new();
         if let Err(e) = file.take(MAX_JSON_SIZE_BYTES as u64 + 1).read_to_string(&mut contents) {
-            errors.push(format!("{}: read error: {}", filename, e));
+            errors.push(format!("{}: {}", filename, sanitize_io_error(e, "ZIP entry content")));
             continue;
         }
         if contents.len() > MAX_JSON_SIZE_BYTES {

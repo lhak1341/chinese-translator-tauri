@@ -327,11 +327,11 @@ export function LazyDictionaryProvider({
   // Public load dictionary function (triggers immediate load if not loaded)
   const loadDictionary = useCallback(
     async (dictionaryId: string): Promise<void> => {
-      if (!loadedDictionaries.has(dictionaryId)) {
+      if (!loadedDictionariesRef.current.has(dictionaryId)) {
         await loadDictionaryImmediate(dictionaryId);
       }
     },
-    [loadDictionaryImmediate, loadedDictionaries]
+    [loadDictionaryImmediate] // stable — reads loadedDictionaries via loadedDictionariesRef.current
   );
 
   // Handle dictionary selection change
@@ -340,7 +340,7 @@ export function LazyDictionaryProvider({
       setSelectedDictionary(newDictionaryId);
 
       // Load the selected dictionary immediately if not loaded
-      if (!loadedDictionaries.has(newDictionaryId)) {
+      if (!loadedDictionariesRef.current.has(newDictionaryId)) {
         await loadDictionaryImmediate(newDictionaryId);
       }
 
@@ -348,7 +348,7 @@ export function LazyDictionaryProvider({
       const allDictionaries = Object.keys(dictionaryTypes);
       schedulePreload(newDictionaryId, allDictionaries);
     },
-    [loadedDictionaries, loadDictionaryImmediate, schedulePreload, dictionaryTypes]
+    [loadDictionaryImmediate, schedulePreload, dictionaryTypes] // stable — reads loadedDictionaries via loadedDictionariesRef.current
   );
 
   // Persist selected dictionary

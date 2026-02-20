@@ -159,13 +159,4 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* Pulse Animation */
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
+/* Pulse Animation — references global @keyframes pulse defined in index.css */

@@ -14,6 +14,7 @@
  */
 
 import { logger } from './logger';
+import { extractErrorMessage } from './errorHelpers';
 
 /**
  * Options for TranslationSegmentCache constructor
@@ -231,7 +232,7 @@ export class TranslationSegmentCache {
     } catch (error) {
       logger.warn(
         'Failed to parse JSON from localStorage (using fallback):',
-        error instanceof Error ? error.message : String(error)
+        extractErrorMessage(error)
       );
       return fallback;
     }
