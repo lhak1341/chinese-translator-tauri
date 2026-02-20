@@ -389,21 +389,24 @@ impl<'a> PatternMatcher<'a> {
 
                     // Literal match - handle multi-character pattern tokens by collecting semantic tokens
                     let literal_value = pattern_token.value.as_ref().unwrap();
-                    let literal_chars: Vec<char> = literal_value.chars().collect();
+                    // chars().count() avoids a Vec<char> heap allocation; used only for the
+                    // length (to bound the semantic-token slice). String::with_capacity stays
+                    // byte-based (.len()) elsewhere per convention — this is a count-only use.
+                    let literal_char_count = literal_value.chars().count();
 
                     // Check if we have enough semantic tokens remaining
-                    if current_position + literal_chars.len() > semantic_tokens.len() {
+                    if current_position + literal_char_count > semantic_tokens.len() {
                         let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
                         literal_time += end_literal - start_literal;
                         update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                         return PatternMatchResult::failure(Some(format!(
                             "Not enough tokens for literal '{}' ({} chars needed, {} available)",
-                            literal_value, literal_chars.len(), semantic_tokens.len() - current_position
+                            literal_value, literal_char_count, semantic_tokens.len() - current_position
                         )));
                     }
 
                     // Collect semantic tokens to match the literal length
-                    let semantic_sequence: String = semantic_tokens[current_position..current_position + literal_chars.len()]
+                    let semantic_sequence: String = semantic_tokens[current_position..current_position + literal_char_count]
                         .iter()
                         .map(|t| t.value.as_str())
                         .collect();
@@ -411,7 +414,7 @@ impl<'a> PatternMatcher<'a> {
                     // Compare the sequences
                     if &semantic_sequence == literal_value {
                         // Match success - just advance position, don't clone tokens yet
-                        current_position += literal_chars.len();
+                        current_position += literal_char_count;
                     } else {
                         let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
                         literal_time += end_literal - start_literal;

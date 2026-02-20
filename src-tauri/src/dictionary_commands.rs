@@ -774,7 +774,7 @@ pub async fn load_dictionary(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(DictionaryResponse::err("File not found"))
         }
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(sanitize_io_error(e, "dictionary file")),
     }
 }
 
@@ -944,12 +944,14 @@ pub async fn export_dictionaries(
     // Write to ZIP sequentially (ZIP format requires sequential writes)
     let mut file_count = 0;
     for (file_name, contents) in file_contents {
-        zip.start_file(&file_name, options).map_err(|e| e.to_string())?;
-        zip.write_all(contents.as_bytes()).map_err(|e| e.to_string())?;
+        zip.start_file(&file_name, options)
+            .map_err(|_| format!("Failed to add '{}' to ZIP", file_name))?;
+        zip.write_all(contents.as_bytes())
+            .map_err(|_| format!("Failed to write '{}' to ZIP", file_name))?;
         file_count += 1;
     }
 
-    zip.finish().map_err(|e| e.to_string())?;
+    zip.finish().map_err(|_| "Failed to finalize ZIP archive".to_string())?;
 
     Ok(DictionaryResponse::ok_with_message(format!("Exported {} dictionaries successfully", file_count)))
 }
@@ -980,7 +982,8 @@ pub async fn import_dictionaries(
 
     // Open ZIP file
     let zip_file = fs::File::open(&file_path).map_err(|e| sanitize_io_error(e, "import file"))?;
-    let mut archive = ZipArchive::new(zip_file).map_err(|e| e.to_string())?;
+    let mut archive = ZipArchive::new(zip_file)
+        .map_err(|_| "Failed to read ZIP archive: invalid or corrupted format".to_string())?;
 
     let mut file_count = 0;
     let mut errors = Vec::new();

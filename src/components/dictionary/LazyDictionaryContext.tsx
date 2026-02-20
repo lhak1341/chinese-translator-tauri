@@ -153,11 +153,15 @@ export function LazyDictionaryProvider({
   const loadingPromisesRef = useRef<Map<string, Promise<void>>>(new Map());
   // MEDIUM-1 FIX: Track first dictionary load time for dynamic delay calculation
   const firstLoadTimeRef = useRef<number | null>(null);
+  // Ref-mirror of loadedDictionaries so loadDictionaryImmediate can read the current
+  // set without being recreated on every load (avoids dep-array churn per CLAUDE.md).
+  const loadedDictionariesRef = useRef(loadedDictionaries);
+  loadedDictionariesRef.current = loadedDictionaries;
 
   // Load a dictionary immediately
   const loadDictionaryImmediate = useCallback(
     async (dictionaryId: string): Promise<void> => {
-      if (loadedDictionaries.has(dictionaryId)) {
+      if (loadedDictionariesRef.current.has(dictionaryId)) {
         return; // Already loaded
       }
 
@@ -242,7 +246,7 @@ export function LazyDictionaryProvider({
 
       return loadPromise;
     },
-    [loadedDictionaries]
+    [] // stable — reads loadedDictionaries via loadedDictionariesRef.current
   );
 
   // Schedule preloading of remaining dictionaries

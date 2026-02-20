@@ -80,6 +80,10 @@ impl PatternProcessingResult {
         } else if source.starts_with("phaseB") {
             Some("hierarchical_patterns".to_string())
         } else {
+            // Only "phaseA" and "phaseB" are valid callers today (lines 230 and 347).
+            // Emit a diagnosable panic in debug so future callers with unexpected source
+            // strings don't silently produce a valid Phase B translation source.
+            debug_assert!(false, "from_match_result: unexpected source string '{}'", source);
             Some("hierarchical_patterns".to_string())
         };
 
