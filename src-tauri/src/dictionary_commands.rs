@@ -585,9 +585,12 @@ fn get_or_create_dictionary_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf
     Ok(path)
 }
 
-// Get cache key for dictionary
-fn get_cache_key(dictionary_id: &str, file_path: &PathBuf) -> String {
-    format!("{}:{}", dictionary_id, file_path.display())
+// Get cache key for dictionary.
+// All dictionaries live in the same directory, so dictionary_id alone is sufficient.
+// Embedding file_path.display() would include the full OS path (e.g. /Users/...),
+// which must not appear in any value that could be serialized or logged.
+fn get_cache_key(dictionary_id: &str, _file_path: &PathBuf) -> String {
+    dictionary_id.to_string()
 }
 
 #[tauri::command]
@@ -796,7 +799,7 @@ fn load_json_file_with_default(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(DictionaryResponse::ok_with_data(default))
         }
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(sanitize_io_error(e, "config file")),
     }
 }
 
@@ -820,7 +823,7 @@ fn save_json_file(
             MAX_JSON_SIZE_BYTES / 1024 / 1024
         ));
     }
-    fs::write(path, json_string).map_err(|e| e.to_string())?;
+    fs::write(path, json_string).map_err(|e| sanitize_io_error(e, "config file"))?;
     Ok(DictionaryResponse::ok())
 }
 
@@ -900,14 +903,14 @@ pub async fn export_dictionaries(
     };
 
     // Create ZIP file
-    let zip_file = fs::File::create(&file_path).map_err(|e| e.to_string())?;
+    let zip_file = fs::File::create(&file_path).map_err(|e| sanitize_io_error(e, "export file"))?;
     let mut zip = ZipWriter::new(zip_file);
     let options = SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
     // Read all dictionary files in parallel first
     let entries: Vec<_> = fs::read_dir(&dictionary_path)
-        .map_err(|e| e.to_string())?
+        .map_err(|e| sanitize_io_error(e, "dictionary directory"))?
         .filter_map(|e| e.ok())
         .collect();
 
@@ -976,7 +979,7 @@ pub async fn import_dictionaries(
     };
 
     // Open ZIP file
-    let zip_file = fs::File::open(&file_path).map_err(|e| e.to_string())?;
+    let zip_file = fs::File::open(&file_path).map_err(|e| sanitize_io_error(e, "import file"))?;
     let mut archive = ZipArchive::new(zip_file).map_err(|e| e.to_string())?;
 
     let mut file_count = 0;
@@ -1083,7 +1086,7 @@ pub async fn import_dictionaries(
                 // output path, eliminating the distance between validation and use.
                 let output_path = dictionary_path.join(format!("{}.json", base_name));
                 if let Err(e) = fs::write(&output_path, &contents) {
-                    errors.push(format!("{}: write error: {}", filename, e));
+                    errors.push(format!("{}: write error: {}", filename, sanitize_io_error(e, "dictionary file")));
                     continue;
                 }
                 file_count += 1;
@@ -1286,7 +1289,7 @@ pub async fn load_dictionaries_parallel(
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     BatchDictionaryResult::err(dictionary_id, "File not found")
                 }
-                Err(e) => BatchDictionaryResult::err(dictionary_id, e.to_string()),
+                Err(e) => BatchDictionaryResult::err(dictionary_id, sanitize_io_error(e, "dictionary file")),
             }
         })
         .collect();
@@ -1338,7 +1341,7 @@ pub async fn rename_proper_nouns_dictionary(
     }
 
     // Rename the file
-    fs::rename(&old_file_path, &new_file_path).map_err(|e| e.to_string())?;
+    fs::rename(&old_file_path, &new_file_path).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
 
     // Invalidate cache for old dictionary
     cache.invalidate(Some(&old_dictionary_id));

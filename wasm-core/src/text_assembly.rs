@@ -333,7 +333,7 @@ impl TextAssembler {
 
     /// Assemble segments with token-type-based spacing rules and position tracking.
     ///
-    /// Applies 9 spacing rules (matching the JS postProcess Step 2 loop) and records
+    /// Applies 10 spacing rules (matching the JS postProcess Step 2 loop) and records
     /// the Unicode char start/end position of every segment in the assembled output.
     ///
     /// # Arguments
@@ -449,7 +449,7 @@ fn is_chinese_type(token_type: &str) -> bool {
 
 /// Determine whether a space should be inserted between `current` and `next`.
 ///
-/// Exact port of the 9 spacing rules from `TranslationEngine.js:postProcess()` Step 2 loop.
+/// Exact port of the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2 loop.
 ///
 /// Token type string values match `TextTokenizer.ts` `TokenType` enum:
 /// - `"chinese_char"`, `"chinese_word"`, `"latin_word"`, `"number"`,

@@ -143,7 +143,7 @@ export class WasmTextAssemblerWrapper {
   /**
    * Assemble segments with token-type-based spacing and position tracking.
    *
-   * Mirrors the 9 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
+   * Mirrors the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
    *
    * @param {Array<{text: string, tokenType: string, tokenIndex: number}>} segments
    * @returns {{ translatedText: string, positions: Array<{tokenIndex: number, text: string, start: number, end: number}> }}
@@ -312,7 +312,7 @@ function isChinese(tokenType) {
 /**
  * Determine whether a space should be inserted between `current` and `next`.
  *
- * Exact port of the 9 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
+ * Exact port of the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2.
  * Token type strings match `TextTokenizer.ts` `TokenType` enum values.
  *
  * @param {string} currentType

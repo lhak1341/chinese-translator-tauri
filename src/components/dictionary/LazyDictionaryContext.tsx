@@ -461,9 +461,8 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         logger.error('Error adding dictionary entry:', error);
-        // CODE QUALITY FIX: Use type-safe error checking instead of brittle string matching
-        // Only show toast if not a validation error (validation errors already show toast)
-        if (!isValidationError(error)) {
+        // Only show toast if not a validation error (already toasted) or save error (already toasted above)
+        if (!isValidationError(error) && !isSaveError(error)) {
           toast.error(`Could not add entry: ${extractErrorMessage(error)}`);
         }
         throw error; // Re-throw for caller handling
@@ -550,9 +549,8 @@ export function LazyDictionaryProvider({
         }
       } catch (error) {
         logger.error('Error updating dictionary entry:', error);
-        // CODE QUALITY FIX: Use type-safe error checking instead of brittle string matching
-        // Only show toast if not a validation error (validation errors already show toast)
-        if (!isValidationError(error)) {
+        // Only show toast if not a validation error (already toasted) or save error (already toasted above)
+        if (!isValidationError(error) && !isSaveError(error)) {
           toast.error(`Could not update entry: ${extractErrorMessage(error)}`);
         }
         throw error; // Re-throw for caller handling

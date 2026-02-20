@@ -5,7 +5,7 @@
  * (`jsAssembleWithSpacing`) and the Rust WASM implementation (`assemble_with_spacing`)
  * must satisfy. The JS version is the source of truth for correctness.
  *
- * The 9 spacing rules mirror those in `TranslationEngine.js:postProcess()` Step 2
+ * The 10 spacing rules mirror those in `TranslationEngine.js:postProcess()` Step 2
  * (lines previously 4458-4605) and the Rust `needs_space()` in `text_assembly.rs`.
  *
  * Position invariants:
