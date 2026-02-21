@@ -257,9 +257,10 @@ export class WasmTextChunker {
 // Create singleton instance
 export const wasmTextChunker = new WasmTextChunker();
 
-// LAZY INITIALIZATION: No eager init - WASM loads on first use
-// This prevents race conditions in production builds where module loading
-// happens before WASM files are fully available
+// Background init: warms up WASM so first caller hits the fast path
+wasmTextChunker.initialize().catch((err) => {
+  logger.warn('Background WASM TextChunker initialization failed:', err);
+});
 
 // Expose globally for debugging
 if (typeof window !== 'undefined') {

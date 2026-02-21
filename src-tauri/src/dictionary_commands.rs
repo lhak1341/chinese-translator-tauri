@@ -594,7 +594,7 @@ pub async fn open_dictionary_folder(app_handle: tauri::AppHandle) -> Result<Dict
     use tauri_plugin_opener::OpenerExt;
     app_handle.opener()
         .open_path(dictionary_path.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|e| e.to_string())?;
+        .map_err(|_| "Failed to open dictionary folder".to_string())?;
 
     Ok(DictionaryResponse::ok())
 }

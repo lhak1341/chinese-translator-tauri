@@ -211,8 +211,6 @@ export class WasmDictionaryManager {
           logger.log(
             `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
           );
-          this.consecutiveFailures = 0;
-
           // ARCHITECTURAL FIX: Record successful sync
           this._recordSyncSuccess('batch');
 
@@ -465,7 +463,7 @@ export class WasmDictionaryManager {
         ...wasmStats,
         initialized: this.initialized,
         fallbackMode: this.fallbackHandler.isInFallbackMode(),
-        consecutiveFailures: this.consecutiveFailures,
+        consecutiveFailures: this.fallbackHandler.getFailureCount(),
       };
     } catch (error) {
       return {
@@ -703,7 +701,7 @@ export class WasmDictionaryManager {
         : this.initialized
           ? 'ACTIVE'
           : 'NOT_INITIALIZED',
-      consecutiveFailures: this.consecutiveFailures,
+      consecutiveFailures: this.fallbackHandler.getFailureCount(),
     };
   }
 
