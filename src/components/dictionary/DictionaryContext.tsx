@@ -127,6 +127,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // Ref-mirror so addToHistory reads the latest index without being recreated on every undo/redo
   const currentHistoryIndexRef = useRef(currentHistoryIndex);
   currentHistoryIndexRef.current = currentHistoryIndex;
+  // Ref-mirror so undo/redo move branches read latest dicts without closing over state
+  const dictionariesRef = useRef(dictionaries);
+  dictionariesRef.current = dictionaries;
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
   // Load initial dictionaries and configuration
@@ -731,7 +734,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         (operation.operation === 'move' || operation.operation === 'bulk_move') &&
         operation.targetDictionaryId
       ) {
-        const currentDicts = { ...dictionaries };
+        const currentDicts = dictionariesRef.current;
         const sourceDict = currentDicts[operation.dictionaryId];
         const targetDict = currentDicts[operation.targetDictionaryId];
         if (!sourceDict || !targetDict) {
@@ -843,7 +846,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
     }
     return false;
-  }, [history, currentHistoryIndex, dictionaries]);
+  }, [history, currentHistoryIndex]);
 
   // Redo function - re-applies delta-based operations
   // CODE REVIEW FIX 2026-02-08 (CRITICAL): Use functional updates to prevent race conditions
@@ -856,8 +859,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         (operation.operation === 'move' || operation.operation === 'bulk_move') &&
         operation.targetDictionaryId
       ) {
-        const sourceDict = dictionaries[operation.dictionaryId];
-        const targetDict = dictionaries[operation.targetDictionaryId];
+        const sourceDict = dictionariesRef.current[operation.dictionaryId];
+        const targetDict = dictionariesRef.current[operation.targetDictionaryId];
         if (!sourceDict || !targetDict) {
           logger.error(`Cannot redo move: dictionaries not found`);
           return false;
@@ -967,7 +970,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
     }
     return false;
-  }, [history, currentHistoryIndex, dictionaries]);
+  }, [history, currentHistoryIndex]);
 
   // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
   // no useCallback wrapper needed; pass them directly in the value object below.
