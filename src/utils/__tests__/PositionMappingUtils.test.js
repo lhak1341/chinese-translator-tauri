@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   tokenPositionToCharPosition,
-  charLengthToTokenCount,
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
-  validatePositionMapping,
 } from '../PositionMappingUtils';
 
 describe('PositionMappingUtils', () => {
@@ -89,90 +87,6 @@ describe('PositionMappingUtils', () => {
 
       // Should skip invalid token gracefully
       expect(tokenPositionToCharPosition(tokens, 2)).toBe(2);
-    });
-  });
-
-  describe('charLengthToTokenCount', () => {
-    it('should convert char length to token count - single-char tokens', () => {
-      const tokens = [{ value: '我' }, { value: '爱' }, { value: '你' }];
-
-      expect(charLengthToTokenCount(tokens, 0, 1)).toBe(1);
-      expect(charLengthToTokenCount(tokens, 0, 2)).toBe(2);
-      expect(charLengthToTokenCount(tokens, 0, 3)).toBe(3);
-    });
-
-    it('should convert char length to token count - multi-char tokens', () => {
-      const tokens = [{ value: '今天' }, { value: '天气' }, { value: '好' }];
-
-      expect(charLengthToTokenCount(tokens, 0, 2)).toBe(1); // "今天" = 1 token
-      expect(charLengthToTokenCount(tokens, 0, 4)).toBe(2); // "今天天气" = 2 tokens
-      expect(charLengthToTokenCount(tokens, 0, 5)).toBe(3); // "今天天气好" = 3 tokens
-    });
-
-    it('should handle starting from middle position', () => {
-      const tokens = [{ value: '今天' }, { value: '天气' }, { value: '好' }];
-
-      expect(charLengthToTokenCount(tokens, 1, 2)).toBe(1); // "天气" from pos 1
-      expect(charLengthToTokenCount(tokens, 1, 3)).toBe(2); // "天气好" from pos 1
-    });
-
-    it('should handle mixed single and multi-char tokens', () => {
-      const tokens = [{ value: '我' }, { value: '今天' }, { value: '去' }, { value: '北京' }];
-
-      expect(charLengthToTokenCount(tokens, 0, 1)).toBe(1); // "我"
-      expect(charLengthToTokenCount(tokens, 0, 3)).toBe(2); // "我今天"
-      expect(charLengthToTokenCount(tokens, 1, 2)).toBe(1); // "今天" from pos 1
-      expect(charLengthToTokenCount(tokens, 1, 3)).toBe(2); // "今天去" from pos 1
-    });
-
-    it('should handle zero character length', () => {
-      const tokens = [{ value: '测试' }];
-      expect(charLengthToTokenCount(tokens, 0, 0)).toBe(0);
-    });
-
-    it('should handle char length exceeding available text', () => {
-      const tokens = [{ value: '测试' }];
-
-      // Should return max possible tokens
-      expect(charLengthToTokenCount(tokens, 0, 100)).toBe(1);
-    });
-
-    it('should handle char length falling in middle of token', () => {
-      const tokens = [{ value: '今天天气' }]; // 4 chars in 1 token
-
-      // 3 chars falls in middle of 4-char token, should return 1
-      expect(charLengthToTokenCount(tokens, 0, 3)).toBe(1);
-    });
-
-    it('should throw on invalid input - non-array', () => {
-      expect(() => charLengthToTokenCount(null, 0, 1)).toThrow('tokens must be an array');
-    });
-
-    it('should throw on invalid input - negative start position', () => {
-      const tokens = [{ value: '测试' }];
-      expect(() => charLengthToTokenCount(tokens, -1, 1)).toThrow(
-        'startTokenPos must be a non-negative integer'
-      );
-    });
-
-    it('should throw on invalid input - negative char length', () => {
-      const tokens = [{ value: '测试' }];
-      expect(() => charLengthToTokenCount(tokens, 0, -1)).toThrow(
-        'charLength must be a non-negative integer'
-      );
-    });
-
-    it('should throw on invalid input - start position out of bounds', () => {
-      const tokens = [{ value: '测试' }];
-      expect(() => charLengthToTokenCount(tokens, 5, 1)).toThrow('out of bounds');
-    });
-
-    it('should handle Unicode characters (emoji)', () => {
-      const tokens = [{ value: '😀' }, { value: '你好' }];
-
-      // Emoji is 2 chars (surrogate pair)
-      expect(charLengthToTokenCount(tokens, 0, 2)).toBe(1);
-      expect(charLengthToTokenCount(tokens, 0, 4)).toBe(2); // emoji + "你好"
     });
   });
 
@@ -302,63 +216,7 @@ describe('PositionMappingUtils', () => {
     });
   });
 
-  describe('validatePositionMapping', () => {
-    it('should validate correct single-char token mapping', () => {
-      const tokens = [{ value: '我' }, { value: '爱' }, { value: '你' }];
-      expect(validatePositionMapping(tokens)).toBe(true);
-    });
-
-    it('should validate correct multi-char token mapping', () => {
-      const tokens = [{ value: '今天' }, { value: '天气' }, { value: '好' }];
-      expect(validatePositionMapping(tokens)).toBe(true);
-    });
-
-    it('should validate correct mixed token mapping', () => {
-      const tokens = [{ value: '我' }, { value: '今天' }, { value: '去' }, { value: '北京' }];
-      expect(validatePositionMapping(tokens)).toBe(true);
-    });
-
-    it('should handle empty array', () => {
-      expect(validatePositionMapping([])).toBe(true);
-    });
-
-    it('should handle single token', () => {
-      const tokens = [{ value: '测试' }];
-      expect(validatePositionMapping(tokens)).toBe(true);
-    });
-
-    it('should validate Unicode characters', () => {
-      const tokens = [{ value: '😀' }, { value: '你好' }, { value: '👋' }];
-      expect(validatePositionMapping(tokens)).toBe(true);
-    });
-
-    it('should return true for null/undefined input', () => {
-      expect(validatePositionMapping(null)).toBe(true);
-      expect(validatePositionMapping(undefined)).toBe(true);
-    });
-  });
-
   describe('Integration tests', () => {
-    it('should round-trip correctly - token pos → char pos → token count', () => {
-      const tokens = [
-        { value: '我' },
-        { value: '今天' },
-        { value: '去' },
-        { value: '北京' },
-        { value: '玩' },
-      ];
-
-      // For each token position
-      for (let tokenPos = 0; tokenPos < tokens.length; tokenPos++) {
-        const charPos = tokenPositionToCharPosition(tokens, tokenPos);
-        const token = tokens[tokenPos];
-        const tokenCount = charLengthToTokenCount(tokens, tokenPos, token.value.length);
-
-        // Each token should convert to exactly 1 token count
-        expect(tokenCount).toBe(1);
-      }
-    });
-
     it('should handle sequential lookups (Phase 5 pattern)', () => {
       const tokens = [
         { value: '今' },

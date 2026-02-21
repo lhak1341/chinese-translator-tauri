@@ -13,7 +13,7 @@ import { logger } from './logger.js';
  * IMPORTANT: These flags provide emergency rollback capability during Phase 3B.
  * Set to 'false' to immediately restore legacy system functionality.
  */
-export const LEGACY_REMOVAL_FLAGS = {
+const LEGACY_REMOVAL_FLAGS = {
   // Phase 3B.1: Sequential Processing Consolidation
   enableSequentialFallbackRemoval: true, // processChunksSequentially removal control
   forceParallelProcessing: true, // Disable sequential fallback completely
@@ -35,7 +35,7 @@ export const LEGACY_REMOVAL_FLAGS = {
 /**
  * Performance regression thresholds that trigger automatic rollback
  */
-export const ROLLBACK_TRIGGERS = {
+const ROLLBACK_TRIGGERS = {
   // Translation quality degradation limits
   maxQualityRegressionPercent: 5, // >5% quality degradation triggers rollback
   minParallelSuccessRate: 95, // <95% parallel processing success triggers rollback
@@ -169,7 +169,7 @@ export function checkRollbackTriggers(metrics) {
  * @param {Array} triggers - Array of trigger reasons
  * @returns {Object} Rollback execution result
  */
-export function executeEmergencyRollback(triggers = []) {
+function executeEmergencyRollback(triggers = []) {
   const rollbackTime = Date.now();
 
   // Restore all legacy systems

@@ -13,7 +13,7 @@
 import { getLogEntry, releaseLogEntry } from './DebugObjectPool.js';
 import { logger } from './logger.js';
 
-export class BatchLogger {
+class BatchLogger {
   constructor(options = {}) {
     this.batchSize = options.batchSize || 50;
     this.flushInterval = options.flushInterval || 1000; // ms
@@ -270,7 +270,7 @@ export class BatchLogger {
  * Performance Logger
  * Extends BatchLogger with timing capabilities and bottleneck detection
  */
-export class PerformanceLogger extends BatchLogger {
+class PerformanceLogger extends BatchLogger {
   constructor(options = {}) {
     super(options);
     this.slowOperationThreshold = options.slowThreshold || 200; // ms
@@ -450,7 +450,7 @@ export const performanceLogger = new PerformanceLogger({
 });
 
 // Create singleton instance for app-wide usage
-export const batchLogger = new BatchLogger({
+const batchLogger = new BatchLogger({
   batchSize: 30, // Batch up to 30 logs
   flushInterval: 2000, // Flush every 2 seconds
   frequencyGate: 25, // Only log every 25th call for hot paths

@@ -10,13 +10,11 @@ import {
 import { listen } from '@tauri-apps/api/event'; // CODE REVIEW FIX (CRITICAL-2): Listen for cache poisoning events
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
-import { ChineseNumberConverter } from '../utils/ChineseNumberConverter';
 import { TranslationInputValidator } from '../utils/TranslationInputValidator';
 import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
 import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
-import { validateApiResult, validateDictionary } from '../utils/configValidation';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';

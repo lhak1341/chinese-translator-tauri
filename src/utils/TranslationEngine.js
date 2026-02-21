@@ -160,7 +160,6 @@ import {
 } from './MemoryManagementRefinements.js';
 import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
-import { segmentIterator } from './V8OptimizationUtils.js';
 import { scanTokens, createReadonlyTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
 import { wasmTextAssembler } from './WasmTextAssembler.js';
@@ -183,7 +182,6 @@ import {
   DEVICE_MEMORY_LIMITS,
   UI_TIMEOUTS,
   PATTERN_FAILURE_DETECTION,
-  OPTIMIZED_SEARCH_THRESHOLDS,
   MEMORY_WASTE_DETECTION,
 } from '../constants/TranslationConstants.js';
 
@@ -6162,93 +6160,6 @@ export class TranslationEngine {
       // Analyze memory growth patterns
       if (postProcessingSnapshot) {
         const leakAnalysis = this.memoryTracker.detectLeaks(postProcessingSnapshot);
-
-        // Log memory usage every few batches with detailed component tracking
-        if (batchIndex % 3 === 0 || (leakAnalysis && leakAnalysis.isHighUsage)) {
-          const translationSegCount = this.translationSegments?.length || 0;
-          const avgSegmentSize =
-            translationSegCount > 0
-              ? (postProcessingSnapshot.memory.used / translationSegCount / 1024).toFixed(1)
-              : '0';
-
-          // Analyze what's inside segments when they get large
-          if (
-            translationSegCount > 0 &&
-            parseFloat(avgSegmentSize) > OPTIMIZED_SEARCH_THRESHOLDS.LARGE_SEGMENT_SIZE_THRESHOLD
-          ) {
-            // >2KB per segment
-            // INTEGRATION #3: Use V8 Optimization for typed property access
-            // Expected: 10-20% faster property access in memory analysis
-            const sampleSegment = this.translationSegments[0];
-
-            try {
-              // Use typed iterator for better V8 optimization
-              const _segmentSizes = segmentIterator
-                .mapProperties(sampleSegment || {}, (key, value) => {
-                  let size = 0;
-                  try {
-                    if (typeof value === 'string') size = value.length;
-                    else if (Array.isArray(value)) size = JSON.stringify(value).length;
-                    else if (typeof value === 'object' && value !== null)
-                      size = JSON.stringify(value).length;
-                    else size = String(value).length;
-                  } catch (error) {
-                    // CODE REVIEW FIX: Log when size calculation fails
-                    // Expected: Circular references, complex objects
-                    // Unexpected: Out of memory, API errors
-                    this.log(
-                      DEBUG_LEVELS.DEBUG,
-                      `Could not calculate size for cache key "${key}":`,
-                      error.message || error
-                    );
-                    size = 0;
-                  }
-                  return { key, size, type: Array.isArray(value) ? 'array' : typeof value };
-                })
-                .sort((a, b) => b.size - a.size);
-            } catch (v8Error) {
-              // Fallback to original Object.keys approach if V8 optimization fails
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                'V8 optimization failed, using fallback:',
-                v8Error.message || v8Error
-              );
-
-              const segmentKeys = Object.keys(sampleSegment || {});
-              const _segmentSizes = segmentKeys
-                .map((key) => {
-                  const value = sampleSegment[key];
-                  let size = 0;
-                  try {
-                    if (typeof value === 'string') size = value.length;
-                    else if (Array.isArray(value)) size = JSON.stringify(value).length;
-                    else if (typeof value === 'object' && value !== null)
-                      size = JSON.stringify(value).length;
-                    else size = String(value).length;
-                  } catch (error) {
-                    this.log(
-                      DEBUG_LEVELS.DEBUG,
-                      `Could not calculate size for cache key "${key}":`,
-                      error.message || error
-                    );
-                    size = 0;
-                  }
-                  return { key, size, type: Array.isArray(value) ? 'array' : typeof value };
-                })
-                .sort((a, b) => b.size - a.size);
-            }
-
-            // Large segment analysis disabled to prevent performance impact
-            // this.log(DEBUG_LEVELS.ERROR, `🔍 LARGE SEGMENT ANALYSIS: Top properties in ${translationSegCount} segments:`);
-            // segmentSizes.slice(0, 5).forEach(prop => {
-            //   this.log(DEBUG_LEVELS.ERROR, `  - ${prop.key} (${prop.type}): ${(prop.size / 1024).toFixed(1)}KB`);
-            // });
-          }
-
-          // Memory and segment logging disabled to prevent performance impact
-          // this.log(DEBUG_LEVELS.INFO, `🧠 Memory: Batch ${batchIndex} +${postProcessingSnapshot.memoryGrowthMB.toFixed(1)}MB total`);
-          // this.log(DEBUG_LEVELS.INFO, `📊 Segments: ${translationSegCount} translation segments (~${avgSegmentSize}KB each)`);
-        }
 
         if (leakAnalysis) {
           if (leakAnalysis.isExcessive) {

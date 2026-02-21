@@ -24,7 +24,7 @@
 
 import { logger } from './logger';
 
-export class WasmRetryManager {
+class WasmRetryManager {
   /**
    * Create a new retry manager
    * @param {number} maxRetries - Maximum number of retry attempts (default: 3)

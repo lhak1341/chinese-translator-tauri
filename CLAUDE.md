@@ -165,6 +165,8 @@ The five most likely to cause **silent bugs**:
 - **`lookup_index_engine::TrieNode` (Tauri-side) has `pub fn insert(word, translation, metadata)`** (added 2026-02-20): Use it when building tries from dictionary entries instead of writing manual `for ch in word.chars() { current = current.children.entry(ch)... }` loops. Distinct from `wasm-core/src/trie.rs::TrieNode` which has different fields.
 - **`WasmRegexUtils.js` singleton deleted** (2026-02-20): File now exports only the `createWasmRegexUtils` async factory. Do not add a singleton back — it had zero production imports and lacked the required background-init call.
 - **`WasmDictionaryManager.consecutiveFailures` does not exist as a field** (removed 2026-02-20): Was never initialized in the constructor — reads returned `undefined`. All `consecutiveFailures` reporting in `getPerformanceReport()` and `getSyncMetrics()` delegates to `this.fallbackHandler.getFailureCount()`. Do not add a local `this.consecutiveFailures` field.
+- **`ByteFormatter.ts`, `ValidationHelpers.ts`, `CacheKeyGenerator.ts`, `ChineseNumberConverter.js` are deleted** (2026-02-21): All had zero production importers (only test files or type-only references). Do not recreate.
+- **Removing `export` from a named export also requires cleaning its test describe blocks**: Vitest does not statically analyze — importing a non-exported named export throws `TypeError: ... is not a function` at runtime. When you un-export a function, find any `describe('functionName', ...)` blocks in the corresponding test file and remove them too.
 
 ### Essential Commands
 
@@ -200,7 +202,7 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 
 ## Testing
 
-**Runner**: Vitest + React Testing Library. **1,303 tests, 52 files** (+ 94 Rust). Run: `npm test -- --run`.
+**Runner**: Vitest + React Testing Library. **1,211 tests, 50 files** (+ 94 Rust). Run: `npm test -- --run`.
 
 **File placement**: Utility tests → `src/utils/__tests__/`. Component tests → `src/components/__tests__/`. Never alongside source files in `src/utils/`.
 

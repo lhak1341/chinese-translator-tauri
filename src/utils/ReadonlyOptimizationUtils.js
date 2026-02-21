@@ -57,7 +57,7 @@ export function createReadonlyTokens(tokens) {
  * @param {ApplyUpdatesOptions} options - Application options
  * @returns {ApplyUpdatesResult} Result of update operation
  */
-export function applyTokenUpdates(tokens, updates, options = {}) {
+function applyTokenUpdates(tokens, updates, options = {}) {
   const startTime = performance.now();
   const { validate = false, preserveOriginal = false, debugLevel = 0 } = options;
 
@@ -185,7 +185,7 @@ export function scanTokens(tokens, predicate, options = {}) {
  * @param {Object} metadata - Optional metadata
  * @returns {TokenUpdate} Token update object
  */
-export function createTokenUpdate(index, translated, source, metadata) {
+function createTokenUpdate(index, translated, source, metadata) {
   return {
     index,
     translated,
@@ -204,7 +204,7 @@ export function createTokenUpdate(index, translated, source, metadata) {
  * @param {Object} options - Scan options
  * @returns {TokenScanResult} Scan result
  */
-export function findUnprocessedTokens(tokens, options = {}) {
+function findUnprocessedTokens(tokens, options = {}) {
   return scanTokens(
     tokens,
     (token) => token.translated === null || token.translated === undefined,
@@ -220,7 +220,7 @@ export function findUnprocessedTokens(tokens, options = {}) {
  * @param {Object} options - Scan options
  * @returns {TokenScanResult} Scan result
  */
-export function findTokensByType(tokens, type, options = {}) {
+function findTokensByType(tokens, type, options = {}) {
   return scanTokens(tokens, (token) => token.type === type, options);
 }
 
@@ -234,7 +234,7 @@ export function findTokensByType(tokens, type, options = {}) {
  * @param {number} maxLength - Maximum span length
  * @returns {Array<{start: number, length: number}>} Array of spans
  */
-export function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10) {
+function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10) {
   const spans = [];
   let spanStart = -1;
   let spanLength = 0;
@@ -277,7 +277,7 @@ export function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10
  * @param {number} length - Span length
  * @returns {string} Combined text
  */
-export function getTokenSpanText(tokens, start, length) {
+function getTokenSpanText(tokens, start, length) {
   let text = '';
   const end = Math.min(start + length, tokens.length);
 
@@ -295,7 +295,7 @@ export function getTokenSpanText(tokens, start, length) {
  * @param {number} phase - Phase number
  * @returns {TokenUpdateBatch} Update batch
  */
-export function createUpdateBatch(updates, phase) {
+function createUpdateBatch(updates, phase) {
   const updateMap = new Map();
 
   for (const update of updates) {
@@ -314,7 +314,7 @@ export function createUpdateBatch(updates, phase) {
  *
  * @returns {ReadonlyOptimizationMetrics} Current metrics
  */
-export function getReadonlyOptimizationMetrics() {
+function getReadonlyOptimizationMetrics() {
   return {
     readOnlyScans: metrics.readOnlyScans,
     batchUpdates: metrics.batchUpdates,
@@ -328,7 +328,7 @@ export function getReadonlyOptimizationMetrics() {
 /**
  * Reset performance metrics
  */
-export function resetReadonlyOptimizationMetrics() {
+function resetReadonlyOptimizationMetrics() {
   metrics.readOnlyScans = 0;
   metrics.batchUpdates = 0;
   metrics.totalScanTime = 0;
@@ -339,7 +339,7 @@ export function resetReadonlyOptimizationMetrics() {
 /**
  * Print optimization metrics report
  */
-export function printOptimizationReport() {
+function printOptimizationReport() {
   const stats = getReadonlyOptimizationMetrics();
 
   logger.log('\n📊 ReadonlyArray Optimization Report');

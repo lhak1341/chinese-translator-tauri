@@ -37,7 +37,7 @@ import { logger } from './logger.js';
  * @param {readonly (keyof T)[]} properties - Known property keys
  * @returns {TypedObjectIterator<T>} Typed iterator
  */
-export function createTypedIterator(properties) {
+function createTypedIterator(properties) {
   return {
     /**
      * Iterate over known properties (V8-optimizable)
@@ -110,7 +110,7 @@ export function createTypedIterator(properties) {
  * @param {K} key - Property key
  * @returns {PropertyAccessor<T, K>} Property accessor function
  */
-export function createPropertyAccessor(key) {
+function createPropertyAccessor(key) {
   // V8 optimizes this as monomorphic call site
   return (obj) => obj[key];
 }
@@ -123,7 +123,7 @@ export function createPropertyAccessor(key) {
  * @param {K} key - Property key
  * @returns {Function} Property setter function
  */
-export function createPropertySetter(key) {
+function createPropertySetter(key) {
   return (obj, value) => {
     obj[key] = value;
   };
@@ -149,7 +149,7 @@ export const segmentIterator = createTypedIterator([
 /**
  * Memory stats iterator (replaces Object.keys in performance monitoring)
  */
-export const memoryStatsIterator = createTypedIterator([
+const memoryStatsIterator = createTypedIterator([
   'totalMemory',
   'heapUsed',
   'heapTotal',
@@ -161,7 +161,7 @@ export const memoryStatsIterator = createTypedIterator([
 /**
  * Performance metrics iterator (replaces Object.values in analysis)
  */
-export const performanceMetricsIterator = createTypedIterator([
+const performanceMetricsIterator = createTypedIterator([
   'totalTime',
   'phase1Time',
   'phase2Time',
@@ -176,7 +176,7 @@ export const performanceMetricsIterator = createTypedIterator([
 /**
  * Dictionary entry iterator
  */
-export const dictionaryEntryIterator = createTypedIterator([
+const dictionaryEntryIterator = createTypedIterator([
   'chinese',
   'vietnamese',
   'metadata',
@@ -187,7 +187,7 @@ export const dictionaryEntryIterator = createTypedIterator([
 /**
  * Cache entry iterator
  */
-export const cacheEntryIterator = createTypedIterator([
+const cacheEntryIterator = createTypedIterator([
   'key',
   'value',
   'accessCount',
@@ -209,7 +209,7 @@ export const cacheEntryIterator = createTypedIterator([
  * @param {T} obj - Object to analyze
  * @returns {Object} Shape analysis result
  */
-export function analyzeObjectShape(obj) {
+function analyzeObjectShape(obj) {
   if (!obj || typeof obj !== 'object') {
     return {
       propertyCount: 0,
@@ -247,7 +247,7 @@ export function analyzeObjectShape(obj) {
  * @param {number} iterations - Number of iterations
  * @returns {Object} Benchmark results
  */
-export function benchmarkPropertyAccess(obj, iterations = 100000) {
+function benchmarkPropertyAccess(obj, iterations = 100000) {
   const keys = Object.keys(obj);
 
   // Dynamic access (Object.keys + polymorphic lookup)
@@ -290,7 +290,7 @@ export function benchmarkPropertyAccess(obj, iterations = 100000) {
  * @param {TypedObjectIterator<T>} iterator - Typed iterator
  * @returns {number} Estimated size in bytes
  */
-export function getTypedObjectSize(obj, iterator) {
+function getTypedObjectSize(obj, iterator) {
   if (!obj) return 0;
 
   let size = 0;
@@ -327,7 +327,7 @@ export function getTypedObjectSize(obj, iterator) {
  * @param {TypedObjectIterator<T>} iterator - Typed iterator
  * @returns {T} Cloned object
  */
-export function cloneTypedObject(obj, iterator) {
+function cloneTypedObject(obj, iterator) {
   const clone = {};
 
   iterator.forEachProperty(obj, (key, value) => {
@@ -346,7 +346,7 @@ export function cloneTypedObject(obj, iterator) {
  * @param {TypedObjectIterator<T>} iterator - Typed iterator
  * @returns {T} Merged object
  */
-export function mergeTypedObjects(target, source, iterator) {
+function mergeTypedObjects(target, source, iterator) {
   iterator.forEachProperty(target, (key) => {
     if (key in source) {
       target[key] = source[key];
@@ -374,7 +374,7 @@ const optimizationMetrics = {
  *
  * @param {number} time - Time taken
  */
-export function recordTypedIteration(time) {
+function recordTypedIteration(time) {
   optimizationMetrics.typedIterations++;
   optimizationMetrics.typedAccessTime += time;
 }
@@ -384,7 +384,7 @@ export function recordTypedIteration(time) {
  *
  * @param {number} time - Time taken
  */
-export function recordDynamicIteration(time) {
+function recordDynamicIteration(time) {
   optimizationMetrics.dynamicIterations++;
   optimizationMetrics.dynamicAccessTime += time;
 }
@@ -394,7 +394,7 @@ export function recordDynamicIteration(time) {
  *
  * @returns {Object} Optimization metrics
  */
-export function getV8OptimizationMetrics() {
+function getV8OptimizationMetrics() {
   const avgTyped =
     optimizationMetrics.typedIterations > 0
       ? optimizationMetrics.typedAccessTime / optimizationMetrics.typedIterations
@@ -421,7 +421,7 @@ export function getV8OptimizationMetrics() {
 /**
  * Reset optimization metrics
  */
-export function resetV8OptimizationMetrics() {
+function resetV8OptimizationMetrics() {
   optimizationMetrics.typedIterations = 0;
   optimizationMetrics.dynamicIterations = 0;
   optimizationMetrics.typedAccessTime = 0;
@@ -433,7 +433,7 @@ export function resetV8OptimizationMetrics() {
 /**
  * Print V8 optimization report
  */
-export function printV8OptimizationReport() {
+function printV8OptimizationReport() {
   const metrics = getV8OptimizationMetrics();
 
   logger.log('\n📊 V8 Optimization Report');

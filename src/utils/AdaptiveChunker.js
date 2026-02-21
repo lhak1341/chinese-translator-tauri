@@ -25,7 +25,7 @@
 
 import { batchLog } from './BatchLogger.js';
 
-export class AdaptiveChunker {
+class AdaptiveChunker {
   constructor(options = {}) {
     this.options = {
       minChunkSize: options.minChunkSize || 8,

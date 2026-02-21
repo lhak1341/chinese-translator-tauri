@@ -112,7 +112,7 @@ export function tokenPositionToCharPosition(tokens, tokenPos) {
  * @returns {number} Number of tokens needed
  * @throws {Error} If parameters are invalid
  */
-export function charLengthToTokenCount(tokens, startTokenPos, charLength) {
+function charLengthToTokenCount(tokens, startTokenPos, charLength) {
   // Input validation
   if (!Array.isArray(tokens)) {
     throw new Error('tokens must be an array');
@@ -247,7 +247,7 @@ export function convertWasmMatchToTokenMatch(wasmMatch, tokens, startTokenPos, d
  * @param {Array<{value: string}>} tokens - Token array to validate
  * @returns {boolean} True if all mappings are consistent
  */
-export function validatePositionMapping(tokens) {
+function validatePositionMapping(tokens) {
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return true;
   }
