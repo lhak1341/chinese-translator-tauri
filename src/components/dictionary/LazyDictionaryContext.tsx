@@ -402,6 +402,12 @@ export function LazyDictionaryProvider({
           throw new ValidationError(validationError);
         }
 
+        if (!dictionaries[dictionaryId]) {
+          const msg = `Dictionary '${dictionaryId}' does not exist`;
+          toast.error(msg);
+          throw new ValidationError(msg);
+        }
+
         const oldData = { ...dictionaries[dictionaryId] };
 
         let targetValue: string | DictionaryEntryValue = cleanTranslation;
@@ -479,6 +485,12 @@ export function LazyDictionaryProvider({
           throw new ValidationError(validationError);
         }
 
+        if (!dictionaries[dictionaryId]) {
+          const msg = `Dictionary '${dictionaryId}' does not exist`;
+          toast.error(msg);
+          throw new ValidationError(msg);
+        }
+
         const oldData = { ...dictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
 
@@ -546,6 +558,12 @@ export function LazyDictionaryProvider({
     async (dictionaryId: string, source: string): Promise<void> => {
       // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
       try {
+        if (!dictionaries[dictionaryId]) {
+          const msg = `Dictionary '${dictionaryId}' does not exist`;
+          toast.error(msg);
+          throw new ValidationError(msg);
+        }
+
         const oldData = { ...dictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
         delete updatedDictionary[source];
