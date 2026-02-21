@@ -451,3 +451,18 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   window.resetMatcherProfiling = resetMatcherProfiling;
   window.printMatcherProfilingReport = printMatcherProfilingReport;
 }
+
+// Pre-warm WASM module and binary cache at import time so the first
+// initializeWasmPatternProcessor call (which requires patternsDict) doesn't
+// block on network I/O during the critical translation path.
+// Does NOT call wasmModule.default() or create WasmPatternProcessor instances —
+// those steps require patternsDict and happen in initializeWasmPatternProcessor.
+(async () => {
+  try {
+    await import('../wasm/translation_wasm_core.js'); // warms ES module cache
+    await fetchWasmBinary('translation_wasm_core_bg.wasm'); // warms binary cache
+    logger.debug('🔥 WASM PatternProcessor module and binary pre-warmed');
+  } catch (err) {
+    logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err);
+  }
+})();

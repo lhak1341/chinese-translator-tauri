@@ -2243,7 +2243,10 @@ export class TranslationEngine {
         this.dictionaryManager
       );
 
-      // OPTIMIZATION: Use cached semantic tokens if available (5-10% overhead reduction)
+      // OPTIMIZATION: Use cached semantic tokens if available (5-10% overhead reduction).
+      // NOTE: cache is always null here (cleared at translateSinglePass entry above) — the
+      // getSemanticTokens fallback always fires for Phase 1. Do NOT move the cache initialization
+      // earlier; it is set after Phase 2 so that Phase 1's token mutations are already applied.
       const semanticTokens = this.cachedSemanticTokens || getSemanticTokens(tokens);
       // Hot path optimization: Only log if debug level is sufficient
       if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
@@ -7499,7 +7502,10 @@ export class TranslationEngine {
       );
     }
 
-    // Clear semantic token cache for this translation
+    // Clear semantic token cache for this translation.
+    // INVARIANT: cache is always null when Phase 1 (patterns) runs.
+    // DO NOT pre-populate cachedSemanticTokens before Phase 1 as an optimization —
+    // Phase 1 mutates tokens and the semantic view must reflect post-Phase-1 state for all later phases.
     this.cachedSemanticTokens = null;
 
     // CRITICAL FIX: Track phase completion for debugging silent failures

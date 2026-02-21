@@ -274,23 +274,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           };
         }
 
-        // Capture old data and update state atomically using functional update
-        let oldData: Record<string, string | DictionaryEntryValue> | undefined;
-        let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
+        // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
+        const oldData = { ...dictionaries[dictionaryId] };
+        const updatedDictionary = { ...oldData, [source]: targetValue };
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-        setDictionaries((prevDictionaries) => {
-          oldData = { ...prevDictionaries[dictionaryId] };
+        // Optimistic update
+        setDictionaries((prev) => ({
+          ...prev,
+          [dictionaryId]: sortedDictionary,
+        }));
 
-          const updatedDictionary = { ...oldData, [source]: targetValue };
-          sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
-
-          return {
-            ...prevDictionaries,
-            [dictionaryId]: sortedDictionary,
-          };
-        });
-
-        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
         if (result.success && result.data) {
           // Delta-based history: store only the added entry
@@ -306,7 +301,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         } else {
           setDictionaries((prev) => ({
             ...prev,
-            [dictionaryId]: oldData!,
+            [dictionaryId]: oldData,
           }));
           toast.error('Failed to save dictionary changes');
           throw new SaveError('Failed to save dictionary changes');
@@ -366,37 +361,32 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           };
         }
 
-        // Capture old entry and update state atomically using functional update
-        let oldData: Record<string, string | DictionaryEntryValue> | undefined;
-        let oldEntryValue: string | DictionaryEntryValue | undefined;
-        let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
+        // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
+        const oldData = { ...dictionaries[dictionaryId] };
+        // Capture old entry for delta-based undo
+        const oldEntryValue = oldData[oldSource];
+        const updatedDictionary = { ...oldData };
 
-        setDictionaries((prevDictionaries) => {
-          oldData = { ...prevDictionaries[dictionaryId] };
-          // Capture old entry for delta-based undo
-          oldEntryValue = oldData[oldSource];
-          const updatedDictionary = { ...oldData };
+        if (oldSource !== newSource) {
+          delete updatedDictionary[oldSource];
+        }
 
-          if (oldSource !== newSource) {
-            delete updatedDictionary[oldSource];
-          }
+        updatedDictionary[newSource] = targetValue;
 
-          updatedDictionary[newSource] = targetValue;
+        const sortedDictionary = sortDictionaryEntries(
+          updatedDictionary,
+          dictionaryId,
+          newSource,
+          oldSource
+        );
 
-          sortedDictionary = sortDictionaryEntries(
-            updatedDictionary,
-            dictionaryId,
-            newSource,
-            oldSource
-          );
+        // Optimistic update
+        setDictionaries((prev) => ({
+          ...prev,
+          [dictionaryId]: sortedDictionary,
+        }));
 
-          return {
-            ...prevDictionaries,
-            [dictionaryId]: sortedDictionary,
-          };
-        });
-
-        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
         if (result.success && result.data) {
           // Delta-based history: store only the changed entry
@@ -419,7 +409,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         } else {
           setDictionaries((prev) => ({
             ...prev,
-            [dictionaryId]: oldData!,
+            [dictionaryId]: oldData,
           }));
           toast.error('Failed to save dictionary changes');
           throw new SaveError('Failed to save dictionary changes');
@@ -445,26 +435,21 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
 
       try {
-        // Capture old entry and update state atomically using functional update
-        let oldData: Record<string, string | DictionaryEntryValue> | undefined;
-        let oldEntryValue: string | DictionaryEntryValue | undefined;
-        let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
+        // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
+        const oldData = { ...dictionaries[dictionaryId] };
+        // Capture old entry for delta-based undo
+        const oldEntryValue = oldData[source];
+        const updatedDictionary = { ...oldData };
+        delete updatedDictionary[source];
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-        setDictionaries((prevDictionaries) => {
-          oldData = { ...prevDictionaries[dictionaryId] };
-          // Capture old entry for delta-based undo
-          oldEntryValue = oldData[source];
-          const updatedDictionary = { ...oldData };
-          delete updatedDictionary[source];
-          sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
+        // Optimistic update
+        setDictionaries((prev) => ({
+          ...prev,
+          [dictionaryId]: sortedDictionary,
+        }));
 
-          return {
-            ...prevDictionaries,
-            [dictionaryId]: sortedDictionary,
-          };
-        });
-
-        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
 
         if (result.success && result.data) {
           // Delta-based history: store only the deleted entry
@@ -482,7 +467,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         } else {
           setDictionaries((prev) => ({
             ...prev,
-            [dictionaryId]: oldData!,
+            [dictionaryId]: oldData,
           }));
           toast.error('Failed to delete dictionary entry');
           throw new SaveError('Failed to delete dictionary entry');
@@ -777,69 +762,54 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         return false;
       }
 
-      // Use functional update to get current dictionary state
-      let updatedDict: Record<string, string | DictionaryEntryValue> | null = null;
-      let dictionaryExists = false;
-
-      setDictionaries((prevDictionaries) => {
-        // CODE REVIEW FIX 2026-02-08 (HIGH): Add existence check before operations
-        const currentDict = prevDictionaries[operation.dictionaryId];
-        if (!currentDict) {
-          logger.error(`Cannot undo: dictionary ${operation.dictionaryId} not found`);
-          return prevDictionaries; // Return unchanged state
-        }
-
-        dictionaryExists = true;
-
-        // Apply reverse operation based on type
-        let newDict = { ...currentDict };
-
-        if (operation.operation === 'add') {
-          // Reverse add: delete the entry
-          if (operation.entry) {
-            delete newDict[operation.entry.source];
-          }
-        } else if (operation.operation === 'update') {
-          // Reverse update: restore old entry
-          if (operation.oldEntry) {
-            // If source changed, remove new source
-            if (operation.oldSource && operation.oldSource !== operation.entry?.source) {
-              delete newDict[operation.entry!.source];
-            }
-            // Restore old entry
-            newDict[operation.oldEntry.source] = operation.oldEntry.value;
-          }
-        } else if (operation.operation === 'delete') {
-          // Reverse delete: restore the entry
-          if (operation.oldEntry) {
-            newDict[operation.oldEntry.source] = operation.oldEntry.value;
-          }
-        } else if (operation.operation === 'bulk_delete') {
-          // CODE REVIEW FIX 2026-02-09 (CRITICAL): Reverse bulk_delete - restore all entries
-          if (operation.oldEntries) {
-            for (const oldEntry of operation.oldEntries) {
-              newDict[oldEntry.source] = oldEntry.value;
-            }
-          }
-        }
-
-        // Re-sort dictionary after applying delta
-        updatedDict = sortDictionaryEntries(newDict, operation.dictionaryId);
-
-        // Return unchanged state - we'll update after successful save
-        return prevDictionaries;
-      });
-
-      if (!dictionaryExists || !updatedDict) {
+      // Read from ref-mirror instead of setDictionaries side-effect (React Concurrent Mode safe)
+      const currentDict = dictionariesRef.current[operation.dictionaryId];
+      if (!currentDict) {
+        logger.error(`Cannot undo: dictionary ${operation.dictionaryId} not found`);
         return false;
       }
+
+      // Apply reverse operation based on type
+      let newDict = { ...currentDict };
+
+      if (operation.operation === 'add') {
+        // Reverse add: delete the entry
+        if (operation.entry) {
+          delete newDict[operation.entry.source];
+        }
+      } else if (operation.operation === 'update') {
+        // Reverse update: restore old entry
+        if (operation.oldEntry) {
+          // If source changed, remove new source
+          if (operation.oldSource && operation.oldSource !== operation.entry?.source) {
+            delete newDict[operation.entry!.source];
+          }
+          // Restore old entry
+          newDict[operation.oldEntry.source] = operation.oldEntry.value;
+        }
+      } else if (operation.operation === 'delete') {
+        // Reverse delete: restore the entry
+        if (operation.oldEntry) {
+          newDict[operation.oldEntry.source] = operation.oldEntry.value;
+        }
+      } else if (operation.operation === 'bulk_delete') {
+        // Reverse bulk_delete: restore all entries
+        if (operation.oldEntries) {
+          for (const oldEntry of operation.oldEntries) {
+            newDict[oldEntry.source] = oldEntry.value;
+          }
+        }
+      }
+
+      // Re-sort dictionary after applying delta
+      const updatedDict = sortDictionaryEntries(newDict, operation.dictionaryId);
 
       const result = await window.electronAPI.saveDictionary(operation.dictionaryId, updatedDict);
 
       if (result.success) {
         setDictionaries((prev) => ({
           ...prev,
-          [operation.dictionaryId]: updatedDict!,
+          [operation.dictionaryId]: updatedDict,
         }));
         setCurrentHistoryIndex((prev) => prev - 1);
         return true;
@@ -901,69 +871,54 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         return false;
       }
 
-      // Use functional update to get current dictionary state
-      let updatedDict: Record<string, string | DictionaryEntryValue> | null = null;
-      let dictionaryExists = false;
-
-      setDictionaries((prevDictionaries) => {
-        // CODE REVIEW FIX 2026-02-08 (HIGH): Add existence check before operations
-        const currentDict = prevDictionaries[operation.dictionaryId];
-        if (!currentDict) {
-          logger.error(`Cannot redo: dictionary ${operation.dictionaryId} not found`);
-          return prevDictionaries; // Return unchanged state
-        }
-
-        dictionaryExists = true;
-
-        // Apply forward operation based on type
-        let newDict = { ...currentDict };
-
-        if (operation.operation === 'add') {
-          // Redo add: add the entry
-          if (operation.entry) {
-            newDict[operation.entry.source] = operation.entry.value;
-          }
-        } else if (operation.operation === 'update') {
-          // Redo update: apply new entry
-          if (operation.entry) {
-            // If source changed, remove old source
-            if (operation.oldSource && operation.oldSource !== operation.entry.source) {
-              delete newDict[operation.oldSource];
-            }
-            // Apply new entry
-            newDict[operation.entry.source] = operation.entry.value;
-          }
-        } else if (operation.operation === 'delete') {
-          // Redo delete: delete the entry
-          if (operation.oldEntry) {
-            delete newDict[operation.oldEntry.source];
-          }
-        } else if (operation.operation === 'bulk_delete') {
-          // CODE REVIEW FIX 2026-02-09 (CRITICAL): Redo bulk_delete - delete all entries
-          if (operation.oldEntries) {
-            for (const oldEntry of operation.oldEntries) {
-              delete newDict[oldEntry.source];
-            }
-          }
-        }
-
-        // Re-sort dictionary after applying delta
-        updatedDict = sortDictionaryEntries(newDict, operation.dictionaryId);
-
-        // Return unchanged state - we'll update after successful save
-        return prevDictionaries;
-      });
-
-      if (!dictionaryExists || !updatedDict) {
+      // Read from ref-mirror instead of setDictionaries side-effect (React Concurrent Mode safe)
+      const currentDict = dictionariesRef.current[operation.dictionaryId];
+      if (!currentDict) {
+        logger.error(`Cannot redo: dictionary ${operation.dictionaryId} not found`);
         return false;
       }
+
+      // Apply forward operation based on type
+      let newDict = { ...currentDict };
+
+      if (operation.operation === 'add') {
+        // Redo add: add the entry
+        if (operation.entry) {
+          newDict[operation.entry.source] = operation.entry.value;
+        }
+      } else if (operation.operation === 'update') {
+        // Redo update: apply new entry
+        if (operation.entry) {
+          // If source changed, remove old source
+          if (operation.oldSource && operation.oldSource !== operation.entry.source) {
+            delete newDict[operation.oldSource];
+          }
+          // Apply new entry
+          newDict[operation.entry.source] = operation.entry.value;
+        }
+      } else if (operation.operation === 'delete') {
+        // Redo delete: delete the entry
+        if (operation.oldEntry) {
+          delete newDict[operation.oldEntry.source];
+        }
+      } else if (operation.operation === 'bulk_delete') {
+        // Redo bulk_delete: delete all entries
+        if (operation.oldEntries) {
+          for (const oldEntry of operation.oldEntries) {
+            delete newDict[oldEntry.source];
+          }
+        }
+      }
+
+      // Re-sort dictionary after applying delta
+      const updatedDict = sortDictionaryEntries(newDict, operation.dictionaryId);
 
       const result = await window.electronAPI.saveDictionary(operation.dictionaryId, updatedDict);
 
       if (result.success) {
         setDictionaries((prev) => ({
           ...prev,
-          [operation.dictionaryId]: updatedDict!,
+          [operation.dictionaryId]: updatedDict,
         }));
         setCurrentHistoryIndex((prev) => prev + 1);
         return true;

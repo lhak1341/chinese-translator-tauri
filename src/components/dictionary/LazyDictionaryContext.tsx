@@ -411,10 +411,23 @@ export function LazyDictionaryProvider({
         const oldData = { ...dictionaries[dictionaryId] };
 
         let targetValue: string | DictionaryEntryValue = cleanTranslation;
-        if (dictionaryId === 'phrases' && metadata.allowAsPatternVariable !== undefined) {
+        if (
+          (dictionaryId === 'phrases' ||
+            dictionaryId === 'patterns' ||
+            dictionaryId.startsWith('properNouns')) &&
+          (metadata.allowAsPatternVariable !== undefined ||
+            metadata.lowPriority !== undefined ||
+            metadata.semanticType !== undefined ||
+            metadata.allowedVariableTypes !== undefined)
+        ) {
           targetValue = {
             translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
+            lowPriority: metadata.lowPriority,
+            ...(metadata.semanticType && { semanticType: metadata.semanticType }),
+            ...(metadata.allowedVariableTypes && {
+              allowedVariableTypes: metadata.allowedVariableTypes,
+            }),
           };
         }
 
@@ -500,13 +513,22 @@ export function LazyDictionaryProvider({
 
         let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
-          (dictionaryId === 'phrases' || dictionaryId === 'patterns') &&
-          (metadata.allowAsPatternVariable !== undefined || metadata.lowPriority !== undefined)
+          (dictionaryId === 'phrases' ||
+            dictionaryId === 'patterns' ||
+            dictionaryId.startsWith('properNouns')) &&
+          (metadata.allowAsPatternVariable !== undefined ||
+            metadata.lowPriority !== undefined ||
+            metadata.semanticType !== undefined ||
+            metadata.allowedVariableTypes !== undefined)
         ) {
           targetValue = {
             translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
+            ...(metadata.semanticType && { semanticType: metadata.semanticType }),
+            ...(metadata.allowedVariableTypes && {
+              allowedVariableTypes: metadata.allowedVariableTypes,
+            }),
           };
         }
 
