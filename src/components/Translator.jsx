@@ -17,6 +17,7 @@ import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { validateApiResult, validateDictionary } from '../utils/configValidation';
+import { extractErrorMessage } from '../utils/errorHelpers';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
@@ -509,7 +510,7 @@ const Translator = ({ isActive = true }) => {
           setEngineInitialized(false);
 
           // CRITICAL-3 FIX: Show error to user with actionable guidance
-          const errorMsg = error instanceof Error ? error.message : 'Unknown initialization error';
+          const errorMsg = extractErrorMessage(error);
           setInitializationError(errorMsg);
           toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
             duration: TOAST_DURATIONS.CRITICAL, // Longer duration for critical errors
