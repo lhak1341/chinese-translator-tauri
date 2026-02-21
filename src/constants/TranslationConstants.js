@@ -310,7 +310,7 @@ export const PATTERN_FAILURE_DETECTION = {
  * - For texts >2000 chars AND >100 semantic units, WASM speedup outweighs overhead
  * - JavaScript O(n*m) search becomes bottleneck at this scale
  */
-export const OPTIMIZED_SEARCH_THRESHOLDS = {
+const OPTIMIZED_SEARCH_THRESHOLDS = {
   /** Minimum text length to activate optimized search (characters) */
   MIN_TEXT_LENGTH: 2000,
 

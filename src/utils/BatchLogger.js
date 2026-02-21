@@ -475,5 +475,3 @@ export const batchLog = {
   getStats: () => batchLogger.getStats(),
   clear: () => batchLogger.clear(),
 };
-
-export default BatchLogger;

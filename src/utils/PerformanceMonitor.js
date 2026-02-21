@@ -185,7 +185,7 @@ export const globalPerformanceMonitor = new PerformanceMonitor({
 });
 
 // Convenience wrapper for simple timing
-export const timeOperation = async (operationName, asyncOperation) => {
+const timeOperation = async (operationName, asyncOperation) => {
   const timer = globalPerformanceMonitor.startTimer(operationName);
   try {
     const result = await asyncOperation();

@@ -1011,5 +1011,3 @@ export const translationSegmentCache = new TranslationSegmentCache({
   maxCacheSize: 1000, // Store up to 1000 translation segments
   maxCacheAge: 7 * 24 * 60 * 60 * 1000, // Keep for 7 days
 });
-
-export default TranslationSegmentCache;

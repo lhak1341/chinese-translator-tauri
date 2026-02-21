@@ -362,6 +362,3 @@ export class UnicodePunctuationDetector {
     ];
   }
 }
-
-// Export for testing and configuration
-export default UnicodePunctuationDetector;

@@ -31,7 +31,6 @@ import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
 import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
-import { runAllParityTests } from '../utils/PatternParityTest.js';
 import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
@@ -486,6 +485,7 @@ const Translator = ({ isActive = true }) => {
                 logger.error('❌ TwoPhasePatternProcessor not available');
                 return;
               }
+              const { runAllParityTests } = await import('../utils/PatternParityTest.js');
               return await runAllParityTests(processor);
             };
             logger.log('🧪 Run window.runPatternParityTests() to verify Rust WASM parity');

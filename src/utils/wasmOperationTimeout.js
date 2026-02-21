@@ -190,6 +190,3 @@ export class TimeoutManager {
     };
   }
 }
-
-// Export singleton timeout manager
-export const wasmTimeoutManager = new TimeoutManager();

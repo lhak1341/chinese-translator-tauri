@@ -368,7 +368,7 @@ class DebugObjectPoolManager {
 }
 
 // Create singleton instance
-export const debugObjectPool = new DebugObjectPoolManager();
+const debugObjectPool = new DebugObjectPoolManager();
 
 // Convenience functions for easy usage
 export const getPerformanceMetric = () => debugObjectPool.getPerformanceMetric();
@@ -377,17 +377,17 @@ export const releasePerformanceMetric = (obj) => debugObjectPool.releasePerforma
 export const getLogEntry = () => debugObjectPool.getLogEntry();
 export const releaseLogEntry = (obj) => debugObjectPool.releaseLogEntry(obj);
 
-export const getTimestamp = () => debugObjectPool.getTimestamp();
-export const releaseTimestamp = (obj) => debugObjectPool.releaseTimestamp(obj);
+const getTimestamp = () => debugObjectPool.getTimestamp();
+const releaseTimestamp = (obj) => debugObjectPool.releaseTimestamp(obj);
 
 export const getMemorySnapshot = () => debugObjectPool.getMemorySnapshot();
 export const releaseMemorySnapshot = (obj) => debugObjectPool.releaseMemorySnapshot(obj);
 
 export const getCacheStats = () => debugObjectPool.getCacheStats();
-export const releaseCacheStats = (obj) => debugObjectPool.releaseCacheStats(obj);
+const releaseCacheStats = (obj) => debugObjectPool.releaseCacheStats(obj);
 
 // Utility for performance-critical operations
-export const withPooledObject = (poolGetFn, poolReleaseFn, operationFn) => {
+const withPooledObject = (poolGetFn, poolReleaseFn, operationFn) => {
   const obj = poolGetFn();
   try {
     return operationFn(obj);
@@ -395,5 +395,3 @@ export const withPooledObject = (poolGetFn, poolReleaseFn, operationFn) => {
     poolReleaseFn(obj);
   }
 };
-
-export default DebugObjectPoolManager;

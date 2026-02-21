@@ -27,7 +27,7 @@ import { logger } from './logger';
 /**
  * Error categories for WASM operations
  */
-export const WASM_ERROR_TYPES = {
+const WASM_ERROR_TYPES = {
   VALIDATION: 'validation',
   SERIALIZATION: 'serialization',
   WASM_RUNTIME: 'wasm_runtime',
@@ -162,7 +162,7 @@ export function categorizeWasmError(error, component = 'unknown') {
  * @param {Function} options.onError - Custom error callback
  * @returns {Function} Error handler function
  */
-export function createWasmErrorHandler(component, options = {}) {
+function createWasmErrorHandler(component, options = {}) {
   const { logErrors = true, reportToTracker = true, onError } = options;
 
   return (error, context = {}) => {
@@ -227,7 +227,7 @@ export function formatWasmError(errorInfo, includeDetails = false) {
  * @param {Object} errorInfo - Error information from categorizeWasmError
  * @returns {boolean} True if should enter fallback
  */
-export function shouldEnterFallback(errorInfo) {
+function shouldEnterFallback(errorInfo) {
   // Transient errors should be retried, not fallen back
   if (errorInfo.isTransient) {
     return false;

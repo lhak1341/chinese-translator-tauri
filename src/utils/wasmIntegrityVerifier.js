@@ -199,7 +199,7 @@ export function verifyWasmInstance(instance, expectedMethods, instanceName) {
  * @param {string} moduleName - Module name
  * @param {Object} rules - Validation rules { classes?, functions?, minExports? }
  */
-export function registerWasmModule(moduleName, rules) {
+function registerWasmModule(moduleName, rules) {
   EXPECTED_EXPORTS[moduleName] = rules;
   logger.log(`📝 Registered validation rules for WASM module: ${moduleName}`);
 }
@@ -326,7 +326,7 @@ export async function verifyWasmBinaryIntegrity(wasmFileName, wasmBinary) {
  *
  * @returns {Object} Status { loaded: boolean, failed: boolean, fileCount: number }
  */
-export function getIntegrityManifestStatus() {
+function getIntegrityManifestStatus() {
   return {
     loaded: integrityManifest !== null,
     failed: manifestLoadFailed,

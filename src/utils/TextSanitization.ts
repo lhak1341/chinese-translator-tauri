@@ -27,7 +27,7 @@
  * sanitizeForJson("Test\uD800ing")    // → "Testing" (unpaired surrogate removed)
  * ```
  */
-export function sanitizeForJson(text: string): string {
+function sanitizeForJson(text: string): string {
   if (typeof text !== 'string') {
     return '';
   }
@@ -62,51 +62,4 @@ export function sanitizeDictionaryEntry(
     source: sanitizeForJson(source).trim(),
     translation: sanitizeForJson(translation).trim(),
   };
-}
-
-/**
- * Validate sanitized entry is not empty
- *
- * @param source - Sanitized source text
- * @param translation - Sanitized translation text
- * @returns Error message if invalid, null if valid
- */
-export function validateSanitizedEntry(source: string, translation: string): string | null {
-  if (!source || !source.trim()) {
-    return 'Source text cannot be empty';
-  }
-  if (!translation || !translation.trim()) {
-    return 'Translation cannot be empty';
-  }
-  return null;
-}
-
-/**
- * Sanitize and validate dictionary entry in one step
- *
- * @param source - Raw source text
- * @param translation - Raw translation text
- * @returns { sanitized: { source, translation }, error: string | null }
- *
- * @example
- * ```ts
- * const result = sanitizeAndValidate("  源  ", "译\u0000");
- * if (result.error) {
- *   console.error(result.error);
- * } else {
- *   saveDictionary(result.sanitized.source, result.sanitized.translation);
- * }
- * ```
- */
-export function sanitizeAndValidate(
-  source: string,
-  translation: string
-): {
-  sanitized: { source: string; translation: string };
-  error: string | null;
-} {
-  const sanitized = sanitizeDictionaryEntry(source, translation);
-  const error = validateSanitizedEntry(sanitized.source, sanitized.translation);
-
-  return { sanitized, error };
 }

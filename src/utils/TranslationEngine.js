@@ -2146,7 +2146,7 @@ export class TranslationEngine {
     }
 
     // Performance monitoring: End timing and check for bottlenecks
-    const _duration = performanceLogger.endTiming(perfId, {
+    performanceLogger.endTiming(perfId, {
       resultLength: result.translatedText.length,
       semanticArrays: result.semanticArrays?.length || 0,
       segmentsCount: result.segments?.length || 0,
