@@ -10,6 +10,7 @@ import React, {
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
+import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
 import {
   sortDictionaryEntries,
   getSortingStats,
@@ -242,18 +243,27 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       if (!dictionaries[dictionaryId]) {
         const msg = `Dictionary '${dictionaryId}' does not exist`;
         toast.error(msg);
-        throw new Error(msg);
+        throw new ValidationError(msg);
       }
 
       try {
-        const validationError = validateDictionaryEntry(dictionaryId, source, translation);
+        // SECURITY: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
+        const sanitized = sanitizeDictionaryEntry(source, translation);
+        const cleanSource = sanitized.source;
+        const cleanTranslation = sanitized.translation;
+
+        const validationError = validateDictionaryEntry(
+          dictionaryId,
+          cleanSource,
+          cleanTranslation
+        );
         if (validationError) {
           toast.error(validationError);
           throw new ValidationError(validationError);
         }
 
         // Prepare target value with metadata
-        let targetValue: string | DictionaryEntryValue = translation;
+        let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
           (dictionaryId === 'phrases' ||
             dictionaryId === 'patterns' ||
@@ -264,7 +274,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             metadata.allowedVariableTypes !== undefined)
         ) {
           targetValue = {
-            translation: translation,
+            translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
             ...(metadata.semanticType && { semanticType: metadata.semanticType }),
@@ -276,8 +286,12 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
         const oldData = { ...dictionaries[dictionaryId] };
-        const updatedDictionary = { ...oldData, [source]: targetValue };
-        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
+        const updatedDictionary = { ...oldData, [cleanSource]: targetValue };
+        const sortedDictionary = sortDictionaryEntries(
+          updatedDictionary,
+          dictionaryId,
+          cleanSource
+        );
 
         // Optimistic update
         setDictionaries((prev) => ({
@@ -293,7 +307,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             dictionaryId,
             operation: 'add',
             entry: {
-              source,
+              source: cleanSource,
               value: targetValue,
             },
           });
@@ -329,18 +343,27 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       if (!dictionaries[dictionaryId]) {
         const msg = `Dictionary '${dictionaryId}' does not exist`;
         toast.error(msg);
-        throw new Error(msg);
+        throw new ValidationError(msg);
       }
 
       try {
-        const validationError = validateDictionaryEntry(dictionaryId, newSource, translation);
+        // SECURITY: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
+        const sanitized = sanitizeDictionaryEntry(newSource, translation);
+        const cleanNewSource = sanitized.source;
+        const cleanTranslation = sanitized.translation;
+
+        const validationError = validateDictionaryEntry(
+          dictionaryId,
+          cleanNewSource,
+          cleanTranslation
+        );
         if (validationError) {
           toast.error(validationError);
           throw new ValidationError(validationError);
         }
 
         // Prepare target value with metadata
-        let targetValue: string | DictionaryEntryValue = translation;
+        let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
           (dictionaryId === 'phrases' ||
             dictionaryId === 'patterns' ||
@@ -351,7 +374,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             metadata.allowedVariableTypes !== undefined)
         ) {
           targetValue = {
-            translation: translation,
+            translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
             ...(metadata.semanticType && { semanticType: metadata.semanticType }),
@@ -367,16 +390,16 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         const oldEntryValue = oldData[oldSource];
         const updatedDictionary = { ...oldData };
 
-        if (oldSource !== newSource) {
+        if (oldSource !== cleanNewSource) {
           delete updatedDictionary[oldSource];
         }
 
-        updatedDictionary[newSource] = targetValue;
+        updatedDictionary[cleanNewSource] = targetValue;
 
         const sortedDictionary = sortDictionaryEntries(
           updatedDictionary,
           dictionaryId,
-          newSource,
+          cleanNewSource,
           oldSource
         );
 
@@ -394,7 +417,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             dictionaryId,
             operation: 'update',
             entry: {
-              source: newSource,
+              source: cleanNewSource,
               value: targetValue,
             },
             oldEntry: oldEntryValue
@@ -403,7 +426,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
                   value: oldEntryValue,
                 }
               : undefined,
-            oldSource: oldSource !== newSource ? oldSource : undefined,
+            oldSource: oldSource !== cleanNewSource ? oldSource : undefined,
           });
           toast.success('Entry updated successfully');
         } else {
@@ -431,7 +454,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       if (!dictionaries[dictionaryId]) {
         const msg = `Dictionary '${dictionaryId}' does not exist`;
         toast.error(msg);
-        throw new Error(msg);
+        throw new ValidationError(msg);
       }
 
       try {
@@ -501,7 +524,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       if (!dictionaries[dictionaryId]) {
         const msg = `Dictionary '${dictionaryId}' does not exist`;
         toast.error(msg);
-        throw new Error(msg);
+        throw new ValidationError(msg);
       }
 
       try {

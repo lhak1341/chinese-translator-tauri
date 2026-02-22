@@ -396,7 +396,7 @@ export function LazyDictionaryProvider({
       if (!dictionaries[dictionaryId]) {
         const msg = `Dictionary '${dictionaryId}' does not exist`;
         toast.error(msg);
-        throw new Error(msg);
+        throw new ValidationError(msg);
       }
 
       // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications

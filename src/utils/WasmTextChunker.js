@@ -150,16 +150,6 @@ export class WasmTextChunker {
       logger.log(`[WASM TextChunker] ✅ Chunked into ${chunks.length} chunks`);
       this.wasmHits++;
 
-      // MEMORY FIX: Reset WASM instance after EACH use in production to prevent accumulation
-      // WASM linear memory grows but never shrinks - this forces cleanup
-      if (process.env.NODE_ENV === 'production') {
-        logger.log('[WASM TextChunker] Resetting instance to prevent memory accumulation');
-        this.chunker = null;
-        this.initialized = false;
-        this.initializationPromise = null;
-        this.initializationFailed = false;
-      }
-
       return chunks;
     } catch (error) {
       logger.error('[WASM TextChunker] ❌ Error during chunking:', {

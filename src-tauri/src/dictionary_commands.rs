@@ -1280,9 +1280,9 @@ pub async fn load_dictionaries_parallel(
 
                             BatchDictionaryResult::ok(dictionary_id, data)
                         }
-                        Err(e) => BatchDictionaryResult::err(
+                        Err(_) => BatchDictionaryResult::err(
                             dictionary_id,
-                            format!("JSON parse error: {}", e),
+                            format!("Invalid JSON in dictionary '{}'", dictionary_id),
                         ),
                     }
                 }
