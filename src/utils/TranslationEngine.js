@@ -7662,7 +7662,10 @@ export class TranslationEngine {
     };
 
     // CODE REVIEW FIX (HIGH-3): Semantic array corruption checking
-    // Check after each phase to identify which phase caused corruption
+    // Check after each phase to identify which phase caused corruption.
+    // corruptionToastShown prevents duplicate toasts when isCorrupted stays true across phases —
+    // once set, all subsequent phase-checks still log + record alerts, but only one toast fires.
+    let corruptionToastShown = false;
     const checkSemanticArrayCorruption = (phaseName) => {
       if (this.semanticArrayBuilder.isCorrupted) {
         const telemetry = this.semanticArrayBuilder.getCorruptionTelemetry();
@@ -7671,11 +7674,14 @@ export class TranslationEngine {
           lastEvent: telemetry.corruptionEvents[telemetry.corruptionEvents.length - 1],
         });
 
-        // Notify user about degraded translation quality
-        toast.error(
-          `Translation quality degraded (${phaseName} phase). Try reloading dictionaries.`,
-          { duration: 10000 }
-        );
+        // Notify user about degraded translation quality — show at most once per translation.
+        if (!corruptionToastShown) {
+          corruptionToastShown = true;
+          toast.error(
+            `Translation quality degraded (${phaseName} phase). Try reloading dictionaries.`,
+            { duration: 10000 }
+          );
+        }
 
         // Record alert for monitoring
         if (

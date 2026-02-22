@@ -371,7 +371,36 @@ impl TwoPhasePatternProcessor {
         phase_b_results: Vec<PatternProcessingResult>,
     ) -> Vec<PatternProcessingResult> {
         // Detect hierarchical composition
-        let hierarchical_results = Self::detect_hierarchical_composition(&phase_a_results, &phase_b_results);
+        let hierarchical_results_raw = Self::detect_hierarchical_composition(&phase_a_results, &phase_b_results);
+
+        // Deduplicate hierarchical_results: two Phase B patterns may overlap in token span
+        // (e.g., one covers tokens 0-5 and another covers tokens 0-3, both composing with
+        // the same Phase A result).  detect_hierarchical_composition pushes one entry per
+        // Phase B result, so overlapping Phase B spans produce multiple entries covering the
+        // same tokens.  Apply greedy longest-span scheduling to keep only non-overlapping results.
+        let hierarchical_results = if hierarchical_results_raw.len() > 1 {
+            let mut sorted = hierarchical_results_raw;
+            sorted.sort_by(|a, b| {
+                let a_span = a.end_index.saturating_sub(a.start_index);
+                let b_span = b.end_index.saturating_sub(b.start_index);
+                b_span.cmp(&a_span) // longest span first
+            });
+            let mut deduped: Vec<PatternProcessingResult> = Vec::new();
+            let mut used_tokens: HashSet<usize> = HashSet::new();
+            for result in sorted {
+                let overlaps = (result.start_index..=result.end_index)
+                    .any(|i| used_tokens.contains(&i));
+                if !overlaps {
+                    for i in result.start_index..=result.end_index {
+                        used_tokens.insert(i);
+                    }
+                    deduped.push(result);
+                }
+            }
+            deduped
+        } else {
+            hierarchical_results_raw
+        };
 
         if !hierarchical_results.is_empty() {
             // Track which Phase A and Phase B results were used in hierarchical composition

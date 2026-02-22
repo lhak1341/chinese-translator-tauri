@@ -75,17 +75,21 @@ export function validateWasmToken(token: unknown): WasmToken {
  * Validate and copy WASM tokens array
  * Two-phase validation prevents partial corruption
  *
- * @param sourceTokens - Original token array (DESTINATION — modified in-place)
+ * PARAM ORDER (CLAUDE.md critical): param1 = JS destination (modified in-place),
+ *                                   param2 = WASM source (read-only).
+ * Swapping silently loses data. The name `jsTokens` makes the destination role explicit.
+ *
+ * @param jsTokens - JS token array (DESTINATION — modified in-place)
  * @param wasmTokens - Tokens from WASM (SOURCE — read-only)
- * @returns sourceTokens after applying validated WASM results
+ * @returns jsTokens after applying validated WASM results
  * @throws {Error} If validation fails
  */
 export function copyWasmTokens(
-  sourceTokens: Record<string, unknown>[],
+  jsTokens: Record<string, unknown>[],
   wasmTokens: unknown[]
 ): Record<string, unknown>[] {
   // Phase 1: Validate structure before modifying
-  if (!Array.isArray(sourceTokens)) {
+  if (!Array.isArray(jsTokens)) {
     throw new Error('Source tokens must be an array');
   }
 
@@ -94,9 +98,9 @@ export function copyWasmTokens(
   }
 
   // CRITICAL: Array length must be preserved
-  if (sourceTokens.length !== wasmTokens.length) {
+  if (jsTokens.length !== wasmTokens.length) {
     throw new Error(
-      `Token array length mismatch: source=${sourceTokens.length}, target=${wasmTokens.length}`
+      `Token array length mismatch: source=${jsTokens.length}, target=${wasmTokens.length}`
     );
   }
 
@@ -111,17 +115,17 @@ export function copyWasmTokens(
   }
 
   // Phase 2: Apply validated changes in-place
-  for (let i = 0; i < sourceTokens.length; i++) {
-    sourceTokens[i].translated = validatedTokens[i].translated;
-    sourceTokens[i].translationSource = validatedTokens[i].translationSource;
+  for (let i = 0; i < jsTokens.length; i++) {
+    jsTokens[i].translated = validatedTokens[i].translated;
+    jsTokens[i].translationSource = validatedTokens[i].translationSource;
 
     // Preserve other fields that might have been set by JavaScript
     if (validatedTokens[i].type) {
-      sourceTokens[i].type = validatedTokens[i].type;
+      jsTokens[i].type = validatedTokens[i].type;
     }
   }
 
-  return sourceTokens;
+  return jsTokens;
 }
 
 /**

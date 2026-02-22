@@ -494,23 +494,21 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         return { successCount: 0, errors: [] };
       }
 
-      // Capture current state via functional update to avoid stale snapshot
-      let oldData: Record<string, string | DictionaryEntryValue> | undefined;
-      let sortedDictionary: Record<string, string | DictionaryEntryValue> | undefined;
-      const deletedEntries: Array<{ source: string; value: string | DictionaryEntryValue }> = [];
-      const errors: string[] = [];
+      // Check existence on closed-over snapshot BEFORE setDictionaries.
+      // React 18 Concurrent Mode calls updaters multiple times; `let` variables assigned
+      // inside the updater and read outside reflect whichever invocation ran last —
+      // breaking the rollback oldData and the save payload.
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new Error(msg);
+      }
 
-      setDictionaries((prevDictionaries) => {
-        const currentDict = prevDictionaries[dictionaryId];
-        if (!currentDict) {
-          // Cannot throw inside updater; signal absence via undefined oldData
-          return prevDictionaries;
-        }
-
-        oldData = { ...currentDict };
+      try {
+        const oldData = { ...dictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
-        deletedEntries.length = 0;
-        errors.length = 0;
+        const deletedEntries: Array<{ source: string; value: string | DictionaryEntryValue }> = [];
+        const errors: string[] = [];
 
         // Delete all specified entries
         for (const source of sources) {
@@ -522,47 +520,55 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           }
         }
 
-        sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sources[0]);
-        return { ...prevDictionaries, [dictionaryId]: sortedDictionary };
-      });
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sources[0]);
 
-      if (!oldData) {
-        throw new Error(`Dictionary '${dictionaryId}' does not exist`);
-      }
-
-      // Save dictionary to backend
-      const saveResult = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary!);
-
-      if (saveResult.success && saveResult.data) {
-        // Add to history - use bulk_delete operation for multiple entries
-        // CODE REVIEW FIX 2026-02-09 (CRITICAL): Store all deleted entries for proper undo
-        if (deletedEntries.length > 0) {
-          if (deletedEntries.length === 1) {
-            // Single entry - use regular delete for backward compatibility
-            addToHistory({
-              dictionaryId,
-              operation: 'delete',
-              oldEntry: deletedEntries[0],
-            });
-          } else {
-            // Multiple entries - use bulk_delete operation
-            addToHistory({
-              dictionaryId,
-              operation: 'bulk_delete',
-              oldEntries: deletedEntries,
-            });
-          }
-        }
-      } else {
-        // Rollback on failure
+        // Pure functional update — no side effects inside updater
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: oldData!,
+          [dictionaryId]: sortedDictionary,
         }));
-        throw new Error('Failed to save dictionary after bulk delete');
-      }
 
-      return { successCount: deletedEntries.length, errors };
+        // Save dictionary to backend
+        const saveResult = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+
+        if (saveResult.success && saveResult.data) {
+          // Add to history - use bulk_delete operation for multiple entries
+          // CODE REVIEW FIX 2026-02-09 (CRITICAL): Store all deleted entries for proper undo
+          if (deletedEntries.length > 0) {
+            if (deletedEntries.length === 1) {
+              // Single entry - use regular delete for backward compatibility
+              addToHistory({
+                dictionaryId,
+                operation: 'delete',
+                oldEntry: deletedEntries[0],
+              });
+            } else {
+              // Multiple entries - use bulk_delete operation
+              addToHistory({
+                dictionaryId,
+                operation: 'bulk_delete',
+                oldEntries: deletedEntries,
+              });
+            }
+          }
+        } else {
+          // Rollback on failure
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: oldData,
+          }));
+          toast.error('Failed to save dictionary after bulk delete');
+          throw new SaveError('Failed to save dictionary after bulk delete');
+        }
+
+        return { successCount: deletedEntries.length, errors };
+      } catch (error) {
+        logger.error('Error bulk deleting entries:', error);
+        if (!isValidationError(error) && !isSaveError(error)) {
+          toast.error(`Could not bulk delete entries: ${extractErrorMessage(error)}`);
+        }
+        throw error;
+      }
     },
     [dictionaries, addToHistory]
   );

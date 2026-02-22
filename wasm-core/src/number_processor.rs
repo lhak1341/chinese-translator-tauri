@@ -19,8 +19,13 @@ pub struct Token {
     #[serde(rename = "type")]
     pub token_type: String,
     pub value: String,
+    // `#[serde(default)]` is required: serde maps JSON `null` → None, but for an *absent* key
+    // it returns an error instead of None unless `default` is set.  A JS caller that omits
+    // `translated` or `translationSource` (rather than setting them to null) would cause
+    // `serde_wasm_bindgen::from_value` to fail, silently killing the entire token batch.
+    #[serde(default)]
     pub translated: Option<String>,
-    #[serde(rename = "translationSource")]
+    #[serde(rename = "translationSource", default)]
     pub translation_source: Option<String>,
 }
 

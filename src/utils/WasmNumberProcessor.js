@@ -151,6 +151,11 @@ export async function initializeWasmNumberProcessor() {
       logger.warn('⚠️ Failed to initialize WASM NumberProcessor after retries:', error);
       logger.warn('Falling back to character-by-character translation for numbers');
       initializationFailed = true;
+      // Clear the promise so getWasmNumberProcessorStatus() reports { initializing: false }.
+      // The outer .catch() only fires on rejection; this IIFE resolves (not rejects) to false,
+      // so the outer .catch() never runs — we must clear the promise here ourselves.
+      initializationPromise = null;
+      retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
       return false;
     }
   })());

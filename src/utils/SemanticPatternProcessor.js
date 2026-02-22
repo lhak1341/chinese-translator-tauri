@@ -41,6 +41,7 @@ class PrecomputedTokenStrings {
     this.stats = {
       totalPrecomputed: 0,
       totalLookups: 0,
+      totalMisses: 0,
       precomputeTime: 0,
     };
 
@@ -75,7 +76,12 @@ class PrecomputedTokenStrings {
 
     this.stats.totalLookups++;
     const key = `${position}_${span}`;
-    return this.stringLookup.get(key) || null;
+    const value = this.stringLookup.get(key);
+    if (value === undefined) {
+      this.stats.totalMisses++;
+      return null;
+    }
+    return value;
   }
 
   /**

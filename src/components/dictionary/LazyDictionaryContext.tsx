@@ -158,6 +158,10 @@ export function LazyDictionaryProvider({
   // set without being recreated on every load (avoids dep-array churn per CLAUDE.md).
   const loadedDictionariesRef = useRef(loadedDictionaries);
   loadedDictionariesRef.current = loadedDictionaries;
+  // Ref-mirror of dictionaryTypes so handleDictionaryChange can read Object.keys()
+  // without closing over state that changes on every refreshDictionaryTypes() call.
+  const dictionaryTypesRef = useRef(dictionaryTypes);
+  dictionaryTypesRef.current = dictionaryTypes;
 
   // Load a dictionary immediately
   const loadDictionaryImmediate = useCallback(
@@ -344,11 +348,12 @@ export function LazyDictionaryProvider({
         await loadDictionaryImmediate(newDictionaryId);
       }
 
-      // Reschedule preloading for remaining dictionaries
-      const allDictionaries = Object.keys(dictionaryTypes);
+      // Reschedule preloading for remaining dictionaries.
+      // Read via ref so this callback is not recreated on every refreshDictionaryTypes() call.
+      const allDictionaries = Object.keys(dictionaryTypesRef.current);
       schedulePreload(newDictionaryId, allDictionaries);
     },
-    [loadDictionaryImmediate, schedulePreload, dictionaryTypes] // stable — reads loadedDictionaries via loadedDictionariesRef.current
+    [loadDictionaryImmediate, schedulePreload] // stable — reads dictionaryTypes via dictionaryTypesRef.current
   );
 
   // Persist selected dictionary
@@ -385,6 +390,15 @@ export function LazyDictionaryProvider({
       translation: string,
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
+      // Dictionary existence is a precondition, not a user-input validation error.
+      // Check before the try block so the outer catch doesn't show a second toast.
+      // Mirrors DictionaryContext.tsx which also checks existence before try.
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new Error(msg);
+      }
+
       // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
       try {
         // SECURITY FIX: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
@@ -400,12 +414,6 @@ export function LazyDictionaryProvider({
         if (validationError) {
           toast.error(`Invalid entry: ${validationError}`);
           throw new ValidationError(validationError);
-        }
-
-        if (!dictionaries[dictionaryId]) {
-          const msg = `Dictionary '${dictionaryId}' does not exist`;
-          toast.error(msg);
-          throw new ValidationError(msg);
         }
 
         const oldData = { ...dictionaries[dictionaryId] };

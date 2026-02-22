@@ -57,7 +57,8 @@ export class WasmStringProcessor {
    */
   async buildCache(semanticTokens) {
     if (!this.initialized) {
-      await this.initialize();
+      const ok = await this.initialize();
+      if (!ok) return false;
     }
 
     try {

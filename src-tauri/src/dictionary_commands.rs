@@ -434,7 +434,9 @@ impl DictionaryCache {
         let surviving_keys: Option<Vec<String>> = match self.cache.lock() {
             Ok(mut cache) => {
                 if let Some(id) = dictionary_id {
-                    cache.retain(|key, _| !key.starts_with(&format!("{}:", id)));
+                    // Keys are bare dictionary IDs (e.g. "phrases", "properNouns-MyNovel").
+                    // The old "id:" prefix format was retired when get_cache_key() was simplified.
+                    cache.retain(|key, _| key != id);
                     let keys = cache.keys().cloned().collect();
                     drop(cache); // Release before acquiring access_order
                     Some(keys)
@@ -1087,8 +1089,10 @@ pub async fn import_dictionaries(
                 }
                 file_count += 1;
             }
-            Err(e) => {
-                errors.push(format!("{}: {}", filename, e));
+            Err(_) => {
+                // Do not include the serde_json error in the message — it may embed a snippet
+                // of the (attacker-controlled) ZIP entry content in its Display output.
+                errors.push(format!("{}: invalid JSON format", filename));
             }
         }
     }
@@ -1676,42 +1680,42 @@ mod tests {
     // ── invalidate by dictionary ID ──────────────────────────────────────────
 
     #[test]
-    fn test_invalidate_by_id_removes_matching_prefix_only() {
+    fn test_invalidate_by_id_removes_exact_key_only() {
+        // Keys are bare dictionary IDs — get_cache_key() returns dictionary_id directly.
+        // invalidate(Some(id)) must remove the entry whose key == id and leave others intact.
         let cache = make_cache();
-        cache.set("dict1:pathA".to_string(), serde_json::json!({"a": 1}));
-        cache.set("dict1:pathB".to_string(), serde_json::json!({"b": 2}));
-        cache.set("dict2:pathA".to_string(), serde_json::json!({"c": 3}));
+        cache.set("dict1".to_string(), serde_json::json!({"a": 1}));
+        cache.set("dict2".to_string(), serde_json::json!({"c": 3}));
 
         cache.invalidate(Some("dict1"));
 
-        assert!(cache.get("dict1:pathA").is_none(), "dict1:pathA should be evicted");
-        assert!(cache.get("dict1:pathB").is_none(), "dict1:pathB should be evicted");
-        assert!(cache.get("dict2:pathA").is_some(), "dict2:pathA should be untouched");
+        assert!(cache.get("dict1").is_none(), "dict1 should be evicted");
+        assert!(cache.get("dict2").is_some(), "dict2 should be untouched");
     }
 
     #[test]
     fn test_invalidate_by_id_cleans_access_order_for_evicted_keys() {
         let cache = make_cache();
-        cache.set("dict1:path".to_string(), serde_json::json!(null));
-        cache.set("dict2:path".to_string(), serde_json::json!(null));
+        cache.set("dict1".to_string(), serde_json::json!(null));
+        cache.set("dict2".to_string(), serde_json::json!(null));
 
         cache.invalidate(Some("dict1"));
 
         let access_order = cache.access_order.lock().unwrap();
-        assert!(!access_order.contains_key("dict1:path"),
-            "access_order should not retain evicted key dict1:path");
-        // dict2:path may or may not be in access_order depending on whether get() was called
+        assert!(!access_order.contains_key("dict1"),
+            "access_order should not retain evicted key dict1");
+        // dict2 may or may not be in access_order depending on whether get() was called
     }
 
     #[test]
-    fn test_invalidate_by_id_does_not_remove_nonexistent_prefix() {
+    fn test_invalidate_by_id_does_not_remove_nonexistent_key() {
         let cache = make_cache();
-        cache.set("dict1:path".to_string(), serde_json::json!(null));
+        cache.set("dict1".to_string(), serde_json::json!(null));
 
-        // Invalidating a prefix that doesn't exist should be a no-op
+        // Invalidating an ID that doesn't exist should be a no-op
         cache.invalidate(Some("ghost_dict"));
 
-        assert!(cache.get("dict1:path").is_some(), "unrelated entry should survive");
+        assert!(cache.get("dict1").is_some(), "unrelated entry should survive");
     }
 
     // ── invalidate(None) — full clear ────────────────────────────────────────
@@ -1719,13 +1723,13 @@ mod tests {
     #[test]
     fn test_invalidate_none_clears_all_entries() {
         let cache = make_cache();
-        cache.set("dict1:path".to_string(), serde_json::json!(null));
-        cache.set("dict2:path".to_string(), serde_json::json!(null));
+        cache.set("dict1".to_string(), serde_json::json!(null));
+        cache.set("dict2".to_string(), serde_json::json!(null));
 
         cache.invalidate(None);
 
-        assert!(cache.get("dict1:path").is_none());
-        assert!(cache.get("dict2:path").is_none());
+        assert!(cache.get("dict1").is_none());
+        assert!(cache.get("dict2").is_none());
     }
 
     #[test]

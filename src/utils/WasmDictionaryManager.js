@@ -158,7 +158,9 @@ export class WasmDictionaryManager {
         );
       }
 
-      return true;
+      // Return actual success — callers must know when only a partial set loaded
+      // so they can avoid producing silent translation gaps from missing dictionaries.
+      return successCount === dictionaries.length;
     }
 
     try {
