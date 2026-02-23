@@ -259,7 +259,14 @@ export class SegmentPrecomputer {
       });
     }
 
-    // Convert WASM matches to segments
+    // Convert WASM matches to segments.
+    // NOTE: convertMatchesToSegments does not maintain a usedIndices Set. If the WASM
+    // trie returns the same unitIndex for multiple text positions (possible when two
+    // semantic units share identical translated text), the same unitIndex would be
+    // assigned to multiple segments, breaking duplicate-word highlighting. Add a
+    // usedIndices guard in convertMatchesToSegments before activating this path in
+    // production. Currently WasmSegmentMatcher is not defined globally, so this path
+    // throws and falls back to precomputeSegmentsJS on every call.
     return this.convertMatchesToSegments(text, wasmMatches, filteredUnits);
   }
 
@@ -488,7 +495,13 @@ export class SegmentPrecomputer {
         const matchResult = this.findUnitMatch(remainingText, unitData.unit);
 
         if (matchResult.found) {
-          // Prioritize longer matches first
+          // Prioritize longer matches first.
+          // NOTE on same-length tie-breaking: strict > means the first candidate in
+          // filteredUnits (sorted by tokenIndex, i.e. lower source-position first) wins
+          // all same-length ties. For character-only mode this is always correct because
+          // output order == source order. If this path is ever used for reordered phrase
+          // output (currently it is not), prefer the candidate whose position metadata
+          // tokenIndex matches the expected text order instead.
           if (unitData.unit.length > bestLength) {
             bestMatch = unitData;
             bestLength = unitData.unit.length;
@@ -680,6 +693,19 @@ export class SegmentPrecomputer {
       return [];
     }
 
+    // Fast path: use stored originalStart positions when all entries have them.
+    // This is always accurate because positions come directly from token.start (Chinese text offsets),
+    // bypassing the greedy scan whose first-available tie-breaking can diverge from the
+    // Vietnamese panel's assignment order.
+    const allHavePositions =
+      semanticArrays.metadata.length > 0 &&
+      semanticArrays.metadata.every(
+        (m) => m && m.originalStart !== undefined && m.originalStart >= 0
+      );
+    if (allHavePositions) {
+      return SegmentPrecomputer.buildSegmentsFromPositions(text, semanticArrays);
+    }
+
     const { original, translated, metadata } = semanticArrays;
 
     const segments: Segment[] = [];
@@ -773,6 +799,76 @@ export class SegmentPrecomputer {
         });
         currentPosition++;
       }
+    }
+
+    return segments;
+  }
+
+  /**
+   * Direct-placement path: build Chinese-panel segments using stored originalStart positions.
+   * Called when all metadata entries have originalStart >= 0 (set during postProcess).
+   * Avoids the greedy scan's first-available tie-breaking, which can diverge from the
+   * Vietnamese panel's assignment order for duplicate translated words.
+   */
+  private static buildSegmentsFromPositions(
+    text: string,
+    semanticArrays: SemanticArrays
+  ): Segment[] {
+    const { original, translated, metadata } = semanticArrays;
+
+    // Sort entries by originalStart to walk the Chinese text in order
+    const sorted = metadata
+      .map((meta, i) => ({ i, meta }))
+      .filter(({ meta }) => meta.originalStart >= 0)
+      .sort((a, b) => a.meta.originalStart - b.meta.originalStart);
+
+    const segments: Segment[] = [];
+    let currentPosition = 0;
+
+    for (const { i, meta } of sorted) {
+      // Skip if this entry's range has already been covered (overlap guard)
+      if (meta.originalStart < currentPosition) continue;
+
+      // Add gap text before this entry
+      if (meta.originalStart > currentPosition) {
+        segments.push({
+          type: 'text',
+          text: text.substring(currentPosition, meta.originalStart),
+          start: currentPosition,
+          end: meta.originalStart,
+          unitIndex: -1,
+          isClickable: false,
+        });
+      }
+
+      // Add the semantic segment at its recorded position
+      const segEnd = Math.min(meta.originalEnd, text.length);
+      segments.push({
+        type: 'semantic',
+        text: text.substring(meta.originalStart, segEnd),
+        start: meta.originalStart,
+        end: segEnd,
+        unitIndex: i,
+        originalText: original[i],
+        translatedText: translated[i],
+        source: meta.source,
+        metadata: meta,
+        isClickable: true,
+      });
+
+      currentPosition = segEnd;
+    }
+
+    // Add any remaining text after the last segment
+    if (currentPosition < text.length) {
+      segments.push({
+        type: 'text',
+        text: text.substring(currentPosition),
+        start: currentPosition,
+        end: text.length,
+        unitIndex: -1,
+        isClickable: false,
+      });
     }
 
     return segments;

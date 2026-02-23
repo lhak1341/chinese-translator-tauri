@@ -99,14 +99,26 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
           metadata.translatedEnd <= normalizedTranslatedText.length
         ) {
           // HIGH-2 FIX: Validate sequential ordering (detect overlapping positions)
-          if (previousMetadata && metadata.translatedStart < previousMetadata.translatedEnd) {
+          // HIGHLIGHTING FIX: Also reject metadata whose start is before currentPosition.
+          // The indexOf fallback advances currentPosition but does NOT update previousMetadata,
+          // so a later metadata unit with translatedStart < currentPosition would be accepted
+          // by the previousMetadata check alone — causing a backwards jump that misaligns
+          // subsequent duplicate-word matches.
+          if (
+            (previousMetadata && metadata.translatedStart < previousMetadata.translatedEnd) ||
+            metadata.translatedStart < currentPosition
+          ) {
             logger.error('❌ Overlapping position metadata detected - REJECTING!', {
               unitIndex: i,
               translatedUnit,
               currentStart: metadata.translatedStart,
               currentEnd: metadata.translatedEnd,
-              previousEnd: previousMetadata.translatedEnd,
-              overlap: previousMetadata.translatedEnd - metadata.translatedStart,
+              previousEnd: previousMetadata?.translatedEnd ?? -1,
+              currentPosition,
+              overlap: Math.max(
+                previousMetadata ? previousMetadata.translatedEnd - metadata.translatedStart : 0,
+                currentPosition - metadata.translatedStart
+              ),
               impact: 'Using indexOf fallback to prevent duplicate position mappings',
             });
             // Fall through to indexOf fallback (don't use overlapping metadata)
@@ -165,6 +177,12 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
 
           actualPosition = unitPosition;
           unitLength = translatedUnit.length;
+          // HIGHLIGHTING FIX: Update previousMetadata to reflect the indexOf-found end position
+          // so the next iteration's overlap/currentPosition check is against the correct cursor.
+          // Without this, previousMetadata stays stale and a subsequent metadata unit whose
+          // translatedStart sits between previousMetadata.translatedEnd and the indexOf end
+          // passes the overlap check even though it is behind currentPosition.
+          previousMetadata = { translatedEnd: unitPosition + translatedUnit.length };
         }
 
         // CRITICAL-3 FIX: Validate position consistency between methods

@@ -4465,9 +4465,32 @@ export class TranslationEngine {
     const { translatedText: result, positions: assembledPositions } =
       wasmTextAssembler.assembleWithSpacing(segments);
 
+    // chunkStartChar is the character offset of this chunk's start in the original full text.
+    // For a direct (non-chunked) translation it is 0 by default.
+    // For sequential chunked translation, translateWithChunking passes chunk.startIndex here.
+    const chunkStartChar = typeof options?.chunkStartChar === 'number' ? options.chunkStartChar : 0;
+
+    // Compute cumulative character positions from token value lengths.
+    // token.start from the WASM tokenizer is a BYTE offset (Chinese chars = 3 bytes each),
+    // not a character offset. Summing value.length gives the correct char position.
+    const tokenCharPositions = new Array(tokens.length);
+    {
+      let _cp = 0;
+      for (let i = 0; i < tokens.length; i++) {
+        tokenCharPositions[i] = _cp;
+        _cp += (tokens[i].value || '').length;
+      }
+    }
+
     for (const { tokenIndex, text, start, end } of assembledPositions) {
       if (tokenIndex >= 0) {
-        this.semanticArrayBuilder.setPositionByMatch(tokenIndex, text, start, end);
+        this.semanticArrayBuilder.setPositionByMatch(
+          tokenIndex,
+          text,
+          start,
+          end,
+          tokenIndex < tokens.length ? chunkStartChar + tokenCharPositions[tokenIndex] : undefined
+        );
       }
     }
 
@@ -6596,12 +6619,23 @@ export class TranslationEngine {
           semanticIndex: i,
           original: semanticArrays.original[i],
           translated: semanticArrays.translated[i].normalize('NFC'), // Normalize to match output
+          originalStart: semanticArrays.metadata[i]?.originalStart ?? -1, // Chinese text position
         });
       }
 
       // CRITICAL BUG FIX: Sort by length (longest first) to prevent shorter words from
-      // matching inside longer words (e.g., "mà" matching inside "màu trắng")
-      candidateWords.sort((a, b) => b.translated.length - a.translated.length);
+      // matching inside longer words (e.g., "mà" matching inside "màu trắng").
+      // Within same-length same-translated-text groups, sort by originalStart (Chinese text order)
+      // so this builder assigns unitIndices in the same order as the Chinese panel's greedy scan.
+      // Falls back to insertion order when originalStart is unavailable (-1).
+      candidateWords.sort((a, b) => {
+        const lengthDiff = b.translated.length - a.translated.length;
+        if (lengthDiff !== 0) return lengthDiff;
+        if (a.translated === b.translated && a.originalStart >= 0 && b.originalStart >= 0) {
+          return a.originalStart - b.originalStart;
+        }
+        return 0; // preserve insertion order when originalStart unavailable
+      });
 
       // Find each candidate word in the output text and record its position
       // Handle duplicates by searching from different starting positions
@@ -7004,6 +7038,7 @@ export class TranslationEngine {
           isolatedSemanticBuilder: isolatedBuilders[idx],
           useChunking: false,
           chunkOffset: chunk.startIndex,
+          chunkStartChar: chunk.startIndex, // char offset of chunk start in full original text
           isParallelChunk: true,
         })
       );
@@ -7087,6 +7122,7 @@ export class TranslationEngine {
           useChunking: false,
           // MEDIUM FIX: Use token count offset, not character position
           chunkOffset: cumulativeTokenCount,
+          chunkStartChar: chunk.startIndex, // char offset of chunk start in full original text
           isParallelChunk: true,
         });
 

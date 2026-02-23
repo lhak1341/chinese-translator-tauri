@@ -26,6 +26,8 @@ interface SemanticArrayMetadata {
   translatedText: string;
   translatedStart: number; // -1 if not set, otherwise valid position
   translatedEnd: number; // -1 if not set, otherwise valid position
+  originalStart: number; // Character position in original Chinese text (-1 if not set)
+  originalEnd: number; // End position in original Chinese text (-1 if not set)
 }
 
 /**
@@ -225,6 +227,8 @@ export class SemanticArrayBuilder {
       translatedText,
       translatedStart: -1, // Will be set during postProcess text assembly
       translatedEnd: -1, // Will be set during postProcess text assembly
+      originalStart: -1, // Will be set during postProcess when token.start is passed
+      originalEnd: -1, // Will be set during postProcess when token.start is passed
     };
 
     this.metadata.push(metadata);
@@ -278,7 +282,8 @@ export class SemanticArrayBuilder {
     tokenIndex: number,
     translatedText: string,
     startPos: number,
-    endPos: number
+    endPos: number,
+    originalStart?: number // NEW: character position in original Chinese text
   ): boolean {
     // Find semantic unit that matches both tokenIndex and translatedText
     // This handles cases where multiple semantic units share the same tokenIndex
@@ -310,9 +315,25 @@ export class SemanticArrayBuilder {
       return false;
     }
 
-    // Prioritize unmapped candidates (prevents wrong unit from getting position)
+    // Prioritize unmapped candidates (prevents wrong unit from getting position).
+    // If all candidates are already mapped (surplus call), fall back to candidates[0]
+    // and overwrite its position — this produces a wrong click rather than no click.
+    // The root cause of surplus calls (more position assigns than semantic entries) should
+    // be investigated upstream; this fallback keeps units clickable in the meantime.
     const unmapped = candidates.find((c) => !c.isMapped);
-    const target = unmapped || candidates[0]; // Use first candidate if all mapped
+    if (!unmapped) {
+      logger.error(
+        '❌ setPositionByMatch: all candidates already mapped — overwriting candidates[0] to preserve clickability',
+        {
+          tokenIndex,
+          translatedText,
+          candidateCount: candidates.length,
+          impact:
+            'candidates[0] will point to the wrong text occurrence; investigate surplus calls upstream',
+        }
+      );
+    }
+    const target = unmapped ?? candidates[0];
 
     // MEDIUM-3 FIX: Use shared validation logic (extracted from duplicate code)
     // CRITICAL-1 FIX: Reject out-of-order positions to prevent corruption
@@ -324,6 +345,12 @@ export class SemanticArrayBuilder {
     // Update the selected candidate's position
     target.meta.translatedStart = startPos;
     target.meta.translatedEnd = endPos;
+
+    // Set original Chinese position once (never overwrite already-set value)
+    if (originalStart !== undefined && originalStart >= 0 && target.meta.originalStart === -1) {
+      target.meta.originalStart = originalStart;
+      target.meta.originalEnd = originalStart + this.original[target.index].length;
+    }
 
     // Track last position for order validation
     this.lastPositionSet = endPos;
