@@ -1112,12 +1112,31 @@ const Translator = ({ isActive = true }) => {
           if (cancelled) return;
 
           // MEDIUM-1 FIX: Precompute occurrence count to avoid O(n²) nested loop
-          // Count how many times targetSegment appears before activeIndex (once, not per match)
+          // Count how many times targetSegment appears EARLIER IN CHINESE TEXT than activeIndex.
+          //
+          // BUG FIX: processChunksInParallel runs chunks concurrently — entries from a later
+          // chunk (e.g., "嘴巴" from chunk 2) can land at a LOWER array index than entries from
+          // an earlier chunk (e.g., "嘴" from chunk 1). Using `i < activeIndex` (array-index
+          // order) incorrectly counts out-of-order cross-chunk entries, making
+          // occurrenceInFullTranslation = 1 instead of 0, so the bridge picks the wrong
+          // character-only occurrence.
+          //
+          // Fix: compare by tokenIndex (global raw token index, monotonically increasing with
+          // Chinese text position after the getSemanticTokens fix in processChunksInParallel).
+          // Fall back to array-index order only when tokenIndex is unavailable.
+          const clickedTokenIndex = semanticArrays.metadata?.[activeIndex]?.tokenIndex ?? -1;
           let occurrenceInFullTranslation = 0;
-          for (let i = 0; i < activeIndex; i++) {
+          for (let i = 0; i < semanticArrays.original.length; i++) {
+            if (i === activeIndex) continue;
+            const appearsBeforeInText =
+              clickedTokenIndex >= 0
+                ? (semanticArrays.metadata?.[i]?.tokenIndex ?? -1) >= 0 &&
+                  semanticArrays.metadata[i].tokenIndex < clickedTokenIndex
+                : i < activeIndex; // fallback when tokenIndex unavailable
             if (
-              semanticArrays.original[i] === targetSegment ||
-              semanticArrays.original[i].includes(targetSegment)
+              appearsBeforeInText &&
+              (semanticArrays.original[i] === targetSegment ||
+                semanticArrays.original[i].includes(targetSegment))
             ) {
               occurrenceInFullTranslation++;
             }

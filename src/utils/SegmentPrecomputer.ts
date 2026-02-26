@@ -723,6 +723,16 @@ export class SegmentPrecomputer {
       firstCharIndex.get(firstChar)!.push(i);
     }
 
+    // Sort each candidate list by tokenIndex ascending so the greedy scan selects
+    // entries in original-text order regardless of semantic-array-insertion order.
+    // Without this, parallel-chunk scrambling causes entries from later chunks (higher
+    // tokenIndex) to land at lower array indices and get consumed first, assigning
+    // wrong unitIndices to duplicate characters (e.g. unitIndex for 1st 是 gets
+    // assigned to 4th 是 because three other 是 entries had lower array indices).
+    for (const indices of firstCharIndex.values()) {
+      indices.sort((a, b) => (metadata[a]?.tokenIndex ?? 0) - (metadata[b]?.tokenIndex ?? 0));
+    }
+
     while (currentPosition < text.length) {
       let bestMatch: {
         index: number;

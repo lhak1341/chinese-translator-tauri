@@ -5400,9 +5400,13 @@ export class TranslationEngine {
       const _originalSegments = [...this.translationSegments];
 
       // MEDIUM FIX: Calculate token counts for each chunk upfront
-      // chunk.startIndex is character position; we need token counts for accurate chunkOffset
+      // chunk.content is a string; tokenize it first to get raw token count.
+      // getSemanticTokens() expects TextToken[], not a string — calling it with a string
+      // returns [] (every char fails the type check), making all chunkTokenCounts=0 and
+      // chunkTokenOffsets all equal to batchStart. That collapses cross-chunk token indices
+      // to local-chunk-only indices, causing same-translated-text sort to be wrong.
       const chunkTokenCounts = batch.map((chunk) => {
-        return getSemanticTokens(chunk.content).length;
+        return this.tokenizer.tokenize(chunk.content).length;
       });
 
       // Calculate cumulative token offset for each chunk
@@ -6167,9 +6171,10 @@ export class TranslationEngine {
       await this.processChunksInParallel(currentBatch, options, batchTokenOffset);
 
       // MEDIUM FIX: Update cumulative token count for next batch
-      // Each chunk's token count was calculated inside processChunksInParallel
+      // chunk.content is a string — must tokenize before counting (see processChunksInParallel
+      // comment). Use raw token count to match the raw-index startIndex used in addUnit calls.
       const batchTokenCount = currentBatch.reduce((sum, chunk) => {
-        return sum + getSemanticTokens(chunk.content).length;
+        return sum + this.tokenizer.tokenize(chunk.content).length;
       }, 0);
       cumulativeTokenCount += batchTokenCount;
 
@@ -6619,22 +6624,42 @@ export class TranslationEngine {
           semanticIndex: i,
           original: semanticArrays.original[i],
           translated: semanticArrays.translated[i].normalize('NFC'), // Normalize to match output
-          originalStart: semanticArrays.metadata[i]?.originalStart ?? -1, // Chinese text position
+          // tokenIndex reflects the source token's position in the Chinese text
+          // (global semantic token index, monotonically increasing with text position).
+          // Used as tie-breaker so same-translated-text entries are claimed in Chinese text order,
+          // matching the bridge's occurrence counting (i < activeIndex = semantic array index order,
+          // which for same-phase entries equals Chinese text order; for cross-phase entries the
+          // bridge counts by semantic index but the Vietnamese output order also matches tokenIndex).
+          tokenIndex: semanticArrays.metadata[i]?.tokenIndex ?? -1,
         });
       }
 
       // CRITICAL BUG FIX: Sort by length (longest first) to prevent shorter words from
       // matching inside longer words (e.g., "mà" matching inside "màu trắng").
-      // Within same-length same-translated-text groups, sort by originalStart (Chinese text order)
-      // so this builder assigns unitIndices in the same order as the Chinese panel's greedy scan.
-      // Falls back to insertion order when originalStart is unavailable (-1).
+      // Within same-translated-text groups, sort by tokenIndex (Chinese text order) so that
+      // when two different Chinese characters translate to the same Vietnamese word (e.g., "没"
+      // and "不" both → "không"), the one that appears EARLIER in the Chinese text claims
+      // the EARLIER Vietnamese position — regardless of which translation phase produced it.
+      // Fallback to insertion order (return 0) when tokenIndex is unavailable.
       candidateWords.sort((a, b) => {
         const lengthDiff = b.translated.length - a.translated.length;
         if (lengthDiff !== 0) return lengthDiff;
-        if (a.translated === b.translated && a.originalStart >= 0 && b.originalStart >= 0) {
-          return a.originalStart - b.originalStart;
-        }
-        return 0; // preserve insertion order when originalStart unavailable
+        // CRITICAL FIX: Sort ALL same-length candidates by tokenIndex (Chinese text position),
+        // NOT just same-translated-value ones.
+        //
+        // WRONG: `if (a.translated === b.translated && ...) return tokenIndex diff; return 0;`
+        // That creates an INTRANSITIVE comparator: if A="đích" B="la" C="đích" (all length 4),
+        // then A=B (return 0), B=C (return 0), but A≠C (return tokenIndex diff). This cycle
+        // makes TimSort produce undefined results, leaving e.g. si=12(ti=37) before si=24(ti=3)
+        // even though ti=3 should come first.
+        //
+        // CORRECT: For same-length candidates, always sort by tokenIndex. Candidates with
+        // different translated values find different positions and never conflict regardless
+        // of sort order; candidates with same translated value must be sorted by tokenIndex
+        // to correctly assign earlier-Chinese-text entries to earlier Vietnamese positions.
+        const aTokenIndex = a.tokenIndex >= 0 ? a.tokenIndex : Number.MAX_SAFE_INTEGER;
+        const bTokenIndex = b.tokenIndex >= 0 ? b.tokenIndex : Number.MAX_SAFE_INTEGER;
+        return aTokenIndex - bTokenIndex;
       });
 
       // Find each candidate word in the output text and record its position
@@ -7071,10 +7096,11 @@ export class TranslationEngine {
         const chunk = translatableChunks[i];
         const isolatedArrays = isolatedBuilders[i].getArrays();
 
-        // Calculate token count for this chunk (for next chunk's offset)
-        const chunkTokens = getSemanticTokens(chunk.content);
+        // Calculate token count for this chunk (for next chunk's offset).
+        // chunk.content is a string — must tokenize first; getSemanticTokens() expects TextToken[].
+        const chunkTokenCount = this.tokenizer.tokenize(chunk.content).length;
         const chunkTokenOffset = cumulativeTokenCount;
-        cumulativeTokenCount += chunkTokens.length;
+        cumulativeTokenCount += chunkTokenCount;
 
         if (isolatedArrays && isolatedArrays.original) {
           // Merge each semantic unit from isolated builder
@@ -7126,10 +7152,9 @@ export class TranslationEngine {
           isParallelChunk: true,
         });
 
-        // MEDIUM FIX: Update cumulative token count for next chunk
-        // Tokenize this chunk to get accurate token count
-        const chunkTokens = getSemanticTokens(chunk.content);
-        cumulativeTokenCount += chunkTokens.length;
+        // MEDIUM FIX: Update cumulative token count for next chunk.
+        // chunk.content is a string — must tokenize first; getSemanticTokens() expects TextToken[].
+        cumulativeTokenCount += this.tokenizer.tokenize(chunk.content).length;
 
         // Time-slice: Yield control when processing time exceeds 16ms (60fps threshold)
         const currentTime = performance.now();
