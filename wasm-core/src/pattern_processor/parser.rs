@@ -18,6 +18,7 @@ use std::collections::HashMap;
 /// * `allowed_variable_types` - Optional variable type constraints
 /// * `allow_as_pattern_variable` - Whether pattern can be used as variable in hierarchical processing
 /// * `low_priority` - Whether this is a low priority pattern
+/// * `semantic_type` - Optional semantic type this pattern produces (e.g., "person", "place")
 ///
 /// # Returns
 /// * `SemanticPattern` - Parsed pattern structure
@@ -29,7 +30,8 @@ use std::collections::HashMap;
 ///     "những X Y này".to_string(),
 ///     None,
 ///     false,
-///     false
+///     false,
+///     None
 /// );
 /// assert_eq!(pattern.variables.len(), 2); // X and Y
 /// assert_eq!(pattern.tokens.len(), 4); // 这, 些, X, Y
@@ -40,6 +42,7 @@ pub fn parse_pattern(
     allowed_variable_types: Option<HashMap<String, Vec<String>>>,
     allow_as_pattern_variable: bool,
     low_priority: bool,
+    semantic_type: Option<String>,
 ) -> SemanticPattern {
     let mut tokens = Vec::new();
     let mut variables = Vec::new();
@@ -82,6 +85,7 @@ pub fn parse_pattern(
         allow_as_pattern_variable,
         low_priority,
         allowed_variable_types,
+        semantic_type,
     )
 }
 
@@ -108,7 +112,7 @@ pub fn parse_patterns_dict(
     let mut patterns = Vec::new();
 
     for (pattern_text, template_or_object) in patterns_dict {
-        let (template, allowed_variable_types, allow_as_pattern_variable, low_priority) =
+        let (template, allowed_variable_types, allow_as_pattern_variable, low_priority, semantic_type) =
             if template_or_object.is_string() {
                 // Simple string template
                 (
@@ -116,6 +120,7 @@ pub fn parse_patterns_dict(
                     None,
                     false,
                     false,
+                    None,
                 )
             } else if template_or_object.is_object() {
                 // Object with metadata
@@ -141,11 +146,17 @@ pub fn parse_patterns_dict(
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
+                let semantic_type = obj
+                    .get("semanticType")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
                 (
                     template,
                     allowed_variable_types,
                     allow_as_pattern_variable,
                     low_priority,
+                    semantic_type,
                 )
             } else {
                 // Invalid format, skip
@@ -158,6 +169,7 @@ pub fn parse_patterns_dict(
             allowed_variable_types,
             allow_as_pattern_variable,
             low_priority,
+            semantic_type,
         );
 
         patterns.push(pattern);
@@ -179,6 +191,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
 
         assert_eq!(pattern.original_pattern, "这些X");
@@ -204,6 +217,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
 
         assert_eq!(pattern.variables.len(), 2);
@@ -225,6 +239,7 @@ mod tests {
             None,
             false,
             true, // low priority
+            None,
         );
 
         assert!(pattern.low_priority);
@@ -240,6 +255,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
 
         // Should only have 2 unique variables, not 3
@@ -296,6 +312,7 @@ mod tests {
             None,
             false,
             false,
+            None,
         );
 
         assert_eq!(pattern.tokens.len(), 7); // 这是一个测试X = 7 characters

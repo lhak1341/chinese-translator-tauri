@@ -589,6 +589,7 @@ mod tests {
                 None,
                 true, // allowAsPatternVariable
                 false,
+                None,
             ),
             parse_pattern(
                 "这些X".to_string(),
@@ -596,6 +597,7 @@ mod tests {
                 None,
                 false,
                 false,
+                None,
             ),
             parse_pattern(
                 "在X眼中".to_string(),
@@ -603,6 +605,7 @@ mod tests {
                 None,
                 false,
                 false,
+                None,
             ),
         ];
 

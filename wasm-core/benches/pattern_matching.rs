@@ -30,6 +30,7 @@ fn bench_single_pattern_match(c: &mut Criterion) {
         None,
         false,
         false,
+        None,
     );
 
     let tokens = vec![
@@ -83,6 +84,7 @@ fn bench_pattern_competition(c: &mut Criterion) {
                 None,
                 false,
                 false,
+                None,
             ));
         }
 
@@ -144,6 +146,7 @@ fn bench_phase_a_processing(c: &mut Criterion) {
                 None,
                 true, // allowAsPatternVariable
                 false,
+                None,
             ));
         }
 
@@ -190,6 +193,7 @@ fn bench_two_phase_processing(c: &mut Criterion) {
         None,
         true,
         false,
+        None,
     );
 
     // Phase B pattern: "在X中" → "ở trong X"
@@ -199,6 +203,7 @@ fn bench_two_phase_processing(c: &mut Criterion) {
         None,
         false,
         false,
+        None,
     );
 
     let mut tokens = vec![
@@ -237,9 +242,9 @@ fn bench_large_token_array(c: &mut Criterion) {
     let mut group = c.benchmark_group("large_token_array");
 
     let patterns = vec![
-        parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, false),
-        parse_pattern("可怕的X".to_string(), "X đáng sợ".to_string(), None, true, false),
-        parse_pattern("在X中".to_string(), "ở trong X".to_string(), None, false, false),
+        parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, false, None),
+        parse_pattern("可怕的X".to_string(), "X đáng sợ".to_string(), None, true, false, None),
+        parse_pattern("在X中".to_string(), "ở trong X".to_string(), None, false, false, None),
     ];
 
     let processor = TwoPhasePatternProcessor::new(patterns);

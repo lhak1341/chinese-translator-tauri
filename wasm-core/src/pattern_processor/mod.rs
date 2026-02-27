@@ -55,6 +55,7 @@ mod integration_tests {
             None,
             false,
             false,
+            None,
         );
         let pattern2 = parse_pattern(
             "X的Y".to_string(),
@@ -62,6 +63,7 @@ mod integration_tests {
             None,
             false,
             false,
+            None,
         );
 
         // Step 2: Create index

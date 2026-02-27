@@ -192,6 +192,7 @@ impl SemanticPattern {
         allow_as_pattern_variable: bool,
         low_priority: bool,
         allowed_variable_types: Option<HashMap<String, Vec<String>>>,
+        semantic_type: Option<String>,
     ) -> Self {
         let first_token = tokens.first().cloned().unwrap_or_else(|| {
             PatternToken::literal("".to_string(), 0)
@@ -205,7 +206,7 @@ impl SemanticPattern {
             length: tokens.len(),
             allowed_variable_types,
             low_priority,
-            semantic_type: None,
+            semantic_type,
         };
 
         Self {

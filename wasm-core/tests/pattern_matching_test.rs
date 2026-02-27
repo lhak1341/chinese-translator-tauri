@@ -31,6 +31,7 @@ fn test_simple_literal_pattern_match() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些"]
@@ -54,6 +55,7 @@ fn test_single_variable_pattern_match() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些", "人"]
@@ -95,6 +97,7 @@ fn test_multi_variable_pattern_match() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["张三", "的", "手"]
@@ -144,6 +147,7 @@ fn test_multi_token_variable_resolution() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["在", "那些", "魔帅", "眼", "中"]
@@ -188,7 +192,7 @@ fn test_multi_token_variable_resolution() {
 fn test_variable_backtracking_with_lookahead() {
     // Pattern: "XY" where both X and Y are variables
     // Test that backtracking works correctly
-    let pattern = parse_pattern("XY".to_string(), "X Y".to_string(), None, false, false);
+    let pattern = parse_pattern("XY".to_string(), "X Y".to_string(), None, false, false, None);
 
     // Tokens: ["那些", "人"]
     let tokens = vec![create_token("那些", 0), create_token("人", 1)];
@@ -240,6 +244,7 @@ fn test_pattern_match_failure_not_enough_tokens() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些"] - not enough for two variables
@@ -261,6 +266,7 @@ fn test_pattern_match_failure_literal_mismatch() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["那", "些", "人"] - first literal doesn't match
@@ -286,6 +292,7 @@ fn test_pattern_match_failure_variable_not_in_cache() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些", "未知"]
@@ -329,6 +336,7 @@ fn test_pattern_competition_higher_priority_wins() {
         None,
         false,
         false,
+        None,
     );
     let pattern2 = parse_pattern(
         "这些XY".to_string(),
@@ -336,6 +344,7 @@ fn test_pattern_competition_higher_priority_wins() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些", "人", "强大"]
@@ -386,6 +395,7 @@ fn test_pattern_competition_low_priority_loses() {
         None,
         false,
         true, // lowPriority = true → -12 penalty
+        None,
     );
     let pattern_specific = parse_pattern(
         "在X眼中".to_string(),
@@ -393,6 +403,7 @@ fn test_pattern_competition_low_priority_loses() {
         None,
         false,
         false,
+        None,
     );
 
     // Verify priorities are calculated correctly
@@ -442,6 +453,7 @@ fn test_pattern_competition_no_match() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["那", "些", "人"] - first literal doesn't match

@@ -33,6 +33,7 @@ fn test_pattern_categorization() {
         None,
         true, // allowAsPatternVariable
         false,
+        None,
     );
 
     // Pattern 2: "这些X" without allowAsPatternVariable (Phase B only)
@@ -42,6 +43,7 @@ fn test_pattern_categorization() {
         None,
         false,
         false,
+        None,
     );
 
     // Pattern 3: "在X眼中" without allowAsPatternVariable (Phase B only)
@@ -51,6 +53,7 @@ fn test_pattern_categorization() {
         None,
         false,
         false,
+        None,
     );
 
     let patterns = vec![pattern1, pattern2, pattern3];
@@ -72,6 +75,7 @@ fn test_phase_a_processing() {
         None,
         true, // allowAsPatternVariable
         false,
+        None,
     );
 
     // Tokens: ["张三", "的", "手"]
@@ -123,6 +127,7 @@ fn test_phase_b_processing_without_phase_a() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些", "人"]
@@ -164,6 +169,7 @@ fn test_hierarchical_composition_detection() {
         None,
         true, // allowAsPatternVariable
         false,
+        None,
     );
 
     // Phase B pattern: "在X中" → "ở trong X"
@@ -173,6 +179,7 @@ fn test_hierarchical_composition_detection() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["在", "可", "怕", "的", "声波", "振荡", "中"]
@@ -246,6 +253,7 @@ fn test_multiple_phase_a_results() {
         None,
         true,
         false,
+        None,
     );
 
     // Phase A pattern 2: "可怕的X" → "X đáng sợ"
@@ -255,6 +263,7 @@ fn test_multiple_phase_a_results() {
         None,
         true,
         false,
+        None,
     );
 
     // Tokens: ["张三", "的", "手", "可", "怕", "的", "样子"]
@@ -329,6 +338,7 @@ fn test_token_protection_by_phase_a() {
         None,
         true,
         false,
+        None,
     );
 
     // Phase B pattern: "X的" → "của X" (should NOT match if "X的Y" already matched)
@@ -338,6 +348,7 @@ fn test_token_protection_by_phase_a() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["张三", "的", "手"]
@@ -391,6 +402,7 @@ fn test_phase_b_enhanced_variable_resolution() {
         None,
         true,
         false,
+        None,
     );
 
     // Phase B pattern: "在X中" → "ở trong X"
@@ -400,6 +412,7 @@ fn test_phase_b_enhanced_variable_resolution() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["在", "可", "怕", "的", "声波", "中"]
@@ -456,6 +469,7 @@ fn test_result_selection_with_overlaps() {
         None,
         false,
         false,
+        None,
     );
 
     // Pattern 2: "这些XY" → "những X Y này" (priority 29)
@@ -465,6 +479,7 @@ fn test_result_selection_with_overlaps() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些", "人", "强大"]
@@ -517,6 +532,7 @@ fn test_non_overlapping_patterns() {
         None,
         false,
         false,
+        None,
     );
 
     // Pattern 2: "在X中" → "ở trong X"
@@ -526,6 +542,7 @@ fn test_non_overlapping_patterns() {
         None,
         false,
         false,
+        None,
     );
 
     // Tokens: ["这", "些", "人", "在", "这", "里", "中"]
