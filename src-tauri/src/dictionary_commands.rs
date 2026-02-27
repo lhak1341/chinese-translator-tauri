@@ -652,13 +652,9 @@ pub async fn create_proper_nouns_dictionary(
         return Ok(DictionaryResponse::err("Dictionary already exists"));
     }
 
-    // Create empty dictionary
-    // CODE REVIEW FIX (2026-02-01): Proper error handling instead of unwrap()
+    // Create empty dictionary via save_json_file to enforce depth and size guards
     let empty_dict = serde_json::json!({});
-    let json_string = serde_json::to_string_pretty(&empty_dict)
-        .map_err(|e| format!("Failed to serialize empty dictionary: {}", e))?;
-    fs::write(&file_path, json_string)
-        .map_err(|e| sanitize_io_error(e, "dictionary file"))?;
+    save_json_file(&file_path, &empty_dict)?;
 
     // Invalidate any stale cache entry for this dictionary (defensive: handles delete/re-create cycles)
     cache.invalidate(Some(&dictionary_id));
@@ -788,7 +784,7 @@ fn load_json_file_with_default(
     match fs::read_to_string(path) {
         Ok(contents) => {
             let data: serde_json::Value =
-                serde_json::from_str(&contents).map_err(|e| e.to_string())?;
+                serde_json::from_str(&contents).map_err(|_| "Invalid JSON format in config file".to_string())?;
             Ok(DictionaryResponse::ok_with_data(data))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -1316,7 +1312,7 @@ pub async fn rename_proper_nouns_dictionary(
     validate_dictionary_id(&old_dictionary_id)?;
     validate_dictionary_id(&new_dictionary_id)?;
 
-    let dictionary_path = get_dictionary_path(&app_handle)?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
 
     // Validate dictionary IDs
     if old_dictionary_id == "properNouns" {
@@ -1609,8 +1605,8 @@ mod tests {
     fn test_set_then_get_round_trips_value() {
         let cache = make_cache();
         let value = serde_json::json!({"chinese": "你好", "vietnamese": "xin chào"});
-        cache.set("dict1:path".to_string(), value.clone());
-        assert_eq!(cache.get("dict1:path"), Some(value));
+        cache.set("phrases".to_string(), value.clone());
+        assert_eq!(cache.get("phrases"), Some(value));
     }
 
     #[test]
@@ -1624,9 +1620,9 @@ mod tests {
     #[test]
     fn test_get_returns_none_for_key_with_no_prior_set() {
         let cache = make_cache();
-        cache.set("dict1:path".to_string(), serde_json::json!({}));
+        cache.set("phrases".to_string(), serde_json::json!({}));
         // Different key — should still be missing
-        assert!(cache.get("dict2:other").is_none());
+        assert!(cache.get("properNouns-MyNovel").is_none());
     }
 
     // ── access_order tracks get and set ──────────────────────────────────────
@@ -1793,13 +1789,14 @@ mod tests {
         // If invalidate() deadlocked, this test would hang.
         // Running in a unit test with a timeout via the test harness is the
         // practical check; the structural fix is verified by code inspection.
+        // invalidate() uses exact-key match — keys are bare IDs (not colon-separated).
         let cache = make_cache();
-        cache.set("d:k".to_string(), serde_json::json!("before"));
-        cache.invalidate(Some("d"));
-        assert!(cache.get("d:k").is_none());
+        cache.set("phrases".to_string(), serde_json::json!("before"));
+        cache.invalidate(Some("phrases"));
+        assert!(cache.get("phrases").is_none());
 
-        cache.set("d:k".to_string(), serde_json::json!("after"));
-        assert_eq!(cache.get("d:k"), Some(serde_json::json!("after")));
+        cache.set("phrases".to_string(), serde_json::json!("after"));
+        assert_eq!(cache.get("phrases"), Some(serde_json::json!("after")));
     }
 
     // ── DictionaryResponse constructors ──────────────────────────────────────
