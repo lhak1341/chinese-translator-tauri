@@ -48,6 +48,12 @@ pub struct PatternProcessingResult {
     #[serde(rename = "translationSource", skip_serializing_if = "Option::is_none")]
     pub translation_source: Option<String>,
 
+    /// Semantic type produced by the matched pattern (from SemanticPattern.semantic_type).
+    /// Used by Phase B enhanced cache so allowedVariableTypes constraints can match
+    /// the actual semantic type instead of the hardcoded "structural_pattern" fallback.
+    #[serde(rename = "semanticType", skip_serializing_if = "Option::is_none")]
+    pub semantic_type: Option<String>,
+
     /// Phase A result (if hierarchical composition)
     #[serde(rename = "phaseA", skip_serializing_if = "Option::is_none")]
     pub phase_a: Option<Box<PatternProcessingResult>>,
@@ -87,6 +93,10 @@ impl PatternProcessingResult {
             Some("hierarchical_patterns".to_string())
         };
 
+        // Propagate semantic_type from the match result so it is available to
+        // the Phase B enhanced cache and downstream JS consumers.
+        let semantic_type = match_result.pattern_semantic_type.clone();
+
         Some(Self {
             original_text,
             translation: result_text,
@@ -96,6 +106,7 @@ impl PatternProcessingResult {
             end_index,
             source,
             translation_source,
+            semantic_type,
             phase_a: None,
             phase_b: None,
         })
@@ -291,14 +302,23 @@ impl TwoPhasePatternProcessor {
                 .map(|(k, v)| (k.clone(), v.clone())),
         );
 
-        // Add Phase A results to variable cache
+        // Add Phase A results to variable cache.
+        // Use the pattern's actual semantic_type as var_type so that Phase B
+        // allowedVariableTypes constraints can match it.  Fall back to
+        // "structural_pattern" only when no semantic_type was declared.
         for phase_a_result in phase_a_results {
             enhanced_cache.insert(
                 phase_a_result.original_text.clone(),
                 VariableCacheEntry {
                     translation: phase_a_result.translation.clone(),
                     source: "phaseA_pattern".to_string(),
-                    var_type: Some("structural_pattern".to_string()),
+                    var_type: Some(
+                        phase_a_result
+                            .semantic_type
+                            .as_deref()
+                            .unwrap_or("structural_pattern")
+                            .to_string(),
+                    ),
                 },
             );
         }
@@ -544,6 +564,9 @@ impl TwoPhasePatternProcessor {
                         end_index: phase_b_result.end_index,
                         source: "hierarchical_composition".to_string(),
                         translation_source: Some("hierarchical_patterns_composite".to_string()),
+                        // A composite result inherits the Phase B pattern's semantic type
+                        // (the outer/wrapper pattern determines what type the composite produces).
+                        semantic_type: phase_b_result.semantic_type.clone(),
                         phase_a: Some(Box::new(phase_a_result.clone())),
                         phase_b: Some(Box::new(phase_b_result.clone())),
                     };

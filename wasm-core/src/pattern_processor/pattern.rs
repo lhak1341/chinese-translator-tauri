@@ -175,6 +175,11 @@ pub struct SemanticPattern {
     /// Calculated priority
     pub priority: i32,
 
+    /// Semantic type this pattern produces when used as a variable (e.g., "person", "place")
+    /// Mirrors metadata.semantic_type for fast access without going through metadata.
+    #[serde(rename = "semanticType", skip_serializing_if = "Option::is_none")]
+    pub semantic_type: Option<String>,
+
     /// Pattern metadata
     pub metadata: PatternMetadata,
 
@@ -206,7 +211,7 @@ impl SemanticPattern {
             length: tokens.len(),
             allowed_variable_types,
             low_priority,
-            semantic_type,
+            semantic_type: semantic_type.clone(),
         };
 
         Self {
@@ -219,6 +224,7 @@ impl SemanticPattern {
             allow_as_pattern_variable,
             low_priority,
             priority,
+            semantic_type,
             metadata,
             usage: PatternUsage::default(),
         }

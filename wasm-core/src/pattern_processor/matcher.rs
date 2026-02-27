@@ -123,6 +123,10 @@ pub struct PatternMatchResult {
     #[serde(rename = "endPosition", skip_serializing_if = "Option::is_none")]
     pub end_position: Option<usize>,
 
+    /// Semantic type produced by this pattern (propagated from SemanticPattern.semantic_type)
+    #[serde(rename = "patternSemanticType", skip_serializing_if = "Option::is_none")]
+    pub pattern_semantic_type: Option<String>,
+
     /// Failure reason (if not successful)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -142,6 +146,7 @@ impl PatternMatchResult {
             matched_tokens: None,
             start_position: None,
             end_position: None,
+            pattern_semantic_type: None,
             reason,
         }
     }
@@ -171,6 +176,7 @@ impl PatternMatchResult {
             matched_tokens: Some(matched_tokens),
             start_position: Some(start_position),
             end_position: Some(end_position),
+            pattern_semantic_type: pattern.semantic_type.clone(),
             reason: None,
         }
     }
@@ -198,6 +204,10 @@ impl PatternMatchResult {
             position: 0,
         };
 
+        // Propagate semantic_type from the match result into the minimal pattern
+        // so that PatternProcessingResult and the Phase B enhanced cache can access it.
+        let semantic_type = self.pattern_semantic_type.clone();
+
         // Create minimal metadata
         let metadata = PatternMetadata {
             priority,
@@ -205,6 +215,7 @@ impl PatternMatchResult {
             length: 0,
             allowed_variable_types: None,
             low_priority: false,
+            semantic_type: semantic_type.clone(),
         };
 
         // Use default usage stats
@@ -220,6 +231,7 @@ impl PatternMatchResult {
             allow_as_pattern_variable: false,
             low_priority: false,
             priority,
+            semantic_type,
             metadata,
             usage,
         })
