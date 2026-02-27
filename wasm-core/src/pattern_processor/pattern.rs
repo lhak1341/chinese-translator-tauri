@@ -83,6 +83,10 @@ pub struct PatternMetadata {
 
     /// Whether this is a low priority pattern (-12 penalty)
     pub low_priority: bool,
+
+    /// Semantic type this pattern produces when used as a variable (e.g., "person", "place")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub semantic_type: Option<String>,
 }
 
 /// Pattern usage statistics
@@ -201,6 +205,7 @@ impl SemanticPattern {
             length: tokens.len(),
             allowed_variable_types,
             low_priority,
+            semantic_type: None,
         };
 
         Self {
