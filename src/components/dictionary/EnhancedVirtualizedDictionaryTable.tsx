@@ -746,8 +746,8 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {/* Translation - 55% with VAR/LP badges */}
-          <div className={styles.cellEditable} style={{ width: '55%' }}>
+          {/* Translation - 43% with VAR/LP badges */}
+          <div className={styles.cellEditable} style={{ width: '43%' }}>
             {editingTranslation ? (
               <input
                 type="text"
@@ -784,6 +784,17 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
               </>
             )}
           </div>
+
+          {/* Semantic type - 12% (only shown when pattern can be used as a variable) */}
+          {allowAsPatternVariable ? (
+            <SemanticTypeToggleCell
+              activeType={semanticType}
+              onSelect={handleSetSemanticType}
+              width="12%"
+            />
+          ) : (
+            <div style={{ width: '12%', minWidth: '12%' }} />
+          )}
 
           {/* X type constraints - 17.5% */}
           <TypeToggleCell
@@ -2490,13 +2501,25 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '55%',
+                      width: '43%',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
                     title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)"
                   >
                     Translation
+                  </div>
+                  <div
+                    style={{
+                      width: '12%',
+                      padding: '0.5rem 0.25rem',
+                      fontWeight: 'bold',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                    }}
+                    title="Output semantic type (shown when pattern can be used as a variable)"
+                  >
+                    Semantic
                   </div>
                   <div
                     style={{
