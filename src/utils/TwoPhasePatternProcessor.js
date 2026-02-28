@@ -175,6 +175,29 @@ class TwoPhasePatternProcessor {
       this.internalProfiling.buildVariableCache_alreadyTranslated.calls++;
     }
 
+    // 1b. Cache pattern-translated tokens that carry an explicit semantic type
+    // These come from a prior translation pass (cross-chunk or cross-pass) where
+    // a pattern match set token.patternSemanticType.  Adding them here lets
+    // subsequent WASM processing use the typed result as a typed variable in
+    // patterns whose allowedVariableTypes constraints would otherwise filter
+    // the token out.
+    for (const token of tokens) {
+      if (
+        token.translated &&
+        token.patternSemanticType &&
+        (token.translationSource === 'pattern' ||
+          token.translationSource === 'hierarchical_pattern' ||
+          token.translationSource === 'hierarchical_patterns' ||
+          token.translationSource === 'hierarchical_patterns_composite')
+      ) {
+        cache[token.value] = {
+          translation: token.translated,
+          source: token.translationSource,
+          type: token.patternSemanticType,
+        };
+      }
+    }
+
     // 2. Cache phrase translations with allowAsPatternVariable flag
     // Check both single tokens AND multi-character combinations
     const start2 = performance.now();
