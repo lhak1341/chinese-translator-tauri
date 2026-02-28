@@ -126,9 +126,13 @@ class TwoPhasePatternProcessor {
     const activeProperNouns = options.activeProperNouns || [];
     const dictionaryManager = options.dictionaryManager;
 
-    // Performance optimization: pre-scan patterns for required variable types
-    // If patterns specify allowedVariableTypes, we can skip cache entries of unneeded types
+    // Performance optimization: pre-scan patterns for required variable types.
+    // If patterns specify allowedVariableTypes, we can skip cache entries of
+    // unneeded types — BUT only when ALL patterns are constrained. If any
+    // pattern has no allowedVariableTypes, it accepts any type, so filtering
+    // by type would silently exclude entries that the unconstrained pattern needs.
     let requiredTypes = null;
+    let hasUnconstrainedPatterns = false;
     for (const pattern of this.processedPatterns) {
       if (pattern.metadata?.allowedVariableTypes) {
         if (!requiredTypes) requiredTypes = new Set();
@@ -137,12 +141,14 @@ class TwoPhasePatternProcessor {
             requiredTypes.add(t);
           }
         }
+      } else {
+        hasUnconstrainedPatterns = true;
       }
     }
 
-    // Helper: check if an entry's type should be included in the cache
+    // Helper: check if an entry's type should be included in the cache.
     const shouldInclude = (entryType) => {
-      if (!requiredTypes) return true; // No patterns have constraints
+      if (!requiredTypes || hasUnconstrainedPatterns) return true; // No filter needed
       if (!entryType) return true; // Untyped entries always included
       return requiredTypes.has(entryType); // Skip if type not needed by any pattern
     };

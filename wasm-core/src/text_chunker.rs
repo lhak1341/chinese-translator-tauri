@@ -301,6 +301,8 @@ pub fn get_global_chunker_stats() -> Result<JsValue, JsValue> {
 mod tests {
     use super::*;
 
+    // is_punctuation_separator is cfg(target_arch = "wasm32") — test only on WASM
+    #[cfg(target_arch = "wasm32")]
     #[test]
     fn test_punctuation_detection() {
         let chunker = TextChunker::new(true);

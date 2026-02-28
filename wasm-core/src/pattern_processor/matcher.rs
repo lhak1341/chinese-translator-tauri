@@ -457,26 +457,26 @@ impl<'a> PatternMatcher<'a> {
                     );
 
                     match resolution_result {
-                        Some((translation, token_span, resolved_text)) => {
-                            // Variable type validation
+                        Some((translation, token_span, _resolved_text, var_type)) => {
+                            // Variable type validation — uses var_type returned directly
+                            // from the resolver (Bug 4 fix: no second HashMap lookup).
+                            // None var_type is treated as "unknown" to match JS behavior
+                            // (Bug 7 fix: previously None silently bypassed the check).
                             if let Some(allowed_types) = pattern
                                 .metadata
                                 .allowed_variable_types
                                 .as_ref()
                                 .and_then(|types| types.get(var_name))
                             {
-                                if let Some(cache_entry) = self.variable_cache.get(&resolved_text) {
-                                    if let Some(var_type) = &cache_entry.var_type {
-                                        if !allowed_types.contains(var_type) {
-                                            let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                            variable_time += end_variable - start_variable;
-                                            update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
-                                            return PatternMatchResult::failure(Some(format!(
-                                                "Variable type '{}' not allowed for {} in pattern '{}'. Allowed: {:?}",
-                                                var_type, var_name, pattern.original_pattern, allowed_types
-                                            )));
-                                        }
-                                    }
+                                let effective_type = var_type.as_deref().unwrap_or("unknown");
+                                if !allowed_types.iter().any(|t| t == effective_type) {
+                                    let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                    variable_time += end_variable - start_variable;
+                                    update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
+                                    return PatternMatchResult::failure(Some(format!(
+                                        "Variable type '{}' not allowed for {} in pattern '{}'. Allowed: {:?}",
+                                        effective_type, var_name, pattern.original_pattern, allowed_types
+                                    )));
                                 }
                             }
 
@@ -548,7 +548,9 @@ impl<'a> PatternMatcher<'a> {
     /// Tries multiple spans from longest to shortest, verifying that the next pattern token
     /// can match after consuming each candidate span.
     ///
-    /// Returns: (translation, token_span, resolved_text)
+    /// Returns: (translation, token_span, resolved_text, var_type)
+    /// `var_type` mirrors the cache entry's `var_type` so the caller can perform
+    /// `allowedVariableTypes` checks without a second HashMap lookup.
     fn resolve_variable_with_lookahead(
         &self,
         _var_name: &str,
@@ -556,7 +558,7 @@ impl<'a> PatternMatcher<'a> {
         current_position: usize,
         pattern: &SemanticPattern,
         pattern_index: usize,
-    ) -> Option<(String, usize, String)> {
+    ) -> Option<(String, usize, String, Option<String>)> {
         // Check profiling state
         let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
         #[cfg(target_arch = "wasm32")]
@@ -576,8 +578,10 @@ impl<'a> PatternMatcher<'a> {
         const MAX_VARIABLE_SPAN: usize = 6;
         let max_span = std::cmp::min(semantic_tokens.len() - current_position, MAX_VARIABLE_SPAN);
 
-        // Pre-allocate string buffer with estimated capacity
-        let mut buffer = String::with_capacity(max_span * 2);  // Estimate 2 bytes per char
+        // Pre-allocate string buffer. Chinese chars are 3 bytes each in UTF-8;
+        // using max_span * 2 (from the old "2 bytes per char" estimate) caused
+        // a reallocation on every call with 2+ Chinese tokens.
+        let mut buffer = String::with_capacity(max_span * 3);
 
         // Profiling accumulators (local — flushed once at function exit)
         let mut total_string_building_time = 0.0;
@@ -586,8 +590,10 @@ impl<'a> PatternMatcher<'a> {
         let mut local_cache_hits: u32 = 0;
         let mut local_cache_misses: u32 = 0;
 
-        // Result accumulator — avoids early returns that would each need a profiling flush
-        let mut result: Option<(String, usize, String)> = None;
+        // Result accumulator — avoids early returns that would each need a profiling flush.
+        // 4th element is var_type cloned from the cache entry so the caller avoids
+        // a second HashMap lookup for allowedVariableTypes validation.
+        let mut result: Option<(String, usize, String, Option<String>)> = None;
 
         // Try spans from longest to shortest (greedy matching)
         for span in (1..=max_span).rev() {
@@ -610,7 +616,9 @@ impl<'a> PatternMatcher<'a> {
             if let Some(cache_entry) = cache_result {
                 let translation = cache_entry.translation.clone();
                 let text = buffer.clone();  // Only clone on cache hit
-
+                // Clone var_type here so the caller can run allowedVariableTypes
+                // validation without a second HashMap lookup (Bug 4 fix).
+                let var_type = cache_entry.var_type.clone();
 
                 // Check if there are more pattern tokens after this variable
                 let has_more_pattern_tokens = pattern_index + 1 < pattern.tokens.len();
@@ -653,7 +661,7 @@ impl<'a> PatternMatcher<'a> {
 
                         if lookahead_matched {
                             local_cache_hits += 1;
-                            result = Some((translation, span, text));
+                            result = Some((translation, span, text, var_type));
                             break;
                         }
                         // else: continue to shorter span
@@ -670,13 +678,13 @@ impl<'a> PatternMatcher<'a> {
                         total_lookahead_time += end_lookahead - start_lookahead;
 
                         local_cache_hits += 1;
-                        result = Some((translation, span, text));
+                        result = Some((translation, span, text, var_type));
                         // intentionally no break — keep iterating for a shorter span
                     }
                 } else {
                     // No more pattern tokens — use longest available span
                     local_cache_hits += 1;
-                    result = Some((translation, span, text));
+                    result = Some((translation, span, text, var_type));
                     break;
                 }
             } else {

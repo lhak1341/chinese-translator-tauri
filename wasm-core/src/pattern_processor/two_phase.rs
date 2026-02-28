@@ -142,10 +142,7 @@ impl TwoPhasePatternProcessor {
 
         let composite_eligible_patterns: Vec<SemanticPattern> = patterns
             .iter()
-            .filter(|p| {
-                // Composite eligible: Has X variable but not Y (single-variable)
-                p.variables.iter().any(|v| v == "X") && !p.variables.iter().any(|v| v == "Y")
-            })
+            .filter(|p| p.variables.len() == 1)
             .cloned()
             .collect();
 
@@ -207,6 +204,15 @@ impl TwoPhasePatternProcessor {
         let mut results = Vec::with_capacity(semantic_tokens.len() / 2);
         let mut position = 0;
 
+        // Hoist variable_patterns outside the loop and reuse a single buffer,
+        // mirroring Phase B. Previously Phase A only tried variable-starting
+        // patterns as a fallback when zero literal-starting patterns existed —
+        // meaning a variable-starting Phase A pattern (e.g. "X的Y") was silently
+        // skipped at any position where a literal-starting Phase A pattern also
+        // existed, even if the variable-starting pattern would win by priority.
+        let variable_patterns = self.phase_a_index.get_variable_patterns();
+        let mut candidate_patterns = Vec::with_capacity(variable_patterns.len() + 32);
+
         while position < semantic_tokens.len() {
             // Skip tokens already processed
             if semantic_tokens[position]
@@ -219,14 +225,13 @@ impl TwoPhasePatternProcessor {
                 continue;
             }
 
-            // Get candidate patterns using index (O(1) lookup)
+            // Combine literal-starting and variable-starting Phase A patterns,
+            // identical to Phase B's approach (lines 349-355).
             let first_token = &semantic_tokens[position].value;
-            let mut candidate_patterns = self.phase_a_index.get_patterns_by_first_token(first_token);
-
-            // Also check variable-starting patterns
-            if candidate_patterns.is_empty() {
-                candidate_patterns = self.phase_a_index.get_variable_patterns();
-            }
+            let literal_patterns = self.phase_a_index.get_patterns_by_first_token(first_token);
+            candidate_patterns.clear();
+            candidate_patterns.extend_from_slice(literal_patterns);
+            candidate_patterns.extend_from_slice(variable_patterns);
 
             // Find best pattern match among candidates
             let match_result = if !candidate_patterns.is_empty() {

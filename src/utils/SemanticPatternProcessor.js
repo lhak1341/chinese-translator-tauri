@@ -1299,9 +1299,15 @@ export class SemanticPatternProcessor {
                 continue;
               }
             } else {
-              // Next token is another variable - accept this span (will be validated in next iteration)
+              // Next token is another variable — do NOT break here.
+              // Keep iterating to find the SHORTEST valid span for this variable,
+              // matching Rust resolve_variable_with_lookahead behavior.
+              // Taking the longest span greedily exhausts tokens the following
+              // variable needs, causing the whole pattern to fail silently.
+              // candidateSpans is ordered longest→shortest, so overwriting
+              // validSpan on each iteration leaves the shortest cache-hit span.
               validSpan = candidate;
-              break;
+              // intentionally no break
             }
           } else {
             // No more pattern tokens - use longest available span
