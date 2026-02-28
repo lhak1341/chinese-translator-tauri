@@ -696,7 +696,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
       }
     };
 
-    // Render pattern row: checkbox | source (25%) | translation+badges (55%) | X types (10%) | Y types (10%)
+    // Render pattern row: checkbox | source (25%) | translation+badges (43%) | semantic (12%) | X types (10%) | Y types (10%)
     if (selectedDictionary === 'patterns') {
       const hasX = source.includes('X');
       const hasY = source.includes('Y');
@@ -796,7 +796,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             <div style={{ width: '12%', minWidth: '12%' }} />
           )}
 
-          {/* X type constraints - 17.5% */}
+          {/* X type constraints - 10% */}
           <TypeToggleCell
             varName="X"
             hasVariable={hasX}
@@ -804,7 +804,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             onToggle={handleToggleVariableType}
           />
 
-          {/* Y type constraints - 17.5% */}
+          {/* Y type constraints - 10% */}
           <TypeToggleCell
             varName="Y"
             hasVariable={hasY}
