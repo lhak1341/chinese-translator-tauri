@@ -31,15 +31,6 @@ import { describe, test, expect, vi } from 'vitest';
  *
  * We import TranslationEngine and bind its prototype methods to a stub instance.
  */
-let TranslationEngine;
-try {
-  // Dynamic import is not allowed at top level in Vitest without top-level await,
-  // so we use a lazy-init pattern inside beforeAll.
-  // Instead, we test the logic directly via extracted method references.
-} catch (_) {
-  // ignore — handled below
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure unit tests using extracted method bodies
 // (avoids the need to initialise the full engine with WASM/Tauri)

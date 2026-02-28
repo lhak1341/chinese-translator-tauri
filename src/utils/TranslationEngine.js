@@ -3751,14 +3751,15 @@ export class TranslationEngine {
    * @param {Token[]} tokens - Original token array
    * @param {Object} matchResult - Match result from semantic pattern
    * @param {number} startTokenIndex - Starting token index
+   * @param {Object} [pattern] - Pattern dictionary entry (for metadata.semanticType)
    */
-  applySemanticPatternResult(tokens, matchResult, startTokenIndex) {
+  applySemanticPatternResult(tokens, matchResult, startTokenIndex, pattern) {
     const _firstMatchedToken = matchResult.matched[0];
 
     // Apply translation to the first token
     tokens[startTokenIndex].translated = matchResult.translation;
     tokens[startTokenIndex].translationSource = 'pattern';
-    tokens[startTokenIndex].patternSemanticType = matchResult.semanticType ?? null;
+    tokens[startTokenIndex].patternSemanticType = pattern?.metadata?.semanticType ?? null;
 
     // Mark subsequent matched tokens as consumed
     for (let i = 1; i < matchResult.matched.length; i++) {
