@@ -690,7 +690,8 @@ pub async fn save_dictionary(
     // SECURITY: Depth guard mirrors save_json_file — prevents deeply-nested values
     // from causing recursive stack growth in the Rust drop path.
     check_json_depth(&data, 50)?;
-    let json_string = serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?;
+    let json_string = serde_json::to_string_pretty(&data)
+        .map_err(|_| "Failed to serialize dictionary data".to_string())?;
 
     // SECURITY: Check JSON size before writing
     if json_string.len() > MAX_JSON_SIZE_BYTES {
@@ -735,21 +736,31 @@ pub async fn load_dictionary(
     match fs::read_to_string(&file_path) {
         Ok(contents) => {
             let data: serde_json::Value = serde_json::from_str(&contents)
-                .map_err(|e| format!("Invalid JSON format: {}", e))?;
+                .map_err(|_| format!("Invalid JSON in dictionary '{}'", dictionary_id))?;
 
             // SECURITY: Enforce entry-count cap on load, not just on save.
             // A file written externally or imported from a ZIP could contain more
             // entries than MAX_DICTIONARY_ENTRIES without hitting save_dictionary's
             // guard, causing unbounded trie memory growth.
-            if let Some(obj) = data.as_object() {
-                if obj.len() > MAX_DICTIONARY_ENTRIES {
+            // Reject non-object JSON (arrays, scalars) — they bypass the entry-count
+            // guard via the old `if let Some(obj)` pattern and cause type errors downstream.
+            // Matches import_dictionaries which uses `match` + explicit error for non-objects.
+            let obj = match data.as_object() {
+                Some(o) => o,
+                None => {
                     return Err(format!(
-                        "Dictionary '{}' has too many entries ({}, max: {})",
-                        dictionary_id,
-                        obj.len(),
-                        MAX_DICTIONARY_ENTRIES
+                        "Dictionary '{}' has invalid format: expected a JSON object",
+                        dictionary_id
                     ));
                 }
+            };
+            if obj.len() > MAX_DICTIONARY_ENTRIES {
+                return Err(format!(
+                    "Dictionary '{}' has too many entries ({}, max: {})",
+                    dictionary_id,
+                    obj.len(),
+                    MAX_DICTIONARY_ENTRIES
+                ));
             }
 
             // SECURITY: Depth guard — mirrors import_dictionaries and save_dictionary.

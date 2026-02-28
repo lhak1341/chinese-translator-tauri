@@ -1,7 +1,9 @@
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
 use js_sys::Array;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+#[cfg(target_arch = "wasm32")]
 use unicode_properties::{UnicodeGeneralCategory, GeneralCategory};
 use serde_wasm_bindgen;
 
@@ -36,7 +38,8 @@ pub struct TextChunkResult {
 /// - Speedup: 2-3x, significant for long texts with heavy punctuation
 #[wasm_bindgen]
 pub struct TextChunker {
-    /// Configuration for which punctuation categories to use
+    /// Configuration for which punctuation categories to use (read only in wasm32 builds)
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     use_unicode_properties: bool,
 
     /// Performance statistics
@@ -62,6 +65,7 @@ impl TextChunker {
     /// Check if a character is a punctuation separator
     ///
     /// Uses Unicode General Category for comprehensive punctuation detection
+    #[cfg(target_arch = "wasm32")]
     #[inline]
     fn is_punctuation_separator(&self, ch: char) -> bool {
         if self.use_unicode_properties {
@@ -100,6 +104,7 @@ impl TextChunker {
     ///
     /// # Returns
     /// * JavaScript Array of chunk objects with {content, punctuation, startIndex, lineBreaks, startedBy}
+    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen(js_name = chunkText)]
     pub fn chunk_text(&mut self, text: &str) -> Result<Array, JsValue> {
         let start_time = web_time::Instant::now();

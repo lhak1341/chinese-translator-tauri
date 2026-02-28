@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger';
 import {
   SEMANTIC_TYPE_LIST,
   SEMANTIC_TYPE_LABELS,
+  SEMANTIC_TYPE_ABBREVIATIONS,
   SEMANTIC_TYPE_COLORS,
 } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
@@ -992,7 +993,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                       }}
                       title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
                     >
-                      {SEMANTIC_TYPE_LABELS[type]}
+                      {SEMANTIC_TYPE_ABBREVIATIONS[type]}
                     </span>
                   );
                 })}

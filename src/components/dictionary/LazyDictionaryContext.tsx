@@ -65,6 +65,25 @@ interface LazyDictionaryContextValue {
   ) => Promise<void>;
   /** Delete an entry from dictionary */
   deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
+  /** Bulk delete multiple entries from a dictionary in one save operation */
+  bulkDeleteEntries: (
+    dictionaryId: string,
+    sources: string[]
+  ) => Promise<{ successCount: number; errors: string[] }>;
+  /** Move a single entry between dictionaries */
+  moveEntry: (
+    sourceDictId: string,
+    targetDictId: string,
+    source: string,
+    targetDictLabel: string
+  ) => Promise<void>;
+  /** Move multiple entries between dictionaries */
+  bulkMoveEntries: (
+    sourceDictId: string,
+    targetDictId: string,
+    sources: string[],
+    targetDictLabel: string
+  ) => Promise<{ movedCount: number; errors: string[] }>;
   /** Undo last operation */
   undo: () => Promise<boolean>;
   /** Redo previously undone operation */
@@ -489,6 +508,16 @@ export function LazyDictionaryProvider({
       translation: string,
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
+      // Dictionary existence is a precondition, not a user-input validation error.
+      // Check before the try block so the outer catch doesn't show a second toast,
+      // and so validation doesn't run against a non-existent dictionary.
+      // Mirrors addEntry and DictionaryContext.tsx::updateEntry which both check before try.
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new ValidationError(msg);
+      }
+
       // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
       try {
         // SECURITY FIX: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
@@ -504,12 +533,6 @@ export function LazyDictionaryProvider({
         if (validationError) {
           toast.error(`Invalid entry: ${validationError}`);
           throw new ValidationError(validationError);
-        }
-
-        if (!dictionaries[dictionaryId]) {
-          const msg = `Dictionary '${dictionaryId}' does not exist`;
-          toast.error(msg);
-          throw new ValidationError(msg);
         }
 
         const oldData = { ...dictionaries[dictionaryId] };
@@ -636,6 +659,210 @@ export function LazyDictionaryProvider({
     [dictionaries, addToHistory]
   );
 
+  // Bulk delete multiple entries in one save operation.
+  // Uses snapshot-based history (same as addEntry/updateEntry/deleteEntry in this context).
+  // Note: undo restores the full pre-bulk-delete snapshot of the dictionary.
+  const bulkDeleteEntries = useCallback(
+    async (
+      dictionaryId: string,
+      sources: string[]
+    ): Promise<{ successCount: number; errors: string[] }> => {
+      if (sources.length === 0) {
+        return { successCount: 0, errors: [] };
+      }
+
+      // Existence check before try — mirrors addEntry/updateEntry pattern.
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new ValidationError(msg);
+      }
+
+      try {
+        const oldData = { ...dictionaries[dictionaryId] };
+        const updatedDictionary = { ...oldData };
+        const errors: string[] = [];
+        let successCount = 0;
+
+        for (const source of sources) {
+          if (updatedDictionary[source] !== undefined) {
+            delete updatedDictionary[source];
+            successCount++;
+          } else {
+            errors.push(`Entry "${source}" not found in dictionary`);
+          }
+        }
+
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sources[0]);
+
+        setDictionaries((prev) => ({
+          ...prev,
+          [dictionaryId]: sortedDictionary,
+        }));
+
+        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
+
+        if (result.success && result.data) {
+          addToHistory(dictionaryId, oldData, result.data);
+          const count = successCount;
+          toast.success(`Deleted ${count} ${count === 1 ? 'entry' : 'entries'}`);
+          await invalidateTranslationEngineCache(dictionaryId);
+        } else {
+          setDictionaries((prev) => ({
+            ...prev,
+            [dictionaryId]: oldData,
+          }));
+          const errorMsg = result.error || 'Failed to save dictionary after bulk delete';
+          toast.error(`Bulk delete failed: ${errorMsg}. Changes reverted.`);
+          throw new SaveError(errorMsg);
+        }
+
+        return { successCount, errors };
+      } catch (error) {
+        logger.error('Error bulk deleting entries:', error);
+        if (!isValidationError(error) && !isSaveError(error)) {
+          toast.error(`Could not bulk delete entries: ${extractErrorMessage(error)}`);
+        }
+        throw error;
+      }
+    },
+    [dictionaries, addToHistory]
+  );
+
+  // Move a single entry between dictionaries atomically.
+  // Note: LazyDictionaryContext uses snapshot-based single-dict history, so undo is not
+  // supported for cross-dictionary moves. Both dictionaries are saved, but history records
+  // only the source removal. Full bidirectional undo would require extending HistoryOperation.
+  const moveEntry = useCallback(
+    async (
+      sourceDictId: string,
+      targetDictId: string,
+      source: string,
+      targetDictLabel: string
+    ): Promise<void> => {
+      const currentSourceDict = dictionaries[sourceDictId];
+      const currentTargetDict = dictionaries[targetDictId];
+
+      if (!currentSourceDict)
+        throw new ValidationError(`Source dictionary '${sourceDictId}' does not exist`);
+      if (!currentTargetDict)
+        throw new ValidationError(`Target dictionary '${targetDictId}' does not exist`);
+
+      const entryValue = currentSourceDict[source];
+      if (entryValue === undefined)
+        throw new ValidationError(`Entry '${source}' not found in source dictionary`);
+
+      const updatedSourceDict = { ...currentSourceDict };
+      delete updatedSourceDict[source];
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, source);
+      const updatedTargetDict = { ...currentTargetDict, [source]: entryValue };
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, source);
+
+      setDictionaries((prev) => ({
+        ...prev,
+        [sourceDictId]: sortedSourceDict,
+        [targetDictId]: sortedTargetDict,
+      }));
+
+      const [sourceResult, targetResult] = await Promise.all([
+        window.electronAPI.saveDictionary(sourceDictId, sortedSourceDict),
+        window.electronAPI.saveDictionary(targetDictId, sortedTargetDict),
+      ]);
+
+      if (sourceResult.success && targetResult.success) {
+        toast.success(`Entry moved to ${targetDictLabel}`);
+        await invalidateTranslationEngineCache(sourceDictId);
+        await invalidateTranslationEngineCache(targetDictId);
+      } else {
+        setDictionaries((prev) => ({
+          ...prev,
+          [sourceDictId]: currentSourceDict,
+          [targetDictId]: currentTargetDict,
+        }));
+        if (sourceResult.success && !targetResult.success) {
+          await window.electronAPI.saveDictionary(sourceDictId, currentSourceDict).catch(() => {});
+        } else if (!sourceResult.success && targetResult.success) {
+          await window.electronAPI.saveDictionary(targetDictId, currentTargetDict).catch(() => {});
+        }
+        throw new SaveError('Failed to save dictionaries during move');
+      }
+    },
+    [dictionaries]
+  );
+
+  // Move multiple entries between dictionaries atomically.
+  // Same undo caveat as moveEntry — snapshot history is single-dict only.
+  const bulkMoveEntries = useCallback(
+    async (
+      sourceDictId: string,
+      targetDictId: string,
+      sources: string[],
+      targetDictLabel: string
+    ): Promise<{ movedCount: number; errors: string[] }> => {
+      if (sources.length === 0) return { movedCount: 0, errors: [] };
+
+      const currentSourceDict = dictionaries[sourceDictId];
+      const currentTargetDict = dictionaries[targetDictId];
+
+      if (!currentSourceDict)
+        throw new ValidationError(`Source dictionary '${sourceDictId}' does not exist`);
+      if (!currentTargetDict)
+        throw new ValidationError(`Target dictionary '${targetDictId}' does not exist`);
+
+      const errors: string[] = [];
+      const updatedSourceDict = { ...currentSourceDict };
+      const updatedTargetDict = { ...currentTargetDict };
+
+      for (const source of sources) {
+        const value = updatedSourceDict[source];
+        if (value !== undefined) {
+          updatedTargetDict[source] = value;
+          delete updatedSourceDict[source];
+        } else {
+          errors.push(`Entry "${source}" not found`);
+        }
+      }
+
+      const movedCount = sources.length - errors.length;
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sources[0]);
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sources[0]);
+
+      setDictionaries((prev) => ({
+        ...prev,
+        [sourceDictId]: sortedSourceDict,
+        [targetDictId]: sortedTargetDict,
+      }));
+
+      const [sourceResult, targetResult] = await Promise.all([
+        window.electronAPI.saveDictionary(sourceDictId, sortedSourceDict),
+        window.electronAPI.saveDictionary(targetDictId, sortedTargetDict),
+      ]);
+
+      if (sourceResult.success && targetResult.success) {
+        toast.success(
+          `Moved ${movedCount} ${movedCount === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`
+        );
+        await invalidateTranslationEngineCache(sourceDictId);
+        await invalidateTranslationEngineCache(targetDictId);
+      } else {
+        setDictionaries((prev) => ({
+          ...prev,
+          [sourceDictId]: currentSourceDict,
+          [targetDictId]: currentTargetDict,
+        }));
+        if (sourceResult.success && !targetResult.success) {
+          await window.electronAPI.saveDictionary(sourceDictId, currentSourceDict).catch(() => {});
+        } else if (!sourceResult.success && targetResult.success) {
+          await window.electronAPI.saveDictionary(targetDictId, currentTargetDict).catch(() => {});
+        }
+        throw new SaveError('Failed to save dictionaries during bulk move');
+      }
+
+      return { movedCount, errors };
+    },
+    [dictionaries]
+  );
+
   const undo = useCallback(async (): Promise<boolean> => {
     // MEDIUM-3 FIX: Add user feedback for undo/redo operations
     if (currentHistoryIndex >= 0) {
@@ -732,6 +959,9 @@ export function LazyDictionaryProvider({
       addEntry,
       updateEntry,
       deleteEntry,
+      bulkDeleteEntries,
+      moveEntry,
+      bulkMoveEntries,
       undo,
       redo,
       canUndo: currentHistoryIndex >= 0,
@@ -750,6 +980,9 @@ export function LazyDictionaryProvider({
       addEntry,
       updateEntry,
       deleteEntry,
+      bulkDeleteEntries,
+      moveEntry,
+      bulkMoveEntries,
       undo,
       redo,
       currentHistoryIndex,

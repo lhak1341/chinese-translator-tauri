@@ -16,6 +16,14 @@ export const SEMANTIC_TYPE_LABELS: Record<SemanticType, string> = {
   object: 'Object',
 };
 
+export const SEMANTIC_TYPE_ABBREVIATIONS: Record<SemanticType, string> = {
+  character: 'CHA',
+  location: 'LOC',
+  organization: 'ORG',
+  concept: 'CON',
+  object: 'OBJ',
+};
+
 export const SEMANTIC_TYPE_LIST: SemanticType[] = Object.values(SEMANTIC_TYPES);
 
 export const SEMANTIC_TYPE_COLORS: Record<SemanticType, string> = {
