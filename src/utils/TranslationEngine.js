@@ -3100,6 +3100,7 @@ export class TranslationEngine {
       tokens[result.startIndex].translated = result.translation;
       tokens[result.startIndex].translationSource =
         result.translationSource || 'hierarchical_pattern';
+      tokens[result.startIndex].patternSemanticType = result.semanticType ?? null;
 
       // Mark the result type for debugging and analysis
       if (result.type === 'composite') {
@@ -3646,6 +3647,7 @@ export class TranslationEngine {
               const firstTokenIndex = matchResult.matched[0].originalIndex;
               tokens[firstTokenIndex].translated = matchResult.translation;
               tokens[firstTokenIndex].translationSource = 'pattern';
+              tokens[firstTokenIndex].patternSemanticType = pattern.metadata?.semanticType ?? null;
 
               // Clear subsequent matched tokens (mark as consumed)
               for (let i = 1; i < matchResult.matched.length; i++) {
@@ -3756,6 +3758,7 @@ export class TranslationEngine {
     // Apply translation to the first token
     tokens[startTokenIndex].translated = matchResult.translation;
     tokens[startTokenIndex].translationSource = 'pattern';
+    tokens[startTokenIndex].patternSemanticType = matchResult.semanticType ?? null;
 
     // Mark subsequent matched tokens as consumed
     for (let i = 1; i < matchResult.matched.length; i++) {
