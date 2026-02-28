@@ -897,10 +897,27 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             </div>
           )}
 
-          {/* Semantic type badge picker - for phrases and proper nouns (not patterns — patterns use per-variable constraints instead) */}
-          {(activeDictionary === 'phrases' || activeDictionary.startsWith('properNouns')) && (
+          {/* Semantic type badge picker - for phrases, proper nouns, and patterns (output type) */}
+          {(activeDictionary === 'phrases' ||
+            activeDictionary.startsWith('properNouns') ||
+            activeDictionary === 'patterns') && (
             <div className={styles.formGroup}>
-              <label className={`${styles.label} ${styles.labelCentered}`}>Semantic Type</label>
+              <label className={`${styles.label} ${styles.labelCentered}`}>
+                {activeDictionary === 'patterns' ? 'Output Semantic Type' : 'Semantic Type'}
+              </label>
+              {activeDictionary === 'patterns' && (
+                <p
+                  style={{
+                    fontSize: '0.7rem',
+                    color: 'var(--text-muted, #6b7280)',
+                    margin: '0 0 0.4rem',
+                    textAlign: 'center',
+                  }}
+                >
+                  Type this pattern produces when used as a variable in another pattern. Leave blank
+                  to match any variable slot.
+                </p>
+              )}
               <div
                 role="radiogroup"
                 aria-label="Semantic type"
@@ -983,7 +1000,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             </div>
           )}
 
-          {/* Per-variable type constraints - only for patterns with variables */}
+          {/* Per-variable type constraints - only for patterns (below output type) */}
           {activeDictionary === 'patterns' &&
             (['X', 'Y'] as const)
               .filter((v) => source.includes(v))
