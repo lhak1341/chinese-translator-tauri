@@ -11,6 +11,7 @@
 
 import { logger } from './logger';
 import type { AppConfiguration } from '../types/ComponentTypes';
+import { SEMANTIC_TYPE_LIST } from '../constants/SemanticTypes';
 import { ValidationError } from './errors';
 export { ValidationError } from './errors';
 import type { ApiResult } from './resultHelpers';
@@ -246,13 +247,51 @@ export function validateRawDictionaryEntry(entry: unknown, source: string): Dict
       // Copy other metadata fields (extensibility)
       for (const [key, value] of Object.entries(meta)) {
         if (!['priority', 'lowPriority', 'isVariable'].includes(key)) {
-          validatedMeta[key] = value;
+          if (key === 'semanticType') {
+            if (typeof value === 'string' && SEMANTIC_TYPE_LIST.includes(value as never)) {
+              validatedMeta[key] = value;
+            } else {
+              logger.warn(`Unknown semanticType "${value}" for "${source}", ignoring`);
+            }
+          } else {
+            validatedMeta[key] = value;
+          }
         }
       }
 
       if (Object.keys(validatedMeta).length > 0) {
         (validated as { translation: string; metadata: Record<string, unknown> }).metadata =
           validatedMeta;
+      }
+    }
+
+    // Validate flat-format fields (current runtime format: top-level semanticType etc.)
+    if (!obj.metadata) {
+      if (obj.semanticType !== undefined) {
+        if (
+          typeof obj.semanticType === 'string' &&
+          SEMANTIC_TYPE_LIST.includes(obj.semanticType as never)
+        ) {
+          (validated as Record<string, unknown>).semanticType = obj.semanticType;
+        } else {
+          logger.warn(`Unknown semanticType "${obj.semanticType}" for "${source}", ignoring`);
+        }
+      }
+      if (obj.allowAsPatternVariable !== undefined) {
+        if (typeof obj.allowAsPatternVariable === 'boolean') {
+          (validated as Record<string, unknown>).allowAsPatternVariable =
+            obj.allowAsPatternVariable;
+        }
+      }
+      if (obj.lowPriority !== undefined) {
+        if (typeof obj.lowPriority === 'boolean') {
+          (validated as Record<string, unknown>).lowPriority = obj.lowPriority;
+        }
+      }
+      if (obj.allowedVariableTypes !== undefined) {
+        if (obj.allowedVariableTypes && typeof obj.allowedVariableTypes === 'object') {
+          (validated as Record<string, unknown>).allowedVariableTypes = obj.allowedVariableTypes;
+        }
       }
     }
 

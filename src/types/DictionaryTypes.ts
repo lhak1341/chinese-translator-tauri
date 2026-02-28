@@ -2,6 +2,8 @@
  * Shared type definitions for dictionary entries and metadata
  */
 
+import type { SemanticType } from '../constants/SemanticTypes';
+
 /**
  * Dictionary entry value type (can be string or object with metadata)
  * Used across all dictionary operations and components
@@ -12,7 +14,7 @@ export type DictionaryEntryValue =
       translation: string;
       allowAsPatternVariable?: boolean;
       lowPriority?: boolean;
-      semanticType?: string;
+      semanticType?: SemanticType;
       allowedVariableTypes?: Record<string, string[]>;
     };
 
@@ -22,7 +24,7 @@ export type DictionaryEntryValue =
 export interface DictionaryEntryMetadata {
   allowAsPatternVariable?: boolean;
   lowPriority?: boolean;
-  semanticType?: string;
+  semanticType?: SemanticType;
   allowedVariableTypes?: Record<string, string[]>;
 }
 

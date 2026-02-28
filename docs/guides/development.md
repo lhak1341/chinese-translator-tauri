@@ -495,6 +495,8 @@ Accumulated pitfalls confirmed across development sessions. Organized by area.
 
 **Adjacent variable tokens in WASM patterns are unreliable — avoid in pattern authoring** (2026-02-14): `wasm-core/src/pattern_processor/matcher.rs:638-651` uses a greedy shortest-span heuristic when two consecutive variable tokens appear in a pattern (no backtracking). Patterns with a single variable token, or variables separated by at least one literal token, work reliably.
 
+**`AdaptiveBufferCalculator` non-integer `bufferSize` corrupts virtual scroll** (`EnhancedVirtualizedDictionaryTable.tsx`): Medium tier used to return `visibleItems * 1.5` (e.g. `15 * 1.5 = 22.5`). Fixed at source in `AdaptiveVirtualScrolling.js:271` with `Math.floor(visibleItems * 1.5)`. Consumer `visibleRange` also floors defensively — keep both.
+
 ### Types / Imports
 
 **Dual `WasmTypes` implementations — DO NOT confuse** (2026-02-13): Two files with OPPOSITE `copyWasmTokens` conventions:
@@ -553,6 +555,40 @@ Swapping imports between production code and tests will silently reverse the cop
 **React Testing Library paragraph selector** (2026-02-13): `container.querySelectorAll('div > div')` matches both the component container AND paragraph children (RTL wraps everything in an extra div). Use `div > div > div` to select only paragraph-level divs inside a two-level component.
 
 **`PunctuationProcessor.isAlreadyProperlySpaced` regex — brackets not matched** (2026-02-13): `openingQuotePattern` embedded inside another `[...]` class closes early. The regex matches opening _quotes_ but NOT literal `[`/`(` brackets. Write tests using quote chars, not bracket chars.
+
+**`PatternMatchResult::success()` sets `pattern: None`**: The struct stores `pattern_id` (the `original_pattern` string) instead of cloning the full pattern. Tests must use `result.pattern_id.as_deref().unwrap()`, not `result.pattern.as_ref().unwrap()`.
+
+**`PatternParityTest.js` is dev-only — must stay as dynamic import**: `Translator.jsx` loads it via `await import(...)` inside the `window.runPatternParityTests` function body. Do NOT reintroduce as a static top-level import — it adds ~300 lines to the production bundle.
+
+**Removing `export` from a named export also requires cleaning its test describe blocks**: Vitest does not statically analyze — importing a non-exported named export throws `TypeError: ... is not a function` at runtime. When you un-export a function, find any `describe('functionName', ...)` blocks in the corresponding test file and remove them too.
+
+### CSS / UI Components
+
+**`DictionaryEntry` modal layout is intentionally center-aligned**: `.modal` has `text-align: center` and `.formGroup` has `align-items: center` — labels render centered. Utility buttons (`---a`, `-aaa` etc.) require `white-space: nowrap` or they break across lines when `flex: 1` is applied.
+
+**`EnhancedVirtualizedDictionaryTable` context menu buttons use CSS classes**: `Edit Entry`, `Move to...`, `Delete Entry` use `.contextMenuItem` / `.contextMenuItemDanger` from the CSS module with `:hover, :focus-visible` rules. Previously used JS `onMouseEnter`/`onMouseLeave` inline — do not revert.
+
+**CSS `repeating-linear-gradient` for virtual scroll row shading: put gradient on rows container, NOT spacer** (`EnhancedVirtualizedDictionaryTable.tsx`): CSS `background` uses the element's **layout** y-position, not visual/transformed position — `translateY` is irrelevant. With gradient on the spacer, rows always see it at slice-local y (layout y=0..N), causing parity flips on every scroll. Place gradient on the rows container (direct parent of rows); use `backgroundPositionY: (startIndex % 2) * ITEM_HEIGHT + 'px'` for phase correction; set all row `backgroundColor` to `transparent`.
+
+### Historical / Deleted {#deleted-symbols}
+
+**`WasmRegexUtils.js` singleton deleted**: File now exports only the `createWasmRegexUtils` async factory. Do not add a singleton back — it had zero production imports and lacked the required background-init call.
+
+**`WasmDictionaryManager.consecutiveFailures` does not exist as a field**: Was never initialized in the constructor — reads returned `undefined`. All `consecutiveFailures` reporting in `getPerformanceReport()` and `getSyncMetrics()` delegates to `this.fallbackHandler.getFailureCount()`. Do not add a local `this.consecutiveFailures` field.
+
+**`TextSanitization.ts` only exports `sanitizeDictionaryEntry`**: `validateSanitizedEntry` and `sanitizeAndValidate` were deleted — only internal callers of each other with no external importers. `sanitizeForJson` remains as a private helper called by `sanitizeDictionaryEntry`.
+
+**Deleted symbols — do not recreate:**
+
+- **`DictionaryTable.tsx` / `VirtualizedDictionaryTable.tsx`** (deleted 2026-02-15): Only `EnhancedVirtualizedDictionaryTable` is the active table component.
+- **`WasmPositionMapper`, `WasmNormalizer`, `WasmSegmentMatcher`, `PositionMappingValidator`, `PositionMappingBuilder`, `TranslationEngineFactory`** (deleted 2026-02-17): All had zero production imports.
+- **`buildSegmentsFromSemanticArrays`, `buildSimpleWordLevelSegments`, `findPositionOptimized`** (deleted 2026-02-20): Position tracking is now a byproduct of `assembleWithSpacing()`.
+- **`ViewportSegmentComputerEnhanced.js`, `SegmentWorkerManager.js`, `SegmentPositionWorker.js`, `WorkerTypes.d.ts`** (deleted 2026-02-20): Zero production imports; `SegmentPositionWorker.js` Web Worker path `/src/workers/SegmentPositionWorker.js` is gone.
+- **`AsyncInitializer.ts`** (deleted 2026-02-20): WASM modules each hand-roll their own promise-caching init pattern instead.
+- **`resultHelpers.ts` runtime helpers** (`throwIfFailed`, `getOrDefault`, `isSuccess`, `wrapOperation`, `mapResult`) deleted 2026-02-20: File now exports only the `ApiResult<T>` interface (used by `configValidation.ts`).
+- **`ByteFormatter.ts`, `ValidationHelpers.ts`, `CacheKeyGenerator.ts`, `ChineseNumberConverter.js`** (deleted 2026-02-21): Zero production importers.
+- **`src/wasm/translation_wasm_core_types.js` + `translation_wasm_core_types.d.ts`** (deleted 2026-02-21): Identity no-op wrappers — every function was `return value`.
+- **`src/utils/RegexHelpers.ts`** (deleted 2026-02-21): `escapeRegExp`, `precompilePatterns`, `precompileSortedPatterns` — zero importers.
 
 ---
 

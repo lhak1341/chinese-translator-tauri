@@ -554,10 +554,29 @@ export class SemanticPatternProcessor {
    * @param {string} source - Translation source (e.g., 'properNoun_pattern_variable')
    * @param {string} word - The actual word for enhanced classification (default: '')
    * @param {Object} metadata - Dictionary metadata with optional semanticType field (default: {})
-   * @returns {string} Variable type ('proper_noun', 'character', 'location', 'organization', 'concept', 'unknown')
+   * @returns {string} Variable type string used for allowedVariableTypes constraint matching.
+   *
+   * IMPORTANT: This method returns two distinct sets of strings:
+   *
+   * 1. **Canonical SemanticType values** (from SemanticTypes.ts) when `metadata.semanticType` is
+   *    set or when heuristic classification succeeds:
+   *    'character', 'location', 'organization', 'concept', 'object'
+   *    These match the values stored in dictionary JSON and used in allowedVariableTypes constraints.
+   *
+   * 2. **Internal discriminator strings** returned only as heuristic fallbacks when no
+   *    explicit semanticType exists. These are NOT canonical SemanticType values:
+   *    - 'proper_noun' — generic proper noun without explicit type; TwoPhasePatternProcessor
+   *      special-cases this to null (always include). See TwoPhasePatternProcessor.js shouldInclude().
+   *    - 'character_unit' — character dictionary entry (individual hanzi, not a character name)
+   *    - 'unknown' — no information available
+   *
+   *    Tokens classified as 'character_unit' or 'unknown' will FAIL allowedVariableTypes
+   *    constraints that require canonical types (e.g. 'character'). This is intentional:
+   *    untyped character-dictionary entries are not the same as named characters.
    */
   classifyVariableType(source, word = '', metadata = {}) {
-    // Use explicit semantic type from dictionary metadata if available
+    // Use explicit semantic type from dictionary metadata if available.
+    // Returns a canonical SemanticType value ('character', 'location', etc.)
     if (metadata?.semanticType) {
       return metadata.semanticType;
     }
@@ -566,27 +585,29 @@ export class SemanticPatternProcessor {
     if (source?.includes('properNoun')) {
       // Try to infer semantic type from dictionary name for proper nouns
       if (source.includes('HarryPotter') || source.includes('DuongThan')) {
-        return 'character'; // Character names from novel dictionaries
+        return 'character'; // Character names from novel dictionaries (canonical)
       }
 
       // For generic proper nouns, try heuristic classification first
       if (word) {
         const heuristicType = this.getHeuristicType(word);
         if (heuristicType !== 'unknown') {
-          return heuristicType;
+          return heuristicType; // Returns canonical type or 'unknown'
         }
       }
 
-      return 'proper_noun'; // Generic proper noun fallback
+      // Internal discriminator: TwoPhasePatternProcessor maps this to null (always include)
+      return 'proper_noun';
     }
 
     if (source?.includes('phrase')) {
-      // Phrases can represent various semantic concepts
-      return 'concept';
+      return 'concept'; // Canonical SemanticType
     }
 
     if (source?.includes('character')) {
-      return 'character_unit'; // Individual character vs character name distinction
+      // Internal discriminator: individual hanzi, not a named character.
+      // Fails 'character' allowedVariableTypes constraints intentionally.
+      return 'character_unit';
     }
 
     // Heuristic-based classification for words without metadata
@@ -594,7 +615,7 @@ export class SemanticPatternProcessor {
       return this.getHeuristicType(word);
     }
 
-    return 'unknown';
+    return 'unknown'; // Internal discriminator: no constraint matching
   }
 
   /**

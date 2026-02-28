@@ -24,7 +24,12 @@ import type {
   EditingEntryData,
   MoveEntryData,
 } from '../../types/DictionaryTypes';
-import { SEMANTIC_TYPE_COLORS, SEMANTIC_TYPES } from '../../constants/SemanticTypes';
+import {
+  SEMANTIC_TYPE_COLORS,
+  SEMANTIC_TYPE_ABBREVIATIONS,
+  SEMANTIC_TYPE_LIST,
+  SEMANTIC_TYPES,
+} from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
 /**
@@ -374,16 +379,6 @@ const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
   );
 };
 
-const SEMANTIC_TYPE_SHORT_LABELS: Record<string, string> = {
-  [SEMANTIC_TYPES.CHARACTER]: 'CHA',
-  [SEMANTIC_TYPES.LOCATION]: 'LOC',
-  [SEMANTIC_TYPES.ORGANIZATION]: 'ORG',
-  [SEMANTIC_TYPES.CONCEPT]: 'CON',
-  [SEMANTIC_TYPES.OBJECT]: 'OBJ',
-};
-
-const SEMANTIC_TYPE_CYCLE_LIST = ['character', 'location', 'organization', 'concept', 'object'];
-
 /**
  * Cell with 4 toggleable type chips (PER/PLA/CON/OBJ) for a pattern variable column.
  */
@@ -420,9 +415,9 @@ const TypeToggleCell: React.FC<{
         flexWrap: 'nowrap',
       }}
     >
-      {SEMANTIC_TYPE_CYCLE_LIST.map((type) => {
+      {SEMANTIC_TYPE_LIST.map((type) => {
         const isActive = activeTypes.includes(type);
-        const label = SEMANTIC_TYPE_SHORT_LABELS[type];
+        const label = SEMANTIC_TYPE_ABBREVIATIONS[type];
         const color = SEMANTIC_TYPE_COLORS[type as SemanticType];
         return (
           <span
@@ -471,9 +466,9 @@ const SemanticTypeToggleCell: React.FC<{
         flexWrap: 'nowrap',
       }}
     >
-      {SEMANTIC_TYPE_CYCLE_LIST.map((type) => {
+      {SEMANTIC_TYPE_LIST.map((type) => {
         const isActive = activeType === type;
-        const label = SEMANTIC_TYPE_SHORT_LABELS[type];
+        const label = SEMANTIC_TYPE_ABBREVIATIONS[type];
         const color = SEMANTIC_TYPE_COLORS[type as SemanticType];
         return (
           <span
@@ -2304,7 +2299,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       fontWeight: 600,
                     }}
                   >
-                    {SEMANTIC_TYPE_SHORT_LABELS[type]}
+                    {SEMANTIC_TYPE_ABBREVIATIONS[type]}
                   </button>
                 );
               })}

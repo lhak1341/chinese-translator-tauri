@@ -10,6 +10,7 @@ import {
   SEMANTIC_TYPE_ABBREVIATIONS,
   SEMANTIC_TYPE_COLORS,
 } from '../../constants/SemanticTypes';
+import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
 import {
   titleCaseWords,
@@ -90,9 +91,9 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       entry?.lowPriority ||
       false
   );
-  const [semanticType, setSemanticType] = useState<string>(
+  const [semanticType, setSemanticType] = useState<SemanticType | ''>(
     (typeof entry?.translation === 'object' && entry.translation?.semanticType) ||
-      (selectedDictionary.startsWith('properNouns') ? 'character' : '')
+      (!entry && selectedDictionary.startsWith('properNouns') ? 'character' : '')
   );
   const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
     (typeof entry?.translation === 'object' && entry.translation?.allowedVariableTypes) || {}

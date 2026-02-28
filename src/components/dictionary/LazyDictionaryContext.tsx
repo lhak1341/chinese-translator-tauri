@@ -447,15 +447,15 @@ export function LazyDictionaryProvider({
             metadata.semanticType !== undefined ||
             metadata.allowedVariableTypes !== undefined)
         ) {
-          targetValue = {
+          const entryValue: Extract<DictionaryEntryValue, { translation: string }> = {
             translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
-            ...(metadata.semanticType && { semanticType: metadata.semanticType }),
-            ...(metadata.allowedVariableTypes && {
-              allowedVariableTypes: metadata.allowedVariableTypes,
-            }),
           };
+          if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
+          if (metadata.allowedVariableTypes)
+            entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
+          targetValue = entryValue;
         }
 
         const updatedDictionary = { ...oldData, [cleanSource]: targetValue };
@@ -552,15 +552,15 @@ export function LazyDictionaryProvider({
             metadata.semanticType !== undefined ||
             metadata.allowedVariableTypes !== undefined)
         ) {
-          targetValue = {
+          const entryValue: Extract<DictionaryEntryValue, { translation: string }> = {
             translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
-            ...(metadata.semanticType && { semanticType: metadata.semanticType }),
-            ...(metadata.allowedVariableTypes && {
-              allowedVariableTypes: metadata.allowedVariableTypes,
-            }),
           };
+          if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
+          if (metadata.allowedVariableTypes)
+            entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
+          targetValue = entryValue;
         }
 
         updatedDictionary[cleanNewSource] = targetValue;

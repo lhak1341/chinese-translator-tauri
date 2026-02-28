@@ -273,15 +273,15 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             metadata.semanticType !== undefined ||
             metadata.allowedVariableTypes !== undefined)
         ) {
-          targetValue = {
+          const entryValue: Extract<DictionaryEntryValue, { translation: string }> = {
             translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
-            ...(metadata.semanticType && { semanticType: metadata.semanticType }),
-            ...(metadata.allowedVariableTypes && {
-              allowedVariableTypes: metadata.allowedVariableTypes,
-            }),
           };
+          if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
+          if (metadata.allowedVariableTypes)
+            entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
+          targetValue = entryValue;
         }
 
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
@@ -373,15 +373,15 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             metadata.semanticType !== undefined ||
             metadata.allowedVariableTypes !== undefined)
         ) {
-          targetValue = {
+          const entryValue: Extract<DictionaryEntryValue, { translation: string }> = {
             translation: cleanTranslation,
             allowAsPatternVariable: metadata.allowAsPatternVariable,
             lowPriority: metadata.lowPriority,
-            ...(metadata.semanticType && { semanticType: metadata.semanticType }),
-            ...(metadata.allowedVariableTypes && {
-              allowedVariableTypes: metadata.allowedVariableTypes,
-            }),
           };
+          if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
+          if (metadata.allowedVariableTypes)
+            entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
+          targetValue = entryValue;
         }
 
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)

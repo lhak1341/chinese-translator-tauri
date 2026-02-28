@@ -6,6 +6,8 @@ import styles from '../../styles/MoveEntryDialog.module.css';
 import { logger } from '../../utils/logger';
 import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
 import type { MoveEntryData, DictionaryEntryMetadata } from '../../types/DictionaryTypes';
+import { SEMANTIC_TYPE_LABELS } from '../../constants/SemanticTypes';
+import type { SemanticType } from '../../constants/SemanticTypes';
 
 /**
  * Full entry data with all metadata extracted from dictionary
@@ -253,7 +255,10 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
                       <span className={styles.metadataTag}>Low Priority</span>
                     )}
                     {fullEntry.metadata.semanticType && (
-                      <span className={styles.metadataTag}>{fullEntry.metadata.semanticType}</span>
+                      <span className={styles.metadataTag}>
+                        {SEMANTIC_TYPE_LABELS[fullEntry.metadata.semanticType as SemanticType] ??
+                          fullEntry.metadata.semanticType}
+                      </span>
                     )}
                   </div>
                 )}

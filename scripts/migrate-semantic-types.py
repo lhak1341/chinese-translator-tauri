@@ -23,8 +23,12 @@ RENAMES = {
 
 
 def migrate_file(path):
-    with open(path, encoding='utf-8') as f:
-        data = json.load(f)
+    try:
+        with open(path, encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f'  WARNING: skipping {os.path.basename(path)}: {e}')
+        return 0
 
     changed = 0
     for key, value in data.items():
