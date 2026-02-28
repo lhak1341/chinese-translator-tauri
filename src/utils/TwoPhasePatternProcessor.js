@@ -212,8 +212,8 @@ class TwoPhasePatternProcessor {
       // Check single token
       const singleResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
       if (singleResult?.metadata?.allowAsPatternVariable) {
-        const singleType = singleResult.metadata?.semanticType || 'phrase';
-        if (shouldInclude(singleType === 'phrase' ? null : singleType)) {
+        const singleType = singleResult.metadata?.semanticType || 'concept';
+        if (shouldInclude(singleType)) {
           cache[tokens[i].value] = {
             translation: singleResult.translation,
             source: 'phrases_pattern_variable',
@@ -230,8 +230,8 @@ class TwoPhasePatternProcessor {
           .join('');
         const multiResult = dictionaryManager.translate(combinedText, ['phrases']);
         if (multiResult?.metadata?.allowAsPatternVariable) {
-          const multiType = multiResult.metadata?.semanticType || 'phrase';
-          if (shouldInclude(multiType === 'phrase' ? null : multiType)) {
+          const multiType = multiResult.metadata?.semanticType || 'concept';
+          if (shouldInclude(multiType)) {
             cache[combinedText] = {
               translation: multiResult.translation,
               source: 'phrases_pattern_variable',

@@ -416,7 +416,11 @@ export class SemanticPatternProcessor {
         this.variableCache.set(tokens[i].value, {
           translation: singleTokenResult.translation,
           source: 'phrases_pattern_variable',
-          type: 'phrase',
+          type: this.classifyVariableType(
+            'phrases_pattern_variable',
+            tokens[i].value,
+            singleTokenResult.metadata
+          ),
         });
       }
 
@@ -430,7 +434,11 @@ export class SemanticPatternProcessor {
           this.variableCache.set(combinedText, {
             translation: multiTokenResult.translation,
             source: 'phrases_pattern_variable',
-            type: 'phrase',
+            type: this.classifyVariableType(
+              'phrases_pattern_variable',
+              combinedText,
+              multiTokenResult.metadata
+            ),
           });
         }
       }
@@ -755,7 +763,7 @@ export class SemanticPatternProcessor {
       };
     }
 
-    this.initializePatterns(patternsDict, options);
+    await this.initializePatterns(patternsDict, options);
 
     // Build variable cache with Phase A results if provided
     const phaseAResults = options.phaseAResults || [];
@@ -1034,7 +1042,12 @@ export class SemanticPatternProcessor {
         continue;
       }
 
-      if (token.type === 'chinese_char' || token.type === 'chinese_word') {
+      if (
+        token.type === 'chinese_char' ||
+        token.type === 'chinese_word' ||
+        token.type === 'latin_word' ||
+        token.type === 'number'
+      ) {
         semanticTokens.push({
           ...token,
           originalIndex: i,
@@ -1408,19 +1421,11 @@ export class SemanticPatternProcessor {
     // CHECK FOR PHASE A OVERRIDE: If this pattern spans tokens protected by Phase A,
     // check if this pattern is longer than the Phase A pattern(s) it would override
     let hasPhaseAProtection = false;
-    let maxPhaseALength = 0;
 
     for (let i = position; i < currentPosition; i++) {
-      const token = semanticTokens[i];
-      if (token.protectedByPhaseA) {
+      if (semanticTokens[i].protectedByPhaseA) {
         hasPhaseAProtection = true;
-        // Check the length of the Phase A pattern that protected this token
-        if (token.phaseAResult && token.phaseAResult.originalText) {
-          const phaseAPatternLength =
-            token.phaseAResult.pattern?.originalPattern?.length ||
-            token.phaseAResult.originalText.length;
-          maxPhaseALength = Math.max(maxPhaseALength, phaseAPatternLength);
-        }
+        break;
       }
     }
 
@@ -1513,10 +1518,11 @@ export class SemanticPatternProcessor {
     if (options.semanticArrayBuilder) {
       // Calculate global position accounting for chunk offset
       const globalTokenIndex = firstIndex + (options.chunkOffset || 0);
+      const originalText = matchResult.matchedTokens.map((t) => t.value).join('');
       options.semanticArrayBuilder.addUnit(
         originalText,
         matchResult.result,
-        'patterns',
+        'pattern',
         globalTokenIndex
       );
     }
