@@ -1912,7 +1912,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const isProperNounsDictionary = selectedDictionary.startsWith('properNouns');
   const showPatternFilter = isPatternsDictionary;
   const showVariableFilter = isPhrasesDictionary; // phrases only; patterns use showPatternFilter
-  const showSemanticTypeFilter = isPhrasesDictionary || isProperNounsDictionary;
+  const showSemanticTypeFilter =
+    isPhrasesDictionary || isProperNounsDictionary || isPatternsDictionary;
   const hasFilterOptions = showPatternFilter || showVariableFilter || showSemanticTypeFilter;
   const hasActiveFilter =
     filterVariable !== 'all' ||
