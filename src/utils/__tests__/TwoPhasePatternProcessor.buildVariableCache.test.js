@@ -54,7 +54,7 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
         value: '刘备',
         translated: 'Lưu Bị',
         translationSource: 'pattern',
-        patternSemanticType: 'person',
+        patternSemanticType: 'character',
         type: 'chinese_word',
       },
     ];
@@ -67,7 +67,7 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
     expect(cache['刘备']).toEqual({
       translation: 'Lưu Bị',
       source: 'pattern',
-      type: 'person',
+      type: 'character',
     });
   });
 
@@ -220,7 +220,7 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
         value: '李白',
         translated: 'Lý Bạch (pattern)',
         translationSource: 'pattern',
-        patternSemanticType: 'person',
+        patternSemanticType: 'character',
         type: 'chinese_word',
       },
     ];
@@ -231,7 +231,7 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
     });
 
     // Phase 1b runs after Phase 1, so pattern entry overwrites proper-noun entry
-    expect(cache['李白'].type).toBe('person');
+    expect(cache['李白'].type).toBe('character');
     expect(cache['李白'].source).toBe('pattern');
     expect(cache['李白'].translation).toBe('Lý Bạch (pattern)');
   });
@@ -243,7 +243,7 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
         value: '皇帝',
         translated: 'hoàng đế',
         translationSource: 'pattern',
-        patternSemanticType: 'person',
+        patternSemanticType: 'character',
         type: 'chinese_word',
       },
       {
@@ -263,7 +263,7 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
     expect(cache['皇帝']).toEqual({
       translation: 'hoàng đế',
       source: 'pattern',
-      type: 'person',
+      type: 'character',
     });
     expect(cache['宫殿']).toEqual({
       translation: 'cung điện',

@@ -375,13 +375,14 @@ const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
 };
 
 const SEMANTIC_TYPE_SHORT_LABELS: Record<string, string> = {
-  [SEMANTIC_TYPES.PERSON]: 'PER',
-  [SEMANTIC_TYPES.PLACE]: 'PLA',
+  [SEMANTIC_TYPES.CHARACTER]: 'CHA',
+  [SEMANTIC_TYPES.LOCATION]: 'LOC',
+  [SEMANTIC_TYPES.ORGANIZATION]: 'ORG',
   [SEMANTIC_TYPES.CONCEPT]: 'CON',
   [SEMANTIC_TYPES.OBJECT]: 'OBJ',
 };
 
-const SEMANTIC_TYPE_CYCLE_LIST = ['person', 'place', 'concept', 'object'];
+const SEMANTIC_TYPE_CYCLE_LIST = ['character', 'location', 'organization', 'concept', 'object'];
 
 /**
  * Cell with 4 toggleable type chips (PER/PLA/CON/OBJ) for a pattern variable column.
@@ -396,7 +397,7 @@ const TypeToggleCell: React.FC<{
     return (
       <div
         style={{
-          width: '10%',
+          width: '13%',
           padding: '0 0.25rem',
           display: 'flex',
           alignItems: 'center',
@@ -410,7 +411,7 @@ const TypeToggleCell: React.FC<{
   return (
     <div
       style={{
-        width: '10%',
+        width: '13%',
         padding: '0 0.25rem',
         display: 'flex',
         alignItems: 'center',
@@ -457,7 +458,7 @@ const SemanticTypeToggleCell: React.FC<{
   activeType: string;
   onSelect: (type: string) => void;
   width?: string;
-}> = ({ activeType, onSelect, width = '12%' }) => {
+}> = ({ activeType, onSelect, width = '15%' }) => {
   return (
     <div
       style={{
@@ -696,7 +697,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
       }
     };
 
-    // Render pattern row: checkbox | source (25%) | translation+badges (43%) | semantic (12%) | X types (10%) | Y types (10%)
+    // Render pattern row: checkbox | source (25%) | translation+badges (34%) | semantic (15%) | X types (13%) | Y types (13%)
     if (selectedDictionary === 'patterns') {
       const hasX = source.includes('X');
       const hasY = source.includes('Y');
@@ -746,8 +747,8 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {/* Translation - 43% with VAR/LP badges */}
-          <div className={styles.cellEditable} style={{ width: '43%' }}>
+          {/* Translation - 34% with VAR/LP badges */}
+          <div className={styles.cellEditable} style={{ width: '34%' }}>
             {editingTranslation ? (
               <input
                 type="text"
@@ -785,18 +786,18 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {/* Semantic type - 12% (only shown when pattern can be used as a variable) */}
+          {/* Semantic type - 15% (only shown when pattern can be used as a variable) */}
           {allowAsPatternVariable ? (
             <SemanticTypeToggleCell
               activeType={semanticType}
               onSelect={handleSetSemanticType}
-              width="12%"
+              width="15%"
             />
           ) : (
-            <div style={{ width: '12%', minWidth: '12%' }} />
+            <div style={{ width: '15%', minWidth: '15%' }} />
           )}
 
-          {/* X type constraints - 10% */}
+          {/* X type constraints - 13% */}
           <TypeToggleCell
             varName="X"
             hasVariable={hasX}
@@ -804,7 +805,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             onToggle={handleToggleVariableType}
           />
 
-          {/* Y type constraints - 10% */}
+          {/* Y type constraints - 13% */}
           <TypeToggleCell
             varName="Y"
             hasVariable={hasY}
@@ -871,10 +872,10 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {/* Translation - calc(63% - 20px) with VAR badge */}
+          {/* Translation - calc(60% - 20px) with VAR badge */}
           <div
             style={{
-              width: 'calc(63% - 20px)',
+              width: 'calc(60% - 20px)',
               padding: '0.25rem 0.75rem',
               display: 'flex',
               alignItems: 'center',
@@ -914,15 +915,15 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
             )}
           </div>
 
-          {/* Semantic type - 12% (only shown when entry is allowed as pattern variable) */}
+          {/* Semantic type - 15% (only shown when entry is allowed as pattern variable) */}
           {allowAsPatternVariable ? (
             <SemanticTypeToggleCell
               activeType={semanticType}
               onSelect={handleSetSemanticType}
-              width="12%"
+              width="15%"
             />
           ) : (
-            <div style={{ width: '12%', minWidth: '12%' }} />
+            <div style={{ width: '15%', minWidth: '15%' }} />
           )}
         </div>
       );
@@ -931,7 +932,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
     // Layout for simple dictionaries (with selection checkbox)
     const isProperNoun = selectedDictionary.startsWith('properNouns');
     const sourceWidth = isProperNoun ? 'calc(25% - 20px)' : 'calc(35% - 20px)';
-    const translationWidth = isProperNoun ? 'calc(63% - 20px)' : 'calc(65% - 20px)';
+    const translationWidth = isProperNoun ? 'calc(60% - 20px)' : 'calc(65% - 20px)';
 
     return (
       <div
@@ -1055,7 +1056,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
           <SemanticTypeToggleCell
             activeType={semanticType}
             onSelect={handleSetSemanticType}
-            width="12%"
+            width="15%"
           />
         )}
       </div>
@@ -2502,7 +2503,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '43%',
+                      width: '34%',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
@@ -2512,7 +2513,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '12%',
+                      width: '15%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       fontSize: '0.75rem',
@@ -2524,7 +2525,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '10%',
+                      width: '13%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       fontSize: '0.75rem',
@@ -2536,7 +2537,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '10%',
+                      width: '13%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       fontSize: '0.75rem',
@@ -2581,7 +2582,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: 'calc(63% - 20px)',
+                      width: 'calc(60% - 20px)',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
@@ -2591,7 +2592,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '12%',
+                      width: '15%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       fontSize: '0.75rem',
@@ -2636,7 +2637,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: 'calc(63% - 20px)',
+                      width: 'calc(60% - 20px)',
                       padding: '0.5rem 0.75rem',
                       fontWeight: 'bold',
                     }}
@@ -2645,7 +2646,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   </div>
                   <div
                     style={{
-                      width: '12%',
+                      width: '15%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       fontSize: '0.75rem',

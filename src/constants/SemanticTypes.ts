@@ -1,6 +1,7 @@
 export const SEMANTIC_TYPES = {
-  PERSON: 'person',
-  PLACE: 'place',
+  CHARACTER: 'character',
+  LOCATION: 'location',
+  ORGANIZATION: 'organization',
   CONCEPT: 'concept',
   OBJECT: 'object',
 } as const;
@@ -8,8 +9,9 @@ export const SEMANTIC_TYPES = {
 export type SemanticType = (typeof SEMANTIC_TYPES)[keyof typeof SEMANTIC_TYPES];
 
 export const SEMANTIC_TYPE_LABELS: Record<SemanticType, string> = {
-  person: 'Person',
-  place: 'Place',
+  character: 'Character',
+  location: 'Location',
+  organization: 'Organization',
   concept: 'Concept',
   object: 'Object',
 };
@@ -17,8 +19,9 @@ export const SEMANTIC_TYPE_LABELS: Record<SemanticType, string> = {
 export const SEMANTIC_TYPE_LIST: SemanticType[] = Object.values(SEMANTIC_TYPES);
 
 export const SEMANTIC_TYPE_COLORS: Record<SemanticType, string> = {
-  person: '#2563eb',
-  place: '#059669',
+  character: '#2563eb',
+  location: '#059669',
+  organization: '#dc2626',
   concept: '#7c3aed',
   object: '#ea580c',
 };

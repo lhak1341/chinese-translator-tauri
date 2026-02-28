@@ -554,7 +554,7 @@ export class SemanticPatternProcessor {
    * @param {string} source - Translation source (e.g., 'properNoun_pattern_variable')
    * @param {string} word - The actual word for enhanced classification (default: '')
    * @param {Object} metadata - Dictionary metadata with optional semanticType field (default: {})
-   * @returns {string} Variable type ('proper_noun', 'character', 'place', 'person', 'concept', 'unknown')
+   * @returns {string} Variable type ('proper_noun', 'character', 'location', 'organization', 'concept', 'unknown')
    */
   classifyVariableType(source, word = '', metadata = {}) {
     // Use explicit semantic type from dictionary metadata if available
@@ -605,7 +605,7 @@ export class SemanticPatternProcessor {
    * (common surnames), and concept indicators (法, 术, 道).
    *
    * @param {string} word - Chinese word to analyze
-   * @returns {string} Inferred semantic type ('place', 'person', 'concept', 'unknown')
+   * @returns {string} Inferred semantic type ('location', 'character', 'concept', 'unknown')
    */
   getHeuristicType(word) {
     if (!word) return 'unknown';
@@ -626,7 +626,7 @@ export class SemanticPatternProcessor {
       word.endsWith('海') ||
       word.endsWith('川')
     ) {
-      return 'place';
+      return 'location';
     }
 
     // Person indicators
@@ -636,7 +636,7 @@ export class SemanticPatternProcessor {
         word
       )
     ) {
-      return 'person';
+      return 'character';
     }
 
     // Object/concept indicators

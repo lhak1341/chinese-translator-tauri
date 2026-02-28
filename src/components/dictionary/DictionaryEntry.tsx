@@ -91,7 +91,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   );
   const [semanticType, setSemanticType] = useState<string>(
     (typeof entry?.translation === 'object' && entry.translation?.semanticType) ||
-      (selectedDictionary.startsWith('properNouns') ? 'person' : '')
+      (selectedDictionary.startsWith('properNouns') ? 'character' : '')
   );
   const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
     (typeof entry?.translation === 'object' && entry.translation?.allowedVariableTypes) || {}
