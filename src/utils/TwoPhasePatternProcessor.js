@@ -126,11 +126,6 @@ class TwoPhasePatternProcessor {
     const activeProperNouns = options.activeProperNouns || [];
     const dictionaryManager = options.dictionaryManager;
 
-    if (!dictionaryManager) {
-      // No dictionary manager, return empty cache
-      return cache;
-    }
-
     // Performance optimization: pre-scan patterns for required variable types
     // If patterns specify allowedVariableTypes, we can skip cache entries of unneeded types
     let requiredTypes = null;
@@ -190,15 +185,21 @@ class TwoPhasePatternProcessor {
           token.translationSource === 'hierarchical_patterns' ||
           token.translationSource === 'hierarchical_patterns_composite')
       ) {
-        cache[token.value] = {
-          translation: token.translated,
-          source: token.translationSource,
-          type: token.patternSemanticType,
-        };
+        if (shouldInclude(token.patternSemanticType)) {
+          cache[token.value] = {
+            translation: token.translated,
+            source: token.translationSource,
+            type: token.patternSemanticType,
+          };
+        }
       }
     }
 
     // 2. Cache phrase translations with allowAsPatternVariable flag
+    if (!dictionaryManager) {
+      // No dictionary manager — Phases 1 and 1b have run; nothing more to do
+      return cache;
+    }
     // Check both single tokens AND multi-character combinations
     const start2 = performance.now();
     for (let i = 0; i < tokens.length; i++) {
