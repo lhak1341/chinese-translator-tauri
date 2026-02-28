@@ -803,11 +803,15 @@ export class SemanticPatternProcessor {
 
         results.push(result);
 
-        // Mark tokens as consumed to prevent overlap
+        // Mark tokens as consumed to prevent overlap.
+        // CONSUMED TOKEN CONTRACT: both fields must be set together so that any code path
+        // (including postProcess on exception) sees a contract-compliant state.
+        // applyPatternMatch will overwrite leader[0] with the actual translation later.
         for (const matchedToken of matchResult.matchedTokens) {
           const tokenIndex = matchedToken.originalIndex;
           if (tokens[tokenIndex]) {
             tokens[tokenIndex].translationSource = 'pattern_consumed';
+            tokens[tokenIndex].translated = null; // Direction A: consumed source → translated must be null
           }
         }
 

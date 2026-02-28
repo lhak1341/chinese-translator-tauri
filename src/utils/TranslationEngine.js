@@ -2375,7 +2375,17 @@ export class TranslationEngine {
   }
 
   /**
-   * Resolve conflicts between overlapping phrase and pattern matches
+   * Resolve conflicts between overlapping phrase and pattern matches (Phase 2 — proper noun pass).
+   *
+   * PRIORITY ORDER INTENTIONALLY DIFFERS from resolveGlobalConflicts (Phase 4):
+   * Here patterns (priority 2) beat regular phrases (priority 5) at equal length, because Phase 1
+   * structural patterns have already consumed their tokens — any residual 'pattern' type entry
+   * competing here is a direct phrase–pattern overlap that the pattern should win.
+   * resolveGlobalConflicts (phrase-only pass) inverts this: phrases beat patterns at equal length
+   * because by Phase 4 all pattern tokens are consumed and pattern entries are residual.
+   * Sibling function: resolveGlobalConflicts (~line 2714, Phase 4) — algorithm changes to one
+   * must be manually mirrored in the other.
+   *
    * @param {Array} potentialMatches - Array of potential matches
    * @param {Token[]} tokens - Array of tokens
    * @returns {Array} Non-overlapping resolved matches
@@ -2698,12 +2708,20 @@ export class TranslationEngine {
   }
 
   /**
-   * Global conflict resolution using longest-match-first with smart prioritization
+   * Global conflict resolution using longest-match-first with smart prioritization (Phase 4 — phrase pass).
+   *
+   * PRIORITY ORDER INTENTIONALLY DIFFERS from resolveMatchConflicts (Phase 2):
+   * Here phrases (type priority 1) beat patterns (type priority 2) at equal length because by Phase 4
+   * all Phase 1 structural-pattern tokens are already consumed; any remaining 'pattern' entry is residual
+   * and should yield to a phrase of equal length.
+   * resolveMatchConflicts (Phase 2, proper-noun pass) inverts this: patterns beat regular phrases
+   * because it runs before Phase 1 consumption is complete.
+   * Sibling function: resolveMatchConflicts (~line 2383, Phase 2) — algorithm changes to one
+   * must be manually mirrored in the other.
    *
    * NOTE: find_best_pattern_match() in matcher.rs is NOT a Rust counterpart of this function —
    * that selects the best pattern at a single position (Phase 1). This function runs greedy
-   * interval scheduling across ALL positions at once (Phase 4). The real sibling with similar
-   * logic is resolveMatchConflicts() (~line 2381, Phase 2) — changes to one must mirror the other.
+   * interval scheduling across ALL positions at once (Phase 4).
    * Rust parity validator: wasm-core/tests/conflict_resolution_parity_test.rs
    * Match length indicates better context coverage and prevents substring collisions
    *
@@ -4396,7 +4414,7 @@ export class TranslationEngine {
             this.semanticArrayBuilder.addUnit(
               token.value, // original
               token.value, // translated (same as original for pass-through)
-              'passthrough', // source type
+              'characters', // source type — lowest recognised priority (5), appropriate for pass-through
               i + (options.chunkOffset || 0) // global token index
             );
             break;
@@ -7665,7 +7683,7 @@ export class TranslationEngine {
           continue;
         }
 
-        if (token.translationSource.includes('consumed')) {
+        if (token.translationSource.includes('_consumed')) {
           // Direction A: consumed tokens MUST have translated=null (not undefined!)
           if (token.translated !== null) {
             logger.error(
@@ -8165,7 +8183,7 @@ export class TranslationEngine {
                     this.semanticArrayBuilder.addUnit(
                       originalText,
                       token.translated,
-                      'numbers',
+                      'number_conversion',
                       globalTokenIndex
                     );
                   } else {

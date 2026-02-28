@@ -285,6 +285,16 @@ class TwoPhasePatternProcessor {
 
       for (const match of allProperNounMatches) {
         if (match.word && match.translation) {
+          // Defensive: if a phrase entry leaks through (actualProperNounDictionaries excludes 'phrases',
+          // so this guard should not fire in practice) apply the same allowAsPatternVariable gate used
+          // in step 2. Mirrors SemanticPatternProcessor.buildVariableCache full-text scan guard.
+          if (match.dictionary === 'phrases') {
+            const phrasesResult = dictionaryManager.translate(match.word, ['phrases']);
+            if (phrasesResult?.metadata?.allowAsPatternVariable !== true) {
+              continue;
+            }
+          }
+          // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate needed.
           const matchType = match.metadata?.semanticType || 'proper_noun';
           if (shouldInclude(matchType === 'proper_noun' ? null : matchType)) {
             cache[match.word] = {
