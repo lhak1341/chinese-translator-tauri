@@ -30,15 +30,15 @@ pub struct SemanticToken {
     pub original_index: usize,
 
     /// Whether protected by Phase A pattern
-    #[serde(rename = "protectedByPhaseA", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "protectedByPhaseA", default, skip_serializing_if = "Option::is_none")]
     pub protected_by_phase_a: Option<bool>,
 
     /// Phase A result if protected
-    #[serde(rename = "phaseAResult", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "phaseAResult", default, skip_serializing_if = "Option::is_none")]
     pub phase_a_result: Option<PhaseAResult>,
 
     /// Translation source marker
-    #[serde(rename = "translationSource", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "translationSource", default, skip_serializing_if = "Option::is_none")]
     pub translation_source: Option<String>,
 }
 
@@ -50,6 +50,7 @@ pub struct PhaseAResult {
     pub original_text: String,
 
     /// Pattern that matched (optional)
+    #[serde(default)]
     pub pattern: Option<PhaseAPattern>,
 }
 
@@ -70,7 +71,7 @@ pub struct VariableCacheEntry {
     pub source: String,
 
     /// Variable type (e.g., "proper-noun", "phrase", "character")
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub var_type: Option<String>,
 }
 
