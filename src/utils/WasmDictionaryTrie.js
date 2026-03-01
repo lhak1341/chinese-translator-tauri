@@ -1,3 +1,4 @@
+// @ts-check
 import init, { WasmDictionaryTrie } from '../wasm/translation_wasm_core.js';
 import { logger } from './logger';
 
@@ -190,7 +191,7 @@ export class WasmDictionaryTrieWrapper {
  * Convenience function for creating and initializing a trie in one step.
  *
  * @param {string} name - Dictionary name
- * @param {Array<Object>} entries - Dictionary entries (optional, can be loaded later)
+ * @param {Array<{chars: string, translation: string, priority?: number, metadata?: string}>|null} [entries] - Dictionary entries (optional, can be loaded later)
  * @returns {Promise<WasmDictionaryTrieWrapper>} Initialized trie wrapper
  */
 export async function createWasmDictionaryTrie(name, entries = null) {

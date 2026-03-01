@@ -1,3 +1,4 @@
+// @ts-check
 import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS } from '../constants/toastConfig';
@@ -34,13 +35,14 @@ export class FallbackManager {
   /**
    * Create a new FallbackManager
    *
-   * @param {Object} options - Configuration options
-   * @param {string} options.systemName - Human-readable system name (for logging)
-   * @param {number} [options.maxFailures=3] - Consecutive failures before fallback
-   * @param {string} options.toastMessage - User-facing fallback notification message
-   * @param {string} options.toastId - Unique toast ID (prevents duplicates)
-   * @param {number} [options.toastDuration] - Toast display duration (default: TOAST_DURATIONS.LOAD_FAILURE)
+   * @param {{ systemName: string, maxFailures?: number, toastMessage: string, toastId: string, toastDuration?: number }} options - Configuration options
+   *   systemName: Human-readable system name (for logging)
+   *   maxFailures: Consecutive failures before fallback (default: 3)
+   *   toastMessage: User-facing fallback notification message
+   *   toastId: Unique toast ID (prevents duplicates)
+   *   toastDuration: Toast display duration (default: TOAST_DURATIONS.LOAD_FAILURE)
    */
+  // @ts-ignore - runtime validation (throws on missing required fields) enforces requirements
   constructor(options = {}) {
     // Validate required options
     if (!options.systemName) {

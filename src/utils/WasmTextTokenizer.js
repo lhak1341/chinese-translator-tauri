@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WASM Text Tokenizer
  *
@@ -24,7 +25,9 @@
 
 import { logger } from './logger.js';
 
+/** @type {Function|null} */
 let tokenizeTextWasm = null;
+/** @type {Function|null} */
 let getTokenizerStatsWasm = null;
 let wasmInitialized = false;
 
@@ -90,7 +93,7 @@ export class WasmTextTokenizer {
    * Tokenize text using WASM
    *
    * @param {string} text - Text to tokenize
-   * @returns {Array|null} Array of tokens or null if WASM unavailable
+   * @returns {Array<*>|null} Array of tokens or null if WASM unavailable
    *
    * Token structure:
    * {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WASM Retry Manager
  *
@@ -100,8 +101,7 @@ class WasmRetryManager {
    * Retry an operation with exponential backoff
    * @param {Function} operation - Async operation to retry
    * @param {string} context - Operation context for logging
-   * @param {Object} options - Retry options
-   * @param {boolean} options.onlyRetryTransient - Only retry transient errors (default: true)
+   * @param {{ onlyRetryTransient?: boolean }} [options] - Retry options
    * @returns {Promise<any>} Operation result
    * @throws {Error} After all retries exhausted
    */
@@ -124,7 +124,7 @@ class WasmRetryManager {
         }
 
         return result;
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         lastError = error;
         const isLastAttempt = attempt === this.maxRetries - 1;
 

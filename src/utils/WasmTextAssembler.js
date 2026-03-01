@@ -1,3 +1,4 @@
+// @ts-check
 import init, { TextAssembler } from '../wasm/translation_wasm_core.js';
 import { logger } from './logger';
 

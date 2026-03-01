@@ -1,3 +1,4 @@
+// @ts-check
 import init, { RegexUtils } from '../wasm/translation_wasm_core.js';
 import { logger } from './logger';
 
@@ -63,7 +64,7 @@ export class WasmRegexUtilsWrapper {
    * Find all Chinese punctuation positions
    *
    * @param {string} text - Text to search
-   * @returns {number[]} Array of position indices
+   * @returns {Uint32Array|number[]} Array of position indices
    */
   findChinesePunctuation(text) {
     if (!this.initialized || !this.utils) return [];

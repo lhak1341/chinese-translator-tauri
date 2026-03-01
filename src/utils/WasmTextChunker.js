@@ -1,3 +1,4 @@
+// @ts-check
 import init, {
   TextChunker,
   recordFallback,
@@ -87,7 +88,7 @@ export class WasmTextChunker {
         const totalTime = performance.now() - startTime;
         logger.log(`[WASM TextChunker] ✅ Fully initialized in ${totalTime.toFixed(1)}ms`);
         return true;
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         logger.error('[WASM TextChunker] ❌ Initialization error:', {
           error: error.message,
           stack: error.stack,
@@ -118,7 +119,7 @@ export class WasmTextChunker {
   /**
    * Chunk text (synchronous - triggers lazy init if needed)
    * @param {string} text - Input text
-   * @returns {Array|null} Chunks or null if not initialized
+   * @returns {Array<*>|null} Chunks or null if not initialized
    */
   chunkText(text) {
     // LAZY INITIALIZATION: Trigger initialization on first use (non-blocking)
@@ -151,7 +152,7 @@ export class WasmTextChunker {
       this.wasmHits++;
 
       return chunks;
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       logger.error('[WASM TextChunker] ❌ Error during chunking:', {
         message: error.message,
         stack: error.stack,
@@ -254,5 +255,6 @@ wasmTextChunker.initialize().catch((err) => {
 
 // Expose globally for debugging
 if (typeof window !== 'undefined') {
+  // @ts-ignore - debug convenience property
   window.wasmTextChunker = wasmTextChunker;
 }

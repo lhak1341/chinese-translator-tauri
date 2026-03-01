@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WASM Binary Cache
  *
