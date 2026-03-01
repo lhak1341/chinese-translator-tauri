@@ -6107,6 +6107,14 @@ export class TranslationEngine {
       // MEDIUM FIX: Pass token offset, not chunk index
       await this.processChunksInParallel(currentBatch, options, batchTokenOffset);
 
+      // Yield to event loop after each batch so the UI can paint a frame.
+      // processChunksInParallel runs synchronous WASM (pattern + number processing) inside
+      // Promise.all — microtasks drain without ever returning to the browser event loop.
+      // This single setTimeout(0) is the same pattern used in translateWithChunking's
+      // 16ms time-slice guard, but applied unconditionally here since each batch is already
+      // a natural yield point.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       // MEDIUM FIX: Update cumulative token count for next batch
       // chunk.content is a string — must tokenize before counting (see processChunksInParallel
       // comment). Use raw token count to match the raw-index startIndex used in addUnit calls.

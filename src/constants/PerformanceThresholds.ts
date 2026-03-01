@@ -265,10 +265,10 @@ export const UI_UPDATE_THRESHOLDS: UIUpdateThresholds = {
 
   /**
    * Minimum chunks before showing streaming translation UI
-   * Prevents streaming UI from appearing for short texts
-   * 40 chunks ≈ 800-2000 characters (2-4 paragraphs)
+   * Prevents streaming UI from appearing for very short texts
+   * 10 chunks ≈ 200-400 characters (~1 paragraph)
    */
-  STREAMING_MIN_CHUNKS: 40,
+  STREAMING_MIN_CHUNKS: 10,
 } as const;
 
 /**
