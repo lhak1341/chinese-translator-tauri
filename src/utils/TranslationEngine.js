@@ -142,12 +142,6 @@ import {
   convertWasmMatchToTokenMatch,
 } from './PositionMappingUtils.js';
 import { copyWasmTokens } from './WasmBoundaryValidation';
-import {
-  getLegacySystemStatus,
-  checkRollbackTriggers,
-  updatePerformanceBaselines,
-  initializePerformanceBaselines,
-} from './LegacySystemFlags.js';
 // TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './AdaptiveChunker.js';
@@ -160,7 +154,7 @@ import {
 } from './MemoryManagementRefinements.js';
 import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
-import { scanTokens, createReadonlyTokens } from './ReadonlyOptimizationUtils.js';
+import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
 import { wasmTextAssembler } from './WasmTextAssembler.js';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
@@ -384,10 +378,6 @@ export class TranslationEngine {
       maxCompositeDetectionTime: 100, // ms
       fallbackToSinglePhase: true,
     };
-
-    // Initialize legacy system monitoring for Phase 3 removal
-    this.legacySystemStatus = getLegacySystemStatus();
-    initializePerformanceBaselines();
 
     // Initialize translation profiler for performance analysis
     this.profiler = new TranslationProfiler();
@@ -2126,25 +2116,6 @@ export class TranslationEngine {
 
     performanceProfiler.endTranslationProfile(operationId, translatedText, result);
 
-    // Phase 3 Legacy System Monitoring: Check for rollback triggers
-    const performanceMetrics = {
-      processingTime: performance.now() - (result.startTime || Date.now()),
-      memoryUsage:
-        typeof process !== 'undefined' && process.memoryUsage ? process.memoryUsage().heapUsed : 0,
-      success: true,
-      qualityScore: null, // Would need translation quality assessment
-      cacheHitRate: null, // Would need cache statistics
-      parallelEfficiency: null, // Would need parallel processing stats
-    };
-
-    // Update performance baselines and check for rollback triggers
-    updatePerformanceBaselines(performanceMetrics);
-    const rollbackCheck = checkRollbackTriggers(performanceMetrics);
-
-    if (rollbackCheck.rollbackRecommended) {
-      // Note: Automatic rollback disabled for safety - operators must manually intervene
-    }
-
     // Performance monitoring: End timing and check for bottlenecks
     performanceLogger.endTiming(perfId, {
       resultLength: result.translatedText.length,
@@ -2683,27 +2654,10 @@ export class TranslationEngine {
         `✅ Phrase processing completed (patterns were processed in Phase 1)`
       );
     } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '🚨 Phrase processing failed, falling back to legacy:', error);
-
-      // Phase 3B.2: Check legacy system flags for pattern processing removal
-      const legacyStatus = getLegacySystemStatus();
-      if (!legacyStatus.useLegacyPatternProcessing) {
-        // Legacy pattern processing disabled - this is a critical failure
-        this.log(
-          DEBUG_LEVELS.ERROR,
-          '🚨 Legacy pattern processing disabled by feature flags - two-phase pattern processing failed'
-        );
-        throw new Error(
-          'Two-phase pattern processing failed and legacy single-phase processing is disabled'
-        );
-      }
-
-      // Phase 3B.2: Legacy pattern processing removed
-      this.log(
-        DEBUG_LEVELS.ERROR,
-        '🚨 CRITICAL: Legacy pattern processing was removed but two-phase patterns failed'
+      this.log(DEBUG_LEVELS.ERROR, '🚨 Phrase processing failed:', error);
+      throw new Error(
+        'Two-phase pattern processing failed and legacy single-phase processing is disabled'
       );
-      throw error;
     }
   }
 
@@ -3359,16 +3313,11 @@ export class TranslationEngine {
     const BATCH_SIZE = PHRASE_PROCESSING.BATCH_SIZE; // Process tokens concurrently for optimal I/O performance
 
     // INTEGRATION #4: Use ReadonlyArray optimization for token scanning
-    // Expected: 5-10% reduction in token processing time
     let unprocessedIndices;
 
     try {
-      // Create readonly tokens for V8 optimization
-      const readonlyTokens = createReadonlyTokens(tokens);
-
-      // Use optimized readonly scan
       const scanResult = scanTokens(
-        readonlyTokens,
+        tokens,
         (token) => {
           // Match: unprocessed Chinese tokens
           return (
@@ -5391,36 +5340,18 @@ export class TranslationEngine {
       maxConcurrency: this.parallelConfig.maxParallelChunks,
     });
 
-    // Check if parallel processing should be used
+    // Sequential fallback removed — always force parallel processing
     if (
       !this.parallelConfig.enableParallelChunks ||
       batch.length < this.parallelConfig.chunkParallelThreshold
     ) {
-      // Phase 3B.1: Check legacy system flags for sequential fallback removal
-      const legacyStatus = getLegacySystemStatus();
-      if (!legacyStatus.useSequentialFallback) {
-        // Sequential fallback disabled - force parallel processing or fail
-        this.log(
-          DEBUG_LEVELS.WARNING,
-          '🚨 Sequential fallback disabled by feature flags - forcing parallel processing'
-        );
-        // Continue to parallel processing even if conditions suggest sequential
-      } else {
-        // Phase 3B.1: Sequential fallback removed - should never reach here
-        this.log(
-          DEBUG_LEVELS.ERROR,
-          '🚨 CRITICAL: Sequential fallback was requested but has been removed'
-        );
-        throw new Error(
-          'Sequential fallback was removed but parallel processing conditions not met'
-        );
-      }
+      this.log(
+        DEBUG_LEVELS.WARNING,
+        '⚠️ Conditions suggest sequential processing, but forcing parallel processing'
+      );
     }
 
     try {
-      // Store original segments to preserve them during parallel processing
-      const _originalSegments = [...this.translationSegments];
-
       // MEDIUM FIX: Calculate token counts for each chunk upfront
       // chunk.content is a string; tokenize it first to get raw token count.
       // getSemanticTokens() expects TextToken[], not a string — calling it with a string
@@ -5575,23 +5506,7 @@ export class TranslationEngine {
         this.performanceProfiler.recordParallelFallback('chunk_processing', error);
       }
 
-      // Phase 3B.1: Check legacy system flags for sequential fallback removal
-      const legacyStatus = getLegacySystemStatus();
-      if (!legacyStatus.useSequentialFallback) {
-        // Sequential fallback disabled - this is a critical failure
-        this.log(
-          DEBUG_LEVELS.ERROR,
-          '🚨 Sequential fallback disabled by feature flags - parallel processing failed'
-        );
-        throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
-      }
-
-      // Phase 3B.1: Sequential fallback removed - this should never be reached
-      this.log(
-        DEBUG_LEVELS.ERROR,
-        '🚨 CRITICAL: Sequential fallback was removed but parallel processing failed'
-      );
-      throw error;
+      throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
     } finally {
       // Performance monitoring: End timing regardless of success/failure
       performanceLogger.endTiming(perfId, {

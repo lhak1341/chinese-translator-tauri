@@ -532,7 +532,9 @@ export class SemanticArrayBuilder {
   }
 
   /**
-   * Update semantic arrays with capitalized versions from final text
+   * Update semantic arrays with capitalized versions from final text.
+   * SYNC: Algorithm must stay identical to OptimizedSemanticArrayBuilder.updateWithCapitalizedText.
+   * Fast path uses translatedStart/End; fallback uses indexOf with cached lowercase string.
    * @param finalText - The final capitalized text
    */
   updateWithCapitalizedText(finalText: string): void {

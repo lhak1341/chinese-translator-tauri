@@ -32,21 +32,6 @@ const metrics = {
 };
 
 /**
- * Create read-only copy of tokens for phase processing
- *
- * Note: In JavaScript, this creates a shallow freeze. The actual optimization
- * comes from TypeScript typing that enables V8 to know the array won't be mutated.
- *
- * @param {Array} tokens - Mutable token array
- * @returns {ReadonlyArray} Readonly token array
- */
-export function createReadonlyTokens(tokens) {
-  // TypeScript sees this as ReadonlyArray<Readonly<Token>>
-  // which enables V8 escape analysis
-  return tokens;
-}
-
-/**
  * Apply pending updates to tokens in a single batch
  *
  * Performs all modifications in one pass for better cache locality.

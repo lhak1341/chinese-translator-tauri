@@ -21,7 +21,7 @@
  * } from '../types/V8OptimizationTypes'
  */
 
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 
 // ============================================================================
 // Typed Object Iteration (Replaces Object.keys/values/entries)

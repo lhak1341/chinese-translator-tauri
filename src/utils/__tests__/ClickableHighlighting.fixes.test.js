@@ -170,53 +170,6 @@ describe('HIGH-1: Null/Undefined Guards', () => {
   });
 });
 
-describe('HIGH-2: Regex Cache LRU Eviction', () => {
-  test('should evict oldest entry when cache is full', () => {
-    const builder = new OptimizedSemanticArrayBuilder();
-
-    // Fill cache to max (100 entries)
-    for (let i = 0; i < 100; i++) {
-      builder.getCachedRegex(`pattern${i}`);
-    }
-
-    expect(builder.regexCache.size).toBe(100);
-
-    // Add one more - should evict oldest
-    builder.getCachedRegex('pattern100');
-
-    // Cache should still be at max size
-    expect(builder.regexCache.size).toBe(100);
-
-    // Oldest entry should be gone
-    expect(builder.regexCache.has('pattern0')).toBe(false);
-
-    // Newest entry should exist
-    expect(builder.regexCache.has('pattern100')).toBe(true);
-  });
-
-  test('should update LRU order on cache hit', () => {
-    const builder = new OptimizedSemanticArrayBuilder();
-
-    // Add two entries
-    builder.getCachedRegex('first');
-    builder.getCachedRegex('second');
-
-    // Access 'first' again (should move to end)
-    builder.getCachedRegex('first');
-
-    // Fill cache to force eviction
-    for (let i = 0; i < 99; i++) {
-      builder.getCachedRegex(`filler${i}`);
-    }
-
-    // 'first' should still exist (was moved to end)
-    expect(builder.regexCache.has('first')).toBe(true);
-
-    // 'second' should be evicted (was oldest)
-    expect(builder.regexCache.has('second')).toBe(false);
-  });
-});
-
 describe('HIGH-5: Position Metadata Validation', () => {
   test('should validate position metadata correctness', () => {
     const builder = new SemanticArrayBuilder();

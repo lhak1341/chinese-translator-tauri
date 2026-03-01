@@ -139,6 +139,18 @@ export interface PriorityBreakdown {
 }
 
 /**
+ * Priority scoring weights — single source of truth for the calculation.
+ * All weight values must be changed here only; calculatePatternPriority and
+ * calculatePriorityBreakdown both reference these constants directly.
+ */
+export const PRIORITY_WEIGHTS = {
+  VARIABLE: 8, // Points per variable in pattern (reduced from 10)
+  LENGTH: 3, // Points per token in pattern (increased from 1)
+  LITERAL_FIRST: 5, // Bonus for patterns starting with literal
+  LOW_PRIORITY_PENALTY: -12, // Penalty for low priority flag
+} as const;
+
+/**
  * Calculate pattern priority based on complexity and usefulness
  *
  * @param tokens - Pattern tokens (must have 'type' property: 'literal' or 'variable')
@@ -241,36 +253,23 @@ export function calculatePatternPriority(
   let priority = 0;
 
   // More variables = higher priority (more specific patterns)
-  // Weight: 8 (reduced from 10 to balance with pattern length)
-  priority += validatedVariableCount * 8;
+  priority += validatedVariableCount * PRIORITY_WEIGHTS.VARIABLE;
 
   // Longer patterns = higher priority (more context)
-  // Weight: 3 (increased from 1 to prioritize context over variables)
-  priority += validatedTokenCount * 3;
+  priority += validatedTokenCount * PRIORITY_WEIGHTS.LENGTH;
 
   // Literal-starting patterns = higher priority (more efficient)
   if (tokens[0]?.type === 'literal') {
-    priority += 5;
+    priority += PRIORITY_WEIGHTS.LITERAL_FIRST;
   }
 
   // Low priority flag only affects tiebreakers (same length patterns)
   if (lowPriority) {
-    priority -= 12; // Significant penalty to allow same-length patterns to compete
+    priority += PRIORITY_WEIGHTS.LOW_PRIORITY_PENALTY;
   }
 
   return priority;
 }
-
-/**
- * Priority scoring weights (for documentation)
- * These constants are NOT used in the calculation - they're for reference only
- */
-export const PRIORITY_WEIGHTS = {
-  VARIABLE: 8, // Points per variable in pattern (reduced from 10)
-  LENGTH: 3, // Points per token in pattern (increased from 1)
-  LITERAL_FIRST: 5, // Bonus for patterns starting with literal
-  LOW_PRIORITY_PENALTY: -12, // Penalty for low priority flag
-} as const;
 
 /**
  * Calculate priority factors breakdown (for debugging/analysis)
@@ -299,10 +298,10 @@ export function calculatePriorityBreakdown(
   variables: PatternVariable[],
   lowPriority: boolean = false
 ): PriorityBreakdown {
-  const variableScore = variables.length * 8; // Updated weight: 8 (was 10)
-  const lengthScore = tokens.length * 3; // Updated weight: 3 (was 1)
-  const literalFirstBonus = tokens[0]?.type === 'literal' ? 5 : 0;
-  const lowPriorityPenalty = lowPriority ? -12 : 0;
+  const variableScore = variables.length * PRIORITY_WEIGHTS.VARIABLE;
+  const lengthScore = tokens.length * PRIORITY_WEIGHTS.LENGTH;
+  const literalFirstBonus = tokens[0]?.type === 'literal' ? PRIORITY_WEIGHTS.LITERAL_FIRST : 0;
+  const lowPriorityPenalty = lowPriority ? PRIORITY_WEIGHTS.LOW_PRIORITY_PENALTY : 0;
 
   return {
     variableScore,

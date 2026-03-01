@@ -377,21 +377,7 @@ export const releasePerformanceMetric = (obj) => debugObjectPool.releasePerforma
 export const getLogEntry = () => debugObjectPool.getLogEntry();
 export const releaseLogEntry = (obj) => debugObjectPool.releaseLogEntry(obj);
 
-const getTimestamp = () => debugObjectPool.getTimestamp();
-const releaseTimestamp = (obj) => debugObjectPool.releaseTimestamp(obj);
-
 export const getMemorySnapshot = () => debugObjectPool.getMemorySnapshot();
 export const releaseMemorySnapshot = (obj) => debugObjectPool.releaseMemorySnapshot(obj);
 
 export const getCacheStats = () => debugObjectPool.getCacheStats();
-const releaseCacheStats = (obj) => debugObjectPool.releaseCacheStats(obj);
-
-// Utility for performance-critical operations
-const withPooledObject = (poolGetFn, poolReleaseFn, operationFn) => {
-  const obj = poolGetFn();
-  try {
-    return operationFn(obj);
-  } finally {
-    poolReleaseFn(obj);
-  }
-};

@@ -1213,7 +1213,7 @@ export class OptimizationBenchmarks {
       segmentIterator,
       memoryStatsIterator,
       performanceMetricsIterator,
-    } = await import('./V8OptimizationUtils.js');
+    } = await import('./__benchmarks__/V8OptimizationUtils.js');
 
     const results = {
       segmentAccess: { dynamic: 0, typed: 0, speedup: 0 },

@@ -172,11 +172,3 @@ export function getFirstGrapheme(text: string): string {
 export function hasGraphemeSupport(): boolean {
   return helper.hasSupport();
 }
-
-/**
- * Reset singleton (for testing purposes only)
- * @private
- */
-export function _resetGraphemeSegmenter(): void {
-  GraphemeHelper._reset();
-}

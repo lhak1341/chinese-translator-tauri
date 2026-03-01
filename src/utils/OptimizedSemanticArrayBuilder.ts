@@ -16,7 +16,6 @@
  * - Pooled objects for frequently created temporary structures
  */
 
-import { getMemorySnapshot, releaseMemorySnapshot } from './DebugObjectPool.js';
 import { batchLog } from './BatchLogger.js';
 import { logger } from './logger';
 import { validatePosition } from './PositionValidationHelpers.js';
@@ -43,8 +42,6 @@ interface OptimizedSemanticMetadata {
 interface PerformanceStats {
   totalUnits: number;
   capacityResizes: number;
-  regexCacheHits: number;
-  regexCacheMisses: number;
 }
 
 /**
@@ -92,10 +89,8 @@ interface DebugInfo {
   isValid: boolean;
   stats: PerformanceStats;
   sources: string[];
-  regexCacheSize: number;
   performance: {
     capacityResizes: number;
-    regexHitRate: string | number;
   };
 }
 
@@ -107,7 +102,6 @@ interface MemoryStats {
   strings: number;
   arrays: number;
   metadata: number;
-  regexCache: number;
   wastedCapacity: number;
 }
 
@@ -121,11 +115,7 @@ export class OptimizedSemanticArrayBuilder {
   // Performance tracking
   private stats: PerformanceStats;
 
-  // Regex cache with LRU eviction
-  private regexCache: Map<string, RegExp>;
-  private readonly maxCacheSize: number = 100;
-
-  // Pre-compiled patterns
+  // Pre-compiled pattern for capitalization check
   private readonly uppercasePattern: RegExp = /^[A-ZÀ-ÿ]/;
 
   // Position tracking
@@ -137,15 +127,10 @@ export class OptimizedSemanticArrayBuilder {
   constructor(estimatedCapacity: number = 100) {
     this.estimatedCapacity = Math.max(50, estimatedCapacity); // Minimum capacity
 
-    // Initialize caches and patterns before calling reset()
-    this.regexCache = new Map<string, RegExp>();
-
     // Performance tracking
     this.stats = {
       totalUnits: 0,
       capacityResizes: 0,
-      regexCacheHits: 0,
-      regexCacheMisses: 0,
     };
 
     // Pre-allocate arrays (will be properly initialized in reset())
@@ -223,10 +208,6 @@ export class OptimizedSemanticArrayBuilder {
 
     // Track position mapping order (CRITICAL-2: Detect out-of-order calls)
     this.lastPositionSet = -1;
-
-    // Clear regex cache on each translation to prevent gradual accumulation
-    // Cache is per-translation state and should be fully cleared
-    this.regexCache.clear();
 
     // CRITICAL FIX: Clear corruption flag on reset (new translation = fresh state)
     this.isCorrupted = false;
@@ -428,8 +409,6 @@ export class OptimizedSemanticArrayBuilder {
    * @returns Position mappings using efficient typed arrays
    */
   buildPositionMappings(originalText: string, translatedText: string): PositionMappings {
-    const snapshot = getMemorySnapshot();
-
     // CRITICAL-2 FIX: Validate text length before allocating typed arrays
     // Empty text or mismatched length would cause silent data loss
     if (!originalText || originalText.length === 0) {
@@ -482,8 +461,6 @@ export class OptimizedSemanticArrayBuilder {
 
     // Build translated text position mapping
     this.buildTranslatedMapping(translatedText, translatedPositions, usedIndices);
-
-    releaseMemorySnapshot(snapshot);
 
     return {
       originalPositions,
@@ -709,96 +686,65 @@ export class OptimizedSemanticArrayBuilder {
   }
 
   /**
-   * Update with capitalized text using cached regex patterns
+   * Update semantic arrays with capitalized versions from final text.
+   * Algorithm mirrors SemanticArrayBuilder.updateWithCapitalizedText exactly:
+   * - Fast path (O(1)): uses translatedStart/End position metadata when available
+   * - Fallback: indexOf with a lazily-initialised lowercase copy of finalText
    * @param finalText - The final capitalized text
    */
   updateWithCapitalizedText(finalText: string): void {
     if (!finalText || this.length === 0) return;
 
-    const snapshot = getMemorySnapshot();
+    // Lazy-initialised lowercase cache for the indexOf fallback path
+    let lowerFinal: string | null = null;
 
     for (let i = 0; i < this.length; i++) {
       const originalTranslation = this.translated[i];
-
-      // Skip if empty
       if (!originalTranslation || originalTranslation.length === 0) continue;
 
-      // Use cached regex pattern
-      const regex = this.getCachedRegex(originalTranslation);
-      const matches = [...finalText.matchAll(regex)];
+      const meta = this.metadata[i];
 
-      if (matches.length > 0) {
-        // Find best capitalized match
-        let bestMatch = originalTranslation;
+      // Fast path: position metadata is available — O(1) lookup per unit.
+      if (
+        meta.translatedStart >= 0 &&
+        meta.translatedEnd > meta.translatedStart &&
+        meta.translatedEnd <= finalText.length
+      ) {
+        const actualText = finalText.substring(meta.translatedStart, meta.translatedEnd);
 
-        for (const match of matches) {
-          const matchText = match[0];
-          // If different and capitalized, prefer it
-          if (matchText !== originalTranslation && this.uppercasePattern.test(matchText)) {
-            bestMatch = matchText;
-            break;
-          }
+        // CRITICAL-2 FIX: Only update when lengths match and casing actually differs
+        if (
+          actualText.length === originalTranslation.length &&
+          actualText !== originalTranslation &&
+          this.uppercasePattern.test(actualText) &&
+          actualText.toLowerCase() === originalTranslation.toLowerCase()
+        ) {
+          this.translated[i] = actualText;
         }
+        continue;
+      }
 
-        // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
-        if (bestMatch !== originalTranslation) {
-          if (bestMatch.length !== originalTranslation.length) {
-            logger.error('❌ Capitalization changed text length - SKIPPING update!', {
-              index: i,
-              original: originalTranslation,
-              capitalized: bestMatch,
-              originalLength: originalTranslation.length,
-              capitalizedLength: bestMatch.length,
-              impact: 'Would corrupt position mapping',
-            });
-            continue; // Skip this update
+      // Fallback: position metadata not yet set — use indexOf with a cached lowercase
+      // copy of finalText. indexOf is V8-optimised and avoids per-unit regex + matchAll.
+      if (lowerFinal === null) lowerFinal = finalText.toLowerCase();
+      const lowerUnit = originalTranslation.toLowerCase();
+      let searchFrom = 0;
+
+      while (searchFrom <= finalText.length - originalTranslation.length) {
+        const idx = lowerFinal.indexOf(lowerUnit, searchFrom);
+        if (idx === -1) break;
+
+        const candidate = finalText.substring(idx, idx + originalTranslation.length);
+        if (candidate !== originalTranslation && this.uppercasePattern.test(candidate)) {
+          // CRITICAL-2 FIX: Validate length before updating to prevent position corruption
+          if (candidate.length === originalTranslation.length) {
+            this.translated[i] = candidate;
           }
-
-          this.translated[i] = bestMatch;
-          // metadata[i] will get updated originalText/translatedText in getArrays()
+          break;
         }
+        searchFrom = idx + 1;
       }
     }
-
-    releaseMemorySnapshot(snapshot);
-  }
-
-  /**
-   * Get cached regex pattern or create and cache new one
-   * HIGH-2 FIX: Uses LRU eviction to prevent unbounded cache growth
-   * @param text - Text to create regex for
-   * @returns Cached or new regex pattern
-   * @private
-   */
-  private getCachedRegex(text: string): RegExp {
-    if (this.regexCache.has(text)) {
-      this.stats.regexCacheHits++;
-      // LRU: Move to end by deleting and re-adding
-      const regex = this.regexCache.get(text)!;
-      this.regexCache.delete(text);
-      this.regexCache.set(text, regex);
-      return regex;
-    }
-
-    // HIGH-2 FIX: LRU eviction when cache is full
-    if (this.regexCache.size >= this.maxCacheSize) {
-      // Remove oldest entry (first key in Map = oldest due to insertion order)
-      const firstKey = this.regexCache.keys().next().value;
-      if (firstKey !== undefined) {
-        this.regexCache.delete(firstKey);
-        batchLog.hotVerbose('regex-cache-evict', `Evicted oldest regex pattern: "${firstKey}"`);
-      }
-    }
-
-    // Create new regex pattern
-    const escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(escapedText, 'gi');
-
-    // Cache it
-    this.regexCache.set(text, regex);
-
-    this.stats.regexCacheMisses++;
-    return regex;
   }
 
   /**
@@ -866,17 +812,8 @@ export class OptimizedSemanticArrayBuilder {
       isValid: this.isValid(),
       stats: this.stats,
       sources: this.metadata.slice(0, this.length).map((m) => m?.source || 'unknown'),
-      regexCacheSize: this.regexCache.size,
       performance: {
         capacityResizes: this.stats.capacityResizes,
-        regexHitRate:
-          this.stats.regexCacheHits + this.stats.regexCacheMisses > 0
-            ? (
-                (this.stats.regexCacheHits /
-                  (this.stats.regexCacheHits + this.stats.regexCacheMisses)) *
-                100
-              ).toFixed(1)
-            : 0,
       },
     };
   }
@@ -893,14 +830,12 @@ export class OptimizedSemanticArrayBuilder {
 
     const arrayMemory = this.original.length * elementSize * 3; // 3 arrays
     const metadataMemory = this.length * 32; // Approximate metadata object size
-    const regexCacheMemory = this.regexCache.size * 100; // Approximate regex size
 
     return {
-      totalEstimated: stringMemory + arrayMemory + metadataMemory + regexCacheMemory,
+      totalEstimated: stringMemory + arrayMemory + metadataMemory,
       strings: stringMemory,
       arrays: arrayMemory,
       metadata: metadataMemory,
-      regexCache: regexCacheMemory,
       wastedCapacity: (this.original.length - this.length) * elementSize * 3,
     };
   }
