@@ -1,20 +1,15 @@
+// @ts-check
 /**
  * Optimized Performance Monitor
  * Reduces monitoring overhead through sampling and environment-aware logging
- *
- * @import {
- *   PerformanceMonitorOptions,
- *   PerformanceSample,
- *   AggregatedStats,
- *   PerformanceTimer,
- *   PerformanceMonitorMetrics,
- *   PerformanceMonitorInterface
- * } from '../types/PerformanceMonitoringTypes'
  */
 
 import { logger } from './logger.js';
 
 export class PerformanceMonitor {
+  /**
+   * @param {{ sampleRate?: number, maxSamples?: number, enabled?: boolean }} [options]
+   */
   constructor(options = {}) {
     this.isProduction = process.env.NODE_ENV === 'production';
     this.sampleRate = options.sampleRate || (this.isProduction ? 0.05 : 0.2); // 5% prod, 20% dev
@@ -22,7 +17,9 @@ export class PerformanceMonitor {
     this.enabled = options.enabled !== false;
 
     // Performance data storage
+    /** @type {Array<*>} */
     this.samples = [];
+    this.lastResetTime = performance.now();
     this.aggregatedStats = {
       totalOperations: 0,
       totalTime: 0,
@@ -48,6 +45,7 @@ export class PerformanceMonitor {
 
   /**
    * Start timing an operation (only if sampling)
+   * @param {string} operationId
    */
   startTimer(operationId) {
     if (!this.shouldSample()) return null;
@@ -61,6 +59,8 @@ export class PerformanceMonitor {
 
   /**
    * End timing and record results (lightweight for non-sampled operations)
+   * @param {{ id: string, startTime: number, sampled: boolean }|null} timer
+   * @param {string} operationName
    */
   endTimer(timer, operationName = 'operation') {
     if (!timer || !this.enabled) return;
@@ -151,6 +151,9 @@ export class PerformanceMonitor {
 
   /**
    * Environment-aware logging with levels
+   * @param {number} level
+   * @param {string} message
+   * @param {...any} args
    */
   log(level, message, ...args) {
     // ULTRA-AGGRESSIVE PERFORMANCE OPTIMIZATION: Disable almost all logging
@@ -185,7 +188,10 @@ export const globalPerformanceMonitor = new PerformanceMonitor({
 });
 
 // Convenience wrapper for simple timing
-const timeOperation = async (operationName, asyncOperation) => {
+export const timeOperation = async (
+  /** @type {string} */ operationName,
+  /** @type {() => Promise<any>} */ asyncOperation
+) => {
   const timer = globalPerformanceMonitor.startTimer(operationName);
   try {
     const result = await asyncOperation();

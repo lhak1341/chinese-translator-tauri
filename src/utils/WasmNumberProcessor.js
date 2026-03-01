@@ -211,9 +211,7 @@ export async function processNumbersWasm(tokens) {
     return processedTokens;
   } catch (/** @type {any} */ error) {
     // CODE REVIEW FIX (MEDIUM-1): Use shared error categorization
-    const errorInfo = /** @type {{ type: string, component: string, shouldReport: boolean }} */ (
-      categorizeWasmError(error, 'number-processor')
-    );
+    const errorInfo = categorizeWasmError(error, 'number-processor');
 
     logger.error(`❌ WASM number processing ${errorInfo.type} error:`, error);
 

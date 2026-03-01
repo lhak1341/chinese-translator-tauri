@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * PatternAnalyzer - Analyzes pattern capabilities for hierarchical processing
  *
@@ -9,7 +10,7 @@
 class PatternAnalyzer {
   /**
    * Analyze a pattern and determine its capabilities
-   * @param {Object} pattern - Pattern object with originalPattern property
+   * @param {{ originalPattern?: string, allowAsPatternVariable?: boolean, template?: string, [key: string]: any }} pattern - Pattern object with originalPattern property
    * @returns {Object} Enhanced pattern with analysis metadata
    */
   analyzePattern(pattern) {
@@ -94,8 +95,8 @@ class PatternAnalyzer {
 
   /**
    * Analyze multiple patterns in batch
-   * @param {Array} patterns - Array of pattern objects
-   * @returns {Array} Array of analyzed patterns
+   * @param {Array<*>} patterns - Array of pattern objects
+   * @returns {Array<*>} Array of analyzed patterns
    */
   analyzePatterns(patterns) {
     return patterns.map((pattern) => this.analyzePattern(pattern));
@@ -103,9 +104,9 @@ class PatternAnalyzer {
 
   /**
    * Filter patterns by capability
-   * @param {Array} analyzedPatterns - Array of analyzed patterns
+   * @param {Array<*>} analyzedPatterns - Array of analyzed patterns
    * @param {string} capability - Capability to filter by ('hasVariables', 'compositeEligible', etc.)
-   * @returns {Array} Filtered patterns matching the capability
+   * @returns {Array<*>} Filtered patterns matching the capability
    */
   filterByCapability(analyzedPatterns, capability) {
     return analyzedPatterns.filter((pattern) => pattern[capability]);
@@ -113,8 +114,8 @@ class PatternAnalyzer {
 
   /**
    * Get patterns suitable for Phase A (variable patterns)
-   * @param {Array} analyzedPatterns - Array of analyzed patterns
-   * @returns {Array} Patterns eligible for Phase A processing
+   * @param {Array<*>} analyzedPatterns - Array of analyzed patterns
+   * @returns {Array<*>} Patterns eligible for Phase A processing
    */
   getPhaseAPatterns(analyzedPatterns) {
     return analyzedPatterns.filter((pattern) => pattern.allowAsPatternVariable === true);
@@ -122,8 +123,8 @@ class PatternAnalyzer {
 
   /**
    * Get patterns suitable for Phase B composite generation
-   * @param {Array} analyzedPatterns - Array of analyzed patterns
-   * @returns {Array} Patterns eligible for composite generation
+   * @param {Array<*>} analyzedPatterns - Array of analyzed patterns
+   * @returns {Array<*>} Patterns eligible for composite generation
    */
   getCompositeEligiblePatterns(analyzedPatterns) {
     return this.filterByCapability(analyzedPatterns, 'compositeEligible');
@@ -131,8 +132,8 @@ class PatternAnalyzer {
 
   /**
    * Validate pattern structure and report issues
-   * @param {Object} pattern - Pattern to validate
-   * @returns {Object} Validation result with issues array
+   * @param {{ originalPattern?: string, allowAsPatternVariable?: boolean, template?: string }} pattern - Pattern to validate
+   * @returns {{ valid: boolean, issues: string[] }} Validation result
    */
   validatePattern(pattern) {
     const issues = [];
@@ -163,7 +164,7 @@ class PatternAnalyzer {
 
   /**
    * Generate summary statistics for pattern collection
-   * @param {Array} patterns - Array of patterns to analyze
+   * @param {Array<*>} patterns - Array of patterns to analyze
    * @returns {Object} Summary statistics
    */
   generateSummary(patterns) {

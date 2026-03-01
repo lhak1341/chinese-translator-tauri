@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Precomputed Trie Cache Manager
  *
@@ -23,12 +24,12 @@ import { logger } from './logger.js';
 /**
  * Deserialize precomputed trie structure
  *
- * @param {Object} serialized - Serialized trie data
- * @param {Function} TrieNodeConstructor - TrieNode constructor
+ * @param {{ root: any }} serialized - Serialized trie data
+ * @param {new(...args: any[]) => any} TrieNodeConstructor - TrieNode constructor
  * @returns {Object} Deserialized trie root node
  */
 export function deserializeTrie(serialized, TrieNodeConstructor) {
-  const deserializeNode = (nodeData) => {
+  const deserializeNode = (/** @type {any} */ nodeData) => {
     const node = new TrieNodeConstructor();
 
     // Restore end-of-word data
@@ -59,8 +60,8 @@ export function deserializeTrie(serialized, TrieNodeConstructor) {
  * @returns {Object} Serialized trie data
  */
 export function serializeTrie(trieRoot, size) {
-  const serializeNode = (node) => {
-    const serialized = {};
+  const serializeNode = (/** @type {any} */ node) => {
+    const serialized = /** @type {Record<string, any>} */ ({});
 
     if (node.isEndOfWord) {
       serialized.$ = {
@@ -113,7 +114,7 @@ export function calculateDictionaryChecksum(dictionary) {
  * @param {string} dictionaryName - Name of dictionary
  * @param {Object} dictionary - Dictionary data for checksum validation
  * @param {Function} loadCacheFile - Function to load .trie.json file
- * @param {Function} TrieNodeConstructor - TrieNode constructor
+ * @param {new(...args: any[]) => any} TrieNodeConstructor - TrieNode constructor
  * @returns {Promise<Object|null>} {root, size} or null if cache invalid/missing
  */
 export async function tryLoadPrecomputedTrie(
@@ -167,7 +168,7 @@ export async function tryLoadPrecomputedTrie(
  *
  * @param {string} dictionaryName - Name of dictionary
  * @param {Object} dictionary - Dictionary data
- * @param {Object} trie - DictionaryTrie instance
+ * @param {{ root: any, size: number }} trie - DictionaryTrie instance
  * @param {Function} saveCacheFile - Function to save .trie.json file
  * @returns {Promise<boolean>} Success status
  */
@@ -237,12 +238,12 @@ export class PrecomputedTrieStats {
     this.totalBuildTime = 0;
   }
 
-  recordCacheHit(loadTimeMs) {
+  recordCacheHit(/** @type {number} */ loadTimeMs) {
     this.cacheHits++;
     this.totalLoadTime += loadTimeMs;
   }
 
-  recordCacheMiss(buildTimeMs) {
+  recordCacheMiss(/** @type {number} */ buildTimeMs) {
     this.cacheMisses++;
     this.totalBuildTime += buildTimeMs;
   }
@@ -293,5 +294,6 @@ export const precomputedTrieStats = new PrecomputedTrieStats();
 
 // Expose globally for debugging in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  // @ts-ignore - development-only window property
   window.precomputedTrieStats = precomputedTrieStats;
 }

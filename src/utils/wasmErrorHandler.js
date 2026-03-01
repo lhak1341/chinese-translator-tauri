@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Shared WASM Error Categorization and Handling
  *
@@ -43,12 +44,7 @@ const WASM_ERROR_TYPES = {
  *
  * @param {Error} error - The error to categorize
  * @param {string} component - Component name (e.g., 'number-processor', 'pattern-processor')
- * @returns {Object} Error information
- * @returns {string} return.type - Error type from WASM_ERROR_TYPES
- * @returns {string} return.userMessage - User-friendly error message
- * @returns {boolean} return.shouldReport - Whether to report to error tracking
- * @returns {boolean} return.isTransient - Whether error is transient (retryable)
- * @returns {string} return.component - Component that generated the error
+ * @returns {{ type: string, userMessage: string, shouldReport: boolean, isTransient: boolean, component: string }} Error information
  */
 export function categorizeWasmError(error, component = 'unknown') {
   const message = error.message?.toLowerCase() || String(error).toLowerCase();
@@ -156,16 +152,13 @@ export function categorizeWasmError(error, component = 'unknown') {
  * Create a standardized WASM error handler
  *
  * @param {string} component - Component name
- * @param {Object} options - Handler options
- * @param {boolean} options.logErrors - Whether to log errors (default: true)
- * @param {boolean} options.reportToTracker - Whether to report to error tracker (default: true)
- * @param {Function} options.onError - Custom error callback
+ * @param {{ logErrors?: boolean, reportToTracker?: boolean, onError?: Function }} [options] - Handler options
  * @returns {Function} Error handler function
  */
-function createWasmErrorHandler(component, options = {}) {
+export function createWasmErrorHandler(component, options = {}) {
   const { logErrors = true, reportToTracker = true, onError } = options;
 
-  return (error, context = {}) => {
+  return (/** @type {any} */ error, context = {}) => {
     const errorInfo = categorizeWasmError(error, component);
 
     // Log error
@@ -178,8 +171,10 @@ function createWasmErrorHandler(component, options = {}) {
       reportToTracker &&
       errorInfo.shouldReport &&
       typeof window !== 'undefined' &&
+      // @ts-ignore - window.errorTracker is an optional runtime property
       window.errorTracker
     ) {
+      // @ts-ignore
       window.errorTracker.captureException(error, {
         tags: {
           component: errorInfo.component,
@@ -202,7 +197,7 @@ function createWasmErrorHandler(component, options = {}) {
 /**
  * Format error for user display
  *
- * @param {Object} errorInfo - Error information from categorizeWasmError
+ * @param {{ type: string, userMessage: string, isTransient: boolean }} errorInfo - Error information from categorizeWasmError
  * @param {boolean} includeDetails - Whether to include technical details
  * @returns {string} Formatted error message
  */
@@ -224,10 +219,10 @@ export function formatWasmError(errorInfo, includeDetails = false) {
 /**
  * Check if error should trigger fallback mode
  *
- * @param {Object} errorInfo - Error information from categorizeWasmError
+ * @param {{ isTransient: boolean, type: string }} errorInfo - Error information from categorizeWasmError
  * @returns {boolean} True if should enter fallback
  */
-function shouldEnterFallback(errorInfo) {
+export function shouldEnterFallback(errorInfo) {
   // Transient errors should be retried, not fallen back
   if (errorInfo.isTransient) {
     return false;

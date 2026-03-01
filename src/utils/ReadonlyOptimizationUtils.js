@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * ReadonlyArray Optimization Utilities
  *
@@ -37,12 +38,12 @@ const metrics = {
  * Performs all modifications in one pass for better cache locality.
  * V8 can optimize this single write pass better than scattered mutations.
  *
- * @param {Array} tokens - Mutable token array
+ * @param {Array<*>} tokens - Mutable token array
  * @param {ReadonlyMap<number, TokenUpdate>} updates - Map of pending updates
  * @param {ApplyUpdatesOptions} options - Application options
  * @returns {ApplyUpdatesResult} Result of update operation
  */
-function applyTokenUpdates(tokens, updates, options = {}) {
+export function applyTokenUpdates(tokens, updates, options = {}) {
   const startTime = performance.now();
   const { validate = false, preserveOriginal = false, debugLevel = 0 } = options;
 
@@ -64,6 +65,7 @@ function applyTokenUpdates(tokens, updates, options = {}) {
     const token = tokens[index];
 
     // Skip if already translated (unless explicitly overriding)
+    // @ts-ignore - forceOverride is a valid runtime option not in the static type
     if (!options.forceOverride && token.translated !== null && token.translated !== undefined) {
       skipped++;
       continue;
@@ -120,7 +122,7 @@ function applyTokenUpdates(tokens, updates, options = {}) {
  * - Skipping bounds checks (proven readonly)
  * - Better branch prediction
  *
- * @param {ReadonlyArray} tokens - Readonly token array
+ * @param {ReadonlyArray<*>} tokens - Readonly token array
  * @param {Function} predicate - Match predicate
  * @param {TokenScanOptions} options - Scan options
  * @returns {TokenScanResult} Scan result
@@ -170,7 +172,7 @@ export function scanTokens(tokens, predicate, options = {}) {
  * @param {Object} metadata - Optional metadata
  * @returns {TokenUpdate} Token update object
  */
-function createTokenUpdate(index, translated, source, metadata) {
+export function createTokenUpdate(index, translated, source, metadata) {
   return {
     index,
     translated,
@@ -185,14 +187,14 @@ function createTokenUpdate(index, translated, source, metadata) {
  * Common operation in translation phases - find tokens that haven't
  * been translated yet.
  *
- * @param {ReadonlyArray} tokens - Readonly token array
+ * @param {ReadonlyArray<*>} tokens - Readonly token array
  * @param {Object} options - Scan options
  * @returns {TokenScanResult} Scan result
  */
-function findUnprocessedTokens(tokens, options = {}) {
+export function findUnprocessedTokens(tokens, options = {}) {
   return scanTokens(
     tokens,
-    (token) => token.translated === null || token.translated === undefined,
+    (/** @type {any} */ token) => token.translated === null || token.translated === undefined,
     options
   );
 }
@@ -200,13 +202,13 @@ function findUnprocessedTokens(tokens, options = {}) {
 /**
  * Find tokens matching a type using readonly scan
  *
- * @param {ReadonlyArray} tokens - Readonly token array
+ * @param {ReadonlyArray<*>} tokens - Readonly token array
  * @param {string} type - Token type to match
  * @param {Object} options - Scan options
  * @returns {TokenScanResult} Scan result
  */
-function findTokensByType(tokens, type, options = {}) {
-  return scanTokens(tokens, (token) => token.type === type, options);
+export function findTokensByType(tokens, type, options = {}) {
+  return scanTokens(tokens, (/** @type {any} */ token) => token.type === type, options);
 }
 
 /**
@@ -214,12 +216,12 @@ function findTokensByType(tokens, type, options = {}) {
  *
  * Useful for phrase/pattern matching where you need spans of untranslated tokens.
  *
- * @param {ReadonlyArray} tokens - Readonly token array
+ * @param {ReadonlyArray<*>} tokens - Readonly token array
  * @param {number} minLength - Minimum span length
  * @param {number} maxLength - Maximum span length
  * @returns {Array<{start: number, length: number}>} Array of spans
  */
-function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10) {
+export function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10) {
   const spans = [];
   let spanStart = -1;
   let spanLength = 0;
@@ -257,12 +259,12 @@ function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10) {
 /**
  * Get text from token span (readonly operation)
  *
- * @param {ReadonlyArray} tokens - Readonly token array
+ * @param {ReadonlyArray<*>} tokens - Readonly token array
  * @param {number} start - Start index
  * @param {number} length - Span length
  * @returns {string} Combined text
  */
-function getTokenSpanText(tokens, start, length) {
+export function getTokenSpanText(tokens, start, length) {
   let text = '';
   const end = Math.min(start + length, tokens.length);
 
@@ -280,7 +282,7 @@ function getTokenSpanText(tokens, start, length) {
  * @param {number} phase - Phase number
  * @returns {TokenUpdateBatch} Update batch
  */
-function createUpdateBatch(updates, phase) {
+export function createUpdateBatch(updates, phase) {
   const updateMap = new Map();
 
   for (const update of updates) {
@@ -299,7 +301,7 @@ function createUpdateBatch(updates, phase) {
  *
  * @returns {ReadonlyOptimizationMetrics} Current metrics
  */
-function getReadonlyOptimizationMetrics() {
+export function getReadonlyOptimizationMetrics() {
   return {
     readOnlyScans: metrics.readOnlyScans,
     batchUpdates: metrics.batchUpdates,
@@ -313,7 +315,7 @@ function getReadonlyOptimizationMetrics() {
 /**
  * Reset performance metrics
  */
-function resetReadonlyOptimizationMetrics() {
+export function resetReadonlyOptimizationMetrics() {
   metrics.readOnlyScans = 0;
   metrics.batchUpdates = 0;
   metrics.totalScanTime = 0;
@@ -324,7 +326,7 @@ function resetReadonlyOptimizationMetrics() {
 /**
  * Print optimization metrics report
  */
-function printOptimizationReport() {
+export function printOptimizationReport() {
   const stats = getReadonlyOptimizationMetrics();
 
   logger.log('\n📊 ReadonlyArray Optimization Report');
@@ -340,6 +342,7 @@ function printOptimizationReport() {
 // Development API exposure
 if (process.env.NODE_ENV === 'development') {
   if (typeof window !== 'undefined') {
+    // @ts-ignore - development-only window property
     window.readonlyOptimization = {
       getMetrics: getReadonlyOptimizationMetrics,
       resetMetrics: resetReadonlyOptimizationMetrics,

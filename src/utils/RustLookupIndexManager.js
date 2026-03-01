@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Rust Lookup Index Manager
  *
@@ -50,8 +51,8 @@ class RustLookupIndexManager {
    * @param {string} text - The input text to index
    * @param {Object} dictionariesMap - Map of dictionary name -> trie
    * @param {string[]} dictionaryOrder - Order to search dictionaries
-   * @param {Object} options - Build options
-   * @returns {Promise<{success: boolean, index: Object, buildTimeMs: number}>}
+   * @param {{ minTextLength?: number, enableIndexing?: boolean, useParallel?: boolean }} [options] - Build options
+   * @returns {Promise<{success: boolean, index: Object, buildTimeMs: number, positionsIndexed: number, indexSize: number, error?: string}>}
    */
   async buildLookupIndex(text, dictionariesMap, dictionaryOrder, options = {}) {
     // Use options.minTextLength if provided, otherwise use default
@@ -105,7 +106,7 @@ class RustLookupIndexManager {
         this.handleFailure(result.error);
         return result;
       }
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       logger.error('❌ Rust lookup index build failed:', error);
       this.handleFailure(error.message);
 
@@ -125,7 +126,7 @@ class RustLookupIndexManager {
    *
    * @param {Object} dictionariesMap - Map of dictionary name -> trie
    * @param {string[]} dictionaryOrder - Order to search dictionaries
-   * @returns {Array<{name: string, entries: Array, priority: number}>}
+   * @returns {Array<{name: string, entries: Array<*>, priority: number}>}
    */
   convertDictionariesToRustFormat(dictionariesMap, dictionaryOrder) {
     const dictionaries = [];
@@ -161,11 +162,12 @@ class RustLookupIndexManager {
    * Extract all entries from a JavaScript trie
    * CODE REVIEW FIX (MEDIUM-8): Made circular detection conditional for performance
    *
-   * @param {Object} trie - The trie to extract from
-   * @returns {Array<{chinese: string, vietnamese: string, metadata?: string}>}
+   * @param {{ root?: any, children?: any, [key: string]: any }} trie - The trie to extract from
+   * @returns {Array<{chinese: string, vietnamese: string, metadata: string|null}>}
    */
   extractEntriesFromTrie(trie) {
-    const entries = [];
+    const entries =
+      /** @type {Array<{chinese: string, vietnamese: string, metadata: string|null}>} */ ([]);
     // SAFETY FIX: Maximum depth to prevent infinite recursion from corrupted tries
     const MAX_DEPTH = 100;
 
@@ -175,7 +177,7 @@ class RustLookupIndexManager {
     const visitedNodes = process.env.NODE_ENV === 'development' ? new WeakSet() : null;
 
     // Traverse the trie using DFS
-    const traverse = (node, currentWord, depth = 0) => {
+    const traverse = (/** @type {any} */ node, /** @type {string} */ currentWord, depth = 0) => {
       // CRITICAL: Detect circular references in development
       // Corrupted tries with cycles will be caught immediately in dev mode
       if (visitedNodes && visitedNodes.has(node)) {
@@ -246,6 +248,7 @@ class RustLookupIndexManager {
   /**
    * Handle build failure
    * REFACTOR (2026-01-28): Delegates to FallbackManager for consistent handling
+   * @param {any} error
    */
   handleFailure(error) {
     this.stats.failures++;

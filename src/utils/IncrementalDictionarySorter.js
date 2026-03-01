@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Incremental Dictionary Sorting System
  * Phase 6: Optimize dictionary sorting with incremental updates
@@ -28,8 +29,8 @@ export class IncrementalDictionarySorter {
    * Uses incremental sorting when possible for better performance
    * @param {Object} dictionary - Dictionary to sort
    * @param {string} dictionaryId - Unique identifier for caching
-   * @param {string} changedKey - Key that was added/modified (optional)
-   * @param {string} oldKey - Previous key if this was an edit (optional)
+   * @param {string|null} changedKey - Key that was added/modified (optional)
+   * @param {string|null} oldKey - Previous key if this was an edit (optional)
    * @returns {Object} Sorted dictionary
    */
   sortDictionary(dictionary, dictionaryId, changedKey = null, oldKey = null) {
@@ -97,10 +98,10 @@ export class IncrementalDictionarySorter {
 
   /**
    * Perform incremental sort by repositioning only the changed entry
-   * @param {Object} dictionary - Current dictionary state
+   * @param {Record<string, any>} dictionary - Current dictionary state
    * @param {string} dictionaryId - Dictionary identifier
    * @param {string} changedKey - Key that was added/modified
-   * @param {string} oldKey - Previous key if this was an edit
+   * @param {string|null} oldKey - Previous key if this was an edit
    * @returns {Object|null} Sorted dictionary or null if incremental not possible
    */
   incrementalSort(dictionary, dictionaryId, changedKey, oldKey = null) {
@@ -114,6 +115,7 @@ export class IncrementalDictionarySorter {
 
     // Remove old key if this was an edit operation
     if (oldKey && oldKey !== changedKey) {
+      // @ts-ignore - destructuring in findIndex callback has implicit any
       const oldIndex = sortedEntries.findIndex(([key]) => key === oldKey);
       if (oldIndex >= 0) {
         sortedEntries.splice(oldIndex, 1);
@@ -121,6 +123,7 @@ export class IncrementalDictionarySorter {
     }
 
     // Remove existing entry if it exists (for updates)
+    // @ts-ignore - destructuring in findIndex callback has implicit any
     const existingIndex = sortedEntries.findIndex(([key]) => key === changedKey);
     if (existingIndex >= 0) {
       sortedEntries.splice(existingIndex, 1);
@@ -148,8 +151,8 @@ export class IncrementalDictionarySorter {
   /**
    * Find the correct insertion position for a new entry in sorted array
    * Uses binary search for efficiency
-   * @param {Array} sortedEntries - Already sorted entries
-   * @param {Array} newEntry - [key, value] pair to insert
+   * @param {Array<*>} sortedEntries - Already sorted entries
+   * @param {Array<*>} newEntry - [key, value] pair to insert
    * @returns {number} Index where new entry should be inserted
    */
   findInsertPosition(sortedEntries, newEntry) {
@@ -198,7 +201,7 @@ export class IncrementalDictionarySorter {
   /**
    * Get sorted entries from cache (for debugging)
    * @param {string} dictionaryId - Dictionary identifier
-   * @returns {Array} Sorted entries or empty array
+   * @returns {Array<*>} Sorted entries or empty array
    */
   getSortedEntries(dictionaryId) {
     return this.sortedCache.get(dictionaryId) || [];

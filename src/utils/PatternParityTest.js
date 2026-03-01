@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Pattern Processing Parity Test
  *
@@ -55,9 +56,9 @@ export const PARITY_TEST_CASES = [
 
 /**
  * Compare two pattern processing results
- * @param {Array} wasmResults - Results from Rust WASM processor
- * @param {Array} jsResults - Results from JavaScript processor
- * @returns {Object} Comparison result with differences
+ * @param {Array<*>} wasmResults - Results from Rust WASM processor
+ * @param {Array<*>} jsResults - Results from JavaScript processor
+ * @returns {{ identical: boolean, differences: Array<*>, summary: string }} Comparison result with differences
  */
 export function comparePatternResults(wasmResults, jsResults) {
   const differences = [];
@@ -174,8 +175,8 @@ export function comparePatternResults(wasmResults, jsResults) {
  * Requires access to TwoPhasePatternProcessor instance
  *
  * @param {string} input - Chinese text to test
- * @param {Object} processor - TwoPhasePatternProcessor instance
- * @returns {Object} Test result with comparison
+ * @param {any} processor - TwoPhasePatternProcessor instance
+ * @returns {Promise<{input: string, wasmResults: Array<*>, jsResults: Array<*>, comparison: {identical: boolean, differences: Array<*>, summary: string}, passed: boolean}>} Test result with comparison
  */
 export async function testPatternParity(input, processor) {
   if (!processor) {
@@ -235,8 +236,8 @@ export async function testPatternParity(input, processor) {
 
 /**
  * Run all predefined parity tests
- * @param {Object} processor - TwoPhasePatternProcessor instance
- * @returns {Object} Summary of all test results
+ * @param {any} processor - TwoPhasePatternProcessor instance
+ * @returns {Promise<Object>} Summary of all test results
  */
 export async function runAllParityTests(processor) {
   if (!isWasmPatternProcessorAvailable()) {
@@ -266,7 +267,7 @@ export async function runAllParityTests(processor) {
         failCount++;
         logger.log('❌ FAIL');
       }
-    } catch (error) {
+    } catch (/** @type {any} */ error) {
       logger.error(`❌ ERROR: ${error.message}`);
       results.push({ testCase, error: error.message, passed: false });
       failCount++;
@@ -295,7 +296,10 @@ export async function runAllParityTests(processor) {
 
 // Export for console access (development only)
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  // @ts-ignore - development-only window properties
   window.testPatternParity = testPatternParity;
+  // @ts-ignore
   window.runAllParityTests = runAllParityTests;
+  // @ts-ignore
   window.comparePatternResults = comparePatternResults;
 }

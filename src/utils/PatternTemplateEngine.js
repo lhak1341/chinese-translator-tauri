@@ -1,3 +1,4 @@
+// @ts-check
 import { logger } from './logger';
 
 /**
@@ -30,10 +31,7 @@ export class PatternTemplateEngine {
    * Parse pattern string into semantic tokens
    *
    * @param {string} pattern - Pattern string like "这些X"
-   * @returns {Array<Object>} Array of pattern tokens
-   * @returns {string} returns[].type - Token type ('literal' or 'variable')
-   * @returns {string} returns[].value - Token value
-   * @returns {string} [returns[].name] - Variable name (for variable tokens)
+   * @returns {Array<{type: string, value: string, name?: string}>} Array of pattern tokens
    */
   static parsePatternToTokens(pattern) {
     const tokens = [];
@@ -90,10 +88,7 @@ export class PatternTemplateEngine {
    * - Pattern structure consistency
    *
    * @param {string} pattern - Pattern string to validate
-   * @returns {Object} Validation result
-   * @returns {boolean} returns.valid - Whether pattern is valid
-   * @returns {string} [returns.error] - Error message if invalid
-   * @returns {Array<string>} [returns.variables] - List of variables found
+   * @returns {{ valid: boolean, error?: string, variables?: string[] }} Validation result
    */
   static validatePattern(pattern) {
     // Check for empty pattern
@@ -152,11 +147,7 @@ export class PatternTemplateEngine {
    *
    * @param {string} template - Template string
    * @param {Array<string>} patternVariables - Variables from the pattern
-   * @returns {Object} Validation result
-   * @returns {boolean} returns.valid - Whether template is valid
-   * @returns {string} [returns.error] - Error message if invalid
-   * @returns {Array<string>} [returns.unusedVariables] - Variables not used in template
-   * @returns {Array<string>} [returns.undefinedVariables] - Variables in template but not in pattern
+   * @returns {{ valid: boolean, error?: string, unusedVariables?: string[], undefinedVariables?: string[] }} Validation result
    */
   static validateTemplate(template, patternVariables) {
     const templateVariables = this.extractVariables(template);
@@ -198,10 +189,7 @@ export class PatternTemplateEngine {
    *
    * @param {string} pattern - Pattern string
    * @param {string} template - Template string
-   * @returns {Object} Validation result
-   * @returns {boolean} returns.valid - Whether both pattern and template are valid
-   * @returns {string} [returns.error] - Error message if invalid
-   * @returns {Array<string>} [returns.variables] - List of variables
+   * @returns {{ valid: boolean, error?: string, variables?: string[] }} Validation result
    */
   static validatePatternTemplate(pattern, template) {
     // Validate pattern
@@ -211,7 +199,7 @@ export class PatternTemplateEngine {
     }
 
     // Validate template against pattern variables
-    const templateResult = this.validateTemplate(template, patternResult.variables);
+    const templateResult = this.validateTemplate(template, patternResult.variables || []);
     if (!templateResult.valid) {
       return templateResult;
     }
@@ -228,12 +216,7 @@ export class PatternTemplateEngine {
    * Useful for debugging and analysis.
    *
    * @param {string} pattern - Pattern string
-   * @returns {Object} Pattern statistics
-   * @returns {number} returns.length - Total pattern length
-   * @returns {number} returns.literalCount - Number of literal tokens
-   * @returns {number} returns.variableCount - Number of variable tokens
-   * @returns {Array<string>} returns.variables - List of variables
-   * @returns {number} returns.uniqueVariableCount - Number of unique variables
+   * @returns {{ length: number, literalCount: number, variableCount: number, variables: string[], uniqueVariableCount: number }} Pattern statistics
    */
   static getPatternStats(pattern) {
     const tokens = this.parsePatternToTokens(pattern);

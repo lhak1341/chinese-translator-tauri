@@ -126,7 +126,7 @@ export async function loadDictionaryWithCache(
  *
  * @param {string} dictionaryName - Name of dictionary
  * @param {Object} dictionaryData - Dictionary data
- * @param {Object} trie - DictionaryTrie instance
+ * @param {{ root: any, size: number }} trie - DictionaryTrie instance
  * @param {{ loadDictionary: Function, saveDictionary: Function }} tauriAPI - Tauri API
  * @returns {Promise<boolean>} Success status
  */

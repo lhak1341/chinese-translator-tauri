@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WASM Dictionary Trie Manual Validation Utility
  *
@@ -19,6 +20,9 @@
 import { tokenPositionToCharPosition, buildFullTextFromTokens } from './PositionMappingUtils.js';
 
 export class WasmDictionaryTrieValidator {
+  /**
+   * @param {any} translationEngine
+   */
   constructor(translationEngine) {
     this.engine = translationEngine;
     this.results = {
@@ -36,7 +40,7 @@ export class WasmDictionaryTrieValidator {
         positionMappingTime: 0,
         lookupCount: 0,
       },
-      errors: [],
+      errors: /** @type {Array<{tokens: string, position: number, wasm: any, js: any}>} */ ([]),
     };
   }
 
@@ -170,8 +174,6 @@ export class WasmDictionaryTrieValidator {
     const iterations = 1000;
     const testSentence = '我今天学习不知道怎么样非常好';
     const tokens = testSentence.split('').map((char) => ({ value: char }));
-    const fullText = buildFullTextFromTokens(tokens);
-
     // Get dictionary for JavaScript comparison
     const dictionary = this.engine.dictionaryManager.getDictionary('characters');
     if (!dictionary) {
@@ -274,6 +276,8 @@ export class WasmDictionaryTrieValidator {
 
   /**
    * Compare WASM vs JavaScript lookup for a single position
+   * @param {any} tokens
+   * @param {any} position
    */
   compareLookups(tokens, position) {
     const dictionary = this.engine.dictionaryManager.getDictionary('characters');
@@ -300,7 +304,7 @@ export class WasmDictionaryTrieValidator {
       if (!wasm && js) this.results.correctness.jsOnly++;
 
       this.results.errors.push({
-        tokens: tokens.map((t) => t.value).join(''),
+        tokens: tokens.map((/** @type {any} */ t) => t.value).join(''),
         position,
         wasm,
         js,
@@ -317,6 +321,8 @@ export class WasmDictionaryTrieValidator {
 
   /**
    * WASM lookup wrapper
+   * @param {any} tokens
+   * @param {any} position
    */
   wasmLookup(tokens, position) {
     try {
@@ -328,6 +334,9 @@ export class WasmDictionaryTrieValidator {
 
   /**
    * JavaScript lookup (original implementation)
+   * @param {any} tokens
+   * @param {any} position
+   * @param {any} dictionary
    */
   jsLookup(tokens, position, dictionary) {
     if (!dictionary) return null;
@@ -337,7 +346,7 @@ export class WasmDictionaryTrieValidator {
 
     for (let length = 1; length <= Math.min(10, tokens.length - position); length++) {
       const tokenSequence = tokens.slice(position, position + length);
-      const text = tokenSequence.map((t) => t.value).join('');
+      const text = tokenSequence.map((/** @type {any} */ t) => t.value).join('');
       const result = dictionary.get(text);
 
       if (result) {
@@ -357,6 +366,8 @@ export class WasmDictionaryTrieValidator {
 
   /**
    * Compare two lookup results
+   * @param {any} wasm
+   * @param {any} js
    */
   compareResults(wasm, js) {
     // Both null
@@ -458,12 +469,14 @@ export class WasmDictionaryTrieValidator {
  * Call this from DevTools console: window.validateWasmDictionaryTrie()
  */
 export async function validateWasmDictionaryTrie() {
+  // @ts-ignore - window.translationEngine is set at runtime
   if (!window.translationEngine) {
     console.error('❌ Translation engine not found');
     console.log("   Make sure you're in the Translator tab and dictionaries are loaded");
     return;
   }
 
+  // @ts-ignore
   const validator = new WasmDictionaryTrieValidator(window.translationEngine);
   await validator.runValidation();
 }

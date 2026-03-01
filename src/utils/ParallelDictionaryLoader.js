@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Parallel Dictionary Loading Utilities
  *
@@ -53,7 +54,7 @@ export class ParallelDictionaryLoader {
       try {
         const result = await loadFunction(dict.name, dict.path);
         return { name: dict.name, success: true, result };
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         logger.error(`Failed to load dictionary ${dict.name}:`, error);
         return { name: dict.name, success: false, error: error.message };
       }
@@ -102,7 +103,7 @@ export class ParallelDictionaryLoader {
       try {
         const result = await loadFunction(dict.name, dict.path);
         results.push({ name: dict.name, success: true, result });
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         logger.error(`Failed to load dictionary ${dict.name}:`, error);
         results.push({ name: dict.name, success: false, error: error.message });
       }
@@ -146,7 +147,7 @@ export class ParallelDictionaryLoader {
         }
         const data = await response.json();
         return { path, success: true, data };
-      } catch (error) {
+      } catch (/** @type {any} */ error) {
         logger.error(`Failed to fetch ${path}:`, error);
         return { path, success: false, error: error.message };
       }
@@ -219,7 +220,7 @@ export class ParallelDictionaryLoader {
    * Print loading statistics
    */
   printStats() {
-    const stats = this.getStats();
+    const stats = /** @type {any} */ (this.getStats());
 
     logger.log('\n📊 Parallel Dictionary Loading Stats');
     logger.log('─'.repeat(50));
@@ -261,7 +262,9 @@ export async function loadDictionariesInChunks(dictionaries, loadFunction, chunk
   for (const [index, chunk] of chunks.entries()) {
     logger.log(`Loading chunk ${index + 1}/${chunks.length} (${chunk.length} dictionaries)...`);
 
-    const chunkResult = await loader.loadDictionariesParallel(chunk, loadFunction);
+    const chunkResult = /** @type {{ results: Array<*>, successful: number, failed: number }} */ (
+      await loader.loadDictionariesParallel(chunk, loadFunction)
+    );
 
     allResults.push(...chunkResult.results);
     totalSuccessful += chunkResult.successful;
@@ -282,6 +285,7 @@ export const parallelDictionaryLoader = new ParallelDictionaryLoader();
 // Development API exposure
 if (process.env.NODE_ENV === 'development') {
   if (typeof window !== 'undefined') {
+    // @ts-ignore - development-only window property
     window.parallelDictionaryLoader = {
       loader: parallelDictionaryLoader,
       getStats: () => parallelDictionaryLoader.getStats(),

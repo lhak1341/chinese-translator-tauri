@@ -1,3 +1,4 @@
+// @ts-check
 import { logger } from './logger';
 
 /**
@@ -213,11 +214,11 @@ export function buildFullTextFromTokens(tokens) {
  *     metadata: "..."
  *   }
  *
- * @param {Object} wasmMatch - WASM match result
+ * @param {{ length: number, matchedText: string, translation: string, priority?: number, metadata?: any }} wasmMatch - WASM match result
  * @param {Array<{value: string}>} tokens - Token array
  * @param {number} startTokenPos - Starting token position
  * @param {string} dictionaryName - Dictionary name for result
- * @returns {Object} Token-based match object
+ * @returns {Object|null} Token-based match object
  */
 export function convertWasmMatchToTokenMatch(wasmMatch, tokens, startTokenPos, dictionaryName) {
   if (!wasmMatch) {
@@ -247,7 +248,7 @@ export function convertWasmMatchToTokenMatch(wasmMatch, tokens, startTokenPos, d
  * @param {Array<{value: string}>} tokens - Token array to validate
  * @returns {boolean} True if all mappings are consistent
  */
-function validatePositionMapping(tokens) {
+export function validatePositionMapping(tokens) {
   if (!Array.isArray(tokens) || tokens.length === 0) {
     return true;
   }
