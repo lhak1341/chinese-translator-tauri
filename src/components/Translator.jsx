@@ -1816,14 +1816,11 @@ const Translator = ({ isActive = true }) => {
     };
 
     loadAndTranslate();
-  }, [
-    inputText,
-    isLoading,
-    isClipboardTranslation,
-    isDictionaryReloading,
-    translateCharacterOnly,
-    translateText,
-  ]); // Only retranslate when input changes or dictionaries finish initial loading
+  }, [inputText, isLoading, isDictionaryReloading, translateCharacterOnly, translateText]); // Only retranslate when input changes or dictionaries finish initial loading
+  // NOTE: isClipboardTranslation is intentionally omitted from deps — the effect sets it to
+  // false after translation (line 1806), which would otherwise re-trigger a second translation.
+  // Both inputText and isClipboardTranslation are set together (React 18 batching), so the
+  // effect captures the correct isClipboardTranslation value when triggered by inputText.
 
   /**
    * Handles clipboard translation - reads clipboard and initiates translation

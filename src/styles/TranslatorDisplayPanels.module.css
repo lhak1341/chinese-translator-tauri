@@ -95,11 +95,22 @@
   z-index: 10;
   overflow: hidden;
   border-radius: var(--radius-lg);
+  transition: opacity 0.2s ease;
+}
+
+.streamingOverlayVisible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.streamingOverlayHidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Translation Content */
 .translationContent {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.2s ease;
 }
 
 .translationContentVisible {
@@ -107,7 +118,7 @@
 }
 
 .translationContentHidden {
-  opacity: 0.2;
+  opacity: 0;
 }
 
 /* Resize Handles */

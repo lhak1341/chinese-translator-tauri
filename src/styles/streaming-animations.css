@@ -123,16 +123,6 @@
   color: var(--streaming-text-error);
 }
 
-/* Loading spinner for streaming */
-.streaming-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--streaming-bg-tertiary);
-  border-top: 2px solid var(--streaming-accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
 /* Text content during streaming */
 .streaming-text {
   line-height: 1.6;

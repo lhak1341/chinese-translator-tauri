@@ -79,8 +79,6 @@ interface StreamingTranslationDisplayProps {
 
 // Streaming progress bar component - OPTIMIZED: Uses static CSS instead of dynamic injection
 const StreamingProgressBar = memo<StreamingProgressBarProps>(({ streamingState }) => {
-  if (!streamingState.isStreaming) return null;
-
   // Use CSS classes instead of inline styles for better performance
   const progressBarClass =
     streamingState.progress > 0 ? 'streaming-progress-fill animated' : 'streaming-progress-fill';
@@ -231,14 +229,6 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
             isComplete={isComplete}
             maxVisibleLines={1000}
           />
-
-          {/* Streaming indicator overlay */}
-          {showStreamingUI && (
-            <div className={styles.streamingIndicator}>
-              <div className={styles.streamingIndicatorDot} />
-              Streaming...
-            </div>
-          )}
         </div>
 
         {/* Debug info (development only) */}

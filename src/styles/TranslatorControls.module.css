@@ -64,6 +64,7 @@
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--success-color);
+  animation: fadeIn 0.2s ease;
 }
 
 .pulseDot {
@@ -72,13 +73,6 @@
   border-radius: 50%;
   background: currentColor;
   animation: pulse 1.5s ease-in-out infinite;
-}
-
-/* Stats Container */
-.statsContainer {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 /* Stats Chip */
@@ -104,32 +98,6 @@
   font-family: var(--font-mono);
 }
 
-/* Streaming Progress */
-.streamingProgress {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--primary-subtle);
-  border-radius: var(--radius-md);
-  font-size: 0.75rem;
-  color: var(--primary-color);
-}
-
-.progressBar {
-  width: 40px;
-  height: 4px;
-  background: var(--border-color);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progressBarFill {
-  height: 100%;
-  background: var(--primary-color);
-  transition: width 0.15s ease;
-}
-
 /* Active Badge */
 .activeBadge {
   display: flex;
@@ -139,6 +107,7 @@
   border-radius: var(--radius-full);
   font-size: 0.6875rem;
   font-weight: 600;
+  animation: fadeIn 0.2s ease;
 }
 
 .activeBadgeSingle {
@@ -157,6 +126,16 @@
   border-radius: 50%;
   background: currentColor;
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Fade-in for conditionally rendered pills/badges */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Pulse Animation — references global @keyframes pulse defined in index.css */

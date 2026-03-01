@@ -154,10 +154,12 @@ export default function TranslatorDisplayPanels({
         {/* Right Column - Main Translation */}
         <Panel id="main-translation" defaultSize={67} className={styles.panelWrapper}>
           <div className={styles.panel} style={outputTextStyle}>
-            {/* Streaming Overlay */}
-            {throttledStreamingState.isStreaming && (
-              <div className={styles.streamingOverlay}>
-                {React.createElement(StreamingTranslationDisplay as any, {
+            {/* Streaming Overlay — always mounted so CSS opacity transition can fire */}
+            <div
+              className={`${styles.streamingOverlay} ${throttledStreamingState.isStreaming ? styles.streamingOverlayVisible : styles.streamingOverlayHidden}`}
+            >
+              {throttledStreamingState.isStreaming &&
+                React.createElement(StreamingTranslationDisplay as any, {
                   streamingState: throttledStreamingState,
                   finalText: translatedText,
                   isComplete: false,
@@ -165,8 +167,7 @@ export default function TranslatorDisplayPanels({
                   partialSemanticArrays: partialSemanticArrays,
                   style: { height: '100%', padding: '1rem' },
                 })}
-              </div>
-            )}
+            </div>
 
             {/* Translation Content */}
             <div
@@ -187,7 +188,7 @@ export default function TranslatorDisplayPanels({
                 </div>
               ) : (
                 <div
-                  className={`${styles.placeholder} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
+                  className={`${styles.placeholder} ${styles.translationContent} ${throttledStreamingState.isStreaming ? styles.translationContentHidden : styles.translationContentVisible}`}
                 >
                   <div className={styles.placeholderText}>Translation will appear here</div>
                 </div>

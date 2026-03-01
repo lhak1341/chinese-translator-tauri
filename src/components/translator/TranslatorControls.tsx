@@ -1,7 +1,6 @@
 import React from 'react';
 import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Database, Activity } from 'lucide-react';
 import styles from '../../styles/TranslatorControls.module.css';
-import type { ThrottledStreamingState } from '../../types/UITypes';
 
 /**
  * Performance statistics for translation operations
@@ -56,7 +55,6 @@ interface TranslatorControlsProps {
   performanceStats: PerformanceStats;
   wasmStatus: WasmStatus;
   regressionHealth: RegressionHealth;
-  throttledStreamingState: ThrottledStreamingState;
 }
 
 /**
@@ -76,7 +74,6 @@ export default function TranslatorControls({
   performanceStats,
   wasmStatus,
   regressionHealth,
-  throttledStreamingState,
 }: TranslatorControlsProps): React.ReactElement {
   const healthColor =
     regressionHealth.status === 'critical'
@@ -139,73 +136,56 @@ export default function TranslatorControls({
       {/* Spacer */}
       <div className={styles.spacer} />
 
-      {/* Progress or Stats */}
-      {progressInfo ? (
+      {/* Stats chip — always visible, right-aligned via spacer */}
+      <div
+        className={styles.statsChip}
+        role="status"
+        aria-label="Translation performance statistics"
+      >
+        <span className={styles.statItem}>
+          <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
+          {Math.round(performanceStats.avgTime)}ms
+        </span>
+        <span className={styles.statItem}>
+          <Database
+            size={12}
+            style={{
+              color:
+                performanceStats.cacheHitRate > 50 ? 'var(--success-color)' : 'var(--text-muted)',
+            }}
+            aria-hidden="true"
+          />
+          {Math.round(performanceStats.cacheHitRate)}%
+        </span>
+        {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
+          <span
+            className={styles.wasmStatus}
+            style={{
+              color: wasmStatus.fallbackMode ? 'var(--warning-color)' : 'var(--primary-color)',
+            }}
+            aria-label={
+              wasmStatus.fallbackMode
+                ? 'Using JavaScript fallback'
+                : 'Using WebAssembly acceleration'
+            }
+          >
+            {wasmStatus.fallbackMode ? 'JS' : 'WASM'}
+          </span>
+        )}
+        <span className={styles.statItem} style={{ color: healthColor }}>
+          <Activity size={12} aria-hidden="true" />
+        </span>
+      </div>
+
+      {/* Batch progress pill — conditionally rendered, fades in on mount */}
+      {progressInfo && (
         <div className={styles.progressIndicator} role="status" aria-live="polite">
           <div className={styles.pulseDot} />
           Batch {progressInfo.currentBatch}/{progressInfo.totalBatches}
         </div>
-      ) : (
-        <div className={styles.statsContainer}>
-          {/* Stats chip */}
-          <div
-            className={styles.statsChip}
-            role="status"
-            aria-label="Translation performance statistics"
-          >
-            <span className={styles.statItem}>
-              <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
-              {Math.round(performanceStats.avgTime)}ms
-            </span>
-            <span className={styles.statItem}>
-              <Database
-                size={12}
-                style={{
-                  color:
-                    performanceStats.cacheHitRate > 50
-                      ? 'var(--success-color)'
-                      : 'var(--text-muted)',
-                }}
-                aria-hidden="true"
-              />
-              {Math.round(performanceStats.cacheHitRate)}%
-            </span>
-            {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
-              <span
-                className={styles.wasmStatus}
-                style={{
-                  color: wasmStatus.fallbackMode ? 'var(--warning-color)' : 'var(--primary-color)',
-                }}
-                aria-label={
-                  wasmStatus.fallbackMode
-                    ? 'Using JavaScript fallback'
-                    : 'Using WebAssembly acceleration'
-                }
-              >
-                {wasmStatus.fallbackMode ? 'JS' : 'WASM'}
-              </span>
-            )}
-            <span className={styles.statItem} style={{ color: healthColor }}>
-              <Activity size={12} aria-hidden="true" />
-            </span>
-          </div>
-
-          {/* Streaming progress */}
-          {throttledStreamingState.isStreaming && (
-            <div className={styles.streamingProgress}>
-              <div className={styles.progressBar}>
-                <div
-                  className={styles.progressBarFill}
-                  style={{ width: `${throttledStreamingState.progress}%` }}
-                />
-              </div>
-              {Math.round(throttledStreamingState.progress)}%
-            </div>
-          )}
-        </div>
       )}
 
-      {/* Active badge */}
+      {/* Active badge — conditionally rendered, fades in on mount */}
       {activeTranslations > 0 && (
         <div
           className={`${styles.activeBadge} ${activeTranslations > 1 ? styles.activeBadgeMultiple : styles.activeBadgeSingle}`}

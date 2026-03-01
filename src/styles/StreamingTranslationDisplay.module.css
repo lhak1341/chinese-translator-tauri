@@ -56,30 +56,6 @@
   background-color: transparent;
 }
 
-/* Streaming Indicator */
-.streamingIndicator {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  padding: 4px 8px;
-  background-color: var(--streaming-accent-light);
-  border-radius: 12px;
-  font-size: 11px;
-  color: var(--streaming-accent);
-  font-weight: 500;
-}
-
-.streamingIndicatorDot {
-  width: 6px;
-  height: 6px;
-  background-color: var(--streaming-accent);
-  border-radius: 50%;
-  margin-right: 6px;
-  animation: pulse 1.5s infinite;
-}
-
 /* Debug Info */
 .debugInfo {
   margin-top: 8px;
