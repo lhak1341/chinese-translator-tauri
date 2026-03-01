@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WASM Operation Timeout Wrapper
  *
@@ -35,6 +36,10 @@ import { logger } from './logger';
  * Custom timeout error
  */
 export class TimeoutError extends Error {
+  /**
+   * @param {string} operation
+   * @param {number} timeoutMs
+   */
   constructor(operation, timeoutMs) {
     super(`WASM operation '${operation}' timed out after ${timeoutMs}ms`);
     this.name = 'TimeoutError';
@@ -62,10 +67,7 @@ export const DEFAULT_WASM_TIMEOUTS = {
  * @param {Function} operation - Async WASM operation
  * @param {number} timeoutMs - Timeout in milliseconds
  * @param {string} operationName - Operation name for logging
- * @param {Object} options - Additional options
- * @param {boolean} options.logTimeout - Whether to log timeout events (default: true)
- * @param {boolean} options.throwOnTimeout - Whether to throw on timeout (default: true)
- * @param {any} options.fallbackValue - Value to return on timeout if not throwing
+ * @param {{ logTimeout?: boolean, throwOnTimeout?: boolean, fallbackValue?: any }} [options] - Additional options
  * @returns {Promise<any>} Operation result or fallbackValue on timeout
  * @throws {TimeoutError} If operation times out and throwOnTimeout is true
  */
@@ -123,7 +125,9 @@ export async function callWasmWithTimeout(
  * @returns {Function} Wrapped function with timeout protection
  */
 export function createTimeoutWrapper(wasmFunction, timeoutMs, operationName) {
+  // @ts-ignore - rest args implicitly any[] at runtime
   return async function (...args) {
+    // @ts-ignore - this binding is correct at runtime
     return callWasmWithTimeout(() => wasmFunction.apply(this, args), timeoutMs, operationName);
   };
 }
@@ -142,6 +146,9 @@ export class TimeoutManager {
 
   /**
    * Execute operation with timeout and track statistics
+   * @param {Function} operation
+   * @param {number} timeoutMs
+   * @param {string} operationName
    */
   async executeWithTimeout(operation, timeoutMs, operationName) {
     this.stats.totalOperations++;

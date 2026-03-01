@@ -1,3 +1,4 @@
+// @ts-check
 import { logger } from '../utils/logger';
 
 /**
@@ -115,7 +116,7 @@ export function highlightingReducer(state, action) {
     case 'HIGHLIGHT_ORIGINAL':
       // User clicked on original text segment
       return {
-        unitIndex: action.unitIndex,
+        unitIndex: action.unitIndex ?? -1,
         translationUnitIndex: -1,
         characterOnlyUnitIndex: -1,
         isCharacterOnlyClick: false,
@@ -125,7 +126,7 @@ export function highlightingReducer(state, action) {
       // User clicked on translation text segment
       return {
         unitIndex: -1,
-        translationUnitIndex: action.unitIndex,
+        translationUnitIndex: action.unitIndex ?? -1,
         characterOnlyUnitIndex: -1,
         isCharacterOnlyClick: false,
       };
@@ -133,8 +134,8 @@ export function highlightingReducer(state, action) {
     case 'HIGHLIGHT_FROM_CHARACTER_ONLY':
       // User clicked on character-only translation - highlight both original and main translation
       return {
-        unitIndex: action.unitIndex,
-        translationUnitIndex: action.unitIndex,
+        unitIndex: action.unitIndex ?? -1,
+        translationUnitIndex: action.unitIndex ?? -1,
         characterOnlyUnitIndex: -1,
         isCharacterOnlyClick: true,
       };
@@ -142,8 +143,8 @@ export function highlightingReducer(state, action) {
     case 'HIGHLIGHT_BOTH':
       // Highlight same unit in both original and translation (e.g., search result)
       return {
-        unitIndex: action.unitIndex,
-        translationUnitIndex: action.unitIndex,
+        unitIndex: action.unitIndex ?? -1,
+        translationUnitIndex: action.unitIndex ?? -1,
         characterOnlyUnitIndex: -1,
         isCharacterOnlyClick: false,
       };
@@ -155,7 +156,7 @@ export function highlightingReducer(state, action) {
       // Example: "Harry Potter" → "哈利波特" (single word) → "ha lợi ba đặc" (4 words, indices [0,1,2,3])
       return {
         ...state,
-        characterOnlyUnitIndex: action.unitIndex, // Keep as-is (array or single)
+        characterOnlyUnitIndex: action.unitIndex ?? -1, // Keep as-is (array or single)
       };
 
     case 'CLEAR_ALL':

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * WASM Number Processor Wrapper
  * Provides a JavaScript interface to the Rust/WASM NumberProcessor
@@ -53,7 +54,9 @@ import { categorizeWasmError, formatWasmError } from './wasmErrorHandler'; // CO
 import { verifyWasmInstance, verifyWasmBinaryIntegrity } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
 import { fetchWasmBinary } from './wasmBinaryCache'; // CODE REVIEW FIX 2026-02-01 (HIGH-1): Shared WASM binary cache
 
+/** @type {NumberProcessor|null} */
 let wasmNumberProcessor = null;
+/** @type {Promise<boolean>|null} */
 let initializationPromise = null;
 let initializationFailed = false;
 let showedNumberWarning = false;
@@ -105,7 +108,10 @@ export async function initializeWasmNumberProcessor() {
           logger.debug(`WASM binary ready (${wasmBinary.byteLength} bytes)`);
 
           // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
-          const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);
+          const integrityCheck =
+            /** @type {{ valid: boolean, errors: string[], warnings: string[] }} */ (
+              await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary)
+            );
           if (!integrityCheck.valid) {
             throw new Error(
               `WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`
@@ -126,10 +132,8 @@ export async function initializeWasmNumberProcessor() {
           logger.debug('NumberProcessor instance created');
 
           // CODE REVIEW FIX: Verify instance has expected methods
-          const instanceVerification = verifyWasmInstance(
-            wasmNumberProcessor,
-            ['processTokens', 'free'],
-            'NumberProcessor'
+          const instanceVerification = /** @type {{ valid: boolean, errors: string[] }} */ (
+            verifyWasmInstance(wasmNumberProcessor, ['processTokens', 'free'], 'NumberProcessor')
           );
           if (!instanceVerification.valid) {
             throw new Error(
@@ -163,8 +167,8 @@ export async function initializeWasmNumberProcessor() {
 
 /**
  * Process tokens to convert Chinese numbers
- * @param {Array} tokens - Array of token objects
- * @returns {Promise<Array>} Processed tokens
+ * @param {Array<*>} tokens - Array of token objects
+ * @returns {Promise<Array<*>>} Processed tokens
  */
 export async function processNumbersWasm(tokens) {
   // Ensure WASM is initialized
@@ -202,16 +206,21 @@ export async function processNumbersWasm(tokens) {
     // }
 
     // Call WASM NumberProcessor
+    if (!wasmNumberProcessor) return tokens;
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
-  } catch (error) {
+  } catch (/** @type {any} */ error) {
     // CODE REVIEW FIX (MEDIUM-1): Use shared error categorization
-    const errorInfo = categorizeWasmError(error, 'number-processor');
+    const errorInfo = /** @type {{ type: string, component: string, shouldReport: boolean }} */ (
+      categorizeWasmError(error, 'number-processor')
+    );
 
     logger.error(`❌ WASM number processing ${errorInfo.type} error:`, error);
 
     // Report to error tracking if needed (Sentry, etc.)
+    // @ts-ignore - window.errorTracker is an optional runtime debug property
     if (errorInfo.shouldReport && typeof window !== 'undefined' && window.errorTracker) {
+      // @ts-ignore
       window.errorTracker.captureException(error, {
         tags: { component: errorInfo.component, error_type: errorInfo.type },
       });

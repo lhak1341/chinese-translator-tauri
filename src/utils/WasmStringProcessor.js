@@ -1,3 +1,4 @@
+// @ts-check
 import init, { StringProcessor } from '../wasm/translation_wasm_core.js';
 import { logger } from './logger';
 
@@ -56,9 +57,9 @@ export class WasmStringProcessor {
    * @returns {Promise<boolean>} Success status
    */
   async buildCache(semanticTokens) {
-    if (!this.initialized) {
+    if (!this.initialized || !this.processor) {
       const ok = await this.initialize();
-      if (!ok) return false;
+      if (!ok || !this.processor) return false;
     }
 
     try {
@@ -90,8 +91,8 @@ export class WasmStringProcessor {
    * @returns {string | null} Precomputed string or null if not in cache
    */
   getString(position, span) {
-    if (!this.initialized) return null;
-    return this.processor.getString(position, span);
+    if (!this.initialized || !this.processor) return null;
+    return this.processor.getString(position, span) ?? null;
   }
 
   /**
@@ -102,7 +103,7 @@ export class WasmStringProcessor {
    * @returns {boolean} True if cached, false otherwise
    */
   hasString(position, span) {
-    if (!this.initialized) return false;
+    if (!this.initialized || !this.processor) return false;
     return this.processor.hasString(position, span);
   }
 
@@ -114,7 +115,7 @@ export class WasmStringProcessor {
    * @returns {Map<string, string>} String cache (keys: "pos-span" → value: string)
    */
   getAllStrings() {
-    if (!this.initialized) return new Map();
+    if (!this.initialized || !this.processor) return new Map();
     return this.processor.getAllStrings();
   }
 
@@ -129,7 +130,7 @@ export class WasmStringProcessor {
    *   - stringBytes: bytes used for string storage
    */
   getStats() {
-    if (!this.initialized) {
+    if (!this.initialized || !this.processor) {
       return {
         tokenCount: 0,
         cacheSize: 0,
@@ -147,7 +148,7 @@ export class WasmStringProcessor {
    * Call this when done processing to release memory
    */
   clear() {
-    if (this.initialized) {
+    if (this.initialized && this.processor) {
       this.processor.clear();
     }
   }

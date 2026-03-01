@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Dictionary Trie Loader with Precomputed Cache Support
  *
@@ -19,9 +20,9 @@ import { logger } from './logger.js';
  *
  * @param {string} dictionaryName - Name of dictionary (e.g., "phrases", "characters")
  * @param {Object} dictionaryData - Dictionary key-value pairs
- * @param {Function} TrieConstructor - DictionaryTrie constructor
- * @param {Function} TrieNodeConstructor - TrieNode constructor
- * @param {Object} tauriAPI - Tauri API for file operations
+ * @param {new(...args: any[]) => any} TrieConstructor - DictionaryTrie constructor
+ * @param {new(...args: any[]) => any} TrieNodeConstructor - TrieNode constructor
+ * @param {{ loadDictionary: Function, saveDictionary: Function }} tauriAPI - Tauri API for file operations
  * @returns {Promise<Object>} {trie: DictionaryTrie, fromCache: boolean, loadTime: number}
  */
 export async function loadDictionaryWithCache(
@@ -34,7 +35,7 @@ export async function loadDictionaryWithCache(
   const startTime = performance.now();
 
   // Helper to load cache file
-  const loadCacheFile = async (cacheFileName) => {
+  const loadCacheFile = async (/** @type {string} */ cacheFileName) => {
     try {
       // Try loading .trie.json using the same API as dictionaries
       const cacheId = cacheFileName.replace('.json', '');
@@ -57,8 +58,9 @@ export async function loadDictionaryWithCache(
   if (cached) {
     // Cache hit - create trie with cached data
     const trie = new TrieConstructor();
-    trie.root = cached.root;
-    trie.size = cached.size;
+    const cachedTrie = /** @type {{ root: any, size: number }} */ (cached);
+    trie.root = cachedTrie.root;
+    trie.size = cachedTrie.size;
 
     const loadTime = performance.now() - startTime;
     precomputedTrieStats.recordCacheHit(loadTime);
@@ -125,11 +127,11 @@ export async function loadDictionaryWithCache(
  * @param {string} dictionaryName - Name of dictionary
  * @param {Object} dictionaryData - Dictionary data
  * @param {Object} trie - DictionaryTrie instance
- * @param {Object} tauriAPI - Tauri API
+ * @param {{ loadDictionary: Function, saveDictionary: Function }} tauriAPI - Tauri API
  * @returns {Promise<boolean>} Success status
  */
 async function saveDictionaryCache(dictionaryName, dictionaryData, trie, tauriAPI) {
-  const saveCacheFile = async (cacheFileName, data) => {
+  const saveCacheFile = async (/** @type {string} */ cacheFileName, /** @type {string} */ data) => {
     try {
       // Save .trie.json using the same API as dictionaries
       const cacheId = cacheFileName.replace('.json', '');
@@ -160,7 +162,7 @@ async function saveDictionaryCache(dictionaryName, dictionaryData, trie, tauriAP
  * @returns {Promise<boolean>} Success status
  */
 export async function invalidateDictionaryCache(dictionaryName, tauriAPI) {
-  const deleteCacheFile = async (cacheFileName) => {
+  const deleteCacheFile = async (/** @type {string} */ cacheFileName) => {
     try {
       // For now, just return false - deletion can be added later
       // The checksum validation will handle stale caches
@@ -191,6 +193,7 @@ export function getCacheStats() {
 
 // Expose globally for debugging in development
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  // @ts-ignore - debug convenience property
   window.dictionaryTrieLoader = {
     getCacheStats,
     invalidateCache: invalidateDictionaryCache,
