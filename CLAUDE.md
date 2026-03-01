@@ -173,15 +173,15 @@ Key gotchas — most likely to cause **silent bugs**:
 - **`precomputeOriginalSegments` firstCharIndex must be sorted by tokenIndex** (`SegmentPrecomputer.ts:~724`): After building `firstCharIndex`, sort each candidate list by `tokenIndex` ascending: `for (const indices of firstCharIndex.values()) { indices.sort((a,b) => (metadata[a]?.tokenIndex??0)-(metadata[b]?.tokenIndex??0)); }`. Without this, parallel-chunk scrambling assigns the wrong `unitIndex` to duplicate characters in the Original Chinese panel (entries from later chunks land at lower array indices and get consumed first by the greedy scan).
 - **Duplicate-word highlighting requires tokenIndex ordering in THREE places** (all same root cause — `processChunksInParallel` scrambles semantic array indices): (1) Full Translation word-level builder (`TranslationEngine.js` ~6644): sort `candidateWords` by `tokenIndex` ascending for same-length ties; (2) Full Translation→Char-only bridge (`Translator.jsx` ~1127): count `occurrenceInFullTranslation` using `metadata[i].tokenIndex < clickedTokenIndex`, not `i < activeIndex`; (3) Original Chinese panel (`SegmentPrecomputer.ts` ~724): `firstCharIndex` candidate lists sorted by `tokenIndex`. Any new greedy scan or occurrence counter over the semantic array must use `tokenIndex` order.
 
-#### `// @ts-check` Coverage (14 files, src/utils/ + src/reducers/)
+#### `// @ts-check` Coverage (26 files, src/utils/ + src/reducers/)
 
-Active on: `wasmBinaryCache.js`, `PositionValidationHelpers.js`, `WasmTextAssembler.js`, `WasmRegexUtils.js`, `FallbackManager.js`, `WasmDictionaryTrie.js`, `WasmRetryManager.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmStringProcessor.js`, `wasmOperationTimeout.js`, `WasmNumberProcessor.js`, `DictionaryTrieLoader.js`, `highlightingReducer.js`. Do NOT remove without understanding that these were explicitly fixed to pass 0 errors.
+Active on: `wasmBinaryCache.js`, `PositionValidationHelpers.js`, `WasmTextAssembler.js`, `WasmRegexUtils.js`, `FallbackManager.js`, `WasmDictionaryTrie.js`, `WasmRetryManager.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js`, `WasmStringProcessor.js`, `wasmOperationTimeout.js`, `WasmNumberProcessor.js`, `DictionaryTrieLoader.js`, `highlightingReducer.js`, `IncrementalDictionarySorter.js`, `ParallelDictionaryLoader.js`, `PatternAnalyzer.js`, `PatternParityTest.js`, `PatternTemplateEngine.js`, `PerformanceMonitor.js`, `PositionMappingUtils.js`, `PrecomputedTrieCache.js`, `ReadonlyOptimizationUtils.js`, `RustLookupIndexManager.js`, `WasmDictionaryTrieValidator.js`, `wasmErrorHandler.js`. Do NOT remove without understanding that these were explicitly fixed to pass 0 errors.
 
-17 other utils were assessed and deferred — they have 7–69 errors each from insufficient JSDoc typedef coverage (objects typed as `{Object}` with property accesses, implicit-any params, untyped catch bindings). Add `// @ts-check` to them only after fixing their JSDoc.
+18 utils remain deferred (25–69 errors each, including `MemoryLeakDetector.js` — uses `performance.memory` non-standard API causing unfixable TS2339). Add `// @ts-check` only after fixing their JSDoc.
 
 **JSDoc patterns required for `// @ts-check` compatibility:**
 
-- `@returns {Array}` → must be `@returns {Array<*>}` (TypeScript requires generic arg)
+- `@returns {Array}` / `@param {ReadonlyArray}` → must include type arg: `{Array<*>}` / `{ReadonlyArray<*>}` (TS2314)
 - Catch bindings: `} catch (/** @type {any} */ error) {` — bare `catch (error)` gives `error is unknown`
 - `window.customProp = x` — needs `// @ts-ignore` above; property not on Window type
 - `@param {Object} options` with sub-property `@param {string} options.X` — TS requires leading `{object}` (lowercase) for sub-property style; use inline type `@param {{ x: string }} [options]` and remove sub-property lines
@@ -189,6 +189,10 @@ Active on: `wasmBinaryCache.js`, `PositionValidationHelpers.js`, `WasmTextAssemb
 - Module-level `let x = null` → add `/** @type {Function|null} */` above; TypeScript can't infer eventual type from `null`
 - `return async function (...args)` with `this` usage inside → two `// @ts-ignore` needed: one above the `return async function` line (rest param TS7019), one inside above the `this` call (TS2683)
 - `Object`-typed return used with property access → inline cast: `const typed = /** @type {{ prop: type }} */ (result)`
+- Multiple `@returns` / `@property` lines in JSDoc → TS1223 (duplicate tag); collapse into a single inline `@returns {{ prop: type, ... }}`
+- `@param {Function}` for a constructor → TS2345; use `{new(...args: any[]) => any}` instead
+- `const arr = []` empty init → TS7034 (`any[]`); annotate: `const arr = /** @type {Array<{...}>} */ ([])`
+- Tightening a shared utility's `@param` JSDoc type can break callers that pass partial objects — grep all callers after narrowing any param type in an imported utility
 
 #### Deleted symbols — do not recreate
 
