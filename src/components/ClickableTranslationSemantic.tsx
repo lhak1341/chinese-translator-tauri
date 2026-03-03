@@ -8,12 +8,12 @@ import type {
   SegmentClickPayload,
   SegmentClickHandler,
 } from '../types/ClickableTypes';
-import { SegmentPrecomputer, Segment } from '../utils/SegmentPrecomputer.js';
-import { groupSegmentsIntoParagraphs } from '../utils/ParagraphGrouping';
+import { SegmentPrecomputer, Segment } from '../utils/highlighting/SegmentPrecomputer.js';
+import { groupSegmentsIntoParagraphs } from '../utils/text/ParagraphGrouping';
 import styles from '../styles/ClickableTranslationSemantic.module.css';
 import { logger } from '../utils/logger';
 import { sanitizeString } from '../utils/configValidation';
-import { normalizeVietnameseText } from '../utils/TextNormalizationHelpers';
+import { normalizeVietnameseText } from '../utils/text/TextNormalizationHelpers';
 
 const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> = ({
   translatedText,

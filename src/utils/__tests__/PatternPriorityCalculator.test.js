@@ -15,7 +15,7 @@ import {
   calculatePatternPriority,
   calculatePriorityBreakdown,
   PRIORITY_WEIGHTS,
-} from '../PatternPriorityCalculator.js';
+} from '../pattern/PatternPriorityCalculator.js';
 
 describe('calculatePatternPriority', () => {
   describe('basic priority calculation', () => {

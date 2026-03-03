@@ -11,10 +11,10 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { DictionaryManager, DictionaryTrie } from '../DictionaryManager.js';
-import { TranslationCache } from '../TranslationCache.js';
-import { WasmDictionaryManager } from '../WasmDictionaryManager.js';
-import { EnhancedDictionaryManager } from '../EnhancedDictionaryManager.js';
+import { DictionaryManager, DictionaryTrie } from '../dictionary/DictionaryManager.js';
+import { TranslationCache } from '../dictionary/TranslationCache.js';
+import { WasmDictionaryManager } from '../wasm/WasmDictionaryManager.js';
+import { EnhancedDictionaryManager } from '../dictionary/EnhancedDictionaryManager.js';
 
 describe('Dictionary Memory Cleanup Regression Tests', () => {
   describe('CRITICAL-1: Dictionary dispose() on reload', () => {

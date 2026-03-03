@@ -18,7 +18,7 @@ vi.mock('../toast', () => ({
 }));
 
 // CODE REVIEW FIX: Mock hash verification for WASM binary integrity checks
-vi.mock('../wasmIntegrityVerifier', () => ({
+vi.mock('../wasm/wasmIntegrityVerifier', () => ({
   verifyWasmBinaryIntegrity: vi.fn(async () => ({ valid: true, errors: [], warnings: [] })),
   verifyWasmModule: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
   verifyWasmInstance: vi.fn(() => ({ valid: true, errors: [], warnings: [] })),
@@ -49,7 +49,7 @@ describe('WasmPatternProcessor Error Handling', () => {
         default: vi.fn(() => Promise.reject(new Error('WASM load failed'))),
       }));
 
-      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+      const { initializeWasmPatternProcessor } = await import('../wasm/WasmPatternProcessor.js');
 
       const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
 
@@ -64,7 +64,7 @@ describe('WasmPatternProcessor Error Handling', () => {
         }),
       }));
 
-      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+      const { initializeWasmPatternProcessor } = await import('../wasm/WasmPatternProcessor.js');
 
       const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
 
@@ -82,7 +82,7 @@ describe('WasmPatternProcessor Error Handling', () => {
         }),
       }));
 
-      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+      const { initializeWasmPatternProcessor } = await import('../wasm/WasmPatternProcessor.js');
 
       const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
 
@@ -105,7 +105,7 @@ describe('WasmPatternProcessor Error Handling', () => {
         }),
       }));
 
-      const { initializeWasmPatternProcessor } = await import('../WasmPatternProcessor.js');
+      const { initializeWasmPatternProcessor } = await import('../wasm/WasmPatternProcessor.js');
 
       // First initialization - should call initialize
       const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
@@ -122,7 +122,7 @@ describe('WasmPatternProcessor Error Handling', () => {
   describe('Processing Failures', () => {
     it('should return empty results when not initialized', async () => {
       // Don't initialize, just call processTokens
-      const { processTokensWasm } = await import('../WasmPatternProcessor.js');
+      const { processTokensWasm } = await import('../wasm/WasmPatternProcessor.js');
 
       const tokens = [{ value: '在', type: 'chinese_char' }];
       const result = await processTokensWasm(tokens, {});
@@ -148,7 +148,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, processTokensWasm } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
       expect(result1).toBe(true);
@@ -176,7 +176,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, processTokensWasm } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
       expect(result).toBe(true);
@@ -206,7 +206,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, isWasmPatternProcessorAvailable } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       // Before initialization
       expect(isWasmPatternProcessorAvailable()).toBe(false);
@@ -224,7 +224,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, hasWasmPatternProcessorFailed } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       // Before initialization
       expect(hasWasmPatternProcessorFailed()).toBe(false);
@@ -250,7 +250,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, reinitializeWasmPatternProcessor } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       // Initial setup
       const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
@@ -288,7 +288,7 @@ describe('WasmPatternProcessor Error Handling', () => {
         initializeWasmPatternProcessor,
         reinitializeWasmPatternProcessor,
         hasWasmPatternProcessorFailed,
-      } = await import('../WasmPatternProcessor.js');
+      } = await import('../wasm/WasmPatternProcessor.js');
 
       // First attempt fails
       const result1 = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
@@ -311,7 +311,7 @@ describe('WasmPatternProcessor Error Handling', () => {
 
   describe('Statistics', () => {
     it('should return null when not initialized', async () => {
-      const { getWasmPatternProcessorStats } = await import('../WasmPatternProcessor.js');
+      const { getWasmPatternProcessorStats } = await import('../wasm/WasmPatternProcessor.js');
 
       const stats = getWasmPatternProcessorStats();
 
@@ -338,7 +338,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, getWasmPatternProcessorStats } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
       expect(result).toBe(true);
@@ -364,7 +364,7 @@ describe('WasmPatternProcessor Error Handling', () => {
       }));
 
       const { initializeWasmPatternProcessor, getWasmPatternProcessorStats } =
-        await import('../WasmPatternProcessor.js');
+        await import('../wasm/WasmPatternProcessor.js');
 
       await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
 

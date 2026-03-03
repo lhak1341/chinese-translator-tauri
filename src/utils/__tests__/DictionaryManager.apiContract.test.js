@@ -20,8 +20,8 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
-import { DictionaryManager } from '../DictionaryManager.js';
-import { EnhancedDictionaryManager } from '../EnhancedDictionaryManager.js';
+import { DictionaryManager } from '../dictionary/DictionaryManager.js';
+import { EnhancedDictionaryManager } from '../dictionary/EnhancedDictionaryManager.js';
 
 describe('DictionaryManager API Contract', () => {
   let manager;

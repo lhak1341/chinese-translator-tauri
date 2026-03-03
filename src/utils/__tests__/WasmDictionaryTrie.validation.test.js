@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { WasmDictionaryTrieWrapper } from '../WasmDictionaryTrie.js';
+import { WasmDictionaryTrieWrapper } from '../wasm/WasmDictionaryTrie.js';
 import {
   tokenPositionToCharPosition,
   charLengthToTokenCount,
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
-} from '../PositionMappingUtils.js';
+} from '../highlighting/PositionMappingUtils.js';
 
 /**
  * WASM Dictionary Trie Validation Tests

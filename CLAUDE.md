@@ -224,12 +224,20 @@ cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1  # Run wasm-
 | UI Coordination       | `Translator.jsx`                            | Cross-mode synchronization                                                                                                                                                |
 | Shared TS types       | `src/types/DictionaryTypes.ts`              | Canonical dict/entry/metadata types                                                                                                                                       |
 | Shared dict utils     | `src/utils/dictionaryHelpers.ts`            | `sortDictionaryEntries`, labels, ordering                                                                                                                                 |
-| WASM boundary (prod)  | `src/utils/WasmBoundaryValidation.ts`       | `copyWasmTokens` param1=JS dest, param2=WASM src                                                                                                                          |
+| WASM boundary (prod)  | `src/utils/wasm/WasmBoundaryValidation.ts`  | `copyWasmTokens` param1=JS dest, param2=WASM src                                                                                                                          |
 | WASM boundary (tests) | `types/WasmTypes.ts` (root-level)           | `copyWasmTokens` param1=WASM src, param2=JS dest                                                                                                                          |
 | Shared UI types       | `src/types/UITypes.d.ts`                    | `ThrottledStreamingState` and other UI types                                                                                                                              |
 | Keyboard shortcuts    | `src/hooks/useHotkeyHandler.ts`             | Logic lives here; `HotkeyHandler.tsx` is a thin wrapper                                                                                                                   |
 | Dict persistence      | `src/hooks/usePersistSelectedDictionary.ts` | Shared hook used by both `DictionaryContext.tsx` and `LazyDictionaryContext.tsx`; includes `isMounted` guard                                                              |
-| WASM text assembly    | `src/utils/WasmTextAssembler.js`            | Wraps `text_assembly.rs::TextAssembler`; `assembleWithSpacing()` powers postProcess() Step 2; spacing rules live in `needs_space()` (Rust) + `needsSpace()` (JS fallback) |
+| WASM text assembly    | `src/utils/wasm/WasmTextAssembler.js`       | Wraps `text_assembly.rs::TextAssembler`; `assembleWithSpacing()` powers postProcess() Step 2; spacing rules live in `needs_space()` (Rust) + `needsSpace()` (JS fallback) |
+
+**`src/utils/` subdirectory layout** (2026-03-03):
+
+- `wasm/` — 17 files: WASM wrappers (`WasmNumberProcessor`, `WasmPatternProcessor`, `WasmTextAssembler`, etc.)
+- `dictionary/` — 7 files: dictionary management (`DictionaryManager`, `EnhancedDictionaryManager`, `TranslationCache`, etc.)
+- `text/` — 9 files: text processing (`TextTokenizer`, `TextChunker`, `TextSanitization`, `ParagraphGrouping`, etc.)
+- `pattern/` — 5 files: pattern processing (`SemanticPatternProcessor`, `TwoPhasePatternProcessor`, `PatternAnalyzer`, etc.)
+- `highlighting/` — 9 files: highlighting/semantic arrays (`SegmentPrecomputer`, `SemanticArrayBuilder`, `OptimizedSemanticArrayBuilder`, `DuplicateAnalyzer`, etc.)
 
 **Intentionally JavaScript (never migrate)**: `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 

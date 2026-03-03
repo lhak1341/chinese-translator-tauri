@@ -5,7 +5,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { QuoteProcessor, QUOTE_TYPES, QUOTE_CATEGORIES } from '../QuoteProcessor';
+import { QuoteProcessor, QUOTE_TYPES, QUOTE_CATEGORIES } from '../text/QuoteProcessor';
 
 describe('QuoteProcessor — isOpeningQuote', () => {
   test('ASCII double-quote is an opening quote', () => {

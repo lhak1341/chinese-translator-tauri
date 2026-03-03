@@ -12,7 +12,7 @@ import {
   getTextFromTokens,
   getTextPositionForTokenIndex,
 } from '../TokenHelpers.js';
-import { TokenType } from '../TextTokenizer.js';
+import { TokenType } from '../text/TextTokenizer.js';
 
 // Helper to create test tokens
 function createToken(type, value, start = 0, options = {}) {

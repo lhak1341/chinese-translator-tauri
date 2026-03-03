@@ -18,7 +18,7 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
-import { DictionaryManager } from '../DictionaryManager.js';
+import { DictionaryManager } from '../dictionary/DictionaryManager.js';
 
 describe('Dictionary Scalability - 100K+ Entries', () => {
   let manager;

@@ -1,9 +1,16 @@
 /**
- * WASM-JavaScript Type Contracts
+ * @file WasmTypes.ts
+ * WASM-JavaScript Type Contracts (test-only types)
  *
  * Critical: Rust Option<T> serializes to JavaScript undefined (not null).
  * These interfaces enforce explicit null handling at WASM boundaries.
  */
+
+// === PROD SIBLING: src/utils/wasm/WasmBoundaryValidation.ts — REVERSED param order ===
+// CRITICAL: copyWasmTokens(param1, param2) has REVERSED parameter semantics vs the prod file:
+//   This file (tests): param1 = WASM source, param2 = JS destination
+//   src/utils/wasm/WasmBoundaryValidation.ts (prod): param1 = JS destination, param2 = WASM source
+// Swapping causes silent data loss. Do NOT unify without testing both paths.
 
 /**
  * Token structure returned by WASM processors

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { PatternTemplateEngine } from '../PatternTemplateEngine';
+import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine';
 
 describe('PatternTemplateEngine', () => {
   describe('parsePatternToTokens', () => {

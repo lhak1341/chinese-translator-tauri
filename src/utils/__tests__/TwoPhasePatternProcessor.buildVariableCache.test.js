@@ -35,7 +35,7 @@ function makeNoopDictionaryManager() {
 // Import helper — avoids top-level await in describe body
 // ─────────────────────────────────────────────────────────────────────────────
 async function makeProcessor() {
-  const mod = await import('../TwoPhasePatternProcessor.js');
+  const mod = await import('../pattern/TwoPhasePatternProcessor.js');
   // Default export
   const TwoPhasePatternProcessor = mod.default;
   // Empty patterns array — no pattern analysis needed, only testing cache building

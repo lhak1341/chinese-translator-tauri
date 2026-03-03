@@ -5,7 +5,7 @@ import {
   TimeoutError,
   TimeoutManager,
   DEFAULT_WASM_TIMEOUTS,
-} from '../wasmOperationTimeout';
+} from '../wasm/wasmOperationTimeout';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers

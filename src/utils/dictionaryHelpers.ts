@@ -1,4 +1,4 @@
-import { dictionarySorter } from './IncrementalDictionarySorter.js';
+import { dictionarySorter } from './dictionary/IncrementalDictionarySorter.js';
 import type { DictionaryData, SortingStats } from '../types/DictionaryTypes';
 
 /**

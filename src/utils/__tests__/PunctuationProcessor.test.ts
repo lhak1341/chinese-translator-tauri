@@ -7,8 +7,8 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
-import { PunctuationProcessor } from '../PunctuationProcessor';
-import { QUOTE_TYPES } from '../QuoteProcessor';
+import { PunctuationProcessor } from '../text/PunctuationProcessor';
+import { QUOTE_TYPES } from '../text/QuoteProcessor';
 
 describe('PunctuationProcessor', () => {
   let processor: PunctuationProcessor;

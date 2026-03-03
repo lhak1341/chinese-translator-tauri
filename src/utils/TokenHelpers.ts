@@ -10,7 +10,7 @@
  * @module TokenHelpers
  */
 
-import { TokenType, Token } from './TextTokenizer.js';
+import { TokenType, Token } from './text/TextTokenizer.js';
 
 /**
  * Token structure from TextTokenizer (re-exported for convenience)

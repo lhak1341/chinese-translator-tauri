@@ -11,7 +11,7 @@ import {
   normalizeVietnameseTexts,
   isNFC,
   getNormalizationStats,
-} from '../TextNormalizationHelpers';
+} from '../text/TextNormalizationHelpers';
 
 describe('TextNormalizationHelpers', () => {
   describe('normalizeVietnameseText', () => {

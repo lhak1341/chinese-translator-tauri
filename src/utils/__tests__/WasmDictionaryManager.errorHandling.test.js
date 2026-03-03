@@ -32,7 +32,7 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
 }));
 
 // Mock memory pool
-vi.mock('../WasmMemoryPoolManager.js', () => ({
+vi.mock('../wasm/WasmMemoryPoolManager.js', () => ({
   wasmMemoryPoolManager: {
     getCurrentMemoryUsage: vi.fn(() => 0),
   },
@@ -47,7 +47,7 @@ describe('WasmDictionaryManager Error Handling', () => {
     vi.clearAllMocks();
 
     // Import module after mocks are set up
-    const module = await import('../WasmDictionaryManager.js');
+    const module = await import('../wasm/WasmDictionaryManager.js');
     WasmDictionaryManager = module.WasmDictionaryManager;
 
     manager = new WasmDictionaryManager();

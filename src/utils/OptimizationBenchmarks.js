@@ -531,7 +531,7 @@ export class OptimizationBenchmarks {
     logger.log('  Testing: JavaScript vs Rust WASM string operations');
 
     // Import dependencies
-    const { wasmStringProcessor } = await import('./WasmStringProcessor.js');
+    const { wasmStringProcessor } = await import('./wasm/WasmStringProcessor.js');
 
     // Create test data (typical 2000-char text = ~200 tokens)
     const testTokens = Array.from({ length: 200 }, (_, i) => ({
@@ -548,7 +548,8 @@ export class OptimizationBenchmarks {
 
     // Benchmark JavaScript PrecomputedTokenStrings
     logger.log('  Testing JavaScript implementation...');
-    const { default: SemanticPatternProcessor } = await import('./SemanticPatternProcessor.js');
+    const { default: SemanticPatternProcessor } =
+      await import('./pattern/SemanticPatternProcessor.js');
 
     // Access the PrecomputedTokenStrings class (it's a private class, use reflection)
     const PrecomputedTokenStrings = class {
@@ -646,7 +647,7 @@ export class OptimizationBenchmarks {
     logger.log('  Testing: JavaScript Map vs Rust HashMap trie');
 
     // Import dependencies
-    const { createWasmDictionaryTrie } = await import('./WasmDictionaryTrie.js');
+    const { createWasmDictionaryTrie } = await import('./wasm/WasmDictionaryTrie.js');
 
     // Create test dictionary (simulate character dictionary with ~1000 entries)
     const testEntries = [];
@@ -799,7 +800,7 @@ export class OptimizationBenchmarks {
     logger.log('  Testing: JavaScript regex vs Rust lazy_static');
 
     // Import dependencies
-    const { createWasmRegexUtils } = await import('./WasmRegexUtils.js');
+    const { createWasmRegexUtils } = await import('./wasm/WasmRegexUtils.js');
 
     const testText = '这是第一句。这是第二句！这是第三句？还有更多内容在这里。';
     const testPattern = '在{X}{Y}中';
@@ -1109,7 +1110,7 @@ export class OptimizationBenchmarks {
     logger.log('\n📊 Benchmark #11: WASM Text Assembly (Task #7)');
     logger.log('  Testing: JavaScript concatenation vs Rust String::with_capacity');
 
-    const { createWasmTextAssembler } = await import('./WasmTextAssembler.js');
+    const { createWasmTextAssembler } = await import('./wasm/WasmTextAssembler.js');
 
     // Create test segments (simulate translation output)
     const segmentCounts = [10, 50, 100, 200];

@@ -10,7 +10,7 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
-import { TranslationCache } from '../TranslationCache.js';
+import { TranslationCache } from '../dictionary/TranslationCache.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

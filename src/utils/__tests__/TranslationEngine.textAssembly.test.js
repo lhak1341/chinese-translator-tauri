@@ -14,7 +14,7 @@
  * - Space is inserted AFTER the current segment's position entry is recorded.
  */
 
-import { needsSpace } from '../WasmTextAssembler.js';
+import { needsSpace } from '../wasm/WasmTextAssembler.js';
 
 // ============================================================================
 // Reference implementation (inline copy of jsAssembleWithSpacing)

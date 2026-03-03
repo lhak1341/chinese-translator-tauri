@@ -1,3 +1,14 @@
+/**
+ * @file LazyDictionaryContext.tsx
+ * Lazy-loading dictionary context. Defers dictionary loading with preloading.
+ * Undo/redo uses snapshot-based history (single-dict; cross-dict move undo not supported).
+ *
+ * === SIBLING: ./DictionaryContext.tsx — must stay in sync ===
+ * Fixes to CRUD operations (addEntry, updateEntry, deleteEntry, bulkDeleteEntries,
+ * moveEntry, bulkMoveEntries) and addToHistory must be mirrored in the sibling.
+ * See CLAUDE.md audit checklist for the 6-point sync requirement.
+ */
+
 import React, {
   createContext,
   useContext,
@@ -9,7 +20,7 @@ import React, {
 } from 'react';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
-import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
+import { sanitizeDictionaryEntry } from '../../utils/text/TextSanitization';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';

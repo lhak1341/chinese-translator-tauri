@@ -17,8 +17,8 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { SemanticArrayBuilder } from '../SemanticArrayBuilder';
-import { OptimizedSemanticArrayBuilder } from '../OptimizedSemanticArrayBuilder';
+import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
+import { OptimizedSemanticArrayBuilder } from '../highlighting/OptimizedSemanticArrayBuilder';
 import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,

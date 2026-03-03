@@ -3,7 +3,7 @@ import {
   tokenPositionToCharPosition,
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
-} from '../PositionMappingUtils';
+} from '../highlighting/PositionMappingUtils';
 
 describe('PositionMappingUtils', () => {
   describe('tokenPositionToCharPosition', () => {

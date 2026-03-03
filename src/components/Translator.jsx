@@ -23,10 +23,13 @@ import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import { translationSegmentCache } from '../utils/TranslationSegmentCache.js';
+import { translationSegmentCache } from '../utils/dictionary/TranslationSegmentCache.js';
 import { batchLog } from '../utils/BatchLogger.js';
 import { systemPerformanceMonitor } from '../utils/ProactivePerformanceDetector.js';
-import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/UIResponsiveness.js';
+import {
+  DebouncedProgressHandler,
+  SmoothLoadingManager,
+} from '../utils/highlighting/UIResponsiveness.js';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
@@ -35,8 +38,8 @@ import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
 } from '../reducers/highlightingReducer.js';
-import { scrollToHighlightedElement } from '../utils/ScrollHelpers';
-import { parallelDictionaryLoader } from '../utils/ParallelDictionaryLoader.js';
+import { scrollToHighlightedElement } from '../utils/highlighting/ScrollHelpers';
+import { parallelDictionaryLoader } from '../utils/dictionary/ParallelDictionaryLoader.js';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -452,7 +455,7 @@ const Translator = ({ isActive = true }) => {
             logger.log('🧪 TranslationEngine exposed to window.translationEngine for testing');
 
             // Expose WASM Dictionary Trie validator
-            import('../utils/WasmDictionaryTrieValidator.js').then(
+            import('../utils/wasm/WasmDictionaryTrieValidator.js').then(
               ({ validateWasmDictionaryTrie }) => {
                 window.validateWasmDictionaryTrie = validateWasmDictionaryTrie;
                 logger.log('🧪 WASM validator exposed to window.validateWasmDictionaryTrie()');

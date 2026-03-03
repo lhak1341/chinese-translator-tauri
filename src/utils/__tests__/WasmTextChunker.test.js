@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { WasmTextChunker } from '../WasmTextChunker.js';
-import { TextChunker } from '../TextChunker.js';
+import { WasmTextChunker } from '../wasm/WasmTextChunker.js';
+import { TextChunker } from '../text/TextChunker.js';
 
 describe('WasmTextChunker', () => {
   let wasmChunker;

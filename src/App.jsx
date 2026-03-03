@@ -3,12 +3,12 @@ import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { systemPerformanceMonitor } from './utils/ProactivePerformanceDetector.js';
-import { wasmMemoryPoolManager } from './utils/WasmMemoryPoolManager';
+import { wasmMemoryPoolManager } from './utils/wasm/WasmMemoryPoolManager';
 import { logger } from './utils/logger';
 import { optimizationBenchmarks } from './utils/OptimizationBenchmarks.js';
 // CODE REVIEW FIX (MEDIUM-7): Import WASM cleanup functions
-import { cleanupWasmNumberProcessor } from './utils/WasmNumberProcessor';
-import { cleanupWasmPatternProcessor } from './utils/WasmPatternProcessor';
+import { cleanupWasmNumberProcessor } from './utils/wasm/WasmNumberProcessor';
+import { cleanupWasmPatternProcessor } from './utils/wasm/WasmPatternProcessor';
 import { rustLookupIndexManager } from './utils/RustLookupIndexManager';
 import { contentAwarePositionCache } from './utils/ContentAwarePositionCache';
 

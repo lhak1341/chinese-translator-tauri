@@ -3,7 +3,7 @@
  * Single-pass, token-based translation with efficient dictionary lookups and pattern matching
  *
  * =============================================================================
- * FILE STRUCTURE (7,507 lines)
+ * FILE STRUCTURE (10,158 lines)
  * =============================================================================
  *
  * This file coordinates all 5 translation phases with shared token state.
@@ -58,8 +58,8 @@
  *     - Text assembly & formatting        (Lines 4500-5556)
  *     - Critical: Position precision for clickable highlighting
  *
- * 11. Core 5-Phase Translation Pipeline  (Line ~7660) [COUPLED]
- *     - translateSinglePass()             (Line ~7660)
+ * 11. Core 5-Phase Translation Pipeline  (Line 7493) [COUPLED]
+ *     - translateSinglePass()             (Line 7493)
  *       • Phase 1: Patterns
  *       • Phase 2: Proper Nouns
  *       • Phase 3: Numbers (WASM)
@@ -76,12 +76,14 @@
  *     - Segment building for highlighting
  *     - Performance analysis
  *
- * 14. Factory Function                   (Line 10753) [SAFE]
+ * 14. Factory Function                   (Line 10158) [SAFE]
  *     - createTranslationEngine()
  *
- * NOTE: Line numbers in sections 7-10 above are approximate. File is ~10,750 lines.
- *       Use grep/search for precise locations. Key anchors: translateSinglePass ~7660,
- *       postProcess ~4263, applyPatterns ~2759, createOptimalPhraseGroups ~2515.
+ * NOTE: Key function anchors (verified 2026-03-03):
+ *       resolveMatchConflicts 2364, resolveGlobalConflicts 2686,
+ *       createOptimalPhraseGroups 2596, postProcess 4284,
+ *       processChunksInParallel 5326, translateWithProgressiveBatches 5760,
+ *       translateWithChunking 6959, translateSinglePass 7493.
  *
  * =============================================================================
  * ARCHITECTURAL NOTES
@@ -111,8 +113,8 @@
  * =============================================================================
  */
 
-import { TextTokenizer, TokenType } from './TextTokenizer.js';
-import { EnhancedDictionaryManager } from './EnhancedDictionaryManager.js';
+import { TextTokenizer, TokenType } from './text/TextTokenizer.js';
+import { EnhancedDictionaryManager } from './dictionary/EnhancedDictionaryManager.js';
 import tauriAPI from '../tauriAPI.js';
 import {
   getSemanticTokens,
@@ -121,30 +123,30 @@ import {
   getTextFromTokens,
   getTextPositionForTokenIndex,
 } from './TokenHelpers.js';
-import { SemanticPatternProcessor } from './SemanticPatternProcessor.js';
-import { PatternTemplateEngine } from './PatternTemplateEngine.js';
-import { TextChunker } from './TextChunker.js';
+import { SemanticPatternProcessor } from './pattern/SemanticPatternProcessor.js';
+import { PatternTemplateEngine } from './pattern/PatternTemplateEngine.js';
+import { TextChunker } from './text/TextChunker.js';
 import { NumberProcessor } from './NumberProcessor.js';
-import { QuoteProcessor } from './QuoteProcessor';
-import { SemanticArrayBuilder } from './SemanticArrayBuilder.js';
-import { OptimizedSemanticArrayBuilder } from './OptimizedSemanticArrayBuilder.js';
+import { QuoteProcessor } from './text/QuoteProcessor';
+import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
+import { OptimizedSemanticArrayBuilder } from './highlighting/OptimizedSemanticArrayBuilder.js';
 import { performanceProfiler } from './PerformanceProfiler.js';
-import TwoPhasePatternProcessor from './TwoPhasePatternProcessor.js';
+import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
-import { processNumbersWasm, isWasmNumberProcessorAvailable } from './WasmNumberProcessor.js';
+import { processNumbersWasm, isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
 // WASM Dictionary Trie integration for 2-4x faster Phase 5 character lookups
-import { WasmDictionaryTrieWrapper } from './WasmDictionaryTrie.js';
+import { WasmDictionaryTrieWrapper } from './wasm/WasmDictionaryTrie.js';
 import {
   tokenPositionToCharPosition,
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
-} from './PositionMappingUtils.js';
-import { copyWasmTokens } from './WasmBoundaryValidation';
+} from './highlighting/PositionMappingUtils.js';
+import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 // TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
-import { adaptiveChunker } from './AdaptiveChunker.js';
+import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './MemoryLeakDetector.js';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import {
@@ -156,14 +158,14 @@ import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
-import { wasmTextAssembler } from './WasmTextAssembler.js';
+import { wasmTextAssembler } from './wasm/WasmTextAssembler.js';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './TranslationProfiler.js';
 import toast from './toast';
 import {
   isWasmPatternProcessorAvailable,
   hasWasmPatternProcessorFailed,
-} from './WasmPatternProcessor.js';
+} from './wasm/WasmPatternProcessor.js';
 import {
   PHRASE_PROCESSING,
   NUMBER_PROCESSING,

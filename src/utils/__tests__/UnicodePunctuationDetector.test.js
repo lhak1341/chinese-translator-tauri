@@ -2,8 +2,8 @@
  * Tests for Unicode Punctuation Detection System
  */
 
-import { UnicodePunctuationDetector } from '../UnicodePunctuationDetector.js';
-import { TextChunker } from '../TextChunker.js';
+import { UnicodePunctuationDetector } from '../text/UnicodePunctuationDetector.js';
+import { TextChunker } from '../text/TextChunker.js';
 
 describe('UnicodePunctuationDetector', () => {
   let detector;

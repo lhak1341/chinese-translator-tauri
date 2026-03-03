@@ -28,8 +28,8 @@
 import { logger } from './logger';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import { contentAwarePositionCache } from './ContentAwarePositionCache.js';
-import { adaptiveBufferCalculator } from './AdaptiveVirtualScrolling.js';
-import { wasmMemoryPoolManager } from './WasmMemoryPoolManager.js';
+import { adaptiveBufferCalculator } from './highlighting/AdaptiveVirtualScrolling.js';
+import { wasmMemoryPoolManager } from './wasm/WasmMemoryPoolManager.js';
 
 /**
  * Performance baseline tracker with trend analysis

@@ -1,3 +1,13 @@
+/**
+ * @file DictionaryContext.tsx
+ * Eager-loading dictionary context. Loads all dictionaries on mount.
+ *
+ * === SIBLING: ./LazyDictionaryContext.tsx — must stay in sync ===
+ * Fixes to CRUD operations (addEntry, updateEntry, deleteEntry, bulkDeleteEntries,
+ * moveEntry, bulkMoveEntries) and addToHistory must be mirrored in the sibling.
+ * See CLAUDE.md audit checklist for the 6-point sync requirement.
+ */
+
 import React, {
   createContext,
   useContext,
@@ -10,7 +20,7 @@ import React, {
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
-import { sanitizeDictionaryEntry } from '../../utils/TextSanitization';
+import { sanitizeDictionaryEntry } from '../../utils/text/TextSanitization';
 import {
   sortDictionaryEntries,
   getSortingStats,

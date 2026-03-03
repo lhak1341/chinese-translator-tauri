@@ -12,7 +12,7 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { groupSegmentsIntoParagraphs, type Segment } from '../ParagraphGrouping';
+import { groupSegmentsIntoParagraphs, type Segment } from '../text/ParagraphGrouping';
 
 // ---------------------------------------------------------------------------
 // Helpers

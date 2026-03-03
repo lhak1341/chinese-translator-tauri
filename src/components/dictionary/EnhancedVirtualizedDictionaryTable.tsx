@@ -13,10 +13,10 @@ import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
-import { adaptiveBufferCalculator } from '../../utils/AdaptiveVirtualScrolling.js';
+import { adaptiveBufferCalculator } from '../../utils/highlighting/AdaptiveVirtualScrolling.js';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
-import { createDuplicateKey, parseDuplicateKey } from '../../utils/DuplicateAnalyzer';
+import { createDuplicateKey, parseDuplicateKey } from '../../utils/highlighting/DuplicateAnalyzer';
 import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
 import { toast } from '../ToastContext';
 import type {
@@ -284,7 +284,7 @@ interface EnhancedVirtualizedDictionaryTableProps {
   /** Whether to show duplicate mode (4-column layout) */
   showDuplicatesMode?: boolean;
   /** Duplicate rows to display when in duplicate mode */
-  duplicateRows?: import('../../utils/DuplicateAnalyzer').DuplicateRow[];
+  duplicateRows?: import('../../utils/highlighting/DuplicateAnalyzer').DuplicateRow[];
   /** Callback to refresh duplicate view after deletion */
   onRefreshDuplicates?: (reloadFromBackend?: boolean) => Promise<void>;
   /** Scroll position to restore (managed by parent to survive unmount/remount) */

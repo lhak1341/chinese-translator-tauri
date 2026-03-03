@@ -12,8 +12,8 @@
  */
 
 import { describe, test, expect } from 'vitest';
-import { SegmentPrecomputer } from '../SegmentPrecomputer';
-import type { SemanticArrays, Segment } from '../SegmentPrecomputer';
+import { SegmentPrecomputer } from '../highlighting/SegmentPrecomputer';
+import type { SemanticArrays, Segment } from '../highlighting/SegmentPrecomputer';
 
 // ---------------------------------------------------------------------------
 // Helpers

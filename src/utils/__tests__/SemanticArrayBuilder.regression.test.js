@@ -7,8 +7,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SemanticArrayBuilder } from '../SemanticArrayBuilder.js';
-import { OptimizedSemanticArrayBuilder } from '../OptimizedSemanticArrayBuilder.js';
+import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder.js';
+import { OptimizedSemanticArrayBuilder } from '../highlighting/OptimizedSemanticArrayBuilder.js';
 
 describe('SemanticArrayBuilder Regression Tests', () => {
   describe('Bug Fix: Position Mapping Performance (O(n*m*k) → O(n*m))', () => {
