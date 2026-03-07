@@ -1,0 +1,51 @@
+# src/components/dictionary — Gotchas
+
+## `DictionaryContext.tsx` and `LazyDictionaryContext.tsx` Are Eager/Lazy Siblings
+
+Fixes to either must be mirrored in the other. Both have `addEntry`/`updateEntry`/`deleteEntry`/`bulkDeleteEntries`/`moveEntry`/`bulkMoveEntries`.
+
+After touching any CRUD function or `addToHistory` in either context, audit for:
+
+1. Stale-closure ref-mirrors (`loadedDictionariesRef`, `currentHistoryIndexRef`)
+2. Typed error throws (`ValidationError`/`SaveError`) including pre-`try` existence checks
+3. Dep-array correctness
+4. `isValidationError`/`isSaveError` double-toast guards
+5. Metadata coverage (`allowAsPatternVariable`, `lowPriority`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
+6. `sanitizeDictionaryEntry` called at the top of `addEntry`/`updateEntry` before validation
+
+`undo`/`redo` dep arrays: `[history, currentHistoryIndex]` — not `dictionaries`; read `dictionariesRef.current` directly. Undo limitation in `LazyDictionaryContext`: snapshot-based history is single-dict; `moveEntry`/`bulkMoveEntries` undo only restores the source dict.
+
+`HistoryOperation` type: `LazyDictionaryContext.tsx` uses a local snapshot-based version (`oldData`/`newData`); `DictionaryTypes.ts` is delta-based. Architecturally incompatible — keep local.
+
+`dictionaryTypesRef` ref-mirror in `LazyDictionaryContext.tsx`: `handleDictionaryChange` dep array is `[loadDictionaryImmediate, schedulePreload]`. Adding `dictionaryTypes` back recreates `handleDictionaryChange` on every `refreshDictionaryTypes()` call.
+
+## React State Updater Rules
+
+**Never `throw` inside a state updater function** (`setState(prev => { throw ... })`): React 18 Concurrent Mode may call updaters multiple times; throws bypass the `await` chain. Do existence checks on the closed-over variable BEFORE `setState`.
+
+**Never assign `let` variables inside an updater for use outside it**: the updater may run twice; always compute from the closed-over snapshot BEFORE `setDictionaries`. For undo/redo, use `dictionariesRef.current` directly.
+
+**`bulkDeleteEntries`** follows the same snapshot-before-updater pattern: compute `oldData`/`sortedDictionary` from the closed-over `dictionaries` snapshot BEFORE `setDictionaries`.
+
+## Error Handling
+
+**`isSaveError` guard alongside `isValidationError` in catch blocks**: if a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast — otherwise the user sees two toasts.
+
+**Pre-`try` existence checks must throw `ValidationError`, not bare `Error`**: dict-not-found checks before the `try` block that use bare `throw new Error(msg)` bypass the `!isValidationError` guard — the outer catch shows a second toast. Always use `throw new ValidationError(msg)`.
+
+## `VirtualRowComponent` Is at Module Scope
+
+Defined before `EnhancedVirtualizedDictionaryTable`. Do NOT wrap in `useMemo` — any dep change creates a new React component _type_, unmounting all rows and destroying inline edit state (`editingSource`, `tempSource`, etc.).
+
+## `SemanticType` Canonical Values
+
+Canonical values: `'character'`, `'location'`, `'organization'`, `'concept'`, `'object'` (UI abbreviations: CHA/LOC/ORG/CON/OBJ). Dictionary JSON stores these strings directly — a stale value (e.g. old `'person'`/`'place'`) displays no badge and fails filter matching silently. Bulk-migrate with `scripts/migrate-semantic-types.py`.
+
+- `SEMANTIC_TYPE_ABBREVIATIONS` and `SEMANTIC_TYPE_LIST` (from `src/constants/SemanticTypes.ts`) are the canonical exports for toggle cells in `EnhancedVirtualizedDictionaryTable.tsx` — do NOT redeclare local lists.
+- `classifyVariableType` in `SemanticPatternProcessor.js` returns canonical values when `metadata.semanticType` is set, but falls back to internal discriminators (`'proper_noun'`, `'character_unit'`, `'unknown'`) that are NOT canonical — `'proper_noun'` is special-cased to `null` (always include); `'character_unit'` and `'unknown'` fail `allowedVariableTypes` constraints intentionally.
+
+## WASM Wrapper Methods
+
+**Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.
+
+**`WasmNumberProcessor` IIFE resolves (not rejects) on failure**: the module-bottom `.catch()` only fires on rejection; the IIFE swallows errors and resolves to `false`. Clearing `initializationPromise` must happen inside the IIFE `catch` block — if omitted, `getWasmNumberProcessorStatus()` permanently reports `{ initializing: true }`.
