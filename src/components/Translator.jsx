@@ -25,7 +25,7 @@ import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { translationSegmentCache } from '../utils/dictionary/TranslationSegmentCache.js';
 import { batchLog } from '../utils/BatchLogger.js';
-import { systemPerformanceMonitor } from '../utils/ProactivePerformanceDetector.js';
+import { systemPerformanceMonitor } from '../utils/performance/ProactivePerformanceDetector.js';
 import {
   DebouncedProgressHandler,
   SmoothLoadingManager,
@@ -488,7 +488,8 @@ const Translator = ({ isActive = true }) => {
                 logger.error('❌ TwoPhasePatternProcessor not available');
                 return;
               }
-              const { runAllParityTests } = await import('../utils/PatternParityTest.js');
+              const { runAllParityTests } =
+                await import('../utils/__benchmarks__/PatternParityTest.js');
               return await runAllParityTests(processor);
             };
             logger.log('🧪 Run window.runPatternParityTests() to verify Rust WASM parity');

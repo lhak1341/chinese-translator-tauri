@@ -12,7 +12,7 @@ import {
   savePrecomputedTrie,
   invalidatePrecomputedTrie,
   precomputedTrieStats,
-} from '../PrecomputedTrieCache.js';
+} from '../caching/PrecomputedTrieCache.js';
 import { logger } from '../logger.js';
 
 /**

@@ -4,7 +4,7 @@
  * Reduces monitoring overhead through sampling and environment-aware logging
  */
 
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 
 export class PerformanceMonitor {
   /**

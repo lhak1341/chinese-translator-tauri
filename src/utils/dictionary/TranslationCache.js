@@ -12,7 +12,7 @@
  * } from '../types/CacheTypes'
  */
 
-import { LRUCache } from '../LRUCache.js';
+import { LRUCache } from '../caching/LRUCache.js';
 import { logger } from '../logger.js';
 
 export class TranslationCache {

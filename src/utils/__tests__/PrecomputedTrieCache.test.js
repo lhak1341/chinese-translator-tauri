@@ -4,7 +4,7 @@ import {
   serializeTrie,
   deserializeTrie,
   PrecomputedTrieStats,
-} from '../PrecomputedTrieCache.js';
+} from '../caching/PrecomputedTrieCache.js';
 
 describe('PrecomputedTrieCache', () => {
   describe('calculateDictionaryChecksum', () => {

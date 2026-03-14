@@ -9,7 +9,7 @@
  */
 
 import { describe, test, expect, beforeEach } from 'vitest';
-import { LRUCache } from '../LRUCache';
+import { LRUCache } from '../caching/LRUCache';
 
 describe('LRUCache', () => {
   describe('basic operations', () => {

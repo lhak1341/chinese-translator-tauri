@@ -19,7 +19,7 @@
  * const snapshot = detector.recordSnapshot('translation_batch', { batchSize: 100 });
  */
 
-import { batchLog } from './BatchLogger.js';
+import { batchLog } from '../BatchLogger.js';
 
 export class MemoryLeakDetector {
   constructor() {

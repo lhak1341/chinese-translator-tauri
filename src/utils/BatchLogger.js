@@ -10,7 +10,7 @@
  * - Memory-efficient circular buffer for hot logs
  */
 
-import { getLogEntry, releaseLogEntry } from './DebugObjectPool.js';
+import { getLogEntry, releaseLogEntry } from './performance/DebugObjectPool.js';
 import { logger } from './logger.js';
 
 class BatchLogger {

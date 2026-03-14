@@ -10,7 +10,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MemoryLeakDetector } from '../MemoryLeakDetector.js';
+import { MemoryLeakDetector } from '../performance/MemoryLeakDetector.js';
 import { batchLog } from '../BatchLogger.js';
 
 // Mock BatchLogger

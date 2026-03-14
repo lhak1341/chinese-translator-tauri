@@ -10,7 +10,7 @@
  * same translation, so approximate matches produced wrong clickable highlighting.
  */
 
-import { logger } from './logger';
+import { logger } from '../logger';
 import { LRUCache } from './LRUCache';
 
 // WASM Content Hash (2-3x faster than JavaScript)
@@ -20,7 +20,7 @@ let wasmGenerateContentHash: ((text: string) => string) | null = null;
 (async () => {
   try {
     // CI FIX: Use src/wasm path (included in TypeScript) instead of public/wasm
-    const wasmModule = await import('../wasm/translation_wasm_core.js');
+    const wasmModule = await import('../../wasm/translation_wasm_core.js');
     await wasmModule.default();
     wasmGenerateContentHash = wasmModule.generateContentHash;
     logger.log('✅ WASM Content Hash initialized (2-3x speedup)');

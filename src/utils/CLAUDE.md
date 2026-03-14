@@ -4,11 +4,11 @@
 
 ### `addUnit` Third Arg Must Be a Valid `PHASE_PRIORITIES` Key
 
-`getSourcePriority()` returns 999 for any unrecognized string — lower than character fallback (5) — silently demoting the entry in conflict resolution. Valid values match `translationSource` strings exactly:
+Common wrong values (all silently return priority 999 — below the character fallback):
 
-- JS structural patterns: `'pattern'` (singular — `'patterns'` is NOT valid)
-- Phase 3 WASM number path: `'number_conversion'` (not `'numbers'`)
-- Pass-through NUMBER/LATIN_WORD tokens in `postProcess`: `'characters'` (not `'passthrough'`)
+- `'patterns'` (plural) — correct is `'pattern'` (singular)
+- `'numbers'` — correct is `'number_conversion'`
+- `'passthrough'` — pass-through NUMBER/LATIN_WORD tokens use `'characters'`
 
 `validateConsumedTokenContract` detects consumed sources with `.includes('_consumed')` — this predicate must match `getSourcePriority`'s check exactly.
 

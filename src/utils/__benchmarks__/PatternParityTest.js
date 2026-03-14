@@ -10,8 +10,8 @@
  *   window.runAllParityTests()
  */
 
-import { isWasmPatternProcessorAvailable } from './wasm/WasmPatternProcessor.js';
-import { logger } from './logger.js';
+import { isWasmPatternProcessorAvailable } from '../wasm/WasmPatternProcessor.js';
+import { logger } from '../logger.js';
 
 /**
  * Test cases covering critical pattern matching scenarios

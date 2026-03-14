@@ -19,7 +19,7 @@
  * @module PrecomputedTrieCache
  */
 
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 
 /**
  * Deserialize precomputed trie structure

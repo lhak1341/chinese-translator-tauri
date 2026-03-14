@@ -3,6 +3,20 @@
  * Single-pass, token-based translation with efficient dictionary lookups and pattern matching
  *
  * =============================================================================
+ * PUBLIC API — three exports, everything else is internal
+ * =============================================================================
+ *
+ *   createTranslationEngine()   Factory — returns a new TranslationEngine instance.
+ *                               Use this; do not call `new TranslationEngine()` directly.
+ *
+ *   TranslationEngine           Class — coordinates all 5 translation phases.
+ *     .translate(text, opts)    Translates a Chinese text string → Vietnamese.
+ *     .translateWithChunking()  Long-text path with adaptive chunking.
+ *     .postProcess()            Assembles semantic array after translation phases.
+ *
+ *   DEBUG_LEVELS                Enum — verbosity constants for engine logging.
+ *
+ * =============================================================================
  * FILE STRUCTURE (10,158 lines)
  * =============================================================================
  *
@@ -130,7 +144,7 @@ import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { OptimizedSemanticArrayBuilder } from './highlighting/OptimizedSemanticArrayBuilder.js';
-import { performanceProfiler } from './PerformanceProfiler.js';
+import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
@@ -147,20 +161,20 @@ import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 // TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
-import { MemoryLeakDetector } from './MemoryLeakDetector.js';
-import { globalPerformanceMonitor } from './PerformanceMonitor.js';
+import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
+import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import {
   SmartMemoryPressureDetector,
   BackgroundCleanupManager,
   ComponentMemoryProfiler,
 } from './MemoryManagementRefinements.js';
 import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
-import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
+import { systemPerformanceMonitor } from './performance/ProactivePerformanceDetector.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
 import { wasmTextAssembler } from './wasm/WasmTextAssembler.js';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
-import { TranslationProfiler } from './TranslationProfiler.js';
+import { TranslationProfiler } from './performance/TranslationProfiler.js';
 import toast from './toast';
 import {
   isWasmPatternProcessorAvailable,
