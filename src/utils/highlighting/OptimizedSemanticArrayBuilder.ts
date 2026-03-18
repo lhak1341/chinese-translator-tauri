@@ -782,7 +782,12 @@ export class OptimizedSemanticArrayBuilder {
    * @returns True if arrays are synchronized, false if desynchronized
    */
   validateArrays(): boolean {
+    const capacitiesMatch =
+      this.original.length === this.translated.length &&
+      this.original.length === this.metadata.length;
+
     const isLengthValid =
+      capacitiesMatch &&
       this.length <= this.original.length &&
       this.length <= this.translated.length &&
       this.length <= this.metadata.length;
@@ -793,6 +798,7 @@ export class OptimizedSemanticArrayBuilder {
         originalCapacity: this.original.length,
         translatedCapacity: this.translated.length,
         metadataCapacity: this.metadata.length,
+        capacitiesMatch,
         impact: 'Highlighting functionality may break',
       };
       logger.error('❌ CRITICAL: Optimized semantic arrays desynchronized!', error);
@@ -863,13 +869,15 @@ export class OptimizedSemanticArrayBuilder {
       compactMetadata[i] = this.metadata[i];
     }
 
+    const oldCapacity = this.original.length;
+
     this.original = compactOriginal;
     this.translated = compactTranslated;
     this.metadata = compactMetadata;
 
     batchLog.info(
       'semantic-compact',
-      `Compacted arrays from ${this.original.length} to ${this.length} capacity`
+      `Compacted arrays from ${oldCapacity} to ${this.length} capacity`
     );
   }
 

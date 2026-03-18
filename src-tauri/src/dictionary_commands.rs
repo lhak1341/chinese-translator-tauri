@@ -781,7 +781,10 @@ pub async fn load_dictionary(
 }
 
 fn get_app_data_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
-    app_handle.path().app_data_dir().map_err(|e| e.to_string())
+    app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|_| "Failed to locate application data directory".to_string())
 }
 
 fn load_json_file_with_default(

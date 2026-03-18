@@ -401,7 +401,16 @@ impl<'a> PatternMatcher<'a> {
                     let start_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
 
                     // Literal match - handle multi-character pattern tokens by collecting semantic tokens
-                    let literal_value = pattern_token.value.as_ref().unwrap();
+                    // Parser invariant: Literal tokens always have value: Some(...). The unwrap is
+                    // safe as long as the parser upholds this invariant; debug_assert catches violations.
+                    debug_assert!(
+                        pattern_token.value.is_some(),
+                        "Parser invariant violated: Literal token missing value"
+                    );
+                    let literal_value = match pattern_token.value.as_ref() {
+                        Some(v) => v,
+                        None => return PatternMatchResult::failure(Some("Literal token missing value".to_string())),
+                    };
                     // chars().count() avoids a Vec<char> heap allocation; used only for the
                     // length (to bound the semantic-token slice). String::with_capacity stays
                     // byte-based (.len()) elsewhere per convention — this is a count-only use.
@@ -445,7 +454,15 @@ impl<'a> PatternMatcher<'a> {
                     let start_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
 
                     // Variable match using cache - try longest match first WITH backtracking support
-                    let var_name = pattern_token.name.as_ref().unwrap();
+                    // Parser invariant: Variable tokens always have name: Some(...).
+                    debug_assert!(
+                        pattern_token.name.is_some(),
+                        "Parser invariant violated: Variable token missing name"
+                    );
+                    let var_name = match pattern_token.name.as_ref() {
+                        Some(n) => n,
+                        None => return PatternMatchResult::failure(Some("Variable token missing name".to_string())),
+                    };
 
                     // Try to resolve variable with look-ahead verification
                     let resolution_result = self.resolve_variable_with_lookahead(
@@ -639,7 +656,15 @@ impl<'a> PatternMatcher<'a> {
                     let next_semantic_token = &semantic_tokens[next_position];
 
                     if next_pattern_token.token_type == TokenType::Literal {
-                        let next_literal = next_pattern_token.value.as_ref().unwrap();
+                        // Parser invariant: Literal tokens always have value: Some(...).
+                        let next_literal = match next_pattern_token.value.as_ref() {
+                            Some(v) => v,
+                            None => {
+                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                                total_lookahead_time += end_lookahead - start_lookahead;
+                                continue;
+                            }
+                        };
 
                         let lookahead_matched = if next_literal.chars().count() == 1 {
                             &next_semantic_token.value == next_literal

@@ -7075,7 +7075,9 @@ export class TranslationEngine {
               isolatedArrays.original[j],
               isolatedArrays.translated[j],
               isolatedArrays.metadata?.[j]?.source || 'unknown',
-              globalTokenIndex
+              globalTokenIndex,
+              isolatedArrays.metadata?.[j]?.phase ?? null,
+              isolatedArrays.metadata?.[j]?.dictionary ?? null
             );
           }
         }
