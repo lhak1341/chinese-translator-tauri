@@ -34,72 +34,17 @@ import type {
   DictionaryData,
   DictionaryEntryValue,
   DictionaryEntryMetadata,
+  DictionaryContextInterface,
   HistoryOperation,
-  SortingStats,
 } from '../../types/DictionaryTypes';
 
 /**
- * Dictionary Context value
+ * Dictionary Context value.
+ * Extends DictionaryContextInterface for compile-time sync with LazyDictionaryContext.
  */
-interface DictionaryContextValue {
-  /** All loaded dictionaries */
-  dictionaries: { [key: string]: DictionaryData };
-  /** Whether initial loading is in progress */
-  isLoading: boolean;
-  /** Add a new entry to dictionary */
-  addEntry: (
-    dictionaryId: string,
-    source: string,
-    translation: string,
-    metadata?: DictionaryEntryMetadata
-  ) => Promise<void>;
-  /** Update an existing entry */
-  updateEntry: (
-    dictionaryId: string,
-    oldSource: string,
-    newSource: string,
-    translation: string,
-    metadata?: DictionaryEntryMetadata
-  ) => Promise<void>;
-  /** Delete an entry from dictionary */
-  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
-  /** Delete multiple entries from a dictionary in one operation (more efficient than multiple deleteEntry calls) */
-  bulkDeleteEntries: (
-    dictionaryId: string,
-    sources: string[]
-  ) => Promise<{ successCount: number; errors: string[] }>;
-  /** Move a single entry between dictionaries atomically with rollback and undo support */
-  moveEntry: (
-    sourceDictId: string,
-    targetDictId: string,
-    source: string,
-    targetDictLabel: string
-  ) => Promise<void>;
-  /** Move multiple entries between dictionaries atomically with rollback and undo support */
-  bulkMoveEntries: (
-    sourceDictId: string,
-    targetDictId: string,
-    sources: string[],
-    targetDictLabel: string
-  ) => Promise<{ movedCount: number; errors: string[] }>;
-  /** Undo last operation */
-  undo: () => Promise<boolean>;
-  /** Redo previously undone operation */
-  redo: () => Promise<boolean>;
-  /** Whether undo is available */
-  canUndo: boolean;
-  /** Whether redo is available */
-  canRedo: boolean;
-  /** Load a specific dictionary */
-  loadDictionary: (dictionaryId: string) => Promise<void>;
-  /** Currently selected dictionary */
-  selectedDictionary: string;
-  /** Change selected dictionary */
+interface DictionaryContextValue extends DictionaryContextInterface {
+  /** Change selected dictionary (sync — all dicts already loaded) */
   setSelectedDictionary: (dictionaryId: string) => void;
-  /** Get sorting statistics */
-  getSortingStats: () => SortingStats;
-  /** Reset sorting statistics */
-  resetSortingStats: () => void;
 }
 
 /**

@@ -671,7 +671,12 @@ export class OptimizedSemanticArrayBuilder {
     // Create properly sized arrays (not pre-allocated size)
     const original = new Array<string>(this.length);
     const translated = new Array<string>(this.length);
-    const metadata = new Array<any>(this.length);
+    // Include originalText/translatedText for consumers that read these fields
+    // (e.g. TranslationEngine word-segment builder). Typed as intersection to preserve
+    // OptimizedSemanticMetadata structure while adding the compatibility fields.
+    const metadata = new Array<
+      OptimizedSemanticMetadata & { originalText: string; translatedText: string }
+    >(this.length);
 
     // Copy only used elements
     for (let i = 0; i < this.length; i++) {

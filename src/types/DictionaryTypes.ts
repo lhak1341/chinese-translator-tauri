@@ -99,3 +99,71 @@ export interface HistoryOperation {
   targetDictionaryId?: string;
   timestamp: number;
 }
+
+/**
+ * Shared interface for both DictionaryContext and LazyDictionaryContext.
+ * Extending this interface enforces method signature parity at compile time,
+ * replacing the manual sync checklist for shared methods.
+ *
+ * Note: `setSelectedDictionary` is intentionally excluded — the eager context
+ * returns `void` (sync) while the lazy context returns `Promise<void>` (async load).
+ * Each context declares it independently.
+ */
+export interface DictionaryContextInterface {
+  /** All loaded dictionaries */
+  dictionaries: { [key: string]: DictionaryData };
+  /** Whether initial loading is in progress */
+  isLoading: boolean;
+  /** Add a new entry to dictionary */
+  addEntry: (
+    dictionaryId: string,
+    source: string,
+    translation: string,
+    metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
+  /** Update an existing entry */
+  updateEntry: (
+    dictionaryId: string,
+    oldSource: string,
+    newSource: string,
+    translation: string,
+    metadata?: DictionaryEntryMetadata
+  ) => Promise<void>;
+  /** Delete an entry from dictionary */
+  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
+  /** Delete multiple entries from a dictionary in one operation */
+  bulkDeleteEntries: (
+    dictionaryId: string,
+    sources: string[]
+  ) => Promise<{ successCount: number; errors: string[] }>;
+  /** Move a single entry between dictionaries atomically */
+  moveEntry: (
+    sourceDictId: string,
+    targetDictId: string,
+    source: string,
+    targetDictLabel: string
+  ) => Promise<void>;
+  /** Move multiple entries between dictionaries atomically */
+  bulkMoveEntries: (
+    sourceDictId: string,
+    targetDictId: string,
+    sources: string[],
+    targetDictLabel: string
+  ) => Promise<{ movedCount: number; errors: string[] }>;
+  /** Undo last operation */
+  undo: () => Promise<boolean>;
+  /** Redo previously undone operation */
+  redo: () => Promise<boolean>;
+  /** Whether undo is available */
+  canUndo: boolean;
+  /** Whether redo is available */
+  canRedo: boolean;
+  /** Load a specific dictionary */
+  loadDictionary: (dictionaryId: string) => Promise<void>;
+  /** Currently selected dictionary */
+  selectedDictionary: string;
+  /** Get sorting statistics */
+  getSortingStats: () => SortingStats;
+  /** Reset sorting statistics */
+  resetSortingStats: () => void;
+}

@@ -282,6 +282,7 @@ export function calculatePatternPriority(
  * @param lowPriority - Whether this is a low priority pattern
  * @returns Priority breakdown with individual factors
  *
+ * @internal Exported for unit tests only — not part of the public API surface.
  * @example
  * const breakdown = calculatePriorityBreakdown(tokens, variables, false);
  * console.log(breakdown);

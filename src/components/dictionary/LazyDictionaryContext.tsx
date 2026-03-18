@@ -36,15 +36,15 @@ import type {
   DictionaryData,
   DictionaryEntryValue,
   DictionaryEntryMetadata,
-  SortingStats,
+  DictionaryContextInterface,
 } from '../../types/DictionaryTypes';
 
 /**
- * History operation for undo/redo (snapshot-based design used by LazyDictionaryContext).
- * Note: DictionaryContext uses a delta-based HistoryOperation from DictionaryTypes.ts;
- * this context predates that refactoring and stores full before/after snapshots.
+ * Snapshot-based history operation for undo/redo used exclusively by LazyDictionaryContext.
+ * Architecturally incompatible with the delta-based HistoryOperation in DictionaryTypes.ts —
+ * keep local. Renamed from HistoryOperation to prevent shadowing the exported type.
  */
-interface HistoryOperation {
+interface SnapshotHistoryOperation {
   dictionaryId: string;
   oldData: DictionaryData;
   newData: DictionaryData;
@@ -52,70 +52,15 @@ interface HistoryOperation {
 }
 
 /**
- * Lazy Dictionary Context value
+ * Lazy Dictionary Context value.
+ * Extends DictionaryContextInterface for compile-time sync with DictionaryContext.
  */
-interface LazyDictionaryContextValue {
-  /** All loaded dictionaries */
-  dictionaries: { [key: string]: DictionaryData };
-  /** Whether initial loading is in progress */
-  isLoading: boolean;
-  /** Add a new entry to dictionary */
-  addEntry: (
-    dictionaryId: string,
-    source: string,
-    translation: string,
-    metadata?: DictionaryEntryMetadata
-  ) => Promise<void>;
-  /** Update an existing entry */
-  updateEntry: (
-    dictionaryId: string,
-    oldSource: string,
-    newSource: string,
-    translation: string,
-    metadata?: DictionaryEntryMetadata
-  ) => Promise<void>;
-  /** Delete an entry from dictionary */
-  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
-  /** Bulk delete multiple entries from a dictionary in one save operation */
-  bulkDeleteEntries: (
-    dictionaryId: string,
-    sources: string[]
-  ) => Promise<{ successCount: number; errors: string[] }>;
-  /** Move a single entry between dictionaries */
-  moveEntry: (
-    sourceDictId: string,
-    targetDictId: string,
-    source: string,
-    targetDictLabel: string
-  ) => Promise<void>;
-  /** Move multiple entries between dictionaries */
-  bulkMoveEntries: (
-    sourceDictId: string,
-    targetDictId: string,
-    sources: string[],
-    targetDictLabel: string
-  ) => Promise<{ movedCount: number; errors: string[] }>;
-  /** Undo last operation */
-  undo: () => Promise<boolean>;
-  /** Redo previously undone operation */
-  redo: () => Promise<boolean>;
-  /** Whether undo is available */
-  canUndo: boolean;
-  /** Whether redo is available */
-  canRedo: boolean;
-  /** Load a specific dictionary */
-  loadDictionary: (dictionaryId: string) => Promise<void>;
-  /** Currently selected dictionary */
-  selectedDictionary: string;
-  /** Change selected dictionary */
+interface LazyDictionaryContextValue extends DictionaryContextInterface {
+  /** Change selected dictionary (async — triggers lazy load) */
   setSelectedDictionary: (dictionaryId: string) => Promise<void>;
-  /** Get sorting statistics */
-  getSortingStats: () => SortingStats;
-  /** Reset sorting statistics */
-  resetSortingStats: () => void;
   /** Set of loaded dictionary IDs (for debugging) */
   loadedDictionaries: Set<string>;
-  /** Refresh dictionary type metadata (MEDIUM-2 FIX) */
+  /** Refresh dictionary type metadata */
   refreshDictionaryTypes: () => Promise<void>;
 }
 
@@ -170,7 +115,7 @@ export function LazyDictionaryProvider({
   const [dictionaries, setDictionaries] = useState<{ [key: string]: DictionaryData }>({});
   const [loadedDictionaries, setLoadedDictionaries] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [history, setHistory] = useState<HistoryOperation[]>([]);
+  const [history, setHistory] = useState<SnapshotHistoryOperation[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
   const currentHistoryIndexRef = useRef(currentHistoryIndex);
   currentHistoryIndexRef.current = currentHistoryIndex;
