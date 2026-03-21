@@ -665,6 +665,9 @@ export class OptimizedSemanticArrayBuilder {
       }
 
       // Production: Return without freeze (caller MUST NOT mutate - read-only contract)
+      // WARNING: metadata[i].translatedText is ABSENT in this path — OptimizedSemanticMetadata
+      // intentionally excludes it for memory efficiency. getArrays(copy=true) reconstructs it
+      // from this.translated[i]. If you need translatedText, use copy=true (the default).
       return slicedArrays;
     }
 
@@ -702,6 +705,14 @@ export class OptimizedSemanticArrayBuilder {
    * Algorithm mirrors SemanticArrayBuilder.updateWithCapitalizedText exactly:
    * - Fast path (O(1)): uses translatedStart/End position metadata when available
    * - Fallback: indexOf with a lazily-initialised lowercase copy of finalText
+   *
+   * SYNC NOTE vs SemanticArrayBuilder: SemanticArrayBuilder also writes
+   * metadata[i].translatedText = actualText here. This builder intentionally omits that
+   * write because OptimizedSemanticMetadata has no translatedText field (memory optimization).
+   * getArrays(copy=true) reconstructs translatedText from this.translated[i] at call time,
+   * which is always up-to-date after this method runs. getArrays(copy=false) callers must
+   * not read metadata[i].translatedText — use copy=true for that field.
+   *
    * @param finalText - The final capitalized text
    */
   updateWithCapitalizedText(finalText: string): void {
@@ -738,6 +749,13 @@ export class OptimizedSemanticArrayBuilder {
 
       // Fallback: position metadata not yet set — use indexOf with a cached lowercase
       // copy of finalText. indexOf is V8-optimised and avoids per-unit regex + matchAll.
+      //
+      // KNOWN LIMITATION: This search starts at index 0 regardless of which unit i is.
+      // For a repeated word (e.g. "là" appearing 10×), it always capitalises the first
+      // occurrence in the text for every unit that lacks position metadata, regardless of
+      // which occurrence unit i actually maps to. This only fires when translatedStart/End
+      // is not set — the fast path above (O(1), position-gated) handles the common case
+      // correctly. The same limitation exists in SemanticArrayBuilder.
       if (lowerFinal === null) lowerFinal = finalText.toLowerCase();
       const lowerUnit = originalTranslation.toLowerCase();
       let searchFrom = 0;
@@ -784,6 +802,12 @@ export class OptimizedSemanticArrayBuilder {
   /**
    * CRITICAL-4 FIX: Validate that semantic arrays stay synchronized
    * HIGH-6 FIX: Returns validation result instead of throwing (allows graceful degradation)
+   *
+   * NOTE: Capacity checks (this.original.length === this.translated.length) always pass
+   * because resizeArrays() co-allocates all three arrays. The meaningful check is whether
+   * actual written elements exist at this.length-1 in all three arrays, which detects a
+   * partial write (e.g. addUnit() throws after writing original but before writing metadata).
+   *
    * @returns True if arrays are synchronized, false if desynchronized
    */
   validateArrays(): boolean {
@@ -810,6 +834,29 @@ export class OptimizedSemanticArrayBuilder {
       // HIGH-6 FIX: Return false instead of throwing - let caller decide recovery strategy
       // Throwing breaks entire translation, returning false allows graceful degradation
       return false;
+    }
+
+    // Element-level desync check: verify that the last written slot has data in all three
+    // arrays. resizeArrays() always co-allocates so capacities are always equal above.
+    // A partial write in addUnit() (thrown after writing one array but not others) would
+    // leave undefined in the trailing array — only this per-element check can catch it.
+    if (this.length > 0) {
+      const lastIdx = this.length - 1;
+      const elementsSynced =
+        this.original[lastIdx] !== undefined &&
+        this.translated[lastIdx] !== undefined &&
+        this.metadata[lastIdx] !== undefined;
+
+      if (!elementsSynced) {
+        logger.error('❌ CRITICAL: Optimized semantic arrays have partial write at last slot!', {
+          lastIdx,
+          hasOriginal: this.original[lastIdx] !== undefined,
+          hasTranslated: this.translated[lastIdx] !== undefined,
+          hasMetadata: this.metadata[lastIdx] !== undefined,
+          impact: 'Last semantic unit is corrupted — highlighting may misfire',
+        });
+        return false;
+      }
     }
 
     return true;

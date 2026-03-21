@@ -350,7 +350,7 @@ impl DictionaryCache {
                     // skipped, so the loop naturally finds the true LRU entry.
                     for candidate in &lru_candidates {
                         if cache.remove(candidate).is_some() {
-                            eprintln!("LRU cache eviction: removed {}", candidate);
+                            eprintln!("LRU cache eviction: entry removed");
                             evicted_key = Some(candidate.clone());
                             break;
                         }
@@ -362,7 +362,7 @@ impl DictionaryCache {
                     // eviction patterns non-reproducible and hard to debug.
                     if evicted_key.is_none() {
                         if let Some(fallback_key) = cache.keys().min().cloned() {
-                            eprintln!("LRU cache last-resort eviction: removed {}", fallback_key);
+                            eprintln!("LRU cache last-resort eviction: entry removed");
                             cache.remove(&fallback_key);
                             evicted_key = Some(fallback_key);
                         }

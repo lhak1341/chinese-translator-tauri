@@ -580,6 +580,13 @@ export class SemanticArrayBuilder {
       // Fallback: position metadata not yet set — use indexOf with a cached lowercase
       // copy of finalText. indexOf is V8-optimised and avoids the per-unit regex + matchAll
       // that previously made this O(n × textLength).
+      //
+      // KNOWN LIMITATION: This search starts at index 0 regardless of which unit i is.
+      // For a repeated word (e.g. "là" appearing 10×), it always capitalises the first
+      // occurrence in the text for every unit that lacks position metadata, regardless of
+      // which occurrence unit i actually maps to. This only fires when translatedStart/End
+      // is not set — the fast path above (O(1), position-gated) handles the common case
+      // correctly. The same limitation exists in OptimizedSemanticArrayBuilder.
       if (lowerFinal === null) lowerFinal = finalText.toLowerCase();
       const lowerUnit = originalTranslation.toLowerCase();
       let searchFrom = 0;

@@ -97,7 +97,7 @@ export function copyWasmTokens(
 ): Record<string, unknown>[] {
   // Phase 1: Validate structure before modifying
   if (!Array.isArray(jsTokens)) {
-    throw new Error('Source tokens must be an array');
+    throw new Error('JS destination tokens must be an array');
   }
 
   if (!Array.isArray(wasmTokens)) {
