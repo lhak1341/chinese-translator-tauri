@@ -64,7 +64,7 @@ impl ManagedStringCache {
 
     /// Insert string into cache
     pub fn insert(&mut self, key: (usize, usize), value: String) {
-        let size = value.len() * 2; // UTF-16 estimate
+        let size = value.len() * 2; // rough over-estimate (×2 for per-entry overhead)
         self.estimated_size += size;
         record_allocation(size);
         self.cache.insert(key, value);

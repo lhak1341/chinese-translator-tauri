@@ -210,13 +210,9 @@ fn emit_poisoning_event() {
 
         // Derive RFC3339 timestamp from the same now_ms already used for rate-limiting,
         // avoiding a second clock call via chrono::Utc::now().
-        let timestamp = {
-            use chrono::TimeZone;
-            chrono::Utc.timestamp_millis_opt(now_ms as i64)
-                .single()
-                .map(|dt| dt.to_rfc3339())
-                .unwrap_or_else(|| now_ms.to_string())
-        };
+        let timestamp = chrono::DateTime::from_timestamp_millis(now_ms as i64)
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_else(|| now_ms.to_string());
         let _ = app.emit("dictionary-cache-critical-error", serde_json::json!({
             "type": "mutex_poisoning",
             "event_count": event_count,
@@ -568,7 +564,7 @@ fn get_dictionary_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String>
     let app_data_dir = app_handle
         .path()
         .app_data_dir()
-        .map_err(|e| e.to_string())?;
+        .map_err(|_| "Failed to locate application data directory".to_string())?;
     Ok(app_data_dir.join("dictionaries"))
 }
 
@@ -582,9 +578,9 @@ fn get_or_create_dictionary_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf
 
 // Get cache key for dictionary.
 // All dictionaries live in the same directory, so dictionary_id alone is sufficient.
-// Embedding file_path.display() would include the full OS path (e.g. /Users/...),
+// Never use file_path.display() here — it embeds the full OS path (e.g. /Users/...),
 // which must not appear in any value that could be serialized or logged.
-fn get_cache_key(dictionary_id: &str, _file_path: &PathBuf) -> String {
+fn get_cache_key(dictionary_id: &str) -> String {
     dictionary_id.to_string()
 }
 
@@ -722,7 +718,7 @@ pub async fn load_dictionary(
     let dictionary_path = get_dictionary_path(&app_handle)?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
-    let cache_key = get_cache_key(&dictionary_id, &file_path);
+    let cache_key = get_cache_key(&dictionary_id);
 
     // Check cache first
     if let Some(cached_data) = cache.get(&cache_key) {
@@ -1248,7 +1244,7 @@ pub async fn load_dictionaries_parallel(
             }
 
             let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
-            let cache_key = get_cache_key(dictionary_id, &file_path);
+            let cache_key = get_cache_key(dictionary_id);
 
             // Check cache first (thread-safe)
             if let Some(cached_data) = cache.get(&cache_key) {

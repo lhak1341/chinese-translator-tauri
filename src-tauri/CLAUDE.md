@@ -47,3 +47,4 @@
 - **`DictionaryCache.invalidate` uses exact-key match**: `get_cache_key()` returns bare IDs (`"phrases"`, `"properNouns-MyNovel"`). Do NOT introduce colon-separated key formats — it makes every targeted invalidation a silent no-op.
 - **`emit_poisoning_event()` is the only valid path for cache-poisoning notifications**: calling `app.emit(...)` directly bypasses the 60-second rate limiter.
 - **`lookup_index_engine::TrieNode` has `pub fn insert(word, translation, metadata)`**: use it when building tries; do not write manual `for ch in word.chars()` traversal loops. Distinct from `wasm-core/src/trie.rs::TrieNode`.
+- **`hashbrown::HashMap` + rayon parallel `collect()`**: `hashbrown` doesn't implement `FromParallelIterator` — `.collect()` on a `ParallelIterator` of `(K, V)` won't compile. Use `.collect::<Vec<_>>().into_iter().collect()` instead. Affects `lookup_index_engine.rs::build_index_parallel`.

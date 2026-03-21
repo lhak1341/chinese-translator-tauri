@@ -134,17 +134,16 @@ pub struct TwoPhasePatternProcessor {
 impl TwoPhasePatternProcessor {
     /// Create a new two-phase pattern processor
     pub fn new(patterns: Vec<SemanticPattern>) -> Self {
-        let variable_patterns: Vec<SemanticPattern> = patterns
-            .iter()
-            .filter(|p| p.allow_as_pattern_variable)
-            .cloned()
-            .collect();
-
-        let composite_eligible_patterns: Vec<SemanticPattern> = patterns
-            .iter()
-            .filter(|p| p.variables.len() == 1)
-            .cloned()
-            .collect();
+        let mut variable_patterns = Vec::new();
+        let mut composite_eligible_patterns = Vec::new();
+        for p in &patterns {
+            if p.allow_as_pattern_variable {
+                variable_patterns.push(p.clone());
+            }
+            if p.variables.len() == 1 {
+                composite_eligible_patterns.push(p.clone());
+            }
+        }
 
         // Create pattern indices for O(1) first-token lookup
         let mut phase_a_index = PatternIndex::new();
@@ -296,16 +295,8 @@ impl TwoPhasePatternProcessor {
         phase_a_results: &[PatternProcessingResult],
     ) -> Vec<PatternProcessingResult> {
         // Create enhanced variable cache with Phase A results
-        // Pre-allocate capacity to avoid rehashing
-        let enhanced_cache_size = variable_cache.len() + phase_a_results.len();
-        let mut enhanced_cache = HashMap::with_capacity(enhanced_cache_size);
-
-        // Use extend for faster bulk insertion
-        enhanced_cache.extend(
-            variable_cache
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone())),
-        );
+        let mut enhanced_cache = variable_cache.clone();
+        enhanced_cache.reserve(phase_a_results.len());
 
         // Add Phase A results to variable cache.
         // Use the pattern's actual semantic_type as var_type so that Phase B

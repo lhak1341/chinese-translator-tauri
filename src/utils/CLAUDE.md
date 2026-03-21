@@ -44,7 +44,7 @@ Since the parallel merge loop drops `originalStart`, this path never activates f
 
 ### `resolveGlobalConflicts` and `resolveMatchConflicts` Are Siblings With Intentionally Inverted Priority
 
-`resolveMatchConflicts` (Phase 2, ~line 2383): patterns beat regular phrases at equal length. `resolveGlobalConflicts` (Phase 4, ~line 2686): phrases beat patterns at equal length (Phase 1 pattern tokens are already consumed by Phase 4). Do NOT harmonize them — the inversion is architectural. Algorithm changes to one must be manually mirrored in the other.
+`resolveMatchConflicts` (Phase 2, ~line 2383): patterns beat regular phrases at equal length. `resolveGlobalConflicts` (Phase 4, ~line 2686): phrases beat patterns at equal length (Phase 1 pattern tokens are already consumed by Phase 4). Do NOT harmonize them — the inversion is architectural. Algorithm changes must be mirrored in all three: `resolveMatchConflicts` JS, `resolveGlobalConflicts` JS body (delegates to `WasmConflictResolution.js`), and `wasm-core/src/conflict_resolution.rs::run_conflict_resolution`.
 
 ### `cleanupFormatting()` Has Two Branches and Cannot Be Migrated to WASM
 
@@ -83,6 +83,7 @@ Any `src/utils/wasm/Wasm*.js` that exports a singleton must trigger background i
 When adding `// @ts-check` to a new file, common patterns required for compatibility:
 
 - `@returns {Array}` → must include type arg: `{Array<*>}` (TS2314)
+- `// @ts-ignore` suppresses only the **next single line** — collapse multi-line imports to one line before it works (e.g. WASM named exports not yet in typedefs)
 - Catch bindings: `} catch (/** @type {any} */ error) {`
 - `window.customProp = x` → needs `// @ts-ignore` above
 - `@param {Object} options` with sub-property docs → use inline type `@param {{ x: string }} [options]`

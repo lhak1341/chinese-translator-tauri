@@ -39,6 +39,7 @@ pub mod text_assembly;
 pub mod wasm_boundary;
 pub mod memory_management;
 pub mod text_chunker;
+pub mod conflict_resolution;
 
 #[cfg(test)]
 mod content_hash_test;

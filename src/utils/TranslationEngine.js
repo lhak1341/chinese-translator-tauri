@@ -150,6 +150,8 @@ import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
 import { processNumbersWasm, isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
+// WASM Phase 4 conflict resolution — flat Uint32Array boundary, near-zero overhead
+import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
 // WASM Dictionary Trie integration for 2-4x faster Phase 5 character lookups
 import { WasmDictionaryTrieWrapper } from './wasm/WasmDictionaryTrie.js';
 import {
@@ -2705,70 +2707,9 @@ export class TranslationEngine {
       `🎯 Resolving ${allMatches.length} global matches with longest-match-first`
     );
 
-    // Sort by priority: longest matches first, then by type priority
-    // CRITICAL: LENGTH-FIRST sorting matches Rust implementation (matcher.rs)
-    allMatches.sort((a, b) => {
-      // Primary: Length (longer matches win) - prevents substring collisions
-      if (a.length !== b.length) {
-        return b.length - a.length;
-      }
-
-      // Secondary: Type priority (phrases vs patterns)
-      const getTypePriority = (match) => {
-        if (match.type === 'phrase') return 1;
-        if (match.type === 'pattern') return 2;
-        return 3;
-      };
-
-      const priorityA = getTypePriority(a);
-      const priorityB = getTypePriority(b);
-
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
-      // Tertiary: Position (earlier positions win)
-      return a.startIndex - b.startIndex;
-    });
-
-    // Greedily select non-overlapping matches
-    const selectedMatches = [];
-    const usedTokenIndices = new Set();
-
-    for (const match of allMatches) {
-      // Check if this match conflicts with any already selected match
-      let hasConflict = false;
-      for (let i = match.startIndex; i <= match.endIndex; i++) {
-        if (usedTokenIndices.has(i)) {
-          hasConflict = true;
-          break;
-        }
-      }
-
-      if (!hasConflict) {
-        // Accept this match
-        selectedMatches.push(match);
-
-        // Mark tokens as used
-        for (let i = match.startIndex; i <= match.endIndex; i++) {
-          usedTokenIndices.add(i);
-        }
-
-        const matchText =
-          match.type === 'phrase' ? match.match.word : match.pattern?.originalPattern || 'unknown';
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `✅ Selected ${match.type}: "${matchText}" (length: ${match.length}, tokens: ${match.startIndex}-${match.endIndex})`
-        );
-      } else {
-        const matchText =
-          match.type === 'phrase' ? match.match.word : match.pattern?.originalPattern || 'unknown';
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `🚫 Rejected ${match.type}: "${matchText}" (conflicts with selected match)`
-        );
-      }
-    }
+    // Delegate sort + greedy selection to WASM (flat Uint32Array boundary).
+    // Falls back to JS automatically when WASM is not yet initialized.
+    const selectedMatches = resolveGlobalConflictsWasm(allMatches);
 
     this.log(
       DEBUG_LEVELS.DEBUG,

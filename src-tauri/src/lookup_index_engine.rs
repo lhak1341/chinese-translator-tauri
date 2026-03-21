@@ -43,7 +43,7 @@ pub struct CategorizedMatches {
 }
 
 /// Trie node for dictionary storage
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TrieNode {
     pub children: HashMap<char, TrieNode>,
     pub is_end_of_word: bool,
@@ -53,19 +53,14 @@ pub struct TrieNode {
 
 impl TrieNode {
     pub fn new() -> Self {
-        Self {
-            children: HashMap::new(),
-            is_end_of_word: false,
-            translation: None,
-            metadata: None,
-        }
+        Self::default()
     }
 
     /// Insert a word into the trie with its translation and optional metadata.
     pub fn insert(&mut self, word: &str, translation: String, metadata: Option<String>) {
         let mut current = self;
         for ch in word.chars() {
-            current = current.children.entry(ch).or_insert_with(TrieNode::new);
+            current = current.children.entry(ch).or_default();
         }
         current.is_end_of_word = true;
         current.translation = Some(translation);
@@ -83,7 +78,6 @@ impl TrieNode {
         }
 
         let mut current = self;
-        let mut word = String::new();
 
         for i in start_pos..chars.len() {
             let ch = chars[i];
@@ -91,13 +85,12 @@ impl TrieNode {
             // Traverse trie
             if let Some(child) = current.children.get(&ch) {
                 current = child;
-                word.push(ch);
 
-                // Found a match
+                // Found a match — allocate word string only here, not on every step
                 if current.is_end_of_word {
                     if let Some(translation) = &current.translation {
                         matches.push(DictionaryMatch {
-                            word: word.clone(),
+                            word: chars[start_pos..=i].iter().collect(),
                             translation: translation.clone(),
                             end_pos: i + 1,
                             metadata: current.metadata.clone(),
@@ -280,23 +273,22 @@ fn build_index_parallel(
     // Pre-collect chars once; shared read-only across all Rayon threads
     let chars: Vec<char> = text.chars().collect();
 
-    // Process positions in parallel
-    let results: Vec<(u32, CategorizedMatches)> = (0..chars.len())
+    // Process positions in parallel, collect pairs into Vec, then convert to HashMap.
+    // hashbrown::HashMap doesn't implement rayon::FromParallelIterator, so a two-step
+    // collect is required. The Vec step is O(n) and alloc-cheap for sparse match counts.
+    (0..chars.len())
         .into_par_iter()
         .filter_map(|pos| {
             let matches = find_all_matches_at_position(&chars, pos, dictionaries);
-
             if !matches.is_empty() {
-                let categorized = categorize_matches(matches);
-                Some((pos as u32, categorized))
+                Some((pos as u32, categorize_matches(matches)))
             } else {
                 None
             }
         })
-        .collect();
-
-    // Collect results into HashMap
-    results.into_iter().collect()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect()
 }
 
 /// Find all dictionary matches at a specific position
@@ -380,19 +372,8 @@ mod tests {
     #[test]
     fn test_trie_find_matches() {
         let mut trie = TrieNode::new();
+        trie.insert("你好", "xin chào".to_string(), None);
 
-        // Insert test data
-        let mut node = &mut trie;
-        for ch in "你好".chars() {
-            node = node
-                .children
-                .entry(ch)
-                .or_insert_with(TrieNode::new);
-        }
-        node.is_end_of_word = true;
-        node.translation = Some("xin chào".to_string());
-
-        // Test finding matches
         let chars: Vec<char> = "你好世界".chars().collect();
         let matches = trie.find_matches(&chars, 0);
         assert_eq!(matches.len(), 1);
@@ -422,17 +403,8 @@ mod tests {
 
     #[test]
     fn test_build_index_serial() {
-        // Create a simple dictionary
         let mut trie = TrieNode::new();
-        let mut node = &mut trie;
-        for ch in "测试".chars() {
-            node = node
-                .children
-                .entry(ch)
-                .or_insert_with(TrieNode::new);
-        }
-        node.is_end_of_word = true;
-        node.translation = Some("test".to_string());
+        trie.insert("测试", "test".to_string(), None);
 
         let dict = Dictionary {
             name: "test".to_string(),

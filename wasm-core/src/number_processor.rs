@@ -35,8 +35,6 @@ struct NumberMatch {
     original_text: String,
     result: String,
     pattern_name: String,
-    #[allow(dead_code)]
-    start_index: usize,  // Kept for debugging/future use
     end_index: usize,
 }
 
@@ -45,8 +43,6 @@ struct ConversionPattern {
     name: &'static str,
     regex: Regex,
     converter: fn(&NumberProcessor, &[&str]) -> Option<String>,
-    #[allow(dead_code)]
-    description: &'static str,  // Documentation for pattern purpose
 }
 
 #[wasm_bindgen]
@@ -115,7 +111,6 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
                         name: $name,
                         regex,
                         converter: $converter,
-                        description: $desc,
                     });
                 }
                 Err(e) => {
@@ -407,7 +402,6 @@ impl NumberProcessor {
                                 original_text: test_sequence.clone(),
                                 result,
                                 pattern_name: pattern.name.to_string(),
-                                start_index,
                                 end_index,
                             });
                             longest_length = test_sequence.chars().count();

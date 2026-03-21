@@ -23,6 +23,9 @@ export {
   MAX_WASM_METADATA_SIZE,
 } from './WasmBoundaryValidation';
 
+// --- Conflict resolution (phase 4) ---
+export { resolveGlobalConflictsWasm } from './WasmConflictResolution';
+
 // --- Number processor (phase 3) ---
 export {
   initializeWasmNumberProcessor,

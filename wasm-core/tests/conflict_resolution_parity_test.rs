@@ -16,9 +16,11 @@
 //!
 //! # Production use
 //!
-//! This file is test-only (`wasm-core/tests/` is compiled only during `cargo test`).
-//! There is no `#[wasm_bindgen]` export — serialization cost makes WASM not viable
-//! for this function (5–20× slower due to JSON boundary overhead for 100–500 match objects).
+//! The production implementation lives in `wasm-core/src/conflict_resolution.rs`.
+//! It exports `resolveGlobalConflicts` (Phase 4) and `resolveMatchConflictsCore` (Phase 2)
+//! as WASM functions using flat `Uint32Array` I/O — near-zero boundary cost vs 5–20× JSON overhead.
+//! This file is an **independent parity validator** — it re-implements the algorithm
+//! using idiomatic Rust types to catch divergence if the JS version is modified.
 //!
 //! # Algorithm (mirrors JS exactly)
 //!
