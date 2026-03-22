@@ -1261,18 +1261,26 @@ pub async fn load_dictionaries_parallel(
                 Ok(contents) => {
                     match serde_json::from_str::<serde_json::Value>(&contents) {
                         Ok(data) => {
-                            // SECURITY: Enforce entry-count cap (matches serial load path).
-                            if let Some(obj) = data.as_object() {
-                                if obj.len() > MAX_DICTIONARY_ENTRIES {
+                            // SECURITY: Enforce object-type check and entry-count cap (mirrors serial load path).
+                            match data.as_object() {
+                                None => {
                                     return BatchDictionaryResult::err(
                                         dictionary_id,
-                                        format!(
-                                            "Dictionary '{}' has too many entries ({}, max: {})",
-                                            dictionary_id,
-                                            obj.len(),
-                                            MAX_DICTIONARY_ENTRIES
-                                        ),
+                                        format!("Dictionary '{}' has invalid format: expected a JSON object", dictionary_id),
                                     );
+                                }
+                                Some(obj) => {
+                                    if obj.len() > MAX_DICTIONARY_ENTRIES {
+                                        return BatchDictionaryResult::err(
+                                            dictionary_id,
+                                            format!(
+                                                "Dictionary '{}' has too many entries ({}, max: {})",
+                                                dictionary_id,
+                                                obj.len(),
+                                                MAX_DICTIONARY_ENTRIES
+                                            ),
+                                        );
+                                    }
                                 }
                             }
 

@@ -468,7 +468,7 @@ const Translator = ({ isActive = true }) => {
 
           await engineRef.current.initialize(filteredDictionaries, {
             priorities: {
-              properNouns: 1,
+              properNouns: 3, // base; f_* → 1, _* → 2 handled by DictionaryManager prefix logic
               patterns: 2,
               phrases: 3,
               characters: 4,
@@ -2233,7 +2233,7 @@ const Translator = ({ isActive = true }) => {
 
           await engineRef.current.initialize(filteredDictionaries, {
             priorities: {
-              properNouns: 1,
+              properNouns: 3, // base; f_* → 1, _* → 2 handled by DictionaryManager prefix logic
               patterns: 2,
               phrases: 3,
               characters: 4,

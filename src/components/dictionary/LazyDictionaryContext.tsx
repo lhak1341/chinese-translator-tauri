@@ -565,14 +565,14 @@ export function LazyDictionaryProvider({
 
   const deleteEntry = useCallback(
     async (dictionaryId: string, source: string): Promise<void> => {
-      // CRITICAL-1 FIX: Wrap async operation in try-catch with toast notifications
-      try {
-        if (!dictionaries[dictionaryId]) {
-          const msg = `Dictionary '${dictionaryId}' does not exist`;
-          toast.error(msg);
-          throw new ValidationError(msg);
-        }
+      // Existence check before try — mirrors addEntry/updateEntry/bulkDeleteEntries pattern.
+      if (!dictionaries[dictionaryId]) {
+        const msg = `Dictionary '${dictionaryId}' does not exist`;
+        toast.error(msg);
+        throw new ValidationError(msg);
+      }
 
+      try {
         const oldData = { ...dictionaries[dictionaryId] };
         const updatedDictionary = { ...oldData };
         delete updatedDictionary[source];
@@ -726,6 +726,7 @@ export function LazyDictionaryProvider({
       ]);
 
       if (sourceResult.success && targetResult.success) {
+        addToHistory(sourceDictId, currentSourceDict, sourceResult.data);
         toast.success(`Entry moved to ${targetDictLabel}`);
         await invalidateTranslationEngineCache(sourceDictId);
         await invalidateTranslationEngineCache(targetDictId);
@@ -743,7 +744,7 @@ export function LazyDictionaryProvider({
         throw new SaveError('Failed to save dictionaries during move');
       }
     },
-    [dictionaries]
+    [dictionaries, addToHistory]
   );
 
   // Move multiple entries between dictionaries atomically.
@@ -795,6 +796,7 @@ export function LazyDictionaryProvider({
       ]);
 
       if (sourceResult.success && targetResult.success) {
+        addToHistory(sourceDictId, currentSourceDict, sourceResult.data);
         toast.success(
           `Moved ${movedCount} ${movedCount === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`
         );
@@ -816,7 +818,7 @@ export function LazyDictionaryProvider({
 
       return { movedCount, errors };
     },
-    [dictionaries]
+    [dictionaries, addToHistory]
   );
 
   const undo = useCallback(async (): Promise<boolean> => {

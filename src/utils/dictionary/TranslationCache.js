@@ -305,6 +305,7 @@ export class TranslationCache {
    * @returns {Object} Combined cache statistics
    */
   getStats() {
+    if (!this.characterCache) return { enabled: false };
     const characterStats = this.characterCache.getStats();
     const phraseStats = this.phraseCache.getStats();
     const patternStats = this.patternCache.getStats();
@@ -711,6 +712,7 @@ export class TranslationCache {
    * @returns {Object} Memory usage stats
    */
   getMemoryUsage() {
+    if (!this.characterCache) return { enabled: false, totalEntries: 0 };
     return {
       characterCache: this.characterCache.size(),
       phraseCache: this.phraseCache.size(),

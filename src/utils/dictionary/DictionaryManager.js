@@ -284,16 +284,20 @@ export class DictionaryTrie {
       const visitedNodes = new Set();
       const duplicateTracker = new Map(); // word -> translation mapping
 
+      // Truncate trie paths in diagnostic output to avoid leaking dictionary content
+      const truncatePath = (p) => (p.length > 20 ? p.slice(0, 20) + '\u2026' : p);
+
       // Recursive validation function
       const validateNode = (node, currentPath = '', depth = 0) => {
         validation.statistics.nodesChecked++;
+        const safePath = truncatePath(currentPath);
 
         // Check for circular references
         if (visitedNodes.has(node)) {
           validation.errors.push({
             type: 'CIRCULAR_REFERENCE',
-            path: currentPath,
-            message: `Circular reference detected at path: ${currentPath}`,
+            path: safePath,
+            message: `Circular reference detected at path: ${safePath}`,
           });
           validation.statistics.circularReferences++;
           validation.isValid = false;
@@ -306,8 +310,8 @@ export class DictionaryTrie {
         if (!node.children || typeof node.children.has !== 'function') {
           validation.errors.push({
             type: 'INVALID_NODE_STRUCTURE',
-            path: currentPath,
-            message: `Node missing children Map at path: ${currentPath}`,
+            path: safePath,
+            message: `Node missing children Map at path: ${safePath}`,
           });
           validation.isValid = false;
           return;
@@ -321,17 +325,17 @@ export class DictionaryTrie {
           if (!node.translation || typeof node.translation !== 'string') {
             validation.errors.push({
               type: 'MISSING_TRANSLATION',
-              path: currentPath,
-              word: currentPath,
-              message: `End-of-word node missing translation: ${currentPath}`,
+              path: safePath,
+              word: safePath,
+              message: `End-of-word node missing translation: ${safePath}`,
             });
             validation.isValid = false;
           } else if (node.translation.trim().length === 0) {
             validation.warnings.push({
               type: 'EMPTY_TRANSLATION',
-              path: currentPath,
-              word: currentPath,
-              message: `Empty translation for word: ${currentPath}`,
+              path: safePath,
+              word: safePath,
+              message: `Empty translation for word: ${safePath}`,
             });
             validation.statistics.emptyTranslations++;
           }
@@ -342,11 +346,9 @@ export class DictionaryTrie {
             if (existingTranslation && existingTranslation !== node.translation) {
               validation.warnings.push({
                 type: 'DUPLICATE_ENTRY',
-                path: currentPath,
-                word: currentPath,
-                existing: existingTranslation,
-                current: node.translation,
-                message: `Duplicate entry detected: ${currentPath} -> "${existingTranslation}" vs "${node.translation}"`,
+                path: safePath,
+                word: safePath,
+                message: `Duplicate entry detected at: ${safePath}`,
               });
               validation.statistics.duplicateEntries++;
             } else {
@@ -359,8 +361,8 @@ export class DictionaryTrie {
         if (!node.isEndOfWord && node.children.size === 0 && currentPath.length > 0) {
           validation.warnings.push({
             type: 'ORPHANED_NODE',
-            path: currentPath,
-            message: `Orphaned node (no children, not end-of-word): ${currentPath}`,
+            path: safePath,
+            message: `Orphaned node (no children, not end-of-word): ${safePath}`,
           });
           validation.statistics.orphanedNodes++;
         }
@@ -371,9 +373,9 @@ export class DictionaryTrie {
           if (!char || char.length !== 1) {
             validation.errors.push({
               type: 'INVALID_CHARACTER',
-              path: currentPath,
+              path: safePath,
               char: char,
-              message: `Invalid character in trie: "${char}" at path: ${currentPath}`,
+              message: `Invalid character in trie at: ${safePath}`,
             });
             validation.isValid = false;
             continue;
@@ -737,9 +739,9 @@ export class DictionaryManager {
     this.metadata.clear();
 
     const priorities = options.priorities || {
-      properNouns: 1,
       patterns: 2,
       phrases: 3,
+      properNouns: 3, // base; f_* → 1, _* → 2 assigned below by prefix
       characters: 4,
       punctuation: 5,
       conversion: 6,
@@ -834,11 +836,15 @@ export class DictionaryManager {
               continue;
             }
 
-            // Assign priority: proper noun dictionaries get priority 1, others use defaults
-            let priority = priorities[dictionaryName];
-            if (!priority) {
-              // If not in priorities list, check if it's a proper noun dictionary
-              priority = dictionaryName.startsWith('properNouns') ? 1 : 10;
+            // Assign priority: prefix rules always win over caller-supplied priorities map
+            let priority;
+            if (dictionaryName.startsWith('properNouns-f_')) {
+              priority = 1; // fiction-specific (highest)
+            } else if (dictionaryName.startsWith('properNouns-_')) {
+              priority = 2; // generic
+            } else {
+              priority =
+                priorities[dictionaryName] || (dictionaryName.startsWith('properNouns') ? 3 : 10);
             }
 
             const metadata = {
@@ -858,10 +864,15 @@ export class DictionaryManager {
 
       this.dictionaries.set(dictionaryName, trie);
 
-      // Use the same priority logic for metadata
-      let metadataPriority = priorities[dictionaryName];
-      if (!metadataPriority) {
-        metadataPriority = dictionaryName.startsWith('properNouns') ? 1 : 10;
+      // Use the same priority logic for metadata (prefix rules always win)
+      let metadataPriority;
+      if (dictionaryName.startsWith('properNouns-f_')) {
+        metadataPriority = 1; // fiction-specific (highest)
+      } else if (dictionaryName.startsWith('properNouns-_')) {
+        metadataPriority = 2; // generic
+      } else {
+        metadataPriority =
+          priorities[dictionaryName] || (dictionaryName.startsWith('properNouns') ? 3 : 10);
       }
 
       this.metadata.set(dictionaryName, {

@@ -133,7 +133,6 @@ interface DictionaryManagerLike {
 export class TranslationSegmentCache {
   private maxCacheSize: number;
   private maxCacheAge: number;
-  private windowId: string;
   private cacheKeyPrefix: string;
   private metadataKey: string;
   private _operationLock: Promise<void>;
@@ -149,12 +148,10 @@ export class TranslationSegmentCache {
     this.maxCacheSize = options.maxCacheSize || 1000; // Maximum cached segments
     this.maxCacheAge = options.maxCacheAge || 7 * 24 * 60 * 60 * 1000; // 7 days in ms
 
-    // MEDIUM-2 FIX: Window-specific cache prefix to prevent multi-tab conflicts
-    // Each browser window/tab gets unique cache namespace
-    // Why: Multiple windows writing to same localStorage keys causes last-write-wins corruption
-    this.windowId = `w${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    this.cacheKeyPrefix = `translation-cache-${this.windowId}-`;
-    this.metadataKey = `translation-cache-metadata-${this.windowId}`;
+    // Tauri desktop app has a single renderer process — use a stable prefix so cache
+    // persists across app restarts and the 7-day TTL is honoured.
+    this.cacheKeyPrefix = `translation-cache-entry-`;
+    this.metadataKey = `translation-cache-metadata`;
 
     // CRITICAL FIX: Add operation-level locking for concurrent write protection
     // Prevents cache metadata corruption from concurrent translations
@@ -253,8 +250,13 @@ export class TranslationSegmentCache {
       // CRITICAL FIX: Verify write succeeded by reading back
       const readback = localStorage.getItem(key);
       if (readback !== value) {
-        // Write verification failed - remove corrupted entry
-        this._removeEntry(key);
+        // Write verification failed - attempt cleanup but don't let cleanup errors
+        // mask the original failure (e.g. _removeEntry → saveMetadata → QuotaExceededError)
+        try {
+          this._removeEntry(key);
+        } catch (_) {
+          /* ignore */
+        }
         throw new Error('localStorage write verification failed - data mismatch');
       }
     } catch (error) {

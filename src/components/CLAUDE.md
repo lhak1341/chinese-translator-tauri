@@ -33,6 +33,10 @@ TypeScript does not narrow optional property accesses through `&&` spreads — `
 - `validateApiResult` (was `validateElectronResult`) in `configValidation.ts`
 - `validateRawDictionaryEntry` (was `validateDictionaryEntry`) in `configValidation.ts` — renamed to avoid collision with same-named function in `DictionaryTypes.ts` (different signature). Do NOT revert.
 
+## `engine.initialize()` Is Called in Two Places in `Translator.jsx`
+
+Initial load (~line 469) and reload (~line 2234) both pass `priorities: { properNouns: N, ... }` explicitly. `options.priorities` overrides all defaults in `DictionaryManager.loadDictionaries`. Any change to the priority scheme or init options must be applied to **both** call sites.
+
 ## Error Utilities
 
 Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of `error instanceof Error ? error.message : 'Unknown error'` — the inline form misses `string`, `{ message }`, and `null` inputs.
