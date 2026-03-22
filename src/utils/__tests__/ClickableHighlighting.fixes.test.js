@@ -137,15 +137,15 @@ describe('CRITICAL-7: Greedy Match Validation', () => {
     // the logic handles edge cases correctly
 
     const builder = new SemanticArrayBuilder();
-    builder.addUnit('在天空中', 'ở trong bầu trời', 'patterns', 0);
+    builder.addUnit('在天空中', 'ở trong bầu trời', 'pattern', 0);
 
     // Set position to near end of text
     const result = builder.setPositionByMatch(0, 'ở trong bầu trời', 0, 17);
     expect(result).toBe(true);
 
     // Verify position was set
-    expect(builder.metadata[0].translatedStart).toBe(0);
-    expect(builder.metadata[0].translatedEnd).toBe(17);
+    expect(builder.getArrays().metadata[0].translatedStart).toBe(0);
+    expect(builder.getArrays().metadata[0].translatedEnd).toBe(17);
   });
 });
 
@@ -176,12 +176,12 @@ describe('HIGH-5: Position Metadata Validation', () => {
     builder.addUnit('在', 'ở', 'characters', 0);
 
     // Before setting position
-    const invalidMeta = builder.metadata[0];
+    const invalidMeta = builder.getArrays().metadata[0];
     expect(builder.hasValidPositions(invalidMeta)).toBe(false);
 
     // After setting position
     builder.setPositionByMatch(0, 'ở', 0, 2);
-    const validMeta = builder.metadata[0];
+    const validMeta = builder.getArrays().metadata[0];
     expect(builder.hasValidPositions(validMeta)).toBe(true);
   });
 
@@ -190,10 +190,11 @@ describe('HIGH-5: Position Metadata Validation', () => {
     builder.addUnit('在', 'ở', 'characters', 0);
 
     // Manually set invalid positions
-    builder.metadata[0].translatedStart = 5;
-    builder.metadata[0].translatedEnd = 3; // End < start
+    const meta = builder.getArrays().metadata[0];
+    meta.translatedStart = 5;
+    meta.translatedEnd = 3; // End < start
 
-    expect(builder.hasValidPositions(builder.metadata[0])).toBe(false);
+    expect(builder.hasValidPositions(meta)).toBe(false);
   });
 
   test('should provide validation report for all positions', () => {
@@ -450,7 +451,7 @@ describe('Edge Cases and Error Handling', () => {
     builder.setPositionByMatch(0, 'ở', 0, 2);
 
     expect(() => builder.validateArrays()).not.toThrow();
-    expect(builder.hasValidPositions(builder.metadata[0])).toBe(true);
+    expect(builder.hasValidPositions(builder.getArrays().metadata[0])).toBe(true);
   });
 
   test('should handle very long semantic arrays', () => {
@@ -477,10 +478,11 @@ describe('Edge Cases and Error Handling', () => {
     expect(builder.setPositionByMatch(5, 'ở', 3, 5)).toBe(true);
 
     // Both should have valid positions
-    expect(builder.hasValidPositions(builder.metadata[0])).toBe(true);
-    expect(builder.hasValidPositions(builder.metadata[1])).toBe(true);
+    const arrays = builder.getArrays();
+    expect(builder.hasValidPositions(arrays.metadata[0])).toBe(true);
+    expect(builder.hasValidPositions(arrays.metadata[1])).toBe(true);
 
     // Positions should be different
-    expect(builder.metadata[0].translatedStart).not.toBe(builder.metadata[1].translatedStart);
+    expect(arrays.metadata[0].translatedStart).not.toBe(arrays.metadata[1].translatedStart);
   });
 });

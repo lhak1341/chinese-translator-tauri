@@ -283,7 +283,7 @@ export class NumberProcessor {
       options.semanticArrayBuilder.addUnit(
         matchResult.originalText,
         matchResult.result,
-        'numbers',
+        'number_conversion',
         globalTokenIndex
       );
     }

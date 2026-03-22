@@ -6964,7 +6964,7 @@ export class TranslationEngine {
           // Pass isolated semantic builder for this chunk
           isolatedSemanticBuilder: isolatedBuilders[idx],
           useChunking: false,
-          chunkOffset: chunk.startIndex,
+          chunkOffset: 0, // local indices only; merge loop applies global offset via cumulativeTokenCount
           chunkStartChar: chunk.startIndex, // char offset of chunk start in full original text
           isParallelChunk: true,
         })
