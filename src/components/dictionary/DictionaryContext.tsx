@@ -37,6 +37,7 @@ import type {
   DictionaryContextInterface,
   HistoryOperation,
 } from '../../types/DictionaryTypes';
+import type { BatchDictionaryResult } from '../../types/ElectronTypes';
 
 /**
  * Dictionary Context value.
@@ -125,7 +126,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
 
         // Process results and sort dictionaries
-        batchResult.results.forEach((result: any) => {
+        batchResult.results.forEach((result: BatchDictionaryResult) => {
           if (result.success && result.data) {
             loadedDictionaries[result.dictionary_id] = sortDictionaryEntries(
               result.data,

@@ -8,6 +8,7 @@
  */
 
 import type { AppConfiguration, DictionaryInfo, AppearanceSettings } from './ComponentTypes';
+import type { DictionaryData } from './DictionaryTypes';
 
 // =============================================================================
 // Result Types
@@ -147,7 +148,7 @@ export interface DirectorySelectResult {
 export interface BatchDictionaryResult {
   dictionary_id: string;
   success: boolean;
-  data?: any;
+  data?: DictionaryData;
   error?: string;
 }
 

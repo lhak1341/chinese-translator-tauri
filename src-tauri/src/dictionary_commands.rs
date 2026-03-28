@@ -814,7 +814,7 @@ fn save_json_file(
     // cause unbounded recursion in the Rust drop path for deeply-nested Values.
     // Config data should never exceed a few levels deep.
     check_json_depth(data, 50)?;
-    let json_string = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
+    let json_string = serde_json::to_string_pretty(data).map_err(|_| "Failed to serialize config data".to_string())?;
     // SECURITY: Mirror the size check in save_dictionary — defend-in-depth
     // against a malicious or buggy frontend payload bloating config files on disk.
     if json_string.len() > MAX_JSON_SIZE_BYTES {

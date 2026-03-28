@@ -3064,8 +3064,10 @@ export class TranslationEngine {
       this.semanticArrayBuilder.addUnit(
         actualOriginalText,
         result.translation,
-        result.translationSource || 'hierarchical_patterns',
-        globalTokenIndex
+        result.translationSource || 'hierarchical_pattern',
+        globalTokenIndex,
+        'patterns',
+        null
       );
 
       this.log(
@@ -3237,8 +3239,10 @@ export class TranslationEngine {
         this.semanticArrayBuilder.addUnit(
           match.word,
           match.translation,
-          match.dictionary,
-          globalTokenIndex
+          'phrases',
+          globalTokenIndex,
+          'phrases',
+          match.dictionary
         );
 
         // Mark grouped tokens
@@ -3421,8 +3425,10 @@ export class TranslationEngine {
       this.semanticArrayBuilder.addUnit(
         match.match.word, // original text
         match.match.translation, // translated text
-        match.match.dictionary, // source
-        globalTokenIndex // global token index for proper ordering
+        'phrases', // source
+        globalTokenIndex, // global token index for proper ordering
+        'phrases',
+        match.match.dictionary
       );
 
       // Mark additional tokens as grouped if this is a multi-token phrase
@@ -4576,8 +4582,10 @@ export class TranslationEngine {
       this.semanticArrayBuilder.addUnit(
         match.word, // original text
         match.translation, // translated text
-        match.dictionary, // source (phrases, characters, etc.)
-        globalTokenIndex // global token index for proper ordering
+        'phrases', // source
+        globalTokenIndex, // global token index for proper ordering
+        'phrases',
+        match.dictionary
       );
 
       // Create semantic group for multi-token matches
@@ -8066,7 +8074,9 @@ export class TranslationEngine {
                       originalText,
                       token.translated,
                       'number_conversion',
-                      globalTokenIndex
+                      globalTokenIndex,
+                      'number_conversion',
+                      null
                     );
                   } else {
                     this.log(

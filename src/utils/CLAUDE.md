@@ -9,6 +9,7 @@ Common wrong values (all silently return priority 999 — below the character fa
 - `'patterns'` (plural) — correct is `'pattern'` (singular)
 - `'numbers'` — correct is `'number_conversion'`
 - `'passthrough'` — pass-through NUMBER/LATIN_WORD tokens use `'characters'`
+- `match.dictionary` (at phrase call sites) — correct is `'phrases'`; pass `match.dictionary` as arg 6 (the `dictionary` metadata field)
 
 `validateConsumedTokenContract` detects consumed sources with `.includes('_consumed')` — this predicate must match `getSourcePriority`'s check exactly.
 
@@ -16,9 +17,12 @@ Common wrong values (all silently return priority 999 — below the character fa
 
 `OptimizedSemanticArrayBuilder.ts` is the default production builder (`TranslationEngine.js` line 348). Any field added to `SemanticArrayMetadata` in `SemanticArrayBuilder.ts` must also be added to `OptimizedSemanticMetadata`, initialized to its default in `addUnit()`, and handled in `setPositionByMatch()`. Omitting this makes the field always `-1`/`null` in production while appearing to work with `?optimized-semantics=false`. Also applies to method algorithms: `updateWithCapitalizedText` must use the same fast-path + `indexOf` algorithm in both builders (not regex-based).
 
-### `processChunksInParallel` Merge Loop Only Passes 4 Args to `addUnit`
+### `addUnit` Requires All 6 Args at Every Call Site
 
-The loop at ~line 7101 calls `addUnit(original, translated, source, globalTokenIndex)` — any metadata field beyond arg 4 is silently dropped for ALL multi-chunk translations. After adding a new field to `addUnit`, explicitly pass it from `isolatedArrays.metadata?.[j]` in this merge loop.
+Signature: `addUnit(originalText, translatedText, source, tokenIndex, phase, dictionary)`. The `phase` and `dictionary` args (5 and 6) are metadata — they don't affect priority, but omitting them silently leaves provenance fields `null` for every entry, making debugging and future priority-aware scans unreliable.
+
+- **Direct call sites** (hierarchical, phrase, number phases): pass `phase` and `dictionary` explicitly.
+- **`processChunksInParallel` merge loop** (~line 7023): correctly passes all 6 args from `isolatedArrays.metadata?.[j]`. After adding a new field to `addUnit`, propagate it through this merge loop too.
 
 ### Duplicate-Word Highlighting Requires `tokenIndex` Ordering in Three Places
 
