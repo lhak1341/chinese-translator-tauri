@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import wasm from 'vite-plugin-wasm';
-import topLevelAwait from 'vite-plugin-top-level-await';
 
 // Plugin to remove crossorigin attribute for Tauri compatibility
 function removeCrossOriginPlugin() {
@@ -16,7 +15,7 @@ function removeCrossOriginPlugin() {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [wasm(), topLevelAwait(), react(), removeCrossOriginPlugin()],
+  plugins: [wasm(), react(), removeCrossOriginPlugin()],
 
   // Use relative paths for Tauri production builds
   base: './',
@@ -50,7 +49,7 @@ export default defineConfig({
     // Using es2022 for top-level await support
     target: ['es2022', 'chrome100', 'safari15'],
     // Don't minify for easier debugging during development
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
+    minify: !process.env.TAURI_DEBUG ? true : false,
     // Always generate sourcemaps for debugging
     sourcemap: true,
     // Disable crossorigin attribute for Tauri compatibility

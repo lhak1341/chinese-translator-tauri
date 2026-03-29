@@ -103,8 +103,13 @@ export async function initializeWasmNumberProcessor() {
 
           // CODE REVIEW FIX 2026-02-01 (HIGH-1): Use cached WASM binary to avoid duplicate fetches
           const wasmFileName = 'translation_wasm_core_bg.wasm';
+          // Static literal required so Vite transforms import.meta.url to the correct asset URL
+          const wasmBinaryUrl = new URL(
+            '../../wasm/translation_wasm_core_bg.wasm',
+            import.meta.url
+          );
           logger.debug('Fetching WASM binary for integrity verification...');
-          const wasmBinary = await fetchWasmBinary(wasmFileName);
+          const wasmBinary = await fetchWasmBinary(wasmBinaryUrl);
           logger.debug(`WASM binary ready (${wasmBinary.byteLength} bytes)`);
 
           // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256

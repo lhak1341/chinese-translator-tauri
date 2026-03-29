@@ -284,7 +284,9 @@ export class NumberProcessor {
         matchResult.originalText,
         matchResult.result,
         'number_conversion',
-        globalTokenIndex
+        globalTokenIndex,
+        'number_conversion',
+        null
       );
     }
   }

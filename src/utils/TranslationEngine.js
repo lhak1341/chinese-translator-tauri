@@ -3066,7 +3066,7 @@ export class TranslationEngine {
         result.translation,
         result.translationSource || 'hierarchical_pattern',
         globalTokenIndex,
-        'patterns',
+        'pattern',
         null
       );
 
@@ -7020,10 +7020,17 @@ export class TranslationEngine {
             const localTokenIndex = isolatedArrays.metadata?.[j]?.tokenIndex || 0;
             const globalTokenIndex = chunkTokenOffset + localTokenIndex;
 
+            const mergeSource = isolatedArrays.metadata?.[j]?.source || null;
+            if (!mergeSource) {
+              this.log(
+                DEBUG_LEVELS.WARN,
+                `⚠️ Merge loop: semantic unit ${j} in chunk has null/empty source — getSourcePriority will return 999`
+              );
+            }
             this.semanticArrayBuilder.addUnit(
               isolatedArrays.original[j],
               isolatedArrays.translated[j],
-              isolatedArrays.metadata?.[j]?.source || 'unknown',
+              mergeSource,
               globalTokenIndex,
               isolatedArrays.metadata?.[j]?.phase ?? null,
               isolatedArrays.metadata?.[j]?.dictionary ?? null

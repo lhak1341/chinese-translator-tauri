@@ -110,8 +110,13 @@ export async function initializeWasmPatternProcessor(patternsDict) {
 
           // CODE REVIEW FIX 2026-02-01 (HIGH-1): Use cached WASM binary to avoid duplicate fetches
           const wasmFileName = 'translation_wasm_core_bg.wasm';
+          // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+          const wasmBinaryUrl = new URL(
+            '../../wasm/translation_wasm_core_bg.wasm',
+            import.meta.url
+          );
           logger.debug('Fetching WASM binary for integrity verification...');
-          const wasmBinary = await fetchWasmBinary(wasmFileName);
+          const wasmBinary = await fetchWasmBinary(wasmBinaryUrl);
           logger.debug(`WASM binary ready (${wasmBinary.byteLength} bytes)`);
 
           // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
@@ -460,7 +465,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 (async () => {
   try {
     await import('../../wasm/translation_wasm_core.js'); // warms ES module cache
-    await fetchWasmBinary('translation_wasm_core_bg.wasm'); // warms binary cache
+    await fetchWasmBinary(new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url)); // warms binary cache
     logger.debug('🔥 WASM PatternProcessor module and binary pre-warmed');
   } catch (err) {
     logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err);

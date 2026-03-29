@@ -31,9 +31,8 @@
     "noUncheckedIndexedAccess": false, // Enable later for safer array access
 
     // Path resolution (matches jsconfig.json)
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     // Output configuration

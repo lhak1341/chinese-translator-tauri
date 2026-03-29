@@ -22,6 +22,7 @@
  */
 
 import { logger } from '../logger';
+import integrityManifestData from '../../wasm/integrity-manifest.json';
 
 // Cache for integrity manifest (loaded once)
 let integrityManifest = null;
@@ -222,12 +223,7 @@ async function loadIntegrityManifest() {
   }
 
   try {
-    // Import manifest generated at build time
-    const manifest = await import('../../wasm/integrity-manifest.json', {
-      assert: { type: 'json' },
-    });
-
-    integrityManifest = manifest.default || manifest;
+    integrityManifest = integrityManifestData;
     logger.log(
       `✅ Loaded WASM integrity manifest (${Object.keys(integrityManifest.files || {}).length} files)`
     );

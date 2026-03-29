@@ -62,6 +62,8 @@ Completely separate code paths. Debug the right one.
 
 **Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool.
 
+**Dynamic JSON imports:** Never use `import(path, { assert: { type: 'json' } })` — Rolldown silently fails to rewrite the path in production. Use a static `import data from '...json'` at the top of the file.
+
 **Testing:** `src/test/setup.ts` must stay — referenced by `vitest.config.ts:10`.
 
 **Deleted symbols — do not recreate:**

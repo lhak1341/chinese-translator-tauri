@@ -25,31 +25,35 @@ const wasmBinaryCache = new Map();
 /**
  * Fetch a WASM binary with caching
  *
- * @param {string} fileName - WASM file name (e.g., 'translation_wasm_core_bg.wasm')
+ * @param {URL} wasmUrl - Resolved URL to the WASM binary. Callers must construct
+ *   this with a static literal string: new URL('../../wasm/name.wasm', import.meta.url)
+ *   so that Vite can statically transform import.meta.url to the correct asset path
+ *   in production builds. Dynamic template literals prevent this transformation.
  * @returns {Promise<ArrayBuffer>} The WASM binary as ArrayBuffer
  * @throws {Error} If fetch fails
  */
-export async function fetchWasmBinary(fileName) {
+export async function fetchWasmBinary(wasmUrl) {
+  const cacheKey = wasmUrl.href;
+
   // Return cached binary if available
-  if (wasmBinaryCache.has(fileName)) {
-    logger.debug(`Using cached WASM binary: ${fileName}`);
-    return wasmBinaryCache.get(fileName);
+  if (wasmBinaryCache.has(cacheKey)) {
+    logger.debug(`Using cached WASM binary: ${cacheKey}`);
+    return wasmBinaryCache.get(cacheKey);
   }
 
   // Fetch from filesystem
-  logger.debug(`Fetching WASM binary: ${fileName}`);
-  const wasmUrl = new URL(`../../wasm/${fileName}`, import.meta.url);
+  logger.debug(`Fetching WASM binary: ${cacheKey}`);
   const response = await fetch(wasmUrl);
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch WASM binary ${fileName}: ${response.statusText}`);
+    throw new Error(`Failed to fetch WASM binary ${cacheKey}: ${response.statusText}`);
   }
 
   const wasmBinary = await response.arrayBuffer();
-  logger.debug(`WASM binary fetched: ${fileName} (${wasmBinary.byteLength} bytes)`);
+  logger.debug(`WASM binary fetched: ${cacheKey} (${wasmBinary.byteLength} bytes)`);
 
   // Cache for future use
-  wasmBinaryCache.set(fileName, wasmBinary);
+  wasmBinaryCache.set(cacheKey, wasmBinary);
 
   return wasmBinary;
 }

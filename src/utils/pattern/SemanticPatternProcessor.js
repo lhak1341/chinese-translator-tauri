@@ -1527,7 +1527,9 @@ export class SemanticPatternProcessor {
         originalText,
         matchResult.result,
         'pattern',
-        globalTokenIndex
+        globalTokenIndex,
+        'pattern',
+        null
       );
     }
 
