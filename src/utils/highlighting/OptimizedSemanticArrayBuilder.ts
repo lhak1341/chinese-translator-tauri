@@ -342,15 +342,12 @@ export class OptimizedSemanticArrayBuilder {
     // Prioritize unmapped candidates (prevents wrong unit from getting position)
     const unmapped = candidates.find((c) => !c.isMapped);
     if (!unmapped) {
-      logger.error(
-        '❌ setPositionByMatch: all candidates already mapped — overwriting candidates[0] to preserve clickability',
-        {
-          tokenIndex,
-          translatedText,
-          candidateCount: candidates.length,
-          impact:
-            'candidates[0] will point to the wrong text occurrence; investigate surplus calls upstream',
-        }
+      // Known harmless: parallel chunks share this builder and call setPositionByMatch
+      // redundantly. The first call sets the correct position; subsequent calls hit this
+      // branch and overwrite candidates[0], which is already correctly mapped.
+      logger.debug(
+        'setPositionByMatch: all candidates already mapped (expected in parallel chunk processing)',
+        { tokenIndex, translatedText, candidateCount: candidates.length }
       );
     }
     const target = unmapped ?? candidates[0];

@@ -453,7 +453,11 @@ export class SemanticPatternProcessor {
         token.value,
         actualProperNounDictionaries
       );
-      if (properNounResult) {
+      // Respect allowAsPatternVariable flag — mirrors the phrase gate above.
+      // Without this check all proper nouns enter the variable cache regardless of the flag,
+      // causing patterns like X等人 to match names that should not be consumed as variables,
+      // which then conflicts with Phase 2 proper-noun matches and silently drops text.
+      if (properNounResult && properNounResult.metadata?.allowAsPatternVariable !== false) {
         this.variableCache.set(token.value, {
           translation: properNounResult.translation,
           source: properNounResult.dictionary + '_pattern_variable',
@@ -479,14 +483,17 @@ export class SemanticPatternProcessor {
       );
 
       for (const match of allProperNounMatches) {
-        // Check allowAsPatternVariable for phrases found during full text scanning
-        // Note: This check should not trigger now since we use actualProperNounDictionaries (excluding 'phrases')
-        // but kept for defensive programming
+        // Defensive: phrases shouldn't appear here (actualProperNounDictionaries excludes 'phrases')
         if (match.dictionary === 'phrases') {
           const phrasesResult = dictionaryManager.translate(match.word, ['phrases']);
           if (phrasesResult?.metadata?.allowAsPatternVariable !== true) {
-            continue; // Skip this phrase
+            continue;
           }
+        }
+
+        // Respect allowAsPatternVariable flag for proper nouns — mirrors phrase gate above.
+        if (match.metadata?.allowAsPatternVariable === false) {
+          continue;
         }
 
         this.variableCache.set(match.word, {

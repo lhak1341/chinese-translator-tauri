@@ -66,6 +66,10 @@ Both have parallel `buildVariableCache` implementations. Changes to phrase type 
 
 `requiredTypes` collects all types in any pattern's `allowedVariableTypes`. Filtering by `requiredTypes` is only correct when ALL patterns are constrained — any unconstrained pattern accepts any type, so filtering would silently exclude entries it needs. Guard: `if (!requiredTypes || hasUnconstrainedPatterns) return true;`.
 
+### WASM Wrapper Retire-After-Panic
+
+Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = null; this.initialized = false; this.initializationFailed = true`, and `initialize()` must guard `if (this.initializationFailed) return false`. Once `panic = "abort"` fires, the WASM object's `borrow_mut_count` is permanently stuck — silently retrying it produces "recursive use" on every subsequent call.
+
 ### WASM Singleton Modules Must Call `.initialize().catch(warn)` at Module Bottom
 
 Any `src/utils/wasm/Wasm*.js` that exports a singleton must trigger background init at import time. Missing this forces every first caller onto the slow JS fallback path. **Exception — `WasmPatternProcessor.js`**: exports functions, not a singleton; its module-bottom prewarm is a self-calling IIFE that only warms the ES module cache via `fetchWasmBinary`.

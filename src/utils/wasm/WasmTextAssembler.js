@@ -24,6 +24,8 @@ export class WasmTextAssemblerWrapper {
     this.assembler = null;
     /** @type {boolean} */
     this.initialized = false;
+    /** @type {boolean} - Set after any WASM panic to prevent re-init of corrupted module */
+    this.initializationFailed = false;
   }
 
   /**
@@ -32,6 +34,9 @@ export class WasmTextAssemblerWrapper {
    * @returns {Promise<boolean>} Success status
    */
   async initialize() {
+    if (this.initializationFailed) {
+      return false;
+    }
     try {
       await init();
       this.assembler = new TextAssembler();
@@ -40,6 +45,7 @@ export class WasmTextAssemblerWrapper {
       return true;
     } catch (error) {
       logger.error('Failed to initialize WASM TextAssembler:', error);
+      this.initializationFailed = true;
       return false;
     }
   }
@@ -163,7 +169,14 @@ export class WasmTextAssemblerWrapper {
       );
       return JSON.parse(this.assembler.assembleWithSpacing(json));
     } catch (error) {
-      logger.error('WASM assembleWithSpacing failed, falling back:', error);
+      // A WASM panic (including "recursive use" from a stuck borrow_mut_count after a prior
+      // panic) leaves the TextAssembler in a permanently unusable state — WASM abort skips
+      // the RefMut drop, so borrow_mut_count stays at 1. Retire the instance so all future
+      // calls go straight to the JS fallback without retrying the corrupted object.
+      logger.error('WASM assembleWithSpacing failed, retiring instance:', error);
+      this.assembler = null;
+      this.initialized = false;
+      this.initializationFailed = true;
       return this.jsAssembleWithSpacing(segments);
     }
   }

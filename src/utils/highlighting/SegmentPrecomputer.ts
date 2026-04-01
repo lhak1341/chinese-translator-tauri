@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../logger';
-import { getGraphemeLength } from '../GraphemeHelper.js';
+import { getGraphemeLength, getFirstGrapheme } from '../GraphemeHelper.js';
 import { normalizeVietnameseText } from '../text/TextNormalizationHelpers';
 
 /**
@@ -716,7 +716,7 @@ export class SegmentPrecomputer {
     const firstCharIndex = new Map<string, number[]>();
     for (let i = 0; i < original.length; i++) {
       if (!original[i] || original[i].length === 0) continue;
-      const firstChar = original[i][0];
+      const firstChar = getFirstGrapheme(original[i]);
       if (!firstCharIndex.has(firstChar)) {
         firstCharIndex.set(firstChar, []);
       }
@@ -730,7 +730,11 @@ export class SegmentPrecomputer {
     // wrong unitIndices to duplicate characters (e.g. unitIndex for 1st 是 gets
     // assigned to 4th 是 because three other 是 entries had lower array indices).
     for (const indices of firstCharIndex.values()) {
-      indices.sort((a, b) => (metadata[a]?.tokenIndex ?? 0) - (metadata[b]?.tokenIndex ?? 0));
+      indices.sort(
+        (a, b) =>
+          (metadata[a]?.tokenIndex ?? Number.MAX_SAFE_INTEGER) -
+          (metadata[b]?.tokenIndex ?? Number.MAX_SAFE_INTEGER)
+      );
     }
 
     while (currentPosition < text.length) {
@@ -742,8 +746,11 @@ export class SegmentPrecomputer {
       } | null = null;
       let bestStartPos = -1;
 
-      // Only check units whose first character matches the current position
-      const candidateIndices = firstCharIndex.get(text[currentPosition]) || [];
+      // Only check units whose first character matches the current position.
+      // Must use getFirstGrapheme (not text[currentPosition]) — the map was built with
+      // getFirstGrapheme keys, so raw indexing misses combining-diacritic grapheme clusters.
+      const candidateIndices =
+        firstCharIndex.get(getFirstGrapheme(text.substring(currentPosition))) || [];
       for (const i of candidateIndices) {
         if (usedIndices.has(i)) continue;
 

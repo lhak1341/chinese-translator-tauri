@@ -160,6 +160,7 @@ const Translator = ({ isActive = true }) => {
   // activeProperNouns, showQuickAdd, quickAddDictionary now managed by useDictionaryConfig hook
   const [_engineStats, setEngineStats] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const isTranslatingRef = useRef(false);
   const [engineInitialized, setEngineInitialized] = useState(false);
   // CRITICAL-3 FIX: Track initialization errors for user display
   const [initializationError, setInitializationError] = useState(null);
@@ -558,6 +559,10 @@ const Translator = ({ isActive = true }) => {
         }
 
         const wasmManager = engineRef.current.wasmManager;
+        // Skip during translation — getTotalEntries() borrows DictionaryEngine, which
+        // is already borrowed inside translateSinglePass. wasm-bindgen's RcRefCell
+        // panics on recursive borrow ("unsafe aliasing in rust").
+        if (isTranslatingRef.current) return;
         const newStatus = {
           initialized: wasmManager.isInitialized(),
           fallbackMode: wasmManager.isInFallbackMode(),
@@ -1773,6 +1778,7 @@ const Translator = ({ isActive = true }) => {
         // Translate if we have input text and dictionaries are loaded
         if (inputText && !isLoading) {
           setIsTranslating(true);
+          isTranslatingRef.current = true;
           // Clear previous highlighting when starting new translation
           clearHighlighting();
           setSemanticArrays(null);
@@ -1811,6 +1817,7 @@ const Translator = ({ isActive = true }) => {
             }
           } finally {
             setIsTranslating(false);
+            isTranslatingRef.current = false;
           }
         }
       } catch (error) {
@@ -2017,6 +2024,7 @@ const Translator = ({ isActive = true }) => {
         logger.log('✅ All translation cleanup(s) completed');
       }
       setIsTranslating(false);
+      isTranslatingRef.current = false;
       setProgressInfo(null);
 
       // Step 2: Clear engine and caches

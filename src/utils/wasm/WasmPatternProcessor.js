@@ -283,8 +283,7 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
     const now = Date.now();
     if (now - lastPatternWarningTime > PATTERN_WARNING_COOLDOWN) {
-      toast('Pattern matching error. Translation quality may be reduced.', {
-        icon: '⚠️',
+      toast.warning('Pattern matching error. Translation quality may be reduced.', {
         duration: TOAST_DURATION.WARNING,
       });
       lastPatternWarningTime = now;

@@ -37,6 +37,8 @@ export class WasmTextChunker {
     this.wasmHits = 0;
     /** @type {number} */
     this.fallbackHits = 0;
+    /** @type {boolean} - Re-entrancy guard: prevents a second WASM borrow_mut while one is live */
+    this.isProcessing = false;
   }
 
   /**
@@ -146,26 +148,47 @@ export class WasmTextChunker {
       return null;
     }
 
+    // Re-entrancy guard: if a WASM callback somehow triggers a second chunkText call while
+    // borrow_mut is still active, the second call would get "recursive use" panic. Return null
+    // (JS fallback) instead so the outer call can complete cleanly.
+    if (this.isProcessing) {
+      this.fallbackHits++;
+      return null;
+    }
+
+    this.isProcessing = true;
     try {
-      const chunks = this.chunker.chunkText(text);
+      // chunk_text returns a JSON string (pure Rust serde_json) to keep all JS interop
+      // outside the &mut self borrow — prevents the Rc debug assertion in Rust 1.84+.
+      const chunks = JSON.parse(this.chunker.chunkText(text));
       logger.log(`[WASM TextChunker] ✅ Chunked into ${chunks.length} chunks`);
       this.wasmHits++;
 
       return chunks;
     } catch (/** @type {any} */ error) {
-      logger.error('[WASM TextChunker] ❌ Error during chunking:', {
-        message: error.message,
-        stack: error.stack,
-        textLength: text.length,
-        env: process.env.NODE_ENV,
-      });
+      // A WASM trap (Rust panic → `unreachable` instruction) leaves the WASM linear memory
+      // allocator in a potentially corrupt state. Log once, then permanently retire this
+      // instance so all future calls go straight to the JS fallback without retrying.
+      logger.error(
+        '[WASM TextChunker] ❌ WASM panic — retiring instance, falling back to JS permanently:',
+        {
+          message: error.message,
+          textLength: text.length,
+          env: process.env.NODE_ENV,
+        }
+      );
+      this.chunker = null;
+      this.initialized = false;
+      this.initializationFailed = true; // prevents lazy-init from re-trying the same broken module
       try {
         recordFallback();
       } catch (e) {
-        // WASM error, ignore
+        // WASM not loaded, ignore
       }
       this.fallbackHits++;
       return null;
+    } finally {
+      this.isProcessing = false;
     }
   }
 

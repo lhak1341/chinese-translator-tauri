@@ -1,15 +1,12 @@
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use js_sys::Array;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 #[cfg(target_arch = "wasm32")]
 use unicode_properties::{UnicodeGeneralCategory, GeneralCategory};
 use serde_wasm_bindgen;
 
 /// Statistics for text chunking performance tracking
 static CHUNK_COUNT: AtomicU32 = AtomicU32::new(0);
-static TOTAL_TIME_US: AtomicU64 = AtomicU64::new(0);
 static FALLBACK_COUNT: AtomicU32 = AtomicU32::new(0);
 
 /// Text chunk result matching JavaScript TextChunk structure
@@ -44,7 +41,6 @@ pub struct TextChunker {
 
     /// Performance statistics
     chunks_processed: u32,
-    total_time_us: u64,
 }
 
 #[wasm_bindgen]
@@ -58,7 +54,6 @@ impl TextChunker {
         TextChunker {
             use_unicode_properties,
             chunks_processed: 0,
-            total_time_us: 0,
         }
     }
 
@@ -103,17 +98,30 @@ impl TextChunker {
     /// * `text` - Input text to chunk
     ///
     /// # Returns
-    /// * JavaScript Array of chunk objects with {content, punctuation, startIndex, lineBreaks, startedBy}
+    /// * JSON string (parse with JSON.parse) — array of {content, punctuation, startIndex, lineBreaks, startedBy}
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen(js_name = chunkText)]
-    pub fn chunk_text(&mut self, text: &str) -> Result<Array, JsValue> {
-        let start_time = web_time::Instant::now();
-
+    pub fn chunk_text(&mut self, text: &str) -> Result<String, JsValue> {
         if text.is_empty() || text.trim().is_empty() {
-            return Ok(Array::new());
+            return Ok("[]".to_string());
         }
 
-        let chunks_array = Array::new();
+        // Phase 1 — pure Rust scanning: collect chunks into Vec<TextChunkResult>.
+        //
+        // Rule: ZERO JS interop inside this method while &mut self is borrowed.
+        //
+        // Any JS allocation (serde_wasm_bindgen::to_value, js_sys::Array::push, etc.)
+        // inside a #[wasm_bindgen] &mut self method triggers __wbindgen_malloc, which can
+        // cause WASM linear memory to grow. Rust 1.84+ debug builds fire
+        // hint::assert_unchecked in alloc/src/rc.rs when the RcRefMut backing is live
+        // during an allocator operation, because the allocator's internal invariant check
+        // intersects the Rc reference-count check.
+        //
+        // Fix: Phase 1 builds Vec<TextChunkResult> (pure Rust, no JS calls).
+        // Phase 2 calls serde_json::to_string (pure Rust, no JS calls) to produce a JSON
+        // String. wasm-bindgen converts the String return value to JS *after* dropping the
+        // RcRefMut — so the Rc invariant is never violated.
+        let mut results: Vec<TextChunkResult> = Vec::new();
         let mut current_content = String::new();
         let mut current_punctuation = String::new();
         let mut current_line_breaks = String::new();
@@ -123,39 +131,33 @@ impl TextChunker {
         let chars: Vec<char> = text.chars().collect();
         let mut char_index = 0;
 
-        // Helper closure to flush current chunk
+        // Helper closure: push a completed chunk into `results` (no JS allocation).
         let flush_chunk = |
             content: &mut String,
             punctuation: &mut String,
             line_breaks: &mut String,
             start_idx: &mut Option<usize>,
             prev_punc: &mut String,
-            chunks: &Array,
+            results: &mut Vec<TextChunkResult>,
         | {
             if !content.trim().is_empty() || !punctuation.is_empty() || !line_breaks.is_empty() {
                 let mut started_by = prev_punc.clone();
 
                 // Only treat as linebreak if there's no meaningful punctuation before it
                 if !line_breaks.is_empty()
-                    && chunks.length() > 0
+                    && !results.is_empty()
                     && (prev_punc.is_empty() || prev_punc == "start")
                 {
                     started_by = "linebreak".to_string();
                 }
 
-                let chunk = TextChunkResult {
+                results.push(TextChunkResult {
                     content: content.clone(),
                     punctuation: punctuation.clone(),
                     start_index: start_idx.unwrap_or(0),
                     line_breaks: line_breaks.clone(),
                     started_by,
-                };
-
-                // Serialize to JsValue
-                let js_chunk = serde_wasm_bindgen::to_value(&chunk)
-                    .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))?;
-
-                chunks.push(&js_chunk);
+                });
 
                 // Update previous punctuation for next chunk
                 if !line_breaks.is_empty() {
@@ -170,8 +172,6 @@ impl TextChunker {
             punctuation.clear();
             line_breaks.clear();
             *start_idx = None;
-
-            Ok::<(), JsValue>(())
         };
 
         // Process each character
@@ -191,8 +191,8 @@ impl TextChunker {
                         &mut current_line_breaks,
                         &mut chunk_start_index,
                         &mut previous_punctuation,
-                        &chunks_array,
-                    )?;
+                        &mut results,
+                    );
                     chunk_start_index = None;
                 }
                 current_punctuation.push(ch);
@@ -210,8 +210,8 @@ impl TextChunker {
                         &mut current_line_breaks,
                         &mut chunk_start_index,
                         &mut previous_punctuation,
-                        &chunks_array,
-                    )?;
+                        &mut results,
+                    );
                     chunk_start_index = Some(char_index);
                 }
 
@@ -228,18 +228,19 @@ impl TextChunker {
             &mut current_line_breaks,
             &mut chunk_start_index,
             &mut previous_punctuation,
-            &chunks_array,
-        )?;
+            &mut results,
+        );
 
-        // Update statistics
-        let elapsed = start_time.elapsed();
+        // Update statistics (pure Rust, no JS allocation)
         self.chunks_processed += 1;
-        self.total_time_us += elapsed.as_micros() as u64;
-
         CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
-        TOTAL_TIME_US.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
 
-        Ok(chunks_array)
+        // Phase 2 — pure Rust serialization: zero JS interop, zero allocator interaction
+        // with the live RcRefMut. wasm-bindgen converts the returned String to a JS value
+        // only after this method returns (i.e., after RcRefMut is dropped).
+        // JS side: JSON.parse(this.chunker.chunkText(text))
+        serde_json::to_string(&results)
+            .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
     }
 
     /// Get performance statistics
@@ -250,12 +251,8 @@ impl TextChunker {
     pub fn get_stats(&self) -> Result<JsValue, JsValue> {
         let stats = serde_json::json!({
             "chunksProcessed": self.chunks_processed,
-            "totalTimeUs": self.total_time_us,
-            "avgTimeUs": if self.chunks_processed > 0 {
-                self.total_time_us / self.chunks_processed as u64
-            } else {
-                0
-            },
+            "totalTimeUs": 0u64,
+            "avgTimeUs": 0u64,
             "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
         });
 
@@ -267,9 +264,7 @@ impl TextChunker {
     #[wasm_bindgen(js_name = resetStats)]
     pub fn reset_stats(&mut self) {
         self.chunks_processed = 0;
-        self.total_time_us = 0;
         CHUNK_COUNT.store(0, Ordering::Relaxed);
-        TOTAL_TIME_US.store(0, Ordering::Relaxed);
         FALLBACK_COUNT.store(0, Ordering::Relaxed);
     }
 }
@@ -284,12 +279,11 @@ pub fn record_fallback() {
 #[wasm_bindgen(js_name = getGlobalChunkerStats)]
 pub fn get_global_chunker_stats() -> Result<JsValue, JsValue> {
     let chunk_count = CHUNK_COUNT.load(Ordering::Relaxed);
-    let total_time = TOTAL_TIME_US.load(Ordering::Relaxed);
 
     let stats = serde_json::json!({
         "totalChunks": chunk_count,
-        "totalTimeUs": total_time,
-        "avgTimeUs": if chunk_count > 0 { total_time / chunk_count as u64 } else { 0 },
+        "totalTimeUs": 0u64,
+        "avgTimeUs": 0u64,
         "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
     });
 

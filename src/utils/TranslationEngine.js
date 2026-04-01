@@ -1662,7 +1662,11 @@ export class TranslationEngine {
             token.value,
             token.translated,
             token.translationSource || 'characters',
-            i // Pass tokenIndex to enable position tracking
+            i, // Pass tokenIndex to enable position tracking
+            'characters',
+            // applyMatchToTokens sets token.translationSource = match.dictionary (never token.dictionary).
+            // For translated tokens in character-only mode, translationSource IS the dictionary name.
+            token.translationSource || null
           );
         }
 
@@ -1745,18 +1749,16 @@ export class TranslationEngine {
         );
       }
 
-      // CODE REVIEW FIX (2026-02-07): Update semantic arrays to match capitalized text
-      // Previously only capitalized the first unit, causing case mismatches for
-      // units after punctuation (e.g., after periods, after newlines)
-      // Now using updateWithCapitalizedText() to find ALL capitalized variants
-      characterOnlySemanticBuilder.updateWithCapitalizedText(translatedText);
-
-      // CODE REVIEW FIX (2026-02-07): Add position metadata AFTER all text transformations
-      // This fixes duplicate highlighting by tracking exact positions in final text
-      // Must happen after punctuation translation, capitalization, and spacing
-      // to avoid position drift from text modifications
+      // Add position metadata AFTER all text transformations but BEFORE updateWithCapitalizedText.
+      // Order matters: this loop advances searchPosition sequentially, correctly assigning distinct
+      // positions to duplicate words. updateWithCapitalizedText's fallback path uses first-occurrence
+      // indexOf (no searchPosition), so running it first stamps every duplicate with the same wrong
+      // position — the loop then sees translatedStart >= 0 and skips them all, locking in bad data.
+      // With the correct order: loop sets accurate positions → updateWithCapitalizedText takes the
+      // O(1) fast path for every unit (reads capitalized form from finalText[start:end]) → no fallback.
       {
         const tempArrays = characterOnlySemanticBuilder.getArrays();
+        const lowerText = translatedText.toLowerCase();
         let searchPosition = 0;
 
         for (let i = 0; i < tempArrays.translated.length; i++) {
@@ -1774,7 +1776,6 @@ export class TranslationEngine {
           }
 
           // Find unit position in final text (case-insensitive after capitalization)
-          const lowerText = translatedText.toLowerCase();
           const lowerUnit = translatedUnit.toLowerCase();
           const unitPosition = lowerText.indexOf(lowerUnit, searchPosition);
 
@@ -1796,6 +1797,11 @@ export class TranslationEngine {
           }
         }
       }
+
+      // Update semantic arrays to match capitalized text. Runs AFTER the position loop so every
+      // entry already has translatedStart/End set — updateWithCapitalizedText takes the O(1) fast
+      // path (reads from the known position) instead of the fallback indexOf that aliases duplicates.
+      characterOnlySemanticBuilder.updateWithCapitalizedText(translatedText);
 
       // Get semantic arrays from the isolated builder (prevents conflicts with concurrent main translations)
       // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
@@ -2644,23 +2650,6 @@ export class TranslationEngine {
       DEBUG_LEVELS.DEBUG,
       '🎯 Starting phrase processing (patterns already processed in Phase 1)'
     );
-
-    // CRITICAL FIX: Validate token state before phrase processing
-    // Detect if earlier phases (patterns, proper nouns) failed silently
-    const unprocessedCount = tokens.filter(
-      (t) => t.type === 'chinese_char' && !t.translated && !t.translationSource
-    ).length;
-
-    if (unprocessedCount > tokens.length * 0.8) {
-      // >80% of Chinese tokens still unprocessed - may be normal for some text types
-      // Changed to debug level to reduce console noise (was causing hundreds of warnings)
-      logger.debug(
-        `Unusual token state before phrase processing: ${unprocessedCount}/${tokens.length} Chinese tokens still unprocessed`
-      );
-      logger.debug(
-        'This may indicate silent failures in Phase 1 (Patterns) or Phase 2 (Proper Nouns), or simply text without patterns/proper nouns'
-      );
-    }
 
     try {
       // Skip pattern processing since it was already handled in Phase 1
@@ -4579,12 +4568,17 @@ export class TranslationEngine {
       // - postProcess() only processes tokens with translated !== null
       // - Result: One output segment for entire match, clickable highlighting works correctly
       const globalTokenIndex = startIndex + (options.chunkOffset || 0);
+      // Proper noun dictionaries have their own priority tier — pass match.dictionary as the
+      // source so getSourcePriority() resolves them at priority 2, not phrase priority 4.
+      const isProperNounMatch =
+        match.dictionary === 'properNouns' || this.activeProperNouns.includes(match.dictionary);
+      const semanticSource = isProperNounMatch ? match.dictionary : 'phrases';
       this.semanticArrayBuilder.addUnit(
         match.word, // original text
         match.translation, // translated text
-        'phrases', // source
+        semanticSource, // source — proper noun dict name or 'phrases'
         globalTokenIndex, // global token index for proper ordering
-        'phrases',
+        isProperNounMatch ? 'properNoun' : 'phrases',
         match.dictionary
       );
 
@@ -4723,11 +4717,10 @@ export class TranslationEngine {
     // At 35 segments: ~1-2ms overhead (negligible for real-time UI).
     // OPTIMIZATION: Defer cleanup to idle time to avoid blocking translation
     if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
-      // MEMORY PROFILING FIX: Monitor if segments exceed emergency threshold
-      // Changed to debug level - cleanup IS working reliably (reduces 200+ to 35)
-      if (this.translationSegments.length > 100) {
+      // Log once when crossing the threshold, not on every subsequent push
+      if (this.translationSegments.length === MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER + 1) {
         logger.debug(
-          `Translation segments: ${this.translationSegments.length} (will trigger cleanup at next opportunity)`
+          `Translation segments crossed cleanup threshold (${this.translationSegments.length}) — cleanup queued`
         );
       }
 
@@ -5346,32 +5339,17 @@ export class TranslationEngine {
             lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
             segments: options.segments ? [...options.segments] : undefined,
             useChunking: false,
-            // MEDIUM FIX: Use token offset, not character position
+            // Apply global token offset so addUnit entries land at correct positions in the
+            // shared semantic builder. Chunks run in parallel on the shared builder — this
+            // can produce "all candidates already mapped" debug logs when setPositionByMatch
+            // is called redundantly, but those are harmless: the first call sets the correct
+            // position and subsequent calls are no-ops.
             chunkOffset: chunkTokenOffsets[index],
             chunkIndex: batchStart + index,
             isParallelChunk: true, // Prevent semantic array reset in individual chunks
           };
 
-          // DEBUG: Log before translation
-          if (chunk.content.includes('2') || chunk.content.includes('3')) {
-            logger.log('🔍 DEBUG: About to translate chunk:', chunk.content);
-          }
-
           chunk.translated = await this.translateDirectly(chunk.content, chunkOptions);
-
-          // DEBUG: Log translated chunk content
-          if (
-            chunk.content.includes('2') ||
-            chunk.content.includes('3') ||
-            chunk.translated.includes('2') ||
-            chunk.translated.includes('3')
-          ) {
-            logger.log('🔍 DEBUG: Translated chunk:', {
-              original: chunk.content,
-              translated: chunk.translated,
-              punctuation: chunk.punctuation,
-            });
-          }
 
           // Log individual chunk completion for debugging
           if (this.debugLevel >= DEBUG_LEVELS.VERBOSE) {

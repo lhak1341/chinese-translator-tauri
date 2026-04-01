@@ -21,6 +21,10 @@
 - **`u64` timestamp subtraction**: `SystemTime::now()` is not monotonic on macOS. Use `.saturating_sub()` to avoid underflow. Affects `emit_poisoning_event` in `dictionary_commands.rs`.
 - **Longest-match loops: use `>=` not `>`**: `if sequence.len() >= longest_length` allows multiple same-length patterns (last successful converter wins). `>` silently drops all but the first.
 
+## WASM `&mut self` Borrow Rule (Rust 1.84+)
+
+**Zero JS interop inside any `#[wasm_bindgen] &mut self` method body** — `serde_wasm_bindgen::to_value`, `js_sys::Array`, and `web_time::Instant::now()` all call into JS while `RcRefMut<T>` is live, firing `hint::assert_unchecked` in `alloc/src/rc.rs` → panic → `borrow_mut_count` stuck at 1. Every subsequent call throws **"recursive use of an object detected"** until page reload. Fix: return `String` via `serde_json::to_string` (pure Rust); `JSON.parse` on the JS side. `web_time` is the non-obvious offender — replace with a count-only stat or move timing to the JS caller.
+
 ## WASM-Bridged Structs
 
 `Option<T>` fields need `#[serde(default)]` — `serde` errors on absent JSON keys (not null, but absent). JS callers that omit optional fields cause `serde_wasm_bindgen::from_value` to fail for the whole batch.
