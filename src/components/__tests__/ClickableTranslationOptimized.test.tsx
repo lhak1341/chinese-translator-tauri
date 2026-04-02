@@ -20,7 +20,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import type { PrebuiltSegment } from '../../types/ClickableTypes';
-import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
+import ClickableTranslationOptimized from '../full-translation/ClickableTranslationOptimized';
 
 // ---------------------------------------------------------------------------
 // Helpers

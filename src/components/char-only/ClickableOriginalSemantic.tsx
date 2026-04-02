@@ -7,11 +7,11 @@ import type {
   ClickableOriginalSemanticProps,
   SegmentClickPayload,
   SegmentClickHandler,
-} from '../types/ClickableTypes';
-import { SegmentPrecomputer } from '../utils/highlighting/SegmentPrecomputer.js';
-import { groupSegmentsIntoParagraphs } from '../utils/text/ParagraphGrouping';
-import styles from '../styles/ClickableOriginalSemantic.module.css';
-import { logger } from '../utils/logger';
+} from '../../types/ClickableTypes';
+import { SegmentPrecomputer } from '../../utils/highlighting/SegmentPrecomputer.js';
+import { groupSegmentsIntoParagraphs } from '../../utils/text/ParagraphGrouping';
+import styles from '../../styles/ClickableOriginalSemantic.module.css';
+import { logger } from '../../utils/logger';
 
 const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   originalText,

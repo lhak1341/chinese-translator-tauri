@@ -33,10 +33,10 @@ npm run type-check  # 0 errors expected
 
 ### Dual-Path Architecture
 
-- **Character-only**: `ClickableTranslationSemantic.tsx` → `SegmentPrecomputer.ts`
-- **Full Translation**: `ClickableTranslationOptimized.tsx` → `TranslationEngine.js`
+- **Character-only**: `src/components/char-only/ClickableTranslationSemantic.tsx` + `ClickableOriginalSemantic.tsx` → `SegmentPrecomputer.ts`
+- **Full Translation**: `src/components/full-translation/ClickableTranslationOptimized.tsx` → `TranslationEngine.js`
 
-Completely separate code paths. Debug the right one.
+Completely separate code paths. Debug the right one. Both subdirectories have an `index.ts` entry point.
 
 ---
 

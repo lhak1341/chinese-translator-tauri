@@ -9,7 +9,7 @@
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
-import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
+import ClickableTranslationSemantic from '../char-only/ClickableTranslationSemantic';
 
 describe('ClickableTranslationSemantic - Character-only mode (CRITICAL-2 fix)', () => {
   test('should use position metadata instead of indexOf() for duplicate units', () => {

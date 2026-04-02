@@ -99,7 +99,7 @@ Detailed fix notes for sessions 9-18 are archived in `memory/sessions/`:
 ## Stable Project Facts
 
 - **5-Phase pipeline order is IMMUTABLE**: Pattern→ProperNoun→Number→Phrase→Character
-- **Dual-path architecture**: `ClickableTranslationSemantic` → `SegmentPrecomputer.js` (char-only); `ClickableTranslationOptimized` → `TranslationEngine.js` (full)
+- **Dual-path architecture**: `src/components/char-only/` → `SegmentPrecomputer.ts` (char-only); `src/components/full-translation/` → `TranslationEngine.js` (full)
 - **Large files are intentional**: `TranslationEngine.js` (10K LOC), `Translator.jsx` (2.5K LOC), `EnhancedVirtualizedDictionaryTable.tsx` (2.8K LOC)
 - **Test counts**: 1151 JS/TS tests (50 files), 134 Rust tests (wasm-core)
 - **TypeScript strict mode, 0 errors expected**

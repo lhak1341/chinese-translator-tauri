@@ -17,7 +17,7 @@
  *   DEBUG_LEVELS                Enum — verbosity constants for engine logging.
  *
  * =============================================================================
- * FILE STRUCTURE (10,158 lines)
+ * FILE STRUCTURE (10,112 lines)
  * =============================================================================
  *
  * This file coordinates all 5 translation phases with shared token state.
@@ -28,7 +28,7 @@
  * 1. Memory Management Utilities        (Lines 68-81)    [EXTRACTED]
  *    - Memory leak detection (now in MemoryLeakDetector.js)
  *
- * 2. Core Engine Class - Constructor     (Lines 91-702)   [COUPLED]
+ * 2. Core Engine Class - Constructor     (Lines 91-546)   [COUPLED]
  *    - Constructor & configuration       (Lines 100-196)
  *    - Logging & device memory           (Lines 198-293)
  *    - Critical: Initializes all subsystems
@@ -37,43 +37,49 @@
  *    - Semantic caching with phase priority
  *    - Critical: Cache timing affects phase order
  *
- * 4. Smart Memory Management             (Lines 358-702)  [COUPLED]
- *    - Memory pressure detection         (Lines 370-416)
- *    - Smart cleanup handlers            (Lines 419-550)
+ * 4. Smart Memory Management             (Lines 358-1168) [COUPLED]
+ *    - initializeCoreEngine()            (Line 547)
+ *    - initializeSmartMemoryManagement() (Line 634)
  *    - Critical: Cleanup must not interfere with translation
  *
- * 5. Engine Initialization               (Lines 703-865)  [COUPLED]
- *    - Dictionary loading & WASM setup
+ * 5. Engine Initialization               (Line 1169)      [COUPLED]
+ *    - initialize() — dictionary loading & WASM setup
  *    - Critical: Initialization order matters
  *
- * 6. Main Translation Entry Points       (Lines 866-1961) [COUPLED]
- *    - translateWithSegments()           (Lines 866-1100)
- *    - translateWithChunking()           (Lines 1100-1500)
- *    - Character-only mode               (Lines 1500-1800)
- *    - translateDirect()                 (Lines 1800-1961)
+ * 6. Main Translation Entry Points       (Lines 1445-2037) [COUPLED]
+ *    - translate()                       (Line 1445)
+ *    - translateWithCharactersOnly()     (Line 1551)
  *
- * 7. Phase 1 - Pattern Processing        (Lines 1962-2135) [COUPLED]
- *    - Hierarchical two-phase patterns
- *    - WASM pattern processor integration
+ * 7. Conflict Resolution & Segment Helpers (Lines 2038-2777) [COUPLED]
+ *    - translateWithSegments()           (Line 2038)
+ *    - resolveMatchConflicts()           (Line 2388)
+ *    - resolveGlobalConflicts()          (Line 2693)
+ *    - Critical: resolveMatch/resolveGlobal priority is intentionally INVERTED
+ *
+ * 8. Phase 1 - Pattern Processing        (Lines 2778-4235) [COUPLED]
+ *    - applyPatterns()                   (Line 2778)
+ *    - applyPatternsToTokenSequences()   (Line 3458)
+ *    - Hierarchical two-phase WASM patterns
  *    - Critical: Must run first (highest priority)
  *
- * 8. Phase 4 - Phrase Processing         (Lines 2136-2856) [COUPLED]
- *    - Sequential & parallel phrase matching
- *    - Critical: Must run after proper nouns
+ * 9. Post-Processing                     (Lines 4236-5283) [COUPLED]
+ *    - postProcess()                     (Line 4236)
+ *    - Semantic array, position mapping, text assembly
+ *    - Critical: Position precision for clickable highlighting
  *
- * 9. Phase 5 - Character Processing      (Lines 2857-3071) [COUPLED]
- *    - Character dictionary fallback
- *    - Rust lookup index integration
- *    - Critical: Must run last (lowest priority)
+ * 10. Parallel Processing                (Lines 5284-5702) [COUPLED]
+ *     - processChunksInParallel()        (Line 5284)
+ *     - Critical: assigns semantic indices by chunk-completion order
  *
- * 10. Post-Processing                    (Lines 3072-5556) [COUPLED]
- *     - Semantic array generation         (Lines 3082-3480)
- *     - Position mapping for highlighting (Lines 3480-4500)
- *     - Text assembly & formatting        (Lines 4500-5556)
- *     - Critical: Position precision for clickable highlighting
+ * 11. Progressive Batch Translation      (Lines 5703-6901) [COUPLED]
+ *     - translateWithProgressiveBatches() (Line 5703)
  *
- * 11. Core 5-Phase Translation Pipeline  (Line 7493) [COUPLED]
- *     - translateSinglePass()             (Line 7493)
+ * 12. Chunked Translation Paths          (Lines 6902-7444) [COUPLED]
+ *     - translateWithChunking()          (Line 6902)
+ *     - translateDirectly()              (Line 7167)
+ *
+ * 13. Core 5-Phase Pipeline              (Line 7445)       [COUPLED]
+ *     - translateSinglePass()            (Line 7445)
  *       • Phase 1: Patterns
  *       • Phase 2: Proper Nouns
  *       • Phase 3: Numbers (WASM)
@@ -81,23 +87,21 @@
  *       • Phase 5: Characters
  *     - Critical: Phase order is IMMUTABLE
  *
- * 12. Cache Management                   [EXTENSION]
+ * 14. Cache Management                   [EXTENSION]
  *     - invalidateAllCaches()
  *     - Unified API for 6 cache systems
- *     - Can be called externally
  *
- * 13. Utility Methods                    [MIXED]
- *     - Segment building for highlighting
- *     - Performance analysis
+ * 15. Utility Methods & Factory          (Line 10112) [SAFE]
+ *     - createTranslationEngine()        (Line 10112)
  *
- * 14. Factory Function                   (Line 10158) [SAFE]
- *     - createTranslationEngine()
- *
- * NOTE: Key function anchors (verified 2026-03-03):
- *       resolveMatchConflicts 2364, resolveGlobalConflicts 2686,
- *       createOptimalPhraseGroups 2596, postProcess 4284,
- *       processChunksInParallel 5326, translateWithProgressiveBatches 5760,
- *       translateWithChunking 6959, translateSinglePass 7493.
+ * NOTE: Key function anchors (verified 2026-04-01):
+ *       initialize 1169, translate 1445, translateWithCharactersOnly 1551,
+ *       translateWithSegments 2038, resolveMatchConflicts 2388,
+ *       resolveGlobalConflicts 2693, applyPatterns 2778,
+ *       applyPatternsToTokenSequences 3458, postProcess 4236,
+ *       processChunksInParallel 5284, translateWithProgressiveBatches 5703,
+ *       translateWithChunking 6902, translateDirectly 7167,
+ *       translateSinglePass 7445, createTranslationEngine 10112.
  *
  * =============================================================================
  * ARCHITECTURAL NOTES
@@ -215,6 +219,36 @@ import {
  *   DEBUG_LEVELS,
  *   DebugLevel
  * } from '../types/TranslationEngineTypes'
+ */
+
+/**
+ * @typedef {Object} ChunkOptions
+ * @property {number}  [chunkOffset=0]          - TOKEN count of all preceding chunks.
+ *                                                 Used as offset for cross-chunk tokenIndex.
+ *                                                 DO NOT confuse with chunkStartChar.
+ * @property {number}  [chunkStartChar=0]        - CHARACTER position of this chunk's start
+ *                                                 in the full source text. Passed to postProcess()
+ *                                                 so originalStart values are absolute, not chunk-relative.
+ *                                                 token.start (bytes) is chunk-relative; add chunkStartChar
+ *                                                 to get the absolute character position.
+ * @property {boolean} [returnSemanticArrays]    - Include semantic arrays in result object
+ * @property {boolean} [returnPrebuiltSegments]  - Include pre-built segments for ClickableTranslationOptimized
+ * @property {boolean} [useChunking]             - Enable adaptive chunking for long texts
+ * @property {Function} [onProgress]            - Progress callback (chunk, total) => void
+ */
+
+/**
+ * Valid translationSource strings for addUnit() — must be a PHASE_PRIORITIES key.
+ * Any unrecognised string returns priority 999, silently ranking below character fallback.
+ *
+ * Phase 1 — Pattern:  'pattern' | 'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite'
+ * Phase 2 — ProperNoun: dynamic dictionary name (e.g. 'properNouns-MyNovel') — NOT a static key
+ * Phase 3 — Number:   'number_conversion' | 'number_plus_liang_fix'
+ * Phase 4 — Phrase:   'phrases'
+ * Phase 5 — Char:     'characters'
+ * Consumed tokens:    source ends with '_consumed' (e.g. 'phrases_consumed') — getSourcePriority returns null
+ *
+ * @typedef {'pattern'|'hierarchical_pattern'|'hierarchical_patterns'|'hierarchical_patterns_composite'|'number_conversion'|'number_plus_liang_fix'|'phrases'|'characters'|string} TranslationSource
  */
 
 // ============================================================================

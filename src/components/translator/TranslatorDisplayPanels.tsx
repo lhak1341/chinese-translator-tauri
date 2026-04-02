@@ -1,8 +1,8 @@
 import React from 'react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
-import ClickableOriginalSemantic from '../ClickableOriginalSemantic';
-import ClickableTranslationSemantic from '../ClickableTranslationSemantic';
-import ClickableTranslationOptimized from '../ClickableTranslationOptimized';
+import ClickableOriginalSemantic from '../char-only/ClickableOriginalSemantic';
+import ClickableTranslationSemantic from '../char-only/ClickableTranslationSemantic';
+import ClickableTranslationOptimized from '../full-translation/ClickableTranslationOptimized';
 import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
 import type { ThrottledStreamingState } from '../../types/UITypes';

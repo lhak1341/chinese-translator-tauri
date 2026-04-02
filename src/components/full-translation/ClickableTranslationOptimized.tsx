@@ -8,9 +8,9 @@ import type {
   SegmentComponentProps,
   SegmentClickHandler,
   SegmentClickPayload,
-} from '../types/ClickableTypes';
-import styles from '../styles/ClickableTranslationOptimized.module.css';
-import { sanitizeString } from '../utils/configValidation';
+} from '../../types/ClickableTypes';
+import styles from '../../styles/ClickableTranslationOptimized.module.css';
+import { sanitizeString } from '../../utils/configValidation';
 
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
