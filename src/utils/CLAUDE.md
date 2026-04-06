@@ -38,6 +38,10 @@ Any new greedy scan or occurrence counter over the semantic array must use `toke
 
 `getSemanticTokens(chunk.content)` silently returns `[]` because `chunk.content` is a string. When computing chunk token counts for `chunkOffset` in `processChunksInParallel`/`translateWithChunking`, always call `this.tokenizer.tokenize(chunk.content).length`. Using the wrong call zeros all cross-chunk token offsets, breaking same-translated-text disambiguation.
 
+### `tokenCharPositions` Must Use `originalValue` for Phrase Leaders
+
+In `postProcess`, the `tokenCharPositions` loop must use `tokens[i].originalValue ?? tokens[i].value` — phrase processing sets `tokens[K].originalValue = tokens[K].value` (e.g., `"部"`) then mutates `tokens[K].value` to the full word (`"部分"`). Using `.value` double-counts and shifts all subsequent `originalStart` positions by the consumed-token count.
+
 ### `token.start` Is a Byte Offset, Not a Char Offset
 
 Chinese chars are 3 bytes each, making `token.start` ~3× too large for char-position arithmetic. In `postProcess`, use cumulative `tokenCharPositions`: `tokenCharPositions[i] = sum of tokens[0..i-1].value.length`.

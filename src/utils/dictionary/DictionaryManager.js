@@ -814,18 +814,21 @@ export class DictionaryManager {
         for (const [source, target] of Object.entries(dictionary)) {
           if (typeof source === 'string') {
             let translation,
-              allowAsPatternVariable = false,
+              allowAsPatternVariable = undefined,
               semanticType = undefined,
               allowedVariableTypes = undefined;
 
             // Handle both old format (string) and new format (object with metadata)
             if (typeof target === 'string') {
-              // Old format: "source": "translation"
+              // Old format: "source": "translation" — allowAsPatternVariable stays undefined
               translation = target;
             } else if (typeof target === 'object' && target.translation) {
-              // New format: "source": {"translation": "...", "allowAsPatternVariable": true}
+              // New format: "source": {"translation": "...", "allowAsPatternVariable": true/false}
+              // Preserve undefined (absent field) vs explicit true/false so that callers
+              // using `!== false` treat missing-field entries as "not excluded".
               translation = target.translation;
-              allowAsPatternVariable = target.allowAsPatternVariable === true;
+              allowAsPatternVariable =
+                'allowAsPatternVariable' in target ? target.allowAsPatternVariable : undefined;
               semanticType = target.semanticType || undefined;
               allowedVariableTypes = target.allowedVariableTypes || undefined;
             } else {

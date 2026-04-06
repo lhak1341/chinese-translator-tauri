@@ -386,8 +386,12 @@ impl<'a> PatternMatcher<'a> {
         let mut literal_time = 0.0;
         let mut variable_time = 0.0;
 
-        // Test each pattern token against semantic tokens
-        for i in 0..pattern.tokens.len() {
+        // Test each pattern token against semantic tokens.
+        // Uses `while` (not `for`) so the Literal branch can skip ahead in `i`
+        // when consecutive literal pattern tokens combine to match one multi-char
+        // semantic token (e.g. 身+体 literals matching a single 身体 word token).
+        let mut i = 0usize;
+        while i < pattern.tokens.len() {
             let pattern_token = &pattern.tokens[i];
 
             // Check if we have a semantic token at the current position
@@ -435,16 +439,57 @@ impl<'a> PatternMatcher<'a> {
 
                     // Compare the sequences
                     if &semantic_sequence == literal_value {
-                        // Match success - just advance position, don't clone tokens yet
+                        // Exact match: N single-char semantic tokens match this literal.
                         current_position += literal_char_count;
                     } else {
-                        let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                        literal_time += end_literal - start_literal;
-                        update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
-                        return PatternMatchResult::failure(Some(format!(
-                            "Literal mismatch: expected '{}', got '{}'",
-                            literal_value, semantic_sequence
-                        )));
+                        // Literal grouping fallback: consecutive literal pattern tokens may
+                        // combine to match a single multi-char semantic token.
+                        // Example: pattern 身+体 (two 1-char literals) vs. one 身体 word token.
+                        // Mirrors the JS testPatternMatch grouping at lines 1217-1239.
+                        let mut combined_literal = literal_value.clone();
+                        let mut pattern_lookahead = i + 1;
+                        while pattern_lookahead < pattern.tokens.len()
+                            && pattern.tokens[pattern_lookahead].token_type == TokenType::Literal
+                        {
+                            if let Some(next_val) = &pattern.tokens[pattern_lookahead].value {
+                                combined_literal.push_str(next_val);
+                                pattern_lookahead += 1;
+                            } else {
+                                break;
+                            }
+                        }
+
+                        // Consume semantic tokens until their concatenated values equal combined_literal.
+                        let combined_char_count = combined_literal.chars().count();
+                        let mut running = String::new();
+                        let mut sem_consumed = 0usize;
+                        let mut grouped = false;
+                        loop {
+                            if current_position + sem_consumed >= semantic_tokens.len() { break; }
+                            running.push_str(&semantic_tokens[current_position + sem_consumed].value);
+                            sem_consumed += 1;
+                            if running == combined_literal {
+                                grouped = true;
+                                break;
+                            }
+                            // Stop early if we've already accumulated more chars than expected.
+                            if running.chars().count() >= combined_char_count { break; }
+                        }
+
+                        if grouped {
+                            current_position += sem_consumed;
+                            // Skip the pattern tokens that were grouped into combined_literal.
+                            // The `i += 1` at loop bottom brings us to pattern_lookahead.
+                            i = pattern_lookahead - 1;
+                        } else {
+                            let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                            literal_time += end_literal - start_literal;
+                            update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
+                            return PatternMatchResult::failure(Some(format!(
+                                "Literal mismatch: expected '{}', got '{}'",
+                                literal_value, semantic_sequence
+                            )));
+                        }
                     }
 
                     let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
@@ -515,6 +560,7 @@ impl<'a> PatternMatcher<'a> {
                     variable_time += end_variable - start_variable;
                 }
             }
+            i += 1;
         }
 
         // Build matched_tokens only on success (clone once instead of incrementally)

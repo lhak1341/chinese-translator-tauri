@@ -4435,7 +4435,9 @@ export class TranslationEngine {
       let _cp = 0;
       for (let i = 0; i < tokens.length; i++) {
         tokenCharPositions[i] = _cp;
-        _cp += (tokens[i].value || '').length;
+        _cp += (
+          (tokens[i].originalValue !== undefined ? tokens[i].originalValue : tokens[i].value) || ''
+        ).length;
       }
     }
 
@@ -6540,8 +6542,12 @@ export class TranslationEngine {
 
       // Create candidate words from semantic arrays
       // CRITICAL BUG FIX: Normalize translated units to NFC to match normalized cleanedFinalResult
+      // Skip consumed tokens (translated: null) — pattern-consumed entries have no output text
+      // and calling .normalize() on null crashes the loop, causing all prebuiltSegments to fall
+      // back to reconstructed.segments with wrong unitIndex values for tokens after the pattern.
       const candidateWords = [];
       for (let i = 0; i < semanticArrays.original.length; i++) {
+        if (semanticArrays.translated[i] == null) continue;
         candidateWords.push({
           semanticIndex: i,
           original: semanticArrays.original[i],

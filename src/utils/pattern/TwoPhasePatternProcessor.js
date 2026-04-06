@@ -256,8 +256,8 @@ class TwoPhasePatternProcessor {
         token.value,
         actualProperNounDictionaries
       );
-      // Respect allowAsPatternVariable flag — mirrors the phrase gate in step 2.
-      if (properNounResult && properNounResult.metadata?.allowAsPatternVariable !== false) {
+      // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
+      if (properNounResult) {
         const pnType = properNounResult.metadata?.semanticType || 'proper_noun';
         if (shouldInclude(pnType === 'proper_noun' ? null : pnType)) {
           cache[token.value] = {
@@ -298,10 +298,7 @@ class TwoPhasePatternProcessor {
               continue;
             }
           }
-          // Respect allowAsPatternVariable flag — mirrors phrase gate above.
-          if (match.metadata?.allowAsPatternVariable === false) {
-            continue;
-          }
+          // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
           const matchType = match.metadata?.semanticType || 'proper_noun';
           if (shouldInclude(matchType === 'proper_noun' ? null : matchType)) {
             cache[match.word] = {

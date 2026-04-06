@@ -39,8 +39,8 @@ pub struct TextChunker {
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     use_unicode_properties: bool,
 
-    /// Performance statistics
-    chunks_processed: u32,
+    /// Performance statistics (AtomicU32 so chunk_text can use &self, avoiding RefCell::borrow_mut)
+    chunks_processed: AtomicU32,
 }
 
 #[wasm_bindgen]
@@ -53,7 +53,7 @@ impl TextChunker {
     pub fn new(use_unicode_properties: bool) -> TextChunker {
         TextChunker {
             use_unicode_properties,
-            chunks_processed: 0,
+            chunks_processed: AtomicU32::new(0),
         }
     }
 
@@ -101,7 +101,7 @@ impl TextChunker {
     /// * JSON string (parse with JSON.parse) — array of {content, punctuation, startIndex, lineBreaks, startedBy}
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen(js_name = chunkText)]
-    pub fn chunk_text(&mut self, text: &str) -> Result<String, JsValue> {
+    pub fn chunk_text(&self, text: &str) -> Result<String, JsValue> {
         if text.is_empty() || text.trim().is_empty() {
             return Ok("[]".to_string());
         }
@@ -128,10 +128,12 @@ impl TextChunker {
         let mut chunk_start_index: Option<usize> = None;
         let mut previous_punctuation = "start".to_string();
 
-        let chars: Vec<char> = text.chars().collect();
-        let mut char_index = 0;
+        // No Vec<char> allocation — iterate chars directly to avoid a large heap block
+        // that, when freed alongside many small TextChunkResult strings, triggers
+        // dlmalloc 0.2.9's coalescing assertion (psize >= size + min_overhead).
+        let mut char_index = 0usize;
 
-        // Helper closure: push a completed chunk into `results` (no JS allocation).
+        // Helper closure: move strings into chunk via std::mem::take — zero clones in hot path.
         let flush_chunk = |
             content: &mut String,
             punctuation: &mut String,
@@ -141,43 +143,42 @@ impl TextChunker {
             results: &mut Vec<TextChunkResult>,
         | {
             if !content.trim().is_empty() || !punctuation.is_empty() || !line_breaks.is_empty() {
-                let mut started_by = prev_punc.clone();
-
-                // Only treat as linebreak if there's no meaningful punctuation before it
-                if !line_breaks.is_empty()
+                // Compute started_by from prev_punc before we overwrite it.
+                let started_by = if !line_breaks.is_empty()
                     && !results.is_empty()
-                    && (prev_punc.is_empty() || prev_punc == "start")
+                    && (prev_punc.is_empty() || prev_punc.as_str() == "start")
                 {
-                    started_by = "linebreak".to_string();
-                }
+                    "linebreak".to_string()
+                } else {
+                    prev_punc.clone()
+                };
+
+                // Update prev_punc while punctuation is still valid, then move punctuation.
+                let taken_punctuation = std::mem::take(punctuation);
+                *prev_punc = if !line_breaks.is_empty() {
+                    "linebreak".to_string()
+                } else {
+                    taken_punctuation.clone()
+                };
 
                 results.push(TextChunkResult {
-                    content: content.clone(),
-                    punctuation: punctuation.clone(),
-                    start_index: start_idx.unwrap_or(0),
-                    line_breaks: line_breaks.clone(),
+                    content: std::mem::take(content),
+                    punctuation: taken_punctuation,
+                    start_index: start_idx.take().unwrap_or(0),
+                    line_breaks: std::mem::take(line_breaks),
                     started_by,
                 });
-
-                // Update previous punctuation for next chunk
-                if !line_breaks.is_empty() {
-                    *prev_punc = "linebreak".to_string();
-                } else {
-                    *prev_punc = punctuation.clone();
-                }
+                // take() already left all strings empty — no explicit clear() needed.
+            } else {
+                content.clear();
+                punctuation.clear();
+                line_breaks.clear();
+                *start_idx = None;
             }
-
-            // Reset for next chunk
-            content.clear();
-            punctuation.clear();
-            line_breaks.clear();
-            *start_idx = None;
         };
 
-        // Process each character
-        while char_index < chars.len() {
-            let ch = chars[char_index];
-
+        // Process each character via iterator — no Vec<char> allocation.
+        for ch in text.chars() {
             if ch == '\r' || ch == '\n' {
                 // Handle line breaks
                 current_line_breaks.push(ch);
@@ -232,7 +233,7 @@ impl TextChunker {
         );
 
         // Update statistics (pure Rust, no JS allocation)
-        self.chunks_processed += 1;
+        self.chunks_processed.fetch_add(1, Ordering::Relaxed);
         CHUNK_COUNT.fetch_add(1, Ordering::Relaxed);
 
         // Phase 2 — pure Rust serialization: zero JS interop, zero allocator interaction
@@ -250,7 +251,7 @@ impl TextChunker {
     #[wasm_bindgen(js_name = getStats)]
     pub fn get_stats(&self) -> Result<JsValue, JsValue> {
         let stats = serde_json::json!({
-            "chunksProcessed": self.chunks_processed,
+            "chunksProcessed": self.chunks_processed.load(Ordering::Relaxed),
             "totalTimeUs": 0u64,
             "avgTimeUs": 0u64,
             "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
@@ -263,7 +264,7 @@ impl TextChunker {
     /// Reset statistics
     #[wasm_bindgen(js_name = resetStats)]
     pub fn reset_stats(&mut self) {
-        self.chunks_processed = 0;
+        self.chunks_processed.store(0, Ordering::Relaxed);
         CHUNK_COUNT.store(0, Ordering::Relaxed);
         FALLBACK_COUNT.store(0, Ordering::Relaxed);
     }

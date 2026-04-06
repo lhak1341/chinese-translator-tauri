@@ -365,18 +365,15 @@ export class SemanticPatternProcessor {
     // These structural patterns can serve as variables for Phase B patterns
     for (const phaseAResult of phaseAResults) {
       if (phaseAResult.originalText && phaseAResult.translation) {
-        // Extract the variable content from Phase A pattern
-        const variableText = this.extractVariableFromPhaseAResult(phaseAResult);
-
-        // Extracted variable from Phase A for cache
-
-        if (variableText) {
+        // Extract the variable content(s) from Phase A pattern (X and/or Y)
+        const variableTexts = this.extractVariableFromPhaseAResult(phaseAResult);
+        for (const variableText of variableTexts) {
           this.variableCache.set(variableText, {
             translation: phaseAResult.translation,
             source: 'phaseA_pattern',
             type: 'structural_pattern',
             confidence: 'high',
-            phaseAResult: phaseAResult, // Store reference for debugging
+            phaseAResult: phaseAResult,
           });
         }
 
@@ -453,11 +450,8 @@ export class SemanticPatternProcessor {
         token.value,
         actualProperNounDictionaries
       );
-      // Respect allowAsPatternVariable flag — mirrors the phrase gate above.
-      // Without this check all proper nouns enter the variable cache regardless of the flag,
-      // causing patterns like X等人 to match names that should not be consumed as variables,
-      // which then conflicts with Phase 2 proper-noun matches and silently drops text.
-      if (properNounResult && properNounResult.metadata?.allowAsPatternVariable !== false) {
+      // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
+      if (properNounResult) {
         this.variableCache.set(token.value, {
           translation: properNounResult.translation,
           source: properNounResult.dictionary + '_pattern_variable',
@@ -491,10 +485,7 @@ export class SemanticPatternProcessor {
           }
         }
 
-        // Respect allowAsPatternVariable flag for proper nouns — mirrors phrase gate above.
-        if (match.metadata?.allowAsPatternVariable === false) {
-          continue;
-        }
+        // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
 
         this.variableCache.set(match.word, {
           translation: match.translation,
@@ -522,41 +513,44 @@ export class SemanticPatternProcessor {
   }
 
   /**
-   * Extract variable content from Phase A pattern result
-   * Determines what text served as the X variable in the Phase A pattern
+   * Extract variable contents from Phase A pattern result.
+   * Returns extracted text for each variable placeholder (X, Y) found in the pattern.
    * @param {Object} phaseAResult - Phase A pattern result
-   * @returns {string|null} Variable text that was substituted for X
+   * @returns {Array<string>} Variable texts substituted for X and/or Y (may be empty)
    */
   extractVariableFromPhaseAResult(phaseAResult) {
     const pattern = phaseAResult.pattern?.originalPattern;
     const matchedText = phaseAResult.originalText;
 
-    if (!pattern || !matchedText || !pattern.includes('X')) {
-      return null;
+    if (!pattern || !matchedText) {
+      return [];
     }
 
-    // Find position of X in pattern
-    const xIndex = pattern.indexOf('X');
-    const prefix = pattern.substring(0, xIndex);
-    const suffix = pattern.substring(xIndex + 1);
+    const results = [];
+    for (const varName of ['X', 'Y']) {
+      if (!pattern.includes(varName)) continue;
 
-    // Extract variable by removing prefix and suffix from matched text
-    let variableText = matchedText;
-    if (prefix) {
-      const prefixIndex = variableText.indexOf(prefix);
-      if (prefixIndex === 0) {
-        variableText = variableText.substring(prefix.length);
+      const varIndex = pattern.indexOf(varName);
+      const prefix = pattern.substring(0, varIndex);
+      const suffix = pattern.substring(varIndex + 1);
+
+      let variableText = matchedText;
+      if (prefix) {
+        if (variableText.startsWith(prefix)) {
+          variableText = variableText.substring(prefix.length);
+        }
       }
-    }
-
-    if (suffix) {
-      const suffixIndex = variableText.lastIndexOf(suffix);
-      if (suffixIndex !== -1 && suffixIndex === variableText.length - suffix.length) {
-        variableText = variableText.substring(0, suffixIndex);
+      if (suffix) {
+        if (variableText.endsWith(suffix)) {
+          variableText = variableText.substring(0, variableText.length - suffix.length);
+        }
       }
+
+      const trimmed = variableText.trim();
+      if (trimmed) results.push(trimmed);
     }
 
-    return variableText.trim() || null;
+    return results;
   }
 
   /**
@@ -810,12 +804,14 @@ export class SemanticPatternProcessor {
 
         results.push(result);
 
-        // Mark tokens as consumed to prevent overlap.
+        // Mark follower tokens (index 1+) as consumed to prevent overlap.
         // CONSUMED TOKEN CONTRACT: both fields must be set together so that any code path
         // (including postProcess on exception) sees a contract-compliant state.
-        // applyPatternMatch will overwrite leader[0] with the actual translation later.
-        for (const matchedToken of matchResult.matchedTokens) {
-          const tokenIndex = matchedToken.originalIndex;
+        // The leader (index 0) is intentionally NOT marked here — applyPatternMatch sets
+        // its final translated/translationSource. Marking it consumed prematurely would
+        // create a transient contract violation (non-_consumed source with null translated).
+        for (let idx = 1; idx < matchResult.matchedTokens.length; idx++) {
+          const tokenIndex = matchResult.matchedTokens[idx].originalIndex;
           if (tokens[tokenIndex]) {
             tokens[tokenIndex].translationSource = 'pattern_consumed';
             tokens[tokenIndex].translated = null; // Direction A: consumed source → translated must be null
@@ -1116,9 +1112,16 @@ export class SemanticPatternProcessor {
         }
       }
 
-      if (matchResult.success && pattern.metadata.priority > bestPriority) {
-        bestMatch = matchResult;
-        bestPriority = pattern.metadata.priority;
+      if (matchResult.success) {
+        const matchLen = matchResult.matchedTokens.length;
+        const bestLen = bestMatch?.matchedTokens.length ?? -1;
+        if (
+          matchLen > bestLen ||
+          (matchLen === bestLen && pattern.metadata.priority > bestPriority)
+        ) {
+          bestMatch = matchResult;
+          bestPriority = pattern.metadata.priority;
+        }
       }
     }
 
@@ -1535,7 +1538,7 @@ export class SemanticPatternProcessor {
         matchResult.result,
         'pattern',
         globalTokenIndex,
-        'pattern',
+        1,
         null
       );
     }
