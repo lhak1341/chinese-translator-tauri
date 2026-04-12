@@ -29,6 +29,7 @@ import {
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../../utils/errors';
+import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import type {
   DictionaryData,
@@ -60,6 +61,30 @@ const DictionaryContext = createContext<DictionaryContextValue | undefined>(unde
 
 // Maximum number of operations to keep in history
 const MAX_HISTORY = 100;
+
+/**
+ * Mirrors LazyDictionaryContext.tsx::invalidateTranslationEngineCache.
+ * Clears the in-memory translation engine caches after a dictionary mutation so
+ * subsequent translations use the updated entries rather than stale cached results.
+ */
+async function invalidateTranslationEngineCache(dictionaryId: string): Promise<void> {
+  if (!window.translationEngine) return;
+  try {
+    if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
+      await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
+      logger.log('✅ Dictionary caches cleared');
+    } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
+      await window.translationEngine.invalidateAllCaches(dictionaryId);
+      logger.log('✅ All caches cleared');
+    }
+  } catch (cacheError) {
+    toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
+      duration: TOAST_DURATIONS.LOAD_FAILURE,
+      id: TOAST_IDS.CACHE_INVALIDATION_FAILED,
+    });
+    logger.warn('Cache invalidation failed (non-critical):', cacheError);
+  }
+}
 
 /**
  * DictionaryProvider Component
@@ -530,6 +555,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
               });
             }
           }
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           // Rollback on failure
           setDictionaries((prev) => ({

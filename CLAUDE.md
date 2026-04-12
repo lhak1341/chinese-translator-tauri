@@ -10,6 +10,7 @@ React/Tauri desktop app translating Chinese novels to Vietnamese via 5-phase tok
 cargo check --manifest-path src-tauri/Cargo.toml  # NOT cd + cargo — zoxide breaks it
 cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check both when touching Rust
 cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1
+npm run build-wasm-dev  # after any wasm-core change — binary is gitignored, stays stale otherwise
 npm run tauri:dev
 npm test -- --run
 npm run type-check  # 0 errors expected

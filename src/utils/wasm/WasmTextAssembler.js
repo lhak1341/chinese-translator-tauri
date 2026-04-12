@@ -89,7 +89,12 @@ export class WasmTextAssemblerWrapper {
       // Parse result
       return JSON.parse(resultJson);
     } catch (error) {
-      logger.error('WASM text assembly failed, falling back to JavaScript:', error);
+      // A WASM panic leaves the TextAssembler in a permanently unusable state — retire
+      // the instance so all future calls go straight to the JS fallback.
+      logger.error('WASM assembleTranslation failed, retiring instance:', error);
+      this.assembler = null;
+      this.initialized = false;
+      this.initializationFailed = true;
       return this.jsAssembleTranslation(segments);
     }
   }
@@ -109,7 +114,12 @@ export class WasmTextAssemblerWrapper {
       const segmentsJson = JSON.stringify(segments);
       return this.assembler.assembleTranslatedText(segmentsJson);
     } catch (error) {
-      logger.error('WASM text assembly failed, falling back to JavaScript:', error);
+      // A WASM panic leaves the TextAssembler in a permanently unusable state — retire
+      // the instance so all future calls go straight to the JS fallback.
+      logger.error('WASM assembleTranslatedText failed, retiring instance:', error);
+      this.assembler = null;
+      this.initialized = false;
+      this.initializationFailed = true;
       return this.jsAssembleTranslatedText(segments);
     }
   }

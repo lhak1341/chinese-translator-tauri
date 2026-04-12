@@ -359,6 +359,30 @@ export class SemanticPatternProcessor {
   buildVariableCache(tokens, activeProperNouns, dictionaryManager, phaseAResults = []) {
     this.variableCache.clear();
 
+    // Pre-scan patterns for required variable types (mirrors TwoPhasePatternProcessor guard).
+    // Filtering by requiredTypes is only correct when ALL patterns are constrained — any
+    // unconstrained pattern accepts any type, so filtering would silently exclude entries it needs.
+    // Guard: if (!requiredTypes || hasUnconstrainedPatterns) always include.
+    let requiredTypes = null;
+    let hasUnconstrainedPatterns = false;
+    for (const pattern of this.patterns) {
+      if (pattern.metadata?.allowedVariableTypes) {
+        if (!requiredTypes) requiredTypes = new Set();
+        for (const types of Object.values(pattern.metadata.allowedVariableTypes)) {
+          for (const t of types) {
+            requiredTypes.add(t);
+          }
+        }
+      } else {
+        hasUnconstrainedPatterns = true;
+      }
+    }
+    const shouldInclude = (/** @type {string|null|undefined} */ entryType) => {
+      if (!requiredTypes || hasUnconstrainedPatterns) return true;
+      if (!entryType) return true;
+      return requiredTypes.has(entryType);
+    };
+
     // Build variable cache with Phase A results
 
     // ENHANCED: Add Phase A results as high-priority pattern variables
@@ -395,11 +419,18 @@ export class SemanticPatternProcessor {
         // Only cache proper nouns from this loop - phrases checked separately with allowAsPatternVariable flag
         if (token.translationSource?.includes('properNoun')) {
           const key = token.value;
-          this.variableCache.set(key, {
-            translation: token.translated,
-            source: token.translationSource,
-            type: this.classifyVariableType(token.translationSource, token.value, token.metadata),
-          });
+          const entryType = this.classifyVariableType(
+            token.translationSource,
+            token.value,
+            token.metadata
+          );
+          if (shouldInclude(entryType)) {
+            this.variableCache.set(key, {
+              translation: token.translated,
+              source: token.translationSource,
+              type: entryType,
+            });
+          }
         }
       }
     }
@@ -410,15 +441,18 @@ export class SemanticPatternProcessor {
       // Check individual token
       const singleTokenResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
       if (singleTokenResult?.metadata?.allowAsPatternVariable) {
-        this.variableCache.set(tokens[i].value, {
-          translation: singleTokenResult.translation,
-          source: 'phrases_pattern_variable',
-          type: this.classifyVariableType(
-            'phrases_pattern_variable',
-            tokens[i].value,
-            singleTokenResult.metadata
-          ),
-        });
+        const entryType = this.classifyVariableType(
+          'phrases_pattern_variable',
+          tokens[i].value,
+          singleTokenResult.metadata
+        );
+        if (shouldInclude(entryType)) {
+          this.variableCache.set(tokens[i].value, {
+            translation: singleTokenResult.translation,
+            source: 'phrases_pattern_variable',
+            type: entryType,
+          });
+        }
       }
 
       // MEDIUM FIX: Build strings incrementally instead of slice+map+join each time
@@ -428,15 +462,18 @@ export class SemanticPatternProcessor {
         combinedText += tokens[i + len - 1].value; // Append next token
         const multiTokenResult = dictionaryManager.translate(combinedText, ['phrases']);
         if (multiTokenResult?.metadata?.allowAsPatternVariable) {
-          this.variableCache.set(combinedText, {
-            translation: multiTokenResult.translation,
-            source: 'phrases_pattern_variable',
-            type: this.classifyVariableType(
-              'phrases_pattern_variable',
-              combinedText,
-              multiTokenResult.metadata
-            ),
-          });
+          const entryType = this.classifyVariableType(
+            'phrases_pattern_variable',
+            combinedText,
+            multiTokenResult.metadata
+          );
+          if (shouldInclude(entryType)) {
+            this.variableCache.set(combinedText, {
+              translation: multiTokenResult.translation,
+              source: 'phrases_pattern_variable',
+              type: entryType,
+            });
+          }
         }
       }
     }
@@ -452,15 +489,18 @@ export class SemanticPatternProcessor {
       );
       // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
       if (properNounResult) {
-        this.variableCache.set(token.value, {
-          translation: properNounResult.translation,
-          source: properNounResult.dictionary + '_pattern_variable',
-          type: this.classifyVariableType(
-            properNounResult.dictionary + '_pattern_variable',
-            token.value,
-            properNounResult.metadata
-          ),
-        });
+        const entryType = this.classifyVariableType(
+          properNounResult.dictionary + '_pattern_variable',
+          token.value,
+          properNounResult.metadata
+        );
+        if (shouldInclude(entryType)) {
+          this.variableCache.set(token.value, {
+            translation: properNounResult.translation,
+            source: properNounResult.dictionary + '_pattern_variable',
+            type: entryType,
+          });
+        }
       }
     }
 
@@ -487,15 +527,18 @@ export class SemanticPatternProcessor {
 
         // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
 
-        this.variableCache.set(match.word, {
-          translation: match.translation,
-          source: match.dictionary + '_pattern_variable',
-          type: this.classifyVariableType(
-            match.dictionary + '_pattern_variable',
-            match.word,
-            match.metadata
-          ),
-        });
+        const entryType = this.classifyVariableType(
+          match.dictionary + '_pattern_variable',
+          match.word,
+          match.metadata
+        );
+        if (shouldInclude(entryType)) {
+          this.variableCache.set(match.word, {
+            translation: match.translation,
+            source: match.dictionary + '_pattern_variable',
+            type: entryType,
+          });
+        }
       }
     }
 

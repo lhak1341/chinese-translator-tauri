@@ -21,6 +21,8 @@ import { logger } from '../logger';
 
 /** @type {boolean} */
 let initialized = false;
+/** @type {boolean} - Set after any WASM panic to prevent re-init of corrupted module */
+let initializationFailed = false;
 /** @type {Promise<boolean> | null} */
 let initializationPromise = null;
 
@@ -30,6 +32,7 @@ let initializationPromise = null;
  */
 async function initialize() {
   if (initialized) return true;
+  if (initializationFailed) return false;
   if (initializationPromise) return initializationPromise;
 
   initializationPromise = (async () => {
@@ -40,6 +43,7 @@ async function initialize() {
       return true;
     } catch (error) {
       logger.warn('Failed to initialize WASM ConflictResolution:', error);
+      initializationFailed = true;
       initializationPromise = null;
       return false;
     }
@@ -125,7 +129,12 @@ export function resolveGlobalConflictsWasm(allMatches) {
     const selectedIndices = wasmResolveGlobalConflicts(flat);
     return Array.from(selectedIndices).map((i) => allMatches[i]);
   } catch (/** @type {any} */ error) {
-    logger.warn('WASM resolveGlobalConflicts failed, falling back to JS:', error);
+    // A WASM panic leaves the module in a permanently unusable state — WASM abort skips
+    // cleanup, so borrow_mut_count stays stuck at 1. Retire so future calls go straight
+    // to the JS fallback without retrying the corrupted module.
+    logger.warn('WASM resolveGlobalConflicts failed, retiring module:', error);
+    initialized = false;
+    initializationFailed = true;
     return jsFallback(allMatches);
   }
 }
