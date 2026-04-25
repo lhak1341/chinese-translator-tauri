@@ -45,6 +45,10 @@ Canonical values: `'character'`, `'location'`, `'organization'`, `'concept'`, `'
 - `SEMANTIC_TYPE_ABBREVIATIONS` and `SEMANTIC_TYPE_LIST` (from `src/constants/SemanticTypes.ts`) are the canonical exports for toggle cells in `EnhancedVirtualizedDictionaryTable.tsx` — do NOT redeclare local lists.
 - `classifyVariableType` in `SemanticPatternProcessor.js` returns canonical values when `metadata.semanticType` is set, but falls back to internal discriminators (`'proper_noun'`, `'character_unit'`, `'unknown'`) that are NOT canonical — `'proper_noun'` is special-cased to `null` (always include); `'character_unit'` and `'unknown'` fail `allowedVariableTypes` constraints intentionally.
 
+## `$X`/`$Y` Variable-Derived Semantic Types (Patterns Only)
+
+Pattern `semanticType` accepts `"$X"` or `"$Y"` — resolved at WASM match time from the variable's cache `var_type`. Constants in `src/constants/SemanticTypes.ts`: `PATTERN_SEMANTIC_TYPE_REF_LIST`. UI: `DictionaryEntry.tsx` (full editor) and `SemanticTypeToggleCell` in `EnhancedVirtualizedDictionaryTable.tsx` (inline column, patterns branch only — NOT phrases/properNouns branches).
+
 ## WASM Wrapper Methods
 
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.

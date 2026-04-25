@@ -33,3 +33,16 @@ export const SEMANTIC_TYPE_COLORS: Record<SemanticType, string> = {
   concept: '#7c3aed',
   object: '#ea580c',
 };
+
+/** Pattern-only semantic type references — resolved at match time from variable's type */
+export const PATTERN_SEMANTIC_TYPE_REFS = {
+  FROM_X: '$X',
+  FROM_Y: '$Y',
+} as const;
+
+export type PatternSemanticTypeRef =
+  (typeof PATTERN_SEMANTIC_TYPE_REFS)[keyof typeof PATTERN_SEMANTIC_TYPE_REFS];
+
+export const PATTERN_SEMANTIC_TYPE_REF_LIST: PatternSemanticTypeRef[] = Object.values(
+  PATTERN_SEMANTIC_TYPE_REFS
+);

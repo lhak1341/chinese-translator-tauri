@@ -29,6 +29,7 @@ import {
   SEMANTIC_TYPE_ABBREVIATIONS,
   SEMANTIC_TYPE_LIST,
   SEMANTIC_TYPES,
+  PATTERN_SEMANTIC_TYPE_REF_LIST,
 } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
@@ -453,7 +454,8 @@ const SemanticTypeToggleCell: React.FC<{
   activeType: string;
   onSelect: (type: string) => void;
   width?: string;
-}> = ({ activeType, onSelect, width = '15%' }) => {
+  patternSource?: string;
+}> = ({ activeType, onSelect, width = '15%', patternSource }) => {
   return (
     <div
       style={{
@@ -492,6 +494,35 @@ const SemanticTypeToggleCell: React.FC<{
           </span>
         );
       })}
+      {patternSource &&
+        PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => patternSource.includes(r[1])).map(
+          (typeRef) => {
+            const isActive = activeType === typeRef;
+            return (
+              <span
+                key={typeRef}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(isActive ? '' : typeRef);
+                }}
+                className={styles.metadataBadge}
+                title={
+                  isActive ? `${typeRef} (click to remove)` : `Inherit type from ${typeRef[1]}`
+                }
+                style={{
+                  background: isActive ? '#8b5cf6' : 'transparent',
+                  color: isActive ? 'white' : '#9ca3af',
+                  border: isActive ? 'none' : '1px dashed #d1d5db',
+                  fontSize: '0.6rem',
+                  cursor: 'pointer',
+                  padding: '1px 3px',
+                }}
+              >
+                {typeRef}
+              </span>
+            );
+          }
+        )}
     </div>
   );
 };
@@ -787,6 +818,7 @@ const VirtualRowComponent = React.memo<VirtualRowProps>(
               activeType={semanticType}
               onSelect={handleSetSemanticType}
               width="15%"
+              patternSource={source}
             />
           ) : (
             <div style={{ width: '15%', minWidth: '15%' }} />

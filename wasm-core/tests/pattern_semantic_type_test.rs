@@ -202,6 +202,188 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
     assert_eq!(result.translation, "ở trong số ba");
 }
 
+// ─── Variable-derived semantic type ($X/$Y) tests ────────���───────────────
+
+/// Pattern with semanticType "$X" should resolve to X's var_type from cache.
+#[test]
+fn dollar_x_resolves_to_variable_type_from_cache() {
+    use std::collections::HashMap;
+    use translation_wasm_core::pattern_processor::{
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+    };
+
+    // Pattern: "X的家" → "nhà của X", semanticType: "$X"
+    let pattern = parse_pattern(
+        "X的家".to_string(),
+        "nhà của X".to_string(),
+        None,
+        false,
+        false,
+        Some("$X".to_string()),
+    );
+
+    // Cache: "张三" → character type
+    let mut cache = HashMap::new();
+    cache.insert(
+        "张三".to_string(),
+        VariableCacheEntry {
+            translation: "Trương Tam".to_string(),
+            source: "properNouns".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let tokens = vec![
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+    ];
+
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    assert!(result.is_some(), "Pattern should match");
+    let m = result.unwrap();
+    assert!(m.success);
+    assert_eq!(m.pattern_semantic_type.as_deref(), Some("character"),
+        "semanticType '$X' should resolve to X's var_type 'character'");
+}
+
+/// Pattern with semanticType "$Y" should resolve to Y's var_type from cache.
+#[test]
+fn dollar_y_resolves_to_variable_type_from_cache() {
+    use std::collections::HashMap;
+    use translation_wasm_core::pattern_processor::{
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+    };
+
+    // Pattern: "X去Y" → "X đi Y", semanticType: "$Y"
+    let pattern = parse_pattern(
+        "X去Y".to_string(),
+        "X đi Y".to_string(),
+        None,
+        false,
+        false,
+        Some("$Y".to_string()),
+    );
+
+    let mut cache = HashMap::new();
+    cache.insert(
+        "张三".to_string(),
+        VariableCacheEntry {
+            translation: "Trương Tam".to_string(),
+            source: "properNouns".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+    cache.insert(
+        "北京".to_string(),
+        VariableCacheEntry {
+            translation: "Bắc Kinh".to_string(),
+            source: "properNouns".to_string(),
+            var_type: Some("location".to_string()),
+        },
+    );
+
+    let tokens = vec![
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "去".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "北".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "京".to_string(), original_index: 4, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+    ];
+
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    assert!(result.is_some(), "Pattern should match");
+    let m = result.unwrap();
+    assert!(m.success);
+    assert_eq!(m.pattern_semantic_type.as_deref(), Some("location"),
+        "semanticType '$Y' should resolve to Y's var_type 'location'");
+}
+
+/// Pattern with semanticType "$X" where X has no var_type → resolves to None.
+#[test]
+fn dollar_x_resolves_to_none_when_variable_untyped() {
+    use std::collections::HashMap;
+    use translation_wasm_core::pattern_processor::{
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+    };
+
+    let pattern = parse_pattern(
+        "X的家".to_string(),
+        "nhà của X".to_string(),
+        None,
+        false,
+        false,
+        Some("$X".to_string()),
+    );
+
+    // Cache entry with no var_type
+    let mut cache = HashMap::new();
+    cache.insert(
+        "他".to_string(),
+        VariableCacheEntry {
+            translation: "anh ấy".to_string(),
+            source: "characters".to_string(),
+            var_type: None,
+        },
+    );
+
+    let tokens = vec![
+        SemanticToken { value: "他".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "的".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "家".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+    ];
+
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    assert!(result.is_some(), "Pattern should match");
+    let m = result.unwrap();
+    assert!(m.success);
+    assert_eq!(m.pattern_semantic_type, None,
+        "semanticType '$X' with untyped variable should resolve to None");
+}
+
+/// Fixed semanticType (not a $-reference) should pass through unchanged.
+#[test]
+fn fixed_semantic_type_unchanged() {
+    use std::collections::HashMap;
+    use translation_wasm_core::pattern_processor::{
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+    };
+
+    let pattern = parse_pattern(
+        "X的家".to_string(),
+        "nhà của X".to_string(),
+        None,
+        false,
+        false,
+        Some("location".to_string()),
+    );
+
+    let mut cache = HashMap::new();
+    cache.insert(
+        "张三".to_string(),
+        VariableCacheEntry {
+            translation: "Trương Tam".to_string(),
+            source: "properNouns".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let tokens = vec![
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+    ];
+
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    assert!(result.is_some());
+    let m = result.unwrap();
+    assert!(m.success);
+    assert_eq!(m.pattern_semantic_type.as_deref(), Some("location"),
+        "Fixed semanticType 'location' should pass through regardless of variable type");
+}
+
 // ─── Existing unit tests ───────────────────────────────────────────────────
 
 #[test]

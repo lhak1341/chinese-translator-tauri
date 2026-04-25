@@ -9,8 +9,9 @@ import {
   SEMANTIC_TYPE_LABELS,
   SEMANTIC_TYPE_ABBREVIATIONS,
   SEMANTIC_TYPE_COLORS,
+  PATTERN_SEMANTIC_TYPE_REF_LIST,
 } from '../../constants/SemanticTypes';
-import type { SemanticType } from '../../constants/SemanticTypes';
+import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
 import {
   titleCaseWords,
@@ -91,7 +92,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       entry?.lowPriority ||
       false
   );
-  const [semanticType, setSemanticType] = useState<SemanticType | ''>(
+  const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
     (typeof entry?.translation === 'object' && entry.translation?.semanticType) ||
       (!entry && selectedDictionary.startsWith('properNouns') ? 'character' : '')
   );
@@ -998,6 +999,48 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                     </span>
                   );
                 })}
+                {activeDictionary === 'patterns' &&
+                  PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => source.includes(r[1])).map(
+                    (typeRef) => {
+                      const isSelected = semanticType === typeRef;
+                      const varName = typeRef[1]; // "X" or "Y"
+                      const handleSelect = () => {
+                        if (isSaving) return;
+                        setSemanticType(isSelected ? '' : typeRef);
+                      };
+                      return (
+                        <span
+                          key={typeRef}
+                          role="radio"
+                          aria-checked={isSelected}
+                          tabIndex={isSaving ? -1 : 0}
+                          onClick={handleSelect}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleSelect();
+                            }
+                          }}
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            borderRadius: '4px',
+                            cursor: isSaving ? 'default' : 'pointer',
+                            userSelect: 'none',
+                            background: isSelected ? '#8b5cf6' : 'transparent',
+                            color: isSelected ? 'white' : '#8b5cf6',
+                            border: `1px ${isSelected ? 'solid' : 'dashed'} #8b5cf6`,
+                            opacity: isSaving ? 0.5 : 1,
+                          }}
+                          title={`${isSelected ? 'Clear' : 'Set'} semantic type: inherit from variable ${varName}`}
+                        >
+                          {typeRef}
+                        </span>
+                      );
+                    }
+                  )}
               </div>
             </div>
           )}
@@ -1063,7 +1106,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                           }}
                           title={`${isActive ? 'Remove' : 'Add'} ${SEMANTIC_TYPE_LABELS[type]} constraint for ${varName}`}
                         >
-                          {SEMANTIC_TYPE_LABELS[type]}
+                          {SEMANTIC_TYPE_ABBREVIATIONS[type]}
                         </span>
                       );
                     })}

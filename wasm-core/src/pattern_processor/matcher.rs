@@ -165,6 +165,7 @@ impl PatternMatchResult {
         matched_tokens: Vec<SemanticToken>,
         start_position: usize,
         end_position: usize,
+        resolved_semantic_type: Option<String>,
     ) -> Self {
         Self {
             success: true,
@@ -177,7 +178,7 @@ impl PatternMatchResult {
             matched_tokens: Some(matched_tokens),
             start_position: Some(start_position),
             end_position: Some(end_position),
-            pattern_semantic_type: pattern.semantic_type.clone(),
+            pattern_semantic_type: resolved_semantic_type,
             reason: None,
         }
     }
@@ -348,6 +349,7 @@ impl<'a> PatternMatcher<'a> {
         }
 
         let mut variables: HashMap<String, String> = HashMap::new();
+        let mut variable_types: HashMap<String, Option<String>> = HashMap::new();
         let match_start = position;
         let mut current_position = position;
 
@@ -543,6 +545,7 @@ impl<'a> PatternMatcher<'a> {
                             }
 
                             variables.insert(var_name.clone(), translation);
+                            variable_types.insert(var_name.clone(), var_type);
                             current_position += token_span;
                         }
                         None => {
@@ -595,6 +598,17 @@ impl<'a> PatternMatcher<'a> {
         // Update profiling data if enabled
         update_profiling!(end_early - start_early, literal_time, variable_time, end_template - start_template);
 
+        // Resolve variable-derived semantic type ($X/$Y references)
+        let resolved_semantic_type = match pattern.semantic_type.as_deref() {
+            Some(s) if s.starts_with('$') => {
+                let ref_var = &s[1..]; // "X" or "Y"
+                variable_types
+                    .get(ref_var)
+                    .and_then(|vt| vt.clone())
+            }
+            _ => pattern.semantic_type.clone(),
+        };
+
         // Use pattern reference instead of cloning (5-10% performance improvement)
         PatternMatchResult::success(
             pattern,  // Pass reference, not clone
@@ -603,6 +617,7 @@ impl<'a> PatternMatcher<'a> {
             matched_tokens,
             start_index,
             end_index,
+            resolved_semantic_type,
         )
     }
 
