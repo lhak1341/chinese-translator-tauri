@@ -112,10 +112,10 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
     }));
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 
-  // Group segments into paragraphs (every newline creates a paragraph break)
-  // Note: ClickableTranslationOptimized uses "break on every \n" semantics for Vietnamese
-  // translated text. This differs from the shared groupSegmentsIntoParagraphs utility, which
-  // uses Chinese-indentation-based paragraph detection. Do not replace with the shared utility.
+  // Group segments into paragraphs (every newline creates a paragraph break).
+  // Consecutive newlines produce empty paragraphs so blank lines from the source
+  // Chinese text are preserved in the Vietnamese rendering. Empty paragraphs
+  // get visible height via the .paragraph CSS min-height rule.
   const paragraphs = useMemo(() => {
     if (renderSegments.length === 0) return [];
 
@@ -136,10 +136,8 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
           }
 
           if (j < parts.length - 1) {
-            if (currentParagraph.length > 0) {
-              result.push(currentParagraph);
-              currentParagraph = [];
-            }
+            result.push(currentParagraph);
+            currentParagraph = [];
           }
         }
       } else {
@@ -147,9 +145,7 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
       }
     }
 
-    if (currentParagraph.length > 0) {
-      result.push(currentParagraph);
-    }
+    result.push(currentParagraph);
 
     return result;
   }, [renderSegments]);

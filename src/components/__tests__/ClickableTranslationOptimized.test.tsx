@@ -284,6 +284,38 @@ describe('ClickableTranslationOptimized — paragraph splitting', () => {
     const paragraphs = container.querySelectorAll('div > div > div');
     expect(paragraphs.length).toBe(1);
   });
+
+  test('consecutive newlines produce empty paragraphs (preserves blank lines from source)', () => {
+    // Spacing segment containing "\n\n" between two semantic segments should
+    // produce 3 paragraph divs: [P1], [], [P2]. The empty paragraph renders
+    // a blank line via .paragraph { min-height: 1lh } in CSS.
+    const segs = [
+      makeSegment({ unitIndex: 0, text: 'P1', translatedText: 'P1', key: 'seg-0' }),
+      makeSegment({
+        type: 'spacing',
+        unitIndex: -1,
+        text: '\n\n',
+        translatedText: undefined,
+        isClickable: false,
+        key: 'seg-spacing',
+      }),
+      makeSegment({ unitIndex: 1, text: 'P2', translatedText: 'P2', key: 'seg-2' }),
+    ] as unknown as PrebuiltSegment[];
+    const { container } = render(
+      <ClickableTranslationOptimized
+        translatedText={'P1\n\nP2'}
+        semanticArrays={{
+          translated: ['P1', 'P2'],
+          original: ['段一', '段二'],
+          metadata: [{ source: 'character' }, { source: 'character' }],
+        }}
+        prebuiltSegments={segs}
+        onSegmentClick={vi.fn()}
+      />
+    );
+    const paragraphs = container.querySelectorAll('div > div > div');
+    expect(paragraphs.length).toBe(3);
+  });
 });
 
 // ---------------------------------------------------------------------------

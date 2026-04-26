@@ -90,6 +90,10 @@ Template literals prevent Vite's asset URL transform — the URL resolves in dev
 
 `PHASE_PRIORITIES` keys are `translationSource` strings — not phase-group labels. `PHASE_PRIORITIES.patterns` / `.properNouns` / `.numbers` are all `undefined`. Always pass a literal `1|2|3|4|5`.
 
+### Whitespace Regex in Post-Assembly Must Preserve `\n`
+
+Any `replace()` on `cleanedFinalResult` / chunk-translated text in `postProcess`, `wordSegments` rebuild (`TranslationEngine.js` ~line 6740), or `applyFinalCleanup` must use `[ \t]+` or `[^\S\r\n]+` — never bare `\s+`. `\s` matches `\n`/`\r`, silently dropping paragraph breaks when whitespace sits adjacent to quotes/punctuation.
+
 ---
 
 ## `// @ts-check` Coverage

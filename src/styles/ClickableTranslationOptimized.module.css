@@ -9,6 +9,9 @@
 /* Paragraph */
 .paragraph {
   white-space: pre-wrap;
+  /* Ensure empty paragraphs (from consecutive \n in source text) render with
+     visible height so blank lines are preserved in the Vietnamese output. */
+  min-height: 1lh;
 }
 
 /* Segment Base */

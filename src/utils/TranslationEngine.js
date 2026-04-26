@@ -6701,12 +6701,15 @@ export class TranslationEngine {
             const quotePattern = /[\u201c\u2018\u201d\u2019"']/; // Opening and closing quotes
 
             if (quotePattern.test(spaceText)) {
-              // For spacing containing quotes, clean spaces around them
-              // Remove space after opening quotes: ' → '
-              // Remove space before closing quotes: ' → '
+              // For spacing containing quotes, clean horizontal spacing around them
+              // (spaces/tabs only — must NOT strip \n/\r, otherwise blank lines from
+              // the source Chinese text adjacent to a quote get dropped, causing the
+              // Full Translation pane to lose paragraph breaks present in the original).
+              // Remove horizontal space after opening quotes: ' → '
+              // Remove horizontal space before closing quotes: ' → '
               const cleanedSpaceText = spaceText
-                .replace(/(["\u201c\u2018])\s+/, '$1') // Remove space after opening quotes
-                .replace(/\s+([\u201d\u2019"'])/, '$1'); // Remove space before closing quotes
+                .replace(/(["\u201c\u2018])[ \t]+/, '$1') // Remove space after opening quotes
+                .replace(/[ \t]+([\u201d\u2019"'])/, '$1'); // Remove space before closing quotes
               wordSegments.push({
                 type: 'spacing',
                 start: currentPosition,
