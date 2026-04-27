@@ -23,6 +23,7 @@ import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
+import AppReadinessOverlay from './AppReadinessOverlay';
 import { translationSegmentCache } from '../utils/dictionary/TranslationSegmentCache.js';
 import { batchLog } from '../utils/BatchLogger.js';
 import { systemPerformanceMonitor } from '../utils/performance/ProactivePerformanceDetector.js';
@@ -101,7 +102,7 @@ import { parallelDictionaryLoader } from '../utils/dictionary/ParallelDictionary
 // ============================================================================
 
 const Translator = ({ isActive = true }) => {
-  const { dictionaries, isLoading, loadDictionary: _loadDictionary } = useDictionary();
+  const { dictionaries, isLoading, loadError, loadDictionary: _loadDictionary } = useDictionary();
 
   // Performance monitoring hook (extracted)
   const { performanceStats, regressionHealth, updatePerformanceStats, updateCacheHitRate } =
@@ -162,6 +163,12 @@ const Translator = ({ isActive = true }) => {
   const [isTranslating, setIsTranslating] = useState(false);
   const isTranslatingRef = useRef(false);
   const [engineInitialized, setEngineInitialized] = useState(false);
+  // Tracks whether saved app configuration (activeProperNouns, etc.) has been
+  // loaded from disk. Engine init must wait for this — otherwise the engine
+  // initializes with the default activeProperNouns (`['properNouns']`) and
+  // getFilteredDictionaries drops every custom `properNouns-*` dict, leaving
+  // novel-specific names un-capitalized until the user reloads.
+  const [configLoaded, setConfigLoaded] = useState(false);
   // CRITICAL-3 FIX: Track initialization errors for user display
   const [initializationError, setInitializationError] = useState(null);
   const [wasmStatus, setWasmStatus] = useState({
@@ -354,6 +361,11 @@ const Translator = ({ isActive = true }) => {
         logger.error('Failed to load initial configuration:', error);
         // HIGH-3 FIX: Notify user of unexpected configuration errors
         toast.error('Error loading settings. Using defaults.');
+      } finally {
+        // Always release the engine-init gate. Defaults are acceptable on
+        // first run / failure — what we cannot tolerate is the engine racing
+        // ahead and snapshotting an unloaded activeProperNouns list.
+        setConfigLoaded(true);
       }
     };
 
@@ -441,7 +453,25 @@ const Translator = ({ isActive = true }) => {
     // MEDIUM-1 FIX: Prevent duplicate engine initialization during dependency changes
     // If activeProperNouns changes during initialization, this effect fires again
     // Use ref to track in-flight initialization (synchronous check prevents race)
-    if (!isLoading && dictionaries && !engineInitialized && !isInitializingEngineRef.current) {
+    // Gate on !loadError so the engine does not initialize with empty dictionaries
+    // when the initial Rust parallel load failed — `dictionaries` is `{}` (truthy)
+    // on failure, which would otherwise pass the previous gate and produce a
+    // "ready" engine that emits garbage translations with no user feedback.
+    //
+    // Gate on configLoaded so the engine waits for the saved activeProperNouns
+    // list. Without this gate, if `loadInitialState` (DictionaryContext) wins
+    // the race against `loadInitialConfig` here, the engine snapshots the
+    // default `['properNouns']` and getFilteredDictionaries drops every
+    // custom `properNouns-*` dict — names from those dicts then never match
+    // and stay un-capitalized until the user reloads the app.
+    if (
+      !isLoading &&
+      !loadError &&
+      configLoaded &&
+      dictionaries &&
+      !engineInitialized &&
+      !isInitializingEngineRef.current
+    ) {
       // CRITICAL: Set flag synchronously BEFORE calling async function to prevent race condition
       // If we set it inside the async function, another effect could start before the flag is set
       isInitializingEngineRef.current = true;
@@ -527,7 +557,15 @@ const Translator = ({ isActive = true }) => {
       initializeEngine();
     }
     // Include getFilteredDictionaries to satisfy React exhaustive-deps rule (function is stable but should be listed)
-  }, [isLoading, dictionaries, engineInitialized, activeProperNouns, getFilteredDictionaries]);
+  }, [
+    isLoading,
+    loadError,
+    configLoaded,
+    dictionaries,
+    engineInitialized,
+    activeProperNouns,
+    getFilteredDictionaries,
+  ]);
 
   /**
    * WASM status monitoring effect - tracks WASM initialization and fallback mode
@@ -2494,6 +2532,12 @@ const Translator = ({ isActive = true }) => {
     [sharedTextStyle]
   );
 
+  // App-readiness overlay visible until dictionaries + engine are ready.
+  // Hidden when a load/init error is present so the dedicated error banner
+  // (rendered below) can take focus and offer recovery actions.
+  const showReadinessOverlay =
+    !loadError && !initializationError && (isLoading || !configLoaded || !engineInitialized);
+
   return (
     <div className={styles.container}>
       <HotkeyHandler
@@ -2507,6 +2551,31 @@ const Translator = ({ isActive = true }) => {
         onReloadDictionary={handleForceReload}
         activeTab={isActive ? 'translator' : null}
       />
+
+      {showReadinessOverlay && (
+        <AppReadinessOverlay
+          dictLoading={isLoading}
+          engineInitializing={!isLoading && (!configLoaded || !engineInitialized)}
+        />
+      )}
+
+      {/* Surface dictionary load failure when the engine cannot initialize.
+          DictionaryContext's loadInitialState fires once on mount (deps `[]`), so
+          a partial reload (handleForceReload) cannot re-trigger it — recovery
+          requires a full app reload to remount the provider. */}
+      {loadError && (
+        <div className={styles.errorBanner} role="alert">
+          <div className={styles.errorHeader}>
+            <strong className={styles.errorTitle}>⚠️ Dictionary Load Failed</strong>
+          </div>
+          <div className={styles.errorMessage}>{loadError}</div>
+          <div className={styles.errorActions}>
+            <button onClick={() => window.location.reload()} className={styles.errorButton}>
+              Reload App
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* CRITICAL-3 FIX: Show initialization error banner */}
       {initializationError && (

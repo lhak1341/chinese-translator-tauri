@@ -1,23 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { systemPerformanceMonitor } from './utils/performance/ProactivePerformanceDetector.js';
-import { wasmMemoryPoolManager } from './utils/wasm/WasmMemoryPoolManager';
 import { logger } from './utils/logger';
 import { optimizationBenchmarks } from './utils/performance/OptimizationBenchmarks.js';
-// CODE REVIEW FIX (MEDIUM-7): Import WASM cleanup functions
-import { cleanupWasmNumberProcessor } from './utils/wasm/WasmNumberProcessor';
-import { cleanupWasmPatternProcessor } from './utils/wasm/WasmPatternProcessor';
-import { rustLookupIndexManager } from './utils/RustLookupIndexManager';
-import { contentAwarePositionCache } from './utils/caching/ContentAwarePositionCache';
+// NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
+// Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
+// rustLookupIndexManager, wasmMemoryPoolManager, contentAwarePositionCache)
+// live for the app lifetime. Calling their cleanup() on App unmount races
+// with module-load IIFE auto-init under React 18 StrictMode dev double-mount,
+// and provides no benefit (App is the root component and never unmounts in
+// production). Use the `reinitializeWasm*` paths for legitimate reset flows.
 
 function App() {
+  // Mounted-ref guards async work (loadAppearanceSettings) from applying
+  // CSS variable changes after unmount during StrictMode dev double-mount.
+  const isMountedRef = useRef(true);
+
   // Load and apply appearance settings on app start
   useEffect(() => {
+    isMountedRef.current = true;
+
     const loadAppearanceSettings = async () => {
       try {
         const result = await window.electronAPI.loadAppearanceSettings();
+        if (!isMountedRef.current) return;
         if (result.success && result.data) {
           const appearance = result.data;
 
@@ -34,6 +42,7 @@ function App() {
           }
         }
       } catch (error) {
+        if (!isMountedRef.current) return;
         logger.error('Failed to load appearance settings:', error);
       }
     };
@@ -338,18 +347,13 @@ function App() {
         logger.log('   - window.optimizationBenchmarks.compareToBaseline() - Compare to baseline');
       }
 
-      // Set up cleanup on unmount
+      // Set up cleanup on unmount.
+      // Only stop the performance monitor (it owns a setInterval). Do NOT touch
+      // WASM/cache singletons here — they outlive React component lifecycle and
+      // calling their .cleanup() races with module-load auto-init under StrictMode.
       return () => {
         systemPerformanceMonitor.destroy();
-        wasmMemoryPoolManager.cleanup();
-        contentAwarePositionCache.destroy();
-        // CODE REVIEW FIX (MEDIUM-7): Add WASM cleanup
-        cleanupWasmNumberProcessor();
-        cleanupWasmPatternProcessor();
-        rustLookupIndexManager.cleanup();
         logger.log('🔍 Performance monitoring destroyed');
-        logger.log('🧠 WASM Memory Pool cleanup completed');
-        logger.log('🧹 WASM components cleanup completed');
       };
     };
 
@@ -357,7 +361,10 @@ function App() {
 
     const cleanup = initializePerformanceMonitoring();
 
-    return cleanup;
+    return () => {
+      isMountedRef.current = false;
+      cleanup();
+    };
   }, []);
 
   return (

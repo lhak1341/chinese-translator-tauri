@@ -39,6 +39,18 @@ TypeScript does not narrow optional property accesses through `&&` spreads — `
 
 Initial load (~line 469) and reload (~line 2234) both pass `priorities: { properNouns: N, ... }` explicitly. `options.priorities` overrides all defaults in `DictionaryManager.loadDictionaries`. Any change to the priority scheme or init options must be applied to **both** call sites.
 
+## Translator.jsx Engine Init Effect — 5-Condition Gate
+
+`!isLoading && !loadError && configLoaded && dictionaries && !engineInitialized` — each clause guards a distinct race. Removing any silently re-introduces its bug:
+
+- `!isLoading`: dicts not yet in React state.
+- `!loadError`: full dict-load failure → `dictionaries = {}` (truthy) would otherwise pass and engine emits garbage with no UI feedback.
+- `configLoaded`: `loadInitialConfig` (line ~342, deps `[]`) loads saved `activeProperNouns` from disk. Without this gate, default `['properNouns']` snapshots when dicts win the race → `getFilteredDictionaries` drops every `properNouns-*` novel dict → names un-capitalized until user reloads.
+- `dictionaries`: defensive presence check.
+- `!engineInitialized`: idempotent.
+
+Three independent `window.electronAPI.loadConfiguration()` reads run on cold start: `DictionaryContext.loadInitialState` (for `lastSelectedDictionary`), `Translator.loadInitialConfig` (for `activeProperNouns`), and `TranslationEngine.initialize` (line ~1219, sets internal `this.activeProperNouns`). They do not coordinate.
+
 ## Error Utilities
 
 Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of `error instanceof Error ? error.message : 'Unknown error'` — the inline form misses `string`, `{ message }`, and `null` inputs.

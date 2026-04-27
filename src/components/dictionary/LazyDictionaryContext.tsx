@@ -115,6 +115,7 @@ export function LazyDictionaryProvider({
   const [dictionaries, setDictionaries] = useState<{ [key: string]: DictionaryData }>({});
   const [loadedDictionaries, setLoadedDictionaries] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [history, setHistory] = useState<SnapshotHistoryOperation[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
   const currentHistoryIndexRef = useRef(currentHistoryIndex);
@@ -267,6 +268,7 @@ export function LazyDictionaryProvider({
   useEffect(() => {
     const loadInitialState = async (): Promise<void> => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         // Load dictionary types first
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
@@ -291,7 +293,13 @@ export function LazyDictionaryProvider({
         // Schedule preloading of other dictionaries
         schedulePreload(initialDictionary, Object.keys(types));
       } catch (error) {
+        const msg = `Failed to load dictionaries: ${extractErrorMessage(error)}`;
         logger.error('Failed to load initial state:', error);
+        setLoadError(msg);
+        toast.error(msg, {
+          duration: TOAST_DURATIONS.CRITICAL,
+          id: TOAST_IDS.DICT_LOAD_FAILED,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -914,6 +922,7 @@ export function LazyDictionaryProvider({
     () => ({
       dictionaries,
       isLoading,
+      loadError,
       addEntry,
       updateEntry,
       deleteEntry,
@@ -935,6 +944,7 @@ export function LazyDictionaryProvider({
     [
       dictionaries,
       isLoading,
+      loadError,
       addEntry,
       updateEntry,
       deleteEntry,

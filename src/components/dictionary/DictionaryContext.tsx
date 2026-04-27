@@ -104,6 +104,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // State management for dictionaries and UI
   const [dictionaries, setDictionaries] = useState<{ [key: string]: DictionaryData }>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryOperation[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
   // Ref-mirror so addToHistory reads the latest index without being recreated on every undo/redo
@@ -118,6 +119,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   useEffect(() => {
     const loadInitialState = async (): Promise<void> => {
       setIsLoading(true);
+      setLoadError(null);
       const loadedDictionaries: { [key: string]: DictionaryData } = {};
 
       try {
@@ -146,11 +148,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         logger.log(
           `📚 Parallel dictionary loading: ${batchResult.successful}/${batchResult.total} dictionaries loaded in ${loadTime}ms`
         );
-        if (batchResult.failed > 0) {
-          logger.warn(`⚠️ ${batchResult.failed} dictionaries failed to load`);
-        }
 
         // Process results and sort dictionaries
+        const failedIds: string[] = [];
         batchResult.results.forEach((result: BatchDictionaryResult) => {
           if (result.success && result.data) {
             loadedDictionaries[result.dictionary_id] = sortDictionaryEntries(
@@ -159,14 +159,76 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             );
           } else {
             logger.error(`Failed to load dictionary ${result.dictionary_id}:`, result.error);
+            failedIds.push(result.dictionary_id);
             // Initialize with empty dictionary if load fails
             loadedDictionaries[result.dictionary_id] = {};
           }
         });
 
+        // Auto-retry failed dictionaries once via the single-dict serial path
+        // before declaring partial failure. Cold-launch flakiness (file lock,
+        // Rayon thread pool warmup, OS read pressure) sometimes drops a
+        // dictionary on the parallel path; the same file loads cleanly on a
+        // retry, which is exactly what the manual "Reload" button does. We
+        // do this here so users do not have to click reload to recover.
+        const stillFailedIds: string[] = [];
+        if (failedIds.length > 0) {
+          logger.warn(
+            `⚠️ Initial parallel load failed for ${failedIds.length} dictionaries — retrying serially: ${failedIds.join(', ')}`
+          );
+          const retryResults = await Promise.all(
+            failedIds.map(async (id) => {
+              try {
+                const r = await window.electronAPI.loadDictionary(id);
+                if (r.success && r.data) return { id, data: r.data, success: true as const };
+                return { id, success: false as const, error: r.error };
+              } catch (e) {
+                return { id, success: false as const, error: extractErrorMessage(e) };
+              }
+            })
+          );
+          for (const r of retryResults) {
+            if (r.success) {
+              loadedDictionaries[r.id] = sortDictionaryEntries(r.data, r.id);
+              logger.log(`✅ Retry succeeded for dictionary "${r.id}"`);
+            } else {
+              stillFailedIds.push(r.id);
+              logger.error(`❌ Retry failed for dictionary "${r.id}":`, r.error);
+            }
+          }
+        }
+
+        const totalSuccessful = batchResult.total - stillFailedIds.length;
+
+        // Surface a load error to consumers if ALL dictionaries failed (engine
+        // would initialize with empty tries → garbage translations). Partial
+        // failures still allow translation to proceed with degraded coverage.
+        if (totalSuccessful === 0 && batchResult.total > 0) {
+          const msg = `All ${batchResult.total} dictionaries failed to load. Translation unavailable.`;
+          setLoadError(msg);
+          toast.error(msg, {
+            duration: TOAST_DURATIONS.CRITICAL,
+            id: TOAST_IDS.DICT_LOAD_FAILED,
+          });
+        } else if (stillFailedIds.length > 0) {
+          logger.warn(
+            `⚠️ ${stillFailedIds.length}/${batchResult.total} dictionaries failed after retry: ${stillFailedIds.join(', ')}`
+          );
+          toast.warning(
+            `${stillFailedIds.length} of ${batchResult.total} dictionaries failed to load. Use the Reload button if proper nouns are missing.`,
+            { duration: TOAST_DURATIONS.LOAD_FAILURE, id: TOAST_IDS.DICT_LOAD_FAILED }
+          );
+        }
+
         setDictionaries(loadedDictionaries);
       } catch (error) {
+        const msg = `Failed to load dictionaries: ${extractErrorMessage(error)}`;
         logger.error('Failed to load initial state:', error);
+        setLoadError(msg);
+        toast.error(msg, {
+          duration: TOAST_DURATIONS.CRITICAL,
+          id: TOAST_IDS.DICT_LOAD_FAILED,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -947,6 +1009,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     (): DictionaryContextValue => ({
       dictionaries,
       isLoading,
+      loadError,
       addEntry,
       updateEntry,
       deleteEntry,
@@ -966,6 +1029,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [
       dictionaries,
       isLoading,
+      loadError,
       addEntry,
       updateEntry,
       deleteEntry,

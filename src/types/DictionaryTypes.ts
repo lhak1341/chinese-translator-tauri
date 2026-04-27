@@ -114,6 +114,14 @@ export interface DictionaryContextInterface {
   dictionaries: { [key: string]: DictionaryData };
   /** Whether initial loading is in progress */
   isLoading: boolean;
+  /**
+   * Error message from initial dictionary load failure, or null on success.
+   * Consumers (e.g. Translator) MUST check this before initializing the
+   * translation engine — `dictionaries` will be `{}` on failure and the
+   * engine would otherwise initialize with empty tries, producing garbage
+   * translations with no user feedback.
+   */
+  loadError: string | null;
   /** Add a new entry to dictionary */
   addEntry: (
     dictionaryId: string,

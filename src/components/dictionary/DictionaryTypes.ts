@@ -5,6 +5,8 @@ import charactersDict from '../../dictionaries/characters.json';
 import conversionDict from '../../dictionaries/conversion.json';
 import punctuationDict from '../../dictionaries/punctuation.json';
 import { logger } from '../../utils/logger.js';
+import toast from '../../utils/toast';
+import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import type { DictionaryData } from '../../types/DictionaryTypes.js';
 
 const MAX_ENTRY_LENGTH = 10000;
@@ -177,6 +179,15 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
     };
   } catch (error) {
     logger.error('Error loading dictionary types:', error);
+    // Surface to user — silent fallback hides custom proper-noun dictionaries
+    // (novels) from the UI until manual reload, with no indication of failure.
+    toast.warning(
+      'Could not list custom proper-noun dictionaries. Only the built-in set is available.',
+      {
+        duration: TOAST_DURATIONS.LOAD_FAILURE,
+        id: TOAST_IDS.DICT_LOAD_FAILED,
+      }
+    );
     return baseDictionaryTypes;
   }
 };
