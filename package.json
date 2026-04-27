@@ -21,6 +21,7 @@
     "tauri": "tauri",
     "tauri:dev": "npm run build-wasm-dev && tauri dev",
     "tauri:build": "npm run build-wasm && tauri build",
+    "tauri:deploy": "npm run tauri:build && cp -r 'src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app' /Applications/",
     "precompute-dictionaries": "node scripts/precompute-dictionaries.js",
     "prepare": "husky"
   },

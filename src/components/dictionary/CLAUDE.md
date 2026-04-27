@@ -28,6 +28,12 @@ After touching any CRUD function or `addToHistory` in either context, audit for:
 
 **`bulkDeleteEntries`** follows the same snapshot-before-updater pattern: compute `oldData`/`sortedDictionary` from the closed-over `dictionaries` snapshot BEFORE `setDictionaries`.
 
+**`LazyDictionaryContext.addToHistory` must NOT use a state updater**: reads `historyRef.current` + `currentHistoryIndexRef.current` synchronously, then calls `setHistory(newHistory)` and `setCurrentHistoryIndex(newHistory.length - 1)` as direct values. Do not revert to updater form — the outer `let shiftedCount` pattern double-invokes under Concurrent Mode, desynchronizing `currentHistoryIndex` from actual history.
+
+**`moveEntry`/`bulkMoveEntries` pass `sortedSourceDict` (not `sourceResult.data`) to `addToHistory`**: `result.data` is typed as optional — passing it risks `structuredClone(undefined)` corrupting undo history. Use the locally computed dict already in scope.
+
+**`LazyDictionaryContext.loadDictionaryImmediate` failure branch must NOT call `setLoadedDictionaries`**: marking a failed load as "loaded" permanently blocks retries for that dict ID — proper nouns go untranslated for the session with no indication why.
+
 ## Error Handling
 
 **`isSaveError` guard alongside `isValidationError` in catch blocks**: if a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast — otherwise the user sees two toasts.

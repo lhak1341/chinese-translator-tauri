@@ -128,6 +128,8 @@ export function LazyDictionaryProvider({
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
   const currentHistoryIndexRef = useRef(currentHistoryIndex);
   currentHistoryIndexRef.current = currentHistoryIndex;
+  const historyRef = useRef(history);
+  historyRef.current = history;
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
   const [dictionaryTypes, setDictionaryTypes] = useState<DictionaryTypesCollection>({});
 
@@ -209,7 +211,7 @@ export function LazyDictionaryProvider({
               ...prev,
               [dictionaryId]: {},
             }));
-            setLoadedDictionaries((prev) => new Set([...prev, dictionaryId]));
+            // Do NOT mark as loaded on failure — allows retry on next access.
           }
         } catch (error) {
           logger.error(`Error loading dictionary ${dictionaryId}:`, error);
@@ -351,42 +353,35 @@ export function LazyDictionaryProvider({
   usePersistSelectedDictionary(selectedDictionary, isLoading);
 
   // Helper function to add operations to history
-  // HIGH-1 FIX: Deep copy dictionary data to prevent history corruption
-  // structuredClone creates deep copies, preventing mutations to history entries
   const addToHistory = useCallback(
     (dictionaryId: string, oldData: DictionaryData, newData: DictionaryData): void => {
-      let shiftedCount = 0;
-      setHistory((prevHistory) => {
-        const newHistory = prevHistory.slice(0, currentHistoryIndexRef.current + 1);
-        const newOp: SnapshotHistoryOperation = {
-          dictionaryId,
-          oldData: structuredClone(oldData), // Deep copy prevents mutation
-          newData: structuredClone(newData), // Deep copy prevents mutation
-          timestamp: Date.now(),
-        };
-        newHistory.push(newOp);
-        // Slot-count cap
-        while (newHistory.length > MAX_HISTORY) {
-          newHistory.shift();
-          shiftedCount++;
-        }
-        // Entry-count budget — evict oldest until total entries fit. Always keep at
-        // least the most recent op so a single oversized snapshot is still recorded.
-        let totalEntries = newHistory.reduce((sum, op) => sum + countSnapshotEntries(op), 0);
-        while (totalEntries > MAX_HISTORY_ENTRIES && newHistory.length > 1) {
-          const dropped = newHistory.shift()!;
-          totalEntries -= countSnapshotEntries(dropped);
-          shiftedCount++;
-        }
-        return newHistory;
-      });
-      // The new op lands at the end, so its index is (post-shift length - 1). Compute
-      // it from the previous index minus shifts plus one — clamped to MAX_HISTORY-1.
-      setCurrentHistoryIndex((prev) =>
-        Math.min(Math.max(prev - shiftedCount, -1) + 1, MAX_HISTORY - 1)
-      );
+      // Compute new history synchronously from refs — avoids the outer-let-in-updater
+      // anti-pattern: state updaters can double-invoke under Concurrent Mode, incrementing
+      // a captured `let shiftedCount` twice and desynchronizing currentHistoryIndex.
+      const newHistory = historyRef.current.slice(0, currentHistoryIndexRef.current + 1);
+      const newOp: SnapshotHistoryOperation = {
+        dictionaryId,
+        oldData: structuredClone(oldData),
+        newData: structuredClone(newData),
+        timestamp: Date.now(),
+      };
+      newHistory.push(newOp);
+      // Slot-count cap
+      while (newHistory.length > MAX_HISTORY) {
+        newHistory.shift();
+      }
+      // Entry-count budget — evict oldest until total entries fit. Always keep at
+      // least the most recent op so a single oversized snapshot is still recorded.
+      let totalEntries = newHistory.reduce((sum, op) => sum + countSnapshotEntries(op), 0);
+      while (totalEntries > MAX_HISTORY_ENTRIES && newHistory.length > 1) {
+        const dropped = newHistory.shift()!;
+        totalEntries -= countSnapshotEntries(dropped);
+      }
+      setHistory(newHistory);
+      // New op always lands at the end of the trimmed array.
+      setCurrentHistoryIndex(newHistory.length - 1);
     },
-    [] // stable — reads currentHistoryIndex via ref to avoid stale closure on rapid operations
+    [] // stable — reads history/currentHistoryIndex via refs
   );
 
   // Dictionary operations (same as before but with lazy loading check)
@@ -771,7 +766,7 @@ export function LazyDictionaryProvider({
       ]);
 
       if (sourceResult.success && targetResult.success) {
-        addToHistory(sourceDictId, currentSourceDict, sourceResult.data);
+        addToHistory(sourceDictId, currentSourceDict, sortedSourceDict);
         toast.success(`Entry moved to ${targetDictLabel}`);
         await invalidateTranslationEngineCache(sourceDictId);
         await invalidateTranslationEngineCache(targetDictId);
@@ -844,7 +839,7 @@ export function LazyDictionaryProvider({
       ]);
 
       if (sourceResult.success && targetResult.success) {
-        addToHistory(sourceDictId, currentSourceDict, sourceResult.data);
+        addToHistory(sourceDictId, currentSourceDict, sortedSourceDict);
         toast.success(
           `Moved ${movedCount} ${movedCount === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`
         );

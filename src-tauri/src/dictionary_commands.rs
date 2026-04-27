@@ -884,7 +884,7 @@ fn save_json_file(
             MAX_JSON_SIZE_BYTES / 1024 / 1024
         ));
     }
-    fs::write(path, json_string).map_err(|e| sanitize_io_error(e, "config file"))?;
+    write_atomic(path, json_string.as_bytes())?;
     Ok(DictionaryResponse::ok())
 }
 
@@ -1149,8 +1149,8 @@ pub async fn import_dictionaries(
                 // Use validated base_name (not raw filename from ZIP header) to build the
                 // output path, eliminating the distance between validation and use.
                 let output_path = dictionary_path.join(format!("{}.json", base_name));
-                if let Err(e) = fs::write(&output_path, &contents) {
-                    errors.push(format!("{}: write error: {}", filename, sanitize_io_error(e, "dictionary file")));
+                if let Err(e) = write_atomic(&output_path, contents.as_bytes()) {
+                    errors.push(format!("{}: write error: {}", filename, e));
                     continue;
                 }
                 file_count += 1;
