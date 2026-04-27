@@ -655,6 +655,32 @@ pub async fn create_proper_nouns_dictionary(
     // Invalidate any stale cache entry for this dictionary (defensive: handles delete/re-create cycles)
     cache.invalidate(Some(&dictionary_id));
 
+    // L2: Append the newly-created dictionary to activeProperNouns so the
+    // engine picks it up immediately. Mirrors rename_proper_nouns_dictionary's
+    // config-side bookkeeping. Failure here is non-fatal — the dictionary file
+    // exists, and the user can still activate it manually.
+    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
+    if config_path.exists() {
+        if let Ok(contents) = fs::read_to_string(&config_path) {
+            if let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) {
+                let active = config
+                    .as_object_mut()
+                    .and_then(|obj| {
+                        obj.entry("activeProperNouns")
+                            .or_insert_with(|| serde_json::Value::Array(Vec::new()))
+                            .as_array_mut()
+                    });
+                if let Some(active_array) = active {
+                    let already_present = active_array.iter().any(|v| v.as_str() == Some(dictionary_id.as_str()));
+                    if !already_present {
+                        active_array.push(serde_json::Value::String(dictionary_id.clone()));
+                        let _ = save_json_file(&config_path, &config);
+                    }
+                }
+            }
+        }
+    }
+
     Ok(DictionaryResponse::ok())
 }
 
@@ -698,12 +724,46 @@ pub async fn save_dictionary(
         ));
     }
 
-    fs::write(&file_path, json_string).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
+    // M1: Invalidate cache before the write so a concurrent load between
+    // write completion and post-write invalidation cannot return stale data.
+    cache.invalidate(Some(&dictionary_id));
 
-    // Invalidate cache for this dictionary
+    // C2: Atomic write — write to a sibling temp file, then rename. fs::rename
+    // is atomic on the same filesystem, so a crash mid-write leaves the
+    // original file intact. fs::write alone truncates+writes in place and can
+    // leave a partial/corrupt file on crash or concurrent saves.
+    write_atomic(&file_path, json_string.as_bytes())?;
+
+    // Defensive second invalidation — closes the very narrow window where a
+    // load between the pre-write invalidate and rename completion could
+    // re-cache the previous file's contents.
     cache.invalidate(Some(&dictionary_id));
 
     Ok(DictionaryResponse::ok_with_data(data))
+}
+
+/// C2: Write `bytes` to `path` atomically by writing to `path.tmp.<pid>` and
+/// renaming. Same-filesystem rename is atomic on POSIX and Windows ≥ Vista.
+fn write_atomic(path: &PathBuf, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Invalid dictionary file path".to_string())?;
+    // Use the file name + ".tmp" + pid so concurrent writers don't collide.
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "Invalid dictionary file name".to_string())?;
+    let tmp_path = parent.join(format!("{}.tmp.{}", file_name, std::process::id()));
+
+    fs::write(&tmp_path, bytes).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
+
+    if let Err(e) = fs::rename(&tmp_path, path) {
+        // Best-effort cleanup of the temp file on rename failure.
+        let _ = fs::remove_file(&tmp_path);
+        return Err(sanitize_io_error(e, "dictionary file"));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -1354,20 +1414,16 @@ pub async fn rename_proper_nouns_dictionary(
         return Ok(DictionaryResponse::err(format!("Dictionary '{}' already exists", new_dictionary_id)));
     }
 
-    // Rename the file
-    fs::rename(&old_file_path, &new_file_path).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
-
-    // Invalidate cache for old dictionary
-    cache.invalidate(Some(&old_dictionary_id));
-
-    // Update config.json to replace old name with new name
+    // H3: Atomic rename — prepare the updated config in memory FIRST, then rename
+    // the file, then save the config. If config save fails, roll back the rename
+    // so the file name and config stay in sync. Previously the file was renamed
+    // before the config was even read, so any failure between left the on-disk
+    // config referencing a non-existent old_dictionary_id.
     let config_path = get_app_data_dir(&app_handle)?.join("config.json");
-
-    if config_path.exists() {
+    let prepared_config: Option<serde_json::Value> = if config_path.exists() {
         match fs::read_to_string(&config_path) {
-            Ok(contents) => {
-                if let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) {
-                    // Update activeProperNouns array
+            Ok(contents) => match serde_json::from_str::<serde_json::Value>(&contents) {
+                Ok(mut config) => {
                     if let Some(active) = config.get_mut("activeProperNouns") {
                         if let Some(active_array) = active.as_array_mut() {
                             for item in active_array.iter_mut() {
@@ -1379,8 +1435,6 @@ pub async fn rename_proper_nouns_dictionary(
                             }
                         }
                     }
-
-                    // Update lastSelectedDictionary if it matches
                     if let Some(last_selected) = config.get_mut("lastSelectedDictionary") {
                         if let Some(dict_name) = last_selected.as_str() {
                             if dict_name == old_dictionary_id {
@@ -1388,14 +1442,31 @@ pub async fn rename_proper_nouns_dictionary(
                             }
                         }
                     }
-
-                    // Save updated config (via helper to enforce depth + size guards)
-                    save_json_file(&config_path, &config)?;
+                    Some(config)
                 }
-            }
-            Err(_) => {
-                // If config doesn't exist or can't be read, continue anyway
-            }
+                Err(_) => None,
+            },
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+
+    // Rename the file
+    fs::rename(&old_file_path, &new_file_path).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
+
+    // Invalidate cache for old dictionary
+    cache.invalidate(Some(&old_dictionary_id));
+
+    // Save the prepared config; on failure, roll back the file rename so the
+    // dictionary file and config remain consistent.
+    if let Some(config) = prepared_config {
+        if let Err(save_err) = save_json_file(&config_path, &config) {
+            // Best-effort rollback. If this also fails the user is in a degraded
+            // state, but they keep their original on-disk file.
+            let _ = fs::rename(&new_file_path, &old_file_path);
+            cache.invalidate(Some(&old_dictionary_id));
+            return Err(save_err);
         }
     }
 

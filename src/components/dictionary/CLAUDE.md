@@ -12,7 +12,7 @@ After touching any CRUD function or `addToHistory` in either context, audit for:
 4. `isValidationError`/`isSaveError` double-toast guards
 5. Metadata coverage (`allowAsPatternVariable`, `lowPriority`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
 6. `sanitizeDictionaryEntry` called at the top of `addEntry`/`updateEntry` before validation
-7. `invalidateTranslationEngineCache` called after successful save — present in all `LazyDictionaryContext` CRUD ops; `DictionaryContext.tsx` `addEntry`/`updateEntry`/`deleteEntry` still missing it (known gap as of 2026-04-12, only `bulkDeleteEntries` was fixed)
+7. `invalidateTranslationEngineCache` called after successful save — required in every CRUD success branch AND in `undo`/`redo` paths in both contexts
 
 `undo`/`redo` dep arrays: `[history, currentHistoryIndex]` — not `dictionaries`; read `dictionariesRef.current` directly. Undo limitation in `LazyDictionaryContext`: snapshot-based history is single-dict; `moveEntry`/`bulkMoveEntries` undo only restores the source dict.
 

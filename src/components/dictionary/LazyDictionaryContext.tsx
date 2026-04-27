@@ -74,6 +74,14 @@ interface LazyDictionaryProviderProps {
 const LazyDictionaryContext = createContext<LazyDictionaryContextValue | undefined>(undefined);
 
 const MAX_HISTORY = 100;
+// Snapshot history is memory-heavy (each entry holds two structuredClones of a dict).
+// Cap total entries across all snapshots so a few large dicts can't blow the heap.
+// 200K total entries ≈ 40MB at 200B/entry — comfortable on the 1GB+ heaps Tauri runs with.
+const MAX_HISTORY_ENTRIES = 200_000;
+
+function countSnapshotEntries(snapshot: SnapshotHistoryOperation): number {
+  return Object.keys(snapshot.oldData).length + Object.keys(snapshot.newData).length;
+}
 
 async function invalidateTranslationEngineCache(dictionaryId: string): Promise<void> {
   if (!window.translationEngine) return;
@@ -347,20 +355,36 @@ export function LazyDictionaryProvider({
   // structuredClone creates deep copies, preventing mutations to history entries
   const addToHistory = useCallback(
     (dictionaryId: string, oldData: DictionaryData, newData: DictionaryData): void => {
+      let shiftedCount = 0;
       setHistory((prevHistory) => {
         const newHistory = prevHistory.slice(0, currentHistoryIndexRef.current + 1);
-        newHistory.push({
+        const newOp: SnapshotHistoryOperation = {
           dictionaryId,
           oldData: structuredClone(oldData), // Deep copy prevents mutation
           newData: structuredClone(newData), // Deep copy prevents mutation
           timestamp: Date.now(),
-        });
-        if (newHistory.length > MAX_HISTORY) {
+        };
+        newHistory.push(newOp);
+        // Slot-count cap
+        while (newHistory.length > MAX_HISTORY) {
           newHistory.shift();
+          shiftedCount++;
+        }
+        // Entry-count budget — evict oldest until total entries fit. Always keep at
+        // least the most recent op so a single oversized snapshot is still recorded.
+        let totalEntries = newHistory.reduce((sum, op) => sum + countSnapshotEntries(op), 0);
+        while (totalEntries > MAX_HISTORY_ENTRIES && newHistory.length > 1) {
+          const dropped = newHistory.shift()!;
+          totalEntries -= countSnapshotEntries(dropped);
+          shiftedCount++;
         }
         return newHistory;
       });
-      setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
+      // The new op lands at the end, so its index is (post-shift length - 1). Compute
+      // it from the previous index minus shifts plus one — clamped to MAX_HISTORY-1.
+      setCurrentHistoryIndex((prev) =>
+        Math.min(Math.max(prev - shiftedCount, -1) + 1, MAX_HISTORY - 1)
+      );
     },
     [] // stable — reads currentHistoryIndex via ref to avoid stale closure on rapid operations
   );
@@ -400,6 +424,7 @@ export function LazyDictionaryProvider({
         }
 
         const oldData = { ...dictionaries[dictionaryId] };
+        const isOverwrite = oldData[cleanSource] !== undefined;
 
         let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
@@ -439,7 +464,11 @@ export function LazyDictionaryProvider({
 
         if (result.success && result.data) {
           addToHistory(dictionaryId, oldData, result.data);
-          toast.success('Entry added successfully');
+          if (isOverwrite) {
+            toast.warning('Existing entry overwritten');
+          } else {
+            toast.success('Entry added successfully');
+          }
 
           await invalidateTranslationEngineCache(dictionaryId);
         } else {
@@ -582,6 +611,11 @@ export function LazyDictionaryProvider({
 
       try {
         const oldData = { ...dictionaries[dictionaryId] };
+        if (oldData[source] === undefined) {
+          const msg = `Entry '${source}' not found in dictionary`;
+          toast.warning(msg);
+          throw new ValidationError(msg);
+        }
         const updatedDictionary = { ...oldData };
         delete updatedDictionary[source];
         const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
@@ -647,17 +681,20 @@ export function LazyDictionaryProvider({
         const updatedDictionary = { ...oldData };
         const errors: string[] = [];
         let successCount = 0;
+        let firstDeleted: string | undefined;
 
         for (const source of sources) {
           if (updatedDictionary[source] !== undefined) {
             delete updatedDictionary[source];
             successCount++;
+            if (firstDeleted === undefined) firstDeleted = source;
           } else {
             errors.push(`Entry "${source}" not found in dictionary`);
           }
         }
 
-        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sources[0]);
+        const sortAnchor = firstDeleted ?? sources[0];
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sortAnchor);
 
         setDictionaries((prev) => ({
           ...prev,
@@ -777,20 +814,23 @@ export function LazyDictionaryProvider({
       const errors: string[] = [];
       const updatedSourceDict = { ...currentSourceDict };
       const updatedTargetDict = { ...currentTargetDict };
+      const movedSources: string[] = [];
 
       for (const source of sources) {
         const value = updatedSourceDict[source];
         if (value !== undefined) {
           updatedTargetDict[source] = value;
           delete updatedSourceDict[source];
+          movedSources.push(source);
         } else {
           errors.push(`Entry "${source}" not found`);
         }
       }
 
-      const movedCount = sources.length - errors.length;
-      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sources[0]);
-      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sources[0]);
+      const movedCount = movedSources.length;
+      const sortAnchor = movedSources[0] ?? sources[0];
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sortAnchor);
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sortAnchor);
 
       setDictionaries((prev) => ({
         ...prev,

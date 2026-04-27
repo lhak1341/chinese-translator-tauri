@@ -329,6 +329,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
         const oldData = { ...dictionaries[dictionaryId] };
+        const isOverwrite = oldData[cleanSource] !== undefined;
         const updatedDictionary = { ...oldData, [cleanSource]: targetValue };
         const sortedDictionary = sortDictionaryEntries(
           updatedDictionary,
@@ -354,7 +355,12 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
               value: targetValue,
             },
           });
-          toast.success('Entry added successfully');
+          if (isOverwrite) {
+            toast.warning('Existing entry overwritten');
+          } else {
+            toast.success('Entry added successfully');
+          }
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           setDictionaries((prev) => ({
             ...prev,
@@ -472,6 +478,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             oldSource: oldSource !== cleanNewSource ? oldSource : undefined,
           });
           toast.success('Entry updated successfully');
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           setDictionaries((prev) => ({
             ...prev,
@@ -505,6 +512,11 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         const oldData = { ...dictionaries[dictionaryId] };
         // Capture old entry for delta-based undo
         const oldEntryValue = oldData[source];
+        if (oldEntryValue === undefined) {
+          const msg = `Entry '${source}' not found in dictionary`;
+          toast.warning(msg);
+          throw new ValidationError(msg);
+        }
         const updatedDictionary = { ...oldData };
         delete updatedDictionary[source];
         const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
@@ -522,14 +534,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           addToHistory({
             dictionaryId,
             operation: 'delete',
-            oldEntry: oldEntryValue
-              ? {
-                  source,
-                  value: oldEntryValue,
-                }
-              : undefined,
+            oldEntry: {
+              source,
+              value: oldEntryValue,
+            },
           });
           toast.success('Entry deleted successfully');
+          await invalidateTranslationEngineCache(dictionaryId);
         } else {
           setDictionaries((prev) => ({
             ...prev,
@@ -586,7 +597,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           }
         }
 
-        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sources[0]);
+        const sortAnchor = deletedEntries[0]?.source ?? sources[0];
+        const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sortAnchor);
 
         // Pure functional update — no side effects inside updater
         setDictionaries((prev) => ({
@@ -651,12 +663,14 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       const currentSourceDict = dictionaries[sourceDictId];
       const currentTargetDict = dictionaries[targetDictId];
 
-      if (!currentSourceDict) throw new Error(`Source dictionary '${sourceDictId}' does not exist`);
-      if (!currentTargetDict) throw new Error(`Target dictionary '${targetDictId}' does not exist`);
+      if (!currentSourceDict)
+        throw new ValidationError(`Source dictionary '${sourceDictId}' does not exist`);
+      if (!currentTargetDict)
+        throw new ValidationError(`Target dictionary '${targetDictId}' does not exist`);
 
       const entryValue = currentSourceDict[source];
       if (entryValue === undefined)
-        throw new Error(`Entry '${source}' not found in source dictionary`);
+        throw new ValidationError(`Entry '${source}' not found in source dictionary`);
 
       const updatedSourceDict = { ...currentSourceDict };
       delete updatedSourceDict[source];
@@ -684,6 +698,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           oldEntry: { source, value: entryValue },
         });
         toast.success(`Entry moved to ${targetDictLabel}`);
+        await invalidateTranslationEngineCache(sourceDictId);
+        await invalidateTranslationEngineCache(targetDictId);
       } else {
         // Rollback React state
         setDictionaries((prev) => ({
@@ -697,7 +713,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         } else if (!sourceResult.success && targetResult.success) {
           await window.electronAPI.saveDictionary(targetDictId, currentTargetDict).catch(() => {});
         }
-        throw new Error('Failed to save dictionaries during move');
+        throw new SaveError('Failed to save dictionaries during move');
       }
     },
     [dictionaries, addToHistory]
@@ -716,8 +732,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       const currentSourceDict = dictionaries[sourceDictId];
       const currentTargetDict = dictionaries[targetDictId];
 
-      if (!currentSourceDict) throw new Error(`Source dictionary '${sourceDictId}' does not exist`);
-      if (!currentTargetDict) throw new Error(`Target dictionary '${targetDictId}' does not exist`);
+      if (!currentSourceDict)
+        throw new ValidationError(`Source dictionary '${sourceDictId}' does not exist`);
+      if (!currentTargetDict)
+        throw new ValidationError(`Target dictionary '${targetDictId}' does not exist`);
 
       const movedEntries: Array<{ source: string; value: DictionaryEntryValue }> = [];
       const errors: string[] = [];
@@ -735,8 +753,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
       }
 
-      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sources[0]);
-      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sources[0]);
+      const sortAnchor = movedEntries[0]?.source ?? sources[0];
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sortAnchor);
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sortAnchor);
 
       // Optimistic update
       setDictionaries((prev) => ({
@@ -761,6 +780,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
         const count = movedEntries.length;
         toast.success(`Moved ${count} ${count === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`);
+        await invalidateTranslationEngineCache(sourceDictId);
+        await invalidateTranslationEngineCache(targetDictId);
       } else {
         // Rollback React state
         setDictionaries((prev) => ({
@@ -773,7 +794,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         } else if (!sourceResult.success && targetResult.success) {
           await window.electronAPI.saveDictionary(targetDictId, currentTargetDict).catch(() => {});
         }
-        throw new Error('Failed to save dictionaries during bulk move');
+        throw new SaveError('Failed to save dictionaries during bulk move');
       }
 
       return { movedCount: movedEntries.length, errors };
@@ -830,6 +851,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             [operation.targetDictionaryId!]: sortedTarget,
           }));
           setCurrentHistoryIndex((prev) => prev - 1);
+          await invalidateTranslationEngineCache(operation.dictionaryId);
+          await invalidateTranslationEngineCache(operation.targetDictionaryId);
           return true;
         }
         return false;
@@ -885,6 +908,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [operation.dictionaryId]: updatedDict,
         }));
         setCurrentHistoryIndex((prev) => prev - 1);
+        await invalidateTranslationEngineCache(operation.dictionaryId);
         return true;
       }
     }
@@ -939,6 +963,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             [operation.targetDictionaryId!]: sortedTarget,
           }));
           setCurrentHistoryIndex((prev) => prev + 1);
+          await invalidateTranslationEngineCache(operation.dictionaryId);
+          await invalidateTranslationEngineCache(operation.targetDictionaryId);
           return true;
         }
         return false;
@@ -994,6 +1020,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [operation.dictionaryId]: updatedDict,
         }));
         setCurrentHistoryIndex((prev) => prev + 1);
+        await invalidateTranslationEngineCache(operation.dictionaryId);
         return true;
       }
     }
