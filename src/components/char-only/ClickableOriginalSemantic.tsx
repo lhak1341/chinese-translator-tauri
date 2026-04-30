@@ -8,8 +8,8 @@ import type {
   SegmentClickPayload,
   SegmentClickHandler,
 } from '../../types/ClickableTypes';
-import { SegmentPrecomputer } from '../../utils/highlighting/SegmentPrecomputer.js';
-import { groupSegmentsIntoParagraphs } from '../../utils/text/ParagraphGrouping';
+import { SegmentPrecomputer } from '../../utils/highlighting';
+import { groupSegmentsIntoParagraphs } from '../../utils/text';
 import styles from '../../styles/ClickableOriginalSemantic.module.css';
 import { logger } from '../../utils/logger';
 

@@ -21,10 +21,7 @@ import { useHotkeyHandler } from '../../hooks/useHotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
-import {
-  findConflictingEntries,
-  type DuplicateRow,
-} from '../../utils/highlighting/DuplicateAnalyzer';
+import { findConflictingEntries, type DuplicateRow } from '../../utils/highlighting';
 import { toast } from '../ToastContext';
 
 /**

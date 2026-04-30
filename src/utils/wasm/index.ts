@@ -27,15 +27,7 @@ export {
 export { resolveGlobalConflictsWasm } from './WasmConflictResolution';
 
 // --- Number processor (phase 3) ---
-export {
-  initializeWasmNumberProcessor,
-  processNumbersWasm,
-  isWasmNumberProcessorAvailable,
-  hasWasmNumberProcessorFailed,
-  getWasmNumberProcessorStatus,
-  reinitializeWasmNumberProcessor,
-  cleanupWasmNumberProcessor,
-} from './WasmNumberProcessor';
+export { processNumbersWasm, isWasmNumberProcessorAvailable } from './WasmNumberProcessor';
 
 // --- Pattern processor (phase 1) ---
 export {

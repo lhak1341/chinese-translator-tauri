@@ -20,7 +20,7 @@ import React, {
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
-import { sanitizeDictionaryEntry } from '../../utils/text/TextSanitization';
+import { sanitizeDictionaryEntry } from '../../utils/text';
 import {
   sortDictionaryEntries,
   getSortingStats,

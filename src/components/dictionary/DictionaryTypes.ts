@@ -11,7 +11,7 @@ import type { DictionaryData } from '../../types/DictionaryTypes.js';
 
 const MAX_ENTRY_LENGTH = 10000;
 
-export interface DictionaryTypeDefinition {
+interface DictionaryTypeDefinition {
   id: string;
   label: string;
   description: string;
@@ -19,7 +19,7 @@ export interface DictionaryTypeDefinition {
   validate: (source: string, translation: string) => string | null;
 }
 
-export interface DictionaryInfo {
+interface DictionaryInfo {
   label: string | undefined;
   description: string | undefined;
 }

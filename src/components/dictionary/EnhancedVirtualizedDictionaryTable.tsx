@@ -13,10 +13,13 @@ import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
-import { adaptiveBufferCalculator } from '../../utils/highlighting/AdaptiveVirtualScrolling.js';
+import {
+  adaptiveBufferCalculator,
+  createDuplicateKey,
+  parseDuplicateKey,
+} from '../../utils/highlighting';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
-import { createDuplicateKey, parseDuplicateKey } from '../../utils/highlighting/DuplicateAnalyzer';
 import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
 import { toast } from '../ToastContext';
 import type {

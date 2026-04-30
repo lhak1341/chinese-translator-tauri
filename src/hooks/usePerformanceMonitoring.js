@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { logger } from '../utils/logger';
-import { globalPerformanceMonitor } from '../utils/performance/PerformanceMonitor';
-import { systemPerformanceMonitor } from '../utils/performance/ProactivePerformanceDetector';
+import { globalPerformanceMonitor, systemPerformanceMonitor } from '../utils/performance';
 
 /**
  * @import { PerformanceMetrics, RegressionHealth } from '../types/PerformanceTypes'

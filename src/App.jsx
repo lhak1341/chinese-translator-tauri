@@ -2,9 +2,8 @@ import { useEffect, useRef } from 'react';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
-import { systemPerformanceMonitor } from './utils/performance/ProactivePerformanceDetector.js';
+import { systemPerformanceMonitor, optimizationBenchmarks } from './utils/performance';
 import { logger } from './utils/logger';
-import { optimizationBenchmarks } from './utils/performance/OptimizationBenchmarks.js';
 // NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
 // Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
 // rustLookupIndexManager, wasmMemoryPoolManager, contentAwarePositionCache)

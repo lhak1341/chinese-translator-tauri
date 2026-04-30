@@ -68,7 +68,7 @@ const RETRY_COOLDOWN_MS = 5000; // 5 seconds
  * Initialize the WASM NumberProcessor
  * @returns {Promise<boolean>} True if initialization succeeded
  */
-export async function initializeWasmNumberProcessor() {
+async function initializeWasmNumberProcessor() {
   // Return cached result if already initialized or failed
   if (wasmNumberProcessor) {
     return true;
@@ -250,66 +250,6 @@ export async function processNumbersWasm(tokens) {
  */
 export function isWasmNumberProcessorAvailable() {
   return wasmNumberProcessor !== null;
-}
-
-/**
- * Check if WASM initialization failed
- * @returns {boolean} True if initialization failed
- */
-export function hasWasmNumberProcessorFailed() {
-  return initializationFailed;
-}
-
-/**
- * Get WASM NumberProcessor status
- * @returns {Object} Status information
- */
-export function getWasmNumberProcessorStatus() {
-  return {
-    available: wasmNumberProcessor !== null,
-    failed: initializationFailed,
-    initializing: initializationPromise !== null && wasmNumberProcessor === null,
-  };
-}
-
-/**
- * Re-initialize WASM NumberProcessor
- * @returns {Promise<boolean>} True if re-initialization succeeded
- */
-export async function reinitializeWasmNumberProcessor() {
-  // CODE REVIEW FIX (CRITICAL-1): Check cooldown period before allowing retry
-  if (retryAllowedAfter > Date.now()) {
-    const remainingMs = retryAllowedAfter - Date.now();
-    logger.warn(
-      `⏳ WASM NumberProcessor retry on cooldown (${Math.ceil(remainingMs / 1000)}s remaining)`
-    );
-    return false;
-  }
-
-  // Clear existing state
-  wasmNumberProcessor = null;
-  initializationPromise = null;
-  initializationFailed = false;
-  showedNumberWarning = false; // Reset warning flag to allow new notifications
-  retryAllowedAfter = 0; // Reset cooldown
-
-  // Re-initialize
-  return initializeWasmNumberProcessor();
-}
-
-/**
- * Clean up WASM NumberProcessor resources
- * CODE REVIEW FIX (MEDIUM-7): Added cleanup method for consistency
- * @returns {void}
- */
-export function cleanupWasmNumberProcessor() {
-  wasmNumberProcessor = null;
-  initializationPromise = null;
-  initializationFailed = false;
-  showedNumberWarning = false;
-
-  logger.log('🧹 WASM NumberProcessor cleaned up');
-  // Note: No intervals to clear in this module
 }
 
 // Auto-initialize on import (non-blocking)

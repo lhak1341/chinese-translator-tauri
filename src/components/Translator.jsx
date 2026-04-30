@@ -24,13 +24,14 @@ import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import AppReadinessOverlay from './AppReadinessOverlay';
-import { translationSegmentCache } from '../utils/dictionary/TranslationSegmentCache.js';
+import { translationSegmentCache, parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
-import { systemPerformanceMonitor } from '../utils/performance/ProactivePerformanceDetector.js';
+import { systemPerformanceMonitor } from '../utils/performance';
 import {
   DebouncedProgressHandler,
   SmoothLoadingManager,
-} from '../utils/highlighting/UIResponsiveness.js';
+  scrollToHighlightedElement,
+} from '../utils/highlighting';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
@@ -39,8 +40,6 @@ import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
 } from '../reducers/highlightingReducer.js';
-import { scrollToHighlightedElement } from '../utils/highlighting/ScrollHelpers';
-import { parallelDictionaryLoader } from '../utils/dictionary/ParallelDictionaryLoader.js';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR

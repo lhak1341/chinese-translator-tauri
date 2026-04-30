@@ -55,6 +55,10 @@ Canonical values: `'character'`, `'location'`, `'organization'`, `'concept'`, `'
 
 Pattern `semanticType` accepts `"$X"` or `"$Y"` — resolved at WASM match time from the variable's cache `var_type`. Constants in `src/constants/SemanticTypes.ts`: `PATTERN_SEMANTIC_TYPE_REF_LIST`. UI: `DictionaryEntry.tsx` (full editor) and `SemanticTypeToggleCell` in `EnhancedVirtualizedDictionaryTable.tsx` (inline column, patterns branch only — NOT phrases/properNouns branches).
 
+## `DictionaryInfo` Name Collision
+
+`DictionaryTypes.ts` has a LOCAL `interface DictionaryInfo { label, description }` — display-only type for dictionary type metadata. NOT the same as `ComponentTypes.d.ts::DictionaryInfo { id, name, path, isActive, ... }` which is the API/IPC type used by `ElectronTypes.d.ts`. Do not re-export the local one, do not merge the two. Import `DictionaryInfo` from `../../types/ComponentTypes` for the API type.
+
 ## WASM Wrapper Methods
 
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.

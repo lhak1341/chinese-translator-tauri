@@ -20,7 +20,7 @@ import React, {
 } from 'react';
 import toast from '../../utils/toast';
 import { validateDictionaryEntry, getDictionaryTypes } from './DictionaryTypes';
-import { sanitizeDictionaryEntry } from '../../utils/text/TextSanitization';
+import { sanitizeDictionaryEntry } from '../../utils/text';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
