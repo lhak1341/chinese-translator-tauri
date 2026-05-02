@@ -150,13 +150,27 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
   // Function to validate pattern dictionary entries
   const validatePatternEntry = useCallback(
-    (sourceText: string): boolean => {
+    (sourceText: string, translationText?: string): boolean => {
       if (activeDictionary === 'patterns') {
         const trimmedSource = sourceText.trim();
         const xCount = (trimmedSource.match(/X/g) || []).length;
         if (xCount !== 1) {
           setShowPatternValidation(true);
           return false;
+        }
+        if (translationText !== undefined && translationText.trim().length > 0) {
+          const trimmedTranslation = translationText.trim();
+          if (!(trimmedTranslation.match(/X/g) || []).length) {
+            setShowPatternValidation(true);
+            return false;
+          }
+          if (
+            (trimmedSource.match(/Y/g) || []).length > 0 &&
+            !(trimmedTranslation.match(/Y/g) || []).length
+          ) {
+            setShowPatternValidation(true);
+            return false;
+          }
         }
       }
       setShowPatternValidation(false);
@@ -170,7 +184,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     const hasSource = source.trim().length > 0;
     const hasTranslation = translation.trim().length > 0;
     const isCharacterValid = validateCharacterEntry(source);
-    const isPatternValid = validatePatternEntry(source);
+    const isPatternValid = validatePatternEntry(source, translation);
 
     const isValid = hasSource && hasTranslation && isCharacterValid && isPatternValid;
     setIsFormValid(isValid);
@@ -471,12 +485,13 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
     debouncedValidateRef.current = setTimeout(() => {
       validateCharacterEntry(newSource);
-      validatePatternEntry(newSource);
+      validatePatternEntry(newSource, translation);
     }, 300);
   };
 
   // Handler for when translation field gains focus
   const handleTranslationFocus = (): void => {
+    if (activeDictionary === 'patterns') return;
     if (source.trim()) {
       checkForExistingEntry(source);
     }
@@ -525,8 +540,10 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     }
 
     // Validate pattern dictionary entries
-    if (!validatePatternEntry(source)) {
-      setError('Pattern dictionary entries must contain exactly one "X" character');
+    if (!validatePatternEntry(source, translation)) {
+      setError(
+        'Pattern entry invalid — source needs exactly one X, translation must contain X (and Y if source has Y)'
+      );
       return;
     }
 
@@ -740,10 +757,19 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                       Invalid entry for pattern dictionary
                     </div>
                     <div className={styles.notificationDetailError}>
-                      Pattern dictionary entries must contain exactly one &ldquo;X&rdquo; character.
+                      {(source.trim().match(/X/g) || []).length !== 1
+                        ? 'Source must contain exactly one "X".'
+                        : !(translation.trim().match(/X/g) || []).length
+                          ? 'Translation must contain "X".'
+                          : (source.trim().match(/Y/g) || []).length > 0 &&
+                              !(translation.trim().match(/Y/g) || []).length
+                            ? 'Source has "Y" — translation must also contain "Y".'
+                            : 'Check source and translation contain matching variables.'}
                     </div>
                     <div className={styles.notificationHelper}>
-                      Current X count: {(source.trim().match(/X/g) || []).length}
+                      Source X count: {(source.trim().match(/X/g) || []).length}
+                      {(source.trim().match(/Y/g) || []).length > 0 &&
+                        ` · Y in translation: ${(translation.trim().match(/Y/g) || []).length}`}
                     </div>
                   </div>
                 </div>

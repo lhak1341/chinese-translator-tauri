@@ -514,8 +514,8 @@ const SemanticTypeToggleCell: React.FC<{
                 }
                 style={{
                   background: isActive ? '#8b5cf6' : 'transparent',
-                  color: isActive ? 'white' : '#9ca3af',
-                  border: isActive ? 'none' : '1px dashed #d1d5db',
+                  color: isActive ? 'white' : '#8b5cf6',
+                  border: isActive ? 'none' : '1px dashed #8b5cf6',
                   fontSize: '0.6rem',
                   cursor: 'pointer',
                   padding: '1px 3px',

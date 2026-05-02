@@ -55,6 +55,12 @@ Canonical values: `'character'`, `'location'`, `'organization'`, `'concept'`, `'
 
 Pattern `semanticType` accepts `"$X"` or `"$Y"` — resolved at WASM match time from the variable's cache `var_type`. Constants in `src/constants/SemanticTypes.ts`: `PATTERN_SEMANTIC_TYPE_REF_LIST`. UI: `DictionaryEntry.tsx` (full editor) and `SemanticTypeToggleCell` in `EnhancedVirtualizedDictionaryTable.tsx` (inline column, patterns branch only — NOT phrases/properNouns branches).
 
+Resolution edge cases: `$-ref` to non-existent variable (e.g. `"$Z"` in an X-only pattern) → `None` silently, no error. `$X` where var has `var_type: Some("proper_noun")` (JS non-canonical sentinel for untyped proper-noun entries) → `Some("proper_noun")`, NOT `None` — canonical `allowedVariableTypes` constraints (e.g. `["character"]`) won't match it.
+
+## Pattern Variable Contract
+
+X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally invalid. `validatePatternEntry(sourceText, translationText?)` enforces: source needs exactly one X; translation must contain X; if source has Y, translation must also have Y. Existing-entry suggestion (from other dictionaries) is suppressed for patterns — `handleTranslationFocus` guards on `activeDictionary === 'patterns'`.
+
 ## `DictionaryInfo` Name Collision
 
 `DictionaryTypes.ts` has a LOCAL `interface DictionaryInfo { label, description }` — display-only type for dictionary type metadata. NOT the same as `ComponentTypes.d.ts::DictionaryInfo { id, name, path, isActive, ... }` which is the API/IPC type used by `ElectronTypes.d.ts`. Do not re-export the local one, do not merge the two. Import `DictionaryInfo` from `../../types/ComponentTypes` for the API type.

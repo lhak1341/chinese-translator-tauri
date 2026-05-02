@@ -384,6 +384,97 @@ fn fixed_semantic_type_unchanged() {
         "Fixed semanticType 'location' should pass through regardless of variable type");
 }
 
+/// Pattern with semanticType "$X" where the referenced variable name does not
+/// exist in the pattern (e.g. "$Z" in an X-only pattern) → resolves to None.
+#[test]
+fn dollar_ref_to_missing_variable_resolves_to_none() {
+    use std::collections::HashMap;
+    use translation_wasm_core::pattern_processor::{
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+    };
+
+    // Pattern only has X variable, but semanticType references non-existent "$Z"
+    let pattern = parse_pattern(
+        "X的家".to_string(),
+        "nhà của X".to_string(),
+        None,
+        false,
+        false,
+        Some("$Z".to_string()),
+    );
+
+    let mut cache = HashMap::new();
+    cache.insert(
+        "张三".to_string(),
+        VariableCacheEntry {
+            translation: "Trương Tam".to_string(),
+            source: "properNouns".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let tokens = vec![
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+    ];
+
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    assert!(result.is_some(), "Pattern should still match even with unresolvable $-ref");
+    let m = result.unwrap();
+    assert!(m.success);
+    assert_eq!(m.pattern_semantic_type, None,
+        "semanticType '$Z' with no Z variable in pattern should resolve to None");
+}
+
+/// Pattern with semanticType "$X" where X's var_type is the non-canonical
+/// internal discriminator "proper_noun" (sent by JS when entry has no semanticType).
+/// Should resolve to Some("proper_noun"), NOT None — the untyped case only applies
+/// when var_type is absent (None), not when it is the proper_noun sentinel.
+#[test]
+fn dollar_x_with_proper_noun_var_type_resolves_to_proper_noun() {
+    use std::collections::HashMap;
+    use translation_wasm_core::pattern_processor::{
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+    };
+
+    let pattern = parse_pattern(
+        "X的家".to_string(),
+        "nhà của X".to_string(),
+        None,
+        false,
+        false,
+        Some("$X".to_string()),
+    );
+
+    let mut cache = HashMap::new();
+    cache.insert(
+        "张三".to_string(),
+        VariableCacheEntry {
+            translation: "Trương Tam".to_string(),
+            source: "properNouns".to_string(),
+            var_type: Some("proper_noun".to_string()),
+        },
+    );
+
+    let tokens = vec![
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+    ];
+
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    assert!(result.is_some(), "Pattern should match");
+    let m = result.unwrap();
+    assert!(m.success);
+    assert_eq!(m.pattern_semantic_type.as_deref(), Some("proper_noun"),
+        "semanticType '$X' where X has var_type 'proper_noun' should resolve to Some(\"proper_noun\"), not None. \
+         Note: 'proper_noun' is a non-canonical JS discriminator; allowedVariableTypes constraints using \
+         canonical types (character/location/etc) will NOT match this.");
+}
+
 // ─── Existing unit tests ───────────────────────────────────────────────────
 
 #[test]
