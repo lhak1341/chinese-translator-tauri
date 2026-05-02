@@ -1805,13 +1805,6 @@ const Translator = ({ isActive = true }) => {
         // Clear highlighting when input changes
         clearHighlighting();
 
-        // Load latest configuration
-        const result = await window.electronAPI.loadConfiguration();
-        if (result.success) {
-          const newActiveProperNouns = result.data.activeProperNouns || ['properNouns'];
-          setActiveProperNouns(newActiveProperNouns);
-        }
-
         // Translate if we have input text and dictionaries are loaded
         if (inputText && !isLoading) {
           setIsTranslating(true);
@@ -1858,8 +1851,10 @@ const Translator = ({ isActive = true }) => {
           }
         }
       } catch (error) {
-        // CODE REVIEW FIX: Proper error handling (not ignoring)
-        logger.error('Failed to load configuration:', error);
+        logger.error('Translation effect failed unexpectedly:', error);
+        toast.error(`Translation error: ${extractErrorMessage(error)}`, {
+          duration: TOAST_DURATIONS.CRITICAL,
+        });
       }
     };
 
@@ -2216,7 +2211,9 @@ const Translator = ({ isActive = true }) => {
       setCharacterOnlyText('');
       clearHighlighting();
       setEngineStats(null);
-      setEngineInitialized(false); // Reset initialization flag for reload
+      // Block engine-init effect from racing with our own reinit below
+      isInitializingEngineRef.current = true;
+      setEngineInitialized(false);
 
       // Step 6: Load fresh configuration to get updated activeProperNouns
       // CRITICAL ARCHITECTURAL PATTERN: Load config at operation time, NOT from React state
@@ -2291,6 +2288,8 @@ const Translator = ({ isActive = true }) => {
 
           // Note: window.translationEngine already exposed during initial engine creation
           setEngineStats(engineRef.current.getEngineStats());
+          setEngineInitialized(true);
+          isInitializingEngineRef.current = false;
           logger.log('✅ Engine reinitialized successfully');
 
           // HIGH-6 FIX: Run WASM validation asynchronously without blocking reload
@@ -2422,8 +2421,10 @@ const Translator = ({ isActive = true }) => {
             '❌ Reload Dictionary failed!\n\nError reinitializing engine: ' + _engineError.message;
           setTranslatedText(engineErrorMessage);
           toast.error(`Failed to reinitialize engine: ${_engineError.message}`);
+          isInitializingEngineRef.current = false;
         }
       } else {
+        isInitializingEngineRef.current = false;
         logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
         const warningMessage =
           '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.';
@@ -2532,10 +2533,8 @@ const Translator = ({ isActive = true }) => {
   );
 
   // App-readiness overlay visible until dictionaries + engine are ready.
-  // Hidden when a load/init error is present so the dedicated error banner
-  // (rendered below) can take focus and offer recovery actions.
-  const showReadinessOverlay =
-    !loadError && !initializationError && (isLoading || !configLoaded || !engineInitialized);
+  // Stays visible on initializationError so users can't interact with a broken engine.
+  const showReadinessOverlay = !loadError && (isLoading || !configLoaded || !engineInitialized);
 
   return (
     <div className={styles.container}>

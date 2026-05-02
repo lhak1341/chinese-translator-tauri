@@ -1213,36 +1213,8 @@ export class TranslationEngine {
     const startTime = performance.now();
 
     try {
-      // Load active proper noun dictionaries configuration
-      let activeProperNouns = ['properNouns']; // default fallback
-      try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data.activeProperNouns) {
-          activeProperNouns = configResult.data.activeProperNouns;
-        }
-      } catch (error) {
-        // CODE REVIEW FIX: Log config loading errors for debugging
-        // Expected: File not found (first run), permission denied (rare)
-        // Unexpected: Parse errors (corrupted config), filesystem errors
-        if (error.code === 'ENOENT') {
-          this.log(DEBUG_LEVELS.DEBUG, 'Configuration file not found, using default proper nouns');
-        } else if (error.name === 'SyntaxError') {
-          this.log(
-            DEBUG_LEVELS.WARN,
-            '⚠️ Configuration file corrupted, using defaults:',
-            error.message
-          );
-        } else {
-          this.log(
-            DEBUG_LEVELS.WARN,
-            '⚠️ Could not load configuration, using defaults:',
-            error.message || error
-          );
-        }
-      }
-
-      // Store active proper nouns for use in translation processing
-      this.activeProperNouns = activeProperNouns;
+      // Use caller-supplied activeProperNouns (already loaded by Translator.jsx before engine init)
+      this.activeProperNouns = options.activeProperNouns || ['properNouns'];
       this.log(DEBUG_LEVELS.DEBUG, '🔧 Active proper noun dictionaries:', this.activeProperNouns);
 
       // Load dictionaries into trie structures (with lazy loading for inactive proper nouns)
@@ -2832,7 +2804,7 @@ export class TranslationEngine {
           this.twoPhaseProcessor = new TwoPhasePatternProcessor(
             this.semanticPatternProcessor.patterns,
             {
-              debugMode: true, // Enable debug mode
+              debugMode: process.env.NODE_ENV === 'development',
               maxCompositeDetectionTime: this.settings.maxCompositeDetectionTime,
               enableFallback: this.settings.fallbackToSinglePhase,
             }

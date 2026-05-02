@@ -39,17 +39,26 @@ TypeScript does not narrow optional property accesses through `&&` spreads — `
 
 Initial load (~line 469) and reload (~line 2234) both pass `priorities: { properNouns: N, ... }` explicitly. `options.priorities` overrides all defaults in `DictionaryManager.loadDictionaries`. Any change to the priority scheme or init options must be applied to **both** call sites.
 
-## Translator.jsx Engine Init Effect — 5-Condition Gate
+## Translator.jsx Engine Init Effect — 6-Condition Gate
 
-`!isLoading && !loadError && configLoaded && dictionaries && !engineInitialized` — each clause guards a distinct race. Removing any silently re-introduces its bug:
+`!isLoading && !loadError && configLoaded && dictionaries && !engineInitialized && !isInitializingEngineRef.current` — each clause guards a distinct race. Removing any silently re-introduces its bug:
 
 - `!isLoading`: dicts not yet in React state.
 - `!loadError`: full dict-load failure → `dictionaries = {}` (truthy) would otherwise pass and engine emits garbage with no UI feedback.
 - `configLoaded`: `loadInitialConfig` (line ~342, deps `[]`) loads saved `activeProperNouns` from disk. Without this gate, default `['properNouns']` snapshots when dicts win the race → `getFilteredDictionaries` drops every `properNouns-*` novel dict → names un-capitalized until user reloads.
 - `dictionaries`: defensive presence check.
 - `!engineInitialized`: idempotent.
+- `!isInitializingEngineRef.current`: prevents `handleForceReload`'s own reinit from racing with the effect.
 
-Three independent `window.electronAPI.loadConfiguration()` reads run on cold start: `DictionaryContext.loadInitialState` (for `lastSelectedDictionary`), `Translator.loadInitialConfig` (for `activeProperNouns`), and `TranslationEngine.initialize` (line ~1219, sets internal `this.activeProperNouns`). They do not coordinate.
+Two independent `window.electronAPI.loadConfiguration()` reads run on cold start: `DictionaryContext.loadInitialState` (for `lastSelectedDictionary`) and `Translator.loadInitialConfig` (for `activeProperNouns`). They do not coordinate. `TranslationEngine.initialize` no longer reads config — it uses `options.activeProperNouns` from caller.
+
+## `handleForceReload` Must Lock `isInitializingEngineRef` Around Its Own Engine Reinit
+
+Set `isInitializingEngineRef.current = true` BEFORE calling `setEngineInitialized(false)` — otherwise the engine-init effect sees `engineInitialized → false` and races to create a second engine. After the reload's own `engineRef.current.initialize()` succeeds, call `setEngineInitialized(true)` and reset `isInitializingEngineRef.current = false`. Reset the ref in the catch path too (so the effect can retry on failure).
+
+## `showReadinessOverlay` Must Not Short-Circuit on `initializationError`
+
+When engine init fails: `initializationError` is truthy AND `engineInitialized` is false. Adding `!initializationError` to the condition hides the overlay and lets users interact with a broken engine. Correct condition: `!loadError && (isLoading || !configLoaded || !engineInitialized)`.
 
 ## Error Utilities
 

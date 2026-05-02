@@ -2,9 +2,9 @@
 
 ## TranslationEngine Internals
 
-### `engine.initialize()` Loads Config Independently — But Does Not Filter Dicts
+### `engine.initialize()` Requires `options.activeProperNouns` from Caller
 
-Line ~1219 calls `window.electronAPI.loadConfiguration()` and sets `this.activeProperNouns`. This is used ONLY to populate `this.properNounTranslations` (lowercase→original capitalization map, line ~1263). It does NOT re-filter the `dictionaries` arg — whichever dicts the caller passed in are what the trie sees. Caller's React-side `getFilteredDictionaries(dictionaries, activeProperNouns)` is the authoritative filter; engine's internal config read is a redundant capitalization-cache source.
+Does NOT read config from disk — uses `options.activeProperNouns || ['properNouns']`. If caller omits it, silently falls back to `['properNouns']` and `getFilteredDictionaries` drops all `properNouns-*` novel dicts — names go un-capitalized with no error. Both call sites in `Translator.jsx` must pass it: initial load passes React state; force reload passes a fresh disk read.
 
 ### `addUnit` Third Arg Must Be a Valid `PHASE_PRIORITIES` Key
 
