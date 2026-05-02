@@ -1,10 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Languages, Book, Settings, Palette, LucideIcon } from 'lucide-react';
 import Translator from './Translator';
 import DictionaryManager from './dictionary/DictionaryManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
+import { useDictionary } from './dictionary/DictionaryContext';
+import { loadValidatedConfiguration } from '../utils/configurationHelpers';
 import ErrorBoundary from './ErrorBoundary';
 import styles from '../styles/TabbedInterface.module.css';
 
@@ -28,9 +30,17 @@ const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] =
  *
  * Main application container with tab navigation.
  */
+const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
+  '1': 'characters',
+  '2': 'phrases',
+  '3': 'properNouns',
+  '4': 'patterns',
+};
+
 const TabbedInterface: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('translator');
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
+  const { setSelectedDictionary } = useDictionary();
 
   const handleTabChange = (tab: TabId): void => {
     setActiveTab(tab);
@@ -42,9 +52,36 @@ const TabbedInterface: React.FC = () => {
     }
   };
 
+  const handleDictionaryTabHotkey = useCallback(
+    async (key: string): Promise<void> => {
+      if (key in DICTIONARY_HOTKEY_MAP) {
+        setSelectedDictionary(DICTIONARY_HOTKEY_MAP[key]);
+        return;
+      }
+      if (key === '5') {
+        try {
+          const config = await loadValidatedConfiguration();
+          const activeNouns: string[] = config.activeProperNouns ?? ['properNouns'];
+          const defaultDict = config.defaultQuickAddDictionary;
+          let target: string | undefined;
+          if (defaultDict && activeNouns.includes(defaultDict)) {
+            target = defaultDict;
+          } else {
+            target = activeNouns.filter((id) => id.startsWith('properNouns-')).sort()[0];
+          }
+          if (target) setSelectedDictionary(target);
+        } catch {
+          // no-op if config unavailable
+        }
+      }
+    },
+    [setSelectedDictionary]
+  );
+
   useHotkeyHandler({
     onTabSwitch: handleTabChange,
     onFocusSearch: handleFocusSearch,
+    onDictionaryTabHotkey: handleDictionaryTabHotkey,
     activeTab,
   });
 

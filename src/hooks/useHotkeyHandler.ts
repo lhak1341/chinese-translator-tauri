@@ -20,6 +20,7 @@ export interface HotkeyHandlerOptions {
   onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
   onReloadDictionary?: () => void;
   onFocusSearch?: () => void;
+  onDictionaryTabHotkey?: (key: string) => Promise<void>;
   activeTab?: TabId;
 }
 
@@ -28,7 +29,7 @@ export interface HotkeyHandlerOptions {
  *
  * Keyboard Shortcuts:
  * - Cmd/Ctrl+Shift+1-4: Switch tabs
- * - Cmd/Ctrl+1-5: Quick add to different dictionaries (Translator tab only)
+ * - Cmd/Ctrl+1-5: Quick add to different dictionaries (Translator tab) / Switch dictionary (Dictionary tab)
  * - Cmd/Ctrl+R: Reload dictionary (Translator tab only)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
  * - Cmd/Ctrl+Z: Undo
@@ -52,6 +53,7 @@ export function useHotkeyHandler({
   onQuickAddCustomProperNoun,
   onReloadDictionary,
   onFocusSearch,
+  onDictionaryTabHotkey,
   activeTab,
 }: HotkeyHandlerOptions): void {
   // Use refs so frequently-updating props don't force the keydown listener to be
@@ -90,6 +92,8 @@ export function useHotkeyHandler({
   onReloadDictionaryRef.current = onReloadDictionary;
   const onFocusSearchRef = useRef(onFocusSearch);
   onFocusSearchRef.current = onFocusSearch;
+  const onDictionaryTabHotkeyRef = useRef(onDictionaryTabHotkey);
+  onDictionaryTabHotkeyRef.current = onDictionaryTabHotkey;
 
   useEffect(() => {
     const copySelectedText = async (): Promise<boolean> => {
@@ -171,27 +175,56 @@ export function useHotkeyHandler({
           } else {
             switch (event.key) {
               case '1':
-                await handleQuickAdd(event, onQuickAddCharacterRef.current, 'Quick Add Character');
+                if (activeTabRef.current === 'dictionary') {
+                  event.preventDefault();
+                  await onDictionaryTabHotkeyRef.current?.('1');
+                } else {
+                  await handleQuickAdd(
+                    event,
+                    onQuickAddCharacterRef.current,
+                    'Quick Add Character'
+                  );
+                }
                 break;
               case '2':
-                await handleQuickAdd(event, onQuickAddPhraseRef.current, 'Quick Add Phrase');
+                if (activeTabRef.current === 'dictionary') {
+                  event.preventDefault();
+                  await onDictionaryTabHotkeyRef.current?.('2');
+                } else {
+                  await handleQuickAdd(event, onQuickAddPhraseRef.current, 'Quick Add Phrase');
+                }
                 break;
               case '3':
-                await handleQuickAdd(
-                  event,
-                  onQuickAddProperNounRef.current,
-                  'Quick Add Proper Noun'
-                );
+                if (activeTabRef.current === 'dictionary') {
+                  event.preventDefault();
+                  await onDictionaryTabHotkeyRef.current?.('3');
+                } else {
+                  await handleQuickAdd(
+                    event,
+                    onQuickAddProperNounRef.current,
+                    'Quick Add Proper Noun'
+                  );
+                }
                 break;
               case '4':
-                await handleQuickAdd(event, onQuickAddPatternRef.current, 'Quick Add Pattern');
+                if (activeTabRef.current === 'dictionary') {
+                  event.preventDefault();
+                  await onDictionaryTabHotkeyRef.current?.('4');
+                } else {
+                  await handleQuickAdd(event, onQuickAddPatternRef.current, 'Quick Add Pattern');
+                }
                 break;
               case '5':
-                await handleQuickAdd(
-                  event,
-                  onQuickAddCustomProperNounRef.current,
-                  'Quick Add Custom Proper Noun'
-                );
+                if (activeTabRef.current === 'dictionary') {
+                  event.preventDefault();
+                  await onDictionaryTabHotkeyRef.current?.('5');
+                } else {
+                  await handleQuickAdd(
+                    event,
+                    onQuickAddCustomProperNounRef.current,
+                    'Quick Add Custom Proper Noun'
+                  );
+                }
                 break;
               case 'l':
                 if (activeTabRef.current === 'dictionary') {

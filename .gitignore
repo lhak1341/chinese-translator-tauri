@@ -47,3 +47,6 @@ coverage
 
 # Dictionary cache files (precomputed tries)
 *.trie.json
+
+# Misc
+.fallow/
