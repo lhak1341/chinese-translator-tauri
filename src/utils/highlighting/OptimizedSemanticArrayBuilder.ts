@@ -935,4 +935,4 @@ export class OptimizedSemanticArrayBuilder {
   // Eliminates duplicate implementation and per-call instance creation overhead
 }
 
-export default OptimizedSemanticArrayBuilder;
+// default export intentionally omitted — use named export only

@@ -12,12 +12,10 @@
  *
  * @import {
  *   TokenUpdate,
- *   TokenUpdateBatch,
  *   ApplyUpdatesOptions,
  *   ApplyUpdatesResult,
  *   TokenScanOptions,
  *   TokenScanResult,
- *   ReadonlyOptimizationMetrics
  * } from '../types/ReadonlyOptimizationTypes'
  */
 
@@ -200,18 +198,6 @@ export function findUnprocessedTokens(tokens, options = {}) {
 }
 
 /**
- * Find tokens matching a type using readonly scan
- *
- * @param {ReadonlyArray<*>} tokens - Readonly token array
- * @param {string} type - Token type to match
- * @param {Object} options - Scan options
- * @returns {TokenScanResult} Scan result
- */
-export function findTokensByType(tokens, type, options = {}) {
-  return scanTokens(tokens, (/** @type {any} */ token) => token.type === type, options);
-}
-
-/**
  * Find consecutive unprocessed tokens
  *
  * Useful for phrase/pattern matching where you need spans of untranslated tokens.
@@ -254,99 +240,4 @@ export function findConsecutiveUnprocessed(tokens, minLength = 1, maxLength = 10
   }
 
   return spans;
-}
-
-/**
- * Get text from token span (readonly operation)
- *
- * @param {ReadonlyArray<*>} tokens - Readonly token array
- * @param {number} start - Start index
- * @param {number} length - Span length
- * @returns {string} Combined text
- */
-export function getTokenSpanText(tokens, start, length) {
-  let text = '';
-  const end = Math.min(start + length, tokens.length);
-
-  for (let i = start; i < end; i++) {
-    text += tokens[i].value;
-  }
-
-  return text;
-}
-
-/**
- * Create update batch from multiple updates
- *
- * @param {Array<TokenUpdate>} updates - Array of updates
- * @param {number} phase - Phase number
- * @returns {TokenUpdateBatch} Update batch
- */
-export function createUpdateBatch(updates, phase) {
-  const updateMap = new Map();
-
-  for (const update of updates) {
-    updateMap.set(update.index, update);
-  }
-
-  return {
-    updates: updateMap,
-    phase,
-    count: updateMap.size,
-  };
-}
-
-/**
- * Get performance metrics for readonly optimizations
- *
- * @returns {ReadonlyOptimizationMetrics} Current metrics
- */
-export function getReadonlyOptimizationMetrics() {
-  return {
-    readOnlyScans: metrics.readOnlyScans,
-    batchUpdates: metrics.batchUpdates,
-    avgScanTime: metrics.readOnlyScans > 0 ? metrics.totalScanTime / metrics.readOnlyScans : 0,
-    avgUpdateTime: metrics.batchUpdates > 0 ? metrics.totalUpdateTime / metrics.batchUpdates : 0,
-    estimatedSavings: metrics.estimatedSavings,
-    v8OptimizationTier: undefined, // Not directly accessible in JavaScript
-  };
-}
-
-/**
- * Reset performance metrics
- */
-export function resetReadonlyOptimizationMetrics() {
-  metrics.readOnlyScans = 0;
-  metrics.batchUpdates = 0;
-  metrics.totalScanTime = 0;
-  metrics.totalUpdateTime = 0;
-  metrics.estimatedSavings = 0;
-}
-
-/**
- * Print optimization metrics report
- */
-export function printOptimizationReport() {
-  const stats = getReadonlyOptimizationMetrics();
-
-  logger.log('\n📊 ReadonlyArray Optimization Report');
-  logger.log('─'.repeat(50));
-  logger.log(`Read-only scans: ${stats.readOnlyScans}`);
-  logger.log(`Batch updates: ${stats.batchUpdates}`);
-  logger.log(`Avg scan time: ${stats.avgScanTime.toFixed(3)}ms`);
-  logger.log(`Avg update time: ${stats.avgUpdateTime.toFixed(3)}ms`);
-  logger.log(`Estimated savings: ${stats.estimatedSavings.toFixed(2)}ms`);
-  logger.log('─'.repeat(50));
-}
-
-// Development API exposure
-if (process.env.NODE_ENV === 'development') {
-  if (typeof window !== 'undefined') {
-    // @ts-ignore - development-only window property
-    window.readonlyOptimization = {
-      getMetrics: getReadonlyOptimizationMetrics,
-      resetMetrics: resetReadonlyOptimizationMetrics,
-      printReport: printOptimizationReport,
-    };
-  }
 }

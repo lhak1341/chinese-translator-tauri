@@ -1993,6 +1993,3 @@ export class DictionaryManager {
     }
   }
 }
-
-// Factory function
-export const createDictionaryManager = () => new DictionaryManager();

@@ -15,7 +15,7 @@ import { logger } from '../logger.js';
 /**
  * Device performance detector for virtual scrolling optimization
  */
-export class DevicePerformanceDetector {
+class DevicePerformanceDetector {
   constructor() {
     this.capabilities = null;
     this.performanceScore = 0;
@@ -211,7 +211,7 @@ export class DevicePerformanceDetector {
 /**
  * Adaptive buffer size calculator for virtual scrolling
  */
-export class AdaptiveBufferCalculator {
+class AdaptiveBufferCalculator {
   constructor(options = {}) {
     this.performanceDetector = new DevicePerformanceDetector();
     this.scrollingHistory = [];

@@ -18,7 +18,7 @@ import { logger } from '../logger';
  *
  * @class WasmTextAssemblerWrapper
  */
-export class WasmTextAssemblerWrapper {
+class WasmTextAssemblerWrapper {
   constructor() {
     /** @type {TextAssembler | null} */
     this.assembler = null;

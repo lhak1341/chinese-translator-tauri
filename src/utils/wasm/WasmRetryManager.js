@@ -208,6 +208,3 @@ class WasmRetryManager {
 
 // Export singleton instance with default configuration
 export const wasmRetryManager = new WasmRetryManager();
-
-// Export class for custom configurations
-export default WasmRetryManager;

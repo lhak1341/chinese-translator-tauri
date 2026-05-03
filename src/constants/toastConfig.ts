@@ -111,23 +111,6 @@ export const TOAST_IDS = {
   CONFIG_SAVE_FAILED: 'config-save-failed',
 } as const;
 
-/**
- * Toast stacking configuration
- *
- * Controls how many toasts can be visible simultaneously
- * to prevent overwhelming the user with notifications.
- */
-export const TOAST_STACK_CONFIG = {
-  /** Maximum number of visible toasts (older ones auto-dismiss) */
-  MAX_VISIBLE: 5,
-
-  /** Gap between stacked toasts (CSS rem units) */
-  STACK_GAP: '0.5rem',
-
-  /** Animation duration for show/hide (milliseconds) */
-  ANIMATION_DURATION: 300,
-} as const;
-
 /** Type for toast duration values */
 export type ToastDuration = (typeof TOAST_DURATIONS)[keyof typeof TOAST_DURATIONS];
 

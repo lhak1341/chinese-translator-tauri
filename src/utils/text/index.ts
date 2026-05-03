@@ -4,7 +4,6 @@
  * Primary entry points:
  *   - createTokenizer() — character-level tokenization
  *   - createChunker()   — punctuation-based text segmentation
- *   - AdaptiveChunker   — dynamically sized chunking for long text
  *   - sanitizeDictionaryEntry() — user input sanitization
  */
 
@@ -27,7 +26,7 @@ export {
 
 // --- Chunking ---
 export { TextChunk, TextChunker, createChunker } from './TextChunker';
-export { default as AdaptiveChunker, adaptiveChunker } from './AdaptiveChunker';
+export { adaptiveChunker } from './AdaptiveChunker';
 
 // --- Normalization ---
 export {

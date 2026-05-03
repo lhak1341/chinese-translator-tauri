@@ -156,19 +156,3 @@ export function getGraphemeLength(text: string): number {
 export function getFirstGrapheme(text: string): string {
   return helper.getFirst(text);
 }
-
-/**
- * Check if grapheme segmentation is available
- *
- * @returns True if Intl.Segmenter is available
- *
- * @example
- * if (hasGraphemeSupport()) {
- *   // Use grapheme-aware operations
- * } else {
- *   // Fallback to UTF-16 operations
- * }
- */
-export function hasGraphemeSupport(): boolean {
-  return helper.hasSupport();
-}

@@ -19,11 +19,6 @@ interface DictionaryTypeDefinition {
   validate: (source: string, translation: string) => string | null;
 }
 
-interface DictionaryInfo {
-  label: string | undefined;
-  description: string | undefined;
-}
-
 // Basic validation for all dictionary entries
 const baseValidation = (source: string, translation: string): string | null => {
   // SECURITY FIX: Prevent DoS via huge dictionary entries
@@ -124,27 +119,6 @@ export const validateDictionaryEntry = (
     return 'Invalid dictionary type';
   }
   return dictionaryType.validate(source, translation);
-};
-
-export const getDefaultDictionary = (dictionaryId: string): DictionaryData => {
-  if (dictionaryId === 'properNouns') {
-    return properNounsDict as DictionaryData;
-  }
-  if (dictionaryId.startsWith('properNouns-')) {
-    return {};
-  }
-  return DICTIONARY_TYPES[dictionaryId]?.data ?? {};
-};
-
-export const getDictionaryInfo = (dictionaryId: string): DictionaryInfo => {
-  if (dictionaryId.startsWith('properNouns-')) {
-    return {
-      label: `Proper Nouns - ${dictionaryId.replace('properNouns-', '')}`,
-      description: 'Context-specific translations for names and titles',
-    };
-  }
-  const { label, description } = DICTIONARY_TYPES[dictionaryId] || {};
-  return { label, description };
 };
 
 // Function to generate dictionary types including all proper nouns dictionaries

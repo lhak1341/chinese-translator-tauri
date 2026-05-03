@@ -161,7 +161,7 @@ async function saveDictionaryCache(dictionaryName, dictionaryData, trie, tauriAP
  * @param {Object} tauriAPI - Tauri API
  * @returns {Promise<boolean>} Success status
  */
-export async function invalidateDictionaryCache(dictionaryName, tauriAPI) {
+async function invalidateDictionaryCache(dictionaryName, tauriAPI) {
   const deleteCacheFile = async (/** @type {string} */ cacheFileName) => {
     try {
       // For now, just return false - deletion can be added later

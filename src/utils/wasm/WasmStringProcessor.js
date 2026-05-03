@@ -19,7 +19,7 @@ import { logger } from '../logger';
  *
  * @class WasmStringProcessor
  */
-export class WasmStringProcessor {
+class WasmStringProcessor {
   constructor() {
     /** @type {StringProcessor | null} */
     this.processor = null;

@@ -592,6 +592,35 @@ Swapping imports between production code and tests will silently reverse the cop
 
 ---
 
+## Fallow Dead-Code Analysis
+
+Fallow reports are a starting point, not a deletion list. Four blind spots:
+
+1. **Class dead ≠ file dead.** Fallow tracks `export class Foo` and `export const foo = new Foo()` separately. If only the class is listed dead, the singleton may still have callers — check both before touching the file.
+
+2. **CSS `composes` is invisible.** `composes: X from './shared.module.css'` is a hard dependency fallow never sees. Before deleting any `.module.css`, grep: `composes.*from.*'./filename'` across all CSS files.
+
+3. **Dynamic `import()` calls not tracked.** `import("./SomeFile.js")` lazy imports are invisible to fallow. Before deleting, grep: `import(.*filename` across `src/`.
+
+4. **Test imports count.** Fallow may flag exports used only in `__tests__/` files as dead. Check test files before removing.
+
+5. **Partial-dead ≠ file-dead.** A file with some dead exports is NOT a dead file. Verify every export has zero callers before deleting the file.
+
+**Protocol per file:**
+
+- Grep each export (not just fallow-listed ones): `grep -r "ExportName" src/` — confirm zero results outside the definition.
+- Grep dynamic imports: `grep -r "import(.*filename" src/`
+- For `.module.css`: grep `composes.*from.*'./filename'` in all CSS files.
+
+**Verification after each batch:**
+
+```bash
+npm run type-check && npm test -- --run
+npm run tauri:dev  # catches dynamic import() breakage — type-check/tests miss it
+```
+
+---
+
 ## Related Guides
 
 - [Architecture Guide](./architecture.md) - System architecture and WASM acceleration

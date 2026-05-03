@@ -199,7 +199,7 @@ const ToastItem: React.FC<{
 /**
  * Toast container component
  */
-export const ToastContainer: React.FC = () => {
+const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToastInternal();
 
   return (

@@ -5,7 +5,7 @@
 
 import { logger } from './logger.js';
 
-export class ParallelConfig {
+class ParallelConfig {
   constructor() {
     this.defaultConfig = {
       // Chunk Processing Configuration

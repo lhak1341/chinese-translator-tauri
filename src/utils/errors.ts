@@ -6,7 +6,7 @@
 /**
  * Base class for dictionary-related errors
  */
-export class DictionaryError extends Error {
+class DictionaryError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'DictionaryError';
@@ -50,11 +50,4 @@ export function isValidationError(error: unknown): error is ValidationError {
  */
 export function isSaveError(error: unknown): error is SaveError {
   return error instanceof SaveError;
-}
-
-/**
- * Type guard to check if error is any DictionaryError
- */
-export function isDictionaryError(error: unknown): error is DictionaryError {
-  return error instanceof DictionaryError;
 }

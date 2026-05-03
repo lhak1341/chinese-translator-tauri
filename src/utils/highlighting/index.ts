@@ -9,10 +9,7 @@
  */
 
 // --- Semantic array builders (sibling implementations — changes must be mirrored) ---
-export {
-  OptimizedSemanticArrayBuilder,
-  default as OptimizedSemanticArrayBuilderDefault,
-} from './OptimizedSemanticArrayBuilder';
+export { OptimizedSemanticArrayBuilder } from './OptimizedSemanticArrayBuilder';
 export { SemanticArrayBuilder } from './SemanticArrayBuilder';
 
 // --- Segment pre-computation (character-only mode) ---
@@ -30,23 +27,13 @@ export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from '.
 
 // --- Scroll & UI ---
 export { scrollToHighlightedElement } from './ScrollHelpers';
-export {
-  adaptiveBufferCalculator,
-  AdaptiveBufferCalculator,
-  DevicePerformanceDetector,
-} from './AdaptiveVirtualScrolling';
+export { adaptiveBufferCalculator } from './AdaptiveVirtualScrolling';
 
 // --- Position utilities ---
-export {
-  validateNonOverlappingPosition,
-  validatePositionRange,
-  validatePosition,
-} from './PositionValidationHelpers';
 export {
   tokenPositionToCharPosition,
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
-  validatePositionMapping,
 } from './PositionMappingUtils';
 
 // --- UI responsiveness ---
@@ -56,10 +43,4 @@ export type {
   LoadingState,
   LoadingCallback,
 } from './UIResponsiveness';
-export {
-  DebouncedProgressHandler,
-  SmoothLoadingManager,
-  ThrottledScrollHandler,
-  smoothDOMUpdate,
-  batchStateUpdates,
-} from './UIResponsiveness';
+export { DebouncedProgressHandler, SmoothLoadingManager } from './UIResponsiveness';
