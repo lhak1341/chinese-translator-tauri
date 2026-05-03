@@ -74,6 +74,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `createReadonlyTokens` from `ReadonlyOptimizationUtils.js` — only `scanTokens` exported
 - `OptimizedSemanticArrayBuilder.getCachedRegex` / `regexCache` / `maxCacheSize` — removed
 - `V8OptimizationUtils.js`, `PatternParityTest.js` — in `src/utils/__benchmarks__/` (dev/debug only)
+- `SemanticPatternProcessor.applyPatternMatch` — deleted; `processTokens()` now returns `PatternProcessorResult[]`, apply via `applyHierarchicalResults(tokens, results, options)`
 
 **Non-obvious contracts:**
 

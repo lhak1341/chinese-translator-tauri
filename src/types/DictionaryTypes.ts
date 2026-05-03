@@ -101,13 +101,8 @@ export interface HistoryOperation {
 }
 
 /**
- * Shared interface for both DictionaryContext and LazyDictionaryContext.
- * Extending this interface enforces method signature parity at compile time,
- * replacing the manual sync checklist for shared methods.
- *
- * Note: `setSelectedDictionary` is intentionally excluded — the eager context
- * returns `void` (sync) while the lazy context returns `Promise<void>` (async load).
- * Each context declares it independently.
+ * Interface for DictionaryContext. `setSelectedDictionary` is declared by the
+ * concrete context value since its return type depends on loading strategy.
  */
 export interface DictionaryContextInterface {
   /** All loaded dictionaries */

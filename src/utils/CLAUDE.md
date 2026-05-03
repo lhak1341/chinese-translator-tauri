@@ -27,6 +27,7 @@ Signature: `addUnit(originalText, translatedText, source, tokenIndex, phase, dic
 
 - **Direct call sites** (hierarchical, phrase, number phases): pass `phase` and `dictionary` explicitly.
 - **`processChunksInParallel` merge loop** (~line 7023): correctly passes all 6 args from `isolatedArrays.metadata?.[j]`. After adding a new field to `addUnit`, propagate it through this merge loop too.
+- The `phase` arg (5th) is a **string label** (`'pattern'`, `'phrases'`, etc.), not a number — passing a number silently records wrong provenance with no error.
 
 ### Duplicate-Word Highlighting Requires `tokenIndex` Ordering in Three Places
 
@@ -73,6 +74,12 @@ Both have parallel `buildVariableCache` implementations. Changes to phrase type 
 ### `buildVariableCache` `shouldInclude` Requires `hasUnconstrainedPatterns` Guard
 
 `requiredTypes` collects all types in any pattern's `allowedVariableTypes`. Filtering by `requiredTypes` is only correct when ALL patterns are constrained — any unconstrained pattern accepts any type, so filtering would silently exclude entries it needs. Guard: `if (!requiredTypes || hasUnconstrainedPatterns) return true;`.
+
+### `SemanticPatternProcessor.processTokens()` Returns Results — Do Not Ignore
+
+Returns `Promise<PatternProcessorResult[]>`. Callers MUST capture the return value and pass it to `applyHierarchicalResults(tokens, results, options)`. Ignoring the return silently drops all JS pattern translations — no error, tokens fall through to phases 4/5.
+
+Separate invariant: `createOptimalPhraseGroups` (Phase 4) checks only `enableTwoPhasePatterns`, NOT `patterns?.length` — phrase processing is pure JS and runs regardless of whether structural patterns are loaded. Do NOT re-add the `patterns?.length > 0` guard.
 
 ### WASM Wrapper Retire-After-Panic
 
@@ -123,5 +130,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - `AppConfiguration`: import from `src/types/ComponentTypes`, NOT `configValidation`
 - `getDictionaryLabel`/`compareDictionaryOrder`: import from `dictionaryHelpers` directly (re-export through `DuplicateAnalyzer` removed)
 - `vi.doMock` for `translation_wasm_core.js`: path resolves from the _source_ file's directory, not the test file's
+- Pipeline phases testable in jsdom: **2** (proper nouns), **4** (phrases), **5** (chars) — pure JS trie lookup. Phases **1** (WASM patterns) and **3** (WASM numbers) require the binary — covered in wasm-core Rust tests.
+- Simulate Phase 1 output in jsdom tests: pre-mark tokens with `{ translated: 'X', translationSource: 'pattern' }` — subsequent phases skip pre-marked tokens, so Phase 4/5 guards can be tested without WASM.
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)

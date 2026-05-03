@@ -1,0 +1,228 @@
+/**
+ * Pipeline tests for TranslationEngine.translateSinglePass.
+ *
+ * Covers the three pure-JS phases testable in jsdom:
+ *   Phase 2 — proper nouns  (JS trie lookup, no WASM dependency)
+ *   Phase 4 — phrases       (JS trie lookup, no WASM dependency)
+ *   Phase 5 — character fallback (JS trie lookup)
+ *
+ * Phase 1 (WASM structural patterns) and Phase 3 (WASM number conversion)
+ * require the WASM binary — covered in wasm-core Rust tests.
+ * Pre-marked token tests below simulate Phase 1 output to verify Phase 4/5 guards.
+ */
+import { describe, test, expect, beforeAll } from 'vitest';
+import { createTranslationEngine } from '../TranslationEngine.js';
+
+const DICTS = {
+  characters: {
+    在: 'ở',
+    里: 'bên trong',
+    不: 'không',
+    知: 'biết',
+    道: 'đường',
+    你: 'bạn',
+    好: 'tốt',
+    张: 'Trương',
+    三: 'Ba',
+    是: 'là',
+    中: 'trung',
+    国: 'quốc',
+    人: 'người',
+  },
+  phrases: {
+    不知道: 'không biết',
+    你好: 'xin chào',
+    中国人: 'người Trung Quốc',
+    张三: 'PHRASE_张三', // also in properNouns — proper noun must win
+  },
+  patterns: {},
+  properNouns: {
+    张三: 'Trương Tam',
+  },
+  conversion: {},
+};
+
+function tok(value, start, type = 'chinese_char') {
+  return {
+    type,
+    value,
+    translated: null,
+    translationSource: null,
+    start,
+    end: start + value.length,
+  };
+}
+
+describe('TranslationEngine.translateSinglePass — pipeline', () => {
+  let engine;
+
+  beforeAll(async () => {
+    engine = createTranslationEngine();
+    await engine.initialize(DICTS, { activeProperNouns: ['properNouns'] });
+  }, 30_000);
+
+  // ── Phase 5: character fallback ────────────────────────────────────────────
+
+  describe('Phase 5 — character fallback', () => {
+    test('single char → translationSource characters', async () => {
+      const tokens = [tok('在', 0)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translationSource).toBe('characters');
+      expect(tokens[0].translated).toBe('ở');
+    });
+
+    test('two independent chars → each translated separately', async () => {
+      const tokens = [tok('在', 0), tok('里', 1)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('ở');
+      expect(tokens[0].translationSource).toBe('characters');
+      expect(tokens[1].translated).toBe('bên trong');
+      expect(tokens[1].translationSource).toBe('characters');
+    });
+  });
+
+  // ── Phase 4: phrase lookup ─────────────────────────────────────────────────
+
+  describe('Phase 4 — phrase lookup', () => {
+    test('2-char phrase: leader translated, consumed null', async () => {
+      const tokens = [tok('你', 0), tok('好', 1)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('xin chào');
+      expect(tokens[0].translationSource).toBe('phrases');
+      expect(tokens[1].translated).toBeNull();
+      expect(tokens[1].translationSource).toBe('phrases_consumed');
+    });
+
+    test('3-char phrase: two consumed tokens', async () => {
+      const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('không biết');
+      expect(tokens[0].translationSource).toBe('phrases');
+      expect(tokens[1].translated).toBeNull();
+      expect(tokens[1].translationSource).toBe('phrases_consumed');
+      expect(tokens[2].translated).toBeNull();
+      expect(tokens[2].translationSource).toBe('phrases_consumed');
+    });
+
+    test('phrase grouping: leader isGrouped, consumed have groupLeader index', async () => {
+      const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].isGrouped).toBe(true);
+      expect(tokens[1].isGrouped).toBe(true);
+      expect(tokens[1].groupLeader).toBe(0);
+      expect(tokens[2].isGrouped).toBe(true);
+      expect(tokens[2].groupLeader).toBe(0);
+    });
+
+    test('phrase then lone char: phrase handles first tokens, char handles remainder', async () => {
+      const tokens = [tok('你', 0), tok('好', 1), tok('在', 2)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translationSource).toBe('phrases');
+      expect(tokens[1].translationSource).toBe('phrases_consumed');
+      expect(tokens[2].translationSource).toBe('characters');
+      expect(tokens[2].translated).toBe('ở');
+    });
+
+    test('phrase beats char: 中国人 as phrase, not 3 individual chars', async () => {
+      const tokens = [tok('中', 0), tok('国', 1), tok('人', 2)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('người Trung Quốc');
+      expect(tokens[0].translationSource).toBe('phrases');
+      expect(tokens[1].translated).toBeNull();
+      expect(tokens[2].translated).toBeNull();
+    });
+  });
+
+  // ── Phase 2: proper nouns ──────────────────────────────────────────────────
+
+  describe('Phase 2 — proper noun lookup', () => {
+    test('2-char proper noun: translated, isProperNoun true', async () => {
+      const tokens = [tok('张', 0), tok('三', 1)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('Trương Tam');
+      expect(tokens[0].translationSource).toBe('properNouns');
+      expect(tokens[0].isProperNoun).toBe(true);
+    });
+
+    test('2-char proper noun: consumed token has _consumed source, null translated', async () => {
+      const tokens = [tok('张', 0), tok('三', 1)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[1].translated).toBeNull();
+      expect(tokens[1].translationSource).toBe('properNouns_consumed');
+    });
+
+    test('proper noun beats phrase when same text is in both dicts', async () => {
+      // 张三 is in both properNouns ('Trương Tam') and phrases ('PHRASE_张三')
+      // Phase 2 runs before Phase 4 — proper noun must win
+      const tokens = [tok('张', 0), tok('三', 1)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translationSource).toBe('properNouns');
+      expect(tokens[0].translated).toBe('Trương Tam');
+    });
+
+    test('proper noun + trailing char: both phases resolve their tokens', async () => {
+      const tokens = [tok('张', 0), tok('三', 1), tok('是', 2)];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translationSource).toBe('properNouns');
+      expect(tokens[1].translationSource).toBe('properNouns_consumed');
+      expect(tokens[2].translationSource).toBe('characters');
+      expect(tokens[2].translated).toBe('là');
+    });
+  });
+
+  // ── Pre-marked tokens (Phase 1 simulation) ────────────────────────────────
+
+  describe('pre-marked tokens — Phase 1 simulation', () => {
+    test('pattern-marked token: Phase 4 does not overwrite it', async () => {
+      const tokens = [
+        { ...tok('不', 0), translated: 'PATTERN_RESULT', translationSource: 'pattern' },
+        tok('知', 1),
+        tok('道', 2),
+      ];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('PATTERN_RESULT');
+      expect(tokens[0].translationSource).toBe('pattern');
+    });
+
+    test('pattern-marked token: Phase 5 does not overwrite it', async () => {
+      const tokens = [
+        { ...tok('在', 0), translated: 'PATTERN_RESULT', translationSource: 'pattern' },
+      ];
+      await engine.translateSinglePass(tokens, {});
+      expect(tokens[0].translated).toBe('PATTERN_RESULT');
+      expect(tokens[0].translationSource).toBe('pattern');
+    });
+  });
+
+  // ── Consumed token contract ────────────────────────────────────────────────
+
+  describe('consumed token contract', () => {
+    test('consumed tokens always have null translated', async () => {
+      const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
+      await engine.translateSinglePass(tokens, {});
+      const consumed = tokens.filter((t) => t.translationSource?.includes('_consumed'));
+      expect(consumed.length).toBeGreaterThan(0);
+      expect(consumed.every((t) => t.translated === null)).toBe(true);
+    });
+
+    test('non-consumed tokens always have non-null translated', async () => {
+      const tokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
+      await engine.translateSinglePass(tokens, {});
+      const leaders = tokens.filter((t) => !t.translationSource?.includes('_consumed'));
+      expect(leaders.every((t) => t.translated !== null)).toBe(true);
+    });
+
+    test('_consumed suffix consistent across phrase and proper noun phases', async () => {
+      const phraseTokens = [tok('不', 0), tok('知', 1), tok('道', 2)];
+      await engine.translateSinglePass(phraseTokens, {});
+      const phraseConsumed = phraseTokens.filter((t) => t.translationSource?.includes('_consumed'));
+      expect(phraseConsumed.every((t) => t.translationSource.endsWith('_consumed'))).toBe(true);
+      expect(phraseConsumed.every((t) => t.translated === null)).toBe(true);
+
+      const nounTokens = [tok('张', 0), tok('三', 1)];
+      await engine.translateSinglePass(nounTokens, {});
+      expect(nounTokens[1].translationSource).toMatch(/_consumed$/);
+      expect(nounTokens[1].translated).toBeNull();
+    });
+  });
+});

@@ -9,7 +9,7 @@ Known instances:
 - `wasmStatus` interval (`Translator.jsx`) — dep array is `[]`, ref used inside callback
 - All 13 callback props in keydown listener (`useHotkeyHandler.ts`) — dep array is `[]`
 
-**Also applies to `useCallback` with a mutable state dep**: a `Set` in state creates a new reference on every `setState` → the callback recreates on every update. Use a ref mirror; dep array → `[]`. Example: `loadedDictionariesRef` in `LazyDictionaryContext.tsx`.
+**Also applies to `useCallback` with a mutable state dep**: a `Set` in state creates a new reference on every `setState` → the callback recreates on every update. Use a ref mirror; dep array → `[]`.
 
 **State SET inside a `useEffect` must not be in its deps**: if a flag is reset inside the effect body and that same flag is in the dep array, the reset re-triggers the effect. Affected: `isClipboardTranslation` in the `loadAndTranslate` effect in `Translator.jsx`.
 

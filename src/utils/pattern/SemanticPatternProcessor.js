@@ -909,10 +909,13 @@ export class SemanticPatternProcessor {
 
     const debugLevel = options.debugLevel || 3; // TEMP: Enable debug for pattern investigation
     const prioritizedPatterns = options.prioritizedPatterns || [];
+    /** @type {import('../../utils/TranslationEngine.js').PatternProcessorResult[]} */
+    const results = [];
+    const consumedOriginalIndices = new Set();
 
     this.log(debugLevel, 5, '🔍 Starting semantic pattern matching');
 
-    // Process prioritized patterns first
+    // Process prioritized patterns first — collect as results, do not mutate tokens
     if (prioritizedPatterns.length > 0) {
       this.log(
         debugLevel,
@@ -926,9 +929,23 @@ export class SemanticPatternProcessor {
           5,
           `🎯 Applying prioritized pattern: "${prioritizedMatch.pattern.originalPattern}"`
         );
-        // Convert prioritized pattern format to match result format and apply with proper variable cache
         const matchResult = this.convertPrioritizedPatternToMatchResult(prioritizedMatch, tokens);
-        this.applyPatternMatch(tokens, matchResult, options);
+        if (!matchResult) continue;
+        const startIndex = matchResult.matchedTokens[0].originalIndex;
+        const endIndex =
+          matchResult.matchedTokens[matchResult.matchedTokens.length - 1].originalIndex;
+        results.push({
+          startIndex,
+          endIndex,
+          originalText: matchResult.matchedTokens.map((t) => t.value).join(''),
+          translation: matchResult.result,
+          translationSource: 'pattern',
+          semanticType: matchResult.pattern?.metadata?.semanticType ?? null,
+          pattern: matchResult.pattern,
+          type: 'simple',
+        });
+        for (let idx = startIndex; idx <= endIndex; idx++) consumedOriginalIndices.add(idx);
+        this.stats.totalMatches++;
       }
     }
 
@@ -1022,10 +1039,9 @@ export class SemanticPatternProcessor {
         break;
       }
 
-      // Don't skip translated tokens - they might be pattern variables!
-      // Only skip tokens that were consumed by previous pattern matches
-      if (semanticTokens[i].translationSource === 'pattern_consumed') {
-        continue; // Skip tokens consumed by previous patterns
+      // Skip tokens consumed by prioritized patterns or earlier iterations
+      if (consumedOriginalIndices.has(semanticTokens[i].originalIndex)) {
+        continue;
       }
 
       const matchResult = this.findBestPatternMatch(semanticTokens, i, options);
@@ -1037,13 +1053,29 @@ export class SemanticPatternProcessor {
           `🎯 Pattern matched: "${matchResult.pattern.originalPattern}" -> "${matchResult.result}"`
         );
 
-        this.applyPatternMatch(tokens, matchResult, options);
+        const startIndex = matchResult.matchedTokens[0].originalIndex;
+        const endIndex =
+          matchResult.matchedTokens[matchResult.matchedTokens.length - 1].originalIndex;
+        results.push({
+          startIndex,
+          endIndex,
+          originalText: matchResult.matchedTokens.map((t) => t.value).join(''),
+          translation: matchResult.result,
+          translationSource: 'pattern',
+          semanticType: matchResult.pattern?.metadata?.semanticType ?? null,
+          pattern: matchResult.pattern,
+          type: 'simple',
+        });
+        for (let idx = startIndex; idx <= endIndex; idx++) consumedOriginalIndices.add(idx);
+        this.stats.totalMatches++;
 
-        // Skip processed tokens (adjust for semantic vs original indices)
+        // Skip ahead past consumed tokens (semantic positions)
         const tokensProcessed = matchResult.endPosition - matchResult.startPosition + 1;
         i += tokensProcessed - 1; // -1 because loop will increment
       }
     }
+
+    return results;
 
     // Calculate and log performance metrics for the optimization
     if (this.stats.stringOptimization.enabled && this.precomputedStrings) {
@@ -1545,49 +1577,6 @@ export class SemanticPatternProcessor {
     }
 
     return result;
-  }
-
-  /**
-   * Apply pattern match result to original tokens
-   * @param {Token[]} tokens - Original tokens array
-   * @param {Object} matchResult - Pattern match result
-   * @param {Object} options - Options including semanticArrayBuilder
-   */
-  applyPatternMatch(tokens, matchResult, options = {}) {
-    const firstToken = matchResult.matchedTokens[0];
-    const firstIndex = firstToken.originalIndex;
-
-    // Set translation on first token
-    tokens[firstIndex].translated = matchResult.result;
-    tokens[firstIndex].translationSource = 'pattern';
-    tokens[firstIndex].patternUsed = matchResult.pattern.originalPattern;
-
-    // Mark consumed tokens
-    // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
-    // postProcess() checks token.translated !== null to identify consumed tokens
-    for (let i = 1; i < matchResult.matchedTokens.length; i++) {
-      const tokenIndex = matchResult.matchedTokens[i].originalIndex;
-      tokens[tokenIndex].translated = null; // Must be null - postProcess checks !== null
-      tokens[tokenIndex].translationSource = 'pattern_consumed';
-    }
-
-    // Add to semantic array builder if provided
-    if (options.semanticArrayBuilder) {
-      // Calculate global position accounting for chunk offset
-      const globalTokenIndex = firstIndex + (options.chunkOffset || 0);
-      const originalText = matchResult.matchedTokens.map((t) => t.value).join('');
-      options.semanticArrayBuilder.addUnit(
-        originalText,
-        matchResult.result,
-        'pattern',
-        globalTokenIndex,
-        1,
-        null
-      );
-    }
-
-    // Update global statistics
-    this.stats.totalMatches++;
   }
 
   /**

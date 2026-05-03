@@ -1,24 +1,18 @@
 # src/components/dictionary — Gotchas
 
-## `DictionaryContext.tsx` and `LazyDictionaryContext.tsx` Are Eager/Lazy Siblings
+## `DictionaryContext.tsx` CRUD Audit Checklist
 
-Fixes to either must be mirrored in the other. Both have `addEntry`/`updateEntry`/`deleteEntry`/`bulkDeleteEntries`/`moveEntry`/`bulkMoveEntries`.
+After touching any CRUD function or `addToHistory`, audit for:
 
-After touching any CRUD function or `addToHistory` in either context, audit for:
-
-1. Stale-closure ref-mirrors (`loadedDictionariesRef`, `currentHistoryIndexRef`)
+1. Stale-closure ref-mirror (`currentHistoryIndexRef`)
 2. Typed error throws (`ValidationError`/`SaveError`) including pre-`try` existence checks
 3. Dep-array correctness
 4. `isValidationError`/`isSaveError` double-toast guards
 5. Metadata coverage (`allowAsPatternVariable`, `lowPriority`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
 6. `sanitizeDictionaryEntry` called at the top of `addEntry`/`updateEntry` before validation
-7. `invalidateTranslationEngineCache` called after successful save — required in every CRUD success branch AND in `undo`/`redo` paths in both contexts
+7. `invalidateTranslationEngineCache` called after successful save — required in every CRUD success branch AND in `undo`/`redo` paths
 
-`undo`/`redo` dep arrays: `[history, currentHistoryIndex]` — not `dictionaries`; read `dictionariesRef.current` directly. Undo limitation in `LazyDictionaryContext`: snapshot-based history is single-dict; `moveEntry`/`bulkMoveEntries` undo only restores the source dict.
-
-`HistoryOperation` type: `LazyDictionaryContext.tsx` uses a local snapshot-based version (`oldData`/`newData`); `DictionaryTypes.ts` is delta-based. Architecturally incompatible — keep local.
-
-`dictionaryTypesRef` ref-mirror in `LazyDictionaryContext.tsx`: `handleDictionaryChange` dep array is `[loadDictionaryImmediate, schedulePreload]`. Adding `dictionaryTypes` back recreates `handleDictionaryChange` on every `refreshDictionaryTypes()` call.
+`undo`/`redo` dep arrays: `[history, currentHistoryIndex]` — not `dictionaries`; read `dictionariesRef.current` directly.
 
 ## React State Updater Rules
 

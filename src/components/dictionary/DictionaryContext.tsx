@@ -1,11 +1,6 @@
 /**
  * @file DictionaryContext.tsx
  * Eager-loading dictionary context. Loads all dictionaries on mount.
- *
- * === SIBLING: ./LazyDictionaryContext.tsx — must stay in sync ===
- * Fixes to CRUD operations (addEntry, updateEntry, deleteEntry, bulkDeleteEntries,
- * moveEntry, bulkMoveEntries) and addToHistory must be mirrored in the sibling.
- * See CLAUDE.md audit checklist for the 6-point sync requirement.
  */
 
 import React, {
@@ -42,7 +37,6 @@ import type { BatchDictionaryResult } from '../../types/ElectronTypes';
 
 /**
  * Dictionary Context value.
- * Extends DictionaryContextInterface for compile-time sync with LazyDictionaryContext.
  */
 interface DictionaryContextValue extends DictionaryContextInterface {
   /** Change selected dictionary (sync — all dicts already loaded) */

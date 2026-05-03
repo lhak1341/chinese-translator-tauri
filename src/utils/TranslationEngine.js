@@ -251,6 +251,32 @@ import {
  * @typedef {'pattern'|'hierarchical_pattern'|'hierarchical_patterns'|'hierarchical_patterns_composite'|'number_conversion'|'number_plus_liang_fix'|'phrases'|'characters'|string} TranslationSource
  */
 
+/**
+ * Shared result shape returned by both PatternProcessor adapters.
+ * applyHierarchicalResults() consumes this; neither adapter mutates tokens directly.
+ *
+ * @typedef {Object} PatternProcessorResult
+ * @property {number} startIndex - Index of the match leader in the original tokens array
+ * @property {number} endIndex - Index of the last consumed token in the original tokens array
+ * @property {string} originalText - Concatenated source values of all matched tokens
+ * @property {string} translation - Output translation string
+ * @property {TranslationSource} translationSource - Phase source tag ('pattern', 'hierarchical_pattern', etc.)
+ * @property {string|null} semanticType - Semantic classification, or null
+ * @property {Object} pattern - Matched pattern object; exposes .originalPattern for debug
+ * @property {'simple'|'composite'|'hierarchical'} type - Result category
+ * @property {Array} [components] - Composite sub-components (type === 'composite' only)
+ */
+
+/**
+ * Contract both PatternProcessor adapters must satisfy.
+ * Selection between WASM (TwoPhasePatternProcessor) and JS (SemanticPatternProcessor)
+ * happens once in applyPatterns(); both return the same shape so applyHierarchicalResults()
+ * applies either without branching.
+ *
+ * @typedef {Object} PatternProcessor
+ * @property {function(Array, Object): Promise<PatternProcessorResult[]>} processTokens
+ */
+
 // ============================================================================
 // SECTION 1: MEMORY MANAGEMENT UTILITIES
 // ============================================================================
@@ -2624,26 +2650,19 @@ export class TranslationEngine {
    * Validates that >80% of tokens aren't unprocessed (indicates phase failure).
    */
   async createOptimalPhraseGroups(tokens, options) {
-    // Check if two-phase pattern processing is enabled
-    if (
-      this.settings.enableTwoPhasePatterns &&
-      this.semanticPatternProcessor.patterns?.length > 0
-    ) {
+    if (this.settings.enableTwoPhasePatterns) {
       this.log(
         DEBUG_LEVELS.INFO,
-        `🎯 Using hierarchical two-phase pattern processing (${this.semanticPatternProcessor.patterns.length} patterns loaded)`
+        `🎯 Using hierarchical phrase processing (${this.semanticPatternProcessor.patterns?.length ?? 0} patterns loaded)`
       );
       return await this.createOptimalPhraseGroupsHierarchical(tokens, options);
-    } else {
-      // Phase 3B.2: Legacy pattern processing was removed - this should never be reached
-      this.log(
-        DEBUG_LEVELS.ERROR,
-        '🚨 CRITICAL: Legacy pattern processing was removed and two-phase not available'
-      );
-      throw new Error(
-        'Pattern processing unavailable: two-phase disabled and legacy single-phase processing was removed'
-      );
     }
+    // enableTwoPhasePatterns disabled (WASM pattern init failed) — phrases are pure JS, still process them
+    this.log(
+      DEBUG_LEVELS.INFO,
+      '🎯 Phrase processing (two-phase disabled, WASM patterns unavailable)'
+    );
+    await this.processRemainingPhrases(tokens, options);
   }
 
   /**
@@ -2912,7 +2931,7 @@ export class TranslationEngine {
       // MEDIUM-4 FIX: Only create new object when deep copy is actually needed
       const needsDeepCopy = options.lookupIndex || options.segments;
 
-      await this.semanticPatternProcessor.processTokens(
+      const jsResults = await this.semanticPatternProcessor.processTokens(
         tokens,
         needsDeepCopy
           ? {
@@ -2921,15 +2940,14 @@ export class TranslationEngine {
               segments: options.segments ? [...options.segments] : undefined,
               debugLevel: this.debugLevel,
               prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-              semanticArrayBuilder: this.semanticArrayBuilder,
             }
           : {
               ...options,
               debugLevel: this.debugLevel,
               prioritizedPatterns: this.extractPrioritizedPatterns(tokens),
-              semanticArrayBuilder: this.semanticArrayBuilder,
             }
       );
+      this.applyHierarchicalResults(tokens, jsResults, options);
 
       this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
     } catch (error) {
@@ -3039,10 +3057,13 @@ export class TranslationEngine {
 
       // Mark consumed tokens (if span is longer than 1 token)
       // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
+      // Derive consumed source from leader so both JS ('pattern_consumed') and
+      // WASM ('hierarchical_pattern_consumed') paths produce the correct string.
+      const consumedSource = `${result.translationSource || 'hierarchical_pattern'}_consumed`;
       for (let i = result.startIndex + 1; i <= result.endIndex; i++) {
         if (tokens[i]) {
           tokens[i].translated = null; // Must be null - postProcess checks !== null
-          tokens[i].translationSource = 'hierarchical_pattern_consumed';
+          tokens[i].translationSource = consumedSource;
         }
       }
 
