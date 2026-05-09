@@ -33,6 +33,7 @@ src/wasm-core
 !.vscode/extensions.json
 .idea
 .claude/
+.gemini/
 *.suo
 *.ntvs*
 *.njsproj
@@ -48,5 +49,12 @@ coverage
 # Dictionary cache files (precomputed tries)
 *.trie.json
 
+# Graphify
+**/graphify-out/cache/
+**/graphify-out/graph.json
+**/graphify-out/*.html
+!graphify-out/GRAPH_REPORT.md
+
 # Misc
 .fallow/
+.graphifyignore
