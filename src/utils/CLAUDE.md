@@ -81,6 +81,10 @@ Returns `Promise<PatternProcessorResult[]>`. Callers MUST capture the return val
 
 Separate invariant: `createOptimalPhraseGroups` (Phase 4) checks only `enableTwoPhasePatterns`, NOT `patterns?.length` — phrase processing is pure JS and runs regardless of whether structural patterns are loaded. Do NOT re-add the `patterns?.length > 0` guard.
 
+### `applyHierarchicalResults` Has No Overlap Check — Do Not Add One
+
+`applyHierarchicalResults` applies WASM results directly without deduplication. Do NOT add overlap checking there — `select_optimal_results` in `wasm-core/src/pattern_processor/two_phase.rs` guarantees non-overlapping results before they reach JS. Adding a JS-side dedupe would mask WASM selection bugs instead of surfacing them.
+
 ### WASM Wrapper Retire-After-Panic
 
 Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = null; this.initialized = false; this.initializationFailed = true`, and `initialize()` must guard `if (this.initializationFailed) return false`. Once `panic = "abort"` fires, the WASM object's `borrow_mut_count` is permanently stuck — silently retrying it produces "recursive use" on every subsequent call. **Exception**: `WasmConflictResolution.js` is a module-level singleton (no class) — retire uses bare `initialized = false; initializationFailed = true` (no `this.*`).

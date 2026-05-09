@@ -591,3 +591,91 @@ fn test_non_overlapping_patterns() {
     let result2 = results.iter().find(|r| r.start_index == 3).unwrap();
     assert_eq!(result2.translation, "ở trong đây");
 }
+
+#[test]
+fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
+    // Regression test: before fix, a Phase A result whose tokens fall inside the composite
+    // span but OUTSIDE the specific Phase A component's tokens (hr.phase_a) would slip
+    // through the used_phase_a_indices filter, producing a duplicate result alongside the
+    // composite and corrupting the final output.
+    //
+    // Scenario (mirrors real "这栋别院中的那个男人" bug):
+    //   Phase A pattern 1: "别院" → "biệt viện"   (tokens 1-2, absorbed into composite)
+    //   Phase A pattern 2: "那个X" → "CÁI X KIA"  (tokens 5-7, NOT absorbed — case mismatch)
+    //   Phase B pattern:   "在X中的那个人" → "cái người kia trong X"   (tokens 0-7)
+    //   Composite: Phase B 0-7 + Phase A 1-2 → "cái người kia trong biệt viện"
+    //   Bug: Phase A 5-7 ("CÁI NGƯỜI KIA") leaks into final results → 2 results instead of 1.
+
+    let phase_a_pattern1 = parse_pattern(
+        "别院".to_string(),
+        "biệt viện".to_string(),
+        None,
+        true,  // allowAsPatternVariable — absorbed into composite
+        false,
+        None,
+    );
+
+    // Uppercase output so "CÁI NGƯỜI KIA" is not a substring of the composite's lowercase
+    // translation — preventing a second hierarchical composition detection.
+    let phase_a_pattern2 = parse_pattern(
+        "那个X".to_string(),
+        "CÁI X KIA".to_string(),
+        None,
+        true,  // allowAsPatternVariable — within composite span but NOT absorbed
+        false,
+        None,
+    );
+
+    let phase_b_pattern = parse_pattern(
+        "在X中的那个人".to_string(),
+        "cái người kia trong X".to_string(),
+        None,
+        false,
+        false,
+        None,
+    );
+
+    // Tokens: 在(0) 别(1) 院(2) 中(3) 的(4) 那(5) 个(6) 人(7)
+    let mut tokens = vec![
+        create_token("在", 0),
+        create_token("别", 1),
+        create_token("院", 2),
+        create_token("中", 3),
+        create_token("的", 4),
+        create_token("那", 5),
+        create_token("个", 6),
+        create_token("人", 7),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "人".to_string(),
+        VariableCacheEntry {
+            translation: "người".to_string(),
+            source: "character".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let patterns = vec![phase_a_pattern1, phase_a_pattern2, phase_b_pattern];
+    let processor = TwoPhasePatternProcessor::new(patterns);
+
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    // Must have exactly 1 result: the composite covering the full 0-7 span.
+    // Before the fix this returned 2 — composite + the leaking Phase A 5-7 sub-match.
+    assert_eq!(
+        results.len(),
+        1,
+        "Composite must suppress Phase A sub-matches within its span. Got {} result(s): {:?}",
+        results.len(),
+        results
+            .iter()
+            .map(|r| format!("[{}-{}] \"{}\"", r.start_index, r.end_index, r.translation))
+            .collect::<Vec<_>>()
+    );
+
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 7);
+    assert_eq!(results[0].translation, "cái người kia trong biệt viện");
+}

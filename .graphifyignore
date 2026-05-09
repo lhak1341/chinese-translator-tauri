@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+
+# Rust / WASM build artifacts
+src-tauri/target
+wasm-core/target
+wasm-core/pkg
+src/wasm/
+src/wasm-core/
+
+# Tauri generated
+src-tauri/gen
+
+# Environment & logs
+logs
+*.log
+.env
+.env.local
+.env.*.local
+*.local
+
+# macOS
+.DS_Store
+
+# AI / tool state
+.claude/
+.gemini/
+.fallow/
+
+# Test output
+coverage
+*.trie.json
+
+# Archived docs
+docs/archive/
+
+# Graphify output (no self-analysis)
+graphify-out/

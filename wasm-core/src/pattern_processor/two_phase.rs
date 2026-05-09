@@ -424,15 +424,13 @@ impl TwoPhasePatternProcessor {
             let mut used_phase_b_indices = HashSet::new();
 
             for hr in &hierarchical_results {
-                if let Some(ref phase_a) = hr.phase_a {
-                    for i in phase_a.start_index..=phase_a.end_index {
-                        used_phase_a_indices.insert(i);
-                    }
-                }
-                if let Some(ref phase_b) = hr.phase_b {
-                    for i in phase_b.start_index..=phase_b.end_index {
-                        used_phase_b_indices.insert(i);
-                    }
+                // Mark every token in the composite's full span as used in both phase sets.
+                // Marking only the absorbed Phase A component's span (hr.phase_a) leaves other
+                // Phase A sub-matches within the composite span (e.g. tokens 6-9 inside a 0-9
+                // composite) free to pass the overlap filter, producing duplicate output.
+                for i in hr.start_index..=hr.end_index {
+                    used_phase_a_indices.insert(i);
+                    used_phase_b_indices.insert(i);
                 }
             }
 

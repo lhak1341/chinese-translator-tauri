@@ -7,54 +7,54 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build output
 dist
 dist-ssr
-*.local
 
-# Tauri/Rust build artifacts
+# Rust / WASM build artifacts
 src-tauri/target
 wasm-core/target
 wasm-core/pkg
 src/wasm-core
 
-# Environment files
+# Tauri generated
+src-tauri/gen
+
+# Environment
 .env
 .env.local
 .env.*.local
+*.local
 
 # macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Editor directories and files
+# Editors
 .vscode/*
 !.vscode/extensions.json
 .idea
-.claude/
-.gemini/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# Tauri generated files
-src-tauri/gen
+# AI / tool state
+.claude/
+.gemini/
+.fallow/
 
-# Test coverage reports
+# Test output
 coverage
-
-# Dictionary cache files (precomputed tries)
 *.trie.json
 
-# Graphify
+# Graphify (keep GRAPH_REPORT.md for AI context)
 **/graphify-out/cache/
 **/graphify-out/graph.json
 **/graphify-out/*.html
 !graphify-out/GRAPH_REPORT.md
-
-# Misc
-.fallow/
-.graphifyignore
