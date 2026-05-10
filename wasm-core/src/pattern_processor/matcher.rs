@@ -271,16 +271,23 @@ pub struct MatcherProfilingData {
     pub var_cache_misses: u32,
 }
 
+/// Default maximum token span for variable resolution.
+/// Based on dictionary analysis: longest static variable in patterns.json is 5 chars.
+/// Phase B overrides this when Phase A results (which can be longer) are in the cache.
+pub const DEFAULT_MAX_VARIABLE_SPAN: usize = 6;
+
 /// Pattern matcher - core matching algorithm
 pub struct PatternMatcher<'a> {
     /// Variable cache (populated from JavaScript)
     variable_cache: &'a HashMap<String, VariableCacheEntry>,
+    /// Maximum token span tried during variable resolution
+    max_var_span: usize,
 }
 
 impl<'a> PatternMatcher<'a> {
     /// Create a new pattern matcher with variable cache reference
-    pub fn new(variable_cache: &'a HashMap<String, VariableCacheEntry>) -> Self {
-        Self { variable_cache }
+    pub fn new(variable_cache: &'a HashMap<String, VariableCacheEntry>, max_var_span: usize) -> Self {
+        Self { variable_cache, max_var_span }
     }
 
     /// Test if a pattern matches at a specific position
@@ -648,13 +655,10 @@ impl<'a> PatternMatcher<'a> {
         #[cfg(not(target_arch = "wasm32"))]
         let perf: Option<web_sys::Performance> = None;
 
-        // MEDIUM FIX: Define magic number as named constant
-        // OPTIMIZATION: Limit max_span to 6 based on dictionary analysis
-        // Longest variable in patterns.json is 5 chars ("X的脖子上")
-        // Most variables are 2-3 chars (30/38 entries)
-        // Using 6 for safety margin while eliminating impossible spans 7-10
-        const MAX_VARIABLE_SPAN: usize = 6;
-        let max_span = std::cmp::min(semantic_tokens.len() - current_position, MAX_VARIABLE_SPAN);
+        // self.max_var_span is DEFAULT_MAX_VARIABLE_SPAN (6) for Phase A, but Phase B
+        // overrides it to cover Phase A composite results injected into the enhanced cache
+        // (e.g. "菲利克斯的猜测" = 7 tokens would be missed by the 6-token cap).
+        let max_span = std::cmp::min(semantic_tokens.len() - current_position, self.max_var_span);
 
         // Pre-allocate string buffer. Chinese chars are 3 bytes each in UTF-8;
         // using max_span * 2 (from the old "2 bytes per char" estimate) caused
@@ -918,8 +922,9 @@ pub fn find_best_pattern_match(
     semantic_tokens: &[SemanticToken],
     position: usize,
     variable_cache: &HashMap<String, VariableCacheEntry>,
+    max_var_span: usize,
 ) -> Option<PatternMatchResult> {
-    let matcher = PatternMatcher::new(variable_cache);
+    let matcher = PatternMatcher::new(variable_cache, max_var_span);
     let mut best_match: Option<PatternMatchResult> = None;
     let mut best_priority: i32 = -1;
     let mut best_length: usize = 0;

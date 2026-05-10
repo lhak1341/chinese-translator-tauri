@@ -7,7 +7,7 @@
 
 use translation_wasm_core::pattern_processor::{
     build_result, find_best_pattern_match, parse_pattern, PatternMatcher, SemanticToken,
-    VariableCacheEntry,
+    VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
 };
 use std::collections::HashMap;
 
@@ -38,7 +38,7 @@ fn test_simple_literal_pattern_match() {
     let tokens = vec![create_token("这", 0), create_token("些", 1)];
 
     let cache = HashMap::new();
-    let matcher = PatternMatcher::new(&cache);
+    let matcher = PatternMatcher::new(&cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match");
@@ -76,7 +76,7 @@ fn test_single_variable_pattern_match() {
         },
     );
 
-    let matcher = PatternMatcher::new(&variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match");
@@ -126,7 +126,7 @@ fn test_multi_variable_pattern_match() {
         },
     );
 
-    let matcher = PatternMatcher::new(&variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match");
@@ -171,7 +171,7 @@ fn test_multi_token_variable_resolution() {
         },
     );
 
-    let matcher = PatternMatcher::new(&variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match with multi-token variable");
@@ -224,7 +224,7 @@ fn test_variable_backtracking_with_lookahead() {
         },
     );
 
-    let matcher = PatternMatcher::new(&variable_cache);
+    let matcher = PatternMatcher::new(&variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(result.success, "Pattern should match with backtracking");
@@ -251,7 +251,7 @@ fn test_pattern_match_failure_not_enough_tokens() {
     let tokens = vec![create_token("这", 0), create_token("些", 1)];
 
     let cache = HashMap::new();
-    let matcher = PatternMatcher::new(&cache);
+    let matcher = PatternMatcher::new(&cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(!result.success, "Pattern should fail - not enough tokens");
@@ -277,7 +277,7 @@ fn test_pattern_match_failure_literal_mismatch() {
     ];
 
     let cache = HashMap::new();
-    let matcher = PatternMatcher::new(&cache);
+    let matcher = PatternMatcher::new(&cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(!result.success, "Pattern should fail - literal mismatch");
@@ -304,7 +304,7 @@ fn test_pattern_match_failure_variable_not_in_cache() {
 
     // Empty variable cache - "未知" not cached
     let cache = HashMap::new();
-    let matcher = PatternMatcher::new(&cache);
+    let matcher = PatternMatcher::new(&cache, DEFAULT_MAX_VARIABLE_SPAN);
     let result = matcher.test_pattern_match(&pattern, &tokens, 0);
 
     assert!(
@@ -375,7 +375,7 @@ fn test_pattern_competition_higher_priority_wins() {
     );
 
     let patterns = vec![pattern1, pattern2];
-    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache);
+    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
 
     assert!(best_match.is_some(), "Should find a match");
     let result = best_match.unwrap();
@@ -431,7 +431,7 @@ fn test_pattern_competition_low_priority_loses() {
     );
 
     let patterns = vec![pattern_generic, pattern_specific];
-    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache);
+    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
 
     assert!(best_match.is_some(), "Should find a match");
     let result = best_match.unwrap();
@@ -464,7 +464,7 @@ fn test_pattern_competition_no_match() {
     ];
 
     let patterns = vec![pattern];
-    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &HashMap::new());
+    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &HashMap::new(), DEFAULT_MAX_VARIABLE_SPAN);
 
     assert!(best_match.is_none(), "Should not find a match");
 }

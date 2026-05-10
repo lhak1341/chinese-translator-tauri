@@ -30,7 +30,7 @@ pub use matcher::{
     build_result, enable_matcher_profiling, disable_matcher_profiling,
     find_best_pattern_match, PatternMatchResult, PatternMatcher, PhaseAPattern,
     PhaseAResult, reset_matcher_profiling,
-    SemanticToken, VariableCacheEntry,
+    SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
 };
 #[cfg(target_arch = "wasm32")]
 pub use matcher::print_matcher_profiling_report;

@@ -209,7 +209,7 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
 fn dollar_x_resolves_to_variable_type_from_cache() {
     use std::collections::HashMap;
     use translation_wasm_core::pattern_processor::{
-        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
     };
 
     // Pattern: "X的家" → "nhà của X", semanticType: "$X"
@@ -240,7 +240,7 @@ fn dollar_x_resolves_to_variable_type_from_cache() {
         SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
     ];
 
-    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
     assert!(result.is_some(), "Pattern should match");
     let m = result.unwrap();
     assert!(m.success);
@@ -253,7 +253,7 @@ fn dollar_x_resolves_to_variable_type_from_cache() {
 fn dollar_y_resolves_to_variable_type_from_cache() {
     use std::collections::HashMap;
     use translation_wasm_core::pattern_processor::{
-        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
     };
 
     // Pattern: "X去Y" → "X đi Y", semanticType: "$Y"
@@ -292,7 +292,7 @@ fn dollar_y_resolves_to_variable_type_from_cache() {
         SemanticToken { value: "京".to_string(), original_index: 4, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
     ];
 
-    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
     assert!(result.is_some(), "Pattern should match");
     let m = result.unwrap();
     assert!(m.success);
@@ -305,7 +305,7 @@ fn dollar_y_resolves_to_variable_type_from_cache() {
 fn dollar_x_resolves_to_none_when_variable_untyped() {
     use std::collections::HashMap;
     use translation_wasm_core::pattern_processor::{
-        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
     };
 
     let pattern = parse_pattern(
@@ -334,7 +334,7 @@ fn dollar_x_resolves_to_none_when_variable_untyped() {
         SemanticToken { value: "家".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
     ];
 
-    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
     assert!(result.is_some(), "Pattern should match");
     let m = result.unwrap();
     assert!(m.success);
@@ -347,7 +347,7 @@ fn dollar_x_resolves_to_none_when_variable_untyped() {
 fn fixed_semantic_type_unchanged() {
     use std::collections::HashMap;
     use translation_wasm_core::pattern_processor::{
-        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
     };
 
     let pattern = parse_pattern(
@@ -376,7 +376,7 @@ fn fixed_semantic_type_unchanged() {
         SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
     ];
 
-    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
     assert!(result.is_some());
     let m = result.unwrap();
     assert!(m.success);
@@ -390,7 +390,7 @@ fn fixed_semantic_type_unchanged() {
 fn dollar_ref_to_missing_variable_resolves_to_none() {
     use std::collections::HashMap;
     use translation_wasm_core::pattern_processor::{
-        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
     };
 
     // Pattern only has X variable, but semanticType references non-existent "$Z"
@@ -420,7 +420,7 @@ fn dollar_ref_to_missing_variable_resolves_to_none() {
         SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
     ];
 
-    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
     assert!(result.is_some(), "Pattern should still match even with unresolvable $-ref");
     let m = result.unwrap();
     assert!(m.success);
@@ -436,7 +436,7 @@ fn dollar_ref_to_missing_variable_resolves_to_none() {
 fn dollar_x_with_proper_noun_var_type_resolves_to_proper_noun() {
     use std::collections::HashMap;
     use translation_wasm_core::pattern_processor::{
-        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry,
+        parse_pattern, find_best_pattern_match, SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
     };
 
     let pattern = parse_pattern(
@@ -465,7 +465,7 @@ fn dollar_x_with_proper_noun_var_type_resolves_to_proper_noun() {
         SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
     ];
 
-    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache);
+    let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
     assert!(result.is_some(), "Pattern should match");
     let m = result.unwrap();
     assert!(m.success);

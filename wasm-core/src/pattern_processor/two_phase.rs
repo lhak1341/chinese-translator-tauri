@@ -11,7 +11,7 @@
  */
 
 use super::index::PatternIndex;
-use super::matcher::{find_best_pattern_match, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern};
+use super::matcher::{find_best_pattern_match, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
 use super::pattern::SemanticPattern;
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
@@ -239,6 +239,7 @@ impl TwoPhasePatternProcessor {
                     semantic_tokens,
                     position,
                     variable_cache,
+                    DEFAULT_MAX_VARIABLE_SPAN,
                 )
             } else {
                 None
@@ -319,6 +320,16 @@ impl TwoPhasePatternProcessor {
             );
         }
 
+        // Phase A results injected into enhanced_cache can have keys longer than
+        // DEFAULT_MAX_VARIABLE_SPAN (e.g. "菲利克斯的猜测" = 7 tokens). Compute the
+        // max once here so the resolver's span window covers them.
+        let max_phase_a_key_chars = phase_a_results
+            .iter()
+            .map(|r| r.original_text.chars().count())
+            .max()
+            .unwrap_or(0);
+        let phase_b_max_var_span = std::cmp::max(DEFAULT_MAX_VARIABLE_SPAN, max_phase_a_key_chars);
+
         // Pre-allocate result vector (estimate: at most 1 result per 2 tokens)
         let mut results = Vec::with_capacity(semantic_tokens.len() / 2);
         let mut position = 0;
@@ -357,6 +368,7 @@ impl TwoPhasePatternProcessor {
                     semantic_tokens,
                     position,
                     &enhanced_cache,
+                    phase_b_max_var_span,
                 )
             } else {
                 None

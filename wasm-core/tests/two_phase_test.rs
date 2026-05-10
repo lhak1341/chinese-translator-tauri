@@ -679,3 +679,75 @@ fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
     assert_eq!(results[0].end_index, 7);
     assert_eq!(results[0].translation, "cái người kia trong biệt viện");
 }
+
+/// Regression test: Phase B variable resolution must cover Phase A results longer than
+/// DEFAULT_MAX_VARIABLE_SPAN (6 tokens).
+///
+/// Input: 在(0) 菲(1) 利(2) 克(3) 斯(4) 的(5) 猜(6) 测(7) 中(8)
+/// Phase A: "X斯的猜测" → matches tokens 1-7 ("菲利克斯的猜测") → "suy đoán của Felix" (7 tokens)
+/// Phase B: "在X中" → X must bind to the 7-token Phase A key in the enhanced cache.
+/// Before the fix, MAX_VARIABLE_SPAN=6 caused the resolver to never try span=7,
+/// so Phase B silently failed and tokens fell through to character-level translation.
+#[test]
+fn test_phase_b_variable_span_covers_long_phase_a_result() {
+    // Phase A pattern: "X斯的猜测" — allowAsPatternVariable so it feeds Phase B
+    let phase_a_pattern = parse_pattern(
+        "X斯的猜测".to_string(),
+        "suy đoán của X".to_string(),
+        None,
+        true,  // allowAsPatternVariable
+        false,
+        None,
+    );
+
+    // Phase B pattern: "在X中" — wraps the Phase A result
+    let phase_b_pattern = parse_pattern(
+        "在X中".to_string(),
+        "Ở trong X".to_string(),
+        None,
+        false,
+        false,
+        None,
+    );
+
+    // Tokens: 在 菲 利 克 斯 的 猜 测 中  (9 tokens, indices 0-8)
+    let mut tokens = vec![
+        create_token("在", 0),
+        create_token("菲", 1),
+        create_token("利", 2),
+        create_token("克", 3),
+        create_token("斯", 4),
+        create_token("的", 5),
+        create_token("猜", 6),
+        create_token("测", 7),
+        create_token("中", 8),
+    ];
+
+    // Variable cache: "菲利克" (3 chars) → "Felix" so Phase A variable X resolves
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "菲利克".to_string(),
+        VariableCacheEntry {
+            translation: "Felix".to_string(),
+            source: "proper_noun".to_string(),
+            var_type: Some("person".to_string()),
+        },
+    );
+
+    let patterns = vec![phase_a_pattern, phase_b_pattern];
+    let processor = TwoPhasePatternProcessor::new(patterns);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    // Expect exactly one composite result spanning all 9 tokens (0-8)
+    assert_eq!(
+        results.len(),
+        1,
+        "Phase B '在X中' must absorb 7-token Phase A result. Got {} result(s): {:?}",
+        results.len(),
+        results.iter().map(|r| format!("[{}-{}] \"{}\"", r.start_index, r.end_index, r.translation)).collect::<Vec<_>>()
+    );
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 8);
+    assert_eq!(results[0].translation, "Ở trong suy đoán của Felix");
+    assert_eq!(results[0].source, "hierarchical_composition");
+}
