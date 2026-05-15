@@ -333,7 +333,6 @@ export class TranslationEngine {
 
       // WASM integration settings
       enableWasm: true,
-      wasmMemoryLimit: 20, // 20MB for production use
       debugLevel: 1, // INFO level for WASM logs
 
       // Dictionary Precomputation: 5-7x faster loading with cached tries

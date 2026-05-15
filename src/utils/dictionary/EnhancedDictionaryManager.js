@@ -113,69 +113,15 @@ export class EnhancedDictionaryManager extends DictionaryManager {
   }
 
   /**
-   * Sync existing dictionaries to WASM engine
-   * Optimized batch loading reduces WASM boundary crossings by 5-10x
+   * Sync existing dictionaries to WASM engine (sequential, one dictionary at a time).
+   * See ADR-001: batch loading removed — cumulative memory check in Rust always exceeded
+   * 15MB limit across 12 dicts; startup latency is not a user problem (ADR-005).
    */
   async syncDictionariesToWasm() {
     if (!this.wasmInitialized || !this.wasmManager) return;
-
-    this.log(2, '🔄 Syncing dictionaries to WASM...');
-
-    // OPTIMIZATION: Batch all dictionary entries into single WASM call
-    const batchStartTime = performance.now();
-    const allDictionaries = [];
-    let totalEntries = 0;
-
-    // Prepare all dictionaries for batch loading
-    for (const [name, trie] of this.dictionaries) {
-      try {
-        const entries = this.extractTrieEntries(trie);
-        allDictionaries.push({ name, entries });
-        totalEntries += entries.length;
-
-        this.log(2, `📋 Prepared dictionary '${name}': ${entries.length} entries`);
-      } catch (error) {
-        this.log(0, `❌ Failed to prepare dictionary '${name}':`, error);
-      }
-    }
-
-    // Batch load all dictionaries at once
-    if (allDictionaries.length > 0) {
-      try {
-        const batchSuccess = await this.wasmManager.loadDictionariesBatch(allDictionaries);
-        const elapsed = performance.now() - batchStartTime;
-
-        if (batchSuccess) {
-          // MEDIUM-2 FIX: Validate WASM sync integrity to prevent undefined values in translations
-          const validationSuccess = await this.validateWasmSync(allDictionaries);
-
-          if (validationSuccess) {
-            this.log(
-              1,
-              `✅ Batch loaded ${allDictionaries.length} dictionaries (${totalEntries} entries) in ${elapsed.toFixed(1)}ms - validated`
-            );
-          } else {
-            // Debug level - fallback is normal and working fine
-            this.log(2, '⚠️ WASM batch validation failed - falling back to sequential loading');
-            await this.syncDictionariesToWasmSequential();
-          }
-        } else {
-          this.log(1, '⚠️ Batch loading failed, falling back to sequential loading');
-          // CODE REVIEW FIX (CODE-QUALITY-7): Sequential loading now returns validation result
-          await this.syncDictionariesToWasmSequential();
-        }
-      } catch (error) {
-        this.log(0, '❌ Batch loading error, falling back to sequential:', error);
-        // CODE REVIEW FIX (CODE-QUALITY-7): Sequential loading now returns validation result
-        await this.syncDictionariesToWasmSequential();
-      }
-    }
+    return this.syncDictionariesToWasmSequential();
   }
 
-  /**
-   * Fallback sequential loading (original method)
-   * CODE REVIEW FIX (CODE-QUALITY-7): Add validation after sequential loading
-   */
   async syncDictionariesToWasmSequential() {
     const allDictionaries = [];
 
@@ -191,8 +137,6 @@ export class EnhancedDictionaryManager extends DictionaryManager {
       }
     }
 
-    // CODE REVIEW FIX (CODE-QUALITY-7): Validate sequential loading results
-    // This ensures consistency with batch loading validation
     if (allDictionaries.length > 0) {
       const validationSuccess = await this.validateWasmSync(allDictionaries);
       if (!validationSuccess) {

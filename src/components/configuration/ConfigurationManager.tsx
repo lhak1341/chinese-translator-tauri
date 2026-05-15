@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
-import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark, Zap } from 'lucide-react';
+import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
 
 /**
@@ -22,23 +22,12 @@ const ConfigurationManager: React.FC = () => {
   const [showNewDictionaryModal, setShowNewDictionaryModal] = useState<boolean>(false);
   const [newDictionaryName, setNewDictionaryName] = useState<string>('');
 
-  // WASM Configuration State
-  const [wasmEnabled, setWasmEnabled] = useState<boolean>(true);
-  const [wasmMemoryLimit, setWasmMemoryLimit] = useState<number>(20);
-
   // Rename state
   const [renamingDictionaryId, setRenamingDictionaryId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>('');
 
   // Default Cmd-5 dictionary state
   const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
-
-  // CODE REVIEW FIX (2026-01-30): Track active drag handlers for cleanup on unmount
-  // Prevents memory leak when component unmounts during slider drag
-  const dragHandlersRef = useRef<{
-    handleMove: ((e: MouseEvent) => void) | null;
-    handleUp: (() => void) | null;
-  }>({ handleMove: null, handleUp: null });
 
   // Sort dictionaries: general 'properNouns' first, then custom ones alphabetically
   const sortDictionaries = (dictionaries: string[]): string[] => {
@@ -96,8 +85,6 @@ const ConfigurationManager: React.FC = () => {
           // Load active dictionaries from saved configuration
           const config = await loadAppConfig();
           setActiveDictionaries(config.engine.activeProperNouns);
-          setWasmEnabled(config.engine.wasmEnabled);
-          setWasmMemoryLimit(config.engine.wasmMemoryLimit);
           setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
         } else {
           throw new Error(result.error || 'Failed to load dictionaries');
@@ -110,20 +97,6 @@ const ConfigurationManager: React.FC = () => {
     };
 
     loadDictionaries();
-  }, []);
-
-  // CODE REVIEW FIX (2026-01-30): Cleanup drag event listeners on unmount
-  // Prevents memory leak if component unmounts during active drag
-  useEffect(() => {
-    return () => {
-      // Remove any lingering drag listeners
-      if (dragHandlersRef.current.handleMove) {
-        document.removeEventListener('mousemove', dragHandlersRef.current.handleMove);
-      }
-      if (dragHandlersRef.current.handleUp) {
-        document.removeEventListener('mouseup', dragHandlersRef.current.handleUp);
-      }
-    };
   }, []);
 
   // Handle dictionary activation toggle
@@ -158,25 +131,6 @@ const ConfigurationManager: React.FC = () => {
       }
     } catch (err) {
       setError(formatErrorMessage('Dictionary creation', err));
-    }
-  };
-
-  // Handle WASM configuration changes
-  const handleWasmToggle = async (enabled: boolean): Promise<void> => {
-    try {
-      await saveAppConfig({ engine: { wasmEnabled: enabled } });
-      setWasmEnabled(enabled);
-    } catch (err) {
-      setError(formatErrorMessage('WASM configuration update', err));
-    }
-  };
-
-  const handleMemoryLimitChange = async (limit: number): Promise<void> => {
-    try {
-      await saveAppConfig({ engine: { wasmMemoryLimit: limit } });
-      setWasmMemoryLimit(limit);
-    } catch (err) {
-      setError(formatErrorMessage('Memory limit update', err));
     }
   };
 
@@ -352,144 +306,6 @@ const ConfigurationManager: React.FC = () => {
 
   return (
     <div className={styles.container}>
-      {/* WASM Configuration Section */}
-      <div className={styles.wasmSection}>
-        <h2 className={styles.sectionHeading}>Performance</h2>
-
-        <div>
-          {/* Toggle row */}
-          <div className={`${styles.toggleRow} ${wasmEnabled ? styles.toggleRowWithMargin : ''}`}>
-            <div className={styles.labelContainer}>
-              <Zap size={15} className={wasmEnabled ? styles.zapIcon : styles.zapIconMuted} />
-              <div>
-                <div className={styles.labelText}>WASM Acceleration</div>
-                <div className={styles.labelDescription}>
-                  {wasmEnabled ? 'Rust-powered dictionary lookups' : 'JavaScript fallback mode'}
-                </div>
-              </div>
-            </div>
-            {/* Toggle switch */}
-            <button
-              onClick={() => handleWasmToggle(!wasmEnabled)}
-              aria-pressed={wasmEnabled}
-              aria-label="Toggle WASM Acceleration"
-              className={`${styles.toggleSwitch} ${wasmEnabled ? styles.toggleSwitchEnabled : styles.toggleSwitchDisabled}`}
-            >
-              <div
-                className={styles.toggleKnob}
-                style={{
-                  left: wasmEnabled ? '23px' : '3px',
-                }}
-              />
-            </button>
-          </div>
-
-          {/* Memory slider - only show when enabled */}
-          {wasmEnabled && (
-            <div className={styles.memorySlider}>
-              <div className={styles.memorySliderHeader}>
-                <span className={styles.memorySliderLabel}>Memory Limit</span>
-                <span className={styles.memorySliderValue}>{wasmMemoryLimit}MB</span>
-              </div>
-              {/* Custom slider track */}
-              <div
-                className={styles.sliderTrack}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const percent = (e.clientX - rect.left) / rect.width;
-                  const value = Math.round(10 + percent * 40);
-                  handleMemoryLimitChange(Math.max(10, Math.min(50, value)));
-                }}
-              >
-                {/* Track background */}
-                <div className={styles.trackBackground} />
-                {/* Track fill */}
-                <div
-                  className={styles.trackFill}
-                  style={{
-                    width: `${((wasmMemoryLimit - 10) / 40) * 100}%`,
-                  }}
-                />
-                {/* Thumb */}
-                <div
-                  className={styles.sliderThumb}
-                  role="slider"
-                  aria-label="WASM Memory Limit"
-                  aria-valuenow={wasmMemoryLimit}
-                  aria-valuemin={10}
-                  aria-valuemax={50}
-                  aria-valuetext={`${wasmMemoryLimit}MB`}
-                  tabIndex={0}
-                  style={{
-                    left: `calc(${((wasmMemoryLimit - 10) / 40) * 100}% - 8px)`,
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      handleMemoryLimitChange(Math.min(50, wasmMemoryLimit + 1));
-                    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      handleMemoryLimitChange(Math.max(10, wasmMemoryLimit - 1));
-                    } else if (e.key === 'Home') {
-                      e.preventDefault();
-                      handleMemoryLimitChange(10);
-                    } else if (e.key === 'End') {
-                      e.preventDefault();
-                      handleMemoryLimitChange(50);
-                    }
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    const track = e.currentTarget.parentElement;
-                    if (!track) return;
-
-                    // CODE REVIEW FIX (2026-01-30): Clean up any existing drag handlers before creating new ones
-                    if (dragHandlersRef.current.handleMove) {
-                      document.removeEventListener('mousemove', dragHandlersRef.current.handleMove);
-                    }
-                    if (dragHandlersRef.current.handleUp) {
-                      document.removeEventListener('mouseup', dragHandlersRef.current.handleUp);
-                    }
-
-                    let pendingValue = wasmMemoryLimit;
-
-                    const handleMove = (moveEvent: MouseEvent) => {
-                      const rect = track.getBoundingClientRect();
-                      const percent = (moveEvent.clientX - rect.left) / rect.width;
-                      pendingValue = Math.max(10, Math.min(50, Math.round(10 + percent * 40)));
-                      // Update UI instantly without IPC
-                      setWasmMemoryLimit(pendingValue);
-                    };
-
-                    const handleUp = () => {
-                      document.removeEventListener('mousemove', handleMove);
-                      document.removeEventListener('mouseup', handleUp);
-                      // Clear ref after cleanup
-                      dragHandlersRef.current.handleMove = null;
-                      dragHandlersRef.current.handleUp = null;
-                      // Persist to config only once on release
-                      handleMemoryLimitChange(pendingValue);
-                    };
-
-                    // Store handlers in ref for cleanup on unmount
-                    dragHandlersRef.current.handleMove = handleMove;
-                    dragHandlersRef.current.handleUp = handleUp;
-
-                    document.addEventListener('mousemove', handleMove);
-                    document.addEventListener('mouseup', handleUp);
-                  }}
-                />
-              </div>
-              <div className={styles.sliderLabels}>
-                <span>10MB</span>
-                <span>30MB</span>
-                <span>50MB</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Dictionaries Section */}
       <div className={styles.dictionariesSection}>
         <div className={styles.dictionariesHeader}>

@@ -13,13 +13,13 @@ ADRs prevent repeated investigations of solved problems by documenting:
 
 ## Active ADRs
 
-### [ADR-001: WASM Batch Loading Failure](./ADR-001-wasm-batch-loading-failure.md)
+### [ADR-001: WASM Batch Loading — Remove Batch Wrapper](./ADR-001-wasm-batch-loading-failure.md)
 
-**Status**: Accepted (Workaround)
-**Decision**: Accept sequential fallback for dictionary loading
-**Impact**: 200-500ms slower startup, but 100% reliability
+**Status**: Revised (2026-05-16) — Remove batch attempt, use sequential as primary path
+**Decision**: Delete JS-side batch call; sequential loading is the only path
+**Impact**: Removes ~60 lines of dead fallback logic and startup warning noise
 
-**Summary**: WASM batch dictionary loading fails 100% of the time, forcing sequential fallback. We accept this workaround because sequential loading has proven stable (100% success rate) and startup is already fast enough (<100ms total). Fixing batch loading would be high-risk with marginal benefit.
+**Summary**: Root cause identified — Rust batch uses cumulative memory check (hits 15MB limit across 12 dicts) while sequential uses per-dictionary check. Fix is tractable but ADR-005 already settled that startup latency isn't a problem. Keeping broken batch code produces only constant-zero metrics and warning noise. Rust `load_dictionaries_batch()` stays compiled in; only the JS call site is removed.
 
 ---
 
@@ -53,6 +53,16 @@ ADRs prevent repeated investigations of solved problems by documenting:
 
 ---
 
+### [ADR-006: PatternProcessor Interface](./ADR-006-pattern-processor-interface.md)
+
+**Status**: Accepted
+**Decision**: `processTokens()` returns `PatternProcessorResult[]`; `applyHierarchicalResults()` is the sole mutation site
+**Impact**: Both adapters (JS + WASM) satisfy the same contract; `applyPatterns()` needs no adapter-type branching
+
+**Summary**: Phase 1 has two adapters (`SemanticPatternProcessor` JS, `TwoPhasePatternProcessor` WASM). Both must return the same `PatternProcessorResult[]` shape from `processTokens()` so that `applyHierarchicalResults()` can apply either without branching. `applyPatternMatch` was deleted; callers that ignore the return value silently drop all pattern translations.
+
+---
+
 ## ADR Format
 
 Each ADR follows this structure:
@@ -64,6 +74,8 @@ Each ADR follows this structure:
 - **Decision**: What was chosen and why
 - **Consequences**: Positive, negative, and neutral outcomes
 - **References**: Code locations, related docs, tests
+
+**Reference hygiene**: Use full paths (e.g. `src/utils/dictionary/EnhancedDictionaryManager.js`), not bare filenames. Use function names, not line numbers — lines drift in large files and extensions change during refactors.
 
 ## When to Write an ADR
 
@@ -92,4 +104,6 @@ Write an ADR when making decisions about:
 ## History
 
 - **2026-01-28**: Created ADR-001 through ADR-004 (WASM batch, dual-path, TypeScript hybrid, 5-phase order)
-- **Future ADRs**: WASM memory configuration, new phase addition, performance optimizations
+- **2026-05-03**: ADR-005 (eager dictionary loading, LazyDictionaryContext deletion)
+- **2026-05-03**: ADR-006 (PatternProcessor interface — return results, single apply site)
+- **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope

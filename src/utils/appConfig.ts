@@ -2,8 +2,6 @@ import { validateApiResult } from './configValidation';
 import type { AppConfiguration } from '../types/ComponentTypes';
 
 export interface EngineConfig {
-  wasmEnabled: boolean;
-  wasmMemoryLimit: number;
   activeProperNouns: string[];
 }
 
@@ -22,8 +20,6 @@ export interface AppConfig {
 }
 
 const ENGINE_DEFAULTS: EngineConfig = {
-  wasmEnabled: true,
-  wasmMemoryLimit: 20,
   activeProperNouns: ['properNouns'],
 };
 
@@ -32,12 +28,6 @@ let cache: AppConfig | null = null;
 function fromRaw(raw: Record<string, unknown>): AppConfig {
   return {
     engine: {
-      wasmEnabled:
-        typeof raw.wasmEnabled === 'boolean' ? raw.wasmEnabled : ENGINE_DEFAULTS.wasmEnabled,
-      wasmMemoryLimit:
-        typeof raw.wasmMemoryLimit === 'number' && raw.wasmMemoryLimit > 0
-          ? raw.wasmMemoryLimit
-          : ENGINE_DEFAULTS.wasmMemoryLimit,
       activeProperNouns:
         Array.isArray(raw.activeProperNouns) &&
         raw.activeProperNouns.every((v) => typeof v === 'string')
@@ -57,8 +47,6 @@ function fromRaw(raw: Record<string, unknown>): AppConfig {
 
 function toRaw(config: AppConfig): AppConfiguration {
   return {
-    wasmEnabled: config.engine.wasmEnabled,
-    wasmMemoryLimit: config.engine.wasmMemoryLimit,
     activeProperNouns: config.engine.activeProperNouns,
     defaultQuickAddDictionary: config.ui.defaultQuickAddDictionary,
     lastSelectedDictionary: config.session.lastSelectedDictionary,

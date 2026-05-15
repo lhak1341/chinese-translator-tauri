@@ -9,7 +9,7 @@
 
 The translation app provides bidirectional clickable highlighting - users can click translated text to see corresponding original text and vice versa. We have **two completely separate implementations** for different translation modes:
 
-1. **Character-only mode** (Bottom-left panel): `ClickableTranslationSemantic.tsx` + `SegmentPrecomputer.js`
+1. **Character-only mode** (Bottom-left panel): `ClickableTranslationSemantic.tsx` + `SegmentPrecomputer.ts`
 2. **Full Translation mode** (Right panel): `ClickableTranslationOptimized.tsx` + `TranslationEngine.js:5184-5350`
 
 **Problem**: Should we consolidate these paths into a unified implementation, or accept the duplication?
@@ -96,8 +96,8 @@ const segments = UnifiedSegmentComputer.compute(semanticArray, text, {
 **Path 1 - Character-only mode**:
 
 ```javascript
-// Component: ClickableTranslationSemantic.tsx
-// Computation: SegmentPrecomputer.js:precomputeSegments()
+// Component: ClickableTranslationSemantic.tsx  (src/components/char-only/)
+// Computation: src/utils/highlighting/SegmentPrecomputer.ts:precomputeSegments()
 // Direction: 'character-only-to-original'
 // Data: Computes on-demand from semantic arrays
 ```
@@ -105,8 +105,8 @@ const segments = UnifiedSegmentComputer.compute(semanticArray, text, {
 **Path 2 - Full Translation mode**:
 
 ```javascript
-// Component: ClickableTranslationOptimized.tsx
-// Computation: TranslationEngine.js:5184-5350 (translateWithProgressiveBatches)
+// Component: ClickableTranslationOptimized.tsx  (src/components/full-translation/)
+// Computation: src/utils/TranslationEngine.js — translateWithProgressiveBatches (~5703)
 // Direction: 'translation-to-original'
 // Data: Prebuilt segments during translation
 ```
@@ -209,7 +209,7 @@ We maintain two independent implementations for the following reasons:
 **Bug Fix Pattern** (Lessons from "màu" bug, Jan 2025):
 
 1. **Identify Path**: Check which mode has the bug
-   - Character-only → Debug `SegmentPrecomputer.js`
+   - Character-only → Debug `SegmentPrecomputer.ts`
    - Full Translation → Debug `TranslationEngine.js:5184-5350`
 
 2. **Add Diagnostics**: Log at segment creation, not matching
@@ -260,7 +260,7 @@ We maintain two independent implementations for the following reasons:
 
 ## References
 
-- Code (Path 1): `ClickableTranslationSemantic.tsx`, `SegmentPrecomputer.js`
+- Code (Path 1): `ClickableTranslationSemantic.tsx`, `SegmentPrecomputer.ts`
 - Code (Path 2): `ClickableTranslationOptimized.tsx`, `TranslationEngine.js:5184-5350`
 - Documentation: CLAUDE.md lines 256-322 ("Dual-Path Architecture")
 - Failed Consolidation: `docs/archive/refactoring-2026/` (63% coverage loss)

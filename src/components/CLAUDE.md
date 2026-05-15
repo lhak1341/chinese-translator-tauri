@@ -55,6 +55,10 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 
 **Post-ready setup** (engine stats, debounced callbacks, dev tools): done in a `useEffect([enginePhase])` in `Translator.jsx` — fires on every transition to `'ready'`, including after `reinitialize`.
 
+## ConfigurationManager Settings Must Be Traced to the Engine
+
+`saveAppConfig` → `loadAppConfig` → `TranslationEngine.js` options → `WasmDictionaryManager._doInitialize(_config)`. The `_config` param is discarded (underscore = unused) — settings reach `appConfig.ts` correctly but die at WASM init. Wire new WASM-related config through `EnhancedDictionaryManager` constructor options instead.
+
 ## `showReadinessOverlay` Must Not Short-Circuit on `initializationError`
 
 When engine init fails: `initializationError` is truthy AND `enginePhase === 'error'` (not `'ready'`). Adding `!initializationError` to the condition hides the overlay and lets users interact with a broken engine. Correct condition: `!loadError && (isLoading || enginePhase !== 'ready')`.

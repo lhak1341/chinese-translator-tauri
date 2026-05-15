@@ -14,7 +14,7 @@ import type { RefObject } from 'react';
  * and smoothly scrolls it to the center of the viewport.
  *
  * @param containerRef - React ref to the container element
- * @param unitIndex - The unit index to scroll to (or array of indices for multi-select)
+ * @param unitIndex - The unit index to scroll to
  *
  * @example
  * const textRef = useRef<HTMLDivElement>(null);
@@ -23,17 +23,12 @@ import type { RefObject } from 'react';
  */
 export function scrollToHighlightedElement(
   containerRef: RefObject<HTMLElement>,
-  unitIndex: number | number[]
+  unitIndex: number
 ): void {
   if (!containerRef.current) return;
 
-  // Handle array of indices (multi-select) - scroll to first one
-  const targetIndex = Array.isArray(unitIndex) ? unitIndex[0] : unitIndex;
-
   // Find the highlighted element within the container
-  const highlightedElement = containerRef.current.querySelector(
-    `[data-unit-index="${targetIndex}"]`
-  );
+  const highlightedElement = containerRef.current.querySelector(`[data-unit-index="${unitIndex}"]`);
 
   if (highlightedElement) {
     highlightedElement.scrollIntoView({

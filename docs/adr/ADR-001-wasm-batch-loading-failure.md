@@ -1,183 +1,123 @@
-# ADR-001: WASM Batch Loading Failure and Sequential Fallback
+# ADR-001: WASM Batch Loading — Remove JS Batch Wrapper, Keep Sequential
 
-**Status**: Accepted (Workaround in Production)
-**Date**: 2026-01-28
+**Status**: Revised — Remove Batch Attempt (was: Accepted Workaround)
+**Date (original)**: 2026-01-28
+**Date (revised)**: 2026-05-16
 **Decision Makers**: Development Team
-**Affected Components**: `EnhancedDictionaryManager.js`, `WasmDictionaryManager.js`
+**Affected Components**: `src/utils/dictionary/EnhancedDictionaryManager.js`, `src/utils/wasm/WasmDictionaryManager.js`
 
 ## Context and Problem Statement
 
-The translation system loads 12 dictionaries (27,000+ entries) into WASM memory for high-performance lookups. We attempted batch loading (single WASM call for all dictionaries) to minimize serialization overhead, but batch loading **fails 100% of the time** in practice, forcing a sequential fallback.
+The translation system loads 12 dictionaries (27,000+ entries) into WASM memory. A
+batch loading path (`loadDictionariesBatch`) was added to reduce WASM boundary crossings
+from 12 to 1. It has failed 100% of the time in production.
 
-**Current Behavior** (`EnhancedDictionaryManager.js:119-178`):
+The original ADR (2026-01-28) chose to **keep the batch attempt as a workaround** while
+investigating later. This revision supersedes that decision.
 
-- Batch loading: 0% success rate (always fails)
-- Sequential loading: 100% success rate (all 12 dictionaries load correctly)
-- Impact: 200-500ms slower startup (sequential vs batch)
+## Root Cause (Identified 2026-05-16)
 
-**Key Question**: Should we fix the root cause or accept the sequential fallback?
+The original ADR listed four hypothetical causes. The actual cause is a **memory-check
+asymmetry** between the batch and sequential Rust paths:
 
-## Decision Drivers
+- `load_dictionary()` (singular): checks whether **one dictionary** exceeds the 15MB
+  limit (`estimated_size > self.memory_limit_mb * MB`).
+- `load_dictionaries_batch()`: checks whether **cumulative** loaded size exceeds 15MB
+  (`memory_usage_bytes + estimated_size > memory_limit_bytes`).
 
-**Performance Impact**: Moderate
+With 12 dictionaries and 27,000+ entries, the cumulative estimate crosses 15MB during the
+batch run. Later dictionaries get skipped → `loaded_count != total_dicts` → returns
+`false` → JS falls back to sequential.
 
-- Batch loading would save 200-500ms on startup
-- Startup already <100ms with sequential fallback
-- Not a user-facing bottleneck
+Sequential loading succeeds because each individual dictionary is under 15MB.
 
-**System Stability**: High Priority
+**Additional finding**: The Rust batch function is not parallel — it loops sequentially
+internally ("We do sequential loading inside the batch to maintain memory limits"). The
+only performance benefit of the batch path is **11 fewer JS→WASM boundary crossings**,
+not reduced dictionary-load work.
 
-- Sequential fallback is **proven stable** (100% success, production-tested)
-- Batch loading fix is **high-risk** (touching WASM serialization boundaries)
-- Current workaround has no functional impact
+## Why Not Fix the Root Cause
 
-**Development Cost**: Medium-High
+The fix would be: call `DictionaryEngine::new_with_config(50)` on the JS side to raise
+the Rust-side cumulative limit, or change the batch check to mirror the per-dictionary
+check. This is tractable.
 
-- Investigation: 1-2 days debugging WASM serialization
-- Testing: Extensive validation across dictionaries
-- Risk: Breaking working sequential path
+However, **ADR-005 (2026-05-03) settled the startup performance question**: startup with
+12 dictionaries is already fast enough; no user-facing latency problem exists. The only
+benefit of fixing batch loading — 11 fewer WASM boundary crossings — targets a problem
+that doesn't need solving.
 
-## Alternatives Considered
+Keeping the broken batch attempt costs:
 
-### Alternative 1: Fix WASM Batch Loading (Investigate Root Cause)
-
-**Approach**:
-
-- Add detailed logging to `WasmDictionaryManager.loadDictionariesBatch()`
-- Test with smaller batches (2-3 dictionaries instead of 12)
-- Check payload size (27,000+ entries may exceed WASM memory limits)
-- Verify serialization format (serde_wasm_bindgen handling)
-
-**Possible Root Causes**:
-
-1. **WASM Memory Exhaustion**: 27,000+ entries exceed initial WASM pages (may need `--max-memory`)
-2. **Serialization Issue**: Large JSON payload corrupts during JS → Rust boundary crossing
-3. **Async Timing Bug**: Promise resolves before WASM fully processes data
-4. **Trie Structure Corruption**: Batch insertion breaks trie integrity
-
-**Pros**:
-
-- ✅ Faster startup (200-500ms improvement)
-- ✅ Cleaner code (removes fallback logic)
-- ✅ Better understanding of WASM limits
-
-**Cons**:
-
-- ❌ High investigation cost (1-2 days)
-- ❌ Risk of breaking stable sequential path
-- ❌ May require WASM memory configuration changes
-- ❌ Benefit is marginal (startup already <100ms)
-
-### Alternative 2: Accept Sequential Fallback (Current Implementation) ✅ SELECTED
-
-**Approach**:
-
-- Keep current batch → sequential fallback pattern
-- Document as known limitation
-- Monitor metrics: `window.performanceDashboard.getWasmSyncMetrics()`
-- Revisit if startup performance becomes critical
-
-**Pros**:
-
-- ✅ Zero risk (already stable in production)
-- ✅ Proven 100% success rate
-- ✅ No code changes required
-- ✅ Clear metrics tracking (batch: 0%, sequential: 100%)
-
-**Cons**:
-
-- ❌ 200-500ms slower startup
-- ❌ Fallback logic adds code complexity
-- ❌ Warning logs on every startup ("batch failed, falling back")
-
-### Alternative 3: Remove Batch Loading Attempt (Simplify Code)
-
-**Approach**:
-
-- Remove batch loading code entirely
-- Use sequential loading as primary path
-- Eliminate fallback logic
-
-**Pros**:
-
-- ✅ Simpler codebase (removes ~50 lines)
-- ✅ No false-positive warnings
-- ✅ Same performance as current (sequential is the actual path)
-
-**Cons**:
-
-- ❌ Loses instrumentation (no metrics on batch failure rate)
-- ❌ Future optimization harder (batch code serves as prototype)
+- Warning log noise on every startup ("Batch loading failed, falling back")
+- ~60 lines of fallback branching in `EnhancedDictionaryManager.js`
+- Three separate exception-handling fallback paths (lines 160, 165, 170)
+- Constant-zero metrics that convey no information (batch always fails for the same reason)
 
 ## Decision
 
-**Accept Alternative 2: Keep Sequential Fallback**
+**Remove the JS-side batch attempt. Use sequential loading as the primary path.**
 
-We accept the current workaround for the following reasons:
+The Rust `load_dictionaries_batch()` implementation remains — it is part of the compiled
+WASM binary and does not need to be removed. Only the JS-side call site and fallback
+logic in `EnhancedDictionaryManager.syncDictionariesToWasm()` is removed.
 
-1. **Stability Over Speed**: Sequential fallback has 100% success rate across all production scenarios
-2. **User Impact**: Startup is already <100ms, 200-500ms savings not noticeable
-3. **Risk Mitigation**: Fixing batch loading risks breaking stable sequential path
-4. **Metrics Tracking**: Current implementation provides data on batch failure patterns
+## Implementation
 
-**Implementation Details**:
+`EnhancedDictionaryManager.syncDictionariesToWasm()` should call
+`syncDictionariesToWasmSequential()` directly, removing:
 
-- Batch loading attempts and fails (tracked in `WasmSyncMetrics`)
-- Sequential fallback succeeds (all 12 dictionaries load)
-- Validation step ensures WASM sync integrity (prevents "undefined" in translations)
-- Warning log indicates fallback occurred (aids future debugging)
+- Batch preparation loop (build `allDictionaries` array)
+- `wasmManager.loadDictionariesBatch()` call
+- Three fallback catch paths
+- Batch timing/logging instrumentation
+
+`WasmSyncMetrics` batch counters can be removed or left as dead struct fields — do not
+delete `WasmDictionaryManager.loadDictionariesBatch()` itself (still compiled into WASM,
+may be useful if a future startup performance problem emerges and the memory limit is
+raised).
 
 ## Consequences
 
 ### Positive
 
-- ✅ **Proven Stability**: 100% dictionary loading success rate maintained
-- ✅ **Zero Risk**: No changes to working code
-- ✅ **Clear Metrics**: Batch/sequential success rates tracked separately
-- ✅ **Instrumentation**: Detailed logs aid future investigation
+- ✅ No warning log noise on startup
+- ✅ ~60 lines of dead branching removed from `EnhancedDictionaryManager.js`
+- ✅ Sequential path is the only path — no dual-path cognitive load
+- ✅ Consistent with ADR-005: startup performance is not a problem
 
 ### Negative
 
-- ❌ **Slower Startup**: 200-500ms penalty on application launch
-- ❌ **Warning Noise**: "Batch failed, falling back" logs on every startup
-- ❌ **Code Complexity**: Fallback logic adds ~60 lines
-- ❌ **Technical Debt**: Root cause remains uninvestigated
+- ❌ 11 WASM boundary crossings on startup instead of 1 (not a user-facing problem)
+- ❌ If startup performance ever becomes a problem, the fix requires revisiting this decision
 
 ### Neutral
 
-- 🔄 **Future Optimization Path**: Batch loading code serves as starting point if performance becomes critical
-- 🔄 **Data Collection**: Metrics help identify if patterns change (e.g., batch starts succeeding with future WASM updates)
+- 🔄 Rust `load_dictionaries_batch()` stays compiled in — recoverable from JS if needed
+
+## If Startup Latency Becomes a Problem
+
+1. Call `DictionaryEngine.new_with_config(50)` at WASM init to raise the Rust cumulative limit to 50MB
+2. Re-add the batch call in `syncDictionariesToWasm()` (recoverable from git)
+3. Verify sequential fallback still works if batch fails validation
+4. Re-evaluate whether 11 fewer boundary crossings produces measurable user benefit
 
 ## Monitoring and Review
 
-**Metrics to Track**:
-
-- `window.performanceDashboard.getWasmSyncMetrics()` shows batch/sequential success rates
-- Startup performance: Monitor `syncDictionariesToWasm()` timing
-- Memory usage: Ensure sequential loading doesn't cause accumulation
-
 **Review Triggers**:
 
-- Startup time >500ms (consider investigating batch loading)
-- Sequential loading failure (requires urgent fix)
-- WASM memory limits documented (revisit batch approach)
-
-**Next Steps if Revisited**:
-
-1. Add `--max-memory` flag to WASM compilation
-2. Test batch loading with 2-3 dictionaries (isolate size vs structure issue)
-3. Add Rust-side logging in `load_dictionaries_batch()` function
-4. Profile serde_wasm_bindgen serialization overhead
+- Startup time measurably degrades (>200ms user-reported lag at app open)
+- Dictionary count grows significantly beyond 12
 
 ## References
 
-- Code: `EnhancedDictionaryManager.js:119-178` (batch → sequential fallback)
-- Code: `WasmDictionaryManager.js` (WASM batch loading implementation)
-- Metrics: `PerformanceDashboard.getWasmSyncMetrics()` (batch: 0%, sequential: 100%)
-- Technical Debt Analysis: 2026-01-28 (identified as workaround)
-- CLAUDE.md: "WASM Acceleration (Active Systems)" section
+- Batch caller: `src/utils/dictionary/EnhancedDictionaryManager.js:119-173` (`syncDictionariesToWasm`)
+- Batch implementation: `src/utils/wasm/WasmDictionaryManager.js:129-237` (`loadDictionariesBatch`)
+- Rust implementation: `wasm-core/src/lib.rs:270` (`load_dictionaries_batch`)
+- Memory asymmetry: `lib.rs:215` (per-dict check) vs `lib.rs:309` (cumulative check)
+- Sequential path: `EnhancedDictionaryManager.js:176` (`syncDictionariesToWasmSequential`)
 
 ## Related ADRs
 
-- ADR-003: TypeScript Hybrid Architecture (affects WASM boundary type safety)
-- Future: WASM Memory Configuration (if batch loading revisited)
+- ADR-005: Eager Dictionary Loading (established that startup latency is not a problem — primary justification for this revision)
+- ADR-003: TypeScript Hybrid Architecture (WASM boundary type safety)

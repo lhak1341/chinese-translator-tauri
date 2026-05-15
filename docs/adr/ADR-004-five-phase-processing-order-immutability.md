@@ -11,7 +11,7 @@ The translation system processes Chinese text through 5 sequential phases: Patte
 
 **Key Question**: Can we reorder these phases to improve performance or accuracy, or is this order immutable?
 
-**Current Order** (`TranslationEngine.js:5580-5733` - `translateSinglePass()`):
+**Current Order** (`src/utils/TranslationEngine.js` — `translateSinglePass()` ~7445):
 
 1. **Pattern Processing** (Phase 1): Structural patterns with variables (例: "在XY中" → "ở trong X Y")
 2. **Proper Noun Processing** (Phase 2): Novel-specific terms from proper noun dictionaries
@@ -436,11 +436,11 @@ async translateSinglePass(tokens) {
 
 ## References
 
-- Implementation: `TranslationEngine.js:5580-5733` (`translateSinglePass()`)
+- Implementation: `src/utils/TranslationEngine.js` — `translateSinglePass()` (~7445)
 - Documentation: CLAUDE.md "5-Phase Translation Pipeline (IMMUTABLE)" section
-- Tests: `PhaseIntegration.test.js` (16 tests validate order)
+- Tests: `src/utils/__tests__/PhaseIntegration.test.js` (validates order)
 - Failed Attempts: `docs/archive/refactoring-2026/` (phase extraction attempts)
-- Token Consumption: `TokenHelpers.js` (getSemanticTokens, token state management)
+- Token Consumption: `src/utils/TokenHelpers.ts` (getSemanticTokens, token state management)
 
 ## Related ADRs
 

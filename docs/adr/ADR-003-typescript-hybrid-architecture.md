@@ -14,6 +14,7 @@ The codebase is written in a mix of JavaScript and TypeScript. We need to decide
 - **TypeScript**: 15 core utilities, 19 `.d.ts` type definition files (11,000+ lines)
 - **JavaScript**: Core engine (`TranslationEngine.js` 7,507 lines), UI coordination (`Translator.jsx` 2,352 lines), processors
 - **Type Coverage**: WASM boundaries, API contracts, utilities
+- **Engine location**: `src/utils/TranslationEngine.js`
 
 **Key Question**: What should our TypeScript migration strategy be?
 
@@ -73,21 +74,24 @@ The codebase is written in a mix of JavaScript and TypeScript. We need to decide
 **Why Core Engine Migration Fails**:
 
 ```typescript
-// TypeScript enforces strict boundaries, breaking 5-phase coordination
+// TypeScript strict mode makes shared-mutable-state coordination hard to express
 class TranslationEngine {
-  // ❌ TypeScript wants separate methods for each phase
-  // ❌ Can't share mutable token state across method boundaries
-  // ❌ Phase coordination requires synchronous state mutation
+  // ❌ TypeScript's type system pushes toward immutable data flow
+  // ❌ "Mutate array in-place AND read from this.*" fights every type annotation
+  // ❌ Strict null checks + readonly conventions make phase handoff unergonomic
 
   translateSinglePass(tokens: Token[]): TranslatedTokens {
     // Phase 1: Patterns
-    this.processPatterns(tokens); // ❌ TypeScript copies tokens (immutability)
+    this.processPatterns(tokens); // Mutates tokens[] in-place — not a copy issue,
+    // but typing this correctly requires fighting TS
 
     // Phase 2: Proper Nouns
-    this.processProperNouns(tokens); // ❌ Works on stale copy, not shared state
+    this.processProperNouns(tokens); // Reads tokens mutated by Phase 1 —
+    // TS can't express "same array, different state"
 
-    // THIS IS WHY IT BREAKS: TypeScript's safety mechanisms prevent
-    // the intentional coupling that makes 5-phase processing work
+    // WHY IT BREAKS: not runtime behavior (TS is compile-time only), but the
+    // type annotations needed to satisfy strict mode require restructuring
+    // the engine in ways that break phase coordination
   }
 }
 ```
@@ -117,7 +121,7 @@ class TranslationEngine {
 
 - WASM boundary errors are **silent and destructive** (undefined → "undefined" text)
 - Type validation at boundaries prevented multiple production bugs
-- Test coverage (541 tests) helps but doesn't catch all edge cases
+- Test coverage (1,198 JS/TS tests + 155 Rust tests) helps but doesn't catch all edge cases
 
 ### Alternative 3: Strategic Hybrid (TypeScript for Boundaries, JavaScript for Core) ✅ SELECTED
 
@@ -320,10 +324,10 @@ test('translate() must stay synchronous', () => {
 
 - Migrated Utilities: `ByteFormatter.ts`, `ValidationHelpers.ts`, `WasmTypes.ts`, etc. (15 files)
 - Type Definitions: `src/types/*.d.ts` (19 files, 11,000+ lines)
-- Core Engine: `TranslationEngine.js` (7,507 lines, intentionally JS)
+- Core Engine: `src/utils/TranslationEngine.js` (intentionally JS)
 - Migration Guide: CLAUDE.md "TypeScript Migration Strategy" section
 - Failed Attempts: `docs/archive/refactoring-2026/EXTRACTION_ANALYSIS.md`
-- Test Coverage: `WasmTypes.test.ts` (57 tests), `WasmBoundaryEdgeCases.test.js` (30 tests)
+- Test Coverage: `WasmTypes.test.ts`, `WasmBoundaryEdgeCases.test.js`
 
 ## Related ADRs
 
