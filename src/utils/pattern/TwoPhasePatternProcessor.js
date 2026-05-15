@@ -357,10 +357,8 @@ class TwoPhasePatternProcessor {
         this.internalProfiling.processTokensWasm.calls++;
       }
 
-      // MEDIUM FIX: Handle structured error response from WASM processor
       if (!wasmResponse.success) {
-        logger.warn(`⚠️ WASM pattern processing failed: ${wasmResponse.error}`);
-        return [];
+        throw new Error(`WASM pattern processing returned failure: ${wasmResponse.error}`);
       }
 
       const wasmResults = wasmResponse.results;

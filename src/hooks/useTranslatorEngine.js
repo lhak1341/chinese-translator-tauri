@@ -35,7 +35,7 @@ function filterDictionariesForEngine(dictionaries, activeProperNouns) {
  *   enginePhase     — 'loading' | 'ready' | 'error'
  *   engineRef       — ref to current engine instance (or null)
  *   initError       — error message string when phase === 'error', else null
- *   activeProperNounsFromConfig — loaded from disk; sync to useDictionaryConfig via useEffect
+ *   activeProperNounsFromConfig — loaded from disk; use directly in Translator.jsx
  *   reinitialize    — async (filteredDictionaries, options) => void — for handleForceReload
  */
 export function useTranslatorEngine() {

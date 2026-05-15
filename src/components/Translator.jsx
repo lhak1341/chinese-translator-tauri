@@ -41,7 +41,7 @@ import {
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
-import { useDictionaryConfig } from '../hooks/useDictionaryConfig';
+import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
@@ -125,9 +125,8 @@ const Translator = ({ isActive = true }) => {
     resetStreaming,
   } = useStreamingTranslation(100); // 100ms throttle
 
-  // Dictionary configuration hook (extracted)
+  // Quick Add modal hook
   const {
-    activeProperNouns,
     showQuickAdd,
     quickAddDictionary,
     clipboardText,
@@ -137,9 +136,8 @@ const Translator = ({ isActive = true }) => {
     openQuickAddPattern: handleQuickAddPattern,
     openQuickAddCustomProperNoun: handleQuickAddCustomProperNoun,
     closeQuickAdd,
-    updateActiveProperNouns: setActiveProperNouns,
     handleQuickAddDictionaryChange,
-  } = useDictionaryConfig();
+  } = useDictionaryModals();
 
   const [inputText, setInputText] = useState('');
   const [translatedText, setTranslatedText] = useState('');
@@ -163,7 +161,6 @@ const Translator = ({ isActive = true }) => {
   } = highlighting;
   const [_highlightedOriginalSegmentId, _setHighlightedOriginalSegmentId] = useState(-1);
   const [_highlightedTranslatedSegmentId, _setHighlightedTranslatedSegmentId] = useState(-1);
-  // activeProperNouns, showQuickAdd, quickAddDictionary now managed by useDictionaryConfig hook
   const [_engineStats, setEngineStats] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const isTranslatingRef = useRef(false);
@@ -174,9 +171,6 @@ const Translator = ({ isActive = true }) => {
     activeProperNounsFromConfig,
     reinitialize,
   } = useTranslatorEngine();
-  useEffect(() => {
-    if (activeProperNounsFromConfig) setActiveProperNouns(activeProperNounsFromConfig);
-  }, [activeProperNounsFromConfig]);
   const [wasmStatus, setWasmStatus] = useState({
     initialized: false,
     fallbackMode: true,
@@ -2032,11 +2026,10 @@ const Translator = ({ isActive = true }) => {
         invalidateAppConfig();
         const freshConfig = await loadAppConfig();
         freshActiveProperNouns = freshConfig.engine.activeProperNouns;
-        setActiveProperNouns(freshActiveProperNouns);
         logger.log('✅ Fresh configuration loaded:', freshActiveProperNouns);
       } catch (configError) {
         logger.error('❌ Failed to load fresh configuration:', configError);
-        freshActiveProperNouns = activeProperNouns;
+        freshActiveProperNouns = activeProperNounsFromConfig ?? ['properNouns'];
         logger.log('⚠️  Using current configuration as fallback');
       }
 
@@ -2220,7 +2213,7 @@ const Translator = ({ isActive = true }) => {
     }
   }, [
     inputText,
-    activeProperNouns,
+    activeProperNounsFromConfig,
     dictionaries,
     isLoading,
     isDictionaryReloading,

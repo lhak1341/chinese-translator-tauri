@@ -13,22 +13,6 @@ describe('useTranslationController', () => {
   });
 
   describe('createController', () => {
-    test('creates new controller with unique ID', () => {
-      const { result } = renderHook(() => useTranslationController());
-
-      let controller1, controller2;
-      act(() => {
-        controller1 = result.current.createController();
-        controller2 = result.current.createController();
-      });
-
-      expect(controller1.controller).toBeInstanceOf(AbortController);
-      expect(controller2.controller).toBeInstanceOf(AbortController);
-      expect(controller1.translationId).not.toBe(controller2.translationId);
-      expect(controller1.timeoutId).toBeDefined();
-      expect(controller2.timeoutId).toBeDefined();
-    });
-
     test('returns controller, timeoutId, and translationId', () => {
       const { result } = renderHook(() => useTranslationController());
 
@@ -41,9 +25,11 @@ describe('useTranslationController', () => {
       expect(bundle).toHaveProperty('timeoutId');
       expect(bundle).toHaveProperty('translationId');
       expect(bundle.controller.signal).toBeDefined();
+      expect(bundle.controller).toBeInstanceOf(AbortController);
+      expect(bundle.timeoutId).toBeDefined();
     });
 
-    test('cancels previous translations when cancelPreviousOnNew is true', () => {
+    test('cancels previous translation when cancelPreviousOnNew is true', () => {
       const { result } = renderHook(() => useTranslationController({ cancelPreviousOnNew: true }));
 
       let controller1, controller2;
@@ -59,6 +45,8 @@ describe('useTranslationController', () => {
 
       expect(abortSpy).toHaveBeenCalled();
       expect(controller1.controller.signal.aborted).toBe(true);
+      expect(controller2.controller.signal.aborted).toBe(false);
+      expect(result.current.getActiveCount()).toBe(1);
     });
 
     test('does not cancel previous when cancelPreviousOnNew is false', () => {
@@ -70,13 +58,14 @@ describe('useTranslationController', () => {
         controller2 = result.current.createController();
       });
 
+      // Both should not be aborted (second doesn't cancel first)
       expect(controller1.controller.signal.aborted).toBe(false);
-      expect(result.current.getActiveCount()).toBe(2);
+      expect(controller2.controller.signal.aborted).toBe(false);
     });
   });
 
   describe('cleanup', () => {
-    test('cleans up specific controller', () => {
+    test('clears active controller', () => {
       const { result } = renderHook(() => useTranslationController());
 
       let bundle;
@@ -110,31 +99,27 @@ describe('useTranslationController', () => {
       expect(clearTimeoutSpy).toHaveBeenCalledWith(bundle.timeoutId);
     });
 
-    test('handles cleanup of non-existent controller gracefully', () => {
+    test('handles cleanup when no controller active', () => {
       const { result } = renderHook(() => useTranslationController());
 
       expect(() => {
         act(() => {
-          result.current.cleanup(99999, 99999);
+          result.current.cleanup('unused', 99999);
         });
       }).not.toThrow();
     });
   });
 
   describe('cancelAll', () => {
-    test('cancels all active translations', () => {
-      const { result } = renderHook(() => useTranslationController({ cancelPreviousOnNew: false }));
+    test('cancels active translation', () => {
+      const { result } = renderHook(() => useTranslationController());
 
-      let controllers;
+      let bundle;
       act(() => {
-        controllers = [
-          result.current.createController(),
-          result.current.createController(),
-          result.current.createController(),
-        ];
+        bundle = result.current.createController();
       });
 
-      expect(result.current.getActiveCount()).toBe(3);
+      expect(result.current.getActiveCount()).toBe(1);
 
       let cancelledCount;
       act(() => {
@@ -142,11 +127,9 @@ describe('useTranslationController', () => {
         cancelledCount = count;
       });
 
-      expect(cancelledCount).toBe(3);
+      expect(cancelledCount).toBe(1);
       expect(result.current.getActiveCount()).toBe(0);
-      expect(controllers[0].controller.signal.aborted).toBe(true);
-      expect(controllers[1].controller.signal.aborted).toBe(true);
-      expect(controllers[2].controller.signal.aborted).toBe(true);
+      expect(bundle.controller.signal.aborted).toBe(true);
     });
 
     test('returns 0 when no active translations', () => {
@@ -161,12 +144,12 @@ describe('useTranslationController', () => {
       expect(count).toBe(0);
     });
 
-    test('clears all timeouts when cancelling all', () => {
-      const { result } = renderHook(() => useTranslationController({ cancelPreviousOnNew: false }));
+    test('clears timeout when cancelling', () => {
+      const { result } = renderHook(() => useTranslationController());
 
-      let bundles;
+      let bundle;
       act(() => {
-        bundles = [result.current.createController(), result.current.createController()];
+        bundle = result.current.createController();
       });
 
       const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
@@ -175,8 +158,22 @@ describe('useTranslationController', () => {
         result.current.cancelAll();
       });
 
-      expect(clearTimeoutSpy).toHaveBeenCalledWith(bundles[0].timeoutId);
-      expect(clearTimeoutSpy).toHaveBeenCalledWith(bundles[1].timeoutId);
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(bundle.timeoutId);
+    });
+
+    test('returns cleanupComplete promise', async () => {
+      const { result } = renderHook(() => useTranslationController());
+
+      act(() => {
+        result.current.createController();
+      });
+
+      let cleanupComplete;
+      act(() => {
+        ({ cleanupComplete } = result.current.cancelAll());
+      });
+
+      await expect(cleanupComplete).resolves.toBeUndefined();
     });
   });
 
@@ -192,7 +189,6 @@ describe('useTranslationController', () => {
       expect(bundle.controller.signal.aborted).toBe(false);
       expect(result.current.getActiveCount()).toBe(1);
 
-      // Fast-forward past timeout
       act(() => {
         vi.advanceTimersByTime(1001);
       });
@@ -209,24 +205,21 @@ describe('useTranslationController', () => {
         bundle = result.current.createController();
       });
 
-      // Cleanup before timeout
       act(() => {
         result.current.cleanup(bundle.translationId, bundle.timeoutId);
       });
 
-      // Fast-forward past timeout
       act(() => {
         vi.advanceTimersByTime(1001);
       });
 
-      // Should still be not aborted (cleaned up normally, not by timeout)
       expect(result.current.getActiveCount()).toBe(0);
     });
   });
 
   describe('getActiveCount', () => {
     test('returns correct active count', () => {
-      const { result } = renderHook(() => useTranslationController({ cancelPreviousOnNew: false }));
+      const { result } = renderHook(() => useTranslationController());
 
       expect(result.current.getActiveCount()).toBe(0);
 
@@ -234,11 +227,6 @@ describe('useTranslationController', () => {
         result.current.createController();
       });
       expect(result.current.getActiveCount()).toBe(1);
-
-      act(() => {
-        result.current.createController();
-      });
-      expect(result.current.getActiveCount()).toBe(2);
 
       act(() => {
         result.current.cancelAll();
@@ -247,9 +235,9 @@ describe('useTranslationController', () => {
     });
   });
 
-  describe('forceCleanup', () => {
-    test('aborts and cleans up specific controller', () => {
-      const { result } = renderHook(() => useTranslationController());
+  describe('unmount cleanup', () => {
+    test('cleans up active controller on unmount', () => {
+      const { result, unmount } = renderHook(() => useTranslationController());
 
       let bundle;
       act(() => {
@@ -258,46 +246,12 @@ describe('useTranslationController', () => {
 
       expect(result.current.getActiveCount()).toBe(1);
 
-      act(() => {
-        result.current.forceCleanup(bundle.translationId);
-      });
-
-      expect(bundle.controller.signal.aborted).toBe(true);
-      expect(result.current.getActiveCount()).toBe(0);
-    });
-
-    test('handles force cleanup of non-existent controller', () => {
-      const { result } = renderHook(() => useTranslationController());
-
-      expect(() => {
-        act(() => {
-          result.current.forceCleanup(99999);
-        });
-      }).not.toThrow();
-    });
-  });
-
-  describe('unmount cleanup', () => {
-    test('cleans up all controllers on unmount', () => {
-      const { result, unmount } = renderHook(() =>
-        useTranslationController({ cancelPreviousOnNew: false })
-      );
-
-      let controllers;
-      act(() => {
-        controllers = [result.current.createController(), result.current.createController()];
-      });
-
-      expect(result.current.getActiveCount()).toBe(2);
-
       unmount();
 
-      // Controllers should be aborted
-      expect(controllers[0].controller.signal.aborted).toBe(true);
-      expect(controllers[1].controller.signal.aborted).toBe(true);
+      expect(bundle.controller.signal.aborted).toBe(true);
     });
 
-    test('does not throw on unmount with no active controllers', () => {
+    test('does not throw on unmount with no active controller', () => {
       const { unmount } = renderHook(() => useTranslationController());
 
       expect(() => unmount()).not.toThrow();
@@ -313,13 +267,11 @@ describe('useTranslationController', () => {
         bundle = result.current.createController();
       });
 
-      // Before timeout
       act(() => {
         vi.advanceTimersByTime(499);
       });
       expect(bundle.controller.signal.aborted).toBe(false);
 
-      // After timeout
       act(() => {
         vi.advanceTimersByTime(2);
       });
@@ -329,27 +281,6 @@ describe('useTranslationController', () => {
 
   describe('error handling', () => {
     test('handles abort errors gracefully in cancelAll', () => {
-      const { result } = renderHook(() => useTranslationController({ cancelPreviousOnNew: false }));
-
-      let bundle;
-      act(() => {
-        bundle = result.current.createController();
-      });
-
-      // Mock abort to throw error
-      vi.spyOn(bundle.controller, 'abort').mockImplementation(() => {
-        throw new Error('Abort failed');
-      });
-
-      // Should not throw
-      expect(() => {
-        act(() => {
-          result.current.cancelAll();
-        });
-      }).not.toThrow();
-    });
-
-    test('handles abort errors gracefully in forceCleanup', () => {
       const { result } = renderHook(() => useTranslationController());
 
       let bundle;
@@ -357,15 +288,13 @@ describe('useTranslationController', () => {
         bundle = result.current.createController();
       });
 
-      // Mock abort to throw error
       vi.spyOn(bundle.controller, 'abort').mockImplementation(() => {
         throw new Error('Abort failed');
       });
 
-      // Should not throw
       expect(() => {
         act(() => {
-          result.current.forceCleanup(bundle.translationId);
+          result.current.cancelAll();
         });
       }).not.toThrow();
     });

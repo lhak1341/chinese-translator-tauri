@@ -147,7 +147,6 @@ import { TextChunker } from './text/TextChunker.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
-import { OptimizedSemanticArrayBuilder } from './highlighting/OptimizedSemanticArrayBuilder.js';
 import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { parallelConfig } from './ParallelConfig.js';
@@ -407,23 +406,7 @@ export class TranslationEngine {
     // WASM Dictionary Trie instance (initialized lazily when character dictionary loads)
     this.wasmCharacterTrie = null;
 
-    // Feature flag for optimized semantic array builder
-    // Enabled by default for 10-15% speedup in capitalization updates
-    // Can be disabled with query parameter: ?optimized-semantics=false
-    this.useOptimizedSemanticBuilder = !(
-      typeof window !== 'undefined' &&
-      window.location?.search?.includes('optimized-semantics=false')
-    );
-
-    if (this.useOptimizedSemanticBuilder) {
-      this.semanticArrayBuilder = new OptimizedSemanticArrayBuilder();
-      batchLog.info(
-        'semantic-optimization',
-        'Using OptimizedSemanticArrayBuilder for improved memory efficiency'
-      );
-    } else {
-      this.semanticArrayBuilder = new SemanticArrayBuilder();
-    }
+    this.semanticArrayBuilder = new SemanticArrayBuilder();
 
     this.isInitialized = false;
     // ERROR HANDLING FIX: Track initialization error for better debugging
@@ -1654,9 +1637,9 @@ export class TranslationEngine {
     }
 
     // Create isolated semantic array builder to prevent conflicts with concurrent main translations
-    const characterOnlySemanticBuilder = this.useOptimizedSemanticBuilder
-      ? new OptimizedSemanticArrayBuilder(Math.max(50, Math.floor(text.length / 5)))
-      : new SemanticArrayBuilder();
+    const characterOnlySemanticBuilder = new SemanticArrayBuilder(
+      Math.max(50, Math.floor(text.length / 5))
+    );
 
     try {
       // For character-only translation, process the text directly without chunking
@@ -2077,7 +2060,6 @@ export class TranslationEngine {
       textLength: text.length,
       chunks: text.split(/[。！？，；：]/g).length,
       progressive: !!options.progressive,
-      useOptimized: this.useOptimizedSemanticBuilder,
     });
 
     // Reset segments for new translation
@@ -2089,13 +2071,8 @@ export class TranslationEngine {
     this.translationSegments = [];
 
     // Reset semantic array builder for new translation with capacity estimation
-    if (this.useOptimizedSemanticBuilder) {
-      // Estimate semantic units based on text length and complexity
-      const estimatedUnits = Math.max(50, Math.ceil(text.length / 3));
-      this.semanticArrayBuilder.reset(estimatedUnits);
-    } else {
-      this.semanticArrayBuilder.reset();
-    }
+    const estimatedUnits = Math.max(50, Math.ceil(text.length / 3));
+    this.semanticArrayBuilder.reset(estimatedUnits);
 
     let translatedText;
     let semanticArrays;
@@ -2131,11 +2108,7 @@ export class TranslationEngine {
       this.semanticArrayBuilder.updateWithCapitalizedText(translatedText);
 
       // MEMORY PROFILING FIX: Auto-compact semantic arrays to remove wasted capacity
-      // Only for OptimizedSemanticArrayBuilder which has compact() method
-      if (
-        this.useOptimizedSemanticBuilder &&
-        typeof this.semanticArrayBuilder.compact === 'function'
-      ) {
+      if (typeof this.semanticArrayBuilder.compact === 'function') {
         const stats = this.semanticArrayBuilder.getMemoryStats();
         const wastePercentage = stats.wastedCapacity / (stats.arrays * 100);
 
@@ -5735,12 +5708,8 @@ export class TranslationEngine {
     this.translationSegments = [];
 
     // Reset semantic builder with capacity estimation for progressive translation
-    if (this.useOptimizedSemanticBuilder) {
-      const estimatedUnits = Math.max(100, Math.ceil(text.length / 2)); // Progressive needs more capacity
-      this.semanticArrayBuilder.reset(estimatedUnits);
-    } else {
-      this.semanticArrayBuilder.reset();
-    }
+    const estimatedUnits = Math.max(100, Math.ceil(text.length / 2)); // Progressive needs more capacity
+    this.semanticArrayBuilder.reset(estimatedUnits);
 
     // PHASE 2: Initialize progressive position tracking
     this.progressivePositionTracker = {
@@ -6922,7 +6891,7 @@ export class TranslationEngine {
    * @see translateWithSegments - Entry point that selects chunked or progressive mode
    * @see translateDirectly - Translates individual chunks
    * @see TextChunker - Handles text splitting by punctuation
-   * @see OptimizedSemanticArrayBuilder - Prevents race conditions in parallel mode
+   * @see SemanticArrayBuilder - Prevents race conditions in parallel mode
    *
    * @performance
    * - Parallel mode: 2-3x faster for texts with 5+ chunks
@@ -6967,11 +6936,7 @@ export class TranslationEngine {
 
       // CRITICAL FIX: Create isolated semantic builders for each chunk to prevent race conditions
       // Shared semantic builder would corrupt state with concurrent addUnit() calls
-      const isolatedBuilders = translatableChunks.map(() =>
-        this.useOptimizedSemanticBuilder
-          ? new OptimizedSemanticArrayBuilder()
-          : new SemanticArrayBuilder()
-      );
+      const isolatedBuilders = translatableChunks.map(() => new SemanticArrayBuilder());
 
       // Translate chunks in parallel with isolated builders
       // CRITICAL FIX: Deep copy options for parallel processing
@@ -7172,7 +7137,7 @@ export class TranslationEngine {
    *
    * @example
    * // With isolated semantic builder (for parallel processing)
-   * const isolated = new OptimizedSemanticArrayBuilder();
+   * const isolated = new SemanticArrayBuilder();
    * const translated = await engine.translateDirectly(chunk, {
    *   isolatedSemanticBuilder: isolated,
    *   isParallelChunk: true // Don't reset segments

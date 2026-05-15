@@ -72,9 +72,11 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `DictionaryTable.tsx` / `VirtualizedDictionaryTable.tsx` → use `EnhancedVirtualizedDictionaryTable`
 - `LegacySystemFlags.js` and all its exports — permanently removed
 - `createReadonlyTokens` from `ReadonlyOptimizationUtils.js` — only `scanTokens` exported
-- `OptimizedSemanticArrayBuilder.getCachedRegex` / `regexCache` / `maxCacheSize` — removed
+- `OptimizedSemanticArrayBuilder` — entire class deleted; renamed to `SemanticArrayBuilder` (do not import old name)
 - `V8OptimizationUtils.js`, `PatternParityTest.js` — in `src/utils/__benchmarks__/` (dev/debug only)
 - `SemanticPatternProcessor.applyPatternMatch` — deleted; `processTokens()` now returns `PatternProcessorResult[]`, apply via `applyHierarchicalResults(tokens, results, options)`
+- `useDictionaryConfig.js` — deleted; use `useDictionaryModals` from `src/hooks/useDictionaryModals.js`
+- `useTranslationController.forceCleanup` — removed (unused); hook returns only `{createController, cleanup, cancelAll, getActiveCount}`
 
 **Non-obvious contracts:**
 

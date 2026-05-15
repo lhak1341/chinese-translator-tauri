@@ -8,7 +8,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder.js';
-import { OptimizedSemanticArrayBuilder } from '../highlighting/OptimizedSemanticArrayBuilder.js';
 
 describe('SemanticArrayBuilder Regression Tests', () => {
   describe('Bug Fix: Position Mapping Performance (O(n*m*k) → O(n*m))', () => {
@@ -33,12 +32,12 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       );
 
       // Verify correct mapping (functionality test)
-      expect(originalPositions.get(0)).toBe(0); // '在' maps to index 0
-      expect(originalPositions.get(1)).toBe(1); // '中' (first char of '中国') maps to index 1
-      expect(originalPositions.get(2)).toBe(1); // '国' (second char of '中国') maps to index 1
+      expect(originalPositions[0]).toBe(0); // '在' maps to index 0
+      expect(originalPositions[1]).toBe(1); // '中' (first char of '中国') maps to index 1
+      expect(originalPositions[2]).toBe(1); // '国' (second char of '中国') maps to index 1
 
-      expect(translatedPositions.get(0)).toBe(0); // 'ở' maps to index 0
-      expect(translatedPositions.get(2)).toBe(1); // 'T' (start of 'Trung Quốc') maps to index 1
+      expect(translatedPositions[0]).toBe(0); // 'ở' maps to index 0
+      expect(translatedPositions[2]).toBe(1); // 'T' (start of 'Trung Quốc') maps to index 1
     });
 
     it('should handle large texts efficiently without substring allocation', () => {
@@ -68,11 +67,9 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       expect(duration).toBeLessThan(5000);
     });
 
-    it('should produce identical results with optimization', () => {
-      const normalBuilder = new SemanticArrayBuilder();
-      const optimizedBuilder = new OptimizedSemanticArrayBuilder();
+    it('should produce correct position mappings', () => {
+      const builder = new SemanticArrayBuilder();
 
-      // Same semantic units
       const units = [
         ['不知道', 'không biết'],
         ['他', 'anh ấy'],
@@ -81,21 +78,15 @@ describe('SemanticArrayBuilder Regression Tests', () => {
       ];
 
       units.forEach(([original, translated]) => {
-        normalBuilder.addUnit(original, translated);
-        optimizedBuilder.addUnit(original, translated);
+        builder.addUnit(original, translated);
       });
 
       const originalText = '不知道他在哪里';
       const translatedText = 'không biết anh ấy ở đâu';
 
-      const normalResult = normalBuilder.buildPositionMappings(originalText, translatedText);
-      const optimizedResult = optimizedBuilder.buildPositionMappings(originalText, translatedText);
-
-      // Convert Maps to arrays for comparison
-      const normalOriginalArray = Array.from(normalResult.originalPositions.entries());
-      const optimizedOriginalArray = Array.from(optimizedResult.originalPositions.entries());
-
-      expect(optimizedOriginalArray).toEqual(normalOriginalArray);
+      const result = builder.buildPositionMappings(originalText, translatedText);
+      expect(result.originalPositions.length).toBeGreaterThan(0);
+      expect(result.originalPositions[0]).toBe(0); // '不' maps to unit 0
     });
 
     it('should not create unnecessary string objects during matching', () => {
@@ -130,8 +121,8 @@ describe('SemanticArrayBuilder Regression Tests', () => {
   });
 
   describe('Bug Fix: Invalid Array Length Edge Case', () => {
-    it('should handle NaN estimatedSize gracefully in OptimizedSemanticArrayBuilder', () => {
-      const builder = new OptimizedSemanticArrayBuilder();
+    it('should handle NaN estimatedSize gracefully', () => {
+      const builder = new SemanticArrayBuilder();
 
       // Bug fix: Should not crash with NaN
       expect(() => {
@@ -144,7 +135,7 @@ describe('SemanticArrayBuilder Regression Tests', () => {
     });
 
     it('should handle Infinity estimatedSize gracefully', () => {
-      const builder = new OptimizedSemanticArrayBuilder();
+      const builder = new SemanticArrayBuilder();
 
       expect(() => {
         builder.reset(Infinity);
@@ -156,7 +147,7 @@ describe('SemanticArrayBuilder Regression Tests', () => {
     });
 
     it('should handle negative estimatedSize gracefully', () => {
-      const builder = new OptimizedSemanticArrayBuilder();
+      const builder = new SemanticArrayBuilder();
 
       expect(() => {
         builder.reset(-100);
@@ -168,7 +159,7 @@ describe('SemanticArrayBuilder Regression Tests', () => {
     });
 
     it('should handle zero estimatedSize', () => {
-      const builder = new OptimizedSemanticArrayBuilder();
+      const builder = new SemanticArrayBuilder();
 
       expect(() => {
         builder.reset(0);
@@ -179,7 +170,7 @@ describe('SemanticArrayBuilder Regression Tests', () => {
     });
 
     it('should handle excessively large estimatedSize', () => {
-      const builder = new OptimizedSemanticArrayBuilder();
+      const builder = new SemanticArrayBuilder();
 
       expect(() => {
         builder.reset(1000000); // 1 million
@@ -190,7 +181,7 @@ describe('SemanticArrayBuilder Regression Tests', () => {
     });
 
     it('should accept valid estimatedSize', () => {
-      const builder = new OptimizedSemanticArrayBuilder();
+      const builder = new SemanticArrayBuilder();
 
       builder.reset(500);
 

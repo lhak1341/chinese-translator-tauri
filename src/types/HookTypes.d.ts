@@ -109,37 +109,26 @@ export interface UseStreamingTranslationOptions {
 }
 
 // =============================================================================
-// Dictionary Configuration Hook
+// Dictionary Modals Hook
 // =============================================================================
 
 /**
- * Return type for useDictionaryConfig hook
+ * Return type for useDictionaryModals hook.
+ * Pure UI concern — Quick Add modal state only. activeProperNouns is NOT here;
+ * use activeProperNounsFromConfig from useTranslatorEngine.
  */
-export interface UseDictionaryConfigReturn {
-  /** List of currently active dictionary IDs */
-  activeDictionaries: string[];
-  /** List of all available dictionary IDs */
-  availableDictionaries: string[];
-  /** Whether WASM acceleration is enabled */
-  wasmEnabled: boolean;
-  /** WASM memory limit in MB */
-  wasmMemoryLimit: number;
-  /** Whether configuration is loading */
-  isLoading: boolean;
-  /** Error message if loading failed */
-  error: string | null;
-  /** Add a dictionary to active list */
-  addDictionary: (id: string) => Promise<void>;
-  /** Remove a dictionary from active list */
-  removeDictionary: (id: string) => Promise<void>;
-  /** Toggle WASM acceleration */
-  toggleWasm: (enabled: boolean) => Promise<void>;
-  /** Set WASM memory limit */
-  setWasmMemoryLimit: (limit: number) => Promise<void>;
-  /** Reload configuration from storage */
-  reloadConfig: () => Promise<void>;
-  /** Save current configuration */
-  saveConfig: () => Promise<void>;
+export interface UseDictionaryModalsReturn {
+  modalState: { isOpen: boolean; dictionaryId: string; text: string };
+  showQuickAdd: boolean;
+  quickAddDictionary: string;
+  clipboardText: string;
+  openQuickAddCharacter: (text?: string) => void;
+  openQuickAddPhrase: (text?: string) => void;
+  openQuickAddProperNoun: (text?: string) => void;
+  openQuickAddPattern: (text?: string) => void;
+  openQuickAddCustomProperNoun: (text?: string) => Promise<void>;
+  closeQuickAdd: () => void;
+  handleQuickAddDictionaryChange: (dictionaryId: string) => void;
 }
 
 /**

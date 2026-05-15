@@ -18,7 +18,6 @@
 
 import { describe, test, expect } from 'vitest';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
-import { OptimizedSemanticArrayBuilder } from '../highlighting/OptimizedSemanticArrayBuilder';
 import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
@@ -122,7 +121,7 @@ describe('CRITICAL-4: Semantic Array Synchronization', () => {
   });
 
   test('optimized builder should validate on addUnit', () => {
-    const builder = new OptimizedSemanticArrayBuilder();
+    const builder = new SemanticArrayBuilder();
     builder.addUnit('在', 'ở', 'characters', 0);
 
     // Should not throw (validation passes)
@@ -391,11 +390,9 @@ describe('Integration: Full Translation Flow', () => {
     });
   });
 
-  test('optimized builder should match regular builder behavior', () => {
-    const regular = new SemanticArrayBuilder();
-    const optimized = new OptimizedSemanticArrayBuilder();
+  test('builder should produce correct arrays with position tracking', () => {
+    const builder = new SemanticArrayBuilder();
 
-    // Add same units to both
     const units = [
       ['在', 'ở', 'characters', 0],
       ['天空', 'bầu trời', 'phrases', 1],
@@ -403,32 +400,19 @@ describe('Integration: Full Translation Flow', () => {
     ];
 
     units.forEach(([orig, trans, source, idx]) => {
-      regular.addUnit(orig, trans, source, idx);
-      optimized.addUnit(orig, trans, source, idx);
+      builder.addUnit(orig, trans, source, idx);
     });
 
-    // Set same positions
-    regular.setPositionByMatch(0, 'ở', 0, 2);
-    optimized.setPositionByMatch(0, 'ở', 0, 2);
+    builder.setPositionByMatch(0, 'ở', 0, 2);
+    builder.setPositionByMatch(1, 'bầu trời', 3, 11);
+    builder.setPositionByMatch(3, 'trong', 12, 17);
 
-    regular.setPositionByMatch(1, 'bầu trời', 3, 11);
-    optimized.setPositionByMatch(1, 'bầu trời', 3, 11);
+    expect(() => builder.validateArrays()).not.toThrow();
 
-    regular.setPositionByMatch(3, 'trong', 12, 17);
-    optimized.setPositionByMatch(3, 'trong', 12, 17);
-
-    // Both should have valid arrays
-    expect(() => regular.validateArrays()).not.toThrow();
-    expect(() => optimized.validateArrays()).not.toThrow();
-
-    // Get arrays
-    const regularArrays = regular.getArrays();
-    const optimizedArrays = optimized.getArrays();
-
-    // Should have same structure
-    expect(regularArrays.original).toEqual(optimizedArrays.original);
-    expect(regularArrays.translated).toEqual(optimizedArrays.translated);
-    expect(regularArrays.metadata.length).toBe(optimizedArrays.metadata.length);
+    const arrays = builder.getArrays();
+    expect(arrays.original).toEqual(['在', '天空', '中']);
+    expect(arrays.translated).toEqual(['ở', 'bầu trời', 'trong']);
+    expect(arrays.metadata.length).toBe(3);
   });
 });
 
@@ -455,7 +439,7 @@ describe('Edge Cases and Error Handling', () => {
   });
 
   test('should handle very long semantic arrays', () => {
-    const builder = new OptimizedSemanticArrayBuilder(1000);
+    const builder = new SemanticArrayBuilder(1000);
 
     // Add 1000 units
     for (let i = 0; i < 1000; i++) {

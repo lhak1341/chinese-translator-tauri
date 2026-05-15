@@ -2,14 +2,11 @@
  * Highlighting & semantic array public API.
  *
  * Primary entry points:
- *   - OptimizedSemanticArrayBuilder — default semantic relationship tracker (use this)
- *   - SemanticArrayBuilder          — fallback (?optimized-semantics=false URL param only)
- *   - SegmentPrecomputer            — character-only mode segment pre-computation
- *   - findConflictingEntries        — duplicate dictionary entry detection
+ *   - SemanticArrayBuilder  — semantic relationship tracker
+ *   - SegmentPrecomputer    — character-only mode segment pre-computation
+ *   - findConflictingEntries — duplicate dictionary entry detection
  */
 
-// --- Semantic array builders (sibling implementations — changes must be mirrored) ---
-export { OptimizedSemanticArrayBuilder } from './OptimizedSemanticArrayBuilder';
 export { SemanticArrayBuilder } from './SemanticArrayBuilder';
 
 // --- Segment pre-computation (character-only mode) ---

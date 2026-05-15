@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * Position Validation Helpers
- * MEDIUM-3 FIX: Extracted duplicate validation logic from SemanticArrayBuilder and OptimizedSemanticArrayBuilder
+ * MEDIUM-3 FIX: Extracted duplicate validation logic from SemanticArrayBuilder
  * Shared validation functions for position metadata in semantic arrays
  */
 

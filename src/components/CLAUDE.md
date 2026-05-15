@@ -44,7 +44,7 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 - `enginePhase` — `'loading' | 'ready' | 'error'`. Replaces `engineInitialized` + `configLoaded` flags.
 - `engineRef` — ref to current engine instance (or null).
 - `initError` — error string when `enginePhase === 'error'`, else null.
-- `activeProperNounsFromConfig` — loaded from disk once on mount; synced to `useDictionaryConfig` state via `useEffect`.
+- `activeProperNounsFromConfig` — loaded from disk once on mount; use directly in `Translator.jsx` (no sync hook needed).
 - `reinitialize(filteredDicts, options)` — never throws; errors go to `enginePhase`/`initError`.
 
 **Race condition**: `reinitialize` sets `isInitializingRef.current = true` synchronously on entry and the hook's init effect checks `enginePhase === 'loading' && !isInitializingRef.current`. `handleForceReload` must NOT set any separate lock — `reinitialize` handles it.

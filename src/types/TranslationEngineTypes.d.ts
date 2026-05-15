@@ -700,7 +700,6 @@ export interface TranslationEngine {
   // Internal State
   translationSegments: TranslationSegment[];
   semanticArrayBuilder: any;
-  useOptimizedSemanticBuilder: boolean;
 
   // Logging
   log(level: DebugLevel, ...args: any[]): void;

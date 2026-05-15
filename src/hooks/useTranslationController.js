@@ -2,262 +2,104 @@ import { useRef, useCallback, useEffect } from 'react';
 import { logger } from '../utils/logger';
 
 /**
- * Translation Controller Hook
+ * Manages a single AbortController for translation cancellation and timeout handling.
  *
- * Manages AbortController lifecycle for translation cancellation and timeout handling.
- * Provides centralized control over active translations with automatic cleanup.
+ * cancelPreviousOnNew:true guarantees at most one active translation at a time —
+ * Maps are unnecessary; single refs suffice.
  *
- * Features:
- * - Automatic timeout for stuck translations
- * - Cancel previous translations when starting new one
- * - Cleanup on component unmount
- * - Memory leak prevention
+ * @param {Object} options
+ * @param {number} [options.timeout=60000] - Translation timeout in milliseconds
+ * @param {boolean} [options.cancelPreviousOnNew=true] - Cancel previous translation when starting new one
  *
- * @param {Object} options - Configuration options
- * @param {number} [options.timeout=60000] - Translation timeout in milliseconds (default: 1 minute)
- * @param {boolean} [options.cancelPreviousOnNew=true] - Cancel previous translations when starting new one
- *
- * @returns {Object} Translation controller interface
- * @returns {Function} returns.createController - Create new controller with timeout
- * @returns {Function} returns.cleanup - Cleanup specific controller
- * @returns {Function} returns.cancelAll - Cancel all active translations
- * @returns {number} returns.activeCount - Number of active translations
- *
- * @example
- * const { createController, cleanup, cancelAll } = useTranslationController({
- *   timeout: 60000,
- *   cancelPreviousOnNew: true
- * });
- *
- * // Create controller for new translation
- * const { controller, timeoutId, translationId } = createController();
- *
- * try {
- *   await translate(text, { signal: controller.signal });
- * } finally {
- *   cleanup(translationId, timeoutId);
- * }
+ * @returns {{ createController, cleanup, cancelAll, getActiveCount }}
  */
 export function useTranslationController(options = {}) {
   const { timeout = 60000, cancelPreviousOnNew = true } = options;
 
-  // Track active translation controllers
-  const activeControllers = useRef(new Map());
-  const timeoutRefs = useRef(new Map());
-  // CODE REVIEW FIX (CRITICAL-3): Track cleanup promises for proper async coordination
-  const cleanupPromises = useRef(new Map());
+  const activeController = useRef(null); // { controller, timeoutId } | null
+  const cleanupPromise = useRef(null); // CRITICAL-3: track async cleanup for force-reload coordination
 
-  /**
-   * Create new AbortController with automatic timeout
-   *
-   * @returns {Object} Controller bundle
-   * @returns {AbortController} returns.controller - The AbortController instance
-   * @returns {number} returns.timeoutId - Timeout ID for cleanup
-   * @returns {number} returns.translationId - Unique translation ID
-   */
+  function _abort() {
+    if (!activeController.current) return;
+    const { controller, timeoutId } = activeController.current;
+    try {
+      controller.abort();
+    } catch (e) {
+      logger.warn('Error aborting controller:', e);
+    }
+    clearTimeout(timeoutId);
+    activeController.current = null;
+  }
+
   const createController = useCallback(() => {
-    // Cancel previous translations if configured
-    if (cancelPreviousOnNew && activeControllers.current.size > 0) {
-      logger.log(
-        `🛑 Cancelling ${activeControllers.current.size} previous translation(s) to start new one`
-      );
-      const controllers = Array.from(activeControllers.current.values());
-      controllers.forEach((ctrl) => {
-        try {
-          ctrl.abort();
-        } catch (error) {
-          logger.warn('Error aborting controller:', error);
-        }
-      });
-      activeControllers.current.clear();
-      timeoutRefs.current.clear();
+    if (cancelPreviousOnNew && activeController.current) {
+      logger.log('🛑 Cancelling previous translation to start new one');
+      _abort();
     }
 
-    const translationId = `${Date.now()}-${Math.random()}`; // String concat avoids float64 precision loss
     const controller = new AbortController();
-
-    // Register controller
-    activeControllers.current.set(translationId, controller);
-
-    // Set timeout for stuck translations
     const timeoutId = setTimeout(() => {
-      if (activeControllers.current.has(translationId)) {
-        logger.warn(
-          `⏰ Translation ${translationId} timed out after ${timeout}ms - cleaning up controller`
-        );
-        controller.abort();
-        activeControllers.current.delete(translationId);
-        timeoutRefs.current.delete(translationId);
+      if (activeController.current?.controller === controller) {
+        logger.warn(`⏰ Translation timed out after ${timeout}ms`);
+        _abort();
       }
     }, timeout);
 
-    // Track timeout for cleanup
-    timeoutRefs.current.set(translationId, timeoutId);
-
-    return {
-      controller,
-      timeoutId,
-      translationId,
-    };
+    activeController.current = { controller, timeoutId };
+    return { controller, timeoutId, translationId: 'single' };
   }, [timeout, cancelPreviousOnNew]);
 
   /**
-   * Cleanup specific translation controller
-   *
-   * CODE REVIEW FIX (CRITICAL-3): Now accepts cleanup promise for tracking
-   *
-   * @param {number} translationId - Translation ID to cleanup
+   * @param {string} _translationId - Ignored (single-at-a-time semantics)
    * @param {number} timeoutId - Timeout ID to clear
-   * @param {Promise} [cleanupPromise] - Optional promise representing async cleanup work
-   * @returns {Promise} Promise that resolves when cleanup is complete
+   * @param {Promise} [promise] - Optional async cleanup work (CRITICAL-3)
    */
-  const cleanup = useCallback((translationId, timeoutId, cleanupPromise = null) => {
-    // Clear timeout
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-      timeoutRefs.current.delete(translationId);
-    }
+  const cleanup = useCallback((_translationId, timeoutId, promise = null) => {
+    clearTimeout(timeoutId);
+    activeController.current = null;
 
-    // Remove controller
-    activeControllers.current.delete(translationId);
-
-    // CODE REVIEW FIX (CRITICAL-3): Track cleanup promise for coordination
-    if (cleanupPromise && cleanupPromise instanceof Promise) {
-      cleanupPromises.current.set(translationId, cleanupPromise);
-
-      // Auto-remove after completion
-      cleanupPromise.finally(() => {
-        cleanupPromises.current.delete(translationId);
+    if (promise instanceof Promise) {
+      cleanupPromise.current = promise;
+      promise.finally(() => {
+        cleanupPromise.current = null;
       });
-    } else {
-      // No async cleanup, resolve immediately
-      cleanupPromises.current.set(translationId, Promise.resolve());
-      // Immediate cleanup can be removed right away
-      setTimeout(() => cleanupPromises.current.delete(translationId), 0);
     }
 
-    logger.log(`🧹 Cleaned up translation controller ${translationId}`);
-
-    return cleanupPromises.current.get(translationId) || Promise.resolve();
+    logger.log('🧹 Cleaned up translation controller');
+    return promise ?? Promise.resolve();
   }, []);
 
   /**
-   * Cancel all active translations
-   *
-   * CODE REVIEW FIX (CRITICAL-3): Now returns cleanup promises for coordination
-   *
-   * @returns {Object} Cancellation result
-   * @returns {number} returns.count - Number of translations cancelled
-   * @returns {Promise<void>} returns.cleanupComplete - Promise that resolves when all cleanups finish
+   * @returns {{ count: number, cleanupComplete: Promise<void> }}
    */
   const cancelAll = useCallback(() => {
-    const count = activeControllers.current.size;
-
+    const count = activeController.current ? 1 : 0;
     if (count > 0) {
-      logger.log(`🛑 Cancelling all ${count} active translation(s)`);
-
-      // Abort all controllers
-      const controllers = Array.from(activeControllers.current.values());
-      controllers.forEach((ctrl) => {
-        try {
-          ctrl.abort();
-        } catch (error) {
-          logger.warn('Error aborting controller:', error);
-        }
-      });
-
-      // Clear all timeouts
-      timeoutRefs.current.forEach((timeoutId) => {
-        clearTimeout(timeoutId);
-      });
-
-      // Clear maps
-      activeControllers.current.clear();
-      timeoutRefs.current.clear();
+      logger.log('🛑 Cancelling active translation');
+      _abort();
     }
 
-    // CODE REVIEW FIX (CRITICAL-3): Return promise that resolves when all cleanups complete
-    const pendingCleanups = Array.from(cleanupPromises.current.values());
+    const pending = cleanupPromise.current ? [cleanupPromise.current] : [];
     const cleanupComplete =
-      pendingCleanups.length > 0
-        ? Promise.all(pendingCleanups).then(() => {
-            logger.log(`✅ All ${pendingCleanups.length} translation cleanup(s) completed`);
+      pending.length > 0
+        ? Promise.all(pending).then(() => {
+            logger.log('✅ Translation cleanup completed');
           })
         : Promise.resolve();
 
-    return {
-      count,
-      cleanupComplete,
-    };
+    return { count, cleanupComplete };
   }, []);
 
-  /**
-   * Get number of active translations
-   *
-   * @returns {number} Active translation count
-   */
-  const getActiveCount = useCallback(() => {
-    return activeControllers.current.size;
-  }, []);
+  const getActiveCount = useCallback(() => (activeController.current ? 1 : 0), []);
 
-  /**
-   * Force cleanup specific controller (for error handling)
-   *
-   * @param {number} translationId - Translation ID to force cleanup
-   */
-  const forceCleanup = useCallback((translationId) => {
-    const controller = activeControllers.current.get(translationId);
-    if (controller) {
-      try {
-        controller.abort();
-      } catch (error) {
-        logger.warn(`Error aborting controller ${translationId}:`, error);
-      }
-    }
-
-    const timeoutId = timeoutRefs.current.get(translationId);
-    if (timeoutId !== undefined) {
-      clearTimeout(timeoutId);
-    }
-
-    activeControllers.current.delete(translationId);
-    timeoutRefs.current.delete(translationId);
-
-    logger.log(`🧹 Force cleaned up translation controller ${translationId}`);
-  }, []);
-
-  // Cleanup all controllers on unmount
   useEffect(() => {
     return () => {
-      const count = activeControllers.current.size;
-      if (count > 0) {
-        logger.log(`🧹 Component unmounting - cleaning up ${count} active translation(s)`);
-
-        // Abort all controllers
-        activeControllers.current.forEach((ctrl) => {
-          try {
-            ctrl.abort();
-          } catch (error) {
-            // Ignore errors during unmount
-          }
-        });
-
-        // Clear all timeouts
-        timeoutRefs.current.forEach((timeoutId) => {
-          clearTimeout(timeoutId);
-        });
-
-        activeControllers.current.clear();
-        timeoutRefs.current.clear();
+      if (activeController.current) {
+        logger.log('🧹 Component unmounting - cleaning up active translation');
+        _abort();
       }
     };
   }, []);
 
-  return {
-    createController,
-    cleanup,
-    cancelAll,
-    getActiveCount,
-    forceCleanup,
-  };
+  return { createController, cleanup, cancelAll, getActiveCount };
 }

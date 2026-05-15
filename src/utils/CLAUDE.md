@@ -17,9 +17,9 @@ Common wrong values (all silently return priority 999 — below the character fa
 
 `validateConsumedTokenContract` detects consumed sources with `.includes('_consumed')` — this predicate must match `getSourcePriority`'s check exactly.
 
-### `SemanticArrayBuilder` ↔ `OptimizedSemanticArrayBuilder` Must Stay Field-Synchronized
+### `SemanticArrayBuilder` Is the Single Builder — No Sync Required
 
-`OptimizedSemanticArrayBuilder.ts` is the default production builder (`TranslationEngine.js` line 348). Any field added to `SemanticArrayMetadata` in `SemanticArrayBuilder.ts` must also be added to `OptimizedSemanticMetadata`, initialized to its default in `addUnit()`, and handled in `setPositionByMatch()`. Omitting this makes the field always `-1`/`null` in production while appearing to work with `?optimized-semantics=false`. Also applies to method algorithms: `updateWithCapitalizedText` must use the same fast-path + `indexOf` algorithm in both builders (not regex-based).
+`src/utils/highlighting/SemanticArrayBuilder.ts` is the only implementation. The old `SemanticArrayBuilder` / `OptimizedSemanticArrayBuilder` sibling pair was deleted (Session 39). No field-sync requirement exists. Add fields to `SemanticArrayMetadata`, initialize in `addUnit()`, handle in `setPositionByMatch()` — done.
 
 ### `addUnit` Requires All 6 Args at Every Call Site
 
