@@ -11,7 +11,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   validateApiResult,
-  validateConfiguration,
   validateDictionary,
   validateRawDictionaryEntry,
   validateDictionaryList,
@@ -20,7 +19,6 @@ import {
   type ElectronAPIResult,
   type Dictionary,
 } from '../configValidation';
-import type { AppConfiguration } from '../../types/ComponentTypes';
 
 describe('validateApiResult', () => {
   it('should validate successful result with data', () => {
@@ -109,104 +107,6 @@ describe('validateApiResult', () => {
 
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
-  });
-});
-
-describe('validateConfiguration', () => {
-  it('should validate complete valid configuration', () => {
-    const config: AppConfiguration = {
-      defaultQuickAddDictionary: 'properNouns-MyNovel',
-      theme: 'dark',
-      fontSize: 16,
-      autoSave: false,
-    };
-
-    const result = validateConfiguration(config);
-
-    expect(result.defaultQuickAddDictionary).toBe('properNouns-MyNovel');
-    expect(result.theme).toBe('dark');
-    expect(result.fontSize).toBe(16);
-    expect(result.autoSave).toBe(false);
-    expect(result.raw).toEqual(config);
-  });
-
-  it('should use defaults for null/undefined config', () => {
-    const resultNull = validateConfiguration(null);
-    const resultUndef = validateConfiguration(undefined);
-
-    expect(resultNull.defaultQuickAddDictionary).toBe('properNouns');
-    expect(resultNull.theme).toBe('system');
-    expect(resultNull.fontSize).toBe(14);
-    expect(resultNull.autoSave).toBe(true);
-
-    expect(resultUndef).toEqual(resultNull);
-  });
-
-  it('should use defaults for non-object config', () => {
-    const result = validateConfiguration('not an object');
-
-    expect(result.defaultQuickAddDictionary).toBe('properNouns');
-    expect(result.theme).toBe('system');
-  });
-
-  it('should validate individual fields and use defaults for invalid ones', () => {
-    const config = {
-      defaultQuickAddDictionary: 123, // Invalid type
-      theme: 'invalid-theme', // Invalid value
-      fontSize: 100, // Out of range
-      autoSave: 'yes', // Invalid type
-    };
-
-    const result = validateConfiguration(config);
-
-    // All should fall back to defaults due to validation failures
-    expect(result.defaultQuickAddDictionary).toBe('properNouns');
-    expect(result.theme).toBe('system');
-    expect(result.fontSize).toBe(14);
-    expect(result.autoSave).toBe(true);
-  });
-
-  it('should accept valid theme values', () => {
-    const themes: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
-
-    for (const theme of themes) {
-      const config = { theme };
-      const result = validateConfiguration(config);
-      expect(result.theme).toBe(theme);
-    }
-  });
-
-  it('should accept valid fontSize range', () => {
-    const validSizes = [8, 12, 14, 16, 20, 24, 32];
-
-    for (const size of validSizes) {
-      const config = { fontSize: size };
-      const result = validateConfiguration(config);
-      expect(result.fontSize).toBe(size);
-    }
-  });
-
-  it('should reject fontSize outside range', () => {
-    const invalidSizes = [7, 33, 0, -10, 100];
-
-    for (const size of invalidSizes) {
-      const config = { fontSize: size };
-      const result = validateConfiguration(config);
-      expect(result.fontSize).toBe(14); // Default
-    }
-  });
-
-  it('should preserve extra properties in raw field', () => {
-    const config = {
-      defaultQuickAddDictionary: 'test',
-      customField: 'custom value',
-      anotherField: 123,
-    };
-
-    const result = validateConfiguration(config);
-
-    expect(result.raw).toHaveProperty('customField', 'custom value');
-    expect(result.raw).toHaveProperty('anotherField', 123);
   });
 });
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { formatErrorMessage } from '../../utils/errorHelpers'; // REFACTOR (2026-01-28): Consistent error formatting
+import { formatErrorMessage } from '../../utils/errorHelpers';
+import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark, Zap } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
 
@@ -93,17 +94,11 @@ const ConfigurationManager: React.FC = () => {
           setAvailableDictionaries(sortDictionaries(dictionaryIds));
 
           // Load active dictionaries from saved configuration
-          const configResult = await window.electronAPI.loadConfiguration();
-          if (configResult.success && configResult.data) {
-            setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
-
-            // Load WASM configuration
-            setWasmEnabled(configResult.data.wasmEnabled !== false); // Default to enabled
-            setWasmMemoryLimit(configResult.data.wasmMemoryLimit || 20); // Default 20MB
-
-            // Load default Cmd-5 dictionary
-            setDefaultQuickAddDictionary(configResult.data.defaultQuickAddDictionary || null);
-          }
+          const config = await loadAppConfig();
+          setActiveDictionaries(config.engine.activeProperNouns);
+          setWasmEnabled(config.engine.wasmEnabled);
+          setWasmMemoryLimit(config.engine.wasmMemoryLimit);
+          setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
         } else {
           throw new Error(result.error || 'Failed to load dictionaries');
         }
@@ -138,19 +133,8 @@ const ConfigurationManager: React.FC = () => {
         ? activeDictionaries.filter((id) => id !== dictionaryId)
         : [...activeDictionaries, dictionaryId];
 
-      // Save configuration (including WASM settings and default Cmd-5 dictionary)
-      const result = await window.electronAPI.saveConfiguration({
-        activeProperNouns: newActiveDictionaries,
-        wasmEnabled: wasmEnabled,
-        wasmMemoryLimit: wasmMemoryLimit,
-        defaultQuickAddDictionary: defaultQuickAddDictionary,
-      });
-
-      if (result.success) {
-        setActiveDictionaries(newActiveDictionaries);
-      } else {
-        throw new Error(result.error);
-      }
+      await saveAppConfig({ engine: { activeProperNouns: newActiveDictionaries } });
+      setActiveDictionaries(newActiveDictionaries);
     } catch (err) {
       setError(formatErrorMessage('Configuration update', err));
     }
@@ -180,18 +164,8 @@ const ConfigurationManager: React.FC = () => {
   // Handle WASM configuration changes
   const handleWasmToggle = async (enabled: boolean): Promise<void> => {
     try {
-      const result = await window.electronAPI.saveConfiguration({
-        activeProperNouns: activeDictionaries,
-        wasmEnabled: enabled,
-        wasmMemoryLimit: wasmMemoryLimit,
-        defaultQuickAddDictionary: defaultQuickAddDictionary,
-      });
-
-      if (result.success) {
-        setWasmEnabled(enabled);
-      } else {
-        throw new Error(result.error);
-      }
+      await saveAppConfig({ engine: { wasmEnabled: enabled } });
+      setWasmEnabled(enabled);
     } catch (err) {
       setError(formatErrorMessage('WASM configuration update', err));
     }
@@ -199,18 +173,8 @@ const ConfigurationManager: React.FC = () => {
 
   const handleMemoryLimitChange = async (limit: number): Promise<void> => {
     try {
-      const result = await window.electronAPI.saveConfiguration({
-        activeProperNouns: activeDictionaries,
-        wasmEnabled: wasmEnabled,
-        wasmMemoryLimit: limit,
-        defaultQuickAddDictionary: defaultQuickAddDictionary,
-      });
-
-      if (result.success) {
-        setWasmMemoryLimit(limit);
-      } else {
-        throw new Error(result.error);
-      }
+      await saveAppConfig({ engine: { wasmMemoryLimit: limit } });
+      setWasmMemoryLimit(limit);
     } catch (err) {
       setError(formatErrorMessage('Memory limit update', err));
     }
@@ -279,18 +243,8 @@ const ConfigurationManager: React.FC = () => {
       // If clicking the same dictionary, unset it (toggle off)
       const newDefault = defaultQuickAddDictionary === dictionaryId ? null : dictionaryId;
 
-      const result = await window.electronAPI.saveConfiguration({
-        activeProperNouns: activeDictionaries,
-        wasmEnabled: wasmEnabled,
-        wasmMemoryLimit: wasmMemoryLimit,
-        defaultQuickAddDictionary: newDefault,
-      });
-
-      if (result.success) {
-        setDefaultQuickAddDictionary(newDefault);
-      } else {
-        throw new Error(result.error);
-      }
+      await saveAppConfig({ ui: { defaultQuickAddDictionary: newDefault } });
+      setDefaultQuickAddDictionary(newDefault);
     } catch (err) {
       setError(formatErrorMessage('Default dictionary configuration', err));
     }

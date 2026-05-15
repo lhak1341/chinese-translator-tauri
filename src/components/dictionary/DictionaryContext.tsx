@@ -26,6 +26,7 @@ import { logger } from '../../utils/logger';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../../utils/errors';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
+import { loadAppConfig } from '../../utils/appConfig';
 import type {
   DictionaryData,
   DictionaryEntryValue,
@@ -120,13 +121,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         // First, load all available dictionary types
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
 
-        // Load and validate saved dictionary selection
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data && configResult.data.lastSelectedDictionary) {
-          // Only restore saved selection if the dictionary still exists
-          if (types[configResult.data.lastSelectedDictionary]) {
-            setSelectedDictionary(configResult.data.lastSelectedDictionary);
-          }
+        // Restore saved dictionary selection if it still exists
+        const config = await loadAppConfig();
+        if (config.session.lastSelectedDictionary && types[config.session.lastSelectedDictionary]) {
+          setSelectedDictionary(config.session.lastSelectedDictionary);
         }
 
         // Use Rust's parallel batch loading for multi-core performance

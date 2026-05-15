@@ -10,23 +10,11 @@
  */
 
 import { logger } from './logger';
-import type { AppConfiguration } from '../types/ComponentTypes';
 import { SEMANTIC_TYPE_LIST } from '../constants/SemanticTypes';
 import { ValidationError } from './errors';
 export { ValidationError } from './errors';
 import type { ApiResult } from './resultHelpers';
 export type { ApiResult as ElectronAPIResult } from './resultHelpers';
-
-/**
- * Validated configuration with safe defaults
- */
-export interface ValidatedConfiguration {
-  defaultQuickAddDictionary: string;
-  theme: 'light' | 'dark' | 'system';
-  fontSize: number;
-  autoSave: boolean;
-  raw: AppConfiguration; // Original data for extension properties
-}
 
 /**
  * Dictionary entry types used by raw JSON validation.
@@ -95,88 +83,6 @@ export function validateApiResult<T>(result: unknown, operation: string): ApiRes
 
   // At this point we know obj has a boolean 'success' field, so it's safe to cast
   return obj as unknown as ApiResult<T>;
-}
-
-/**
- * Validate and normalize app configuration
- *
- * @param config - Raw configuration object
- * @returns Validated configuration with safe defaults
- */
-export function validateConfiguration(config: unknown): ValidatedConfiguration {
-  // Handle null/undefined
-  if (config === null || config === undefined) {
-    logger.warn('Configuration is null/undefined, using defaults');
-    return getDefaultConfiguration();
-  }
-
-  // Must be an object
-  if (typeof config !== 'object') {
-    logger.error(`Invalid configuration type: ${typeof config}, using defaults`);
-    return getDefaultConfiguration();
-  }
-
-  const cfg = config as Record<string, unknown>;
-  const validated: ValidatedConfiguration = {
-    defaultQuickAddDictionary: 'properNouns',
-    theme: 'system',
-    fontSize: 14,
-    autoSave: true,
-    raw: cfg as unknown as AppConfiguration, // Cast through unknown - we store raw config even if not fully typed
-  };
-
-  // Validate defaultQuickAddDictionary
-  if (cfg.defaultQuickAddDictionary !== undefined) {
-    if (typeof cfg.defaultQuickAddDictionary === 'string') {
-      validated.defaultQuickAddDictionary = cfg.defaultQuickAddDictionary;
-    } else {
-      logger.warn(
-        `Invalid defaultQuickAddDictionary type: ${typeof cfg.defaultQuickAddDictionary}, using default`
-      );
-    }
-  }
-
-  // Validate theme
-  if (cfg.theme !== undefined) {
-    if (cfg.theme === 'light' || cfg.theme === 'dark' || cfg.theme === 'system') {
-      validated.theme = cfg.theme;
-    } else {
-      logger.warn(`Invalid theme value: ${cfg.theme}, using default`);
-    }
-  }
-
-  // Validate fontSize
-  if (cfg.fontSize !== undefined) {
-    if (typeof cfg.fontSize === 'number' && cfg.fontSize >= 8 && cfg.fontSize <= 32) {
-      validated.fontSize = cfg.fontSize;
-    } else {
-      logger.warn(`Invalid fontSize value: ${cfg.fontSize}, using default`);
-    }
-  }
-
-  // Validate autoSave
-  if (cfg.autoSave !== undefined) {
-    if (typeof cfg.autoSave === 'boolean') {
-      validated.autoSave = cfg.autoSave;
-    } else {
-      logger.warn(`Invalid autoSave type: ${typeof cfg.autoSave}, using default`);
-    }
-  }
-
-  return validated;
-}
-
-/**
- * Get default configuration
- */
-function getDefaultConfiguration(): ValidatedConfiguration {
-  return {
-    defaultQuickAddDictionary: 'properNouns',
-    theme: 'system',
-    fontSize: 14,
-    autoSave: true,
-    raw: {} as AppConfiguration, // Empty object as fallback - callers should provide defaults
-  };
 }
 
 /**

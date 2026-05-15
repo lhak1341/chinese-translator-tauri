@@ -6,7 +6,7 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 
 Known instances:
 
-- `wasmStatus` interval (`Translator.jsx`) — dep array is `[]`, ref used inside callback
+- `wasmStatus` interval (`Translator.jsx`) — dep array is `[enginePhase]`, ref used inside callback for status comparison
 - All 13 callback props in keydown listener (`useHotkeyHandler.ts`) — dep array is `[]`
 
 **Also applies to `useCallback` with a mutable state dep**: a `Set` in state creates a new reference on every `setState` → the callback recreates on every update. Use a ref mirror; dep array → `[]`.
@@ -35,30 +35,29 @@ TypeScript does not narrow optional property accesses through `&&` spreads — `
 - `validateApiResult` (was `validateElectronResult`) in `configValidation.ts`
 - `validateRawDictionaryEntry` (was `validateDictionaryEntry`) in `configValidation.ts` — renamed to avoid collision with same-named function in `DictionaryTypes.ts` (different signature). Do NOT revert.
 
-## `engine.initialize()` Is Called in Two Places in `Translator.jsx`
+## Engine Lifecycle — `useTranslatorEngine` Hook
 
-Initial load (~line 469) and reload (~line 2234) both pass `priorities: { properNouns: N, ... }` explicitly. `options.priorities` overrides all defaults in `DictionaryManager.loadDictionaries`. Any change to the priority scheme or init options must be applied to **both** call sites.
+Engine init, config load, and reinit are owned by `src/hooks/useTranslatorEngine.js`. Do NOT inline these back into `Translator.jsx`.
 
-## Translator.jsx Engine Init Effect — 6-Condition Gate
+The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConfig, reinitialize }`:
 
-`!isLoading && !loadError && configLoaded && dictionaries && !engineInitialized && !isInitializingEngineRef.current` — each clause guards a distinct race. Removing any silently re-introduces its bug:
+- `enginePhase` — `'loading' | 'ready' | 'error'`. Replaces `engineInitialized` + `configLoaded` flags.
+- `engineRef` — ref to current engine instance (or null).
+- `initError` — error string when `enginePhase === 'error'`, else null.
+- `activeProperNounsFromConfig` — loaded from disk once on mount; synced to `useDictionaryConfig` state via `useEffect`.
+- `reinitialize(filteredDicts, options)` — never throws; errors go to `enginePhase`/`initError`.
 
-- `!isLoading`: dicts not yet in React state.
-- `!loadError`: full dict-load failure → `dictionaries = {}` (truthy) would otherwise pass and engine emits garbage with no UI feedback.
-- `configLoaded`: `loadInitialConfig` (line ~342, deps `[]`) loads saved `activeProperNouns` from disk. Without this gate, default `['properNouns']` snapshots when dicts win the race → `getFilteredDictionaries` drops every `properNouns-*` novel dict → names un-capitalized until user reloads.
-- `dictionaries`: defensive presence check.
-- `!engineInitialized`: idempotent.
-- `!isInitializingEngineRef.current`: prevents `handleForceReload`'s own reinit from racing with the effect.
+**Race condition**: `reinitialize` sets `isInitializingRef.current = true` synchronously on entry and the hook's init effect checks `enginePhase === 'loading' && !isInitializingRef.current`. `handleForceReload` must NOT set any separate lock — `reinitialize` handles it.
 
-Two independent `window.electronAPI.loadConfiguration()` reads run on cold start: `DictionaryContext.loadInitialState` (for `lastSelectedDictionary`) and `Translator.loadInitialConfig` (for `activeProperNouns`). They do not coordinate. `TranslationEngine.initialize` no longer reads config — it uses `options.activeProperNouns` from caller.
+**Config load**: `useTranslatorEngine` calls `loadAppConfig()` once on mount (cached). `handleForceReload` must call `invalidateAppConfig()` then `loadAppConfig()` to get fresh values from disk — do NOT call `window.electronAPI.loadConfiguration()` directly.
 
-## `handleForceReload` Must Lock `isInitializingEngineRef` Around Its Own Engine Reinit
+**Priority scheme**: defined as `ENGINE_PRIORITIES` constant in `useTranslatorEngine.js` and exported. Pass to both `reinitialize()` and the hook's own init — any change to priorities must be made there only.
 
-Set `isInitializingEngineRef.current = true` BEFORE calling `setEngineInitialized(false)` — otherwise the engine-init effect sees `engineInitialized → false` and races to create a second engine. After the reload's own `engineRef.current.initialize()` succeeds, call `setEngineInitialized(true)` and reset `isInitializingEngineRef.current = false`. Reset the ref in the catch path too (so the effect can retry on failure).
+**Post-ready setup** (engine stats, debounced callbacks, dev tools): done in a `useEffect([enginePhase])` in `Translator.jsx` — fires on every transition to `'ready'`, including after `reinitialize`.
 
 ## `showReadinessOverlay` Must Not Short-Circuit on `initializationError`
 
-When engine init fails: `initializationError` is truthy AND `engineInitialized` is false. Adding `!initializationError` to the condition hides the overlay and lets users interact with a broken engine. Correct condition: `!loadError && (isLoading || !configLoaded || !engineInitialized)`.
+When engine init fails: `initializationError` is truthy AND `enginePhase === 'error'` (not `'ready'`). Adding `!initializationError` to the condition hides the overlay and lets users interact with a broken engine. Correct condition: `!loadError && (isLoading || enginePhase !== 'ready')`.
 
 ## Error Utilities
 

@@ -4,6 +4,7 @@ import { DICTIONARY_TYPES, getDictionaryTypes } from './DictionaryTypes';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
 import { logger } from '../../utils/logger';
+import { loadAppConfig } from '../../utils/appConfig';
 import {
   SEMANTIC_TYPE_LIST,
   SEMANTIC_TYPE_LABELS,
@@ -332,9 +333,9 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
     const loadActiveProperNouns = async (): Promise<void> => {
       try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data && isMounted) {
-          setActiveProperNouns(configResult.data.activeProperNouns || ['properNouns']);
+        const config = await loadAppConfig();
+        if (isMounted) {
+          setActiveProperNouns(config.engine.activeProperNouns);
         }
       } catch (error) {
         if (isMounted) {

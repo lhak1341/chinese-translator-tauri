@@ -6,7 +6,7 @@ import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
 import { useDictionary } from './dictionary/DictionaryContext';
-import { loadValidatedConfiguration } from '../utils/configurationHelpers';
+import { loadAppConfig } from '../utils/appConfig';
 import ErrorBoundary from './ErrorBoundary';
 import styles from '../styles/TabbedInterface.module.css';
 
@@ -60,9 +60,9 @@ const TabbedInterface: React.FC = () => {
       }
       if (key === '5') {
         try {
-          const config = await loadValidatedConfiguration();
-          const activeNouns: string[] = config.activeProperNouns ?? ['properNouns'];
-          const defaultDict = config.defaultQuickAddDictionary;
+          const config = await loadAppConfig();
+          const activeNouns = config.engine.activeProperNouns;
+          const defaultDict = config.ui.defaultQuickAddDictionary;
           let target: string | undefined;
           if (defaultDict && activeNouns.includes(defaultDict)) {
             target = defaultDict;

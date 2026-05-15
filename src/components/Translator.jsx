@@ -22,7 +22,13 @@ import DictionaryEntry from './dictionary/DictionaryEntry';
 import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
-import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
+import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
+import {
+  useTranslatorEngine,
+  ENGINE_PRIORITIES,
+  filterDictionariesForEngine,
+} from '../hooks/useTranslatorEngine';
+import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { translationSegmentCache, parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
@@ -161,15 +167,16 @@ const Translator = ({ isActive = true }) => {
   const [_engineStats, setEngineStats] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const isTranslatingRef = useRef(false);
-  const [engineInitialized, setEngineInitialized] = useState(false);
-  // Tracks whether saved app configuration (activeProperNouns, etc.) has been
-  // loaded from disk. Engine init must wait for this — otherwise the engine
-  // initializes with the default activeProperNouns (`['properNouns']`) and
-  // getFilteredDictionaries drops every custom `properNouns-*` dict, leaving
-  // novel-specific names un-capitalized until the user reloads.
-  const [configLoaded, setConfigLoaded] = useState(false);
-  // CRITICAL-3 FIX: Track initialization errors for user display
-  const [initializationError, setInitializationError] = useState(null);
+  const {
+    enginePhase,
+    engineRef,
+    initError: initializationError,
+    activeProperNounsFromConfig,
+    reinitialize,
+  } = useTranslatorEngine();
+  useEffect(() => {
+    if (activeProperNounsFromConfig) setActiveProperNouns(activeProperNounsFromConfig);
+  }, [activeProperNounsFromConfig]);
   const [wasmStatus, setWasmStatus] = useState({
     initialized: false,
     fallbackMode: true,
@@ -215,11 +222,6 @@ const Translator = ({ isActive = true }) => {
       clearHighlighting();
     }
   }, [semanticArrays, clearHighlighting]);
-
-  // New optimized engine
-  const engineRef = useRef(null);
-  // Track in-flight initialization to prevent duplicate engine creation (MEDIUM-1 FIX)
-  const isInitializingEngineRef = useRef(false);
 
   // Refs for auto-scrolling to highlighted elements
   const originalTextRef = useRef(null);
@@ -274,40 +276,6 @@ const Translator = ({ isActive = true }) => {
   const highlightingComputationRef = useRef(null);
 
   /**
-   * Filters dictionaries to include only active proper noun dictionaries
-   *
-   * Always includes non-proper-noun dictionaries (characters, phrases, patterns, etc.).
-   * Only includes proper noun dictionaries that are in the activeProperNouns list.
-   *
-   * Used during engine initialization and dictionary reload to ensure only selected
-   * proper noun dictionaries are loaded (memory optimization + user preference).
-   *
-   * @param {Object.<string, Object>} allDictionaries - All available dictionaries (from DictionaryContext)
-   * @param {string[]} activeProperNouns - Array of active proper noun dictionary names
-   * @returns {Object.<string, Object>} Filtered dictionaries object
-   *
-   * @example
-   * const filtered = getFilteredDictionaries(dictionaries, ['properNouns-DaiDuongSongLong']);
-   * // Returns: { characters: {...}, phrases: {...}, properNouns-DaiDuongSongLong: {...} }
-   */
-  const getFilteredDictionaries = useCallback((allDictionaries, activeProperNouns) => {
-    const filtered = {};
-
-    for (const [dictionaryName, dictionary] of Object.entries(allDictionaries)) {
-      // Always include non-proper-noun dictionaries
-      if (!dictionaryName.startsWith('properNouns')) {
-        filtered[dictionaryName] = dictionary;
-      }
-      // Only include active proper noun dictionaries
-      else if (activeProperNouns.includes(dictionaryName)) {
-        filtered[dictionaryName] = dictionary;
-      }
-    }
-
-    return filtered;
-  }, []);
-
-  /**
    * CODE REVIEW FIX (2026-02-01): Validate semantic array size to prevent integer overflow
    * Throws error if array exceeds MAX_SAFE_SEGMENTS to prevent position calculation overflow
    *
@@ -329,46 +297,6 @@ const Translator = ({ isActive = true }) => {
       );
       throw error;
     }
-  }, []);
-
-  /**
-   * Loads initial configuration on component mount
-   *
-   * Lifecycle: Runs once on mount (empty dependency array)
-   *
-   * Loads saved activeProperNouns from configuration file to restore user's
-   * dictionary selection from previous session.
-   *
-   * Error handling:
-   * - Silent on first run (file not found is expected)
-   * - Shows warning toast for unexpected errors
-   * - Falls back to defaults if loading fails
-   */
-  useEffect(() => {
-    const loadInitialConfig = async () => {
-      try {
-        const result = await window.electronAPI.loadConfiguration();
-        if (result.success && result.data.activeProperNouns) {
-          setActiveProperNouns(result.data.activeProperNouns);
-        } else {
-          // HIGH-3 FIX: Show warning for config load failures (except expected first-run case)
-          if (result.error && !result.error.includes('File not found')) {
-            toast.warning('Could not load saved settings. Using defaults.');
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to load initial configuration:', error);
-        // HIGH-3 FIX: Notify user of unexpected configuration errors
-        toast.error('Error loading settings. Using defaults.');
-      } finally {
-        // Always release the engine-init gate. Defaults are acceptable on
-        // first run / failure — what we cannot tolerate is the engine racing
-        // ahead and snapshotting an unloaded activeProperNouns list.
-        setConfigLoaded(true);
-      }
-    };
-
-    loadInitialConfig();
   }, []);
 
   /**
@@ -412,165 +340,51 @@ const Translator = ({ isActive = true }) => {
         systemPerformanceMonitor.destroy();
         logger.log('🧹 System performance monitor timer cleaned up');
       }
-
-      // Reset initialization flag to prevent blocked re-initialization if component unmounts during init
-      isInitializingEngineRef.current = false;
     };
   }, [cleanupScrollRestoration]);
 
-  /**
-   * Engine initialization effect - creates and configures translation engine
-   *
-   * Lifecycle: Runs when dictionaries load and configuration changes
-   * Dependencies: isLoading, dictionaries, engineInitialized, activeProperNouns
-   *
-   * Initialization sequence:
-   * 1. Creates translation engine instance
-   * 2. Exposes engine to window for development debugging
-   * 3. Filters dictionaries based on activeProperNouns
-   * 4. Initializes engine with filtered dictionaries and priorities
-   * 5. Sets up pattern parity tests for WASM validation
-   * 6. Configures debounced progress handler callbacks
-   * 7. Updates engine stats and sets initialized flag
-   *
-   * Race condition prevention:
-   * - Uses isInitializingEngineRef to prevent duplicate initialization
-   * - Sets flag synchronously BEFORE async function to prevent race
-   * - Resets flag in finally block after completion or error
-   *
-   * Error handling:
-   * - Sets initializationError state for user display
-   * - Shows critical error toast with actionable guidance
-   * - Resets engineInitialized flag on failure
-   *
-   * Why this can't be extracted:
-   * - Coordinates multiple state setters atomically
-   * - Timing-sensitive initialization sequence
-   * - Requires access to multiple refs and state setters
-   */
   useEffect(() => {
-    // MEDIUM-1 FIX: Prevent duplicate engine initialization during dependency changes
-    // If activeProperNouns changes during initialization, this effect fires again
-    // Use ref to track in-flight initialization (synchronous check prevents race)
-    // Gate on !loadError so the engine does not initialize with empty dictionaries
-    // when the initial Rust parallel load failed — `dictionaries` is `{}` (truthy)
-    // on failure, which would otherwise pass the previous gate and produce a
-    // "ready" engine that emits garbage translations with no user feedback.
-    //
-    // Gate on configLoaded so the engine waits for the saved activeProperNouns
-    // list. Without this gate, if `loadInitialState` (DictionaryContext) wins
-    // the race against `loadInitialConfig` here, the engine snapshots the
-    // default `['properNouns']` and getFilteredDictionaries drops every
-    // custom `properNouns-*` dict — names from those dicts then never match
-    // and stay un-capitalized until the user reloads the app.
-    if (
-      !isLoading &&
-      !loadError &&
-      configLoaded &&
-      dictionaries &&
-      !engineInitialized &&
-      !isInitializingEngineRef.current
-    ) {
-      // CRITICAL: Set flag synchronously BEFORE calling async function to prevent race condition
-      // If we set it inside the async function, another effect could start before the flag is set
-      isInitializingEngineRef.current = true;
-
-      const initializeEngine = async () => {
-        try {
-          engineRef.current = createTranslationEngine();
-
-          // Phase 8: Expose engine to window for testing
-          if (process.env.NODE_ENV === 'development') {
-            window.translationEngine = engineRef.current;
-            logger.log('🧪 TranslationEngine exposed to window.translationEngine for testing');
-
-            // Expose WASM Dictionary Trie validator
-            import('../utils/wasm/WasmDictionaryTrieValidator.js').then(
-              ({ validateWasmDictionaryTrie }) => {
-                window.validateWasmDictionaryTrie = validateWasmDictionaryTrie;
-                logger.log('🧪 WASM validator exposed to window.validateWasmDictionaryTrie()');
-              }
-            );
-          }
-
-          // Filter dictionaries to only include active ones
-          const filteredDictionaries = getFilteredDictionaries(dictionaries, activeProperNouns);
-
-          await engineRef.current.initialize(filteredDictionaries, {
-            priorities: {
-              properNouns: 3, // base; f_* → 1, _* → 2 handled by DictionaryManager prefix logic
-              patterns: 2,
-              phrases: 3,
-              characters: 4,
-              punctuation: 5,
-              conversion: 6,
-            },
-            activeProperNouns: activeProperNouns,
-            debugLevel: DEBUG_LEVELS.ERROR, // PERFORMANCE: Reduce console spam
-          });
-
-          // DEBUG: Expose parity test for Rust vs JavaScript verification
-          // (window.translationEngine already exposed at line 362)
-          if (process.env.NODE_ENV === 'development') {
-            window.runPatternParityTests = async () => {
-              const processor = engineRef.current?.twoPhasePatternProcessor;
-              if (!processor) {
-                logger.error('❌ TwoPhasePatternProcessor not available');
-                return;
-              }
-              const { runAllParityTests } =
-                await import('../utils/__benchmarks__/PatternParityTest.js');
-              return await runAllParityTests(processor);
-            };
-            logger.log('🧪 Run window.runPatternParityTests() to verify Rust WASM parity');
-          }
-
-          setEngineStats(engineRef.current.getEngineStats());
-          setEngineInitialized(true);
-
-          // Set up debounced progress handler callbacks
-          debouncedProgressHandler.current.setCallbacks({
-            onProgressUpdate: setProgressInfo,
-            onTranslationUpdate: setTranslatedText,
-            onSemanticArraysUpdate: setSemanticArrays,
-          });
-
-          // CRITICAL-3 FIX: Clear error on successful initialization
-          setInitializationError(null);
-        } catch (error) {
-          logger.error('Failed to initialize engine:', error);
-          setEngineInitialized(false);
-
-          // CRITICAL-3 FIX: Show error to user with actionable guidance
-          const errorMsg = extractErrorMessage(error);
-          setInitializationError(errorMsg);
-          toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
-            duration: TOAST_DURATIONS.CRITICAL, // Longer duration for critical errors
-          });
-        } finally {
-          // MEDIUM-1 FIX: Reset flag after initialization completes or fails
-          isInitializingEngineRef.current = false;
+    if (enginePhase !== 'ready' || !engineRef.current) return;
+    setEngineStats(engineRef.current.getEngineStats());
+    debouncedProgressHandler.current.setCallbacks({
+      onProgressUpdate: setProgressInfo,
+      onTranslationUpdate: setTranslatedText,
+      onSemanticArraysUpdate: setSemanticArrays,
+    });
+    if (process.env.NODE_ENV === 'development') {
+      window.translationEngine = engineRef.current;
+      import('../utils/wasm/WasmDictionaryTrieValidator.js').then(
+        ({ validateWasmDictionaryTrie }) => {
+          window.validateWasmDictionaryTrie = validateWasmDictionaryTrie;
         }
+      );
+      window.runPatternParityTests = async () => {
+        const processor = engineRef.current?.twoPhasePatternProcessor;
+        if (!processor) {
+          logger.error('❌ TwoPhasePatternProcessor not available');
+          return;
+        }
+        const { runAllParityTests } = await import('../utils/__benchmarks__/PatternParityTest.js');
+        return await runAllParityTests(processor);
       };
-
-      initializeEngine();
     }
-    // Include getFilteredDictionaries to satisfy React exhaustive-deps rule (function is stable but should be listed)
-  }, [
-    isLoading,
-    loadError,
-    configLoaded,
-    dictionaries,
-    engineInitialized,
-    activeProperNouns,
-    getFilteredDictionaries,
-  ]);
+  }, [enginePhase]);
+
+  useEffect(() => {
+    if (enginePhase !== 'error' || !initializationError) return;
+    toast.error(
+      `Engine initialization failed: ${initializationError}. Try reloading dictionaries.`,
+      {
+        duration: TOAST_DURATIONS.CRITICAL,
+      }
+    );
+  }, [enginePhase, initializationError]);
 
   /**
    * WASM status monitoring effect - tracks WASM initialization and fallback mode
    *
-   * Lifecycle: Runs when engine initializes and WASM status changes
-   * Dependencies: engineInitialized, wasmStatus
+   * Lifecycle: Runs when engine becomes ready and WASM status changes
+   * Dependencies: enginePhase, wasmStatus
    *
    * Monitors WASM dictionary engine status:
    * - initialized: Whether WASM module loaded successfully
@@ -581,7 +395,7 @@ const Translator = ({ isActive = true }) => {
    * Only updates state if status actually changed (prevents unnecessary re-renders).
    */
   useEffect(() => {
-    if (engineInitialized && engineRef.current?.wasmManager) {
+    if (enginePhase === 'ready' && engineRef.current?.wasmManager) {
       let interval = null;
 
       const checkWasmStatus = () => {
@@ -633,7 +447,7 @@ const Translator = ({ isActive = true }) => {
     // Status comparison is done via wasmStatusRef to avoid tearing down and
     // recreating the interval on every status update during WASM initialization.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engineInitialized]);
+  }, [enginePhase]);
 
   // Regression health monitoring now handled by usePerformanceMonitoring hook
 
@@ -1978,7 +1792,6 @@ const Translator = ({ isActive = true }) => {
    * - Destroys engine (engineRef.current = null)
    * - Clears all caches (translation segments, dictionary, pattern variables, WASM)
    * - Shows progressive status messages in translation panel
-   * - Resets engineInitialized flag
    * - Loads fresh activeProperNouns from disk (NOT React state)
    * - Creates new engine with filtered dictionaries
    * - Retranslates current input (if exists)
@@ -2211,46 +2024,19 @@ const Translator = ({ isActive = true }) => {
       setCharacterOnlyText('');
       clearHighlighting();
       setEngineStats(null);
-      // Block engine-init effect from racing with our own reinit below
-      isInitializingEngineRef.current = true;
-      setEngineInitialized(false);
 
       // Step 6: Load fresh configuration to get updated activeProperNouns
-      // CRITICAL ARCHITECTURAL PATTERN: Load config at operation time, NOT from React state
-      // Why this pattern is necessary:
-      // 1. React state updates are asynchronous - setState doesn't guarantee immediate value
-      // 2. Configuration can change externally (manual JSON editing)
-      // 3. File I/O is the authoritative source of truth, not in-memory state
-      // 4. Dictionary reload MUST use latest saved config, not stale captured values
-      //
-      // ANTI-PATTERN (DO NOT USE):
-      // const [config, setConfig] = useState(defaultConfig);
-      // const reload = useCallback(() => {
-      //   processWithConfig(data, config); // Stale! Captured at callback creation time
-      // }, [config]);
-      //
-      // CORRECT PATTERN (USED HERE):
-      // const reload = useCallback(async () => {
-      //   const freshConfig = await loadConfiguration(); // Fresh from disk
-      //   processWithConfig(data, freshConfig); // Always current
-      // }, []); // No config in dependencies
-      //
-      // See CLAUDE.md "Configuration Loading" section for detailed rationale
       logger.log('Step 6: Loading fresh configuration...');
-      let freshActiveProperNouns = activeProperNouns; // fallback to current value
+      let freshActiveProperNouns;
       try {
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data.activeProperNouns) {
-          freshActiveProperNouns = configResult.data.activeProperNouns;
-          logger.log('✅ Fresh configuration loaded:', freshActiveProperNouns);
-
-          // Update state with fresh configuration
-          setActiveProperNouns(freshActiveProperNouns);
-        } else {
-          logger.log('⚠️  Using current configuration (no changes detected)');
-        }
+        invalidateAppConfig();
+        const freshConfig = await loadAppConfig();
+        freshActiveProperNouns = freshConfig.engine.activeProperNouns;
+        setActiveProperNouns(freshActiveProperNouns);
+        logger.log('✅ Fresh configuration loaded:', freshActiveProperNouns);
       } catch (configError) {
         logger.error('❌ Failed to load fresh configuration:', configError);
+        freshActiveProperNouns = activeProperNouns;
         logger.log('⚠️  Using current configuration as fallback');
       }
 
@@ -2264,167 +2050,144 @@ const Translator = ({ isActive = true }) => {
         Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
 
       if (!isLoading && dictionariesToUse) {
-        try {
-          engineRef.current = createTranslationEngine();
-
-          // Filter dictionaries to only include active ones (using fresh configuration)
-          const filteredDictionaries = getFilteredDictionaries(
-            dictionariesToUse,
-            freshActiveProperNouns
+        const filteredDictionaries = filterDictionariesForEngine(
+          dictionariesToUse,
+          freshActiveProperNouns
+        );
+        await reinitialize(filteredDictionaries, {
+          priorities: ENGINE_PRIORITIES,
+          activeProperNouns: freshActiveProperNouns,
+          debugLevel: DEBUG_LEVELS.ERROR,
+        });
+        if (!engineRef.current?.isReady()) {
+          setTranslatedText(
+            '❌ Reload Dictionary failed!\n\nError reinitializing engine. Check console for details.'
           );
+          toast.error('Failed to reinitialize engine. Try reloading the app.');
+          return;
+        }
+        logger.log('✅ Engine reinitialized successfully');
 
-          await engineRef.current.initialize(filteredDictionaries, {
-            priorities: {
-              properNouns: 3, // base; f_* → 1, _* → 2 handled by DictionaryManager prefix logic
-              patterns: 2,
-              phrases: 3,
-              characters: 4,
-              punctuation: 5,
-              conversion: 6,
-            },
-            activeProperNouns: freshActiveProperNouns,
-            debugLevel: DEBUG_LEVELS.ERROR, // PERFORMANCE: Reduce console spam
-          });
+        // HIGH-6 FIX: Run WASM validation asynchronously without blocking reload
+        // This prevents UI freezes during validation of large test sets
+        if (
+          engineRef.current?.dictionaryManager?.wasmInitialized &&
+          typeof engineRef.current.dictionaryManager.validateWasmFallback === 'function'
+        ) {
+          // Run validation in background (non-blocking)
+          setTimeout(() => {
+            try {
+              const syncStatus = engineRef.current?.dictionaryManager?.validateWasmFallback();
+              if (!syncStatus) {
+                logger.warn('⚠️ WASM validation skipped - engine no longer available');
+                return;
+              }
 
-          // Note: window.translationEngine already exposed during initial engine creation
-          setEngineStats(engineRef.current.getEngineStats());
-          setEngineInitialized(true);
-          isInitializingEngineRef.current = false;
-          logger.log('✅ Engine reinitialized successfully');
+              if (syncStatus.status === 'PASS') {
+                logger.log('✅ WASM dictionary sync validated successfully');
+              } else if (syncStatus.status === 'SKIPPED') {
+                logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
+              } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
+                logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
+                toast.error(
+                  `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
+                  { duration: TOAST_DURATIONS.CACHE_WARNING }
+                );
+              } else if (syncStatus.status === 'FAIL_ERRORS') {
+                logger.error('❌ WASM sync validation failed - errors:', syncStatus);
+                toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
+                  duration: TOAST_DURATIONS.CACHE_WARNING,
+                });
+              }
+            } catch (validationError) {
+              logger.error('❌ WASM validation error:', validationError);
+              // Don't block reload on validation errors
+            }
+          }, 100); // Run after reload completes (non-blocking)
+        }
 
-          // HIGH-6 FIX: Run WASM validation asynchronously without blocking reload
-          // This prevents UI freezes during validation of large test sets
-          if (
-            engineRef.current?.dictionaryManager?.wasmInitialized &&
-            typeof engineRef.current.dictionaryManager.validateWasmFallback === 'function'
-          ) {
-            // Run validation in background (non-blocking)
-            setTimeout(() => {
+        // Step 8: Restore translation if there's input text
+        if (inputText.trim()) {
+          logger.log('Step 8: Retranslating current text...');
+          const retranslateMessage = '🔄 Engine ready - retranslating text...';
+          setTranslatedText(retranslateMessage);
+
+          // Wait a bit to ensure engine is fully ready
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          // Double-check engine is ready before translating
+          if (!engineRef.current?.isReady()) {
+            logger.log('⚠️ Engine not ready after initialization, waiting longer...');
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+
+          try {
+            // OPTIMIZATION: Use dual-mode translation for dictionary reload as well
+            if (engineRef.current?.translateDualModeOptimized) {
               try {
-                const syncStatus = engineRef.current?.dictionaryManager?.validateWasmFallback();
-                if (!syncStatus) {
-                  logger.warn('⚠️ WASM validation skipped - engine no longer available');
+                // Use optimized dual-mode translation for reload performance
+                const dualResults = await engineRef.current.translateDualModeOptimized(inputText);
+
+                // CODE REVIEW FIX (2026-02-01): Validate semantic array sizes before setting
+                try {
+                  validateSemanticArraySize(
+                    dualResults.fullResult.semanticArrays,
+                    'full translation'
+                  );
+                  validateSemanticArraySize(
+                    dualResults.characterResult.semanticArrays,
+                    'character-only translation'
+                  );
+                } catch (validationError) {
+                  // Validation error already logged and toasted in validateSemanticArraySize
                   return;
                 }
 
-                if (syncStatus.status === 'PASS') {
-                  logger.log('✅ WASM dictionary sync validated successfully');
-                } else if (syncStatus.status === 'SKIPPED') {
-                  logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
-                } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
-                  logger.error(
-                    '❌ WASM sync validation failed - differences detected:',
-                    syncStatus
-                  );
-                  toast.error(
-                    `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
-                    { duration: TOAST_DURATIONS.CACHE_WARNING }
-                  );
-                } else if (syncStatus.status === 'FAIL_ERRORS') {
-                  logger.error('❌ WASM sync validation failed - errors:', syncStatus);
-                  toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
-                    duration: TOAST_DURATIONS.CACHE_WARNING,
-                  });
-                }
-              } catch (validationError) {
-                logger.error('❌ WASM validation error:', validationError);
-                // Don't block reload on validation errors
-              }
-            }, 100); // Run after reload completes (non-blocking)
-          }
+                // Update both translations efficiently
+                setTranslatedText(dualResults.fullResult.translatedText);
+                setSemanticArrays(dualResults.fullResult.semanticArrays);
+                setCharacterOnlyText(dualResults.characterResult.translatedText);
+                setCharacterOnlySemanticArrays(dualResults.characterResult.semanticArrays);
 
-          // Step 8: Restore translation if there's input text
-          if (inputText.trim()) {
-            logger.log('Step 8: Retranslating current text...');
-            const retranslateMessage = '🔄 Engine ready - retranslating text...';
-            setTranslatedText(retranslateMessage);
+                // Update cache hit rate after dictionary reload
+                updateCacheHitRate(translationSegmentCache);
+              } catch (_optimizedError) {
+                logger.error(
+                  '🔄 Optimized reload translation failed, falling back to sequential:',
+                  _optimizedError
+                );
 
-            // Wait a bit to ensure engine is fully ready
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            // Double-check engine is ready before translating
-            if (!engineRef.current?.isReady()) {
-              logger.log('⚠️ Engine not ready after initialization, waiting longer...');
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-
-            try {
-              // OPTIMIZATION: Use dual-mode translation for dictionary reload as well
-              if (engineRef.current?.translateDualModeOptimized) {
-                try {
-                  // Use optimized dual-mode translation for reload performance
-                  const dualResults = await engineRef.current.translateDualModeOptimized(inputText);
-
-                  // CODE REVIEW FIX (2026-02-01): Validate semantic array sizes before setting
-                  try {
-                    validateSemanticArraySize(
-                      dualResults.fullResult.semanticArrays,
-                      'full translation'
-                    );
-                    validateSemanticArraySize(
-                      dualResults.characterResult.semanticArrays,
-                      'character-only translation'
-                    );
-                  } catch (validationError) {
-                    // Validation error already logged and toasted in validateSemanticArraySize
-                    return;
-                  }
-
-                  // Update both translations efficiently
-                  setTranslatedText(dualResults.fullResult.translatedText);
-                  setSemanticArrays(dualResults.fullResult.semanticArrays);
-                  setCharacterOnlyText(dualResults.characterResult.translatedText);
-                  setCharacterOnlySemanticArrays(dualResults.characterResult.semanticArrays);
-
-                  // Update cache hit rate after dictionary reload
-                  updateCacheHitRate(translationSegmentCache);
-                } catch (_optimizedError) {
-                  logger.error(
-                    '🔄 Optimized reload translation failed, falling back to sequential:',
-                    _optimizedError
-                  );
-
-                  // Fallback to original sequential method
-                  const newTranslation = await translateText(inputText);
-                  setTranslatedText(newTranslation);
-
-                  // Run character-only translation after main completes during reload (non-blocking)
-                  setTimeout(() => translateCharacterOnly(inputText), 0);
-                }
-              } else {
-                // Fallback for engines without optimization
+                // Fallback to original sequential method
                 const newTranslation = await translateText(inputText);
                 setTranslatedText(newTranslation);
 
                 // Run character-only translation after main completes during reload (non-blocking)
                 setTimeout(() => translateCharacterOnly(inputText), 0);
               }
+            } else {
+              // Fallback for engines without optimization
+              const newTranslation = await translateText(inputText);
+              setTranslatedText(newTranslation);
 
-              logger.log('✅ Retranslation completed successfully');
-              toast.success('Dictionary reloaded and text retranslated');
-            } catch (_retranslateError) {
-              logger.error('❌ Retranslation failed:', _retranslateError);
-              const errorMessage =
-                '❌ Retranslation failed!\n\nError: ' + _retranslateError.message;
-              setTranslatedText(errorMessage);
-              toast.error(`Retranslation failed: ${_retranslateError.message}`);
+              // Run character-only translation after main completes during reload (non-blocking)
+              setTimeout(() => translateCharacterOnly(inputText), 0);
             }
-          } else {
-            const completedMessage =
-              '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.';
-            setTranslatedText(completedMessage);
-            toast.success('Dictionary reloaded successfully');
+
+            logger.log('✅ Retranslation completed successfully');
+            toast.success('Dictionary reloaded and text retranslated');
+          } catch (_retranslateError) {
+            logger.error('❌ Retranslation failed:', _retranslateError);
+            const errorMessage = '❌ Retranslation failed!\n\nError: ' + _retranslateError.message;
+            setTranslatedText(errorMessage);
+            toast.error(`Retranslation failed: ${_retranslateError.message}`);
           }
-        } catch (_engineError) {
-          logger.error('❌ Error reinitializing engine:', _engineError);
-          const engineErrorMessage =
-            '❌ Reload Dictionary failed!\n\nError reinitializing engine: ' + _engineError.message;
-          setTranslatedText(engineErrorMessage);
-          toast.error(`Failed to reinitialize engine: ${_engineError.message}`);
-          isInitializingEngineRef.current = false;
+        } else {
+          const completedMessage =
+            '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.';
+          setTranslatedText(completedMessage);
+          toast.success('Dictionary reloaded successfully');
         }
       } else {
-        isInitializingEngineRef.current = false;
         logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
         const warningMessage =
           '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.';
@@ -2459,7 +2222,6 @@ const Translator = ({ isActive = true }) => {
     inputText,
     activeProperNouns,
     dictionaries,
-    getFilteredDictionaries,
     isLoading,
     isDictionaryReloading,
     saveScrollPositions,
@@ -2534,7 +2296,7 @@ const Translator = ({ isActive = true }) => {
 
   // App-readiness overlay visible until dictionaries + engine are ready.
   // Stays visible on initializationError so users can't interact with a broken engine.
-  const showReadinessOverlay = !loadError && (isLoading || !configLoaded || !engineInitialized);
+  const showReadinessOverlay = !loadError && (isLoading || enginePhase !== 'ready');
 
   return (
     <div className={styles.container}>
@@ -2553,7 +2315,7 @@ const Translator = ({ isActive = true }) => {
       {showReadinessOverlay && (
         <AppReadinessOverlay
           dictLoading={isLoading}
-          engineInitializing={!isLoading && (!configLoaded || !engineInitialized)}
+          engineInitializing={!isLoading && enginePhase !== 'ready'}
         />
       )}
 

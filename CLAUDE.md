@@ -79,7 +79,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 **Non-obvious contracts:**
 
 - **Hotkey architecture:** `useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props.
-- **Config reads:** Use `loadValidatedConfiguration()` from `utils/configurationHelpers.ts` when you need fields with applied defaults (e.g. `defaultQuickAddDictionary`). `window.electronAPI.loadConfiguration()` returns raw unvalidated data — defaulted fields may be absent or wrong type.
+- **Config reads:** Use `loadAppConfig()` from `utils/appConfig.ts` — caches after first load, returns typed `AppConfig` with defaults applied. In force-reload paths, call `invalidateAppConfig()` first. Never call `window.electronAPI.loadConfiguration()` directly — returns raw unvalidated data with absent/wrong-typed defaults.
 - `src/utils/wasm/WasmBoundaryValidation.ts` — `copyWasmTokens`: param1=JS dest, param2=WASM src
 - `types/WasmTypes.ts` (root-level, tests only) — `copyWasmTokens`: param1=WASM src, param2=JS dest (**reversed**)
 - `ThrottledStreamingState` canonical home: `src/types/UITypes.d.ts`

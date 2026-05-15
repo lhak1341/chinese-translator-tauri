@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
-import { loadValidatedConfiguration } from '../utils/configurationHelpers'; // REFACTOR (2026-01-28): Use centralized config loading
+import { loadAppConfig } from '../utils/appConfig';
 
 /**
  * Dictionary configuration hook
@@ -118,9 +118,8 @@ export function useDictionaryConfig() {
       };
 
       try {
-        // REFACTOR (2026-01-28): Use centralized configuration loading utility
-        const validatedConfig = await loadValidatedConfiguration();
-        const defaultQuickAddDictionary = validatedConfig.defaultQuickAddDictionary;
+        const config = await loadAppConfig();
+        const defaultQuickAddDictionary = config.ui.defaultQuickAddDictionary;
 
         // If there's a configured default and it's active, use it
         if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
