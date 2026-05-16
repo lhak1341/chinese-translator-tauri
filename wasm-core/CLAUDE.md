@@ -7,6 +7,18 @@ Phase B overrides it: `max(6, max_phase_a_key_chars)` computed once per invocati
 
 **Debugging composite failures:** If a Phase B pattern doesn't absorb a Phase A result, the Phase A result's token count was likely > 6 (pre-fix). The fix is in place — verify Phase B span logic in `process_phase_b` if regression.
 
+## PatternIndex Key Is First Char — Lookup Must Match
+
+`get_index_key` (`index.rs`) stores patterns under the **first char** of first literal (e.g. `"传"` for `传奇级X`).
+Any lookup in `process_phase_a`/`process_phase_b` must use `first_char = token.value.chars().next()`, NOT the full token value.
+Compound tokens (e.g. `"传奇"`) silently return no patterns otherwise — no error, pattern just never fires.
+
+## WASM Failure Disables Two-Phase for the Session
+
+`applyPatterns` catch block sets `this.settings.enableTwoPhasePatterns = false` after 3 failures (TranslationEngine.js ~line 2941).
+JS fallback then runs silently. If a rebuilt WASM binary seems to have no effect: old binary likely caused 3 failures → failure flag is set.
+Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or do a full WebView reload.
+
 ## Test locations
 
 - `tests/two_phase_test.rs` — two-phase + hierarchical composite tests

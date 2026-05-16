@@ -199,8 +199,13 @@ impl TwoPhasePatternProcessor {
             return Vec::new();
         }
 
-        // Pre-allocate result vector (estimate: at most 1 result per 2 tokens)
-        let mut results = Vec::with_capacity(semantic_tokens.len() / 2);
+        // Pass 1: collect ALL candidate matches at every position.
+        // Previously greedy (position = end_index + 1 after each hit), which caused
+        // a left-side pattern to steal tokens from a longer right-side match — e.g.
+        // "这种X" consuming "传奇" at position 0 before "传奇级X" could match
+        // "传奇级武器" at position 2. Collecting all first, then selecting by longest
+        // span, fixes nested-pattern cases where both patterns have allowAsPatternVariable.
+        let mut candidates = Vec::with_capacity(semantic_tokens.len() / 2);
         let mut position = 0;
 
         // Hoist variable_patterns outside the loop and reuse a single buffer,
@@ -225,40 +230,83 @@ impl TwoPhasePatternProcessor {
             }
 
             // Combine literal-starting and variable-starting Phase A patterns,
-            // identical to Phase B's approach (lines 349-355).
-            let first_token = &semantic_tokens[position].value;
-            let literal_patterns = self.phase_a_index.get_patterns_by_first_token(first_token);
+            // identical to Phase B's approach.
+            // Index keys are first CHAR of first literal — use first char of the token
+            // value so compound tokens (e.g. "传奇") correctly map to key "传".
+            let first_char = semantic_tokens[position]
+                .value
+                .chars()
+                .next()
+                .map(|c| c.to_string())
+                .unwrap_or_default();
+            let literal_patterns = self.phase_a_index.get_patterns_by_first_token(&first_char);
             candidate_patterns.clear();
             candidate_patterns.extend_from_slice(literal_patterns);
             candidate_patterns.extend_from_slice(variable_patterns);
 
-            // Find best pattern match among candidates
-            let match_result = if !candidate_patterns.is_empty() {
-                find_best_pattern_match(
+            if !candidate_patterns.is_empty() {
+                if let Some(match_result) = find_best_pattern_match(
                     &candidate_patterns,
                     semantic_tokens,
                     position,
                     variable_cache,
                     DEFAULT_MAX_VARIABLE_SPAN,
-                )
-            } else {
-                None
-            };
-
-            if let Some(match_result) = match_result {
-                if let Some(processing_result) =
-                    PatternProcessingResult::from_match_result(match_result, "phaseA".to_string())
-                {
-                    position = processing_result.end_index + 1;
-                    results.push(processing_result);
-                    continue;
+                ) {
+                    if let Some(processing_result) =
+                        PatternProcessingResult::from_match_result(match_result, "phaseA".to_string())
+                    {
+                        candidates.push(processing_result);
+                    }
                 }
             }
 
-            position += 1;
+            position += 1; // always +1 — collect every position before selecting
         }
 
-        results
+        // Pass 2: select non-overlapping candidates, longest span wins.
+        Self::select_non_overlapping_phase_a(candidates)
+    }
+
+    /// Select non-overlapping Phase A candidates by longest text coverage.
+    /// Uses original_text.chars().count() rather than end-start token diff so that
+    /// compound-word tokens (e.g. "传奇" as a single 2-char token) are measured by
+    /// character count.  With token-index diff, "这种传奇" (tokens 0-2) and
+    /// "传奇级武器" (tokens 2-4) both score 2, making the sort indeterminate and
+    /// allowing the shorter-coverage pattern to win.  Char count gives 4 vs 5,
+    /// correctly preferring "传奇级武器".
+    /// Tie-break: higher pattern priority wins.
+    /// Mirrors the dedup logic in select_optimal_results for consistency.
+    fn select_non_overlapping_phase_a(mut candidates: Vec<PatternProcessingResult>) -> Vec<PatternProcessingResult> {
+        if candidates.len() <= 1 {
+            return candidates;
+        }
+
+        // Sort: most chars covered first, then higher priority.
+        candidates.sort_by(|a, b| {
+            let a_span = a.original_text.chars().count();
+            let b_span = b.original_text.chars().count();
+            b_span.cmp(&a_span).then_with(|| {
+                let a_priority = a.pattern.as_ref().map(|p| p.priority).unwrap_or(0);
+                let b_priority = b.pattern.as_ref().map(|p| p.priority).unwrap_or(0);
+                b_priority.cmp(&a_priority)
+            })
+        });
+
+        let mut selected = Vec::new();
+        let mut used_tokens: HashSet<usize> = HashSet::new();
+
+        for candidate in candidates {
+            let overlaps = (candidate.start_index..=candidate.end_index)
+                .any(|i| used_tokens.contains(&i));
+            if !overlaps {
+                for i in candidate.start_index..=candidate.end_index {
+                    used_tokens.insert(i);
+                }
+                selected.push(candidate);
+            }
+        }
+
+        selected
     }
 
     /// Mark tokens consumed by Phase A as protected from Phase B
@@ -351,9 +399,16 @@ impl TwoPhasePatternProcessor {
                 continue;
             }
 
-            // Get candidate patterns using index (O(1) lookup)
-            let first_token = &semantic_tokens[position].value;
-            let literal_patterns = self.phase_b_index.get_patterns_by_first_token(first_token);
+            // Get candidate patterns using index (O(1) lookup).
+            // Index keys are first CHAR of first literal — use first char of the token
+            // value so compound tokens (e.g. "传奇") correctly map to key "传".
+            let first_char = semantic_tokens[position]
+                .value
+                .chars()
+                .next()
+                .map(|c| c.to_string())
+                .unwrap_or_default();
+            let literal_patterns = self.phase_b_index.get_patterns_by_first_token(&first_char);
 
             // Combine both literal-starting and variable-starting patterns.
             // Reuse the pre-allocated buffer — clear and refill each iteration.

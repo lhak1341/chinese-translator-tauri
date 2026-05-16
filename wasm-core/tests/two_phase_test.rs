@@ -680,6 +680,168 @@ fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
     assert_eq!(results[0].translation, "cái người kia trong biệt viện");
 }
 
+/// Regression test: Phase A must select the longest-span candidate globally, not the leftmost.
+///
+/// Before fix: greedy Phase A matched "这种X" at position 0 with X=传奇 (span=3),
+/// advancing past position 2 so "传奇级X" was never tried → 传奇级武器 never entered
+/// enhanced_cache → Phase B's "这种X" couldn't nest it → wrong output.
+///
+/// After fix: all candidates collected first; 传奇级武器 (span=4) beats 这种传奇 (span=3)
+/// → Phase A selects 传奇级武器 → Phase B wraps with 这种X → hierarchical composite.
+#[test]
+fn test_phase_a_longest_span_wins_over_leftmost_shorter_match() {
+    let phase_a_outer = parse_pattern(
+        "这种X".to_string(),
+        "loại X này".to_string(),
+        None,
+        true, // allowAsPatternVariable — kept for use as outer variable in other patterns
+        false,
+        None,
+    );
+
+    let phase_a_inner = parse_pattern(
+        "传奇级X".to_string(),
+        "X cấp truyền kỳ".to_string(),
+        None,
+        true, // allowAsPatternVariable — inner, feeds Phase B as variable
+        false,
+        None,
+    );
+
+    // Tokens: 这(0) 种(1) 传(2) 奇(3) 级(4) 武(5) 器(6)
+    let mut tokens = vec![
+        create_token("这", 0),
+        create_token("种", 1),
+        create_token("传", 2),
+        create_token("奇", 3),
+        create_token("级", 4),
+        create_token("武", 5),
+        create_token("器", 6),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    // 传奇 in static cache: greedy Phase A used to steal this as X in "这种X"
+    variable_cache.insert(
+        "传奇".to_string(),
+        VariableCacheEntry {
+            translation: "truyền kỳ".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("concept".to_string()),
+        },
+    );
+    variable_cache.insert(
+        "武器".to_string(),
+        VariableCacheEntry {
+            translation: "vũ khí".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("object".to_string()),
+        },
+    );
+
+    let patterns = vec![phase_a_outer, phase_a_inner];
+    let processor = TwoPhasePatternProcessor::new(patterns);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    // Must produce exactly one hierarchical composite covering all 7 tokens.
+    assert_eq!(
+        results.len(),
+        1,
+        "Expected 1 hierarchical composite. Got {} result(s): {:?}",
+        results.len(),
+        results.iter().map(|r| format!("[{}-{}] {} \"{}\"", r.start_index, r.end_index, r.source, r.translation)).collect::<Vec<_>>()
+    );
+
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 6);
+    assert_eq!(results[0].translation, "loại vũ khí cấp truyền kỳ này");
+
+    // Phase A component must be 传奇级武器, not 这种传奇
+    let phase_a_component = results[0].phase_a.as_ref().unwrap();
+    assert_eq!(phase_a_component.original_text, "传奇级武器");
+    assert_eq!(phase_a_component.translation, "vũ khí cấp truyền kỳ");
+}
+
+/// Regression test: compound-word tokens must not cause equal-span tie where
+/// shorter-coverage pattern wins.
+///
+/// Tokenizer may produce "传奇" as a single 2-char token and "武器" as a single
+/// 2-char token (type chinese_word).  In that case:
+///   tokens: 这(0) 种(1) 传奇(2) 级(3) 武器(4)   — 5 original tokens
+///   这种X  (X=传奇): covers tokens 0-2 → original-index span = 2, chars = 4
+///   传奇级X (X=武器): covers tokens 2-4 → original-index span = 2, chars = 5
+/// Token-span tie (2 = 2) was previously indeterminate; char-count (4 < 5) now
+/// correctly selects 传奇级X, enabling Phase B to form the correct composite.
+#[test]
+fn test_phase_a_char_count_wins_over_token_span_with_compound_tokens() {
+    let phase_a_outer = parse_pattern(
+        "这种X".to_string(),
+        "loại X này".to_string(),
+        None,
+        true,
+        false,
+        None,
+    );
+    let phase_a_inner = parse_pattern(
+        "传奇级X".to_string(),
+        "X cấp truyền kỳ".to_string(),
+        None,
+        true,
+        false,
+        None,
+    );
+
+    // Compound tokens: "传奇" is a single 2-char token (original_index=2),
+    // "武器" is a single 2-char token (original_index=4).
+    let mut tokens = vec![
+        create_token("这", 0),
+        create_token("种", 1),
+        create_token("传奇", 2), // compound word — 2 chars, 1 token
+        create_token("级", 3),
+        create_token("武器", 4), // compound word — 2 chars, 1 token
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "传奇".to_string(),
+        VariableCacheEntry {
+            translation: "truyền kỳ".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("concept".to_string()),
+        },
+    );
+    variable_cache.insert(
+        "武器".to_string(),
+        VariableCacheEntry {
+            translation: "vũ khí".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("object".to_string()),
+        },
+    );
+
+    let patterns = vec![phase_a_outer, phase_a_inner];
+    let processor = TwoPhasePatternProcessor::new(patterns);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    // Must produce exactly one hierarchical composite covering all 5 original tokens.
+    assert_eq!(
+        results.len(),
+        1,
+        "Expected 1 hierarchical composite. Got {} result(s): {:?}",
+        results.len(),
+        results.iter().map(|r| format!("[{}-{}] {} \"{}\"", r.start_index, r.end_index, r.source, r.translation)).collect::<Vec<_>>()
+    );
+
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 4);
+    assert_eq!(results[0].translation, "loại vũ khí cấp truyền kỳ này");
+
+    // Phase A component must be 传奇级武器, not 这种传奇
+    let phase_a_component = results[0].phase_a.as_ref().unwrap();
+    assert_eq!(phase_a_component.original_text, "传奇级武器");
+}
+
 /// Regression test: Phase B variable resolution must cover Phase A results longer than
 /// DEFAULT_MAX_VARIABLE_SPAN (6 tokens).
 ///
