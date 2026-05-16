@@ -22,17 +22,17 @@ After touching any CRUD function or `addToHistory`, audit for:
 
 **`bulkDeleteEntries`** follows the same snapshot-before-updater pattern: compute `oldData`/`sortedDictionary` from the closed-over `dictionaries` snapshot BEFORE `setDictionaries`.
 
-**`LazyDictionaryContext.addToHistory` must NOT use a state updater**: reads `historyRef.current` + `currentHistoryIndexRef.current` synchronously, then calls `setHistory(newHistory)` and `setCurrentHistoryIndex(newHistory.length - 1)` as direct values. Do not revert to updater form — the outer `let shiftedCount` pattern double-invokes under Concurrent Mode, desynchronizing `currentHistoryIndex` from actual history.
-
-**`moveEntry`/`bulkMoveEntries` pass `sortedSourceDict` (not `sourceResult.data`) to `addToHistory`**: `result.data` is typed as optional — passing it risks `structuredClone(undefined)` corrupting undo history. Use the locally computed dict already in scope.
-
-**`LazyDictionaryContext.loadDictionaryImmediate` failure branch must NOT call `setLoadedDictionaries`**: marking a failed load as "loaded" permanently blocks retries for that dict ID — proper nouns go untranslated for the session with no indication why.
-
 ## Error Handling
 
 **`isSaveError` guard alongside `isValidationError` in catch blocks**: if a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast — otherwise the user sees two toasts.
 
 **Pre-`try` existence checks must throw `ValidationError`, not bare `Error`**: dict-not-found checks before the `try` block that use bare `throw new Error(msg)` bypass the `!isValidationError` guard — the outer catch shows a second toast. Always use `throw new ValidationError(msg)`.
+
+## Dictionary JSON Format: Two Tiers
+
+**Pure lookup tables** (`characters`, `conversion`, `punctuation`): string values only, no metadata. The string branch in `DictionaryManager.js` is intentional — do NOT convert these to objects.
+
+**Complex entry dicts** (`phrases`, `patterns`, `properNouns*`): values MUST be `DictionaryEntryValue` objects. `addEntry`/`updateEntry` always write objects (never strings). Any code iterating `DictionaryData` must guard: `typeof value === 'string' ? value : value.translation`.
 
 ## `VirtualRowComponent` Is at Module Scope
 

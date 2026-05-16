@@ -8,15 +8,13 @@ import type { SemanticType } from '../constants/SemanticTypes';
  * Dictionary entry value type (can be string or object with metadata)
  * Used across all dictionary operations and components
  */
-export type DictionaryEntryValue =
-  | string
-  | {
-      translation: string;
-      allowAsPatternVariable?: boolean;
-      lowPriority?: boolean;
-      semanticType?: SemanticType;
-      allowedVariableTypes?: Record<string, string[]>;
-    };
+export type DictionaryEntryValue = {
+  translation: string;
+  allowAsPatternVariable?: boolean;
+  lowPriority?: boolean;
+  semanticType?: SemanticType;
+  allowedVariableTypes?: Record<string, string[]>;
+};
 
 /**
  * Metadata for dictionary operations
@@ -30,9 +28,11 @@ export interface DictionaryEntryMetadata {
 
 /**
  * Dictionary data structure (key-value pairs)
+ * String values are used by pure lookup-table dicts (characters, conversion, punctuation).
+ * Complex entry dicts (phrases, properNouns, patterns) always use DictionaryEntryValue objects.
  */
 export interface DictionaryData {
-  [key: string]: DictionaryEntryValue;
+  [key: string]: DictionaryEntryValue | string;
 }
 
 /**
@@ -88,11 +88,11 @@ export interface HistoryOperation {
   dictionaryId: string;
   operation: HistoryOperationType;
   /** For add/update: new entry data */
-  entry?: { source: string; value: DictionaryEntryValue };
+  entry?: { source: string; value: DictionaryEntryValue | string };
   /** For update/delete: original entry data for rollback */
-  oldEntry?: { source: string; value: DictionaryEntryValue };
+  oldEntry?: { source: string; value: DictionaryEntryValue | string };
   /** For bulk_delete/bulk_move: all affected entries */
-  oldEntries?: Array<{ source: string; value: DictionaryEntryValue }>;
+  oldEntries?: Array<{ source: string; value: DictionaryEntryValue | string }>;
   /** For update: old source key if it changed */
   oldSource?: string;
   /** For move/bulk_move: the destination dictionary */

@@ -297,20 +297,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           throw new ValidationError(validationError);
         }
 
-        // Prepare target value with metadata
+        // Prepare target value with metadata.
+        // Complex-entry dicts (phrases, patterns, properNouns) always use object format.
+        // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
         let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
-          (dictionaryId === 'phrases' ||
-            dictionaryId === 'patterns' ||
-            dictionaryId.startsWith('properNouns')) &&
-          (metadata.allowAsPatternVariable !== undefined ||
-            metadata.lowPriority !== undefined ||
-            metadata.semanticType !== undefined ||
-            metadata.allowedVariableTypes !== undefined)
+          dictionaryId === 'phrases' ||
+          dictionaryId === 'patterns' ||
+          dictionaryId.startsWith('properNouns')
         ) {
-          const entryValue: Extract<DictionaryEntryValue, { translation: string }> = {
+          const entryValue: DictionaryEntryValue = {
             translation: cleanTranslation,
-            allowAsPatternVariable: metadata.allowAsPatternVariable,
+            allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
             lowPriority: metadata.lowPriority,
           };
           if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
@@ -403,20 +401,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           throw new ValidationError(validationError);
         }
 
-        // Prepare target value with metadata
+        // Prepare target value with metadata.
+        // Complex-entry dicts (phrases, patterns, properNouns) always use object format.
+        // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
         let targetValue: string | DictionaryEntryValue = cleanTranslation;
         if (
-          (dictionaryId === 'phrases' ||
-            dictionaryId === 'patterns' ||
-            dictionaryId.startsWith('properNouns')) &&
-          (metadata.allowAsPatternVariable !== undefined ||
-            metadata.lowPriority !== undefined ||
-            metadata.semanticType !== undefined ||
-            metadata.allowedVariableTypes !== undefined)
+          dictionaryId === 'phrases' ||
+          dictionaryId === 'patterns' ||
+          dictionaryId.startsWith('properNouns')
         ) {
-          const entryValue: Extract<DictionaryEntryValue, { translation: string }> = {
+          const entryValue: DictionaryEntryValue = {
             translation: cleanTranslation,
-            allowAsPatternVariable: metadata.allowAsPatternVariable,
+            allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
             lowPriority: metadata.lowPriority,
           };
           if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
@@ -687,7 +683,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           dictionaryId: sourceDictId,
           targetDictionaryId: targetDictId,
           operation: 'move',
-          oldEntry: { source, value: entryValue },
+          oldEntry: { source, value: entryValue as DictionaryEntryValue },
         });
         toast.success(`Entry moved to ${targetDictLabel}`);
         await invalidateTranslationEngineCache(sourceDictId);
@@ -737,7 +733,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       for (const source of sources) {
         const value = updatedSourceDict[source];
         if (value !== undefined) {
-          movedEntries.push({ source, value });
+          movedEntries.push({ source, value: value as DictionaryEntryValue });
           updatedTargetDict[source] = value;
           delete updatedSourceDict[source];
         } else {

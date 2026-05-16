@@ -83,7 +83,7 @@ function shouldSkipKey(key: string): boolean {
 }
 
 export function findConflictingEntries(
-  dictionaries: Record<string, Record<string, DictionaryEntryValue>>
+  dictionaries: Record<string, Record<string, DictionaryEntryValue | string>>
 ): DuplicateRow[] {
   // Step 1: Build index - source → [{dictId, translation, metadata}]
   const sourceIndex = new Map<

@@ -99,12 +99,6 @@ export function validateApiResult<T>(result: unknown, operation: string): ApiRes
  * @returns Validated entry or null if invalid
  */
 export function validateRawDictionaryEntry(entry: unknown, source: string): DictionaryEntry | null {
-  // Simple string translation
-  if (typeof entry === 'string') {
-    return entry;
-  }
-
-  // Complex entry with metadata
   if (entry && typeof entry === 'object') {
     const obj = entry as Record<string, unknown>;
 

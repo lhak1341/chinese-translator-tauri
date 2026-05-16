@@ -111,11 +111,11 @@ describe('validateApiResult', () => {
 });
 
 describe('validateRawDictionaryEntry', () => {
-  it('should validate simple string entry', () => {
+  it('should reject string entries (all entries must be objects now)', () => {
     const entry = 'Vietnamese translation';
     const result = validateRawDictionaryEntry(entry, '中文');
 
-    expect(result).toBe('Vietnamese translation');
+    expect(result).toBeNull();
   });
 
   it('should validate complex entry with metadata', () => {
@@ -195,7 +195,7 @@ describe('validateRawDictionaryEntry', () => {
 });
 
 describe('validateDictionary', () => {
-  it('should validate complete dictionary', () => {
+  it('should validate complete dictionary (string values rejected, objects pass)', () => {
     const dict = {
       中文: 'tiếng Trung',
       你好: 'xin chào',
@@ -207,9 +207,9 @@ describe('validateDictionary', () => {
 
     const result = validateDictionary(dict, 'test-dict');
 
-    expect(Object.keys(result)).toHaveLength(3);
-    expect(result['中文']).toBe('tiếng Trung');
-    expect(result['你好']).toBe('xin chào');
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result['中文']).toBeUndefined();
+    expect(result['你好']).toBeUndefined();
     expect(result['谢谢']).toEqual({
       translation: 'cảm ơn',
       metadata: { priority: 10 },
@@ -225,21 +225,21 @@ describe('validateDictionary', () => {
 
   it('should skip entries with invalid source keys', () => {
     const dict = {
-      '': 'should be skipped', // Empty string
-      ' ': 'should be skipped', // Whitespace only
+      '': 'should be skipped', // Empty string key
+      ' ': 'should be skipped', // Whitespace-only key
       '  ': 'should be skipped',
-      中文: 'should be kept',
+      中文: { translation: 'should be kept' }, // Valid object entry
     };
 
     const result = validateDictionary(dict, 'test-dict');
 
     expect(Object.keys(result)).toHaveLength(1);
-    expect(result['中文']).toBe('should be kept');
+    expect(result['中文']).toEqual({ translation: 'should be kept' });
   });
 
   it('should skip entries with invalid values', () => {
     const dict = {
-      中文: 'valid entry',
+      中文: { translation: 'valid entry' }, // Valid object
       你好: null, // Invalid
       谢谢: undefined, // Invalid
       再见: 123, // Invalid type
@@ -252,24 +252,21 @@ describe('validateDictionary', () => {
     const result = validateDictionary(dict, 'test-dict');
 
     expect(Object.keys(result)).toHaveLength(1);
-    expect(result['中文']).toBe('valid entry');
+    expect(result['中文']).toEqual({ translation: 'valid entry' });
   });
 
   it('should handle mixed valid and invalid entries', () => {
     const dict = {
-      valid1: 'translation 1',
       invalid1: null,
       valid2: { translation: 'translation 2' },
       invalid2: { metadata: 'no translation' },
-      valid3: 'translation 3',
+      invalid3: 'string values are now rejected',
     };
 
     const result = validateDictionary(dict, 'test-dict');
 
-    expect(Object.keys(result)).toHaveLength(3);
-    expect(result.valid1).toBe('translation 1');
+    expect(Object.keys(result)).toHaveLength(1);
     expect(result.valid2).toEqual({ translation: 'translation 2' });
-    expect(result.valid3).toBe('translation 3');
   });
 });
 
