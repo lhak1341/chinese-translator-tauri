@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { logger } from '../utils/logger';
-import { globalPerformanceMonitor, systemPerformanceMonitor } from '../utils/performance';
+import { useState, useCallback, useRef } from 'react';
+import { globalPerformanceMonitor, performanceHealth } from '../utils/performance';
 
 /**
  * @import { PerformanceMetrics, RegressionHealth } from '../types/PerformanceTypes'
@@ -10,7 +9,9 @@ import { globalPerformanceMonitor, systemPerformanceMonitor } from '../utils/per
  * Performance monitoring hook
  *
  * Manages performance statistics and regression detection health status.
- * Completely independent with no timing dependencies on other hooks.
+ * Health is assessed at action time (after translate / after reload) rather
+ * than on a polling interval — health is most meaningful right after work
+ * is done. Uses performanceHealth.getReport() as the single read path.
  *
  * @returns {{
  *   performanceStats: PerformanceMetrics,
@@ -20,74 +21,55 @@ import { globalPerformanceMonitor, systemPerformanceMonitor } from '../utils/per
  * }} Performance monitoring state and update functions
  */
 export function usePerformanceMonitoring() {
-  // Simplified performance monitoring state
+  const initialReport = performanceHealth.getReport(0);
+
   const [performanceStats, setPerformanceStats] = useState({
-    operations: 0,
-    avgTime: 0,
+    operations: initialReport.operations,
+    avgTime: initialReport.avgTime,
     cacheHitRate: 0,
   });
 
-  // Regression detection health state
   const [regressionHealth, setRegressionHealth] = useState({
-    status: 'healthy', // 'healthy', 'warning', 'critical'
-    criticalAlerts: 0,
-    warningAlerts: 0,
-    baselines: 0,
+    status: initialReport.status,
+    criticalAlerts: initialReport.criticalAlerts,
+    warningAlerts: initialReport.warningAlerts,
+    baselines: initialReport.baselines,
   });
 
-  /**
-   * Update performance stats after translation operation
-   * @param {number} operationTimeMs - Duration of operation in milliseconds
-   */
+  // Ref tracks current cache hit rate so updatePerformanceStats (which doesn't
+  // receive it) can still pass a non-stale value to getReport().
+  const cacheHitRateRef = useRef(0);
+
   const updatePerformanceStats = useCallback((operationTimeMs) => {
-    // Use the optimized performance monitor (sampling-based)
     const timer = { startTime: performance.now() - operationTimeMs, sampled: true };
     globalPerformanceMonitor.endTimer(timer, 'translation');
 
-    // Update simple UI stats (lightweight)
-    const metrics = globalPerformanceMonitor.getMetrics();
+    const report = performanceHealth.getReport(cacheHitRateRef.current);
     setPerformanceStats({
-      operations: metrics.totalOperations,
-      avgTime: metrics.avgTime || 0,
-      cacheHitRate: 0, // Will be updated separately
+      operations: report.operations,
+      avgTime: report.avgTime,
+      cacheHitRate: cacheHitRateRef.current,
+    });
+    setRegressionHealth({
+      status: report.status,
+      criticalAlerts: report.criticalAlerts,
+      warningAlerts: report.warningAlerts,
+      baselines: report.baselines,
     });
   }, []);
 
-  /**
-   * Update cache hit rate from translation cache stats
-   * @param {Object} translationSegmentCache - Translation segment cache instance
-   */
   const updateCacheHitRate = useCallback((translationSegmentCache) => {
-    const cacheStats = translationSegmentCache.getStats();
-    setPerformanceStats((prev) => ({
-      ...prev,
-      cacheHitRate: cacheStats.hitRate,
-    }));
-  }, []);
+    const hitRate = translationSegmentCache.getStats().hitRate;
+    cacheHitRateRef.current = hitRate;
 
-  // Monitor performance regression health status
-  useEffect(() => {
-    const updateRegressionHealth = () => {
-      try {
-        const healthReport = systemPerformanceMonitor.getSystemHealthReport();
-        setRegressionHealth({
-          status: healthReport.status,
-          criticalAlerts: healthReport.criticalAlerts,
-          warningAlerts: healthReport.warningAlerts,
-          baselines: healthReport.totalBaselines,
-        });
-      } catch (error) {
-        logger.warn('Failed to update regression health:', error);
-      }
-    };
-
-    // Update immediately
-    updateRegressionHealth();
-
-    // Set up periodic updates every 30 seconds
-    const interval = setInterval(updateRegressionHealth, 30000);
-
-    return () => clearInterval(interval);
+    const report = performanceHealth.getReport(hitRate);
+    setPerformanceStats((prev) => ({ ...prev, cacheHitRate: hitRate }));
+    setRegressionHealth({
+      status: report.status,
+      criticalAlerts: report.criticalAlerts,
+      warningAlerts: report.warningAlerts,
+      baselines: report.baselines,
+    });
   }, []);
 
   return {

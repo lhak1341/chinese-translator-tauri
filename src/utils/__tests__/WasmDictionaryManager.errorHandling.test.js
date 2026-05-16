@@ -39,6 +39,20 @@ vi.mock('../wasm/WasmMemoryPoolManager.js', () => ({
   WasmDictionaryOperationHelper: vi.fn(),
 }));
 
+// Mock WasmProcessorLifecycle so DictionaryManager init succeeds without real WASM binary
+vi.mock('../wasm/WasmProcessorLifecycle', () => ({
+  WasmProcessorLifecycle: vi.fn(function () {
+    return {
+      initialize: vi.fn(async (instantiateFn) => {
+        await instantiateFn(new ArrayBuffer(0));
+        return true;
+      }),
+      hasFailed: false,
+      pendingInit: null,
+    };
+  }),
+}));
+
 describe('WasmDictionaryManager Error Handling', () => {
   let WasmDictionaryManager;
   let manager;

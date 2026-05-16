@@ -193,13 +193,11 @@ describe('WasmPatternProcessor Error Handling', () => {
 
   describe('Status Checking', () => {
     it('should correctly report availability status', async () => {
-      const mockIsInitialized = vi.fn(() => true);
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),
         WasmPatternProcessor: vi.fn(function () {
           return {
             initialize: vi.fn(() => true),
-            isInitialized: mockIsInitialized,
             getStatistics: vi.fn(() => ({ phaseAPatterns: 10 })),
           };
         }),
@@ -215,7 +213,6 @@ describe('WasmPatternProcessor Error Handling', () => {
       const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
       expect(result).toBe(true);
       expect(isWasmPatternProcessorAvailable()).toBe(true);
-      expect(mockIsInitialized).toHaveBeenCalled();
     });
 
     it('should correctly report failure status', async () => {

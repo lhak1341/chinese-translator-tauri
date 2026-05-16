@@ -21,11 +21,21 @@ import init, { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
 import { logger } from '../logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
-import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
-import { FallbackManager } from '../FallbackManager'; // REFACTOR (2026-01-28): Centralized failure handling
+import { FallbackManager } from '../FallbackManager';
+import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+
+// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
 
 export class WasmDictionaryManager {
   constructor() {
+    this._lifecycle = new WasmProcessorLifecycle({
+      name: 'DictionaryManager',
+      wasmFileName: 'translation_wasm_core_bg.wasm',
+      wasmBinaryUrl: _WASM_BINARY_URL,
+      expectedMethods: ['load_dictionary', 'find_matches', 'find_longest_match'],
+    });
+
     this.engine = null;
     this.initialized = false;
     this.fallbackManager = null;
@@ -87,39 +97,28 @@ export class WasmDictionaryManager {
   }
 
   async _doInitialize(fallbackManager, _config) {
-    try {
-      // CODE REVIEW FIX (HIGH-4): Wrap initialization in retry logic
-      await wasmRetryManager.retryWithBackoff(
-        async () => {
-          logger.log('🦀 Initializing WASM Dictionary Engine...');
+    logger.log('🦀 Initializing WASM Dictionary Engine...');
 
-          // Initialize the WASM module
-          await init();
+    const success = await this._lifecycle.initialize(async (wasmBinary) => {
+      // Pass verified binary to init — parity with Pattern and Number processors
+      await init(wasmBinary);
+      const engine = new DictionaryEngine();
+      this.engine = engine;
+      logger.log('✅ WASM Dictionary Engine initialized successfully');
+      return engine;
+    });
 
-          // Create the engine instance
-          this.engine = new DictionaryEngine();
-
-          logger.log('✅ WASM Dictionary Engine initialized successfully');
-        },
-        'DictionaryEngine-init',
-        { onlyRetryTransient: true }
-      );
-
-      this.fallbackManager = fallbackManager;
-
-      // Initialize memory pool operation helper
-      this.operationHelper = new WasmDictionaryOperationHelper(this.memoryPool, this);
-
-      this.initialized = true;
-      this.fallbackHandler.recordSuccess(); // Reset failure counter on successful init
-
-      return true;
-    } catch (error) {
-      logger.error('❌ WASM initialization failed after retries:', error);
+    if (!success) {
       this.initialized = false;
-      this.fallbackHandler.recordFailure(); // Track initialization failure
+      this.fallbackHandler.recordFailure();
       return false;
     }
+
+    this.fallbackManager = fallbackManager;
+    this.operationHelper = new WasmDictionaryOperationHelper(this.memoryPool, this);
+    this.initialized = true;
+    this.fallbackHandler.recordSuccess();
+    return true;
   }
 
   /**

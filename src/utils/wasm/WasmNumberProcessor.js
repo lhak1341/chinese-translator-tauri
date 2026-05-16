@@ -49,125 +49,41 @@ import init, { NumberProcessor } from '../../wasm/translation_wasm_core.js';
 import toast from '../toast';
 import { logger } from '../logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
-import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
-import { categorizeWasmError, formatWasmError } from './wasmErrorHandler'; // CODE REVIEW FIX (MEDIUM-1)
-import { verifyWasmInstance, verifyWasmBinaryIntegrity } from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
-import { fetchWasmBinary } from './wasmBinaryCache'; // CODE REVIEW FIX 2026-02-01 (HIGH-1): Shared WASM binary cache
+import { categorizeWasmError, formatWasmError } from './wasmErrorHandler';
+import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+
+// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
+
+const lifecycle = new WasmProcessorLifecycle({
+  name: 'NumberProcessor',
+  wasmFileName: 'translation_wasm_core_bg.wasm',
+  wasmBinaryUrl: _WASM_BINARY_URL,
+  expectedMethods: ['processTokens', 'free'],
+});
 
 /** @type {NumberProcessor|null} */
 let wasmNumberProcessor = null;
-/** @type {Promise<boolean>|null} */
-let initializationPromise = null;
-let initializationFailed = false;
 let showedNumberWarning = false;
-// CODE REVIEW FIX (CRITICAL-1): Prevent race condition in promise cache clearing
-let retryAllowedAfter = 0;
-const RETRY_COOLDOWN_MS = 5000; // 5 seconds
 
-/**
- * Initialize the WASM NumberProcessor
- * @returns {Promise<boolean>} True if initialization succeeded
- */
 async function initializeWasmNumberProcessor() {
-  // Return cached result if already initialized or failed
-  if (wasmNumberProcessor) {
-    return true;
-  }
-  if (initializationFailed) {
-    return false;
-  }
+  const success = await lifecycle.initialize(async (wasmBinary) => {
+    logger.log('🔢 Initializing WASM NumberProcessor...');
+    await init(wasmBinary);
+    const instance = new NumberProcessor();
+    logger.log('✅ WASM NumberProcessor initialized successfully');
+    wasmNumberProcessor = instance;
+    return instance;
+  });
 
-  // CODE REVIEW FIX (2026-02-01): Check cooldown period before creating promise
-  // This prevents rapid retry attempts from bypassing the backoff mechanism
-  if (retryAllowedAfter > Date.now()) {
-    const remainingMs = retryAllowedAfter - Date.now();
-    logger.warn(
-      `⏳ WASM NumberProcessor initialization on cooldown (${Math.ceil(remainingMs / 1000)}s remaining)`
-    );
-    return false;
+  if (success) {
+    showedNumberWarning = false;
+  } else {
+    wasmNumberProcessor = null;
+    logger.warn('Falling back to character-by-character translation for numbers');
   }
 
-  // Return existing promise if initialization in progress
-  if (initializationPromise) {
-    return initializationPromise;
-  }
-
-  // RACE CONDITION FIX: Assign promise synchronously before async work
-  // This prevents concurrent calls from creating multiple initialization attempts
-  return (initializationPromise = (async () => {
-    try {
-      // CODE REVIEW FIX (HIGH-4): Wrap initialization in retry logic
-      await wasmRetryManager.retryWithBackoff(
-        async () => {
-          logger.log('🔢 Initializing WASM NumberProcessor...');
-
-          // CODE REVIEW FIX 2026-02-01 (HIGH-1): Use cached WASM binary to avoid duplicate fetches
-          const wasmFileName = 'translation_wasm_core_bg.wasm';
-          // Static literal required so Vite transforms import.meta.url to the correct asset URL
-          const wasmBinaryUrl = new URL(
-            '../../wasm/translation_wasm_core_bg.wasm',
-            import.meta.url
-          );
-          logger.debug('Fetching WASM binary for integrity verification...');
-          const wasmBinary = await fetchWasmBinary(wasmBinaryUrl);
-          logger.debug(`WASM binary ready (${wasmBinary.byteLength} bytes)`);
-
-          // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
-          const integrityCheck =
-            /** @type {{ valid: boolean, errors: string[], warnings: string[] }} */ (
-              await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary)
-            );
-          if (!integrityCheck.valid) {
-            throw new Error(
-              `WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`
-            );
-          }
-          if (integrityCheck.warnings.length > 0) {
-            logger.warn('WASM integrity warnings:', integrityCheck.warnings);
-          }
-
-          // Initialize WASM module with verified binary
-          logger.debug('Initializing WASM module with verified binary...');
-          await init(wasmBinary);
-          logger.debug('WASM module initialized successfully');
-
-          // Create NumberProcessor instance
-          logger.debug('Creating NumberProcessor instance...');
-          wasmNumberProcessor = new NumberProcessor();
-          logger.debug('NumberProcessor instance created');
-
-          // CODE REVIEW FIX: Verify instance has expected methods
-          const instanceVerification = /** @type {{ valid: boolean, errors: string[] }} */ (
-            verifyWasmInstance(wasmNumberProcessor, ['processTokens', 'free'], 'NumberProcessor')
-          );
-          if (!instanceVerification.valid) {
-            throw new Error(
-              `WASM instance verification failed: ${instanceVerification.errors.join(', ')}`
-            );
-          }
-
-          logger.log('✅ WASM NumberProcessor initialized successfully');
-        },
-        'NumberProcessor-init',
-        { onlyRetryTransient: true }
-      );
-
-      // Reset warning flag on successful initialization
-      showedNumberWarning = false;
-
-      return true;
-    } catch (error) {
-      logger.warn('⚠️ Failed to initialize WASM NumberProcessor after retries:', error);
-      logger.warn('Falling back to character-by-character translation for numbers');
-      initializationFailed = true;
-      // Clear the promise so getWasmNumberProcessorStatus() reports { initializing: false }.
-      // The outer .catch() only fires on rejection; this IIFE resolves (not rejects) to false,
-      // so the outer .catch() never runs — we must clear the promise here ourselves.
-      initializationPromise = null;
-      retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
-      return false;
-    }
-  })());
+  return success;
 }
 
 /**
@@ -249,18 +165,11 @@ export async function processNumbersWasm(tokens) {
  * @returns {boolean} True if WASM is loaded and ready
  */
 export function isWasmNumberProcessorAvailable() {
-  return wasmNumberProcessor !== null;
+  return lifecycle.isReady && wasmNumberProcessor !== null;
 }
 
 // Auto-initialize on import (non-blocking)
-// CODE REVIEW FIX (CRITICAL-1): Use cooldown period to prevent race condition in promise cache clearing
 initializeWasmNumberProcessor().catch((err) => {
   logger.warn('Background WASM NumberProcessor initialization failed:', err);
-  initializationFailed = true; // Mark initialization as failed to prevent retries
-  wasmNumberProcessor = null; // Clear partial state
-  retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
-  // Clear promise immediately — initializationFailed already blocks new init calls,
-  // so keeping a stale promise would cause getWasmNumberProcessorStatus() to falsely
-  // report { initializing: true } for the entire cooldown window.
-  initializationPromise = null;
+  wasmNumberProcessor = null;
 });

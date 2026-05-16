@@ -50,26 +50,25 @@
 
 import toast from '../toast';
 import { logger } from '../logger';
-import { wasmRetryManager } from './WasmRetryManager'; // CODE REVIEW FIX (HIGH-4)
-import {
-  verifyWasmModule,
-  verifyWasmInstance,
-  verifyWasmBinaryIntegrity,
-} from './wasmIntegrityVerifier'; // CODE REVIEW FIX: WASM integrity verification
-import { fetchWasmBinary } from './wasmBinaryCache'; // CODE REVIEW FIX 2026-02-01 (HIGH-1): Shared WASM binary cache
-import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout'; // CODE REVIEW FIX (MEDIUM-8): Timeout protection
+import { verifyWasmModule } from './wasmIntegrityVerifier';
+import { fetchWasmBinary } from './wasmBinaryCache';
+import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout';
+import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+
+// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
+
+const lifecycle = new WasmProcessorLifecycle({
+  name: 'PatternProcessor',
+  wasmFileName: 'translation_wasm_core_bg.wasm',
+  wasmBinaryUrl: _WASM_BINARY_URL,
+  expectedMethods: ['initialize', 'processTokens', 'getStatistics', 'free'],
+});
 
 let wasmModule = null;
 let wasmPatternProcessor = null;
-let initializationPromise = null;
-let initializationFailed = false;
-// MEDIUM-3 FIX: Replace once-per-session with cooldown-based warnings
-// CODE REVIEW FIX (MEDIUM-3): Reduced from 30min to 10min for better UX
 let lastPatternWarningTime = 0;
 const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
-// CODE REVIEW FIX (CRITICAL-1): Prevent race condition in promise cache clearing
-let retryAllowedAfter = 0;
-const RETRY_COOLDOWN_MS = 5000; // 5 seconds
 
 /**
  * Initialize the WASM Pattern Processor
@@ -77,115 +76,41 @@ const RETRY_COOLDOWN_MS = 5000; // 5 seconds
  * @returns {Promise<boolean>} True if initialization succeeded
  */
 export async function initializeWasmPatternProcessor(patternsDict) {
-  // Return cached result if already initialized or failed
-  if (wasmPatternProcessor) {
-    return true;
-  }
-  if (initializationFailed) {
-    return false;
-  }
+  const success = await lifecycle.initialize(async (wasmBinary) => {
+    // Dynamic import required here — Pattern needs verifyWasmModule before init
+    wasmModule = await import('../../wasm/translation_wasm_core.js');
 
-  // Return existing promise if initialization in progress
-  if (initializationPromise) {
-    return initializationPromise;
-  }
-
-  // RACE CONDITION FIX: Assign promise synchronously before async work
-  // This prevents concurrent calls from creating multiple initialization attempts
-  return (initializationPromise = (async () => {
-    try {
-      // CODE REVIEW FIX (HIGH-4): Wrap initialization in retry logic
-      await wasmRetryManager.retryWithBackoff(
-        async () => {
-          // Dynamically import the WASM module
-          wasmModule = await import('../../wasm/translation_wasm_core.js');
-
-          // CODE REVIEW FIX: Verify WASM module integrity before use
-          const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
-          if (!moduleVerification.valid) {
-            throw new Error(
-              `WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`
-            );
-          }
-
-          // CODE REVIEW FIX 2026-02-01 (HIGH-1): Use cached WASM binary to avoid duplicate fetches
-          const wasmFileName = 'translation_wasm_core_bg.wasm';
-          // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
-          const wasmBinaryUrl = new URL(
-            '../../wasm/translation_wasm_core_bg.wasm',
-            import.meta.url
-          );
-          logger.debug('Fetching WASM binary for integrity verification...');
-          const wasmBinary = await fetchWasmBinary(wasmBinaryUrl);
-          logger.debug(`WASM binary ready (${wasmBinary.byteLength} bytes)`);
-
-          // CODE REVIEW FIX (CRITICAL-1): Verify binary integrity with SHA-256
-          const integrityCheck = await verifyWasmBinaryIntegrity(wasmFileName, wasmBinary);
-          if (!integrityCheck.valid) {
-            throw new Error(
-              `WASM binary integrity check failed: ${integrityCheck.errors.join(', ')}`
-            );
-          }
-          if (integrityCheck.warnings.length > 0) {
-            logger.warn('WASM integrity warnings:', integrityCheck.warnings);
-          }
-
-          // Initialize WASM with verified binary
-          logger.debug('Initializing WASM module with verified binary...');
-          await wasmModule.default(wasmBinary);
-
-          // Create PatternProcessor instance
-          wasmPatternProcessor = new wasmModule.WasmPatternProcessor();
-
-          // CODE REVIEW FIX: Verify instance has expected methods
-          const instanceVerification = verifyWasmInstance(
-            wasmPatternProcessor,
-            ['initialize', 'processTokens', 'getStatistics', 'free'],
-            'WasmPatternProcessor'
-          );
-          if (!instanceVerification.valid) {
-            throw new Error(
-              `WASM instance verification failed: ${instanceVerification.errors.join(', ')}`
-            );
-          }
-
-          // Initialize with patterns
-          const success = wasmPatternProcessor.initialize(patternsDict);
-
-          if (!success) {
-            throw new Error('Failed to initialize pattern processor with patterns');
-          }
-
-          // Get statistics
-          const stats = wasmPatternProcessor.getStatistics();
-          logger.log('✅ WASM Pattern Processor initialized successfully');
-          // Note: stats is already logged by WASM side, JavaScript side just confirms success
-        },
-        'PatternProcessor-init',
-        { onlyRetryTransient: true }
+    const moduleVerification = verifyWasmModule(wasmModule, 'translation_wasm_core');
+    if (!moduleVerification.valid) {
+      throw new Error(
+        `WASM module integrity check failed: ${moduleVerification.errors.join(', ')}`
       );
-
-      // MEDIUM-3 FIX: Reset warning time on successful initialization (allow immediate new warning)
-      lastPatternWarningTime = 0;
-
-      return true;
-    } catch (error) {
-      logger.error('❌ Failed to initialize WASM Pattern Processor after retries:', error);
-      logger.error('Pattern matching will not be available. Please check WASM configuration.');
-      initializationFailed = true;
-      // CODE REVIEW FIX (CRITICAL-1): Use cooldown period to prevent race condition
-      wasmPatternProcessor = null;
-      wasmModule = null;
-
-      // Set cooldown and immediately clear promise so callers don't await a settled
-      // failed promise (would show false "initializing" status for RETRY_COOLDOWN_MS).
-      // The retryAllowedAfter guard already blocks new init attempts during cooldown.
-      retryAllowedAfter = Date.now() + RETRY_COOLDOWN_MS;
-      initializationPromise = null;
-
-      return false;
     }
-  })());
+
+    logger.debug('Initializing WASM module with verified binary...');
+    await wasmModule.default(wasmBinary);
+
+    const instance = new wasmModule.WasmPatternProcessor();
+
+    const patternSuccess = instance.initialize(patternsDict);
+    if (!patternSuccess) {
+      throw new Error('Failed to initialize pattern processor with patterns');
+    }
+
+    logger.log('✅ WASM Pattern Processor initialized successfully');
+    wasmPatternProcessor = instance;
+    return instance;
+  });
+
+  if (success) {
+    lastPatternWarningTime = 0;
+  } else {
+    wasmPatternProcessor = null;
+    wasmModule = null;
+    logger.error('Pattern matching will not be available. Please check WASM configuration.');
+  }
+
+  return success;
 }
 
 // MEDIUM FIX: Toast duration constants
@@ -206,9 +131,8 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   // Patterns enhance translation quality but aren't essential - allow basic translation to continue
 
   // Wait for in-progress initialization before degrading
-  // CODE REVIEW FIX (HIGH-5): Check initialization result
-  if (initializationPromise && !wasmPatternProcessor) {
-    const success = await initializationPromise;
+  if (lifecycle.pendingInit && !wasmPatternProcessor) {
+    const success = await lifecycle.pendingInit;
 
     // CRITICAL: Verify initialization actually succeeded
     if (!success || !wasmPatternProcessor) {
@@ -305,7 +229,7 @@ export async function processTokensWasm(semanticTokens, variableCache) {
  * @returns {boolean} True if WASM is loaded and ready
  */
 export function isWasmPatternProcessorAvailable() {
-  return wasmPatternProcessor !== null && wasmPatternProcessor.isInitialized();
+  return lifecycle.isReady && wasmPatternProcessor !== null;
 }
 
 /**
@@ -313,7 +237,7 @@ export function isWasmPatternProcessorAvailable() {
  * @returns {boolean} True if initialization failed
  */
 export function hasWasmPatternProcessorFailed() {
-  return initializationFailed;
+  return lifecycle.hasFailed;
 }
 
 /**
@@ -321,7 +245,7 @@ export function hasWasmPatternProcessorFailed() {
  * @returns {boolean} True if WASM is loaded, initialized, and has not failed
  */
 export function isWasmPatternProcessorReady() {
-  return isWasmPatternProcessorAvailable() && !initializationFailed;
+  return lifecycle.isReady;
 }
 
 /**
@@ -347,23 +271,10 @@ export function getWasmPatternProcessorStats() {
  * @returns {Promise<boolean>} True if re-initialization succeeded
  */
 export async function reinitializeWasmPatternProcessor(patternsDict) {
-  // CODE REVIEW FIX (CRITICAL-1): Check cooldown period before allowing retry
-  if (retryAllowedAfter > Date.now()) {
-    const remainingMs = retryAllowedAfter - Date.now();
-    logger.warn(
-      `⏳ WASM PatternProcessor retry on cooldown (${Math.ceil(remainingMs / 1000)}s remaining)`
-    );
-    return false;
-  }
-
-  // Clear existing state
+  if (!lifecycle.reset()) return false;
   wasmPatternProcessor = null;
-  initializationPromise = null;
-  initializationFailed = false;
-  lastPatternWarningTime = 0; // MEDIUM-3 FIX: Reset warning time to allow new notifications
-  retryAllowedAfter = 0; // Reset cooldown
-
-  // Re-initialize
+  wasmModule = null;
+  lastPatternWarningTime = 0;
   return initializeWasmPatternProcessor(patternsDict);
 }
 
@@ -375,7 +286,7 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
 (async () => {
   try {
     await import('../../wasm/translation_wasm_core.js'); // warms ES module cache
-    await fetchWasmBinary(new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url)); // warms binary cache
+    await fetchWasmBinary(_WASM_BINARY_URL); // warms binary cache
     logger.debug('🔥 WASM PatternProcessor module and binary pre-warmed');
   } catch (err) {
     logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err);
