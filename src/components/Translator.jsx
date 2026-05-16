@@ -347,11 +347,6 @@ const Translator = ({ isActive = true }) => {
     });
     if (process.env.NODE_ENV === 'development') {
       window.translationEngine = engineRef.current;
-      import('../utils/wasm/WasmDictionaryTrieValidator.js').then(
-        ({ validateWasmDictionaryTrie }) => {
-          window.validateWasmDictionaryTrie = validateWasmDictionaryTrie;
-        }
-      );
       window.runPatternParityTests = async () => {
         const processor = engineRef.current?.twoPhasePatternProcessor;
         if (!processor) {

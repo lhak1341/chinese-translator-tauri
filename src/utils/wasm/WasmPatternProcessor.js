@@ -317,6 +317,14 @@ export function hasWasmPatternProcessorFailed() {
 }
 
 /**
+ * Check if WASM Pattern Processor is ready to use (available and not failed)
+ * @returns {boolean} True if WASM is loaded, initialized, and has not failed
+ */
+export function isWasmPatternProcessorReady() {
+  return isWasmPatternProcessorAvailable() && !initializationFailed;
+}
+
+/**
  * Get pattern processor statistics
  * @returns {Object|null} Statistics object or null if not initialized
  */

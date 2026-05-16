@@ -149,19 +149,15 @@ import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
+import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
 import { processNumbersWasm, isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
 // WASM Phase 4 conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
-// WASM Dictionary Trie integration for 2-4x faster Phase 5 character lookups
-import { WasmDictionaryTrieWrapper } from './wasm/WasmDictionaryTrie.js';
-import {
-  tokenPositionToCharPosition,
-  buildFullTextFromTokens,
-  convertWasmMatchToTokenMatch,
-} from './highlighting/PositionMappingUtils.js';
+
+
 import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 // TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
@@ -182,7 +178,7 @@ import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/Performanc
 import { TranslationProfiler } from './performance/TranslationProfiler.js';
 import toast from './toast';
 import {
-  isWasmPatternProcessorAvailable,
+  isWasmPatternProcessorReady,
   hasWasmPatternProcessorFailed,
 } from './wasm/WasmPatternProcessor.js';
 import {
@@ -351,61 +347,6 @@ export class TranslationEngine {
     // - Maintaining pure JavaScript for reliability and translation quality
     // Tauri Rust backend (file I/O, parallel loading) remains active and working perfectly
 
-    // ========================================================================
-    // WASM Dictionary Trie: DISABLED (Performance Research - 2026-01-31)
-    // ========================================================================
-    //
-    // STATUS: Production-ready but disabled by default
-    //
-    // RESEARCH FINDINGS:
-    // - Integration completed successfully (Phases 1-3)
-    // - Correctness: 100% match with JavaScript (validated)
-    // - Performance: 2x SLOWER than JavaScript Map
-    //   * JavaScript Map: 17ms (O(1) hash lookup, highly optimized by V8)
-    //   * WASM Trie: 33ms (boundary crossing overhead dominates)
-    //   * Dictionary: 13,317 entries
-    //
-    // WHY SLOWER:
-    // - JS↔WASM boundary crossing: ~15-20ms overhead for 1,700 calls
-    // - String marshaling: UTF-16 → UTF-8 conversion each call
-    // - Modern V8 Map is incredibly fast (O(1) average, not O(k×log(n)))
-    // - Single-character lookups: Map.get() is ideal (instant hash lookup)
-    //
-    // REACTIVATE WHEN (Future Scenarios):
-    // 1. WebAssembly Interface Types available (2025-2026)
-    //    → Zero-copy string sharing, eliminates boundary overhead
-    //    → Expected: 2x speedup over JavaScript
-    // 2. Batch processing API implemented
-    //    → Single WASM call for entire text (1 boundary crossing vs 1,700)
-    //    → Expected: 3-5x speedup
-    // 3. Dictionary size > 50,000 entries
-    //    → Algorithm advantage (O(k)) outweighs boundary overhead
-    //    → Expected: 2-4x speedup
-    // 4. Parallel processing with Web Workers
-    //    → WASM module shared across workers (Map can't be shared)
-    //    → Expected: 2-4x speedup on multi-core
-    //
-    // DOCUMENTATION:
-    // - See: docs/archive/wasm-dictionary-trie/FUTURE_ACTIVATION_SCENARIOS.md
-    // - Validation results: docs/WASM_DICTIONARY_TRIE_VALIDATION_GUIDE.md
-    // - Integration details: docs/DICTIONARY_TRIE_INTEGRATION_SESSION_2026-01-31.md
-    //
-    // CODE COMPONENTS (All production-ready):
-    // - Position mapping: src/utils/PositionMappingUtils.js (47 tests ✅)
-    // - WASM wrapper: src/utils/WasmDictionaryTrie.js
-    // - Validator: src/utils/WasmDictionaryTrieValidator.js
-    // - Tests: 973 passing (no regressions)
-    //
-    // ENABLE FOR TESTING:
-    // - Query param: ?wasm-dictionary-trie=true
-    // - Or modify this flag to true
-    // ========================================================================
-
-    this.useWasmDictionaryTrie = false; // DISABLED: JS Map is 2x faster (see comments above)
-
-    // WASM Dictionary Trie instance (initialized lazily when character dictionary loads)
-    this.wasmCharacterTrie = null;
-
     this.semanticArrayBuilder = new SemanticArrayBuilder();
 
     this.isInitialized = false;
@@ -445,12 +386,14 @@ export class TranslationEngine {
     // Store reference to TwoPhasePatternProcessor for internal profiling
     this.twoPhaseProcessor = null;
 
-    // CRITICAL-2 FIX: Track pattern processor warning to show only once
-    this.showedPatternWarning = false;
+    // Tracks WASM init-failure warning (separate from retry warnings owned by patternFailureTracker)
+    this._wasmInitWarningShown = false;
 
-    // Track pattern failures with time-based reset / auto-disable
-    this.patternFailureCount = 0;
-    this.lastPatternSuccessTime = null;
+    // Tracks runtime pattern failures — failure count, time window, disable threshold
+    this.patternFailureTracker = new PatternFailureTracker({
+      failureWindowMs: PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS,
+      disableThreshold: PATTERN_FAILURE_DETECTION.MAX_FAILURES,
+    });
 
     // CODE REVIEW FIX (2026-02-01): Track pending cleanup callbacks for proper cancellation
     // Prevents memory leak when translation is aborted before cleanup completes
@@ -1311,50 +1254,6 @@ export class TranslationEngine {
           Object.keys(this.punctuationDict).length,
           'mappings'
         );
-      }
-
-      // Initialize WASM Dictionary Trie for Phase 5 character lookups
-      if (this.useWasmDictionaryTrie && dictionaries.characters) {
-        try {
-          const wasmStartTime = performance.now();
-          this.wasmCharacterTrie = new WasmDictionaryTrieWrapper('characters');
-
-          // Initialize WASM module
-          const initSuccess = await this.wasmCharacterTrie.initialize();
-          if (initSuccess) {
-            // Convert character dictionary entries to WASM format
-            const characterEntries = Object.entries(dictionaries.characters).map(
-              ([chars, translation]) => ({
-                chars,
-                translation:
-                  typeof translation === 'string' ? translation : translation.translation,
-                priority: translation.priority || 5,
-                metadata: translation.metadata,
-              })
-            );
-
-            // Load entries into WASM trie
-            const loadSuccess = await this.wasmCharacterTrie.loadEntries(characterEntries);
-            if (loadSuccess) {
-              const wasmTime = performance.now() - wasmStartTime;
-              logger.log(
-                `✅ WASM Dictionary Trie initialized: ${characterEntries.length} entries in ${wasmTime.toFixed(2)}ms`
-              );
-            } else {
-              logger.warn('⚠️ Failed to load entries into WASM trie, using JavaScript fallback');
-              this.wasmCharacterTrie = null;
-            }
-          } else {
-            logger.warn('⚠️ Failed to initialize WASM trie, using JavaScript fallback');
-            this.wasmCharacterTrie = null;
-          }
-        } catch (error) {
-          logger.warn(
-            '⚠️ WASM Dictionary Trie initialization failed, using JavaScript fallback:',
-            error
-          );
-          this.wasmCharacterTrie = null;
-        }
       }
 
       this.isInitialized = true;
@@ -2836,13 +2735,9 @@ export class TranslationEngine {
           `✅ Hierarchical pattern processing completed with ${hierarchicalResults.length} results`
         );
 
-        // HIGH-2 FIX: Reset failure counter on successful pattern processing
-        if (this.patternFailureCount > 0) {
-          logger.log(
-            `✅ Pattern processing recovered after ${this.patternFailureCount} previous failure(s)`
-          );
-          this.patternFailureCount = 0;
-          this.lastPatternSuccessTime = Date.now();
+        const { recovered, previousCount } = this.patternFailureTracker.reportSuccess();
+        if (recovered) {
+          logger.log(`✅ Pattern processing recovered after ${previousCount} previous failure(s)`);
         }
 
         // CRITICAL FIX: Detect and report ACTUAL pattern processing failures
@@ -2854,11 +2749,11 @@ export class TranslationEngine {
         if (
           wasmFailed &&
           this.semanticPatternProcessor.patterns?.length > 0 &&
-          !this.showedPatternWarning
+          !this._wasmInitWarningShown
         ) {
           const errorContext = {
             patternsLoaded: this.semanticPatternProcessor.patterns.length,
-            wasmAvailable: isWasmPatternProcessorAvailable(),
+            wasmReady: isWasmPatternProcessorReady(),
             wasmFailed: true,
             timestamp: Date.now(),
           };
@@ -2873,7 +2768,7 @@ export class TranslationEngine {
             'Pattern matching unavailable. Translation quality may be reduced. Try reloading dictionaries.',
             { duration: 8000 }
           );
-          this.showedPatternWarning = true;
+          this._wasmInitWarningShown = true;
 
           // Record failure for diagnostics and performance monitoring
           if (
@@ -2923,48 +2818,34 @@ export class TranslationEngine {
 
       this.log(DEBUG_LEVELS.DEBUG, '✅ Semantic pattern matching phase completed');
     } catch (error) {
-      // CRITICAL ERROR HANDLING: Pattern processing failures should not crash translation
+      // Pattern processing failures must not crash translation — phases 2-5 continue
       logger.error('❌ Error in pattern processing phase:', error);
       logger.error('Pattern phase will be skipped - translation quality may be reduced');
 
-      // HIGH-2 FIX: Track failure count with time-based reset
-      this.patternFailureCount++;
-      const timeSinceLastSuccess = this.lastPatternSuccessTime
-        ? Date.now() - this.lastPatternSuccessTime
-        : Infinity;
-      const FAILURE_WINDOW_MS = PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS;
+      const { action, count } = this.patternFailureTracker.reportFailure();
 
-      // Only permanently disable after 3 CONSECUTIVE failures within 5 minutes
-      // This prevents transient errors from causing permanent disable
-      if (this.patternFailureCount >= 3 && timeSinceLastSuccess < FAILURE_WINDOW_MS) {
-        // Permanent disable after 3 consecutive failures
+      if (action === 'disable') {
         this.settings.enableTwoPhasePatterns = false;
         toast.error(
           'Pattern matching permanently disabled due to repeated failures. Please reload dictionaries or restart the app.',
           { duration: 10000 }
         );
         logger.error(
-          `🚨 Pattern processing permanently disabled after ${this.patternFailureCount} consecutive failures within ${FAILURE_WINDOW_MS / 60000} minutes`
+          `🚨 Pattern processing permanently disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes`
         );
-      } else if (this.patternFailureCount >= 3 && timeSinceLastSuccess >= FAILURE_WINDOW_MS) {
-        // Reset counter if failures are not consecutive (>5 min since last success)
-        logger.warn(
-          `⚠️ Resetting pattern failure counter (${this.patternFailureCount} failures but ${(timeSinceLastSuccess / 60000).toFixed(1)} min since last success)`
-        );
-        this.patternFailureCount = 1; // Reset to 1 (current failure)
-        this.showedPatternWarning = false; // Allow new warning
-      }
-
-      // Show warning for failures (with attempt counter)
-      if (this.settings.enableTwoPhasePatterns && !this.showedPatternWarning) {
+      } else if (action === 'reset') {
+        logger.warn(`⚠️ Resetting pattern failure counter (failures outside ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} min window)`);
         toast.warning(
-          `Pattern matching failed (attempt ${this.patternFailureCount}/3). Translation quality may be reduced. Try reloading dictionaries.`,
+          `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`,
           { duration: 8000 }
         );
-        this.showedPatternWarning = true;
+      } else if (action === 'warn') {
+        toast.warning(
+          `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`,
+          { duration: 8000 }
+        );
       }
 
-      // Record failure for diagnostics
       if (
         typeof systemPerformanceMonitor !== 'undefined' &&
         typeof systemPerformanceMonitor.recordAlert === 'function'
@@ -2972,13 +2853,10 @@ export class TranslationEngine {
         systemPerformanceMonitor.recordAlert('pattern_processing_error', {
           error: error.message,
           timestamp: Date.now(),
-          failureCount: this.patternFailureCount,
-          autoDisabled: this.patternFailureCount >= 3,
+          failureCount: count,
+          autoDisabled: action === 'disable',
         });
       }
-
-      // Don't re-throw - allow translation to continue without patterns
-      // Proper nouns, phrases, and characters will still work
     }
   }
 
@@ -8716,59 +8594,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Try WASM dictionary lookup for Phase 5 character processing
-   *
-   * Provides 2-4x speedup over JavaScript Map-based lookups by using
-   * Rust WASM trie with O(k) HashMap lookups instead of O(k*log(n)).
-   *
-   * Integration uses position mapping utilities to bridge token-based
-   * processing with WASM's character-based API.
-   *
-   * @param {Array} tokens - Token array
-   * @param {number} position - Starting token position
-   * @param {string} dictionaryName - Dictionary name (e.g., 'characters')
-   * @returns {Object|null} Match object or null if WASM lookup failed/unavailable
-   */
-  tryWasmDictionaryLookup(tokens, position, dictionaryName) {
-    // Check if WASM trie is enabled and initialized
-    if (!this.useWasmDictionaryTrie || !this.wasmCharacterTrie?.initialized) {
-      return null;
-    }
-
-    try {
-      // Step 1: Build full text from tokens (single allocation)
-      const fullText = buildFullTextFromTokens(tokens);
-
-      // Step 2: Convert token position to character position
-      const charPos = tokenPositionToCharPosition(tokens, position);
-
-      // Step 3: Call WASM trie to find longest match
-      const wasmMatch = this.wasmCharacterTrie.findLongestMatch(fullText, charPos);
-
-      if (!wasmMatch) {
-        return null;
-      }
-
-      // Step 4: Convert WASM result to token-based format
-      const tokenMatch = convertWasmMatchToTokenMatch(wasmMatch, tokens, position, dictionaryName);
-
-      // Log successful WASM lookup (development only)
-      if (this.debugLevel >= DEBUG_LEVELS.VERBOSE) {
-        this.log(
-          DEBUG_LEVELS.VERBOSE,
-          `✅ WASM trie match: "${tokenMatch.word}" → "${tokenMatch.translation}" (${tokenMatch.tokenLength} tokens)`
-        );
-      }
-
-      return tokenMatch;
-    } catch (error) {
-      // Graceful degradation: Log error and return null to fallback to JavaScript
-      logger.warn('WASM dictionary lookup failed, falling back to JavaScript:', error);
-      return null;
-    }
-  }
-
-  /**
    * Find the longest dictionary match starting at a specific position
    *
    * Integration #6: WASM Dictionary Trie (Phase 2)
@@ -8783,17 +8608,7 @@ export class TranslationEngine {
    * @returns {Object|null} Match object with {word, translation, tokenLength, dictionary}
    */
   findLongestMatchAtPosition(tokens, position, dictionary, dictionaryName = null) {
-    // Try WASM acceleration for character dictionary (Phase 5)
-    if (dictionaryName === 'characters') {
-      const wasmMatch = this.tryWasmDictionaryLookup(tokens, position, dictionaryName);
-      if (wasmMatch) {
-        // WASM success - return result directly
-        return wasmMatch;
-      }
-      // WASM failed/unavailable - fall through to JavaScript implementation
-    }
-
-    // JavaScript fallback implementation (original code)
+    // JavaScript Map-based implementation (O(1) hash lookup, faster than WASM trie at current dictionary sizes)
     let bestMatch = null;
     let maxLength = 0;
 

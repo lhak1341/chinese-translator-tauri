@@ -1,8 +1,5 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
-import {
-  processTokensWasm,
-  isWasmPatternProcessorAvailable,
-} from '../wasm/WasmPatternProcessor.js';
+import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 import { logger } from '../logger.js';
 
 /**
@@ -331,7 +328,7 @@ class TwoPhasePatternProcessor {
    */
   async processTokens(tokens, options) {
     // WASM-only implementation (JavaScript fallback removed after parity verification)
-    if (!this.options.enableWasm || !isWasmPatternProcessorAvailable()) {
+    if (!this.options.enableWasm || !isWasmPatternProcessorReady()) {
       throw new Error(
         'WASM Pattern Processor not available. Two-phase pattern matching requires Rust WASM acceleration.'
       );

@@ -83,17 +83,13 @@
     "mtime": 1772215045.227447,
     "hash": "ce963de23cc1410b4ca7328ce84d7889"
   },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/dictionary_trie.rs": {
-    "mtime": 1771115537.1191316,
-    "hash": "f05e7f13e117f0210a5f53d150a6da39"
-  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/wasm_boundary.rs": {
     "mtime": 1774109179.6467972,
     "hash": "471f150429c47e97328d1995ec4d5d39"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/lib.rs": {
-    "mtime": 1774109795.8946826,
-    "hash": "f509e79db8249f7c66cf2f7e7e2baac1"
+    "mtime": 1778924677.0442827,
+    "hash": "617bc024d323c655fc96d3e5be6d33c2"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/memory_management.rs": {
     "mtime": 1774109249.1327596,
@@ -108,8 +104,8 @@
     "hash": "3dd8b6c628f95436b6c64ddc70f2f176"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/trie.rs": {
-    "mtime": 1771263962.8329356,
-    "hash": "c9a679848b11e4b5f9471aa5896668a8"
+    "mtime": 1778924896.9184952,
+    "hash": "129bbad79ad3780c1f0b9d900355db38"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/text_chunker.rs": {
     "mtime": 1775311491.6100945,
@@ -220,8 +216,8 @@
     "hash": "0be59a0c64b575712274ee1c91669698"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/types/WasmTypes.d.ts": {
-    "mtime": 1770943013.5422716,
-    "hash": "92c382034342946cc534baa3d7f341f5"
+    "mtime": 1778924715.2427886,
+    "hash": "4c38ff9a8ca2811543539574833af912"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/types/ClickableTypes.d.ts": {
     "mtime": 1772897608.4987054,
@@ -360,8 +356,8 @@
     "hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/TranslationEngine.js": {
-    "mtime": 1778909910.2023191,
-    "hash": "4e229c92a8a3311672b89531394a0901"
+    "mtime": 1778925961.7053938,
+    "hash": "f359d2e086a60f86c141135474ebb4a7"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/logger.ts": {
     "mtime": 1777743411.8961227,
@@ -459,10 +455,6 @@
     "mtime": 1774739143.4345665,
     "hash": "7c2f409a055c02e0ab19fe730e89ca7d"
   },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmDictionaryTrieValidator.js": {
-    "mtime": 1777802763.159633,
-    "hash": "b117f98473e0b7cba8588deb3e75e089"
-  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmStringProcessor.js": {
     "mtime": 1777771249.4660025,
     "hash": "316999637ac9cb4921a7850c4161a648"
@@ -484,8 +476,8 @@
     "hash": "80a83934de01e2ec06dc6abd6277a819"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmPatternProcessor.js": {
-    "mtime": 1777771338.3191707,
-    "hash": "4912966ac07ed363e9b1f9fce92765f0"
+    "mtime": 1778925400.736746,
+    "hash": "6adab95fe75c7f23721b9b359fa679a4"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmDictionaryManager.js": {
     "mtime": 1772897608.540802,
@@ -498,10 +490,6 @@
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmConflictResolution.js": {
     "mtime": 1775958761.4081576,
     "hash": "e6e25c3852203b489a794c8fb5ea8de5"
-  },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmDictionaryTrie.js": {
-    "mtime": 1772897608.5414913,
-    "hash": "c4b51c1263728e2f27266dcfb529fca7"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmRegexUtils.js": {
     "mtime": 1777802763.1605656,
@@ -643,10 +631,6 @@
     "mtime": 1778866919.6546261,
     "hash": "8ba486e1701cfb7ffacc9f93c3b129ad"
   },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/WasmDictionaryTrie.validation.test.js": {
-    "mtime": 1772672439.989074,
-    "hash": "28ce24a92d6595167c86d4aa91ca50ad"
-  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/PatternTemplateEngine.test.js": {
     "mtime": 1772672439.976946,
     "hash": "dd13939a74a1c2860430549b68462f7c"
@@ -787,9 +771,13 @@
     "mtime": 1772666306.8296108,
     "hash": "c6711282709810c423bee97e0495bbeb"
   },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/pattern/PatternFailureTracker.js": {
+    "mtime": 1778925909.2481167,
+    "hash": "2f09e918c8b8e87a4d905f9f6850db61"
+  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/pattern/TwoPhasePatternProcessor.js": {
-    "mtime": 1778885671.5604928,
-    "hash": "cd8bb412d54652560121769a3c7a97ea"
+    "mtime": 1778925413.8719006,
+    "hash": "e542d36c59bac987157c08518594ac3a"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/performance/MemoryLeakDetector.js": {
     "mtime": 1773509530.083455,
@@ -808,8 +796,8 @@
     "hash": "238e8102c868dfea11508a808065f625"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/performance/OptimizationBenchmarks.js": {
-    "mtime": 1777744976.5660837,
-    "hash": "9be9ae86a2dfb7336be77b312c6cd917"
+    "mtime": 1778924644.6430607,
+    "hash": "4176b64b3b8e0160ee578efcd33b5bfa"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/performance/index.ts": {
     "mtime": 1777744984.564062,
@@ -856,8 +844,8 @@
     "hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/Translator.jsx": {
-    "mtime": 1778885329.9378715,
-    "hash": "acb4b594fed28ce2bd137e42e2ea4d55"
+    "mtime": 1778924886.0528252,
+    "hash": "48617dd7510a817b5b5919d6e3931677"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/ErrorBoundary.tsx": {
     "mtime": 1772897608.4774516,
@@ -983,18 +971,6 @@
     "mtime": 1769750696.0006878,
     "hash": "bb4c70186440a51434b85a8096115b9b"
   },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/was/translation_wasm_core.js": {
-    "mtime": 1775397168.6465905,
-    "hash": "78963a7eeef11b7dd3db78e95af6292a"
-  },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/was/translation_wasm_core_bg.wasm.d.ts": {
-    "mtime": 1775397168.646921,
-    "hash": "9518003a22b9b68eb74b51e6221a3c95"
-  },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/was/translation_wasm_core.d.ts": {
-    "mtime": 1775397168.6467333,
-    "hash": "1b265f773577ec542c28e6d31caacf6c"
-  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/reducers/highlightingReducer.js": {
     "mtime": 1772897608.4968462,
     "hash": "8547dc6a851d8d20499e93a02b617a05"
@@ -1008,8 +984,8 @@
     "hash": "4ef05e4e1dfc4293ced9bea48c3dc70a"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/README.md": {
-    "mtime": 1778886690.2751198,
-    "hash": "cdd75c5d501fcf25c67152fdc61c3b39"
+    "mtime": 1778926396.2946978,
+    "hash": "90e4e20b18df1ffeefc8c8b22d4c23be"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/test-pattern-parity.html": {
     "mtime": 1767449971.1813738,
@@ -1020,8 +996,8 @@
     "hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/CLAUDE.md": {
-    "mtime": 1778886690.2751198,
-    "hash": "cdd75c5d501fcf25c67152fdc61c3b39"
+    "mtime": 1778926396.2946978,
+    "hash": "90e4e20b18df1ffeefc8c8b22d4c23be"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/memory/MEMORY.md": {
     "mtime": 1775146363.9956443,
@@ -1082,10 +1058,6 @@
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/DICTIONARY_TRIE_FINAL_SUMMARY_2026-01-31.md": {
     "mtime": 1769906376.5911353,
     "hash": "9262093d62aabbe33d098c953f71b5b2"
-  },
-  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/WASM_DICTIONARY_TRIE_VALIDATION_GUIDE.md": {
-    "mtime": 1769906376.727252,
-    "hash": "02b77fbf5ba6845e1384fec5e3638d41"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/OPTIMIZATION_SESSION_SUMMARY_2026-01-31.md": {
     "mtime": 1769836283.8780618,
@@ -1300,8 +1272,8 @@
     "hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/CLAUDE.md": {
-    "mtime": 1778884753.3182483,
-    "hash": "8219dfcde9eb2ab399d288b30db88f10"
+    "mtime": 1778926408.5154328,
+    "hash": "ae902db0800163238c815228f57f328d"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/styles/CLAUDE.md": {
     "mtime": 1772898356.734035,
@@ -1312,8 +1284,8 @@
     "hash": "cd207861f5ab326f9d2d554e6f83affa"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/CLAUDE.md": {
-    "mtime": 1778921762.005928,
-    "hash": "8b2626547abf8020fc565e574cbf68b1"
+    "mtime": 1778921956.760762,
+    "hash": "97a705d992832a9b32009e989089b03a"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/public/vite.svg": {
     "mtime": 1764427112.8323097,

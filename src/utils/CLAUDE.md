@@ -81,6 +81,18 @@ Returns `Promise<PatternProcessorResult[]>`. Callers MUST capture the return val
 
 Separate invariant: `createOptimalPhraseGroups` (Phase 4) checks only `enableTwoPhasePatterns`, NOT `patterns?.length` — phrase processing is pure JS and runs regardless of whether structural patterns are loaded. Do NOT re-add the `patterns?.length > 0` guard.
 
+### `isWasmPatternProcessorReady()` Is the Canonical Pattern Processor Check
+
+Use `isWasmPatternProcessorReady()` from `wasm/WasmPatternProcessor.js` — combines `isWasmPatternProcessorAvailable() && !hasWasmPatternProcessorFailed()` in one call. Do NOT compose the two functions at call sites.
+
+### `PatternFailureTracker` Owns Pattern Failure State
+
+`src/utils/pattern/PatternFailureTracker.js` owns `_count`, `_lastSuccessTime`, and retry `_warningShown`. Do NOT add `patternFailureCount` / `lastPatternSuccessTime` back to the engine. Engine's `_wasmInitWarningShown` is separate — it guards the WASM init-failure toast, not retry warnings.
+
+### `.trie.json` Files Are JS Map Cache, Not WASM
+
+`*.trie.json` in the dictionaries folder are written by `PrecomputedTrieCache.js` — they cache the JS Map-based trie, not anything WASM-related. Do not delete them; they speed up cold starts.
+
 ### `applyHierarchicalResults` Has No Overlap Check — Do Not Add One
 
 `applyHierarchicalResults` applies WASM results directly without deduplication. Do NOT add overlap checking there — `select_optimal_results` in `wasm-core/src/pattern_processor/two_phase.rs` guarantees non-overlapping results before they reach JS. Adding a JS-side dedupe would mask WASM selection bugs instead of surfacing them.

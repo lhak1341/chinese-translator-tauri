@@ -77,6 +77,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `SemanticPatternProcessor.applyPatternMatch` — deleted; `processTokens()` now returns `PatternProcessorResult[]`, apply via `applyHierarchicalResults(tokens, results, options)`
 - `useDictionaryConfig.js` — deleted; use `useDictionaryModals` from `src/hooks/useDictionaryModals.js`
 - `useTranslationController.forceCleanup` — removed (unused); hook returns only `{createController, cleanup, cancelAll, getActiveCount}`
+- `WasmDictionaryTrieWrapper` from `wasm/WasmDictionaryTrie.js`, `validateWasmDictionaryTrie` from `WasmDictionaryTrieValidator.js` — deleted; WASM trie is 2x slower than JS Map at current dictionary size (benchmarked 2026-01-31)
 
 **Non-obvious contracts:**
 

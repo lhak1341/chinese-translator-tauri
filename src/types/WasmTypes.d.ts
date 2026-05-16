@@ -63,47 +63,6 @@ export interface WasmDictionaryEntry {
 }
 
 /**
- * WASM dictionary trie interface
- * Rust-based trie for O(k) dictionary lookups
- */
-export interface WasmDictionaryTrie {
-  /**
-   * Find longest match starting at position
-   * @param text - Input text
-   * @param start_index - Starting position
-   * @returns Match result or null
-   */
-  find_longest_match(text: string, start_index: number): WasmMatchResult | null;
-
-  /**
-   * Find all matches starting at position
-   * @param text - Input text
-   * @param start_index - Starting position
-   * @returns Array of match results
-   */
-  find_all_matches(text: string, start_index: number): WasmMatchResult[];
-
-  /**
-   * Insert entry into trie
-   * @param key - Dictionary key
-   * @param value - Translation value
-   * @param metadata - Optional metadata (JSON string)
-   */
-  insert(key: string, value: string, metadata?: string): void;
-
-  /**
-   * Clear all entries from trie
-   */
-  clear(): void;
-
-  /**
-   * Get trie statistics
-   * @returns Trie size and memory usage
-   */
-  get_stats(): WasmTrieStats;
-}
-
-/**
  * WASM match result from trie lookup
  * Returned by find_longest_match() and find_all_matches()
  */
@@ -122,24 +81,6 @@ export interface WasmMatchResult {
 
   /** Parsed metadata object (JSON deserialized from Rust) */
   metadata?: Record<string, unknown> | null;
-}
-
-/**
- * WASM trie statistics
- * Memory and performance metrics for WASM trie
- */
-export interface WasmTrieStats {
-  /** Total entries in trie */
-  entry_count: number;
-
-  /** Memory usage in bytes */
-  memory_bytes: number;
-
-  /** Average lookup time in microseconds */
-  avg_lookup_time_us?: number;
-
-  /** Node count */
-  node_count?: number;
 }
 
 /**
