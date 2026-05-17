@@ -40,6 +40,13 @@ pub struct SemanticToken {
     /// Translation source marker
     #[serde(rename = "translationSource", default, skip_serializing_if = "Option::is_none")]
     pub translation_source: Option<String>,
+
+    /// True when a non-semantic token (punctuation, whitespace) was skipped
+    /// between this token and the previous semantic token. Pattern variables
+    /// whose first token has this flag set are rejected — the structural
+    /// pattern assumes direct adjacency between its literals and variables.
+    #[serde(rename = "hasPrecedingBoundary", default)]
+    pub has_preceding_boundary: bool,
 }
 
 /// Phase A result metadata
@@ -517,6 +524,20 @@ impl<'a> PatternMatcher<'a> {
                         Some(n) => n,
                         None => return PatternMatchResult::failure(Some("Variable token missing name".to_string())),
                     };
+
+                    // Reject if punctuation/whitespace boundary between last literal and this variable.
+                    // Structural patterns assume direct adjacency; 『X』 wrapping must not match 柄X.
+                    if current_position < semantic_tokens.len()
+                        && semantic_tokens[current_position].has_preceding_boundary
+                    {
+                        let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
+                        variable_time += end_variable - start_variable;
+                        update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
+                        return PatternMatchResult::failure(Some(format!(
+                            "Variable {} blocked by preceding punctuation boundary",
+                            var_name
+                        )));
+                    }
 
                     // Try to resolve variable with look-ahead verification
                     let resolution_result = self.resolve_variable_with_lookahead(

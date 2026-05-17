@@ -81,6 +81,7 @@ class TwoPhasePatternProcessor {
    */
   extractSemanticTokens(tokens) {
     const semanticTokens = [];
+    let pendingBoundary = false;
 
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
@@ -101,7 +102,13 @@ class TwoPhasePatternProcessor {
         semanticTokens.push({
           ...token,
           originalIndex: i,
+          hasPrecedingBoundary: pendingBoundary,
         });
+        pendingBoundary = false;
+      } else if (semanticTokens.length > 0) {
+        // Non-semantic token (punctuation, whitespace, etc.) — marks a boundary
+        // before the next semantic token. Grouped followers are already skipped above.
+        pendingBoundary = true;
       }
     }
 

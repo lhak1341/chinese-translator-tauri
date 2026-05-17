@@ -21,6 +21,7 @@ fn create_token(value: &str, index: usize) -> SemanticToken {
         protected_by_phase_a: None,
         phase_a_result: None,
         translation_source: None,
+        has_preceding_boundary: false,
     }
 }
 

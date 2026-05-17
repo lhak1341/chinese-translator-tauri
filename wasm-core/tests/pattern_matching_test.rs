@@ -19,6 +19,7 @@ fn create_token(value: &str, index: usize) -> SemanticToken {
         protected_by_phase_a: None,
         phase_a_result: None,
         translation_source: None,
+        has_preceding_boundary: false,
     }
 }
 
@@ -442,6 +443,83 @@ fn test_pattern_competition_low_priority_loses() {
         result.result.as_ref().unwrap(),
         "ở trong mắt những ma soái kia"
     );
+}
+
+#[test]
+fn test_variable_blocked_by_preceding_punctuation_boundary() {
+    // "那柄X" must NOT match "那柄『天琊』".
+    // 『』 are stripped from semantic tokens, but hasPrecedingBoundary=true is set
+    // on "天琊" because "『" was skipped before it.
+    let pattern = parse_pattern(
+        "那柄X".to_string(),
+        "cái X kia".to_string(),
+        None,
+        false,
+        false,
+        None,
+    );
+
+    let tokens = vec![
+        create_token("那", 0),
+        create_token("柄", 1),
+        // "天琊" has hasPrecedingBoundary=true because "『" (originalIndex=2) was skipped
+        SemanticToken {
+            value: "天琊".to_string(),
+            original_index: 3,
+            protected_by_phase_a: None,
+            phase_a_result: None,
+            translation_source: None,
+            has_preceding_boundary: true,
+        },
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "天琊".to_string(),
+        VariableCacheEntry {
+            translation: "Thiên Gia".to_string(),
+            source: "proper-noun".to_string(),
+            var_type: Some("proper-noun".to_string()),
+        },
+    );
+
+    let patterns = vec![pattern];
+    let result = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
+    assert!(result.is_none(), "那柄X must not match when 『』 precede the variable");
+}
+
+#[test]
+fn test_variable_without_boundary_still_matches() {
+    // Same pattern "那柄X" DOES match "那柄天琊" (no punctuation boundary).
+    let pattern = parse_pattern(
+        "那柄X".to_string(),
+        "cái X kia".to_string(),
+        None,
+        false,
+        false,
+        None,
+    );
+
+    let tokens = vec![
+        create_token("那", 0),
+        create_token("柄", 1),
+        create_token("天琊", 2),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "天琊".to_string(),
+        VariableCacheEntry {
+            translation: "Thiên Gia".to_string(),
+            source: "proper-noun".to_string(),
+            var_type: Some("proper-noun".to_string()),
+        },
+    );
+
+    let patterns = vec![pattern];
+    let result = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
+    assert!(result.is_some(), "那柄X must match when no punctuation boundary");
+    assert_eq!(result.unwrap().result.as_deref().unwrap(), "cái Thiên Gia kia");
 }
 
 #[test]

@@ -63,6 +63,18 @@ Since the parallel merge loop drops `originalStart`, this path never activates f
 
 Always does 27-char dictionary-lookup punctuation translation first (calls `this.dictionaryManager.translate()`). Then branches: `options.useChunking !== false` → simple spacing fix + early return; `else` → also applies space-after-punctuation rules and colon-quote handling. The dictionary loop is the blocking constraint. Do not duplicate this logic elsewhere — it is the single authoritative post-assembly cleanup step in `postProcess()`.
 
+### `cleanupFormatting` Else-Branch `^` Capitalization Requires `!isParallelChunk` Guard
+
+When `isParallelChunk: true` (each parallel chunk runs with `useChunking: false`), the `^` rule capitalizes every chunk's first letter independently — overrides `applySmartCapitalization` context. Guard: `if (!options.isParallelChunk)` wraps the `^` replace. Do not remove this guard.
+
+### WASM vs JS TextChunker: Different Chunk Structures for Consecutive Punctuation
+
+WASM accumulates consecutive punctuation into one field — `道：「说` gives the `道` chunk `punctuation="：«"`, and `说` gets `startedBy="：«"` (colon already present). JS TextChunker creates a separate empty chunk between them: `{content:"", punctuation:"«", startedBy:"："}`; `说` gets `startedBy="«"`. `applySmartCapitalization` handles both: WASM output is caught by the multi-char `includes("："`)`check; JS output is caught by the fallback that checks`chunks[i-1].content.trim() === ""`.
+
+### `「` (U+300C) Is Not an Opening Quote — `fixAngleQuotePositioning` Skips It
+
+`QuoteProcessor.isOpeningQuote('「')` returns false. `fixAngleQuotePositioning` only fires for `《` and curly quotes (`“`, `‘`, etc.). A JS-chunker empty chunk with `punctuation="「"` is silently skipped — colon context in its `startedBy` is NOT propagated to the content chunk by this function. The fallback block in `applySmartCapitalization` (checking `chunks[i-1].content.trim() === ""`) handles this instead.
+
 ### `checkSemanticArrayCorruption` Uses `corruptionToastShown`
 
 A translation-scoped `let corruptionToastShown = false` guards `toast.error` to at most once per translation. `isCorrupted` is sticky across all 5 phase checks. Any new call site that toasts on `isCorrupted` must reuse this flag.

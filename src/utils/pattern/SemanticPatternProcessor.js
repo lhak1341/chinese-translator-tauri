@@ -1115,6 +1115,7 @@ export class SemanticPatternProcessor {
    */
   getSemanticTokens(tokens) {
     const semanticTokens = [];
+    let pendingBoundary = false;
 
     for (let i = 0; i < tokens.length; i++) {
       const token = tokens[i];
@@ -1133,7 +1134,13 @@ export class SemanticPatternProcessor {
         semanticTokens.push({
           ...token,
           originalIndex: i,
+          hasPrecedingBoundary: pendingBoundary,
         });
+        pendingBoundary = false;
+      } else if (semanticTokens.length > 0) {
+        // Non-semantic token (punctuation, whitespace, etc.) — marks a boundary
+        // before the next semantic token. Grouped followers are already skipped above.
+        pendingBoundary = true;
       }
     }
 
@@ -1311,6 +1318,11 @@ export class SemanticPatternProcessor {
           }
         }
       } else if (patternToken.type === 'variable') {
+        // Reject if punctuation/whitespace boundary between last literal and this variable
+        if (semanticToken.hasPrecedingBoundary) {
+          return { success: false };
+        }
+
         // Variable match using cache - try longest match first WITH backtracking support
         const varResolveStart = performance.now();
         let cachedTranslation = null;

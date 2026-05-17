@@ -157,7 +157,6 @@ import { processNumbersWasm, isWasmNumberProcessorAvailable } from './wasm/WasmN
 // WASM Phase 4 conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
 
-
 import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 // TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
@@ -2834,7 +2833,9 @@ export class TranslationEngine {
           `🚨 Pattern processing permanently disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes`
         );
       } else if (action === 'reset') {
-        logger.warn(`⚠️ Resetting pattern failure counter (failures outside ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} min window)`);
+        logger.warn(
+          `⚠️ Resetting pattern failure counter (failures outside ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} min window)`
+        );
         toast.warning(
           `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`,
           { duration: 8000 }
@@ -4770,6 +4771,26 @@ export class TranslationEngine {
       // Special case: Add space between colon and opening quote (colon-quote combinations)
       result = result.replace(/:\u201c/g, ': \u201c'); // Vietnamese colon + curly quote (after punctuation conversion)
       result = result.replace(/:”(?!\s)/g, ': “'); // Regular quote version
+
+      // Capitalize first word after colon or linebreak, skipping any intervening non-letter chars
+      // \P{L}*? lazily consumes quotes/spaces — no char class needed, works for any quote encoding
+      result = result.replace(
+        /(:\P{L}*?)(\p{L})/gu,
+        (m, pre, letter) => pre + letter.toUpperCase()
+      );
+      result = result.replace(
+        /(\n\P{L}*?)(\p{L})/gu,
+        (m, pre, letter) => pre + letter.toUpperCase()
+      );
+      // Capitalize start of text only for standalone (non-chunk) translations.
+      // When isParallelChunk=true, applySmartCapitalization handles this via startedBy='start'.
+      // Applying it per-chunk would capitalize the first letter of every chunk, not just the first.
+      if (!options.isParallelChunk) {
+        result = result.replace(
+          /^(\P{L}*)(\p{L})/u,
+          (m, pre, letter) => pre + letter.toUpperCase()
+        );
+      }
     }
 
     // Remove excessive spaces but preserve line breaks
@@ -8757,6 +8778,23 @@ export class TranslationEngine {
         }
       }
 
+      // Fallback: WASM chunker creates a separate empty chunk for opening punctuation (e.g. '「'),
+      // placing the colon/linebreak/start context in that empty chunk's startedBy rather than here.
+      // If the previous chunk is empty (no content) and carries sentence-start context, inherit it.
+      if (!shouldCapitalize && i > 0) {
+        const prevChunk = chunks[i - 1];
+        if (prevChunk && !prevChunk.content.trim()) {
+          const prevSBy = prevChunk.startedBy || '';
+          const hasColonCtx = prevSBy.includes(':') || prevSBy.includes('：');
+          const hasSentenceCtx = ['.', '!', '?', '。', '！', '？'].some((p) => prevSBy.includes(p));
+          const hasStartCtx =
+            prevSBy === 'linebreak' || prevSBy === 'start' || !!prevChunk.lineBreaks;
+          if (hasColonCtx || hasSentenceCtx || hasStartCtx) {
+            shouldCapitalize = true;
+          }
+        }
+      }
+
       if (shouldCapitalize) {
         // Check if this chunk is already properly capitalized from dictionary (proper noun)
         const isAlreadyCapitalized =
@@ -8899,10 +8937,12 @@ export class TranslationEngine {
       '$1 $2'
     );
 
-    // Capitalize first letter (handle Vietnamese diacritics correctly)
-    if (formatted.length > 0) {
-      formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
-    }
+    // Capitalize first letter — skip leading non-letter chars (quotes, spaces)
+    // so '"thuyết' becomes '"Thuyết' not '"thuyết'
+    formatted = formatted.replace(
+      /^(\P{L}*)(\p{L})/u,
+      (m, pre, letter) => pre + letter.toUpperCase()
+    );
 
     // Capitalize after sentence-ending punctuation (period, exclamation, question mark)
     // Use a more careful regex that preserves the punctuation and spacing
@@ -8910,9 +8950,15 @@ export class TranslationEngine {
       return punct + spaces + letter.toUpperCase();
     });
 
-    // Capitalize after line breaks
-    formatted = formatted.replace(/\n\s*(\S)/g, (match, letter) => {
-      return match.slice(0, -1) + letter.toUpperCase();
+    // Capitalize after colon + any non-letter chars (quotes, spaces) before next word
+    // \P{L}*? lazily consumes any quote/space chars so the quote char encoding doesn’t matter
+    formatted = formatted.replace(/(:\P{L}*?)(\p{L})/gu, (match, colonPrefix, letter) => {
+      return colonPrefix + letter.toUpperCase();
+    });
+
+    // Capitalize after line breaks + optional non-letter chars (quotes, spaces)
+    formatted = formatted.replace(/(\n\P{L}*?)(\p{L})/gu, (match, prefix, letter) => {
+      return prefix + letter.toUpperCase();
     });
 
     return formatted;

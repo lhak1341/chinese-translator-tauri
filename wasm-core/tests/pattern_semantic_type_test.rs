@@ -59,6 +59,7 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
         SemanticToken {
             value: "三".to_string(),
@@ -66,6 +67,7 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
         SemanticToken {
             value: "号".to_string(),
@@ -73,6 +75,7 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
         SemanticToken {
             value: "中".to_string(),
@@ -80,6 +83,7 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
     ];
 
@@ -157,6 +161,7 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
         SemanticToken {
             value: "三".to_string(),
@@ -164,6 +169,7 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
         SemanticToken {
             value: "号".to_string(),
@@ -171,6 +177,7 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
         SemanticToken {
             value: "中".to_string(),
@@ -178,6 +185,7 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
             protected_by_phase_a: None,
             phase_a_result: None,
             translation_source: None,
+            has_preceding_boundary: false,
         },
     ];
 
@@ -234,10 +242,10 @@ fn dollar_x_resolves_to_variable_type_from_cache() {
     );
 
     let tokens = vec![
-        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
     ];
 
     let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
@@ -285,11 +293,11 @@ fn dollar_y_resolves_to_variable_type_from_cache() {
     );
 
     let tokens = vec![
-        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "去".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "北".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "京".to_string(), original_index: 4, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "去".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "北".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "京".to_string(), original_index: 4, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
     ];
 
     let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
@@ -329,9 +337,9 @@ fn dollar_x_resolves_to_none_when_variable_untyped() {
     );
 
     let tokens = vec![
-        SemanticToken { value: "他".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "的".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "家".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "他".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "的".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "家".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
     ];
 
     let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
@@ -370,10 +378,10 @@ fn fixed_semantic_type_unchanged() {
     );
 
     let tokens = vec![
-        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
     ];
 
     let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
@@ -414,10 +422,10 @@ fn dollar_ref_to_missing_variable_resolves_to_none() {
     );
 
     let tokens = vec![
-        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
     ];
 
     let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);
@@ -459,10 +467,10 @@ fn dollar_x_with_proper_noun_var_type_resolves_to_proper_noun() {
     );
 
     let tokens = vec![
-        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
-        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None },
+        SemanticToken { value: "张".to_string(), original_index: 0, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "三".to_string(), original_index: 1, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "的".to_string(), original_index: 2, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
+        SemanticToken { value: "家".to_string(), original_index: 3, protected_by_phase_a: None, phase_a_result: None, translation_source: None, has_preceding_boundary: false },
     ];
 
     let result = find_best_pattern_match(&[pattern], &tokens, 0, &cache, DEFAULT_MAX_VARIABLE_SPAN);

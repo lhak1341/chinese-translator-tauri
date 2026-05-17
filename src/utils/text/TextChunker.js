@@ -701,8 +701,12 @@ export class TextChunker {
         // Add opening quote to next chunk - store separately to place before content
         nextChunk.openingPunctuation = openingQuote;
 
-        // Update startedBy for capitalization
-        nextChunk.startedBy = openingQuote;
+        // Update startedBy for capitalization.
+        // The colon context lives in chunk.startedBy (the quote-only chunk), not nextChunk.startedBy.
+        // e.g. for 道：「说 — quote-only chunk has startedBy='：', nextChunk has startedBy='«' (quote).
+        const prevStartedBy = chunk.startedBy || '';
+        const colonInPrev = /[:：]/.exec(prevStartedBy);
+        nextChunk.startedBy = colonInPrev ? colonInPrev[0] + openingQuote : openingQuote;
       }
     }
   }
