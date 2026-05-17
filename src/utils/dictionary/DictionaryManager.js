@@ -1084,12 +1084,12 @@ export class DictionaryManager {
         .filter((result) => result.success)
         .flatMap((result) => result.matches);
 
-      // Sort by priority (lower number = higher priority) and then by length (longer first)
+      // Sort by length first (longer match = more specific), priority as tiebreak at equal length
       const sortedMatches = allMatches.sort((a, b) => {
-        if (a.priority !== b.priority) {
-          return a.priority - b.priority;
+        if (a.word.length !== b.word.length) {
+          return b.word.length - a.word.length;
         }
-        return b.word.length - a.word.length;
+        return a.priority - b.priority;
       });
 
       const lookupTime = performance.now() - startTime;
@@ -1158,12 +1158,12 @@ export class DictionaryManager {
         (this.parallelLookupStats.averageSequentialTime + lookupTime) / 2;
     }
 
-    // Sort by priority (lower number = higher priority) and then by length (longer first)
+    // Sort by length first (longer match = more specific), priority as tiebreak at equal length
     return allMatches.sort((a, b) => {
-      if (a.priority !== b.priority) {
-        return a.priority - b.priority;
+      if (a.word.length !== b.word.length) {
+        return b.word.length - a.word.length;
       }
-      return b.word.length - a.word.length;
+      return a.priority - b.priority;
     });
   }
 

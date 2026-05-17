@@ -236,3 +236,33 @@ describe('API Regression Detection', () => {
     }
   });
 });
+
+describe('DictionaryManager match sort order', () => {
+  const activeProperNouns = ['properNouns-f_test', 'properNouns'];
+
+  test('longer match beats higher-priority dict at same position', async () => {
+    // f_* is priority 1 (fiction-specific), general is priority 3
+    // 2-char general entry must win over 1-char f_* entry
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries(
+      { 'properNouns-f_test': { 王: 'Vương' }, properNouns: { 王者: 'Vương Giả' } },
+      { activeProperNouns }
+    );
+
+    const matches = manager.findAllMatches('王者归来', 0);
+    expect(matches[0].word).toBe('王者');
+    expect(matches[0].translation).toBe('Vương Giả');
+  });
+
+  test('higher-priority dict wins when lengths are equal', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries(
+      { 'properNouns-f_test': { 王者: 'Vương Giả (f)' }, properNouns: { 王者: 'Vương Giả' } },
+      { activeProperNouns }
+    );
+
+    const matches = manager.findAllMatches('王者归来', 0);
+    expect(matches[0].word).toBe('王者');
+    expect(matches[0].translation).toBe('Vương Giả (f)');
+  });
+});
