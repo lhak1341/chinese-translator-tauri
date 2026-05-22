@@ -10,7 +10,7 @@ After touching any CRUD function or `addToHistory`, audit for:
 4. `isValidationError`/`isSaveError` double-toast guards
 5. Metadata coverage (`allowAsPatternVariable`, `lowPriority`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
 6. `sanitizeDictionaryEntry` called at the top of `addEntry`/`updateEntry` before validation
-7. `invalidateTranslationEngineCache` called after successful save — required in every CRUD success branch AND in `undo`/`redo` paths
+7. Cache invalidation called after successful save via `invokeEngineInvalidator(engineInvalidatorRef, id)` — required in every CRUD success branch AND in `undo`/`redo` paths. `engineInvalidatorRef` is registered by `Translator.jsx` at engine-ready time.
 
 `undo`/`redo` dep arrays: `[history, currentHistoryIndex]` — not `dictionaries`; read `dictionariesRef.current` directly.
 

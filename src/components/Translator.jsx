@@ -23,12 +23,7 @@ import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import {
-  useTranslatorEngine,
-  ENGINE_PRIORITIES,
-  filterDictionariesForEngine,
-} from '../hooks/useTranslatorEngine';
-import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
+import { useTranslatorEngine, ENGINE_PRIORITIES } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { translationSegmentCache, parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
@@ -107,7 +102,13 @@ import {
 // ============================================================================
 
 const Translator = ({ isActive = true }) => {
-  const { dictionaries, isLoading, loadError, loadDictionary: _loadDictionary } = useDictionary();
+  const {
+    dictionaries,
+    isLoading,
+    loadError,
+    loadDictionary: _loadDictionary,
+    registerCacheInvalidator,
+  } = useDictionary();
 
   // Performance monitoring hook (extracted)
   const { performanceStats, regressionHealth, updatePerformanceStats, updateCacheHitRate } =
@@ -338,13 +339,17 @@ const Translator = ({ isActive = true }) => {
   }, [cleanupScrollRestoration]);
 
   useEffect(() => {
-    if (enginePhase !== 'ready' || !engineRef.current) return;
+    if (enginePhase !== 'ready' || !engineRef.current) {
+      registerCacheInvalidator(null);
+      return;
+    }
     setEngineStats(engineRef.current.getEngineStats());
     debouncedProgressHandler.current.setCallbacks({
       onProgressUpdate: setProgressInfo,
       onTranslationUpdate: setTranslatedText,
       onSemanticArraysUpdate: setSemanticArrays,
     });
+    registerCacheInvalidator((id) => engineRef.current?.invalidateDictionaryCaches(id));
     if (process.env.NODE_ENV === 'development') {
       window.translationEngine = engineRef.current;
       window.runPatternParityTests = async () => {
@@ -357,7 +362,7 @@ const Translator = ({ isActive = true }) => {
         return await runAllParityTests(processor);
       };
     }
-  }, [enginePhase]);
+  }, [enginePhase, registerCacheInvalidator]);
 
   useEffect(() => {
     if (enginePhase !== 'error' || !initializationError) return;
@@ -2014,23 +2019,8 @@ const Translator = ({ isActive = true }) => {
       clearHighlighting();
       setEngineStats(null);
 
-      // Step 6: Load fresh configuration to get updated activeProperNouns
-      logger.log('Step 6: Loading fresh configuration...');
-      let freshActiveProperNouns;
-      try {
-        invalidateAppConfig();
-        const freshConfig = await loadAppConfig();
-        freshActiveProperNouns = freshConfig.engine.activeProperNouns;
-        logger.log('✅ Fresh configuration loaded:', freshActiveProperNouns);
-      } catch (configError) {
-        logger.error('❌ Failed to load fresh configuration:', configError);
-        freshActiveProperNouns = activeProperNounsFromConfig ?? ['properNouns'];
-        logger.log('⚠️  Using current configuration as fallback');
-      }
-
-      // Step 7: Reinitialize engine with fresh dictionaries and configuration
-      logger.log('Step 7: Reinitializing engine with fresh dictionaries and configuration...');
-      // IMPORTANT-6 FIX: Show progress
+      // Steps 6+7: Reload config and reinitialize engine (config reload moved into reinitialize)
+      logger.log('Steps 6+7: Reinitializing engine with fresh configuration and dictionaries...');
       setTranslatedText(
         '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
       );
@@ -2038,13 +2028,9 @@ const Translator = ({ isActive = true }) => {
         Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
 
       if (!isLoading && dictionariesToUse) {
-        const filteredDictionaries = filterDictionariesForEngine(
-          dictionariesToUse,
-          freshActiveProperNouns
-        );
-        await reinitialize(filteredDictionaries, {
+        await reinitialize(dictionariesToUse, {
+          forceConfigReload: true,
           priorities: ENGINE_PRIORITIES,
-          activeProperNouns: freshActiveProperNouns,
           debugLevel: DEBUG_LEVELS.ERROR,
         });
         if (!engineRef.current?.isReady()) {

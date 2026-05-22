@@ -45,11 +45,11 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 - `engineRef` — ref to current engine instance (or null).
 - `initError` — error string when `enginePhase === 'error'`, else null.
 - `activeProperNounsFromConfig` — loaded from disk once on mount; use directly in `Translator.jsx` (no sync hook needed).
-- `reinitialize(filteredDicts, options)` — never throws; errors go to `enginePhase`/`initError`.
+- `reinitialize(rawDicts, options)` — never throws; errors go to `enginePhase`/`initError`. Pass raw (unfiltered) dicts; the hook filters internally. Pass `forceConfigReload: true` to re-read config from disk — do NOT call `invalidateAppConfig`/`loadAppConfig` in the caller.
 
 **Race condition**: `reinitialize` sets `isInitializingRef.current = true` synchronously on entry and the hook's init effect checks `enginePhase === 'loading' && !isInitializingRef.current`. `handleForceReload` must NOT set any separate lock — `reinitialize` handles it.
 
-**Config load**: `useTranslatorEngine` calls `loadAppConfig()` once on mount (cached). `handleForceReload` must call `invalidateAppConfig()` then `loadAppConfig()` to get fresh values from disk — do NOT call `window.electronAPI.loadConfiguration()` directly.
+**Config load**: `useTranslatorEngine` calls `loadAppConfig()` once on mount (cached). For `handleForceReload`, pass `forceConfigReload: true` to `reinitialize` — do NOT call `invalidateAppConfig`/`loadAppConfig` directly in `Translator.jsx`.
 
 **Priority scheme**: defined as `ENGINE_PRIORITIES` constant in `useTranslatorEngine.js` and exported. Pass to both `reinitialize()` and the hook's own init — any change to priorities must be made there only.
 

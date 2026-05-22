@@ -65,3 +65,14 @@ Cache invalidation on reload stays in `handleForceReload`. Do not add a `diction
 - Segment cache: `src/utils/caching/TranslationSegmentCache.js` (singleton export `translationSegmentCache`)
 - Dictionary manager caches: `TranslationEngine.js` → `dictionaryManager.clearAllCaches()`
 - Pattern variable cache: `SemanticPatternProcessor.variableCache`
+
+## Scope Clarification (2026-05-22)
+
+This ADR covers the **full-reload** cache sequence only (3 caches, ordered, in `handleForceReload` Step 2).
+
+It does NOT cover **post-mutation invalidation** — the lightweight cache flush after a single CRUD operation (addEntry/updateEntry/deleteEntry/move/undo/redo). That concern is separate:
+
+- No ordering constraint, no `translationSegmentCache`, no engine teardown
+- Implemented via `registerCacheInvalidator` callback registered into `DictionaryContext` by `Translator.jsx` when `enginePhase === 'ready'`
+- Calls `engine.invalidateDictionaryCaches(dictionaryId)` (targeted, single-dict) at CRUD success time
+- The previous implementation used `window.translationEngine` (dev-only global) → silently no-op in production

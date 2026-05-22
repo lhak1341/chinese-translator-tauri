@@ -4,7 +4,7 @@
 
 ### `engine.initialize()` Requires `options.activeProperNouns` from Caller
 
-Does NOT read config from disk — uses `options.activeProperNouns || ['properNouns']`. If caller omits it, silently falls back to `['properNouns']` and `getFilteredDictionaries` drops all `properNouns-*` novel dicts — names go un-capitalized with no error. Both call sites in `Translator.jsx` must pass it: initial load passes React state; force reload passes a fresh disk read.
+Does NOT read config from disk — uses `options.activeProperNouns || ['properNouns']`. If caller omits it, silently falls back to `['properNouns']` and `getFilteredDictionaries` drops all `properNouns-*` novel dicts — names go un-capitalized with no error. Both call sites are inside `useTranslatorEngine.js`: initial load passes `activeProperNounsFromConfig` state; force reload uses `reinitialize(forceConfigReload: true)` which reads fresh config internally.
 
 ### `addUnit` Third Arg Must Be a Valid `PHASE_PRIORITIES` Key
 

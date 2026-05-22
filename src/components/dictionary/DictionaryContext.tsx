@@ -42,6 +42,8 @@ import type { BatchDictionaryResult } from '../../types/ElectronTypes';
 interface DictionaryContextValue extends DictionaryContextInterface {
   /** Change selected dictionary (sync — all dicts already loaded) */
   setSelectedDictionary: (dictionaryId: string) => void;
+  /** Register the engine's cache invalidation function. Called by Translator.jsx when engine is ready; pass null to clear on teardown. */
+  registerCacheInvalidator: (fn: ((dictionaryId: string) => Promise<void>) | null) => void;
 }
 
 /**
@@ -58,20 +60,18 @@ const DictionaryContext = createContext<DictionaryContextValue | undefined>(unde
 const MAX_HISTORY = 100;
 
 /**
- * Mirrors LazyDictionaryContext.tsx::invalidateTranslationEngineCache.
  * Clears the in-memory translation engine caches after a dictionary mutation so
  * subsequent translations use the updated entries rather than stale cached results.
+ * Calls the invalidator registered by Translator.jsx; no-op until the engine is ready.
  */
-async function invalidateTranslationEngineCache(dictionaryId: string): Promise<void> {
-  if (!window.translationEngine) return;
+async function invokeEngineInvalidator(
+  invalidatorRef: React.RefObject<((dictionaryId: string) => Promise<void>) | null>,
+  dictionaryId: string
+): Promise<void> {
+  if (!invalidatorRef.current) return;
   try {
-    if (typeof window.translationEngine.invalidateDictionaryCaches === 'function') {
-      await window.translationEngine.invalidateDictionaryCaches(dictionaryId);
-      logger.log('✅ Dictionary caches cleared');
-    } else if (typeof window.translationEngine.invalidateAllCaches === 'function') {
-      await window.translationEngine.invalidateAllCaches(dictionaryId);
-      logger.log('✅ All caches cleared');
-    }
+    await invalidatorRef.current(dictionaryId);
+    logger.log('✅ Dictionary caches cleared');
   } catch (cacheError) {
     toast.warning('Cache invalidation failed. Use Cmd/Ctrl-R to reload.', {
       duration: TOAST_DURATIONS.LOAD_FAILURE,
@@ -105,6 +105,14 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // Ref-mirror so addToHistory reads the latest index without being recreated on every undo/redo
   const currentHistoryIndexRef = useRef(currentHistoryIndex);
   currentHistoryIndexRef.current = currentHistoryIndex;
+  // Registered by Translator.jsx when engine is ready; cleared on engine teardown
+  const engineInvalidatorRef = useRef<((dictionaryId: string) => Promise<void>) | null>(null);
+  const registerCacheInvalidator = useCallback(
+    (fn: ((dictionaryId: string) => Promise<void>) | null) => {
+      engineInvalidatorRef.current = fn;
+    },
+    []
+  );
   // Ref-mirror so undo/redo move branches read latest dicts without closing over state
   const dictionariesRef = useRef(dictionaries);
   dictionariesRef.current = dictionaries;
@@ -350,7 +358,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           } else {
             toast.success('Entry added successfully');
           }
-          await invalidateTranslationEngineCache(dictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
           setDictionaries((prev) => ({
             ...prev,
@@ -466,7 +474,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             oldSource: oldSource !== cleanNewSource ? oldSource : undefined,
           });
           toast.success('Entry updated successfully');
-          await invalidateTranslationEngineCache(dictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
           setDictionaries((prev) => ({
             ...prev,
@@ -528,7 +536,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             },
           });
           toast.success('Entry deleted successfully');
-          await invalidateTranslationEngineCache(dictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
           setDictionaries((prev) => ({
             ...prev,
@@ -617,7 +625,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
               });
             }
           }
-          await invalidateTranslationEngineCache(dictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
           // Rollback on failure
           setDictionaries((prev) => ({
@@ -686,8 +694,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           oldEntry: { source, value: entryValue as DictionaryEntryValue },
         });
         toast.success(`Entry moved to ${targetDictLabel}`);
-        await invalidateTranslationEngineCache(sourceDictId);
-        await invalidateTranslationEngineCache(targetDictId);
+        await invokeEngineInvalidator(engineInvalidatorRef, sourceDictId);
+        await invokeEngineInvalidator(engineInvalidatorRef, targetDictId);
       } else {
         // Rollback React state
         setDictionaries((prev) => ({
@@ -768,8 +776,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
         const count = movedEntries.length;
         toast.success(`Moved ${count} ${count === 1 ? 'entry' : 'entries'} to ${targetDictLabel}`);
-        await invalidateTranslationEngineCache(sourceDictId);
-        await invalidateTranslationEngineCache(targetDictId);
+        await invokeEngineInvalidator(engineInvalidatorRef, sourceDictId);
+        await invokeEngineInvalidator(engineInvalidatorRef, targetDictId);
       } else {
         // Rollback React state
         setDictionaries((prev) => ({
@@ -839,8 +847,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             [operation.targetDictionaryId!]: sortedTarget,
           }));
           setCurrentHistoryIndex((prev) => prev - 1);
-          await invalidateTranslationEngineCache(operation.dictionaryId);
-          await invalidateTranslationEngineCache(operation.targetDictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, operation.targetDictionaryId);
           return true;
         }
         return false;
@@ -896,7 +904,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [operation.dictionaryId]: updatedDict,
         }));
         setCurrentHistoryIndex((prev) => prev - 1);
-        await invalidateTranslationEngineCache(operation.dictionaryId);
+        await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
         return true;
       }
     }
@@ -951,8 +959,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             [operation.targetDictionaryId!]: sortedTarget,
           }));
           setCurrentHistoryIndex((prev) => prev + 1);
-          await invalidateTranslationEngineCache(operation.dictionaryId);
-          await invalidateTranslationEngineCache(operation.targetDictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
+          await invokeEngineInvalidator(engineInvalidatorRef, operation.targetDictionaryId);
           return true;
         }
         return false;
@@ -1008,7 +1016,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           [operation.dictionaryId]: updatedDict,
         }));
         setCurrentHistoryIndex((prev) => prev + 1);
-        await invalidateTranslationEngineCache(operation.dictionaryId);
+        await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
         return true;
       }
     }
@@ -1040,6 +1048,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       setSelectedDictionary,
       getSortingStats,
       resetSortingStats,
+      registerCacheInvalidator,
     }),
     [
       dictionaries,
@@ -1057,6 +1066,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       history.length,
       loadDictionary,
       selectedDictionary,
+      registerCacheInvalidator,
     ]
   );
 

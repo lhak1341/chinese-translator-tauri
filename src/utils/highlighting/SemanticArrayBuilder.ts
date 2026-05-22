@@ -679,16 +679,12 @@ export class SemanticArrayBuilder {
 
   /**
    * Update semantic arrays with capitalized versions from final text.
-   * Algorithm mirrors SemanticArrayBuilder.updateWithCapitalizedText exactly:
    * - Fast path (O(1)): uses translatedStart/End position metadata when available
    * - Fallback: indexOf with a lazily-initialised lowercase copy of finalText
    *
-   * SYNC NOTE vs SemanticArrayBuilder: SemanticArrayBuilder also writes
-   * metadata[i].translatedText = actualText here. This builder intentionally omits that
-   * write because SemanticArrayMetadata has no translatedText field (memory optimization).
-   * getArrays(copy=true) reconstructs translatedText from this.translated[i] at call time,
-   * which is always up-to-date after this method runs. getArrays(copy=false) callers must
-   * not read metadata[i].translatedText — use copy=true for that field.
+   * NOTE: Does NOT write metadata[i].translatedText — SemanticArrayMetadata omits that
+   * field for memory efficiency. getArrays(copy=true) reconstructs translatedText from
+   * this.translated[i]; getArrays(copy=false) callers must not read metadata[i].translatedText.
    *
    * @param finalText - The final capitalized text
    */

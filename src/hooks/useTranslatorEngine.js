@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
-import { loadAppConfig } from '../utils/appConfig';
+import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -36,7 +36,7 @@ function filterDictionariesForEngine(dictionaries, activeProperNouns) {
  *   engineRef       — ref to current engine instance (or null)
  *   initError       — error message string when phase === 'error', else null
  *   activeProperNounsFromConfig — loaded from disk; use directly in Translator.jsx
- *   reinitialize    — async (filteredDictionaries, options) => void — for handleForceReload
+ *   reinitialize    — async (rawDictionaries, options) => void — config reload + filtering internal
  */
 export function useTranslatorEngine() {
   const { dictionaries, isLoading, loadError } = useDictionary();
@@ -93,16 +93,33 @@ export function useTranslatorEngine() {
   }, [isLoading, loadError, activeProperNounsFromConfig, dictionaries, enginePhase]);
 
   /**
-   * Reinitializes the engine with new dictionaries — called by handleForceReload.
+   * Reinitializes the engine — called by handleForceReload.
+   * Accepts raw (unfiltered) dictionaries. Handles config reload and proper-noun
+   * filtering internally when forceConfigReload is true.
    * Never rejects: errors are captured in initError / enginePhase === 'error'.
+   *
+   * @param {Object} rawDictionaries - All available dictionaries (unfiltered)
+   * @param {Object} [options]
+   * @param {boolean} [options.forceConfigReload=false] - Re-read config from disk; updates activeProperNounsFromConfig state
+   * @param {Object} [options.priorities] - Dictionary loading priorities
+   * @param {string} [options.debugLevel] - Engine debug level
    */
-  async function reinitialize(filteredDictionaries, options) {
+  async function reinitialize(rawDictionaries, options = {}) {
+    const { forceConfigReload = false, priorities, debugLevel } = options;
     if (isInitializingRef.current) return;
     isInitializingRef.current = true;
     setEnginePhase('loading');
     try {
+      let activeProperNouns = activeProperNounsFromConfig ?? ['properNouns'];
+      if (forceConfigReload) {
+        invalidateAppConfig();
+        const freshConfig = await loadAppConfig();
+        activeProperNouns = freshConfig.engine.activeProperNouns;
+        setActiveProperNounsFromConfig(activeProperNouns);
+      }
+      const filtered = filterDictionariesForEngine(rawDictionaries, activeProperNouns);
       engineRef.current = createTranslationEngine();
-      await engineRef.current.initialize(filteredDictionaries, options);
+      await engineRef.current.initialize(filtered, { priorities, activeProperNouns, debugLevel });
       setInitError(null);
       setEnginePhase('ready');
     } catch (error) {
@@ -123,4 +140,4 @@ export function useTranslatorEngine() {
   };
 }
 
-export { ENGINE_PRIORITIES, filterDictionariesForEngine };
+export { ENGINE_PRIORITIES };
