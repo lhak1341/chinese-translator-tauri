@@ -1,6 +1,7 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 import { logger } from '../logger.js';
+import { buildPatternVariableCache, buildTypeFilter } from './PatternVariableCache.js';
 
 /**
  * TwoPhasePatternProcessor - Rust WASM-accelerated hierarchical pattern processing
@@ -47,10 +48,6 @@ class TwoPhasePatternProcessor {
       enabled: false,
       extractSemanticTokens: { time: 0, calls: 0 },
       buildVariableCache: { time: 0, calls: 0 },
-      buildVariableCache_alreadyTranslated: { time: 0, calls: 0 },
-      buildVariableCache_phraseLookups: { time: 0, calls: 0 },
-      buildVariableCache_properNounLookups: { time: 0, calls: 0 },
-      buildVariableCache_fullTextScan: { time: 0, calls: 0 },
       processTokensWasm: { time: 0, calls: 0 },
     };
 
@@ -127,68 +124,28 @@ class TwoPhasePatternProcessor {
    */
   buildVariableCache(tokens, options) {
     const startTotal = performance.now();
-    const cache = {};
 
-    // Get options
-    const activeProperNouns = options.activeProperNouns || [];
-    const dictionaryManager = options.dictionaryManager;
-
-    // Performance optimization: pre-scan patterns for required variable types.
-    // If patterns specify allowedVariableTypes, we can skip cache entries of
-    // unneeded types — BUT only when ALL patterns are constrained. If any
-    // pattern has no allowedVariableTypes, it accepts any type, so filtering
-    // by type would silently exclude entries that the unconstrained pattern needs.
-    let requiredTypes = null;
-    let hasUnconstrainedPatterns = false;
-    for (const pattern of this.processedPatterns) {
-      if (pattern.metadata?.allowedVariableTypes) {
-        if (!requiredTypes) requiredTypes = new Set();
-        for (const types of Object.values(pattern.metadata.allowedVariableTypes)) {
-          for (const t of types) {
-            requiredTypes.add(t);
-          }
-        }
-      } else {
-        hasUnconstrainedPatterns = true;
+    // Shared stages 1–4 (proper nouns, phrases, full-text scan).
+    // resolveType: metadata?.semanticType if present; phrase source defaults to 'concept';
+    // proper noun sources default to null (force-include — all proper nouns are valid variables).
+    const cache = buildPatternVariableCache(
+      tokens,
+      {
+        activeProperNouns: options.activeProperNouns || [],
+        dictionaryManager: options.dictionaryManager,
+        patterns: this.processedPatterns,
+      },
+      (source, word, meta) => {
+        const t = meta?.semanticType || (source.includes('phrase') ? 'concept' : 'proper_noun');
+        return t === 'proper_noun' ? null : t;
       }
-    }
+    );
 
-    // Helper: check if an entry's type should be included in the cache.
-    const shouldInclude = (entryType) => {
-      if (!requiredTypes || hasUnconstrainedPatterns) return true; // No filter needed
-      if (!entryType) return true; // Untyped entries always included
-      return requiredTypes.has(entryType); // Skip if type not needed by any pattern
-    };
-
-    // Filter out 'phrases' from proper noun dictionaries
-    const actualProperNounDictionaries = activeProperNouns.filter((dict) => dict !== 'phrases');
-
-    // 1. Cache already-translated proper nouns from tokens
-    const start1 = performance.now();
-    for (const token of tokens) {
-      if (token.translated && token.translationSource?.includes('properNoun')) {
-        const entryType = token.metadata?.semanticType || 'proper_noun';
-        if (shouldInclude(entryType === 'proper_noun' ? null : entryType)) {
-          cache[token.value] = {
-            translation: token.translated,
-            source: token.translationSource,
-            type: entryType,
-          };
-        }
-      }
-    }
-    if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache_alreadyTranslated.time +=
-        performance.now() - start1;
-      this.internalProfiling.buildVariableCache_alreadyTranslated.calls++;
-    }
-
-    // 1b. Cache pattern-translated tokens that carry an explicit semantic type
-    // These come from a prior translation pass (cross-chunk or cross-pass) where
-    // a pattern match set token.patternSemanticType.  Adding them here lets
-    // subsequent WASM processing use the typed result as a typed variable in
-    // patterns whose allowedVariableTypes constraints would otherwise filter
-    // the token out.
+    // Step 1b (WASM-specific): pattern-translated tokens with explicit semantic types.
+    // Runs after shared stages so it wins over stage-1 proper-noun entries for the same word.
+    // These come from a prior translation pass where a pattern match set token.patternSemanticType,
+    // letting subsequent WASM processing use them as typed variables in constrained patterns.
+    const shouldInclude1b = buildTypeFilter(this.processedPatterns);
     for (const token of tokens) {
       if (
         token.translated &&
@@ -198,7 +155,7 @@ class TwoPhasePatternProcessor {
           token.translationSource === 'hierarchical_patterns' ||
           token.translationSource === 'hierarchical_patterns_composite')
       ) {
-        if (shouldInclude(token.patternSemanticType)) {
+        if (shouldInclude1b(token.patternSemanticType)) {
           cache[token.value] = {
             translation: token.translated,
             source: token.translationSource,
@@ -206,117 +163,6 @@ class TwoPhasePatternProcessor {
           };
         }
       }
-    }
-
-    // 2. Cache phrase translations with allowAsPatternVariable flag
-    if (!dictionaryManager) {
-      // No dictionary manager — Phases 1 and 1b have run; nothing more to do
-      return cache;
-    }
-    // Check both single tokens AND multi-character combinations
-    const start2 = performance.now();
-    for (let i = 0; i < tokens.length; i++) {
-      // Check single token
-      const singleResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
-      if (singleResult?.metadata?.allowAsPatternVariable) {
-        const singleType = singleResult.metadata?.semanticType || 'concept';
-        if (shouldInclude(singleType)) {
-          cache[tokens[i].value] = {
-            translation: singleResult.translation,
-            source: 'phrases_pattern_variable',
-            type: singleType,
-          };
-        }
-      }
-
-      // Check multi-character combinations (up to 6 characters)
-      for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
-        const combinedText = tokens
-          .slice(i, i + len)
-          .map((t) => t.value)
-          .join('');
-        const multiResult = dictionaryManager.translate(combinedText, ['phrases']);
-        if (multiResult?.metadata?.allowAsPatternVariable) {
-          const multiType = multiResult.metadata?.semanticType || 'concept';
-          if (shouldInclude(multiType)) {
-            cache[combinedText] = {
-              translation: multiResult.translation,
-              source: 'phrases_pattern_variable',
-              type: multiType,
-            };
-          }
-        }
-      }
-    }
-    if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache_phraseLookups.time += performance.now() - start2;
-      this.internalProfiling.buildVariableCache_phraseLookups.calls++;
-    }
-
-    // 3. Cache single-token proper noun dictionary lookups
-    const start3 = performance.now();
-    for (const token of tokens) {
-      const properNounResult = dictionaryManager.translate(
-        token.value,
-        actualProperNounDictionaries
-      );
-      // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
-      if (properNounResult) {
-        const pnType = properNounResult.metadata?.semanticType || 'proper_noun';
-        if (shouldInclude(pnType === 'proper_noun' ? null : pnType)) {
-          cache[token.value] = {
-            translation: properNounResult.translation,
-            source: properNounResult.dictionary + '_pattern_variable',
-            type: pnType,
-          };
-        }
-      }
-    }
-    if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache_properNounLookups.time +=
-        performance.now() - start3;
-      this.internalProfiling.buildVariableCache_properNounLookups.calls++;
-    }
-
-    // 4. CRITICAL: Full-text scanning for multi-character proper nouns
-    // This is essential because pattern variables can be multi-character names
-    // that span multiple tokens (e.g., "张三", "李四")
-    const start4 = performance.now();
-    const fullText = tokens.map((t) => t.value).join('');
-
-    for (let pos = 0; pos < fullText.length; pos++) {
-      const allProperNounMatches = dictionaryManager.findAllMatches(
-        fullText,
-        pos,
-        actualProperNounDictionaries
-      );
-
-      for (const match of allProperNounMatches) {
-        if (match.word && match.translation) {
-          // Defensive: if a phrase entry leaks through (actualProperNounDictionaries excludes 'phrases',
-          // so this guard should not fire in practice) apply the same allowAsPatternVariable gate used
-          // in step 2. Mirrors SemanticPatternProcessor.buildVariableCache full-text scan guard.
-          if (match.dictionary === 'phrases') {
-            const phrasesResult = dictionaryManager.translate(match.word, ['phrases']);
-            if (phrasesResult?.metadata?.allowAsPatternVariable !== true) {
-              continue;
-            }
-          }
-          // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
-          const matchType = match.metadata?.semanticType || 'proper_noun';
-          if (shouldInclude(matchType === 'proper_noun' ? null : matchType)) {
-            cache[match.word] = {
-              translation: match.translation,
-              source: match.dictionary + '_fulltext_scan',
-              type: matchType,
-            };
-          }
-        }
-      }
-    }
-    if (this.internalProfiling.enabled) {
-      this.internalProfiling.buildVariableCache_fullTextScan.time += performance.now() - start4;
-      this.internalProfiling.buildVariableCache_fullTextScan.calls++;
     }
 
     if (this.internalProfiling.enabled) {
@@ -448,65 +294,6 @@ class TwoPhasePatternProcessor {
       ).toFixed(2),
       percentage:
         ((this.internalProfiling.buildVariableCache.time / totalTime) * 100).toFixed(1) + '%',
-    });
-
-    // Variable cache sub-steps
-    report.push({
-      phase: '  ↳ Already Translated Tokens',
-      timeMs: this.internalProfiling.buildVariableCache_alreadyTranslated.time.toFixed(2),
-      calls: this.internalProfiling.buildVariableCache_alreadyTranslated.calls,
-      avgMs: (
-        this.internalProfiling.buildVariableCache_alreadyTranslated.time /
-        Math.max(1, this.internalProfiling.buildVariableCache_alreadyTranslated.calls)
-      ).toFixed(2),
-      percentage:
-        (
-          (this.internalProfiling.buildVariableCache_alreadyTranslated.time / totalTime) *
-          100
-        ).toFixed(1) + '%',
-    });
-
-    report.push({
-      phase: '  ↳ Phrase Lookups',
-      timeMs: this.internalProfiling.buildVariableCache_phraseLookups.time.toFixed(2),
-      calls: this.internalProfiling.buildVariableCache_phraseLookups.calls,
-      avgMs: (
-        this.internalProfiling.buildVariableCache_phraseLookups.time /
-        Math.max(1, this.internalProfiling.buildVariableCache_phraseLookups.calls)
-      ).toFixed(2),
-      percentage:
-        ((this.internalProfiling.buildVariableCache_phraseLookups.time / totalTime) * 100).toFixed(
-          1
-        ) + '%',
-    });
-
-    report.push({
-      phase: '  ↳ Proper Noun Lookups',
-      timeMs: this.internalProfiling.buildVariableCache_properNounLookups.time.toFixed(2),
-      calls: this.internalProfiling.buildVariableCache_properNounLookups.calls,
-      avgMs: (
-        this.internalProfiling.buildVariableCache_properNounLookups.time /
-        Math.max(1, this.internalProfiling.buildVariableCache_properNounLookups.calls)
-      ).toFixed(2),
-      percentage:
-        (
-          (this.internalProfiling.buildVariableCache_properNounLookups.time / totalTime) *
-          100
-        ).toFixed(1) + '%',
-    });
-
-    report.push({
-      phase: '  ↳ Full-Text Scan',
-      timeMs: this.internalProfiling.buildVariableCache_fullTextScan.time.toFixed(2),
-      calls: this.internalProfiling.buildVariableCache_fullTextScan.calls,
-      avgMs: (
-        this.internalProfiling.buildVariableCache_fullTextScan.time /
-        Math.max(1, this.internalProfiling.buildVariableCache_fullTextScan.calls)
-      ).toFixed(2),
-      percentage:
-        ((this.internalProfiling.buildVariableCache_fullTextScan.time / totalTime) * 100).toFixed(
-          1
-        ) + '%',
     });
 
     report.push({

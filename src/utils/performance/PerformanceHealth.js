@@ -17,8 +17,24 @@
 
 import { globalPerformanceMonitor } from './PerformanceMonitor';
 import { systemPerformanceMonitor } from './ProactivePerformanceDetector';
+import {
+  isWasmPatternProcessorAvailable,
+  hasWasmPatternProcessorFailed,
+} from '../wasm/WasmPatternProcessor';
+import { isWasmNumberProcessorAvailable } from '../wasm/WasmNumberProcessor';
 
 /** @typedef {'ok'|'degraded'|'critical'} HealthVerdict */
+
+/**
+ * @typedef {{ available: boolean, failed: boolean }} WasmProcessorStatus
+ * @typedef {{ available: boolean }} WasmNumberStatus
+ * @typedef {{
+ *   pattern: WasmProcessorStatus,
+ *   number: WasmNumberStatus,
+ *   anyFailed: boolean,
+ *   allAvailable: boolean
+ * }} WasmStatus
+ */
 
 /**
  * @typedef {{
@@ -29,7 +45,8 @@ import { systemPerformanceMonitor } from './ProactivePerformanceDetector';
  *   criticalAlerts: number,
  *   warningAlerts: number,
  *   baselines: number,
- *   verdict: HealthVerdict
+ *   verdict: HealthVerdict,
+ *   wasm: WasmStatus
  * }} HealthReport
  */
 
@@ -60,6 +77,18 @@ class PerformanceHealth {
       // systemPerformanceMonitor may not be initialized in test environments
     }
 
+    const patternAvailable = isWasmPatternProcessorAvailable();
+    const patternFailed = hasWasmPatternProcessorFailed();
+    const numberAvailable = isWasmNumberProcessorAvailable();
+
+    /** @type {WasmStatus} */
+    const wasm = {
+      pattern: { available: patternAvailable, failed: patternFailed },
+      number: { available: numberAvailable },
+      anyFailed: patternFailed,
+      allAvailable: patternAvailable && numberAvailable,
+    };
+
     return {
       operations: metrics.totalOperations ?? 0,
       avgTime: metrics.avgTime ?? 0,
@@ -69,6 +98,7 @@ class PerformanceHealth {
       warningAlerts,
       baselines,
       verdict: this._toVerdict(status),
+      wasm,
     };
   }
 

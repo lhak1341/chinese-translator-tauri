@@ -22,6 +22,7 @@
 import { calculatePatternPriority } from './PatternPriorityCalculator.js';
 import { logger } from '../logger.js';
 import { wasmStringProcessor } from '../wasm/WasmStringProcessor.js';
+import { buildPatternVariableCache } from './PatternVariableCache.js';
 
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
@@ -357,202 +358,45 @@ export class SemanticPatternProcessor {
    * @param {Array} phaseAResults - Optional Phase A pattern results for enhanced variable resolution
    */
   buildVariableCache(tokens, activeProperNouns, dictionaryManager, phaseAResults = []) {
-    this.variableCache.clear();
-
-    // Pre-scan patterns for required variable types (mirrors TwoPhasePatternProcessor guard).
-    // Filtering by requiredTypes is only correct when ALL patterns are constrained — any
-    // unconstrained pattern accepts any type, so filtering would silently exclude entries it needs.
-    // Guard: if (!requiredTypes || hasUnconstrainedPatterns) always include.
-    let requiredTypes = null;
-    let hasUnconstrainedPatterns = false;
-    for (const pattern of this.patterns) {
-      if (pattern.metadata?.allowedVariableTypes) {
-        if (!requiredTypes) requiredTypes = new Set();
-        for (const types of Object.values(pattern.metadata.allowedVariableTypes)) {
-          for (const t of types) {
-            requiredTypes.add(t);
-          }
-        }
-      } else {
-        hasUnconstrainedPatterns = true;
-      }
-    }
-    const shouldInclude = (/** @type {string|null|undefined} */ entryType) => {
-      if (!requiredTypes || hasUnconstrainedPatterns) return true;
-      if (!entryType) return true;
-      return requiredTypes.has(entryType);
-    };
-
-    // Build variable cache with Phase A results
-
-    // ENHANCED: Add Phase A results as high-priority pattern variables
-    // These structural patterns can serve as variables for Phase B patterns
+    // Phase A results seed the cache at lowest priority — shared stages 1–4 can overwrite them.
+    const phaseAInitial = {};
     for (const phaseAResult of phaseAResults) {
       if (phaseAResult.originalText && phaseAResult.translation) {
-        // Extract the variable content(s) from Phase A pattern (X and/or Y)
         const variableTexts = this.extractVariableFromPhaseAResult(phaseAResult);
         for (const variableText of variableTexts) {
-          this.variableCache.set(variableText, {
+          phaseAInitial[variableText] = {
             translation: phaseAResult.translation,
             source: 'phaseA_pattern',
             type: 'structural_pattern',
             confidence: 'high',
-            phaseAResult: phaseAResult,
-          });
+            phaseAResult,
+          };
         }
-
-        // Also cache the full Phase A result as a potential variable
-        this.variableCache.set(phaseAResult.originalText, {
+        phaseAInitial[phaseAResult.originalText] = {
           translation: phaseAResult.translation,
           source: 'phaseA_full_pattern',
           type: 'structural_pattern',
           confidence: 'high',
-          phaseAResult: phaseAResult,
-        });
+          phaseAResult,
+        };
       }
     }
 
-    // Cache only proper noun token translations as pattern variables
-    // Phrases must explicitly have allowAsPatternVariable flag (checked below)
-    for (const token of tokens) {
-      if (token.translated && token.translationSource) {
-        // Only cache proper nouns from this loop - phrases checked separately with allowAsPatternVariable flag
-        if (token.translationSource?.includes('properNoun')) {
-          const key = token.value;
-          const entryType = this.classifyVariableType(
-            token.translationSource,
-            token.value,
-            token.metadata
-          );
-          if (shouldInclude(entryType)) {
-            this.variableCache.set(key, {
-              translation: token.translated,
-              source: token.translationSource,
-              type: entryType,
-            });
-          }
-        }
-      }
-    }
+    const result = buildPatternVariableCache(
+      tokens,
+      { activeProperNouns, dictionaryManager, patterns: this.patterns },
+      (source, word, meta) => this.classifyVariableType(source, word, meta),
+      phaseAInitial
+    );
 
-    // Cache phrase translations with allowAsPatternVariable flag
-    // Check ALL tokens AND multi-character combinations for pattern variable capability
-    for (let i = 0; i < tokens.length; i++) {
-      // Check individual token
-      const singleTokenResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
-      if (singleTokenResult?.metadata?.allowAsPatternVariable) {
-        const entryType = this.classifyVariableType(
-          'phrases_pattern_variable',
-          tokens[i].value,
-          singleTokenResult.metadata
-        );
-        if (shouldInclude(entryType)) {
-          this.variableCache.set(tokens[i].value, {
-            translation: singleTokenResult.translation,
-            source: 'phrases_pattern_variable',
-            type: entryType,
-          });
-        }
-      }
+    this.variableCache = new Map(Object.entries(result));
 
-      // MEDIUM FIX: Build strings incrementally instead of slice+map+join each time
-      // Check multi-character combinations (up to 6 characters for efficiency)
-      let combinedText = tokens[i].value; // Start with first token
-      for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
-        combinedText += tokens[i + len - 1].value; // Append next token
-        const multiTokenResult = dictionaryManager.translate(combinedText, ['phrases']);
-        if (multiTokenResult?.metadata?.allowAsPatternVariable) {
-          const entryType = this.classifyVariableType(
-            'phrases_pattern_variable',
-            combinedText,
-            multiTokenResult.metadata
-          );
-          if (shouldInclude(entryType)) {
-            this.variableCache.set(combinedText, {
-              translation: multiTokenResult.translation,
-              source: 'phrases_pattern_variable',
-              type: entryType,
-            });
-          }
-        }
-      }
-    }
-
-    // Cache proper noun translations from active dictionaries
-    // This ensures proper nouns are available as pattern variables even if not yet translated
-    // Filter out 'phrases' from activeProperNouns since phrases are handled separately with allowAsPatternVariable flag
-    const actualProperNounDictionaries = activeProperNouns.filter((dict) => dict !== 'phrases');
-    for (const token of tokens) {
-      const properNounResult = dictionaryManager.translate(
-        token.value,
-        actualProperNounDictionaries
-      );
-      // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
-      if (properNounResult) {
-        const entryType = this.classifyVariableType(
-          properNounResult.dictionary + '_pattern_variable',
-          token.value,
-          properNounResult.metadata
-        );
-        if (shouldInclude(entryType)) {
-          this.variableCache.set(token.value, {
-            translation: properNounResult.translation,
-            source: properNounResult.dictionary + '_pattern_variable',
-            type: entryType,
-          });
-        }
-      }
-    }
-
-    // Build full text for proper noun scanning only
-    const fullText = tokens.map((t) => t.value).join('');
-
-    // Search for proper nouns at all positions
-    // Use actualProperNounDictionaries to avoid phrases dictionary in full text scanning
-    for (let pos = 0; pos < fullText.length; pos++) {
-      const allProperNounMatches = dictionaryManager.findAllMatches(
-        fullText,
-        pos,
-        actualProperNounDictionaries
-      );
-
-      for (const match of allProperNounMatches) {
-        // Defensive: phrases shouldn't appear here (actualProperNounDictionaries excludes 'phrases')
-        if (match.dictionary === 'phrases') {
-          const phrasesResult = dictionaryManager.translate(match.word, ['phrases']);
-          if (phrasesResult?.metadata?.allowAsPatternVariable !== true) {
-            continue;
-          }
-        }
-
-        // All proper nouns are valid pattern variables by design — no allowAsPatternVariable gate.
-
-        const entryType = this.classifyVariableType(
-          match.dictionary + '_pattern_variable',
-          match.word,
-          match.metadata
-        );
-        if (shouldInclude(entryType)) {
-          this.variableCache.set(match.word, {
-            translation: match.translation,
-            source: match.dictionary + '_pattern_variable',
-            type: entryType,
-          });
-        }
-      }
-    }
-
-    // HIGH FIX: Enforce variable cache size limit to prevent unbounded growth
     const MAX_VARIABLE_CACHE_SIZE = 10000;
     if (this.variableCache.size > MAX_VARIABLE_CACHE_SIZE) {
       logger.warn(
         `⚠️ Variable cache size (${this.variableCache.size}) exceeded limit ${MAX_VARIABLE_CACHE_SIZE}, performance may degrade`
       );
-      // Note: We don't truncate here to avoid breaking ongoing translations,
-      // but the warning alerts developers to optimize dictionary size or caching strategy
     }
-
-    // Variable cache built successfully
   }
 
   /**

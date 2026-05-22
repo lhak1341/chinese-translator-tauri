@@ -22,6 +22,14 @@ Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
 Read-only facade that answers "is the system healthy right now?" in one call. Combines `globalPerformanceMonitor` (timing metrics) and `systemPerformanceMonitor` (baseline regression tracking) so callers don't need to know which singleton owns which concern.
 
-`getReport(cacheHitRate)` returns `{ operations, avgTime, cacheHitRate, status, criticalAlerts, warningAlerts, baselines, verdict }`. `verdict` synthesizes `status` into three values: `'ok'` (healthy), `'degraded'` (warning), `'critical'`. Health is assessed at action time — after translate or after reload — not on a polling interval.
+`getReport(cacheHitRate)` returns `{ operations, avgTime, cacheHitRate, status, criticalAlerts, warningAlerts, baselines, verdict, wasm }`. `verdict` synthesizes `status` into three values: `'ok'` (healthy), `'degraded'` (warning), `'critical'`. `wasm` aggregates WASM processor availability: `{ pattern: { available, failed }, number: { available }, anyFailed, allAvailable }` — the single place to ask "is WASM the cause of degraded performance?" without importing from individual processor modules. Health is assessed at action time — after translate or after reload — not on a polling interval.
 
 Entry point: `src/utils/performance/PerformanceHealth.js`, re-exported from `src/utils/performance/index.ts`.
+
+## PatternVariableCache
+
+The shared dictionary lookup algorithm consumed by both PatternProcessor adapters. Builds a `word → {translation, source, type}` map from dictionary state; both `SemanticPatternProcessor` (JS) and `TwoPhasePatternProcessor` (WASM) pass this map to their respective matchers before executing.
+
+Four lookup stages run in fixed order, each able to overwrite earlier entries: (1) already-translated proper noun tokens, (2) phrase entries with `allowAsPatternVariable`, (3) proper noun single-token dictionary lookups, (4) full-text scan for multi-character proper nouns. Adapters supply a `resolveType(source, word, metadata) → string|null` strategy: returning `null` force-includes an entry bypassing `allowedVariableTypes` filtering; returning a type string applies normal type-filter logic. Adapter-specific setup that runs before the shared stages: Semantic injects Phase A results as lowest-priority seed entries; TwoPhase injects prior-pass pattern-translated tokens (`patternSemanticType`) as seed entries.
+
+Entry point: `src/utils/pattern/PatternVariableCache.js`.

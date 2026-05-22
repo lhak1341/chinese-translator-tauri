@@ -79,9 +79,11 @@ WASM accumulates consecutive punctuation into one field — `道：「说` gives
 
 A translation-scoped `let corruptionToastShown = false` guards `toast.error` to at most once per translation. `isCorrupted` is sticky across all 5 phase checks. Any new call site that toasts on `isCorrupted` must reuse this flag.
 
-### `SemanticPatternProcessor` ↔ `TwoPhasePatternProcessor` Variable Caches Must Stay in Sync
+### `buildVariableCache` Delegates to `PatternVariableCache.buildPatternVariableCache`
 
-Both have parallel `buildVariableCache` implementations. Changes to phrase type handling, token type filtering (`getSemanticTokens`/`extractSemanticTokens`), or `classifyVariableType` fallbacks in one must be mirrored in the other. Canonical phrase fallback: `metadata?.semanticType || 'concept'` (NOT `'phrase'`). Semantic token types: `chinese_char`, `chinese_word`, `latin_word`, `number`.
+`SemanticPatternProcessor.buildVariableCache` and `TwoPhasePatternProcessor.buildVariableCache` both delegate the four shared lookup stages (proper noun tokens, phrase lookups, proper noun single-token, full-text scan) to `src/utils/pattern/PatternVariableCache.js`. Changes to phrase type handling or the full-text scan guard go in `PatternVariableCache.js` only — no mirroring required.
+
+Adapter-specific logic that stays in each file: Semantic's Phase A result injection (seeded as lowest-priority `initialCache`); TwoPhase's step-1b pattern-translated tokens (`patternSemanticType`, runs AFTER shared stages so it overrides stage-1 proper-noun entries for the same word); type resolution strategy (`classifyVariableType` for Semantic vs `metadata?.semanticType` defaults for TwoPhase). Canonical phrase type fallback: `metadata?.semanticType || 'concept'` (NOT `'phrase'`). Semantic token types: `chinese_char`, `chinese_word`, `latin_word`, `number`.
 
 ### `buildVariableCache` `shouldInclude` Requires `hasUnconstrainedPatterns` Guard
 
