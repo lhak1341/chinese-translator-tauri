@@ -126,6 +126,7 @@
  * - MemoryLeakDetector.js (343 lines) - Zero engine dependencies
  * - TokenHelpers.js (6 pure functions) - No state modification
  * - PatternPriorityCalculator.js - Pure calculation function
+ * - ProperNounCapitalizationMap.ts - Pure map builder, no engine state
  *
  * See: docs/archive/refactoring-2026/EXTRACTION_SUMMARY.md
  * =============================================================================
@@ -172,6 +173,7 @@ import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './performance/ProactivePerformanceDetector.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
+import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
 import { wasmTextAssembler } from './wasm/WasmTextAssembler.js';
 import { MEMORY_THRESHOLDS, UI_UPDATE_THRESHOLDS } from '../constants/PerformanceThresholds.js';
 import { TranslationProfiler } from './performance/TranslationProfiler.js';
@@ -1180,44 +1182,11 @@ export class TranslationEngine {
       });
 
       // Cache proper noun translations for capitalization preservation
-      this.properNounTranslations = new Map(); // Maps lowercase translation -> original capitalization
-      let properNounCount = 0;
-      this.activeProperNouns.forEach((dictionaryName) => {
-        const dictionary = dictionaries[dictionaryName];
-        if (dictionary) {
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🏛️ Loading ${dictionaryName} with ${Object.keys(dictionary).length} entries`
-          );
-          Object.entries(dictionary).forEach(([chinese, vietnamese]) => {
-            if (typeof vietnamese === 'string') {
-              // MEMORY MANAGEMENT: Enforce size limit to prevent unbounded growth
-              if (this.properNounTranslations.size >= this.MAX_PROPER_NOUN_TRANSLATIONS) {
-                if (properNounCount === this.MAX_PROPER_NOUN_TRANSLATIONS) {
-                  // Only log once when limit is reached
-                  this.log(
-                    DEBUG_LEVELS.WARN,
-                    `⚠️ Proper noun translation cache limit reached (${this.MAX_PROPER_NOUN_TRANSLATIONS}). Additional entries will be ignored.`
-                  );
-                }
-                properNounCount++;
-                return; // Skip this entry
-              }
-
-              this.properNounTranslations.set(vietnamese.toLowerCase(), vietnamese);
-              properNounCount++;
-              this.log(
-                DEBUG_LEVELS.VERBOSE,
-                `🏛️ Cached proper noun: "${chinese}" -> "${vietnamese}" (lowercase: "${vietnamese.toLowerCase()}")`
-              );
-            }
-          });
-        } else {
-          this.log(DEBUG_LEVELS.ERROR, `❌ Dictionary ${dictionaryName} is missing or empty!`);
-        }
-      });
-
-      // Log final count
+      this.properNounTranslations = buildProperNounCapitalizationMap(
+        dictionaries,
+        this.activeProperNouns,
+        this.MAX_PROPER_NOUN_TRANSLATIONS
+      );
       this.log(
         DEBUG_LEVELS.DEBUG,
         `🏛️ Loaded ${this.properNounTranslations.size} proper noun translations into cache`

@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
+import { useThrottledValue } from './useThrottledValue';
 
 /**
  * @import { SemanticArrays, ProgressData } from '../types/SemanticTypes'
@@ -53,17 +54,7 @@ export function useStreamingTranslation(throttleMs = 100) {
   // Partial semantic arrays for streaming highlighting
   const [partialSemanticArrays, setPartialSemanticArrays] = useState(null);
 
-  // Throttled state for UI rendering (prevents flooding)
-  const [throttledStreamingState, setThrottledStreamingState] = useState(streamingTranslation);
-
-  // Throttle streaming state updates
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setThrottledStreamingState(streamingTranslation);
-    }, throttleMs);
-
-    return () => clearTimeout(timer);
-  }, [streamingTranslation, throttleMs]);
+  const throttledStreamingState = useThrottledValue(streamingTranslation, throttleMs);
 
   /**
    * Update streaming translation state

@@ -32,8 +32,8 @@ import type {
   DictionaryEntryValue,
   DictionaryEntryMetadata,
   DictionaryContextInterface,
-  HistoryOperation,
 } from '../../types/DictionaryTypes';
+import { useDictionaryHistory } from './useDictionaryHistory';
 import type { BatchDictionaryResult } from '../../types/ElectronTypes';
 
 /**
@@ -55,9 +55,6 @@ interface DictionaryProviderProps {
 
 // Create the context for dictionary management
 const DictionaryContext = createContext<DictionaryContextValue | undefined>(undefined);
-
-// Maximum number of operations to keep in history
-const MAX_HISTORY = 100;
 
 /**
  * Clears the in-memory translation engine caches after a dictionary mutation so
@@ -100,11 +97,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   const [dictionaries, setDictionaries] = useState<{ [key: string]: DictionaryData }>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [history, setHistory] = useState<HistoryOperation[]>([]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
-  // Ref-mirror so addToHistory reads the latest index without being recreated on every undo/redo
-  const currentHistoryIndexRef = useRef(currentHistoryIndex);
-  currentHistoryIndexRef.current = currentHistoryIndex;
   // Registered by Translator.jsx when engine is ready; cleared on engine teardown
   const engineInvalidatorRef = useRef<((dictionaryId: string) => Promise<void>) | null>(null);
   const registerCacheInvalidator = useCallback(
@@ -116,6 +108,60 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // Ref-mirror so undo/redo move branches read latest dicts without closing over state
   const dictionariesRef = useRef(dictionaries);
   dictionariesRef.current = dictionaries;
+
+  // Stable callback: sort → save → update state. Used by useDictionaryHistory for undo/redo.
+  const commitMutation = useCallback(
+    async (updates: Array<{ dictionaryId: string; entries: DictionaryData }>): Promise<boolean> => {
+      const results = await Promise.all(
+        updates.map(({ dictionaryId, entries }) =>
+          window.electronAPI.saveDictionary(dictionaryId, entries)
+        )
+      );
+      if (results.every((r) => r.success)) {
+        setDictionaries((prev) => {
+          const next = { ...prev };
+          for (const { dictionaryId, entries } of updates) {
+            next[dictionaryId] = entries;
+          }
+          return next;
+        });
+        return true;
+      }
+      return false;
+    },
+    [] // stable — setDictionaries is stable, window.electronAPI is a module global
+  );
+
+  // Stable wrapper so useDictionaryHistory doesn't import invokeEngineInvalidator directly
+  const invalidateEngine = useCallback(
+    (dictionaryId: string) => invokeEngineInvalidator(engineInvalidatorRef, dictionaryId),
+    [] // stable — reads engineInvalidatorRef.current
+  );
+
+  const { addToHistory, undo, redo, canUndo, canRedo } = useDictionaryHistory(
+    dictionariesRef,
+    commitMutation,
+    invalidateEngine
+  );
+
+  // Shared mutation protocol for single-dictionary CRUD ops.
+  // Owns: optimistic setDictionaries → saveDictionary → rollback on failure.
+  // Callers own: diff computation, sort, addToHistory, toast, invalidateEngine.
+  const persistDictionaryMutation = useCallback(
+    async (
+      dictionaryId: string,
+      oldData: DictionaryData,
+      sortedEntries: DictionaryData
+    ): Promise<boolean> => {
+      setDictionaries((prev) => ({ ...prev, [dictionaryId]: sortedEntries }));
+      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedEntries);
+      if (result.success && result.data) return true;
+      setDictionaries((prev) => ({ ...prev, [dictionaryId]: oldData }));
+      return false;
+    },
+    [] // stable — setDictionaries is stable, window.electronAPI is a module global
+  );
+
   const [selectedDictionary, setSelectedDictionary] = useState<string>('properNouns');
 
   // Load initial dictionaries and configuration
@@ -255,26 +301,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     }
   }, []);
 
-  // Helper function to add delta-based operations to history
-  // Memory-optimized: stores only changed entries instead of full dictionaries
-  const addToHistory = useCallback(
-    (operation: Omit<HistoryOperation, 'timestamp'>): void => {
-      setHistory((prevHistory) => {
-        const newHistory = prevHistory.slice(0, currentHistoryIndexRef.current + 1);
-        newHistory.push({
-          ...operation,
-          timestamp: Date.now(),
-        });
-        if (newHistory.length > MAX_HISTORY) {
-          newHistory.shift();
-        }
-        return newHistory;
-      });
-      setCurrentHistoryIndex((prev) => Math.min(prev + 1, MAX_HISTORY - 1));
-    },
-    [] // stable — reads currentHistoryIndex via currentHistoryIndexRef.current
-  );
-
   // Add a new entry to a dictionary
   const addEntry = useCallback(
     async (
@@ -335,23 +361,12 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           cleanSource
         );
 
-        // Optimistic update
-        setDictionaries((prev) => ({
-          ...prev,
-          [dictionaryId]: sortedDictionary,
-        }));
-
-        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-        if (result.success && result.data) {
-          // Delta-based history: store only the added entry
+        const ok = await persistDictionaryMutation(dictionaryId, oldData, sortedDictionary);
+        if (ok) {
           addToHistory({
             dictionaryId,
             operation: 'add',
-            entry: {
-              source: cleanSource,
-              value: targetValue,
-            },
+            entry: { source: cleanSource, value: targetValue },
           });
           if (isOverwrite) {
             toast.warning('Existing entry overwritten');
@@ -360,10 +375,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           }
           await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
-          setDictionaries((prev) => ({
-            ...prev,
-            [dictionaryId]: oldData,
-          }));
           toast.error('Failed to save dictionary changes');
           throw new SaveError('Failed to save dictionary changes');
         }
@@ -375,7 +386,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         throw error;
       }
     },
-    [dictionaries, addToHistory]
+    [dictionaries, addToHistory, persistDictionaryMutation]
   );
 
   // Update an existing entry
@@ -448,38 +459,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           oldSource
         );
 
-        // Optimistic update
-        setDictionaries((prev) => ({
-          ...prev,
-          [dictionaryId]: sortedDictionary,
-        }));
-
-        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-        if (result.success && result.data) {
-          // Delta-based history: store only the changed entry
+        const ok = await persistDictionaryMutation(dictionaryId, oldData, sortedDictionary);
+        if (ok) {
           addToHistory({
             dictionaryId,
             operation: 'update',
-            entry: {
-              source: cleanNewSource,
-              value: targetValue,
-            },
-            oldEntry: oldEntryValue
-              ? {
-                  source: oldSource,
-                  value: oldEntryValue,
-                }
-              : undefined,
+            entry: { source: cleanNewSource, value: targetValue },
+            oldEntry: oldEntryValue ? { source: oldSource, value: oldEntryValue } : undefined,
             oldSource: oldSource !== cleanNewSource ? oldSource : undefined,
           });
           toast.success('Entry updated successfully');
           await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
-          setDictionaries((prev) => ({
-            ...prev,
-            [dictionaryId]: oldData,
-          }));
           toast.error('Failed to save dictionary changes');
           throw new SaveError('Failed to save dictionary changes');
         }
@@ -491,7 +482,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         throw error;
       }
     },
-    [dictionaries, addToHistory]
+    [dictionaries, addToHistory, persistDictionaryMutation]
   );
 
   // Delete an entry
@@ -517,31 +508,16 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         delete updatedDictionary[source];
         const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, source);
 
-        // Optimistic update
-        setDictionaries((prev) => ({
-          ...prev,
-          [dictionaryId]: sortedDictionary,
-        }));
-
-        const result = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-        if (result.success && result.data) {
-          // Delta-based history: store only the deleted entry
+        const ok = await persistDictionaryMutation(dictionaryId, oldData, sortedDictionary);
+        if (ok) {
           addToHistory({
             dictionaryId,
             operation: 'delete',
-            oldEntry: {
-              source,
-              value: oldEntryValue,
-            },
+            oldEntry: { source, value: oldEntryValue },
           });
           toast.success('Entry deleted successfully');
           await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
-          setDictionaries((prev) => ({
-            ...prev,
-            [dictionaryId]: oldData,
-          }));
           toast.error('Failed to delete dictionary entry');
           throw new SaveError('Failed to delete dictionary entry');
         }
@@ -553,7 +529,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         throw error;
       }
     },
-    [dictionaries, addToHistory]
+    [dictionaries, addToHistory, persistDictionaryMutation]
   );
 
   // Bulk delete multiple entries from a dictionary in one operation
@@ -596,42 +572,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         const sortAnchor = deletedEntries[0]?.source ?? sources[0];
         const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sortAnchor);
 
-        // Pure functional update — no side effects inside updater
-        setDictionaries((prev) => ({
-          ...prev,
-          [dictionaryId]: sortedDictionary,
-        }));
-
-        // Save dictionary to backend
-        const saveResult = await window.electronAPI.saveDictionary(dictionaryId, sortedDictionary);
-
-        if (saveResult.success && saveResult.data) {
-          // Add to history - use bulk_delete operation for multiple entries
+        const ok = await persistDictionaryMutation(dictionaryId, oldData, sortedDictionary);
+        if (ok) {
           // CODE REVIEW FIX 2026-02-09 (CRITICAL): Store all deleted entries for proper undo
           if (deletedEntries.length > 0) {
             if (deletedEntries.length === 1) {
-              // Single entry - use regular delete for backward compatibility
-              addToHistory({
-                dictionaryId,
-                operation: 'delete',
-                oldEntry: deletedEntries[0],
-              });
+              addToHistory({ dictionaryId, operation: 'delete', oldEntry: deletedEntries[0] });
             } else {
-              // Multiple entries - use bulk_delete operation
-              addToHistory({
-                dictionaryId,
-                operation: 'bulk_delete',
-                oldEntries: deletedEntries,
-              });
+              addToHistory({ dictionaryId, operation: 'bulk_delete', oldEntries: deletedEntries });
             }
           }
           await invokeEngineInvalidator(engineInvalidatorRef, dictionaryId);
         } else {
-          // Rollback on failure
-          setDictionaries((prev) => ({
-            ...prev,
-            [dictionaryId]: oldData,
-          }));
           toast.error('Failed to save dictionary after bulk delete');
           throw new SaveError('Failed to save dictionary after bulk delete');
         }
@@ -645,7 +597,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         throw error;
       }
     },
-    [dictionaries, addToHistory]
+    [dictionaries, addToHistory, persistDictionaryMutation]
   );
 
   // Move a single entry between dictionaries atomically
@@ -798,231 +750,6 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     [dictionaries, addToHistory]
   );
 
-  // Undo function - applies delta-based operations in reverse
-  // CODE REVIEW FIX 2026-02-08 (CRITICAL): Use functional updates to prevent race conditions
-  const undo = useCallback(async (): Promise<boolean> => {
-    if (currentHistoryIndex >= 0) {
-      const operation = history[currentHistoryIndex];
-
-      // Handle cross-dictionary move operations
-      if (
-        (operation.operation === 'move' || operation.operation === 'bulk_move') &&
-        operation.targetDictionaryId
-      ) {
-        const currentDicts = dictionariesRef.current;
-        const sourceDict = currentDicts[operation.dictionaryId];
-        const targetDict = currentDicts[operation.targetDictionaryId];
-        if (!sourceDict || !targetDict) {
-          logger.error(`Cannot undo move: dictionaries not found`);
-          return false;
-        }
-
-        const newTargetDict = { ...targetDict };
-        const newSourceDict = { ...sourceDict };
-
-        const entries =
-          operation.operation === 'move'
-            ? operation.oldEntry
-              ? [operation.oldEntry]
-              : []
-            : (operation.oldEntries ?? []);
-
-        for (const e of entries) {
-          delete newTargetDict[e.source];
-          newSourceDict[e.source] = e.value;
-        }
-
-        const sortedSource = sortDictionaryEntries(newSourceDict, operation.dictionaryId);
-        const sortedTarget = sortDictionaryEntries(newTargetDict, operation.targetDictionaryId);
-
-        const [sourceResult, targetResult] = await Promise.all([
-          window.electronAPI.saveDictionary(operation.dictionaryId, sortedSource),
-          window.electronAPI.saveDictionary(operation.targetDictionaryId, sortedTarget),
-        ]);
-
-        if (sourceResult.success && targetResult.success) {
-          setDictionaries((prev) => ({
-            ...prev,
-            [operation.dictionaryId]: sortedSource,
-            [operation.targetDictionaryId!]: sortedTarget,
-          }));
-          setCurrentHistoryIndex((prev) => prev - 1);
-          await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
-          await invokeEngineInvalidator(engineInvalidatorRef, operation.targetDictionaryId);
-          return true;
-        }
-        return false;
-      }
-
-      // Read from ref-mirror instead of setDictionaries side-effect (React Concurrent Mode safe)
-      const currentDict = dictionariesRef.current[operation.dictionaryId];
-      if (!currentDict) {
-        logger.error(`Cannot undo: dictionary ${operation.dictionaryId} not found`);
-        return false;
-      }
-
-      // Apply reverse operation based on type
-      let newDict = { ...currentDict };
-
-      if (operation.operation === 'add') {
-        // Reverse add: delete the entry
-        if (operation.entry) {
-          delete newDict[operation.entry.source];
-        }
-      } else if (operation.operation === 'update') {
-        // Reverse update: restore old entry
-        if (operation.oldEntry) {
-          // If source changed, remove new source
-          if (operation.oldSource && operation.oldSource !== operation.entry?.source) {
-            delete newDict[operation.entry!.source];
-          }
-          // Restore old entry
-          newDict[operation.oldEntry.source] = operation.oldEntry.value;
-        }
-      } else if (operation.operation === 'delete') {
-        // Reverse delete: restore the entry
-        if (operation.oldEntry) {
-          newDict[operation.oldEntry.source] = operation.oldEntry.value;
-        }
-      } else if (operation.operation === 'bulk_delete') {
-        // Reverse bulk_delete: restore all entries
-        if (operation.oldEntries) {
-          for (const oldEntry of operation.oldEntries) {
-            newDict[oldEntry.source] = oldEntry.value;
-          }
-        }
-      }
-
-      // Re-sort dictionary after applying delta
-      const updatedDict = sortDictionaryEntries(newDict, operation.dictionaryId);
-
-      const result = await window.electronAPI.saveDictionary(operation.dictionaryId, updatedDict);
-
-      if (result.success) {
-        setDictionaries((prev) => ({
-          ...prev,
-          [operation.dictionaryId]: updatedDict,
-        }));
-        setCurrentHistoryIndex((prev) => prev - 1);
-        await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
-        return true;
-      }
-    }
-    return false;
-  }, [history, currentHistoryIndex]);
-
-  // Redo function - re-applies delta-based operations
-  // CODE REVIEW FIX 2026-02-08 (CRITICAL): Use functional updates to prevent race conditions
-  const redo = useCallback(async (): Promise<boolean> => {
-    if (currentHistoryIndex < history.length - 1) {
-      const operation = history[currentHistoryIndex + 1];
-
-      // Handle cross-dictionary move operations
-      if (
-        (operation.operation === 'move' || operation.operation === 'bulk_move') &&
-        operation.targetDictionaryId
-      ) {
-        const sourceDict = dictionariesRef.current[operation.dictionaryId];
-        const targetDict = dictionariesRef.current[operation.targetDictionaryId];
-        if (!sourceDict || !targetDict) {
-          logger.error(`Cannot redo move: dictionaries not found`);
-          return false;
-        }
-
-        const newSourceDict = { ...sourceDict };
-        const newTargetDict = { ...targetDict };
-
-        const entries =
-          operation.operation === 'move'
-            ? operation.oldEntry
-              ? [operation.oldEntry]
-              : []
-            : (operation.oldEntries ?? []);
-
-        for (const e of entries) {
-          delete newSourceDict[e.source];
-          newTargetDict[e.source] = e.value;
-        }
-
-        const sortedSource = sortDictionaryEntries(newSourceDict, operation.dictionaryId);
-        const sortedTarget = sortDictionaryEntries(newTargetDict, operation.targetDictionaryId);
-
-        const [sourceResult, targetResult] = await Promise.all([
-          window.electronAPI.saveDictionary(operation.dictionaryId, sortedSource),
-          window.electronAPI.saveDictionary(operation.targetDictionaryId, sortedTarget),
-        ]);
-
-        if (sourceResult.success && targetResult.success) {
-          setDictionaries((prev) => ({
-            ...prev,
-            [operation.dictionaryId]: sortedSource,
-            [operation.targetDictionaryId!]: sortedTarget,
-          }));
-          setCurrentHistoryIndex((prev) => prev + 1);
-          await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
-          await invokeEngineInvalidator(engineInvalidatorRef, operation.targetDictionaryId);
-          return true;
-        }
-        return false;
-      }
-
-      // Read from ref-mirror instead of setDictionaries side-effect (React Concurrent Mode safe)
-      const currentDict = dictionariesRef.current[operation.dictionaryId];
-      if (!currentDict) {
-        logger.error(`Cannot redo: dictionary ${operation.dictionaryId} not found`);
-        return false;
-      }
-
-      // Apply forward operation based on type
-      let newDict = { ...currentDict };
-
-      if (operation.operation === 'add') {
-        // Redo add: add the entry
-        if (operation.entry) {
-          newDict[operation.entry.source] = operation.entry.value;
-        }
-      } else if (operation.operation === 'update') {
-        // Redo update: apply new entry
-        if (operation.entry) {
-          // If source changed, remove old source
-          if (operation.oldSource && operation.oldSource !== operation.entry.source) {
-            delete newDict[operation.oldSource];
-          }
-          // Apply new entry
-          newDict[operation.entry.source] = operation.entry.value;
-        }
-      } else if (operation.operation === 'delete') {
-        // Redo delete: delete the entry
-        if (operation.oldEntry) {
-          delete newDict[operation.oldEntry.source];
-        }
-      } else if (operation.operation === 'bulk_delete') {
-        // Redo bulk_delete: delete all entries
-        if (operation.oldEntries) {
-          for (const oldEntry of operation.oldEntries) {
-            delete newDict[oldEntry.source];
-          }
-        }
-      }
-
-      // Re-sort dictionary after applying delta
-      const updatedDict = sortDictionaryEntries(newDict, operation.dictionaryId);
-
-      const result = await window.electronAPI.saveDictionary(operation.dictionaryId, updatedDict);
-
-      if (result.success) {
-        setDictionaries((prev) => ({
-          ...prev,
-          [operation.dictionaryId]: updatedDict,
-        }));
-        setCurrentHistoryIndex((prev) => prev + 1);
-        await invokeEngineInvalidator(engineInvalidatorRef, operation.dictionaryId);
-        return true;
-      }
-    }
-    return false;
-  }, [history, currentHistoryIndex]);
-
   // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
   // no useCallback wrapper needed; pass them directly in the value object below.
 
@@ -1041,8 +768,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       bulkMoveEntries,
       undo,
       redo,
-      canUndo: currentHistoryIndex >= 0,
-      canRedo: currentHistoryIndex < history.length - 1,
+      canUndo,
+      canRedo,
       loadDictionary,
       selectedDictionary,
       setSelectedDictionary,
@@ -1062,8 +789,8 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       bulkMoveEntries,
       undo,
       redo,
-      currentHistoryIndex,
-      history.length,
+      canUndo,
+      canRedo,
       loadDictionary,
       selectedDictionary,
       registerCacheInvalidator,

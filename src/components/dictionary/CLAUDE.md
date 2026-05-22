@@ -10,9 +10,11 @@ After touching any CRUD function or `addToHistory`, audit for:
 4. `isValidationError`/`isSaveError` double-toast guards
 5. Metadata coverage (`allowAsPatternVariable`, `lowPriority`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
 6. `sanitizeDictionaryEntry` called at the top of `addEntry`/`updateEntry` before validation
-7. Cache invalidation called after successful save via `invokeEngineInvalidator(engineInvalidatorRef, id)` — required in every CRUD success branch AND in `undo`/`redo` paths. `engineInvalidatorRef` is registered by `Translator.jsx` at engine-ready time.
+7. Cache invalidation called after successful save via `invokeEngineInvalidator(engineInvalidatorRef, id)` — required in every CRUD success branch. `engineInvalidatorRef` is registered by `Translator.jsx` at engine-ready time. Undo/redo paths handle invalidation via `invalidateEngine` injected into `useDictionaryHistory`.
 
-`undo`/`redo` dep arrays: `[history, currentHistoryIndex]` — not `dictionaries`; read `dictionariesRef.current` directly.
+**Single-dict CRUD protocol**: `addEntry`, `updateEntry`, `deleteEntry`, `bulkDeleteEntries` all go through `persistDictionaryMutation(dictionaryId, oldData, sortedEntries) → Promise<boolean>`. This helper owns optimistic `setDictionaries` → `saveDictionary` → rollback on failure. Callers own: diff computation, `sortDictionaryEntries`, `addToHistory`, toast, `invokeEngineInvalidator`. Move ops (`moveEntry`, `bulkMoveEntries`) do NOT use this helper — they touch 2 dicts with partial revert logic.
+
+`undo`/`redo` live in `src/components/dictionary/useDictionaryHistory.ts`. Dep arrays: `[history, currentHistoryIndex, commitMutation, invalidateEngine]` — `dictionariesRef` intentionally excluded (stable ref); read `dictionariesRef.current` directly.
 
 ## React State Updater Rules
 
