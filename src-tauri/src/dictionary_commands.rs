@@ -1252,11 +1252,6 @@ pub async fn reset_dictionaries(
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct BatchDictionaryRequest {
-    dictionary_ids: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct BatchDictionaryResult {
     dictionary_id: String,
     success: bool,

@@ -166,16 +166,6 @@ impl Default for IndexBuildOptions {
     }
 }
 
-/// Result of index building operation
-#[derive(Debug, Serialize, Deserialize)]
-pub struct IndexBuildResult {
-    pub success: bool,
-    pub index_size: usize,
-    pub positions_indexed: usize,
-    pub build_time_ms: u128,
-    pub index: HashMap<u32, CategorizedMatches>,
-}
-
 /// Build comprehensive lookup index for text
 ///
 /// This is the main entry point for the lookup index builder.
