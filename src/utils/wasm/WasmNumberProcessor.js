@@ -51,6 +51,7 @@ import { logger } from '../logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { categorizeWasmError, formatWasmError } from './wasmErrorHandler';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+import { wasmTextAssembler } from './WasmTextAssembler';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -128,6 +129,9 @@ export async function processNumbersWasm(tokens) {
 
     // Call WASM NumberProcessor (null check narrows type for @ts-check — logically unreachable)
     if (!wasmNumberProcessor) return tokens;
+    // DEBUG: capture input before WASM call so a panic is reproducible in Rust unit tests
+    // Remove once root-cause is identified (tracked in HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md)
+    logger.debug('WasmNumberProcessor input:', JSON.stringify(tokens));
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (/** @type {any} */ error) {
@@ -136,6 +140,10 @@ export async function processNumbersWasm(tokens) {
     // so the next translation attempt can re-initialize from scratch.
     wasmNumberProcessor = null;
     lifecycle.reset();
+    // Both processors share one WASM module — a NumberProcessor panic corrupts the shared
+    // linear memory, so the TextAssembler will also panic on its next call. Retire it now
+    // to avoid the secondary panic and go straight to JS fallback.
+    wasmTextAssembler.retireOnSharedModulePanic();
 
     const errorInfo = categorizeWasmError(error, 'number-processor');
 

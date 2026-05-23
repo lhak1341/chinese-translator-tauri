@@ -158,6 +158,17 @@ class WasmTextAssemblerWrapper {
   }
 
   /**
+   * Proactively retire this assembler when the shared WASM module is known-corrupted
+   * (e.g. NumberProcessor panicked — shared linear memory is already tainted).
+   * Prevents a secondary panic on the next assembleWithSpacing call.
+   */
+  retireOnSharedModulePanic() {
+    this.assembler = null;
+    this.initialized = false;
+    this.initializationFailed = true;
+  }
+
+  /**
    * Assemble segments with token-type-based spacing and position tracking.
    *
    * Mirrors the 10 spacing rules from `TranslationEngine.js:postProcess()` Step 2.

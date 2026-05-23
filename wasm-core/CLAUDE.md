@@ -19,6 +19,10 @@ Compound tokens (e.g. `"传奇"`) silently return no patterns otherwise — no e
 JS fallback then runs silently. If a rebuilt WASM binary seems to have no effect: old binary likely caused 3 failures → failure flag is set.
 Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or do a full WebView reload.
 
+## Build Profile
+
+`npm run build-wasm-dev` (`wasm-pack build --dev`) = debug WASM — `overflow-checks = true`, `debug_assertions = true`, unoptimized. A panic in `tauri:dev` may not reproduce in production (`build-wasm` uses release: `overflow-checks = false`, `opt-level = 3`). When debugging a WASM panic, verify whether it is debug-only before assuming a logic error.
+
 ## Test locations
 
 - `tests/two_phase_test.rs` — two-phase + hierarchical composite tests

@@ -117,7 +117,7 @@ Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = nul
 
 ### `WasmNumberProcessor` and `WasmTextAssembler` Share One WASM Instance
 
-Both import `init` from `translation_wasm_core.js`. A `NumberProcessor.processTokens()` panic leaves the module corrupted; the next `assembleWithSpacing()` call triggers a secondary panic (`alloc/src/rc.rs: hint::assert_unchecked` — Rust 1.84+ UB check, previously silent). Both wrappers retire on their own panics. Cascade-retire fix (proactively retire TextAssembler when NumberProcessor panics) tracked in `docs/HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md`.
+Both import `init` from `translation_wasm_core.js`. A `NumberProcessor.processTokens()` panic leaves the module corrupted; the next `assembleWithSpacing()` call triggers a secondary panic (`alloc/src/rc.rs: hint::assert_unchecked` — Rust 1.84+ UB check, previously silent). Both wrappers retire on their own panics. Cascade-retire implemented: `WasmTextAssembler.retireOnSharedModulePanic()` is called from `WasmNumberProcessor.js` catch block after `lifecycle.reset()`. Root cause of primary NumberProcessor panic still unknown — `logger.debug` in `processNumbersWasm` captures tokens just before the WASM call for reproduction.
 
 ### WASM Singleton Modules Must Call `.initialize().catch(warn)` at Module Bottom
 

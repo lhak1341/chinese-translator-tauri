@@ -506,6 +506,16 @@ impl NumberProcessor {
             }
         }
 
+        // Zero + single digit (e.g. 零一 = 1, 零九 = 9) — appears as remainder after 千/百
+        if text.chars().count() == 2 {
+            let mut chars = text.chars();
+            if chars.next() == Some('零') {
+                if let Some(ch) = chars.next() {
+                    return self.get_number(ch);
+                }
+            }
+        }
+
         // Single digit — use chars().count(), not len() (Chinese chars are 3 bytes each)
         if text.chars().count() == 1 {
             let ch = text.chars().next()?;
@@ -658,18 +668,50 @@ impl NumberProcessor {
 mod tests {
     use super::*;
 
+    fn tok(value: &str) -> Token {
+        Token {
+            token_type: "chinese_char".to_string(),
+            value: value.to_string(),
+            translated: None,
+            translation_source: None,
+        }
+    }
+
+    fn tok_translated(value: &str, translated: &str) -> Token {
+        Token {
+            token_type: "chinese_char".to_string(),
+            value: value.to_string(),
+            translated: Some(translated.to_string()),
+            translation_source: None,
+        }
+    }
+
+    fn tok_sourced(value: &str, source: &str) -> Token {
+        Token {
+            token_type: "chinese_char".to_string(),
+            value: value.to_string(),
+            translated: None,
+            translation_source: Some(source.to_string()),
+        }
+    }
+
+    fn tok_latin(value: &str) -> Token {
+        Token {
+            token_type: "latin_word".to_string(),
+            value: value.to_string(),
+            translated: None,
+            translation_source: None,
+        }
+    }
+
     #[test]
     fn test_all_regex_patterns_compile() {
-        // Validate all patterns compiled successfully
         assert!(!PATTERNS.is_empty(), "No patterns loaded - all regex compilation failed");
-
-        // Should have all 16 patterns
         assert_eq!(PATTERNS.len(), 16, "Expected 16 patterns, got {}", PATTERNS.len());
     }
 
     #[test]
     fn test_parsing_regex_compile() {
-        // Validate parsing regex compiled successfully
         assert!(THOUSANDS_RE.is_match("三千"));
         assert!(HUNDREDS_RE.is_match("三百"));
         assert!(TENS_RE.is_match("三十"));
@@ -678,8 +720,6 @@ mod tests {
     #[test]
     fn test_simple_number_conversion() {
         let processor = NumberProcessor::new();
-
-        // Test parse_chinese_number
         assert_eq!(processor.parse_chinese_number("三十五"), Some(35));
         assert_eq!(processor.parse_chinese_number("十七"), Some(17));
         assert_eq!(processor.parse_chinese_number("三百"), Some(300));
@@ -690,5 +730,283 @@ mod tests {
         assert_eq!(NumberProcessor::format_with_commas(1000), "1,000");
         assert_eq!(NumberProcessor::format_with_commas(1000000), "1,000,000");
         assert_eq!(NumberProcessor::format_with_commas(35), "35");
+    }
+
+    // ── parse_chinese_number edge cases ──────────────────────────────────────
+
+    #[test]
+    fn test_parse_chinese_number_empty() {
+        let p = NumberProcessor::new();
+        assert_eq!(p.parse_chinese_number(""), Some(0));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_single_digits() {
+        let p = NumberProcessor::new();
+        assert_eq!(p.parse_chinese_number("一"), Some(1));
+        assert_eq!(p.parse_chinese_number("九"), Some(9));
+        assert_eq!(p.parse_chinese_number("零"), Some(0));
+        assert_eq!(p.parse_chinese_number("两"), Some(2));
+        assert_eq!(p.parse_chinese_number("十"), Some(10));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_unknown_char() {
+        let p = NumberProcessor::new();
+        // Non-number characters should return None
+        assert_eq!(p.parse_chinese_number("年"), None);
+        assert_eq!(p.parse_chinese_number("的"), None);
+        assert_eq!(p.parse_chinese_number("百"), None); // bare 百 without leading digit
+    }
+
+    #[test]
+    fn test_parse_chinese_number_thousands() {
+        let p = NumberProcessor::new();
+        assert_eq!(p.parse_chinese_number("三千"), Some(3000));
+        assert_eq!(p.parse_chinese_number("三千七百"), Some(3700));
+        assert_eq!(p.parse_chinese_number("一千零一"), Some(1001));
+        assert_eq!(p.parse_chinese_number("九千九百九十九"), Some(9999));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_hundreds() {
+        let p = NumberProcessor::new();
+        assert_eq!(p.parse_chinese_number("三百"), Some(300));
+        assert_eq!(p.parse_chinese_number("三百五十"), Some(350));
+        assert_eq!(p.parse_chinese_number("两百零六"), Some(206));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_tens() {
+        let p = NumberProcessor::new();
+        assert_eq!(p.parse_chinese_number("三十五"), Some(35));
+        assert_eq!(p.parse_chinese_number("十七"), Some(17));
+        assert_eq!(p.parse_chinese_number("二十"), Some(20));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_zero_tens() {
+        let p = NumberProcessor::new();
+        // 零十五 → 15 (zero + implicit ten + five)
+        assert_eq!(p.parse_chinese_number("零十五"), Some(15));
+        // 零二十 → 20
+        assert_eq!(p.parse_chinese_number("零二十"), Some(20));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_recursive_stability() {
+        let p = NumberProcessor::new();
+        // Deep recursive case: thousands containing hundreds containing tens
+        assert_eq!(p.parse_chinese_number("九千八百七十六"), Some(9876));
+        // Repeated 千 in remainder — should not infinite-loop
+        let result = p.parse_chinese_number("三千三千");
+        // Either parses or returns None — must not panic
+        let _ = result;
+    }
+
+    // ── find_longest_number_match edge cases ─────────────────────────────────
+
+    #[test]
+    fn test_find_longest_number_match_year() {
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("一"), tok("九"), tok("四"), tok("五"), tok("年")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        let m = m.unwrap();
+        assert_eq!(m.result, "năm 1945");
+        assert_eq!(m.end_index, 4);
+    }
+
+    #[test]
+    fn test_find_longest_number_match_thousands() {
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("三"), tok("千"), tok("七"), tok("百")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        let m = m.unwrap();
+        assert_eq!(m.result, "3,700");
+    }
+
+    #[test]
+    fn test_find_longest_number_match_stops_at_translated() {
+        let p = NumberProcessor::new();
+        // Pre-translated token should break the sequence
+        let tokens = vec![tok("三"), tok_translated("千", "nghìn"), tok("七")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        // Should only match "三" — but 三 alone isn't a valid number pattern
+        let _ = m; // must not panic
+    }
+
+    #[test]
+    fn test_find_longest_number_match_stops_at_sourced() {
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("三"), tok_sourced("千", "pattern"), tok("七")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        let _ = m; // must not panic
+    }
+
+    #[test]
+    fn test_find_longest_number_match_stops_at_non_chinese() {
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("三"), tok_latin("ABC"), tok("七")];
+        // latin_word token breaks the window
+        let m = p.find_longest_number_match(&tokens, 0);
+        let _ = m; // must not panic
+    }
+
+    #[test]
+    fn test_find_longest_number_match_max_window() {
+        let p = NumberProcessor::new();
+        // 8-token window: all 千 — none should form valid number sequences → must not panic
+        let tokens: Vec<Token> = (0..8).map(|_| tok("千")).collect();
+        let m = p.find_longest_number_match(&tokens, 0);
+        let _ = m;
+    }
+
+    #[test]
+    fn test_find_longest_number_match_empty_tokens() {
+        let p = NumberProcessor::new();
+        let tokens: Vec<Token> = vec![];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_none());
+    }
+
+    #[test]
+    fn test_find_longest_number_match_single_token() {
+        let p = NumberProcessor::new();
+        // Single digit not a pattern on its own (no pattern matches single digit)
+        let tokens = vec![tok("三")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        let _ = m; // must not panic
+    }
+
+    // ── full pipeline via Vec<Token> (tests converter arithmetic) ────────────
+
+    #[test]
+    fn test_converter_percentage_range() {
+        let p = NumberProcessor::new();
+        // 百分之五六十 → 50-60%
+        let tokens = vec![tok("百"), tok("分"), tok("之"), tok("五"), tok("六"), tok("十")];
+        for i in 0..tokens.len() {
+            let _ = p.find_longest_number_match(&tokens, i);
+        }
+    }
+
+    #[test]
+    fn test_converter_teen_age_range() {
+        let p = NumberProcessor::new();
+        // 十六七 → 16-17
+        let tokens = vec![tok("十"), tok("六"), tok("七")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "16-17");
+    }
+
+    #[test]
+    fn test_converter_tens_based_range() {
+        let p = NumberProcessor::new();
+        // 二十八九 → 28-29
+        let tokens = vec![tok("二"), tok("十"), tok("八"), tok("九")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "28-29");
+    }
+
+    #[test]
+    fn test_converter_implicit_tens() {
+        let p = NumberProcessor::new();
+        // 十七 → 17
+        let tokens = vec![tok("十"), tok("七")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "17");
+    }
+
+    #[test]
+    fn test_converter_number_range() {
+        let p = NumberProcessor::new();
+        // 五六十 → 50-60
+        let tokens = vec![tok("五"), tok("六"), tok("十")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "50-60");
+    }
+
+    #[test]
+    fn test_converter_hundreds_range() {
+        let p = NumberProcessor::new();
+        // 四五百 → 400-500
+        let tokens = vec![tok("四"), tok("五"), tok("百")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "400-500");
+    }
+
+    #[test]
+    fn test_converter_thousand_range() {
+        let p = NumberProcessor::new();
+        // 七八千 → 7-8 ngàn
+        let tokens = vec![tok("七"), tok("八"), tok("千")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "7-8 ngàn");
+    }
+
+    #[test]
+    fn test_converter_ten_thousand_range() {
+        let p = NumberProcessor::new();
+        // 七八万 → 7-8 vạn
+        let tokens = vec![tok("七"), tok("八"), tok("万")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "7-8 vạn");
+    }
+
+    #[test]
+    fn test_converter_thousands_with_remainder() {
+        let p = NumberProcessor::new();
+        // 三千七百 → 3,700
+        let tokens = vec![tok("三"), tok("千"), tok("七"), tok("百")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "3,700");
+    }
+
+    #[test]
+    fn test_converter_thousands_bare() {
+        let p = NumberProcessor::new();
+        // 三千 → 3,000
+        let tokens = vec![tok("三"), tok("千")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "3,000");
+    }
+
+    #[test]
+    fn test_converter_thousand_ten_thousand() {
+        let p = NumberProcessor::new();
+        // 五千万 → 5,000 vạn
+        let tokens = vec![tok("五"), tok("千"), tok("万")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "5,000 vạn");
+    }
+
+    #[test]
+    fn test_no_panic_on_unusual_chars() {
+        let p = NumberProcessor::new();
+        // Characters that are chinese_char type but not numbers
+        for ch in &["年", "的", "是", "在", "了", "不", "他", "我", "你", "们"] {
+            let tokens = vec![tok(ch)];
+            let _ = p.find_longest_number_match(&tokens, 0);
+        }
+    }
+
+    #[test]
+    fn test_no_panic_start_index_at_end() {
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("三"), tok("十")];
+        // start_index = tokens.len() — should not panic (loop condition handles it)
+        let _ = p.find_longest_number_match(&tokens, 2);
     }
 }
