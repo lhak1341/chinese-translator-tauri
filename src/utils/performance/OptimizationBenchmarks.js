@@ -11,11 +11,11 @@
  * 4. Phase 5 character lookup performance
  * 5. Pattern matching efficiency
  *
- * @import { PerformanceBaselineTracker } from './ProactivePerformanceDetector'
+ * @import { PerformanceBaselineTracker } from './PerformanceBaselineTracker'
  */
 
 import { logger } from '../logger';
-import { systemPerformanceMonitor } from './ProactivePerformanceDetector.js';
+import { systemPerformanceMonitor } from './SystemPerformanceMonitor.js';
 
 /**
  * Optimization benchmark suite
@@ -513,7 +513,7 @@ export class OptimizationBenchmarks {
     });
 
     // Also record in system performance monitor
-    systemPerformanceMonitor.baselineTracker.recordPerformance(`optimization_${name}`, {
+    systemPerformanceMonitor.recordPerformance(`optimization_${name}`, {
       duration: typeof value === 'number' ? value : 0,
       timestamp: Date.now(),
     });

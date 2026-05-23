@@ -30,6 +30,18 @@ Health is assessed at action time — after translate or after reload — not on
 
 Entry point: `src/utils/performance/PerformanceHealth.js`, re-exported from `src/utils/performance/index.ts`.
 
+## SystemPerformanceMonitor
+
+The background regression detector that owns the periodic integration of all subsystem metrics into `PerformanceBaselineTracker`. Owns: four integration adapters (global performance monitor, position cache, virtual scrolling, WASM memory pool), metric collection loop, memory inspection, and `getSystemHealthReport()`. Delegates baseline storage to `PerformanceBaselineTracker` — callers use `systemPerformanceMonitor.recordPerformance(operationType, metrics)` rather than reaching through `.baselineTracker`.
+
+Entry point: `src/utils/performance/SystemPerformanceMonitor.js`.
+
+## PerformanceBaselineTracker
+
+Owns the statistical baseline and trend state for all operation types. Manages: `performanceHistory[]`, `baselines` Map (LRU, cap 100), `trends` Map (LRU, cap 200), `alerts[]` (cap 50). Public API: `recordPerformance(operationType, metrics)`, `getHealthSummary()`, `exportData()`, `destroy()`, `reset()`. Has no dependency on any other monitoring module — only imports `logger`.
+
+Entry point: `src/utils/performance/PerformanceBaselineTracker.js`.
+
 ## PatternVariableCache
 
 The shared dictionary lookup algorithm consumed by both PatternProcessor adapters. Builds a `word → {translation, source, type}` map from dictionary state; both `SemanticPatternProcessor` (JS) and `TwoPhasePatternProcessor` (WASM) pass this map to their respective matchers before executing.
@@ -51,3 +63,11 @@ The undo/redo subsystem for dictionary CRUD operations. Owns: operation log (`Hi
 Injected dependencies: `dictionariesRef` (ref-mirror of current dictionary state), `commitMutation` (sort → save → setDictionaries, returns `boolean`), `invalidateEngine` (clears engine caches). The cursor advances only when `commitMutation` returns `true` — the history module never touches persistence directly.
 
 Entry point: `src/components/dictionary/useDictionaryHistory.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
+
+## DictionaryCRUD
+
+All 6 dictionary mutation operations: `addEntry`, `updateEntry`, `deleteEntry`, `bulkDeleteEntries`, `moveEntry`, `bulkMoveEntries`. Includes `prepareMutationEntry` (sanitize → validate → build typed value for `phrases`/`patterns`/`properNouns*` vs plain string dicts).
+
+Injected dependencies: `dictionariesRef` (reads snapshot before mutation — never closes over `dictionaries` state), `persistDictionaryMutation` (single-dict: optimistic update → save → rollback), `commitMoveOp` (two-dict: optimistic update → parallel save → partial revert), `addToHistory`, `invalidateEngine`. All 6 returned callbacks are stable — their dep arrays contain only stable injected functions.
+
+Entry point: `src/components/dictionary/useDictionaryCRUD.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.

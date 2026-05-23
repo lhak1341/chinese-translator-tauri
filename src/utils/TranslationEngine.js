@@ -168,9 +168,9 @@ import {
   SmartMemoryPressureDetector,
   BackgroundCleanupManager,
   ComponentMemoryProfiler,
-} from './MemoryManagementRefinements.js';
+} from './wasm/MemoryManagementRefinements.js';
 import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
-import { systemPerformanceMonitor } from './performance/ProactivePerformanceDetector.js';
+import { systemPerformanceMonitor } from './performance/SystemPerformanceMonitor.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';

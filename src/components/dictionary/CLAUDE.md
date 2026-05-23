@@ -49,7 +49,7 @@ Canonical values: `'character'`, `'location'`, `'organization'`, `'concept'`, `'
 
 ## `$X`/`$Y` Variable-Derived Semantic Types (Patterns Only)
 
-Pattern `semanticType` accepts `"$X"` or `"$Y"` — resolved at WASM match time from the variable's cache `var_type`. Constants in `src/constants/SemanticTypes.ts`: `PATTERN_SEMANTIC_TYPE_REF_LIST`. UI: `DictionaryEntry.tsx` (full editor) and `SemanticTypeToggleCell` in `EnhancedVirtualizedDictionaryTable.tsx` (inline column, patterns branch only — NOT phrases/properNouns branches).
+Pattern `semanticType` accepts `"$X"` or `"$Y"` — resolved at WASM match time from the variable's cache `var_type`. Constants in `src/constants/SemanticTypes.ts`: `PATTERN_SEMANTIC_TYPE_REF_LIST`. UI: `SemanticTypePicker.tsx` (via `DictionaryEntry.tsx`) and `SemanticTypeToggleCell` in `EnhancedVirtualizedDictionaryTable.tsx` (inline column, patterns branch only — NOT phrases/properNouns branches).
 
 Resolution edge cases: `$-ref` to non-existent variable (e.g. `"$Z"` in an X-only pattern) → `None` silently, no error. `$X` where var has `var_type: Some("proper_noun")` (JS non-canonical sentinel for untyped proper-noun entries) → `Some("proper_noun")`, NOT `None` — canonical `allowedVariableTypes` constraints (e.g. `["character"]`) won't match it.
 

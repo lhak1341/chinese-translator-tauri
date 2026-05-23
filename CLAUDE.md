@@ -55,7 +55,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Intentionally JavaScript (never TypeScript):** `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 
-`src/utils/` has 8 concern-based subdirectories, each with `index.ts`: `wasm/` · `dictionary/` · `text/` · `pattern/` · `highlighting/` · `performance/` · `caching/` · `ui/`
+`src/utils/` has 8 concern-based subdirectories with `index.ts`: `dictionary/` · `text/` · `pattern/` · `highlighting/` · `performance/` · `caching/` · `ui/` — `wasm/` has no barrel, import directly.
 
 ---
 

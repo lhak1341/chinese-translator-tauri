@@ -11,7 +11,7 @@
  * - Non-intrusive operation that preserves translation quality
  */
 
-import { logger } from './logger.js';
+import { logger } from '../logger.js';
 
 /**
  * Chrome-specific performance.memory API

@@ -14,7 +14,7 @@
  */
 
 // ============================================================================
-// Proactive Performance Detection (ProactivePerformanceDetector.js)
+// PerformanceBaselineTracker + SystemPerformanceMonitor
 // ============================================================================
 
 /**

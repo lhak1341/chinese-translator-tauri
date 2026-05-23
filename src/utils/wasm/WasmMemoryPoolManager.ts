@@ -12,7 +12,7 @@
  * - Safe fallback to standard allocation
  */
 
-import { SmartMemoryPressureDetector, MemoryPressure } from '../MemoryManagementRefinements.js';
+import { SmartMemoryPressureDetector, MemoryPressure } from './MemoryManagementRefinements.js';
 import { logger } from '../logger';
 
 /**

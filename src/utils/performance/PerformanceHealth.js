@@ -14,7 +14,7 @@
  */
 
 import { globalPerformanceMonitor } from './PerformanceMonitor';
-import { systemPerformanceMonitor } from './ProactivePerformanceDetector';
+import { systemPerformanceMonitor } from './SystemPerformanceMonitor';
 import {
   isWasmPatternProcessorAvailable,
   hasWasmPatternProcessorFailed,
