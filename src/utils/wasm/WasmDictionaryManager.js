@@ -18,7 +18,7 @@
  */
 
 import init, { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
-import { wasmMemoryPoolManager, WasmDictionaryOperationHelper } from './WasmMemoryPoolManager.js';
+import { wasmMemoryPoolManager } from './WasmMemoryPoolManager.js';
 import { logger } from '../logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { FallbackManager } from '../FallbackManager';
@@ -83,7 +83,6 @@ export class WasmDictionaryManager {
 
     // Memory pool integration
     this.memoryPool = wasmMemoryPoolManager;
-    this.operationHelper = null; // Initialize after WASM engine is ready
   }
 
   async initialize(fallbackManager, config = {}) {
@@ -115,7 +114,6 @@ export class WasmDictionaryManager {
     }
 
     this.fallbackManager = fallbackManager;
-    this.operationHelper = new WasmDictionaryOperationHelper(this.memoryPool, this);
     this.initialized = true;
     this.fallbackHandler.recordSuccess();
     return true;
@@ -562,7 +560,6 @@ export class WasmDictionaryManager {
     return {
       ...baseReport,
       memoryPool: this.memoryPool.getStats(),
-      operationHelper: this.operationHelper?.getStats?.() || null,
     };
   }
 
@@ -724,10 +721,6 @@ export class WasmDictionaryManager {
 
     if (this.memoryPool) {
       this.memoryPool.cleanup();
-    }
-
-    if (this.operationHelper) {
-      this.operationHelper = null;
     }
 
     this.engine = null;

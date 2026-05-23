@@ -28,11 +28,8 @@ import AppReadinessOverlay from './AppReadinessOverlay';
 import { translationSegmentCache, parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
 import { systemPerformanceMonitor } from '../utils/performance';
-import {
-  DebouncedProgressHandler,
-  SmoothLoadingManager,
-  scrollToHighlightedElement,
-} from '../utils/highlighting';
+import { scrollToHighlightedElement } from '../utils/highlighting';
+import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
@@ -111,7 +108,7 @@ const Translator = ({ isActive = true }) => {
   } = useDictionary();
 
   // Performance monitoring hook (extracted)
-  const { performanceStats, regressionHealth, updatePerformanceStats, updateCacheHitRate } =
+  const { performanceStats, regressionHealth, recordTranslation, refreshCacheStats } =
     usePerformanceMonitoring();
 
   // Streaming translation hook (extracted)
@@ -1520,7 +1517,7 @@ const Translator = ({ isActive = true }) => {
 
           // Update performance stats
           const translationTimeMs = performance.now() - translationStartTime;
-          updatePerformanceStats(translationTimeMs);
+          recordTranslation(translationTimeMs, translationSegmentCache);
 
           return result;
         } else {
@@ -2123,7 +2120,7 @@ const Translator = ({ isActive = true }) => {
                 setCharacterOnlySemanticArrays(dualResults.characterResult.semanticArrays);
 
                 // Update cache hit rate after dictionary reload
-                updateCacheHitRate(translationSegmentCache);
+                refreshCacheStats(translationSegmentCache);
               } catch (_optimizedError) {
                 logger.error(
                   '🔄 Optimized reload translation failed, falling back to sequential:',

@@ -22,18 +22,17 @@ import type { KeyboardShortcut } from './UITypes';
  * Return type for usePerformanceMonitoring hook
  */
 export interface UsePerformanceMonitoringReturn {
-  /** Current performance metrics */
-  performanceMetrics: PerformanceMetrics;
+  /** Current performance statistics */
+  performanceStats: PerformanceMetrics;
   /** Regression detection health status */
   regressionHealth: RegressionHealth;
-  /** Reset all metrics to initial state */
-  resetMetrics: () => void;
-  /** Record a new operation performance */
-  recordOperation: (name: string, duration: number, metadata?: Record<string, any>) => void;
-  /** Get metrics for specific operation */
-  getOperationMetrics: (name: string) => PerformanceMetrics | null;
-  /** Export metrics data for analysis */
-  exportMetrics: () => string;
+  /** Record a completed translation — timing + fresh cache hit rate */
+  recordTranslation: (
+    operationTimeMs: number,
+    translationSegmentCache: { getStats(): { hitRate: number } }
+  ) => void;
+  /** Refresh cache hit rate after a cache-driven event (e.g. dictionary reload) */
+  refreshCacheStats: (translationSegmentCache: { getStats(): { hitRate: number } }) => void;
 }
 
 /**

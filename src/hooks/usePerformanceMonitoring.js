@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { performanceHealth } from '../utils/performance';
 
 /**
@@ -16,8 +16,8 @@ import { performanceHealth } from '../utils/performance';
  * @returns {{
  *   performanceStats: PerformanceMetrics,
  *   regressionHealth: RegressionHealth,
- *   updatePerformanceStats: (operationTimeMs: number) => void,
- *   updateCacheHitRate: (translationSegmentCache: any) => void
+ *   recordTranslation: (operationTimeMs: number, translationSegmentCache: any) => void,
+ *   refreshCacheStats: (translationSegmentCache: any) => void
  * }} Performance monitoring state and update functions
  */
 export function usePerformanceMonitoring() {
@@ -36,18 +36,14 @@ export function usePerformanceMonitoring() {
     baselines: initialReport.baselines,
   });
 
-  // Ref tracks current cache hit rate so updatePerformanceStats (which doesn't
-  // receive it) can still pass a non-stale value to getReport().
-  const cacheHitRateRef = useRef(0);
-
-  const updatePerformanceStats = useCallback((operationTimeMs) => {
+  const recordTranslation = useCallback((operationTimeMs, translationSegmentCache) => {
     performanceHealth.recordTranslation(operationTimeMs);
-
-    const report = performanceHealth.getReport(cacheHitRateRef.current);
+    const hitRate = translationSegmentCache.getStats().hitRate;
+    const report = performanceHealth.getReport(hitRate);
     setPerformanceStats({
       operations: report.operations,
       avgTime: report.avgTime,
-      cacheHitRate: cacheHitRateRef.current,
+      cacheHitRate: hitRate,
     });
     setRegressionHealth({
       status: report.status,
@@ -57,10 +53,8 @@ export function usePerformanceMonitoring() {
     });
   }, []);
 
-  const updateCacheHitRate = useCallback((translationSegmentCache) => {
+  const refreshCacheStats = useCallback((translationSegmentCache) => {
     const hitRate = translationSegmentCache.getStats().hitRate;
-    cacheHitRateRef.current = hitRate;
-
     const report = performanceHealth.getReport(hitRate);
     setPerformanceStats((prev) => ({ ...prev, cacheHitRate: hitRate }));
     setRegressionHealth({
@@ -74,7 +68,7 @@ export function usePerformanceMonitoring() {
   return {
     performanceStats,
     regressionHealth,
-    updatePerformanceStats,
-    updateCacheHitRate,
+    recordTranslation,
+    refreshCacheStats,
   };
 }

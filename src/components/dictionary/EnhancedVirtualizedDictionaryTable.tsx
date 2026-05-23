@@ -13,11 +13,8 @@ import { useDictionary } from './DictionaryContext';
 import { getDictionaryTypes } from './DictionaryTypes';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
-import {
-  adaptiveBufferCalculator,
-  createDuplicateKey,
-  parseDuplicateKey,
-} from '../../utils/highlighting';
+import { adaptiveBufferCalculator } from '../../utils/ui';
+import { createDuplicateKey, parseDuplicateKey } from '../../utils/dictionary';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
 import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
@@ -288,7 +285,7 @@ interface EnhancedVirtualizedDictionaryTableProps {
   /** Whether to show duplicate mode (4-column layout) */
   showDuplicatesMode?: boolean;
   /** Duplicate rows to display when in duplicate mode */
-  duplicateRows?: import('../../utils/highlighting/DuplicateAnalyzer').DuplicateRow[];
+  duplicateRows?: import('../../utils/dictionary/DuplicateAnalyzer').DuplicateRow[];
   /** Callback to refresh duplicate view after deletion */
   onRefreshDuplicates?: (reloadFromBackend?: boolean) => Promise<void>;
   /** Scroll position to restore (managed by parent to survive unmount/remount) */

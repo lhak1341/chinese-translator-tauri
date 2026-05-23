@@ -11,7 +11,7 @@ import {
   parseDuplicateKey,
   findConflictingEntries,
   type DuplicateRow,
-} from '../highlighting/DuplicateAnalyzer';
+} from '../dictionary/DuplicateAnalyzer';
 import { getDictionaryLabel } from '../dictionaryHelpers';
 
 describe('DuplicateAnalyzer', () => {

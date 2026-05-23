@@ -28,7 +28,7 @@
 import { logger } from '../logger';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
 import { contentAwarePositionCache } from '../caching/ContentAwarePositionCache.js';
-import { adaptiveBufferCalculator } from '../highlighting/AdaptiveVirtualScrolling.js';
+import { adaptiveBufferCalculator } from '../ui/AdaptiveVirtualScrolling.js';
 import { wasmMemoryPoolManager } from '../wasm/WasmMemoryPoolManager.js';
 
 /**

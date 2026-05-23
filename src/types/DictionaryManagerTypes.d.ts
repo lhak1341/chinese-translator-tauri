@@ -654,9 +654,6 @@ export interface WasmPerformanceReport extends WasmPerformanceStats {
 export interface WasmEnhancedPerformanceReport extends WasmPerformanceReport {
   /** Memory pool statistics */
   memoryPool: MemoryPoolStats;
-
-  /** Operation helper statistics */
-  operationHelper: any | null;
 }
 
 /**
@@ -1003,7 +1000,6 @@ export interface WasmDictionaryManagerInterface {
   maxFailuresBeforeFallback: number;
   fallbackMode: boolean;
   memoryPool: any; // wasmMemoryPoolManager
-  operationHelper: any | null;
 
   initialize(): Promise<boolean>;
   loadDictionary(name: string, entries: DictionaryEntry[]): Promise<boolean>;

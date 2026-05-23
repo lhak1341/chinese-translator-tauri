@@ -4,7 +4,6 @@
  * Primary entry points:
  *   - SemanticArrayBuilder  — semantic relationship tracker
  *   - SegmentPrecomputer    — character-only mode segment pre-computation
- *   - findConflictingEntries — duplicate dictionary entry detection
  */
 
 export { SemanticArrayBuilder } from './SemanticArrayBuilder';
@@ -18,13 +17,8 @@ export type {
 } from './SegmentPrecomputer';
 export { SegmentPrecomputer } from './SegmentPrecomputer';
 
-// --- Duplicate detection ---
-export type { DuplicateRow } from './DuplicateAnalyzer';
-export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';
-
-// --- Scroll & UI ---
+// --- Scroll ---
 export { scrollToHighlightedElement } from './ScrollHelpers';
-export { adaptiveBufferCalculator } from './AdaptiveVirtualScrolling';
 
 // --- Position utilities ---
 export {
@@ -32,12 +26,3 @@ export {
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
 } from './PositionMappingUtils';
-
-// --- UI responsiveness ---
-export type {
-  ProgressData,
-  ProgressCallbacks,
-  LoadingState,
-  LoadingCallback,
-} from './UIResponsiveness';
-export { DebouncedProgressHandler, SmoothLoadingManager } from './UIResponsiveness';

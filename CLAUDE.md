@@ -55,13 +55,13 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Intentionally JavaScript (never TypeScript):** `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 
-`src/utils/` has 7 concern-based subdirectories, each with `index.ts`: `wasm/` · `dictionary/` · `text/` · `pattern/` · `highlighting/` · `performance/` · `caching/`
+`src/utils/` has 8 concern-based subdirectories, each with `index.ts`: `wasm/` · `dictionary/` · `text/` · `pattern/` · `highlighting/` · `performance/` · `caching/` · `ui/`
 
 ---
 
 ## Development
 
-**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool.
+**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing.
 
 **Dynamic JSON imports:** Never use `import(path, { assert: { type: 'json' } })` — Rolldown silently fails to rewrite the path in production. Use a static `import data from '...json'` at the top of the file.
 
