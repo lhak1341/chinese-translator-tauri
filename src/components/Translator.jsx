@@ -23,7 +23,7 @@ import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import { useTranslatorEngine, ENGINE_PRIORITIES } from '../hooks/useTranslatorEngine';
+import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { translationSegmentCache, parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
@@ -2030,7 +2030,6 @@ const Translator = ({ isActive = true }) => {
       if (!isLoading && dictionariesToUse) {
         await reinitialize(dictionariesToUse, {
           forceConfigReload: true,
-          priorities: ENGINE_PRIORITIES,
           debugLevel: DEBUG_LEVELS.ERROR,
         });
         if (!engineRef.current?.isReady()) {

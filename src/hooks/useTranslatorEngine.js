@@ -101,11 +101,10 @@ export function useTranslatorEngine() {
    * @param {Object} rawDictionaries - All available dictionaries (unfiltered)
    * @param {Object} [options]
    * @param {boolean} [options.forceConfigReload=false] - Re-read config from disk; updates activeProperNounsFromConfig state
-   * @param {Object} [options.priorities] - Dictionary loading priorities
    * @param {string} [options.debugLevel] - Engine debug level
    */
   async function reinitialize(rawDictionaries, options = {}) {
-    const { forceConfigReload = false, priorities, debugLevel } = options;
+    const { forceConfigReload = false, priorities = ENGINE_PRIORITIES, debugLevel } = options;
     if (isInitializingRef.current) return;
     isInitializingRef.current = true;
     setEnginePhase('loading');
@@ -139,5 +138,3 @@ export function useTranslatorEngine() {
     reinitialize,
   };
 }
-
-export { ENGINE_PRIORITIES };

@@ -78,6 +78,45 @@ async function invokeEngineInvalidator(
   }
 }
 
+// Sanitizes, validates, and builds the typed entry value for addEntry/updateEntry.
+// Throws ValidationError (no toast — caller's catch block handles UI feedback).
+function prepareMutationEntry(
+  dictionaryId: string,
+  source: string,
+  translation: string,
+  metadata: DictionaryEntryMetadata
+): { cleanSource: string; cleanTranslation: string; targetValue: string | DictionaryEntryValue } {
+  const sanitized = sanitizeDictionaryEntry(source, translation);
+  const cleanSource = sanitized.source;
+  const cleanTranslation = sanitized.translation;
+
+  const validationError = validateDictionaryEntry(dictionaryId, cleanSource, cleanTranslation);
+  if (validationError) {
+    throw new ValidationError(validationError);
+  }
+
+  // Complex-entry dicts (phrases, patterns, properNouns) use object format.
+  // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
+  let targetValue: string | DictionaryEntryValue = cleanTranslation;
+  if (
+    dictionaryId === 'phrases' ||
+    dictionaryId === 'patterns' ||
+    dictionaryId.startsWith('properNouns')
+  ) {
+    const entryValue: DictionaryEntryValue = {
+      translation: cleanTranslation,
+      allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
+      lowPriority: metadata.lowPriority,
+    };
+    if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
+    if (metadata.allowedVariableTypes)
+      entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
+    targetValue = entryValue;
+  }
+
+  return { cleanSource, cleanTranslation, targetValue };
+}
+
 /**
  * DictionaryProvider Component
  *
@@ -316,40 +355,12 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
 
       try {
-        // SECURITY: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
-        const sanitized = sanitizeDictionaryEntry(source, translation);
-        const cleanSource = sanitized.source;
-        const cleanTranslation = sanitized.translation;
-
-        const validationError = validateDictionaryEntry(
+        const { cleanSource, targetValue } = prepareMutationEntry(
           dictionaryId,
-          cleanSource,
-          cleanTranslation
+          source,
+          translation,
+          metadata
         );
-        if (validationError) {
-          toast.error(validationError);
-          throw new ValidationError(validationError);
-        }
-
-        // Prepare target value with metadata.
-        // Complex-entry dicts (phrases, patterns, properNouns) always use object format.
-        // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
-        let targetValue: string | DictionaryEntryValue = cleanTranslation;
-        if (
-          dictionaryId === 'phrases' ||
-          dictionaryId === 'patterns' ||
-          dictionaryId.startsWith('properNouns')
-        ) {
-          const entryValue: DictionaryEntryValue = {
-            translation: cleanTranslation,
-            allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
-            lowPriority: metadata.lowPriority,
-          };
-          if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
-          if (metadata.allowedVariableTypes)
-            entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
-          targetValue = entryValue;
-        }
 
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
         const oldData = { ...dictionaries[dictionaryId] };
@@ -380,7 +391,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
       } catch (error) {
         logger.error('Error adding dictionary entry:', error);
-        if (!isValidationError(error) && !isSaveError(error)) {
+        if (isValidationError(error)) {
+          toast.error(error.message);
+        } else if (!isSaveError(error)) {
           toast.error(`Could not add entry: ${extractErrorMessage(error)}`);
         }
         throw error;
@@ -405,40 +418,12 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       }
 
       try {
-        // SECURITY: Sanitize input to prevent JSON corruption from null bytes, surrogates, control chars
-        const sanitized = sanitizeDictionaryEntry(newSource, translation);
-        const cleanNewSource = sanitized.source;
-        const cleanTranslation = sanitized.translation;
-
-        const validationError = validateDictionaryEntry(
+        const { cleanSource: cleanNewSource, targetValue } = prepareMutationEntry(
           dictionaryId,
-          cleanNewSource,
-          cleanTranslation
+          newSource,
+          translation,
+          metadata
         );
-        if (validationError) {
-          toast.error(validationError);
-          throw new ValidationError(validationError);
-        }
-
-        // Prepare target value with metadata.
-        // Complex-entry dicts (phrases, patterns, properNouns) always use object format.
-        // Pure lookup-table dicts (characters, conversion, punctuation) use string format.
-        let targetValue: string | DictionaryEntryValue = cleanTranslation;
-        if (
-          dictionaryId === 'phrases' ||
-          dictionaryId === 'patterns' ||
-          dictionaryId.startsWith('properNouns')
-        ) {
-          const entryValue: DictionaryEntryValue = {
-            translation: cleanTranslation,
-            allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
-            lowPriority: metadata.lowPriority,
-          };
-          if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
-          if (metadata.allowedVariableTypes)
-            entryValue.allowedVariableTypes = metadata.allowedVariableTypes;
-          targetValue = entryValue;
-        }
 
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
         const oldData = { ...dictionaries[dictionaryId] };
@@ -476,7 +461,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
         }
       } catch (error) {
         logger.error('Error updating dictionary entry:', error);
-        if (!isValidationError(error) && !isSaveError(error)) {
+        if (isValidationError(error)) {
+          toast.error(error.message);
+        } else if (!isSaveError(error)) {
           toast.error(`Could not update entry: ${extractErrorMessage(error)}`);
         }
         throw error;

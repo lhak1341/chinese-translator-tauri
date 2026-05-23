@@ -20,9 +20,13 @@ Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
 ## PerformanceHealth
 
-Read-only facade that answers "is the system healthy right now?" in one call. Combines `globalPerformanceMonitor` (timing metrics) and `systemPerformanceMonitor` (baseline regression tracking) so callers don't need to know which singleton owns which concern.
+Unified gateway for performance monitoring concerns — the single import callers need for both writing timing data and reading health status.
 
-`getReport(cacheHitRate)` returns `{ operations, avgTime, cacheHitRate, status, criticalAlerts, warningAlerts, baselines, verdict, wasm }`. `verdict` synthesizes `status` into three values: `'ok'` (healthy), `'degraded'` (warning), `'critical'`. `wasm` aggregates WASM processor availability: `{ pattern: { available, failed }, number: { available }, anyFailed, allAvailable }` — the single place to ask "is WASM the cause of degraded performance?" without importing from individual processor modules. Health is assessed at action time — after translate or after reload — not on a polling interval.
+**Write:** `recordTranslation(operationTimeMs)` — records a completed translation into `globalPerformanceMonitor`. Callers don't construct synthetic timers or import `globalPerformanceMonitor` directly.
+
+**Read:** `getReport(cacheHitRate)` — combines `globalPerformanceMonitor` (timing metrics) and `systemPerformanceMonitor` (baseline regression tracking) into one `HealthReport`: `{ operations, avgTime, cacheHitRate, status, criticalAlerts, warningAlerts, baselines, verdict, wasm }`. `verdict` synthesizes `status` into `'ok'` (healthy), `'degraded'` (warning), `'critical'`. `wasm` aggregates WASM processor availability: `{ pattern: { available, failed }, number: { available }, anyFailed, allAvailable }` — the single place to ask "is WASM the cause of degraded performance?" without importing from individual processor modules.
+
+Health is assessed at action time — after translate or after reload — not on a polling interval.
 
 Entry point: `src/utils/performance/PerformanceHealth.js`, re-exported from `src/utils/performance/index.ts`.
 

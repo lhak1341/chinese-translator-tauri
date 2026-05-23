@@ -5,8 +5,41 @@
 
 import { batchLog } from '../BatchLogger.js';
 import { logger } from '../logger';
-import { validatePosition } from './PositionValidationHelpers.js';
 import { getFirstGrapheme } from '../GraphemeHelper.js';
+
+// Rejects out-of-order, overlapping, or invalid-range positions to prevent bidirectional highlighting corruption.
+function validatePosition(
+  startPos: number,
+  endPos: number,
+  lastPositionSet: number,
+  tokenIndex: number,
+  translatedText: string
+): boolean {
+  if (lastPositionSet !== -1 && startPos <= lastPositionSet) {
+    logger.error('❌ setPositionByMatch overlap detected - REJECTING!', {
+      tokenIndex,
+      translatedText,
+      expectedMinStart: lastPositionSet + 1,
+      actualStart: startPos,
+      violation:
+        startPos < lastPositionSet ? 'Position decreased' : 'Position overlaps with previous range',
+      impact:
+        'Rejected to prevent duplicate position mappings and bidirectional highlighting corruption',
+    });
+    return false;
+  }
+  if (startPos < 0 || endPos <= startPos) {
+    logger.error('❌ Invalid position range - REJECTING!', {
+      tokenIndex,
+      translatedText,
+      startPos,
+      endPos,
+      violation: 'startPos must be >= 0 and endPos must be > startPos',
+    });
+    return false;
+  }
+  return true;
+}
 
 /**
  * Optimized semantic metadata (excludes originalText/translatedText for memory efficiency)
@@ -332,11 +365,8 @@ export class SemanticArrayBuilder {
     }
     const target = unmapped ?? candidates[0];
 
-    // MEDIUM-3 FIX: Use shared validation logic (extracted from duplicate code)
-    // CRITICAL-1 FIX: Reject out-of-order positions to prevent corruption
-    // HIGH-1 FIX: Prevent overlapping positions by requiring startPos > lastPositionSet (not >=)
     if (!validatePosition(startPos, endPos, this.lastPositionSet, tokenIndex, translatedText)) {
-      return false; // ✅ Reject invalid positions (out-of-order, overlapping, or invalid range)
+      return false;
     }
 
     // Update the selected candidate's position

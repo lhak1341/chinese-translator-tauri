@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { globalPerformanceMonitor, performanceHealth } from '../utils/performance';
+import { performanceHealth } from '../utils/performance';
 
 /**
  * @import { PerformanceMetrics, RegressionHealth } from '../types/PerformanceTypes'
@@ -41,8 +41,7 @@ export function usePerformanceMonitoring() {
   const cacheHitRateRef = useRef(0);
 
   const updatePerformanceStats = useCallback((operationTimeMs) => {
-    const timer = { startTime: performance.now() - operationTimeMs, sampled: true };
-    globalPerformanceMonitor.endTimer(timer, 'translation');
+    performanceHealth.recordTranslation(operationTimeMs);
 
     const report = performanceHealth.getReport(cacheHitRateRef.current);
     setPerformanceStats({

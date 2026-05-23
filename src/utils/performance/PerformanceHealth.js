@@ -1,15 +1,13 @@
 // @ts-check
 /**
- * Unified read facade for system performance health.
+ * Unified gateway for performance monitoring concerns.
  *
- * Answers "is the system healthy right now?" in one call by combining
- * globalPerformanceMonitor (timing metrics) and systemPerformanceMonitor
- * (baseline regression tracking). Callers no longer need to know which
- * singleton owns which concern.
+ * Write: recordTranslation(ms) — records a completed translation into globalPerformanceMonitor.
+ * Read:  getReport(cacheHitRate) — combines globalPerformanceMonitor (timing) and
+ *        systemPerformanceMonitor (baseline regression) into one HealthReport.
  *
- * Designed to be called at action time (after translate / after reload),
- * not on a polling interval — health is most meaningful right after the
- * system does work.
+ * Callers import only this module — no need to know which singleton owns which concern.
+ * Designed to be called at action time (after translate / after reload).
  *
  * See: docs/adr/ADR-009-wasm-processor-lifecycle.md for context on the
  * broader performance monitoring architecture.
@@ -51,6 +49,22 @@ import { isWasmNumberProcessorAvailable } from '../wasm/WasmNumberProcessor';
  */
 
 class PerformanceHealth {
+  /**
+   * Record a completed translation into globalPerformanceMonitor.
+   * Constructs the synthetic timer from operationTimeMs so callers don't
+   * need to import globalPerformanceMonitor directly.
+   *
+   * @param {number} operationTimeMs - Translation duration in milliseconds
+   */
+  recordTranslation(operationTimeMs) {
+    const timer = {
+      id: 'translation',
+      startTime: performance.now() - operationTimeMs,
+      sampled: true,
+    };
+    globalPerformanceMonitor.endTimer(timer, 'translation');
+  }
+
   /**
    * Build a unified health report from both monitoring singletons.
    *
