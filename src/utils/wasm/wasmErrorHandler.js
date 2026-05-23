@@ -82,7 +82,8 @@ export function categorizeWasmError(error, component = 'unknown') {
 
   // WASM runtime errors (check BEFORE serialization)
   // Ensures WASM-specific errors are categorized correctly
-  if (message.includes('wasm') || message.includes('module')) {
+  // "recursive use of an object detected" = post-panic borrow_mut_count stuck (wasm-bindgen)
+  if (message.includes('wasm') || message.includes('module') || message.includes('recursive use')) {
     return {
       type: WASM_ERROR_TYPES.WASM_RUNTIME,
       userMessage: `${component} runtime error`,

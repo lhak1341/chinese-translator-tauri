@@ -126,12 +126,17 @@ export async function processNumbersWasm(tokens) {
     //   // If degraded, log warning: "WASM number processor slowdown detected"
     // }
 
-    // Call WASM NumberProcessor
+    // Call WASM NumberProcessor (null check narrows type for @ts-check — logically unreachable)
     if (!wasmNumberProcessor) return tokens;
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (/** @type {any} */ error) {
-    // CODE REVIEW FIX (MEDIUM-1): Use shared error categorization
+    // Retire the broken instance — after a WASM panic, borrow_mut_count is permanently
+    // stuck; calling processTokens again produces "recursive use" errors. Reset lifecycle
+    // so the next translation attempt can re-initialize from scratch.
+    wasmNumberProcessor = null;
+    lifecycle.reset();
+
     const errorInfo = categorizeWasmError(error, 'number-processor');
 
     logger.error(`❌ WASM number processing ${errorInfo.type} error:`, error);

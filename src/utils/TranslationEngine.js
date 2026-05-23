@@ -1570,6 +1570,14 @@ export class TranslationEngine {
           }
         }
 
+        // Add space after latin_word tokens before Chinese characters (mirrors needsSpace Rule 6)
+        if (token.type === 'latin_word' && i < tokens.length - 1) {
+          const nextToken = tokens[i + 1];
+          if (nextToken.type === 'chinese_char') {
+            translatedText += ' ';
+          }
+        }
+
         // Debug what we're adding (semantic arrays already populated by processCharacterOnlyTokens)
         if (process.env.NODE_ENV === 'development' && tokens.indexOf(token) % 300 === 0) {
           logger.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
@@ -4733,7 +4741,9 @@ export class TranslationEngine {
     } else {
       // Add space after punctuation (except at end of string or when followed by closing quotes)
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 Before punctuation spacing:', JSON.stringify(result));
-      result = result.replace(/([.,!?:;，。！？：；])(?!\s|$|[“””])/g, '$1 ');
+      result = result.replace(/([.!?:;，。！？：；])(?!\s|$|[“””])/g, '$1 ');
+      // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
+      result = result.replace(/,(?!\s|$|[“””\d])/g, ', ');
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 After punctuation spacing:', JSON.stringify(result));
       // Note: Line 615 uses mixed quote characters (literal curly + straight quotes)
 

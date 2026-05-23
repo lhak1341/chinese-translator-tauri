@@ -113,7 +113,11 @@ Use `isWasmPatternProcessorReady()` from `wasm/WasmPatternProcessor.js` — comb
 
 ### WASM Wrapper Retire-After-Panic
 
-Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = null; this.initialized = false; this.initializationFailed = true`, and `initialize()` must guard `if (this.initializationFailed) return false`. Once `panic = "abort"` fires, the WASM object's `borrow_mut_count` is permanently stuck — silently retrying it produces "recursive use" on every subsequent call. **Exception**: `WasmConflictResolution.js` is a module-level singleton (no class) — retire uses bare `initialized = false; initializationFailed = true` (no `this.*`).
+Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = null; this.initialized = false; this.initializationFailed = true`, and `initialize()` must guard `if (this.initializationFailed) return false`. Once `panic = "abort"` fires, the WASM object's `borrow_mut_count` is permanently stuck — silently retrying it produces "recursive use" on every subsequent call. **Exception**: `WasmConflictResolution.js` is a module-level singleton (no class) — retire uses bare `initialized = false; initializationFailed = true` (no `this.*`). **Exception**: `WasmNumberProcessor.js` uses `WasmProcessorLifecycle` — retire must also call `lifecycle.reset()` to clear `_isReady`; without it `initialize()` short-circuits and re-init never runs.
+
+### `WasmNumberProcessor` and `WasmTextAssembler` Share One WASM Instance
+
+Both import `init` from `translation_wasm_core.js`. A `NumberProcessor.processTokens()` panic leaves the module corrupted; the next `assembleWithSpacing()` call triggers a secondary panic (`alloc/src/rc.rs: hint::assert_unchecked` — Rust 1.84+ UB check, previously silent). Both wrappers retire on their own panics. Cascade-retire fix (proactively retire TextAssembler when NumberProcessor panics) tracked in `docs/HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md`.
 
 ### WASM Singleton Modules Must Call `.initialize().catch(warn)` at Module Bottom
 

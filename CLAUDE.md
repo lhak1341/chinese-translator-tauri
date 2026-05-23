@@ -61,7 +61,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 ## Development
 
-**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing.
+**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
 
 **Dynamic JSON imports:** Never use `import(path, { assert: { type: 'json' } })` — Rolldown silently fails to rewrite the path in production. Use a static `import data from '...json'` at the top of the file.
 
