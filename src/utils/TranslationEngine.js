@@ -154,7 +154,8 @@ import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
-import { processNumbersWasm, isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
+import { isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
+import { processNumbers } from './wasm/NumberProcessingAdapter.js';
 // WASM Phase 4 conflict resolution — flat Uint32Array boundary, near-zero overhead
 import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
 
@@ -7792,7 +7793,7 @@ export class TranslationEngine {
                 }
               }
 
-              const processedTokens = await processNumbersWasm(tokens);
+              const processedTokens = await processNumbers(tokens, { debugLevel: this.debugLevel });
 
               // CODE REVIEW FIX (CRITICAL-3): Detect concurrent modification during validation
               const originalTokensLength = tokens.length;

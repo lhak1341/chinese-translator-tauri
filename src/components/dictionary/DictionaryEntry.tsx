@@ -9,9 +9,14 @@ import type { SemanticType, PatternSemanticTypeRef } from '../../constants/Seman
 import { SemanticTypePicker } from './SemanticTypePicker';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
 import {
-  titleCaseWords,
-  titleCaseExceptLastN,
-  moveLastNWordsToBeginning,
+  capitalizeAll,
+  lowercaseAll,
+  capitalizeExceptLast,
+  capitalizeExceptLastTwo,
+  capitalizeExceptLastThree,
+  moveLastWordToBeginning,
+  moveLastTwoWordsToBeginning,
+  moveLastThreeWordsToBeginning,
 } from '../../utils/wordTransformHelpers';
 
 /**
@@ -506,20 +511,19 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   };
 
   // Capitalization handlers
-  const handleCapitalizeAll = (): void => setTranslation(titleCaseWords(translation));
-  const handleCapitalizeExceptLast = (): void =>
-    setTranslation(titleCaseExceptLastN(translation, 1));
+  const handleCapitalizeAll = (): void => setTranslation(capitalizeAll(translation));
+  const handleCapitalizeExceptLast = (): void => setTranslation(capitalizeExceptLast(translation));
   const handleCapitalizeExceptLastTwo = (): void =>
-    setTranslation(titleCaseExceptLastN(translation, 2));
+    setTranslation(capitalizeExceptLastTwo(translation));
   const handleCapitalizeExceptLastThree = (): void =>
-    setTranslation(titleCaseExceptLastN(translation, 3));
-  const handleLowercaseAll = (): void => setTranslation(translation.toLowerCase());
+    setTranslation(capitalizeExceptLastThree(translation));
+  const handleLowercaseAll = (): void => setTranslation(lowercaseAll(translation));
   const handleMoveLastWordToBeginning = (): void =>
-    setTranslation(moveLastNWordsToBeginning(translation, 1));
+    setTranslation(moveLastWordToBeginning(translation));
   const handleMoveLastTwoWordsToBeginning = (): void =>
-    setTranslation(moveLastNWordsToBeginning(translation, 2));
+    setTranslation(moveLastTwoWordsToBeginning(translation));
   const handleMoveLastThreeWordsToBeginning = (): void =>
-    setTranslation(moveLastNWordsToBeginning(translation, 3));
+    setTranslation(moveLastThreeWordsToBeginning(translation));
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();

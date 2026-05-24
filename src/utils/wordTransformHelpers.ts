@@ -38,3 +38,16 @@ export function moveLastNWordsToBeginning(text: string, n: number): string {
   const head = words.slice(0, -n);
   return [...tail, ...head].join(' ');
 }
+
+// Named baked-n variants — each is directly testable without mounting DictionaryEntry.
+
+export const capitalizeAll = (text: string): string => titleCaseWords(text);
+export const lowercaseAll = (text: string): string => text.toLowerCase();
+export const capitalizeExceptLast = (text: string): string => titleCaseExceptLastN(text, 1);
+export const capitalizeExceptLastTwo = (text: string): string => titleCaseExceptLastN(text, 2);
+export const capitalizeExceptLastThree = (text: string): string => titleCaseExceptLastN(text, 3);
+export const moveLastWordToBeginning = (text: string): string => moveLastNWordsToBeginning(text, 1);
+export const moveLastTwoWordsToBeginning = (text: string): string =>
+  moveLastNWordsToBeginning(text, 2);
+export const moveLastThreeWordsToBeginning = (text: string): string =>
+  moveLastNWordsToBeginning(text, 3);
