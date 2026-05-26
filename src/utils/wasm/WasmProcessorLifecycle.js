@@ -150,6 +150,18 @@ export class WasmProcessorLifecycle {
   }
 
   /**
+   * Permanently mark this lifecycle as failed — used after a WASM runtime panic where the
+   * shared linear memory is corrupted. Unlike `reset()`, this does NOT clear `_hasFailed`,
+   * so `initialize()` will return false on every future call and never attempt re-init
+   * from the corrupted module.
+   */
+  permanentlyFail() {
+    this._isReady = false;
+    this._hasFailed = true;
+    this._initializationPromise = null;
+  }
+
+  /**
    * @returns {{ name: string, isReady: boolean, hasFailed: boolean, failureCount: number, inCooldown: boolean }}
    */
   getStatus() {

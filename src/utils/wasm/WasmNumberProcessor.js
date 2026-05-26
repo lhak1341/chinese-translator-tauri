@@ -52,6 +52,9 @@ import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { categorizeWasmError, formatWasmError } from './wasmErrorHandler';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { wasmTextAssembler } from './WasmTextAssembler';
+import { wasmTextChunker } from './WasmTextChunker';
+import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
+import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -135,15 +138,18 @@ export async function processNumbersWasm(tokens) {
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (/** @type {any} */ error) {
-    // Retire the broken instance — after a WASM panic, borrow_mut_count is permanently
-    // stuck; calling processTokens again produces "recursive use" errors. Reset lifecycle
-    // so the next translation attempt can re-initialize from scratch.
+    // Retire the broken instance — after a WASM panic, the shared linear memory is
+    // permanently corrupted. permanentlyFail() (not reset()) prevents re-initialization
+    // from the corrupted module on subsequent translations.
     wasmNumberProcessor = null;
-    lifecycle.reset();
+    lifecycle.permanentlyFail();
     // Both processors share one WASM module — a NumberProcessor panic corrupts the shared
     // linear memory, so the TextAssembler will also panic on its next call. Retire it now
     // to avoid the secondary panic and go straight to JS fallback.
     wasmTextAssembler.retireOnSharedModulePanic();
+    wasmTextChunker.retireOnSharedModulePanic();
+    retireWasmDictionaryOnSharedPanic();
+    retireWasmConflictResolutionOnSharedPanic();
 
     const errorInfo = categorizeWasmError(error, 'number-processor');
 

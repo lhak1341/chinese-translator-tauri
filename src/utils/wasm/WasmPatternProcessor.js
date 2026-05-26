@@ -54,6 +54,10 @@ import { verifyWasmModule } from './wasmIntegrityVerifier';
 import { fetchWasmBinary } from './wasmBinaryCache';
 import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+import { wasmTextAssembler } from './WasmTextAssembler';
+import { wasmTextChunker } from './WasmTextChunker';
+import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
+import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -203,6 +207,12 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   } catch (error) {
     const errorMsg = `WASM pattern processing error: ${error.message}`;
     logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
+    wasmPatternProcessor = null;
+    lifecycle.permanentlyFail();
+    wasmTextAssembler.retireOnSharedModulePanic();
+    wasmTextChunker.retireOnSharedModulePanic();
+    retireWasmDictionaryOnSharedPanic();
+    retireWasmConflictResolutionOnSharedPanic();
 
     // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
     const now = Date.now();

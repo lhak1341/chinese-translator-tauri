@@ -5,6 +5,9 @@ import init, {
   getGlobalChunkerStats,
 } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
+import { wasmTextAssembler } from './WasmTextAssembler';
+import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
+import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 
 /**
  * High-performance text chunker using Rust WASM
@@ -180,6 +183,9 @@ export class WasmTextChunker {
       this.chunker = null;
       this.initialized = false;
       this.initializationFailed = true; // prevents lazy-init from re-trying the same broken module
+      wasmTextAssembler.retireOnSharedModulePanic();
+      retireWasmDictionaryOnSharedPanic();
+      retireWasmConflictResolutionOnSharedPanic();
       try {
         recordFallback();
       } catch (e) {
@@ -250,6 +256,17 @@ export class WasmTextChunker {
         fallbackCount: 0,
       };
     }
+  }
+
+  /**
+   * Proactively retire this chunker when the shared WASM module is known-corrupted
+   * (e.g. NumberProcessor panicked — shared linear memory is already tainted).
+   * Prevents a secondary panic on the next chunkText call.
+   */
+  retireOnSharedModulePanic() {
+    this.chunker = null;
+    this.initialized = false;
+    this.initializationFailed = true;
   }
 
   /**

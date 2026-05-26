@@ -156,8 +156,11 @@ import { parallelConfig } from './ParallelConfig.js';
 // WASM NumberProcessor added as focused feature (following migration guide advice)
 import { isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
 import { processNumbers } from './wasm/NumberProcessingAdapter.js';
-// WASM Phase 4 conflict resolution — flat Uint32Array boundary, near-zero overhead
-import { resolveGlobalConflictsWasm } from './wasm/WasmConflictResolution.js';
+// WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
+import {
+  resolveGlobalConflictsWasm,
+  resolveMatchConflictsWasm,
+} from './wasm/WasmConflictResolution.js';
 
 import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 // TranslationSegmentCache removed - cache quality issues led to removal
@@ -2343,98 +2346,11 @@ export class TranslationEngine {
       }
     }
 
-    // Sort matches by smart priority
-    potentialMatches.sort((a, b) => {
-      // Determine priority level for each match
-      const getPriority = (match) => {
-        // Higher specificity compounds should beat patterns that partially overlap
-        if (
-          match.type === 'phrase' &&
-          match.match.metadata?.allowAsPatternVariable === true &&
-          match.isCompoundWord &&
-          !match.isPartOfPattern
-        ) {
-          return 1; // Phase 2: High-specificity compound words (like 手套)
-        } else if (match.type === 'pattern' && !match.conflictsWithCompound) {
-          return 2; // Phase 3: patterns (unless they conflict with compound words)
-        } else if (
-          match.type === 'phrase' &&
-          match.match.metadata?.allowAsPatternVariable === true &&
-          !match.isPartOfPattern
-        ) {
-          return 3; // Phase 2: Other allowAsPatternVariable phrases
-        } else if (match.type === 'pattern' && match.conflictsWithCompound) {
-          return 4; // Patterns that conflict with compound words get lower priority
-        } else if (match.type === 'phrase') {
-          return 5; // Phase 4: regular phrases or phrases that are part of patterns
-        }
-        return 6; // Fallback
-      };
-
-      const priorityA = getPriority(a);
-      const priorityB = getPriority(b);
-
-      // First priority: Smart phase order
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
-      // Second priority: Longer matches within same type
-      const lengthA = a.endIndex - a.startIndex + 1;
-      const lengthB = b.endIndex - b.startIndex + 1;
-
-      if (lengthA !== lengthB) {
-        return lengthB - lengthA; // Longer matches first
-      }
-
-      return 0;
-    });
-
-    const resolvedMatches = [];
-    const usedTokens = new Set();
-
-    for (const potentialMatch of potentialMatches) {
-      const { startIndex, endIndex } = potentialMatch;
-
-      // Check if any tokens in this range are already used
-      let hasConflict = false;
-      for (let i = startIndex; i <= endIndex; i++) {
-        if (usedTokens.has(i)) {
-          hasConflict = true;
-          break;
-        }
-      }
-
-      if (!hasConflict) {
-        // No conflict, accept this match
-        resolvedMatches.push(potentialMatch);
-
-        // Mark tokens as used
-        for (let i = startIndex; i <= endIndex; i++) {
-          usedTokens.add(i);
-        }
-
-        const matchText =
-          potentialMatch.type === 'phrase'
-            ? potentialMatch.match.word
-            : potentialMatch.pattern.originalPattern;
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `✅ Accepted ${potentialMatch.type}: "${matchText}" (tokens ${startIndex}-${endIndex})`
-        );
-      } else {
-        const matchText =
-          potentialMatch.type === 'phrase'
-            ? potentialMatch.match.word
-            : potentialMatch.pattern.originalPattern;
-        this.log(
-          DEBUG_LEVELS.DEBUG,
-          `🚫 Rejected ${potentialMatch.type}: "${matchText}" due to conflict`
-        );
-      }
-    }
-
-    return resolvedMatches;
+    // Delegate priority-first sort + greedy scheduling to WASM (JS fallback in wrapper).
+    // Compound pre-processing above has already set isCompoundWord / isPartOfPattern /
+    // conflictsWithCompound on each match; WasmConflictResolution encodes them as 6-level
+    // priorities for the Rust priority-first scheduler.
+    return resolveMatchConflictsWasm(potentialMatches);
   }
 
   /**

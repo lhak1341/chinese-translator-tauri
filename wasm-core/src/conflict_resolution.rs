@@ -19,15 +19,12 @@
 //!
 //! # Sibling relationship
 //!
-//! `resolveGlobalConflicts` (Phase 4): phrases beat patterns at equal length.
-//! `resolveMatchConflicts`  (Phase 2): patterns beat phrases at equal length.
-//!
-//! Both call `run_conflict_resolution` — the inversion is a single boolean flag,
-//! guaranteeing algorithmic parity without manual mirroring.
-//!
-//! Note: Only `resolveGlobalConflicts` is wired into JS TranslationEngine.
-//! `resolveMatchConflicts` has additional compound-word pre-processing in JS
-//! that requires token context and cannot be ported without it.
+//! `resolveGlobalConflicts` (Phase 4): length-first sort, then phrases beat patterns.
+//! `resolveMatchConflicts`  (Phase 2): priority-first sort (6 levels), then length.
+//!   Phase 2 uses `run_conflict_resolution_priority_first` — compound words (priority 1)
+//!   must beat longer conflicting patterns (priority 4) regardless of length.
+//!   JS compound-word pre-processing runs first and encodes the 6-level priority into
+//!   each candidate before passing the flat array here.
 //!
 //! Rust parity validator: wasm-core/tests/conflict_resolution_parity_test.rs
 
@@ -128,21 +125,79 @@ pub fn resolve_global_conflicts(candidates_flat: &[u32]) -> Uint32Array {
     to_uint32array(run_conflict_resolution(candidates_flat, true))
 }
 
-/// Phase 2 conflict resolution — patterns beat phrases at equal length.
+/// Priority-first greedy interval scheduling for Phase 2.
 ///
-/// Mirrors the core scheduling portion of `TranslationEngine.js::resolveMatchConflicts()`.
-/// Note: `resolveMatchConflicts` also has compound-word pre-processing that runs
-/// in JS before this algorithm, so this export is available for future use.
+/// Sort order: type_priority ascending (lower = better), then length descending, then start ascending.
+/// This differs from `run_conflict_resolution` (length-first) because Phase 2 compound words
+/// (priority 1) must beat longer conflicting patterns (priority 4) regardless of match length.
+/// JS encodes 6 priority levels after compound pre-processing:
+///   1 = high-specificity compound phrase (allowAsPatternVariable + isCompoundWord)
+///   2 = non-conflicting pattern
+///   3 = other allowAsPatternVariable phrase
+///   4 = pattern conflicting with a compound word
+///   5 = regular phrase
+///   6 = fallback
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn run_conflict_resolution_priority_first(candidates_flat: &[u32]) -> Vec<u32> {
+    if candidates_flat.len() % STRIDE != 0 {
+        return Vec::new();
+    }
+    let n = candidates_flat.len() / STRIDE;
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| {
+        let al = candidates_flat[a * STRIDE + 2]; // length
+        let bl = candidates_flat[b * STRIDE + 2];
+        let at = candidates_flat[a * STRIDE + 3]; // type_priority
+        let bt = candidates_flat[b * STRIDE + 3];
+        let a_start = candidates_flat[a * STRIDE];
+        let b_start = candidates_flat[b * STRIDE];
+
+        // Primary: type_priority ascending (1 = compound phrase beats 4 = conflicting pattern)
+        at.cmp(&bt)
+            // Secondary: length descending (longer wins within same priority tier)
+            .then_with(|| bl.cmp(&al))
+            // Tertiary: start_index ascending
+            .then_with(|| a_start.cmp(&b_start))
+    });
+
+    let mut selected: Vec<u32> = Vec::new();
+    let mut used: HashSet<u32> = HashSet::new();
+
+    for orig_idx in order {
+        let start = candidates_flat[orig_idx * STRIDE];
+        let end = candidates_flat[orig_idx * STRIDE + 1];
+
+        if !(start..=end).any(|i| used.contains(&i)) {
+            selected.push(orig_idx as u32);
+            for i in start..=end {
+                used.insert(i);
+            }
+        }
+    }
+
+    selected
+}
+
+/// Phase 2 conflict resolution — priority-first scheduling after JS compound pre-processing.
+///
+/// JS compound-word pre-processing runs first and encodes 6-level priorities into each
+/// candidate. This function then resolves overlaps using priority-first sort so that
+/// high-specificity compound phrases (priority 1) beat longer conflicting patterns (priority 4).
 ///
 /// # Arguments
 /// * `candidates_flat` — flat `Uint32Array`: `[start, end, length, type_priority, ...]` per candidate.
+///   `type_priority` is the 6-level JS priority, not the simple 1=Phrase/2=Pattern encoding.
 ///
 /// # Returns
 /// `Uint32Array` of selected original indices, in acceptance order.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = resolveMatchConflictsCore)]
 pub fn resolve_match_conflicts(candidates_flat: &[u32]) -> Uint32Array {
-    to_uint32array(run_conflict_resolution(candidates_flat, false))
+    to_uint32array(run_conflict_resolution_priority_first(candidates_flat))
 }
 
 // ============================================================================
@@ -221,6 +276,65 @@ mod tests {
         let input = flat(&[(0, 2, 3, 1), (1, 3, 3, 1)]);
         let original = input.clone();
         let _ = run_conflict_resolution(&input, true);
+        assert_eq!(input, original);
+    }
+
+    // -------------------------------------------------------------------------
+    // Priority-first (Phase 2) tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_priority_first_compound_beats_longer_pattern() {
+        // Compound phrase "手套" (tokens 1-2, length 2, priority 1) overlaps with
+        // a conflicting pattern (tokens 0-2, length 3, priority 4).
+        // Priority-first: compound (prio 1) wins despite being shorter.
+        let input = flat(&[
+            (1, 2, 2, 1), // compound phrase, priority 1
+            (0, 2, 3, 4), // conflicting pattern, priority 4
+        ]);
+        let result = run_conflict_resolution_priority_first(&input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 0); // compound phrase (orig index 0) wins
+    }
+
+    #[test]
+    fn test_priority_first_non_conflicting_pattern_beats_phrase_same_length() {
+        // Non-conflicting pattern (prio 2) vs other phrase (prio 3), same length.
+        let input = flat(&[
+            (0, 2, 3, 3), // other phrase, priority 3
+            (0, 2, 3, 2), // non-conflicting pattern, priority 2
+        ]);
+        let result = run_conflict_resolution_priority_first(&input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 1); // pattern (orig index 1, prio 2) wins
+    }
+
+    #[test]
+    fn test_priority_first_non_overlapping_both_selected() {
+        let input = flat(&[(0, 1, 2, 1), (2, 4, 3, 4)]);
+        let result = run_conflict_resolution_priority_first(&input);
+        assert_eq!(result.len(), 2);
+        assert!(result.contains(&0));
+        assert!(result.contains(&1));
+    }
+
+    #[test]
+    fn test_priority_first_same_priority_longer_wins() {
+        // Same priority tier: longer match should win.
+        let input = flat(&[
+            (0, 1, 2, 2), // pattern, length 2
+            (0, 2, 3, 2), // pattern, length 3 — should win
+        ]);
+        let result = run_conflict_resolution_priority_first(&input);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 1); // longer pattern wins
+    }
+
+    #[test]
+    fn test_priority_first_input_not_mutated() {
+        let input = flat(&[(0, 2, 3, 1), (1, 3, 3, 4)]);
+        let original = input.clone();
+        let _ = run_conflict_resolution_priority_first(&input);
         assert_eq!(input, original);
     }
 }

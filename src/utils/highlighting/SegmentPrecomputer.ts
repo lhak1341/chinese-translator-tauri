@@ -11,7 +11,10 @@
 
 import { logger } from '../logger';
 import { getGraphemeLength, getFirstGrapheme } from '../GraphemeHelper.js';
-import { normalizeVietnameseText } from '../text/TextNormalizationHelpers';
+import {
+  normalizeVietnameseText,
+  normalizeVietnameseTexts,
+} from '../text/TextNormalizationHelpers';
 
 /**
  * Options for segment precomputation
@@ -382,11 +385,13 @@ export class SegmentPrecomputer {
     const { translated, original, metadata } = semanticArrays;
 
     // Prepare semantic units for WASM
-    // CODE REVIEW FIX (2026-02-07): Use shared helper for array normalization
-    const allUnits: UnitData[] = translated
+    // Batch-normalize the full translated array before building UnitData objects;
+    // avoids one normalizeVietnameseText() call per unit inside the .map().
+    const normalizedTranslated = normalizeVietnameseTexts(translated);
+    const allUnits: UnitData[] = normalizedTranslated
       .map((unit, index) => ({
         index,
-        unit: normalizeVietnameseText(unit),
+        unit,
         original: original[index],
         metadata: metadata[index],
       }))
@@ -586,15 +591,13 @@ export class SegmentPrecomputer {
     const segments: Segment[] = [];
     let currentPosition = 0;
 
-    // Create a lookup map for faster unit matching - don't use keys, use direct comparison
-    // HIGH-5 FIX: Pre-filter empty units to avoid wasting iteration cycles
-    // Empty units cannot match any text, filtering saves n iterations per position
-    // CRITICAL BUG FIX: Normalize units to NFC for consistent matching with normalized text
-    // CODE REVIEW FIX (2026-02-07): Use shared helper for array normalization
-    const allUnits: UnitData[] = translated
+    // Pre-filter and normalize units in one batch pass; avoids per-unit normalize() inside .map().
+    // CRITICAL BUG FIX: Units must be NFC-normalized to match the NFC-normalized text above.
+    const normalizedTranslated = normalizeVietnameseTexts(translated);
+    const allUnits: UnitData[] = normalizedTranslated
       .map((unit, index) => ({
         index,
-        unit: normalizeVietnameseText(unit),
+        unit,
         original: original[index],
         metadata: metadata[index],
       }))

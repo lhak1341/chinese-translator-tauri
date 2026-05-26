@@ -20,12 +20,21 @@
 import init, { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager } from './WasmMemoryPoolManager.js';
 import { logger } from '../logger';
+import { wasmTextAssembler } from './WasmTextAssembler';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { FallbackManager } from '../FallbackManager';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
+
+// Set when shared WASM module is known-corrupted (e.g. NumberProcessor panic).
+// Guards all engine calls so the corrupted module is never touched again.
+let _sharedModuleCorrupted = false;
+
+export function retireWasmDictionaryOnSharedPanic() {
+  _sharedModuleCorrupted = true;
+}
 
 export class WasmDictionaryManager {
   constructor() {
@@ -357,7 +366,7 @@ export class WasmDictionaryManager {
   }
 
   findMatches(dictionaryName, text, startPos = 0) {
-    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
+    if (!this.initialized || _sharedModuleCorrupted || this.fallbackHandler.isInFallbackMode()) {
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
 
@@ -394,13 +403,15 @@ export class WasmDictionaryManager {
         .filter((match) => match !== null); // Remove invalid matches
     } catch (error) {
       logger.error('❌ WASM lookup failed:', error);
+      _sharedModuleCorrupted = true;
+      wasmTextAssembler.retireOnSharedModulePanic();
       this.handleFailure();
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
   }
 
   findLongestMatch(dictionaryName, text, startPos = 0) {
-    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
+    if (!this.initialized || _sharedModuleCorrupted || this.fallbackHandler.isInFallbackMode()) {
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
 
@@ -433,6 +444,8 @@ export class WasmDictionaryManager {
       };
     } catch (error) {
       logger.error('❌ WASM longest match failed:', error);
+      _sharedModuleCorrupted = true;
+      wasmTextAssembler.retireOnSharedModulePanic();
       this.handleFailure();
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
@@ -486,7 +499,7 @@ export class WasmDictionaryManager {
   }
 
   hasDictionary(name) {
-    return this.initialized && !this.fallbackHandler.isInFallbackMode()
+    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode()
       ? this.engine.has_dictionary(name)
       : false;
   }

@@ -1,9 +1,13 @@
 // @ts-check
-// @ts-ignore — resolveGlobalConflicts is added by wasm-pack build; not in typedefs until rebuilt
+// @ts-ignore — named exports added by wasm-pack build; collapse to one line so @ts-ignore covers all
 import init, {
   resolveGlobalConflicts as wasmResolveGlobalConflicts,
+  resolveMatchConflictsCore as wasmResolveMatchConflictsCore,
 } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
+import { wasmTextAssembler } from './WasmTextAssembler';
+import { wasmTextChunker } from './WasmTextChunker';
+import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
 
 /**
  * WASM-accelerated Phase 4 conflict resolution.
@@ -25,6 +29,12 @@ let initialized = false;
 let initializationFailed = false;
 /** @type {Promise<boolean> | null} */
 let initializationPromise = null;
+
+export function retireWasmConflictResolutionOnSharedPanic() {
+  initialized = false;
+  initializationFailed = true;
+  initializationPromise = null;
+}
 
 /**
  * Initialize the WASM module (idempotent, promise-cached).
@@ -135,7 +145,122 @@ export function resolveGlobalConflictsWasm(allMatches) {
     logger.warn('WASM resolveGlobalConflicts failed, retiring module:', error);
     initialized = false;
     initializationFailed = true;
+    wasmTextAssembler.retireOnSharedModulePanic();
+    wasmTextChunker.retireOnSharedModulePanic();
+    retireWasmDictionaryOnSharedPanic();
     return jsFallback(allMatches);
+  }
+}
+
+/**
+ * Compute the 6-level Phase 2 priority for a match object after JS compound pre-processing.
+ * Mirrors TranslationEngine.js::resolveMatchConflicts getPriority().
+ *
+ * @param {{ type: string, isCompoundWord?: boolean, isPartOfPattern?: boolean, conflictsWithCompound?: boolean, match?: { metadata?: { allowAsPatternVariable?: boolean } } }} match
+ * @returns {number} 1 (best) – 6 (fallback)
+ */
+function getPhase2Priority(match) {
+  if (
+    match.type === 'phrase' &&
+    match.match?.metadata?.allowAsPatternVariable === true &&
+    match.isCompoundWord &&
+    !match.isPartOfPattern
+  )
+    return 1; // high-specificity compound (like 手套)
+  if (match.type === 'pattern' && !match.conflictsWithCompound) return 2;
+  if (
+    match.type === 'phrase' &&
+    match.match?.metadata?.allowAsPatternVariable === true &&
+    !match.isPartOfPattern
+  )
+    return 3;
+  if (match.type === 'pattern' && match.conflictsWithCompound) return 4;
+  if (match.type === 'phrase') return 5;
+  return 6;
+}
+
+/**
+ * Pack Phase 2 match objects into a flat Uint32Array using 6-level priority encoding.
+ *
+ * @param {Array<*>} matches - potentialMatches after compound pre-processing
+ * @returns {Uint32Array}
+ */
+function packMatchesPhase2(matches) {
+  const flat = new Uint32Array(matches.length * 4);
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    flat[i * 4] = m.startIndex;
+    flat[i * 4 + 1] = m.endIndex;
+    flat[i * 4 + 2] = m.endIndex - m.startIndex + 1;
+    flat[i * 4 + 3] = getPhase2Priority(m);
+  }
+  return flat;
+}
+
+/**
+ * JS fallback — mirrors the priority-first sort+greedy logic in
+ * TranslationEngine.js::resolveMatchConflicts() scheduling section.
+ *
+ * @param {Array<*>} potentialMatches
+ * @returns {Array<*>}
+ */
+function jsFallbackPhase2(potentialMatches) {
+  const sorted = [...potentialMatches].sort((a, b) => {
+    const pa = getPhase2Priority(a);
+    const pb = getPhase2Priority(b);
+    if (pa !== pb) return pa - pb;
+    const la = a.endIndex - a.startIndex + 1;
+    const lb = b.endIndex - b.startIndex + 1;
+    return lb - la;
+  });
+
+  const selected = [];
+  const used = new Set();
+  for (const m of sorted) {
+    let conflict = false;
+    for (let i = m.startIndex; i <= m.endIndex; i++) {
+      if (used.has(i)) {
+        conflict = true;
+        break;
+      }
+    }
+    if (!conflict) {
+      selected.push(m);
+      for (let i = m.startIndex; i <= m.endIndex; i++) used.add(i);
+    }
+  }
+  return selected;
+}
+
+/**
+ * Resolve Phase 2 match conflicts using WASM (with JS fallback).
+ *
+ * JS compound-word pre-processing must run first (sets isCompoundWord, isPartOfPattern,
+ * conflictsWithCompound on each match). This function then delegates the priority-first
+ * sort+greedy scheduling to Rust via a flat Uint32Array boundary.
+ *
+ * @param {Array<*>} potentialMatches - matches after compound pre-processing
+ * @returns {Array<*>} Non-overlapping selected matches in acceptance order
+ */
+export function resolveMatchConflictsWasm(potentialMatches) {
+  if (potentialMatches.length === 0) return [];
+
+  if (!initialized) {
+    return jsFallbackPhase2(potentialMatches);
+  }
+
+  try {
+    const flat = packMatchesPhase2(potentialMatches);
+    const selectedIndices = wasmResolveMatchConflictsCore(flat);
+    return Array.from(selectedIndices).map((i) => potentialMatches[i]);
+  } catch (/** @type {any} */ error) {
+    logger.warn('WASM resolveMatchConflictsCore failed, retiring module:', error);
+    initialized = false;
+    initializationFailed = true;
+    wasmTextAssembler.retireOnSharedModulePanic();
+    wasmTextChunker.retireOnSharedModulePanic();
+    retireWasmDictionaryOnSharedPanic();
+    return jsFallbackPhase2(potentialMatches);
   }
 }
 
