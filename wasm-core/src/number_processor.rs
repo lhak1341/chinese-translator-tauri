@@ -300,10 +300,11 @@ impl NumberProcessor {
         // Process each token position
         let mut i = 0;
         while i < tokens.len() {
-            // Only process untranslated Chinese characters
+            // Only process untranslated Chinese characters that start with a recognized number char
             if tokens[i].token_type != "chinese_char"
                 || tokens[i].translated.is_some()
-                || tokens[i].translation_source.is_some() {
+                || tokens[i].translation_source.is_some()
+                || !tokens[i].value.chars().any(|c| self.number_map.contains_key(&c)) {
                 i += 1;
                 continue;
             }
@@ -1008,5 +1009,38 @@ mod tests {
         let tokens = vec![tok("三"), tok("十")];
         // start_index = tokens.len() — should not panic (loop condition handles it)
         let _ = p.find_longest_number_match(&tokens, 2);
+    }
+
+    #[test]
+    fn test_bu_yao_dao_shi_yi_tiao_no_panic() {
+        // Regression: "不要到时一条也钓不到" caused OOB in WASM (first reported 2026-05-27).
+        // 一 at index 4 is a number char but no pattern matches sequences starting with 一
+        // followed by non-number chars (条也钓不到). Verifies process_tokens loop exits cleanly.
+        let p = NumberProcessor::new();
+        let tokens = vec![
+            tok("不"), tok("要"), tok("到"), tok("时"), tok("一"),
+            tok("条"), tok("也"), tok("钓"), tok("不"), tok("到"),
+        ];
+        let mut i = 0;
+        while i < tokens.len() {
+            if tokens[i].token_type == "chinese_char"
+                && tokens[i].translated.is_none()
+                && tokens[i].translation_source.is_none()
+            {
+                let m = p.find_longest_number_match(&tokens, i);
+                if let Some(m) = m {
+                    i = m.end_index + 1;
+                } else {
+                    i += 1;
+                }
+            } else {
+                i += 1;
+            }
+        }
+        // All tokens should remain unmatched (no number patterns fire)
+        for token in &tokens {
+            assert!(token.translated.is_none());
+            assert!(token.translation_source.is_none());
+        }
     }
 }

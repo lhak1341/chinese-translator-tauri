@@ -23,6 +23,8 @@ Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or d
 
 `npm run build-wasm-dev` (`wasm-pack build --dev`) = debug WASM — `overflow-checks = true`, `debug_assertions = true`, unoptimized. A panic in `tauri:dev` may not reproduce in production (`build-wasm` uses release: `overflow-checks = false`, `opt-level = 3`). When debugging a WASM panic, verify whether it is debug-only before assuming a logic error.
 
+**OOB diagnosis:** Write a native Rust unit test first — if `cargo test` passes, the bug is WASM-specific (typically debug shadow stack exhaustion from unoptimized code). Fix by reducing work before touching expensive lazy statics (e.g. pre-check before `PATTERNS.iter()`).
+
 ## Test locations
 
 - `tests/two_phase_test.rs` — two-phase + hierarchical composite tests

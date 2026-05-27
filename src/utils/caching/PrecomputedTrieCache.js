@@ -133,7 +133,7 @@ export async function tryLoadPrecomputedTrie(
       return null;
     }
 
-    const precomputed = JSON.parse(cacheData);
+    const precomputed = typeof cacheData === 'string' ? JSON.parse(cacheData) : cacheData;
 
     // Validate version
     if (precomputed.version !== 1) {
@@ -187,7 +187,7 @@ export async function savePrecomputedTrie(dictionaryName, dictionary, trie, save
     };
 
     const cacheFileName = `${dictionaryName}.trie.json`;
-    const success = await saveCacheFile(cacheFileName, JSON.stringify(precomputed));
+    const success = await saveCacheFile(cacheFileName, precomputed);
 
     if (success) {
       logger.log(`💾 [PrecomputedTrie] Saved cache for ${dictionaryName} (${trie.size} entries)`);

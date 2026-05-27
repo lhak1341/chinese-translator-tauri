@@ -40,7 +40,7 @@ export async function loadDictionaryWithCache(
       // Try loading .trie.json using the same API as dictionaries
       const cacheId = cacheFileName.replace('.json', '');
       const result = await tauriAPI.loadDictionary(cacheId);
-      return result.success ? JSON.stringify(result.data) : null;
+      return result.success ? result.data : null;
     } catch (error) {
       logger.debug(`[DictionaryTrieLoader] Cache file not accessible: ${cacheFileName}`);
       return null;
@@ -135,8 +135,7 @@ async function saveDictionaryCache(dictionaryName, dictionaryData, trie, tauriAP
     try {
       // Save .trie.json using the same API as dictionaries
       const cacheId = cacheFileName.replace('.json', '');
-      const parsed = JSON.parse(data);
-      const result = await tauriAPI.saveDictionary(cacheId, parsed);
+      const result = await tauriAPI.saveDictionary(cacheId, data);
 
       if (result.success) {
         precomputedTrieStats.recordCacheSave();

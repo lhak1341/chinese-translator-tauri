@@ -39,6 +39,15 @@ vi.mock('../wasm/WasmMemoryPoolManager.js', () => ({
   WasmDictionaryOperationHelper: vi.fn(),
 }));
 
+// Mock WasmTextAssembler to prevent module-bottom prewarm from firing async
+// console logs that race with worker teardown (EnvironmentTeardownError).
+vi.mock('../wasm/WasmTextAssembler', () => ({
+  wasmTextAssembler: {
+    retireOnSharedModulePanic: vi.fn(),
+    initialized: false,
+  },
+}));
+
 // Mock WasmProcessorLifecycle so DictionaryManager init succeeds without real WASM binary
 vi.mock('../wasm/WasmProcessorLifecycle', () => ({
   WasmProcessorLifecycle: vi.fn(function () {
@@ -60,6 +69,10 @@ describe('WasmDictionaryManager Error Handling', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    // Reset module registry each test so module-level _sharedModuleCorrupted
+    // starts false (cascade-retire from prior tests doesn't bleed through).
+    vi.resetModules();
+
     // Import module after mocks are set up
     const module = await import('../wasm/WasmDictionaryManager.js');
     WasmDictionaryManager = module.WasmDictionaryManager;
@@ -79,63 +92,37 @@ describe('WasmDictionaryManager Error Handling', () => {
 
   describe('HIGH-4: Fallback mode notifications', () => {
     it('should show toast warning when entering fallback mode', async () => {
-      // Setup: Initialize manager
-      const mockFallbackManager = {
-        findMatches: vi.fn(() => []),
-      };
+      const mockFallbackManager = { findMatches: vi.fn(() => []) };
 
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: Mock 3 consecutive failures to trigger fallback
-      mockDictionaryEngine.find_matches
-        .mockImplementationOnce(() => {
-          throw new Error('WASM error 1');
-        })
-        .mockImplementationOnce(() => {
-          throw new Error('WASM error 2');
-        })
-        .mockImplementationOnce(() => {
-          throw new Error('WASM error 3');
-        });
+      // Trigger threshold via handleFailure() — findMatches exceptions trigger
+      // cascade-retire on the first call, making subsequent calls short-circuit
+      // and preventing the threshold from being reached via the exception path.
+      manager.handleFailure();
+      manager.handleFailure();
+      manager.handleFailure();
 
-      // Action: Trigger 3 failures
-      manager.findMatches('characters', '测试', 0);
-      manager.findMatches('characters', '测试', 0);
-      manager.findMatches('characters', '测试', 0);
-
-      // Assert: Toast warning was shown
       expect(toast.warning).toHaveBeenCalledWith(
         'Dictionary system using slower fallback mode. Performance may be reduced.',
         { duration: 5000, id: 'wasm-dict-fallback' }
       );
-
-      // Assert: Fallback mode enabled
       expect(manager.fallbackHandler.isInFallbackMode()).toBe(true);
     });
 
     it('should only show toast warning once', async () => {
-      // Setup: Initialize manager
-      const mockFallbackManager = {
-        findMatches: vi.fn(() => []),
-      };
+      const mockFallbackManager = { findMatches: vi.fn(() => []) };
 
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: Mock 5 failures (3 to trigger, 2 more to verify no duplicate toasts)
-      mockDictionaryEngine.find_matches.mockImplementation(() => {
-        throw new Error('WASM error');
-      });
-
-      // Action: Trigger 5 failures
       for (let i = 0; i < 5; i++) {
-        manager.findMatches('characters', '测试', 0);
+        manager.handleFailure();
       }
 
-      // Assert: Toast shown exactly once
       expect(toast.warning).toHaveBeenCalledTimes(1);
       expect(toast.warning).toHaveBeenCalledWith(
         'Dictionary system using slower fallback mode. Performance may be reduced.',
@@ -144,35 +131,25 @@ describe('WasmDictionaryManager Error Handling', () => {
     });
 
     it('should not show toast if failures are non-consecutive (reset via loadDictionary)', async () => {
-      // Setup: Initialize manager
       const mockFallbackManager = {};
 
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: findMatches failures, then loadDictionary success (which resets counter)
-      mockDictionaryEngine.find_matches.mockImplementation(() => {
-        throw new Error('WASM error');
-      });
-
-      // Action: 2 failures via findMatches
-      manager.findMatches('characters', '测试', 0);
-      manager.findMatches('characters', '测试', 0);
-
+      manager.handleFailure();
+      manager.handleFailure();
       expect(manager.fallbackHandler.getFailureCount()).toBe(2);
 
-      // Action: Successful loadDictionary resets counter
+      // Successful loadDictionary resets counter
       mockDictionaryEngine.load_dictionary.mockReturnValue(true);
       await manager.loadDictionary('characters', [{ chinese: '测试', vietnamese: 'test' }]);
-
       expect(manager.fallbackHandler.getFailureCount()).toBe(0);
 
-      // Action: 2 more failures (but counter was reset, so only at 2, not 4)
-      manager.findMatches('characters', '测试', 0);
-      manager.findMatches('characters', '测试', 0);
+      manager.handleFailure();
+      manager.handleFailure();
 
-      // Assert: Only 2 consecutive failures after reset, no toast shown yet
+      // Only 2 consecutive failures after reset — not at threshold yet
       expect(manager.fallbackHandler.getFailureCount()).toBe(2);
       expect(toast.warning).not.toHaveBeenCalled();
       expect(manager.fallbackHandler.isInFallbackMode()).toBe(false);
@@ -181,24 +158,15 @@ describe('WasmDictionaryManager Error Handling', () => {
 
   describe('Failure tracking', () => {
     it('should track consecutive failures', async () => {
-      const mockFallbackManager = {
-        findMatches: vi.fn(() => []),
-      };
+      const mockFallbackManager = { findMatches: vi.fn(() => []) };
 
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: Mock failures
-      mockDictionaryEngine.find_matches.mockImplementation(() => {
-        throw new Error('WASM error');
-      });
+      manager.handleFailure();
+      manager.handleFailure();
 
-      // Action: 2 failures
-      manager.findMatches('characters', '测试', 0);
-      manager.findMatches('characters', '测试', 0);
-
-      // Assert: Consecutive failures tracked
       expect(manager.fallbackHandler.getFailureCount()).toBe(2);
     });
 
@@ -209,43 +177,27 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: 2 failures via findMatches
-      mockDictionaryEngine.find_matches.mockImplementation(() => {
-        throw new Error('WASM error');
-      });
-
-      manager.findMatches('characters', '测试', 0);
-      manager.findMatches('characters', '测试', 0);
-
+      manager.handleFailure();
+      manager.handleFailure();
       expect(manager.fallbackHandler.getFailureCount()).toBe(2);
 
-      // Action: Successful load_dictionary
       mockDictionaryEngine.load_dictionary.mockReturnValue(true);
       await manager.loadDictionary('characters', [{ chinese: '测试', vietnamese: 'test' }]);
 
-      // Assert: Counter reset after success
       expect(manager.fallbackHandler.getFailureCount()).toBe(0);
     });
 
     it('should enter fallback mode after maxFailuresBeforeFallback', async () => {
-      const mockFallbackManager = {
-        findMatches: vi.fn(() => []),
-      };
+      const mockFallbackManager = { findMatches: vi.fn(() => []) };
 
       await manager.initialize(mockFallbackManager);
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      mockDictionaryEngine.find_matches.mockImplementation(() => {
-        throw new Error('Persistent error');
-      });
-
-      // Action: Trigger failures up to threshold (default: 3)
       for (let i = 0; i < manager.fallbackHandler.maxFailures; i++) {
-        manager.findMatches('characters', '测试', 0);
+        manager.handleFailure();
       }
 
-      // Assert: Fallback mode enabled after threshold
       expect(manager.fallbackHandler.isInFallbackMode()).toBe(true);
       expect(manager.fallbackHandler.getFailureCount()).toBe(manager.fallbackHandler.maxFailures);
     });
@@ -289,10 +241,8 @@ describe('WasmDictionaryManager Error Handling', () => {
         manager.fallbackHandler.recordFailure();
       }
 
-      // Action: Find longest match while in fallback mode
       const result = manager.findLongestMatch('characters', '测试', 0);
 
-      // Assert: Fallback manager used
       expect(mockFallbackManager.findLongestMatch).toHaveBeenCalledWith('characters', '测试', 0);
       expect(mockDictionaryEngine.find_longest_match).not.toHaveBeenCalled();
       expect(result).toEqual({ word: 'longest', translation: 'longest' });
@@ -308,10 +258,8 @@ describe('WasmDictionaryManager Error Handling', () => {
         manager.fallbackHandler.recordFailure();
       }
 
-      // Action: Try to find matches without fallback manager
       const results = manager.findMatches('characters', '测试', 0);
 
-      // Assert: Returns empty array safely
       expect(results).toEqual([]);
     });
   });
@@ -326,17 +274,14 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: Mock loading error
       mockDictionaryEngine.load_dictionary.mockImplementation(() => {
         throw new Error('Loading failed');
       });
 
-      // Action: Try to load dictionary
       const result = await manager.loadDictionary('characters', [
         { chinese: '测试', vietnamese: 'test' },
       ]);
 
-      // Assert: Falls back to JavaScript manager
       expect(mockFallbackManager.loadDictionary).toHaveBeenCalled();
       expect(manager.fallbackHandler.getFailureCount()).toBe(1);
     });
@@ -350,15 +295,13 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: Mock exception
       mockDictionaryEngine.find_matches.mockImplementation(() => {
         throw new Error('Find matches failed');
       });
 
-      // Action: Find matches
       const results = manager.findMatches('characters', '测试', 0);
 
-      // Assert: Falls back to JavaScript manager
+      // Single exception: cascade-retires module but records 1 failure
       expect(mockFallbackManager.findMatches).toHaveBeenCalled();
       expect(manager.fallbackHandler.getFailureCount()).toBe(1);
       expect(Array.isArray(results)).toBe(true);
@@ -373,15 +316,12 @@ describe('WasmDictionaryManager Error Handling', () => {
       manager.initialized = true;
       manager.engine = mockDictionaryEngine;
 
-      // Setup: Mock exception
       mockDictionaryEngine.find_longest_match.mockImplementation(() => {
         throw new Error('Find longest match failed');
       });
 
-      // Action: Find longest match
       const result = manager.findLongestMatch('characters', '测试', 0);
 
-      // Assert: Falls back to JavaScript manager
       expect(mockFallbackManager.findLongestMatch).toHaveBeenCalled();
       expect(manager.fallbackHandler.getFailureCount()).toBe(1);
     });

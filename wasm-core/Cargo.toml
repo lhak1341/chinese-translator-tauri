@@ -2,7 +2,7 @@
 name = "translation-wasm-core"
 version = "0.2.0"
 edition = "2021"
-description = "WASM core module for Chinese-Vietnamese translation (deprecated)"
+description = "WASM core module for Chinese-Vietnamese translation acceleration"
 repository = "https://github.com/lhak1341/chinese-translator-tauri"
 license = "MIT"
 

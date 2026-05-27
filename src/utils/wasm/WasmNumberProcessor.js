@@ -132,9 +132,6 @@ export async function processNumbersWasm(tokens) {
 
     // Call WASM NumberProcessor (null check narrows type for @ts-check — logically unreachable)
     if (!wasmNumberProcessor) return tokens;
-    // DEBUG: capture input before WASM call so a panic is reproducible in Rust unit tests
-    // Remove once root-cause is identified (tracked in HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md)
-    logger.debug('WasmNumberProcessor input:', JSON.stringify(tokens));
     const processedTokens = wasmNumberProcessor.processTokens(tokens);
     return processedTokens;
   } catch (/** @type {any} */ error) {

@@ -132,8 +132,8 @@
     "hash": "3974930f4472b5c5e527b4b34ef71b93"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/number_processor.rs": {
-    "mtime": 1779518635.5474513,
-    "hash": "0bf564bb4ce9649920c6ee9f12dbc9a2"
+    "mtime": 1779854590.406456,
+    "hash": "e93a1037edec92348d323626f0e0477b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/text_assembly.rs": {
     "mtime": 1771549841.7391691,
@@ -352,8 +352,8 @@
     "hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/TranslationEngine.js": {
-    "mtime": 1779812125.7300909,
-    "hash": "430fe802c94c8a9ce6d42c4523028b24"
+    "mtime": 1779839510.2680397,
+    "hash": "f5732676a48d6e524d39f7ba018f7890"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/logger.ts": {
     "mtime": 1777743411.8961227,
@@ -416,8 +416,8 @@
     "hash": "74c4ee328ae5ae684a40dc58d0e78af5"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/highlighting/SegmentPrecomputer.ts": {
-    "mtime": 1779811975.134951,
-    "hash": "d83374d7b96698f8ebade86fea91b9af"
+    "mtime": 1779839510.372932,
+    "hash": "f5cc2659f7bd6159045b5e6c54bdb962"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/highlighting/ScrollHelpers.ts": {
     "mtime": 1778865935.882595,
@@ -456,8 +456,8 @@
     "hash": "316999637ac9cb4921a7850c4161a648"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmNumberProcessor.js": {
-    "mtime": 1779838817.217594,
-    "hash": "238cf2c4172ebdea83513b393aa5bc12"
+    "mtime": 1779856702.2032328,
+    "hash": "e506cb7dd852715410a0c74a003463cc"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmProcessorLifecycle.js": {
     "mtime": 1779838723.4078863,
@@ -488,8 +488,8 @@
     "hash": "8283b365a94e7260c2bb763443a9774e"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmConflictResolution.js": {
-    "mtime": 1779838808.9986804,
-    "hash": "e9985d8f1376973f52ba5f075976ef98"
+    "mtime": 1779839510.3889036,
+    "hash": "1c0db9c0b78bc869b59498a0ffa6f59a"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmRegexUtils.js": {
     "mtime": 1777802763.1605656,
@@ -530,6 +530,10 @@
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/LRUCache.test.ts": {
     "mtime": 1773509530.078948,
     "hash": "2cace72acdcfb4ca9f65b6790a69bdca"
+  },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/PatternVariableCache.test.js": {
+    "mtime": 1779840152.8952248,
+    "hash": "72a691fd8c7ebe76f439d349370de6aa"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/PatternPriorityCalculator.test.js": {
     "mtime": 1772672439.976407,
@@ -660,8 +664,8 @@
     "hash": "ddae4f26269e5c782f3c625abaf35504"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/WasmDictionaryManager.errorHandling.test.js": {
-    "mtime": 1778958034.677475,
-    "hash": "2b3f2acc3b16c7e5cb98050063ee88c4"
+    "mtime": 1779841575.1825256,
+    "hash": "46c022165bec668bd5acd8dac36bb99a"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/__tests__/MemoryLeakDetector.test.js": {
     "mtime": 1773509530.0794315,
@@ -720,8 +724,8 @@
     "hash": "5a443ffea530a307619dac6f993fd130"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/dictionary/DictionaryTrieLoader.js": {
-    "mtime": 1777771422.9450128,
-    "hash": "ce33dac463a521e1be70efb5a1b2aab1"
+    "mtime": 1779847610.2459762,
+    "hash": "c343d5d492408d9d5afc368d8e8e244c"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/text/ParagraphGrouping.ts": {
     "mtime": 1772666306.8221302,
@@ -772,8 +776,8 @@
     "hash": "df1d04f475e92725a67c45f926e2e2b7"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/pattern/PatternVariableCache.js": {
-    "mtime": 1779463430.4084396,
-    "hash": "842f26ae4b084b843d6d459caf6e3c41"
+    "mtime": 1779841575.1828535,
+    "hash": "2e960c46a5469813ac6ef45e5d80b33d"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/pattern/SemanticPatternProcessor.js": {
     "mtime": 1779459750.6766353,
@@ -840,8 +844,8 @@
     "hash": "6416cf25966025b21b8774647cc7cd56"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/caching/PrecomputedTrieCache.js": {
-    "mtime": 1773509530.0809226,
-    "hash": "d2db8a422e99817550755f36025b8068"
+    "mtime": 1779847601.5358047,
+    "hash": "47e98c118731396ed8b2e8b532a0ddc2"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/caching/ContentAwarePositionCache.ts": {
     "mtime": 1777745322.728703,
@@ -1060,8 +1064,8 @@
     "hash": "7483544f7a5441e6db3ed3b400c8773b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md": {
-    "mtime": 1779839244.9918962,
-    "hash": "39ba912ed0e0cec114f92b6c77a659f2"
+    "mtime": 1779839509.7234185,
+    "hash": "671dfa9989a1ab1963ac3f487be53f41"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/OPTIMIZATION_MASTER_INDEX_2026-01-31.md": {
     "mtime": 1769906376.693171,
@@ -1324,8 +1328,8 @@
     "hash": "d869e553890c601787bbe5469a07c7ac"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/CLAUDE.md": {
-    "mtime": 1779518994.6882594,
-    "hash": "3ce150871f24325f0c7a34af4df3a0eb"
+    "mtime": 1779856712.7957373,
+    "hash": "f3c26e3b6a6681953b83a0c7ec2d931f"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/WARNINGS.md": {
     "mtime": 1764739368.9793117,

@@ -87,38 +87,30 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
   if (!dictionaryManager) return cache;
 
   // Stage 2: Phrase lookups with allowAsPatternVariable flag.
-  // Checks single tokens AND multi-character combinations up to 6 tokens wide.
-  // Incremental string build avoids slice+map+join per iteration.
+  // Single trie walk per start position replaces O(6) independent translate() calls.
+  // Shared prefix traversal continues across token boundaries; dead-end breaks early.
+  const phrasesTrie = dictionaryManager.getDictionary?.('phrases');
   for (let i = 0; i < tokens.length; i++) {
-    const singleResult = dictionaryManager.translate(tokens[i].value, ['phrases']);
-    if (singleResult?.metadata?.allowAsPatternVariable) {
-      const entryType = resolveType(
-        'phrases_pattern_variable',
-        tokens[i].value,
-        singleResult.metadata
-      );
-      if (shouldInclude(entryType)) {
-        cache[tokens[i].value] = {
-          translation: singleResult.translation,
-          source: 'phrases_pattern_variable',
-          type: entryType,
-        };
+    if (!phrasesTrie) continue;
+    let node = phrasesTrie.root;
+    let combinedText = '';
+    for (let len = 1; len <= Math.min(6, tokens.length - i); len++) {
+      const tv = tokens[i + len - 1].value;
+      let dead = false;
+      for (const ch of tv) {
+        node = node.children.get(ch);
+        if (!node) {
+          dead = true;
+          break;
+        }
       }
-    }
-
-    let combinedText = tokens[i].value;
-    for (let len = 2; len <= Math.min(6, tokens.length - i); len++) {
-      combinedText += tokens[i + len - 1].value;
-      const multiResult = dictionaryManager.translate(combinedText, ['phrases']);
-      if (multiResult?.metadata?.allowAsPatternVariable) {
-        const entryType = resolveType(
-          'phrases_pattern_variable',
-          combinedText,
-          multiResult.metadata
-        );
+      if (dead) break;
+      combinedText += tv;
+      if (node.isEndOfWord && node.metadata?.allowAsPatternVariable) {
+        const entryType = resolveType('phrases_pattern_variable', combinedText, node.metadata);
         if (shouldInclude(entryType)) {
           cache[combinedText] = {
-            translation: multiResult.translation,
+            translation: node.translation,
             source: 'phrases_pattern_variable',
             type: entryType,
           };
