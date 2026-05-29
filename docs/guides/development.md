@@ -270,27 +270,27 @@ window.translationEngine.invalidateAllCaches('properNouns'); // Clear specific d
 
 ```bash
 # Development
-npm run tauri:dev   # Start dev server with WASM hot reload
-npm run dev         # Vite-only dev (without Tauri)
+pnpm tauri:dev      # Start dev server with WASM hot reload
+pnpm dev            # Vite-only dev (without Tauri)
 
 # Testing
-npm test            # Run tests in watch mode (Vitest)
-npm test -- --run   # Run tests once (for CI)
-npm run test:ui     # Visual test UI
-npm run test:coverage # Generate coverage report
+pnpm test           # Run tests in watch mode (Vitest)
+pnpm test -- --run  # Run tests once (for CI)
+pnpm test:ui        # Visual test UI
+pnpm test:coverage  # Generate coverage report
 
 # Code Quality
-npm run format      # Format all code with Prettier
-npm run format:check # Check formatting without writing
-npm run type-check  # TypeScript type checking (0 errors expected)
-npm run lint        # ESLint (quiet mode, errors only)
-npm run lint:full   # ESLint (all warnings)
+pnpm format         # Format all code with Prettier
+pnpm format:check   # Check formatting without writing
+pnpm type-check     # TypeScript type checking (0 errors expected)
+pnpm lint           # ESLint (quiet mode, errors only)
+pnpm lint:full      # ESLint (all warnings)
 
 # Building
-npm run build-wasm     # Build Rust WASM modules (production)
-npm run build-wasm-dev # Build Rust WASM modules (development)
-npm run build          # Build web assets
-npm run tauri:build    # Build production Tauri app
+pnpm build-wasm     # Build Rust WASM modules (production)
+pnpm build-wasm-dev # Build Rust WASM modules (development)
+pnpm build          # Build web assets
+pnpm tauri:build    # Build production Tauri app
 ```
 
 ---
@@ -338,7 +338,7 @@ npm run tauri:build    # Build production Tauri app
 - Write tests for new utilities before implementing
 - Test components for critical UI flows (translation, dictionary editing)
 - Mock Tauri APIs (automatically mocked in `src/test/setup.ts`)
-- Run `npm test` before committing (enforced by pre-commit hook)
+- Run `pnpm test` before committing (enforced by pre-commit hook)
 - **API Contract Testing**: Verify critical methods stay synchronous (e.g., `translate()` must not become async)
   - Pattern: `expect(result).not.toBeInstanceOf(Promise)` catches breaking changes
   - See `DictionaryManager.apiContract.test.js` for examples
@@ -351,14 +351,14 @@ npm run tauri:build    # Build production Tauri app
 
 **Automated Checks** (runs on push and PR):
 
-1. Type checking (`npm run type-check`)
-2. Linting (`npm run lint`)
-3. Tests (`npm test -- --run`)
+1. Type checking (`pnpm type-check`)
+2. Linting (`pnpm lint`)
+3. Tests (`pnpm test -- --run`)
 
 **Pragmatic CI Philosophy**:
 
 - CI focuses on catching development errors (types, lint, tests)
-- Production builds verified locally before releases (`npm run tauri:build`)
+- Production builds verified locally before releases (`pnpm tauri:build`)
 - No build step in CI - avoids WASM/environment issues, faster runs
 - Build works locally; that's what matters for releases
 
@@ -369,7 +369,7 @@ npm run tauri:build    # Build production Tauri app
 2. ESLint auto-fix on staged files
 3. TypeScript type checking on staged `.ts`/`.tsx` files
 
-**Setup**: Hooks install automatically via `npm install` (runs `prepare` script)
+**Setup**: Hooks install automatically via `pnpm install` (runs `prepare` script)
 
 ---
 
@@ -386,8 +386,8 @@ npm run tauri:build    # Build production Tauri app
 **Usage**:
 
 ```bash
-npm run format        # Format all src/ files
-npm run format:check  # Check if files are formatted (CI)
+pnpm format           # Format all src/ files
+pnpm format:check     # Check if files are formatted (CI)
 ```
 
 **Auto-format on save** (VS Code):
@@ -455,7 +455,7 @@ export default defineConfig({
 **Required packages**:
 
 ```bash
-npm install --save-dev vite-plugin-wasm vite-plugin-top-level-await
+pnpm add -D vite-plugin-wasm vite-plugin-top-level-await
 ```
 
 **Why**:
@@ -468,7 +468,7 @@ npm install --save-dev vite-plugin-wasm vite-plugin-top-level-await
 **Test production builds before releasing:**
 
 ```bash
-npm run tauri:build
+pnpm tauri:build
 open "src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app"
 # Test: WASM number processing, dictionary loading, translation quality
 ```
@@ -615,8 +615,8 @@ Fallow reports are a starting point, not a deletion list. Four blind spots:
 **Verification after each batch:**
 
 ```bash
-npm run type-check && npm test -- --run
-npm run tauri:dev  # catches dynamic import() breakage — type-check/tests miss it
+pnpm type-check && pnpm test -- --run
+pnpm tauri:dev  # catches dynamic import() breakage — type-check/tests miss it
 ```
 
 ---
