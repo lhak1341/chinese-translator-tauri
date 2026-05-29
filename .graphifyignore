@@ -35,6 +35,11 @@ logs
 coverage
 *.trie.json
 
+# Test files (mock edges mislead dependency queries)
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+
 # Archived docs
 docs/archive/
 

@@ -168,5 +168,6 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - Simulate Phase 1 output in jsdom tests: pre-mark tokens with `{ translated: 'X', translationSource: 'pattern' }` — subsequent phases skip pre-marked tokens, so Phase 4/5 guards can be tested without WASM.
 - `DictionaryManager` tests loading `properNouns-f_*`/`properNouns-_*` dicts: pass `{ activeProperNouns: ['properNouns-f_test', 'properNouns'] }` as second arg — default is `['properNouns']` only, silently excludes all prefixed dicts with no error.
 - `WasmProcessorLifecycle` in WASM module tests: mock the entire class — `initialize` calls `fetchWasmBinary` internally and throws in jsdom. Mock pattern: `vi.mock('../wasm/WasmProcessorLifecycle', () => ({ WasmProcessorLifecycle: vi.fn(function() { return { initialize: vi.fn(async (fn) => { await fn(new ArrayBuffer(0)); return true; }), hasFailed: false, pendingInit: null }; }) }))`.
+- `SemanticPatternProcessor.initializePatterns` object-format dict: key is `translation`, not `template` — `{ 'X的': { translation: 'của X', allowAsPatternVariable: true } }`
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)
