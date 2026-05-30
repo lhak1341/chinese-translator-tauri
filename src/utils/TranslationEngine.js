@@ -4037,13 +4037,36 @@ export class TranslationEngine {
 
         this.log(DEBUG_LEVELS.VERBOSE, `🔧 Proper noun: "${token.value}" -> "${output}"`);
       } else if (token.translationSource) {
-        // Skip tokens that were consumed by any process (patterns, phrases, etc.) but have null translation
-        // This indicates they were part of a multi-token match and should not produce individual output
-        this.log(
-          DEBUG_LEVELS.VERBOSE,
-          `🔧 Skipping consumed token: "${token.value}" (source: ${token.translationSource})`
-        );
-        continue;
+        // Token is consumed (part of a multi-token match). Normally skip — but guard against
+        // orphaned consumed tokens whose leader was itself overwritten by a later phase.
+        // An orphan has a groupLeader that either doesn't exist or has translated=null (also consumed).
+        const leaderIdx = token.groupLeader;
+        const isOrphaned =
+          (token.type === TokenType.CHINESE_CHAR || token.type === TokenType.CHINESE_WORD) &&
+          (leaderIdx === null ||
+            leaderIdx === undefined ||
+            leaderIdx >= tokens.length ||
+            tokens[leaderIdx].translated === null);
+
+        if (isOrphaned) {
+          // Orphaned consumed Chinese token — fall back to character dict rather than drop silently.
+          const charTranslation = this.dictionaryManager.translate(
+            token.originalValue ?? token.value,
+            ['characters']
+          );
+          output = charTranslation
+            ? charTranslation.translation
+            : (token.originalValue ?? token.value);
+          logger.warn(
+            `⚠️ Orphaned consumed token recovered via char fallback: "${token.originalValue ?? token.value}" (src: ${token.translationSource})`
+          );
+        } else {
+          this.log(
+            DEBUG_LEVELS.VERBOSE,
+            `🔧 Skipping consumed token: "${token.value}" (source: ${token.translationSource})`
+          );
+          continue;
+        }
       } else {
         // CRITICAL: Validate consumed token contract
         // Tokens with null translation MUST have translationSource to indicate consumption
@@ -4376,6 +4399,33 @@ export class TranslationEngine {
             tokens[startIndex].groupedWith.push(startIndex + i);
             // Store original value before marking as grouped
             tokens[startIndex + i].originalValue = tokens[startIndex + i].value;
+
+            // If this token was previously a group leader (e.g. a Phase 1 pattern leader being
+            // overwritten by a Phase 2 proper-noun match), free any orphaned followers outside
+            // the new match span. Phase 1 (applyHierarchicalResults) does NOT populate groupedWith,
+            // so we detect prior leadership via translationSource: non-consumed src + non-null translated.
+            {
+              const priorSrc = tokens[startIndex + i].translationSource;
+              if (
+                tokens[startIndex + i].translated !== null &&
+                priorSrc &&
+                !priorSrc.endsWith('_consumed')
+              ) {
+                const orphanedSrc = priorSrc + '_consumed';
+                const newMatchEnd = startIndex + tokenSpan;
+                for (let k = newMatchEnd; k < tokens.length; k++) {
+                  if (tokens[k].translationSource === orphanedSrc) {
+                    tokens[k].translated = null;
+                    tokens[k].translationSource = null;
+                    tokens[k].isGrouped = false;
+                    tokens[k].groupLeader = null;
+                  } else {
+                    break; // orphaned followers are always consecutive
+                  }
+                }
+              }
+            }
+
             // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract.
             // translationSource must contain "_consumed" so validateConsumedTokenContract detects violations.
             tokens[startIndex + i].translated = null; // Must be null - postProcess checks !== null

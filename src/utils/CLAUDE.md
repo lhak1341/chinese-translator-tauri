@@ -111,6 +111,18 @@ Use `isWasmPatternProcessorReady()` from `wasm/WasmPatternProcessor.js` — comb
 
 `applyHierarchicalResults` applies WASM results directly without deduplication. Do NOT add overlap checking there — `select_optimal_results` in `wasm-core/src/pattern_processor/two_phase.rs` guarantees non-overlapping results before they reach JS. Adding a JS-side dedupe would mask WASM selection bugs instead of surfacing them.
 
+### `applyHierarchicalResults` (Phase 1) Does Not Set `isGrouped` or `groupedWith`
+
+Phase 1 marks only `translationSource` + `translated` on tokens. `isGrouped` stays `false`; `groupedWith` stays `[]`. Detecting a Phase 1 leader: `translated !== null && translationSource && !translationSource.endsWith('_consumed')`. Do NOT use `isGrouped` or `groupedWith.length` — they are always `false`/`0` for Phase 1 output.
+
+### `applyMatchToTokens` Orphan-Release Loop Must Not Be Removed
+
+When Phase 2+ overwrites a Phase 1 leader token, the orphan-release code in `applyMatchToTokens` (immediately before marking followers `*_consumed`) scans forward from `startIndex + tokenSpan` and resets consecutive orphaned `*_consumed` followers to unprocessed state. Without it, Phase 2's skip guard and `postProcess` silently drop those tokens — violating the hard "never omit content" contract.
+
+### `postProcess` Orphan Safety Net Must Not Be Collapsed to `continue`
+
+The `else if (token.translationSource)` branch contains an orphan-recovery path: consumed Chinese tokens whose leader is null or has `translated === null` are recovered via char dict fallback instead of skipped. Do NOT replace this with a plain `continue` — doing so silently drops content whenever a Phase 1 group is partially overwritten by a later phase.
+
 ### WASM Wrapper Retire-After-Panic
 
 Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = null; this.initialized = false; this.initializationFailed = true`, and `initialize()` must guard `if (this.initializationFailed) return false`. Once `panic = "abort"` fires, the WASM object's `borrow_mut_count` is permanently stuck — silently retrying it produces "recursive use" on every subsequent call. **Exception**: `WasmConflictResolution.js` is a module-level singleton (no class) — retire uses bare `initialized = false; initializationFailed = true` (no `this.*`). **Exception**: `WasmNumberProcessor.js` and `WasmPatternProcessor.js` use `WasmProcessorLifecycle` — on a runtime panic call `lifecycle.permanentlyFail()`, NOT `lifecycle.reset()`. `reset()` clears `_hasFailed`, allowing re-init from the same corrupted binary; `permanentlyFail()` blocks it permanently.
