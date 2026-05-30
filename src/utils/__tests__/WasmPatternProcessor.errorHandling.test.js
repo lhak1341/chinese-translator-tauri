@@ -321,7 +321,7 @@ describe('WasmPatternProcessor Error Handling', () => {
         phaseBPatterns: 20,
         totalPatterns: 30,
       };
-      const mockGetStats = vi.fn(() => mockStats);
+      const mockGetStats = vi.fn(() => JSON.stringify(mockStats));
 
       vi.doMock('../../wasm/translation_wasm_core.js', () => ({
         default: vi.fn(() => Promise.resolve()),

@@ -107,13 +107,13 @@ impl SegmentMatcher {
     /**
      * Build trie index from semantic units
      *
-     * @param units_js - JavaScript array of semantic units
+     * @param units_json - JSON.stringify(semanticUnits) from JavaScript
      * @returns Success status
      */
     #[wasm_bindgen(js_name = buildIndex)]
-    pub fn build_index(&mut self, units_js: JsValue) -> Result<bool, JsValue> {
-        // Deserialize units from JavaScript
-        let units: Vec<SemanticUnit> = serde_wasm_bindgen::from_value(units_js)
+    pub fn build_index(&mut self, units_json: &str) -> Result<bool, JsValue> {
+        // Deserialize units from JSON string — zero JS interop during &mut self borrow
+        let units: Vec<SemanticUnit> = serde_json::from_str(units_json)
             .map_err(|e| JsValue::from_str(&format!("Failed to deserialize units: {}", e)))?;
 
         // Clear existing trie
@@ -146,10 +146,10 @@ impl SegmentMatcher {
      * Find all matches in text using trie
      *
      * @param text - Text to search
-     * @returns Array of match results
+     * @returns JSON string — caller: JSON.parse(matcher.findMatches(text))
      */
     #[wasm_bindgen(js_name = findMatches)]
-    pub fn find_matches(&self, text: &str) -> Result<JsValue, JsValue> {
+    pub fn find_matches(&self, text: &str) -> String {
         // CODE REVIEW FIX (HIGH-4): Bound total output size to prevent N×M explosion.
         // If N text positions match and M semantic units share the same translated text,
         // the output is N×M SegmentMatch objects.  For typical novel text this is harmless,
@@ -221,21 +221,20 @@ impl SegmentMatcher {
             }
         }
 
-        serde_wasm_bindgen::to_value(&matches)
-            .map_err(|e| JsValue::from_str(&format!("Failed to serialize matches: {}", e)))
+        serde_json::to_string(&matches).unwrap_or_else(|_| "[]".to_string())
     }
 
     /**
      * Get statistics about the trie
      *
-     * @returns Statistics object
+     * @returns JSON string — caller: JSON.parse(matcher.getStats())
      */
     #[wasm_bindgen(js_name = getStats)]
-    pub fn get_stats(&self) -> Result<JsValue, JsValue> {
+    pub fn get_stats(&self) -> String {
         let node_count = self.count_nodes(&self.root);
         let unit_count = self.units.len();
 
-        let stats = serde_json::json!({
+        serde_json::json!({
             "nodeCount": node_count,
             "unitCount": unit_count,
             "averageBranchingFactor": if node_count > 0 {
@@ -243,10 +242,8 @@ impl SegmentMatcher {
             } else {
                 0.0
             }
-        });
-
-        serde_wasm_bindgen::to_value(&stats)
-            .map_err(|e| JsValue::from_str(&format!("Failed to serialize stats: {}", e)))
+        })
+        .to_string()
     }
 }
 

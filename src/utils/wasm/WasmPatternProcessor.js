@@ -58,6 +58,7 @@ import { wasmTextAssembler } from './WasmTextAssembler';
 import { wasmTextChunker } from './WasmTextChunker';
 import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
 import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
+import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -73,6 +74,10 @@ let wasmModule = null;
 let wasmPatternProcessor = null;
 let lastPatternWarningTime = 0;
 const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
+registerCascadeHandler(() => {
+  wasmPatternProcessor = null;
+  lifecycle.permanentlyFail();
+});
 
 /**
  * Initialize the WASM Pattern Processor
@@ -96,7 +101,7 @@ export async function initializeWasmPatternProcessor(patternsDict) {
 
     const instance = new wasmModule.WasmPatternProcessor();
 
-    const patternSuccess = instance.initialize(patternsDict);
+    const patternSuccess = instance.initialize(JSON.stringify(patternsDict));
     if (!patternSuccess) {
       throw new Error('Failed to initialize pattern processor with patterns');
     }
@@ -194,8 +199,15 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     //   1. Document the intended time budget for pattern processing
     //   2. Provide a graceful fallback if a future async refactor makes the call interruptible
     //   3. Protect against edge cases where processTokens returns a rejected Promise
+    // processTokens takes/returns JSON strings — zero JS interop inside WASM Rc borrow window
     const results = await callWasmWithTimeout(
-      () => wasmPatternProcessor.processTokens(semanticTokens, variableCache),
+      () =>
+        JSON.parse(
+          wasmPatternProcessor.processTokens(
+            JSON.stringify(semanticTokens),
+            JSON.stringify(variableCache)
+          )
+        ),
       DEFAULT_WASM_TIMEOUTS.PATTERN_MATCHING,
       'pattern-processing',
       { throwOnTimeout: false, fallbackValue: [] }
@@ -213,6 +225,7 @@ export async function processTokensWasm(semanticTokens, variableCache) {
     wasmTextChunker.retireOnSharedModulePanic();
     retireWasmDictionaryOnSharedPanic();
     retireWasmConflictResolutionOnSharedPanic();
+    fireCascadeRetire();
 
     // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session
     const now = Date.now();
@@ -268,7 +281,7 @@ export function getWasmPatternProcessorStats() {
   }
 
   try {
-    return wasmPatternProcessor.getStatistics();
+    return JSON.parse(wasmPatternProcessor.getStatistics());
   } catch (error) {
     logger.error('❌ Error getting WASM pattern processor stats:', error);
     return null;

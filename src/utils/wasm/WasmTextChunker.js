@@ -8,6 +8,7 @@ import { logger } from '../logger';
 import { wasmTextAssembler } from './WasmTextAssembler';
 import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
 import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
+import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 /**
  * High-performance text chunker using Rust WASM
@@ -186,6 +187,7 @@ export class WasmTextChunker {
       wasmTextAssembler.retireOnSharedModulePanic();
       retireWasmDictionaryOnSharedPanic();
       retireWasmConflictResolutionOnSharedPanic();
+      fireCascadeRetire();
       try {
         recordFallback();
       } catch (e) {
@@ -216,7 +218,7 @@ export class WasmTextChunker {
     }
 
     try {
-      const wasmStats = this.chunker.getStats();
+      const wasmStats = JSON.parse(this.chunker.getStats());
       const total = this.wasmHits + this.fallbackHits;
       const hitRate = total > 0 ? ((this.wasmHits / total) * 100).toFixed(1) : 0;
 
@@ -246,7 +248,7 @@ export class WasmTextChunker {
    */
   getGlobalStats() {
     try {
-      return getGlobalChunkerStats();
+      return JSON.parse(getGlobalChunkerStats());
     } catch (error) {
       logger.error('Failed to get global chunker stats:', error);
       return {
@@ -287,6 +289,7 @@ export class WasmTextChunker {
 
 // Create singleton instance
 export const wasmTextChunker = new WasmTextChunker();
+registerCascadeHandler(() => wasmTextChunker.retireOnSharedModulePanic());
 
 // Background init: warms up WASM so first caller hits the fast path
 wasmTextChunker.initialize().catch((err) => {

@@ -24,6 +24,7 @@ import { wasmTextAssembler } from './WasmTextAssembler';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { FallbackManager } from '../FallbackManager';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -35,6 +36,7 @@ let _sharedModuleCorrupted = false;
 export function retireWasmDictionaryOnSharedPanic() {
   _sharedModuleCorrupted = true;
 }
+registerCascadeHandler(retireWasmDictionaryOnSharedPanic);
 
 export class WasmDictionaryManager {
   constructor() {
@@ -208,8 +210,9 @@ export class WasmDictionaryManager {
         );
 
         // Single WASM call for all dictionaries with memory pool optimization
+        // JSON.stringify required — load_dictionaries_batch takes &str to avoid JS interop during Rc borrow
         const success =
-          this.engine.load_dictionaries_batch?.(batchData) ??
+          this.engine.load_dictionaries_batch?.(JSON.stringify(batchData)) ??
           this.engine.load_dictionaries_batch_fallback?.(batchData) ??
           false;
 
@@ -269,7 +272,8 @@ export class WasmDictionaryManager {
         metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
       }));
 
-      const success = this.engine.load_dictionary(name, wasmEntries);
+      // JSON.stringify required — load_dictionary takes &str to avoid JS interop during Rc borrow
+      const success = this.engine.load_dictionary(name, JSON.stringify(wasmEntries));
 
       if (success) {
         logger.log(`📚 Loaded dictionary '${name}' into WASM: ${entries.length} entries`);
@@ -371,7 +375,8 @@ export class WasmDictionaryManager {
     }
 
     try {
-      const matches = this.engine.find_matches(dictionaryName, text, startPos);
+      // find_matches returns a JSON string — zero JS interop inside WASM Rc borrow window
+      const matches = JSON.parse(this.engine.find_matches(dictionaryName, text, startPos));
 
       // MEDIUM-2 FIX: Validate WASM results to prevent undefined values in translations
       // Convert results to expected format with safe metadata parsing
@@ -406,6 +411,7 @@ export class WasmDictionaryManager {
       _sharedModuleCorrupted = true;
       wasmTextAssembler.retireOnSharedModulePanic();
       this.handleFailure();
+      fireCascadeRetire();
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
     }
   }
@@ -416,7 +422,8 @@ export class WasmDictionaryManager {
     }
 
     try {
-      const match = this.engine.find_longest_match(dictionaryName, text, startPos);
+      // find_longest_match returns a JSON string — zero JS interop inside WASM Rc borrow window
+      const match = JSON.parse(this.engine.find_longest_match(dictionaryName, text, startPos));
 
       if (!match) return null;
 
@@ -447,6 +454,7 @@ export class WasmDictionaryManager {
       _sharedModuleCorrupted = true;
       wasmTextAssembler.retireOnSharedModulePanic();
       this.handleFailure();
+      fireCascadeRetire();
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
     }
   }
@@ -470,7 +478,7 @@ export class WasmDictionaryManager {
     }
 
     try {
-      const wasmStats = this.engine.get_performance_stats();
+      const wasmStats = JSON.parse(this.engine.get_performance_stats());
       return {
         ...wasmStats,
         initialized: this.initialized,
@@ -487,13 +495,13 @@ export class WasmDictionaryManager {
   }
 
   getDictionaryCount() {
-    return this.initialized && !this.fallbackHandler.isInFallbackMode()
+    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode()
       ? this.engine.get_dictionary_count()
       : 0;
   }
 
   getTotalEntries() {
-    return this.initialized && !this.fallbackHandler.isInFallbackMode()
+    return this.initialized && !_sharedModuleCorrupted && !this.fallbackHandler.isInFallbackMode()
       ? this.engine.get_total_entries()
       : 0;
   }

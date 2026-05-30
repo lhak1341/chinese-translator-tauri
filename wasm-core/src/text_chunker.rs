@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, Ordering};
 #[cfg(target_arch = "wasm32")]
 use unicode_properties::{UnicodeGeneralCategory, GeneralCategory};
-use serde_wasm_bindgen;
 
 /// Statistics for text chunking performance tracking
 static CHUNK_COUNT: AtomicU32 = AtomicU32::new(0);
@@ -248,17 +247,16 @@ impl TextChunker {
     ///
     /// # Returns
     /// * Object with {chunksProcessed, totalTimeUs, avgTimeUs}
+    /// Returns a JSON string — caller: `JSON.parse(chunker.getStats())`.
     #[wasm_bindgen(js_name = getStats)]
-    pub fn get_stats(&self) -> Result<JsValue, JsValue> {
-        let stats = serde_json::json!({
+    pub fn get_stats(&self) -> String {
+        serde_json::json!({
             "chunksProcessed": self.chunks_processed.load(Ordering::Relaxed),
             "totalTimeUs": 0u64,
             "avgTimeUs": 0u64,
             "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
-        });
-
-        serde_wasm_bindgen::to_value(&stats)
-            .map_err(|e| JsValue::from_str(&format!("Stats serialization error: {}", e)))
+        })
+        .to_string()
     }
 
     /// Reset statistics
@@ -276,20 +274,16 @@ pub fn record_fallback() {
     FALLBACK_COUNT.fetch_add(1, Ordering::Relaxed);
 }
 
-/// Get global statistics
+/// Returns a JSON string — caller: `JSON.parse(getGlobalChunkerStats())`.
 #[wasm_bindgen(js_name = getGlobalChunkerStats)]
-pub fn get_global_chunker_stats() -> Result<JsValue, JsValue> {
-    let chunk_count = CHUNK_COUNT.load(Ordering::Relaxed);
-
-    let stats = serde_json::json!({
-        "totalChunks": chunk_count,
+pub fn get_global_chunker_stats() -> String {
+    serde_json::json!({
+        "totalChunks": CHUNK_COUNT.load(Ordering::Relaxed),
         "totalTimeUs": 0u64,
         "avgTimeUs": 0u64,
         "fallbackCount": FALLBACK_COUNT.load(Ordering::Relaxed),
-    });
-
-    serde_wasm_bindgen::to_value(&stats)
-        .map_err(|e| JsValue::from_str(&format!("Stats serialization error: {}", e)))
+    })
+    .to_string()
 }
 
 #[cfg(test)]

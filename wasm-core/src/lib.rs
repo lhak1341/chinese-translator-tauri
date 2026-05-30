@@ -103,23 +103,6 @@ struct VersionedDictionary {
     version: DictionaryVersion,
 }
 
-// CODE REVIEW FIX (CRITICAL-2): Implement Drop trait for explicit cleanup verification
-// This ensures memory is properly released when dictionaries are removed
-impl Drop for VersionedDictionary {
-    fn drop(&mut self) {
-        // Log in development to verify cleanup happens
-        // Production builds can optimize this away
-        #[cfg(all(debug_assertions, target_arch = "wasm32"))]
-        web_sys::console::log_1(&format!(
-            "🗑️ Dropping VersionedDictionary (v{}, {} entries)",
-            self.version.version,
-            self.version.entry_count
-        ).into());
-
-        // Rust automatically drops trie and version fields
-        // This explicit Drop impl serves as documentation and debugging aid
-    }
-}
 
 impl PerformanceStats {
     fn new(memory_limit_mb: usize) -> Self {
@@ -192,12 +175,13 @@ impl DictionaryEngine {
         }
     }
 
+    /// JS interop contract: `entries_json` is a JSON string (`JSON.stringify(wasmEntries)`).
+    /// Pure Rust deserialization — zero JS interop while RcRefMut<DictionaryEngine> borrow is live.
     #[wasm_bindgen]
-    pub fn load_dictionary(&mut self, name: &str, entries: JsValue) -> Result<bool, JsValue> {
-        // Parse JavaScript dictionary entries
-        let entries: Vec<DictionaryEntry> = serde_wasm_bindgen::from_value(entries)
+    pub fn load_dictionary(&mut self, name: &str, entries_json: &str) -> Result<bool, JsValue> {
+        let entries: Vec<DictionaryEntry> = serde_json::from_str(entries_json)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse dictionary entries: {}", e)))?;
-        
+
         // SECURITY: Entry-count cap — mirrors the Tauri backend limit.
         // The backend enforces this before sending data to JS, but the WASM engine
         // is callable directly from JS (dev tools, tests), so we defend here too.
@@ -208,7 +192,6 @@ impl DictionaryEngine {
             )));
         }
 
-        // Check memory limit before loading
         let estimated_size = self.estimate_dictionary_size(&entries);
         if estimated_size > self.memory_limit_mb * 1024 * 1024 {
             return Err(JsValue::from_str(&format!(
@@ -218,103 +201,47 @@ impl DictionaryEngine {
                 self.memory_limit_mb
             )));
         }
-        
+
         let versioned_dict = Self::build_versioned_dictionary(&entries);
         let entry_count = versioned_dict.version.entry_count;
-        #[cfg(target_arch = "wasm32")]
-        let version_id = versioned_dict.version.version;
 
-        // Update memory usage tracking
         self.performance_stats.memory_usage_bytes += estimated_size;
-        
-        // Verify we're still within memory limits after loading
-        if !self.performance_stats.check_memory_limit() {
-            #[cfg(target_arch = "wasm32")]
-            web_sys::console::warn_1(&format!(
-                "⚠️ Memory usage ({:.1}MB) exceeded limit ({:.1}MB) for dictionary '{}'",
-                self.performance_stats.memory_usage_bytes as f64 / (1024.0 * 1024.0),
-                self.performance_stats.memory_limit_bytes as f64 / (1024.0 * 1024.0),
-                name
-            ).into());
-        }
-        
         self.total_entries += entry_count;
         self.dictionaries.insert(name.to_string(), versioned_dict);
-        #[cfg(target_arch = "wasm32")]
-        web_sys::console::log_1(&format!(
-            "📚 Loaded dictionary '{}': {} entries (v{}, {}KB)",
-            name,
-            entry_count,
-            version_id,
-            estimated_size / 1024
-        ).into());
-        
+
         Ok(true)
     }
     
-    /// Load multiple dictionaries in a single batch operation
+    /// Load multiple dictionaries in a single batch operation.
     ///
-    /// This method reduces serialization overhead by processing all dictionaries
-    /// in one WASM call instead of individual calls per dictionary.
-    ///
-    /// # Arguments
-    /// * `batch_data` - Array of {name: string, entries: DictionaryEntry[]}
-    ///
-    /// # Returns
-    /// * `Ok(true)` if all dictionaries loaded successfully
-    /// * `Ok(false)` if any dictionary failed to load
-    /// * `Err(JsValue)` if deserialization or critical error occurs
+    /// JS interop contract: `batch_data_json` is a JSON string (`JSON.stringify(batchData)`).
+    /// Pure Rust deserialization — zero JS interop while RcRefMut<DictionaryEngine> borrow is live.
     #[wasm_bindgen]
-    pub fn load_dictionaries_batch(&mut self, batch_data: JsValue) -> Result<bool, JsValue> {
+    pub fn load_dictionaries_batch(&mut self, batch_data_json: &str) -> Result<bool, JsValue> {
         #[derive(serde::Deserialize)]
         struct BatchDictionary {
             name: String,
             entries: Vec<DictionaryEntry>,
         }
 
-        // Parse batch data
-        let batch: Vec<BatchDictionary> = serde_wasm_bindgen::from_value(batch_data)
+        let batch: Vec<BatchDictionary> = serde_json::from_str(batch_data_json)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse batch data: {}", e)))?;
-
-        #[cfg(target_arch = "wasm32")]
-        web_sys::console::log_1(&format!(
-            "🚀 Batch loading {} dictionaries with {} total entries",
-            batch.len(),
-            batch.iter().map(|d| d.entries.len()).sum::<usize>()
-        ).into());
 
         let mut loaded_count = 0;
         let mut failed_dictionaries = Vec::new();
 
-        // Load each dictionary sequentially
-        // Note: We do sequential loading inside the batch to maintain memory limits
         for dict in &batch {
             // SECURITY: Entry-count cap (same limit as Tauri backend and load_dictionary).
             if dict.entries.len() > MAX_DICTIONARY_ENTRIES {
-                #[cfg(target_arch = "wasm32")]
-                web_sys::console::warn_1(&format!(
-                    "⚠️ Skipping dictionary '{}' - too many entries ({} > {})",
-                    dict.name, dict.entries.len(), MAX_DICTIONARY_ENTRIES
-                ).into());
                 failed_dictionaries.push(dict.name.clone());
                 continue;
             }
 
-            // Estimate total memory requirement
             let estimated_size = self.estimate_dictionary_size(&dict.entries);
 
-            // Check if this dictionary would exceed memory limits
             if self.performance_stats.memory_usage_bytes + estimated_size
                 > self.performance_stats.memory_limit_bytes
             {
-                #[cfg(target_arch = "wasm32")]
-                web_sys::console::warn_1(&format!(
-                    "⚠️ Skipping dictionary '{}' - would exceed memory limit (current: {}MB, dict: {}MB, limit: {}MB)",
-                    dict.name,
-                    self.performance_stats.memory_usage_bytes / (1024 * 1024),
-                    estimated_size / (1024 * 1024),
-                    self.performance_stats.memory_limit_bytes / (1024 * 1024)
-                ).into());
                 failed_dictionaries.push(dict.name.clone());
                 continue;
             }
@@ -322,7 +249,6 @@ impl DictionaryEngine {
             let versioned_dict = Self::build_versioned_dictionary(&dict.entries);
             let entry_count = versioned_dict.version.entry_count;
 
-            // Update tracking
             self.performance_stats.memory_usage_bytes += estimated_size;
             self.total_entries += entry_count;
             self.dictionaries.insert(dict.name.clone(), versioned_dict);
@@ -330,27 +256,8 @@ impl DictionaryEngine {
             loaded_count += 1;
         }
 
-        let total_dicts = batch.len();
-        let success = loaded_count == total_dicts;
-
-        if success {
-            #[cfg(target_arch = "wasm32")]
-            web_sys::console::log_1(&format!(
-                "✅ Batch loading succeeded: {}/{} dictionaries loaded",
-                loaded_count,
-                total_dicts
-            ).into());
-        } else {
-            #[cfg(target_arch = "wasm32")]
-            web_sys::console::warn_1(&format!(
-                "⚠️ Batch loading partial success: {}/{} dictionaries loaded. Failed: {:?}",
-                loaded_count,
-                total_dicts,
-                failed_dictionaries
-            ).into());
-        }
-
-        Ok(success)
+        let _ = failed_dictionaries; // retained for future error reporting
+        Ok(loaded_count == batch.len())
     }
 
     /// Build a VersionedDictionary from a slice of entries.
@@ -365,10 +272,8 @@ impl DictionaryEngine {
             checksum = checksum.wrapping_add(entry.vietnamese.chars().count() as u64);
         }
         let entry_count = trie.get_entry_count();
-        #[cfg(target_arch = "wasm32")]
-        let version_id = js_sys::Date::now() as u64;
-        #[cfg(not(target_arch = "wasm32"))]
-        let version_id = 0u64;
+        // Use content checksum as version ID — no JS FFI call while Rc borrow may be live.
+        let version_id = checksum;
         let version = DictionaryVersion {
             version: version_id,
             timestamp: version_id,
@@ -391,56 +296,29 @@ impl DictionaryEngine {
         size
     }
 
+    // js_sys::Date::now() and serde_wasm_bindgen::to_value call JS FFI while
+    // RcRefMut<DictionaryEngine> is live — same Rust 1.84 assert_unchecked / heap
+    // corruption class as chunk_text / process_tokens. Return JSON strings instead;
+    // JS side: JSON.parse(this.engine.find_matches(...)).
     #[wasm_bindgen]
-    pub fn find_matches(&mut self, dictionary_name: &str, text: &str, start_pos: usize) -> JsValue {
-        #[cfg(target_arch = "wasm32")]
-        let start_time = js_sys::Date::now();
-
+    pub fn find_matches(&mut self, dictionary_name: &str, text: &str, start_pos: usize) -> String {
         let matches = match self.dictionaries.get(dictionary_name) {
             Some(versioned_dict) => versioned_dict.trie.find_matches(text, start_pos),
-            None => {
-                #[cfg(target_arch = "wasm32")]
-                web_sys::console::warn_1(&format!(
-                    "Dictionary '{}' not found",
-                    dictionary_name
-                ).into());
-                Vec::new()
-            }
+            None => Vec::new(),
         };
-
-        #[cfg(target_arch = "wasm32")]
-        let elapsed_ms = js_sys::Date::now() - start_time;
-        #[cfg(not(target_arch = "wasm32"))]
-        let elapsed_ms = 0.0f64;
-        self.performance_stats.record_lookup(elapsed_ms);
-        
-        serde_wasm_bindgen::to_value(&matches).unwrap_or(JsValue::NULL)
+        // Timing removed: js_sys::Date::now() is JS FFI — unsafe while RcRefMut is live
+        self.performance_stats.record_lookup(0.0);
+        serde_json::to_string(&matches).unwrap_or_else(|_| "[]".to_string())
     }
 
     #[wasm_bindgen]
-    pub fn find_longest_match(&mut self, dictionary_name: &str, text: &str, start_pos: usize) -> JsValue {
-        #[cfg(target_arch = "wasm32")]
-        let start_time = js_sys::Date::now();
-
+    pub fn find_longest_match(&mut self, dictionary_name: &str, text: &str, start_pos: usize) -> String {
         let longest_match = match self.dictionaries.get(dictionary_name) {
             Some(versioned_dict) => versioned_dict.trie.find_longest_match(text, start_pos),
-            None => {
-                #[cfg(target_arch = "wasm32")]
-                web_sys::console::warn_1(&format!(
-                    "Dictionary '{}' not found",
-                    dictionary_name
-                ).into());
-                None
-            }
+            None => None,
         };
-
-        #[cfg(target_arch = "wasm32")]
-        let elapsed_ms = js_sys::Date::now() - start_time;
-        #[cfg(not(target_arch = "wasm32"))]
-        let elapsed_ms = 0.0f64;
-        self.performance_stats.record_lookup(elapsed_ms);
-        
-        serde_wasm_bindgen::to_value(&longest_match).unwrap_or(JsValue::NULL)
+        self.performance_stats.record_lookup(0.0);
+        serde_json::to_string(&longest_match).unwrap_or_else(|_| "null".to_string())
     }
 
     #[wasm_bindgen]
@@ -453,18 +331,18 @@ impl DictionaryEngine {
         self.total_entries
     }
 
+    /// Returns a JSON string — caller: `JSON.parse(engine.get_performance_stats())`.
     #[wasm_bindgen]
-    pub fn get_performance_stats(&self) -> JsValue {
-        let stats = serde_json::json!({
+    pub fn get_performance_stats(&self) -> String {
+        serde_json::json!({
             "totalLookups": self.performance_stats.total_lookups,
             "totalTimeMs": self.performance_stats.total_time_ms,
             "averageTimeMs": self.performance_stats.average_time_ms(),
             "memoryUsageBytes": self.performance_stats.memory_usage_bytes,
             "dictionariesLoaded": self.dictionaries.len(),
             "totalEntries": self.total_entries
-        });
-        
-        serde_wasm_bindgen::to_value(&stats).unwrap_or(JsValue::NULL)
+        })
+        .to_string()
     }
 
     #[wasm_bindgen]
@@ -472,8 +350,6 @@ impl DictionaryEngine {
         self.dictionaries.clear();
         self.total_entries = 0;
         self.performance_stats.memory_usage_bytes = 0;
-        #[cfg(target_arch = "wasm32")]
-        web_sys::console::log_1(&"🗑️ All dictionaries cleared".into());
     }
 
     #[wasm_bindgen]
@@ -481,36 +357,28 @@ impl DictionaryEngine {
         self.dictionaries.contains_key(name)
     }
 
+    /// Returns a JSON string or "null" — caller: `JSON.parse(engine.get_dictionary_version(name))`.
     #[wasm_bindgen]
-    pub fn get_dictionary_version(&self, name: &str) -> JsValue {
+    pub fn get_dictionary_version(&self, name: &str) -> String {
         match self.dictionaries.get(name) {
             Some(versioned_dict) => {
-                serde_wasm_bindgen::to_value(&versioned_dict.version).unwrap_or(JsValue::NULL)
+                serde_json::to_string(&versioned_dict.version).unwrap_or_else(|_| "null".to_string())
             }
-            None => JsValue::NULL
+            None => "null".to_string(),
         }
     }
 
+    /// JS interop contract: `entries_json` is a JSON string (`JSON.stringify(wasmEntries)`).
     #[wasm_bindgen]
-    pub fn reload_dictionary(&mut self, name: &str, entries: JsValue) -> Result<bool, JsValue> {
-        // Remove old dictionary first to free memory
+    pub fn reload_dictionary(&mut self, name: &str, entries_json: &str) -> Result<bool, JsValue> {
         if let Some(old_dict) = self.dictionaries.remove(name) {
-            // Estimate old size for memory tracking
-            let old_size = old_dict.version.entry_count * 200; // Rough estimate
-            self.performance_stats.memory_usage_bytes = 
+            let old_size = old_dict.version.entry_count * 200;
+            self.performance_stats.memory_usage_bytes =
                 self.performance_stats.memory_usage_bytes.saturating_sub(old_size);
             self.total_entries = self.total_entries.saturating_sub(old_dict.version.entry_count);
-            
-            #[cfg(target_arch = "wasm32")]
-            web_sys::console::log_1(&format!(
-                "🗑️ Removed old dictionary '{}' (v{})",
-                name,
-                old_dict.version.version
-            ).into());
         }
 
-        // Load new dictionary
-        self.load_dictionary(name, entries)
+        self.load_dictionary(name, entries_json)
     }
 
     #[wasm_bindgen]
@@ -523,17 +391,18 @@ impl DictionaryEngine {
         self.performance_stats.memory_limit_bytes
     }
 
+    /// Returns a JSON string — caller: `JSON.parse(engine.check_memory_health())`.
     #[wasm_bindgen]
-    pub fn check_memory_health(&self) -> JsValue {
+    pub fn check_memory_health(&self) -> String {
         let usage_percent = if self.performance_stats.memory_limit_bytes > 0 {
-            (self.performance_stats.memory_usage_bytes as f64 / 
-             self.performance_stats.memory_limit_bytes as f64) * 100.0
+            (self.performance_stats.memory_usage_bytes as f64
+                / self.performance_stats.memory_limit_bytes as f64)
+                * 100.0
         } else {
             0.0
         };
-
         let is_within_limit = self.performance_stats.check_memory_limit();
-        let health_info = serde_json::json!({
+        serde_json::json!({
             "memoryUsageBytes": self.performance_stats.memory_usage_bytes,
             "memoryLimitBytes": self.performance_stats.memory_limit_bytes,
             "usagePercent": usage_percent,
@@ -541,9 +410,8 @@ impl DictionaryEngine {
             "withinMemoryLimit": is_within_limit,
             "dictionariesLoaded": self.dictionaries.len(),
             "totalEntries": self.total_entries
-        });
-
-        serde_wasm_bindgen::to_value(&health_info).unwrap_or(JsValue::NULL)
+        })
+        .to_string()
     }
 }
 
@@ -609,20 +477,19 @@ pub fn print_matcher_profiling_report() {
 /// const normalized = normalize_batch(texts);
 /// // Returns: ['café', '北京', 'Москва'] (NFC normalized)
 /// ```
+/// JS interop contract: `texts_json` is `JSON.stringify(textsArray)`;
+/// return value is a JSON string — caller: `JSON.parse(normalizeBatch(JSON.stringify(texts)))`.
 #[wasm_bindgen(js_name = normalizeBatch)]
-pub fn normalize_batch(texts: JsValue) -> Result<JsValue, JsValue> {
-    // Deserialize JavaScript array of strings
-    let texts: Vec<String> = serde_wasm_bindgen::from_value(texts)
+pub fn normalize_batch(texts_json: &str) -> Result<String, JsValue> {
+    let texts: Vec<String> = serde_json::from_str(texts_json)
         .map_err(|e| JsValue::from_str(&format!("Failed to deserialize texts: {}", e)))?;
 
-    // Normalize each text to NFC
     let normalized: Vec<String> = texts
         .into_iter()
         .map(|s| s.nfc().collect::<String>())
         .collect();
 
-    // Serialize back to JavaScript array
-    serde_wasm_bindgen::to_value(&normalized)
+    serde_json::to_string(&normalized)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize normalized texts: {}", e)))
 }
 

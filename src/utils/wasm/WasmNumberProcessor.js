@@ -55,6 +55,7 @@ import { wasmTextAssembler } from './WasmTextAssembler';
 import { wasmTextChunker } from './WasmTextChunker';
 import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
 import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
+import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
 const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
@@ -69,6 +70,10 @@ const lifecycle = new WasmProcessorLifecycle({
 /** @type {NumberProcessor|null} */
 let wasmNumberProcessor = null;
 let showedNumberWarning = false;
+registerCascadeHandler(() => {
+  wasmNumberProcessor = null;
+  lifecycle.permanentlyFail();
+});
 
 async function initializeWasmNumberProcessor() {
   const success = await lifecycle.initialize(async (wasmBinary) => {
@@ -132,8 +137,9 @@ export async function processNumbersWasm(tokens) {
 
     // Call WASM NumberProcessor (null check narrows type for @ts-check — logically unreachable)
     if (!wasmNumberProcessor) return tokens;
-    const processedTokens = wasmNumberProcessor.processTokens(tokens);
-    return processedTokens;
+    // processTokens takes/returns JSON strings — zero JS interop inside WASM Rc borrow window
+    const processedTokens = wasmNumberProcessor.processTokens(JSON.stringify(tokens));
+    return JSON.parse(processedTokens);
   } catch (/** @type {any} */ error) {
     // Retire the broken instance — after a WASM panic, the shared linear memory is
     // permanently corrupted. permanentlyFail() (not reset()) prevents re-initialization
@@ -147,6 +153,7 @@ export async function processNumbersWasm(tokens) {
     wasmTextChunker.retireOnSharedModulePanic();
     retireWasmDictionaryOnSharedPanic();
     retireWasmConflictResolutionOnSharedPanic();
+    fireCascadeRetire();
 
     const errorInfo = categorizeWasmError(error, 'number-processor');
 

@@ -291,10 +291,17 @@ impl NumberProcessor {
     }
 
     /// Process tokens to convert Chinese numbers
+    ///
+    /// # JS interop contract
+    /// Accepts a JSON string (caller: `JSON.stringify(tokens)`) and returns a JSON string
+    /// (caller: `JSON.parse(result)`). Zero `serde_wasm_bindgen` / JS-FFI calls happen while
+    /// the wasm-bindgen `RcRef<NumberProcessor>` borrow is live — prevents Rust 1.84
+    /// `hint::assert_unchecked` panic in `alloc/rc.rs` and the subsequent OOB trap in
+    /// `HashMap::contains_key` caused by allocator state corruption.
     #[wasm_bindgen(js_name = processTokens)]
-    pub fn process_tokens(&self, tokens_js: JsValue) -> Result<JsValue, JsValue> {
-        // Parse tokens from JavaScript
-        let mut tokens: Vec<Token> = serde_wasm_bindgen::from_value(tokens_js)
+    pub fn process_tokens(&self, tokens_json: &str) -> Result<String, JsValue> {
+        // Pure Rust deserialization — zero JS interop while Rc borrow is live
+        let mut tokens: Vec<Token> = serde_json::from_str(tokens_json)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse tokens: {}", e)))?;
 
         // Process each token position
@@ -311,33 +318,24 @@ impl NumberProcessor {
 
             // Try to find longest number match starting from this position
             if let Some(number_match) = self.find_longest_number_match(&tokens, i) {
-                #[cfg(target_arch = "wasm32")]
-                web_sys::console::log_1(&format!(
-                    "🔢 Number converted: \"{}\" → \"{}\" ({})",
-                    number_match.original_text,
-                    number_match.result,
-                    number_match.pattern_name
-                ).into());
-
                 // Apply conversion result
                 tokens[i].translated = Some(number_match.result);
                 tokens[i].translation_source = Some("number_conversion".to_string());
 
-                // Mark consumed tokens (null translated + translationSource for skipping in postProcess)
+                // Mark consumed tokens
                 for j in (i + 1)..=number_match.end_index {
                     tokens[j].translated = None;
                     tokens[j].translation_source = Some("number_conversion_consumed".to_string());
                 }
 
-                // Skip past converted tokens
                 i = number_match.end_index + 1;
             } else {
                 i += 1;
             }
         }
 
-        // Return modified tokens
-        serde_wasm_bindgen::to_value(&tokens)
+        // Pure Rust serialization — zero JS interop while Rc borrow is live
+        serde_json::to_string(&tokens)
             .map_err(|e| JsValue::from_str(&format!("Failed to serialize tokens: {}", e)))
     }
 }

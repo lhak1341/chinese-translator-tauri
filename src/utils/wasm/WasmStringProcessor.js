@@ -1,6 +1,11 @@
 // @ts-check
 import init, { StringProcessor } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
+import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { wasmTextAssembler } from './WasmTextAssembler';
+import { wasmTextChunker } from './WasmTextChunker';
+import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
+import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 
 /**
  * High-performance string processor using Rust WASM
@@ -25,6 +30,8 @@ class WasmStringProcessor {
     this.processor = null;
     /** @type {boolean} */
     this.initialized = false;
+    /** @type {boolean} */
+    this.initializationFailed = false;
   }
 
   /**
@@ -33,6 +40,7 @@ class WasmStringProcessor {
    * @returns {Promise<boolean>} Success status
    */
   async initialize() {
+    if (this.initializationFailed) return false;
     try {
       await init();
       this.processor = new StringProcessor(10); // maxSpan = 10
@@ -41,19 +49,16 @@ class WasmStringProcessor {
       return true;
     } catch (error) {
       logger.error('Failed to initialize WASM StringProcessor:', error);
+      this.initializationFailed = true;
       return false;
     }
   }
 
   /**
-   * Build precomputed string cache from semantic tokens
+   * Build precomputed string cache from semantic tokens.
+   * JSON.stringify contract: tokens_json = JSON.stringify(semanticTokens).
    *
-   * Performance:
-   * - JavaScript: ~0.35ms for 200 tokens (43M ops/sec)
-   * - Rust: ~0.02-0.07ms for 200 tokens (215M-645M ops/sec)
-   * - Speedup: 5-15x
-   *
-   * @param {Array<{value: string, type: string, position: number}>} semanticTokens - Array of semantic tokens
+   * @param {Array<{value: string, type: string, position: number}>} semanticTokens
    * @returns {Promise<boolean>} Success status
    */
   async buildCache(semanticTokens) {
@@ -63,10 +68,11 @@ class WasmStringProcessor {
     }
 
     try {
-      const success = this.processor.buildCache(semanticTokens);
+      // JSON.stringify required — buildCache takes &str to avoid JS interop during Rc borrow
+      const success = this.processor.buildCache(JSON.stringify(semanticTokens));
 
       if (success) {
-        const stats = this.processor.getStats();
+        const stats = JSON.parse(this.processor.getStats());
         logger.log(
           `📦 String cache built: ${stats.cacheSize} entries, ${(stats.memoryBytes / 1024).toFixed(1)}KB`
         );
@@ -75,16 +81,20 @@ class WasmStringProcessor {
       return success;
     } catch (error) {
       logger.error('Failed to build string cache:', error);
+      this.processor = null;
+      this.initialized = false;
+      this.initializationFailed = true;
+      wasmTextAssembler.retireOnSharedModulePanic();
+      wasmTextChunker.retireOnSharedModulePanic();
+      retireWasmDictionaryOnSharedPanic();
+      retireWasmConflictResolutionOnSharedPanic();
+      fireCascadeRetire();
       return false;
     }
   }
 
   /**
    * Get precomputed string by position and span
-   *
-   * Performance:
-   * - HashMap lookup: O(1) average case
-   * - Arc clone: Zero-cost (just increments reference count)
    *
    * @param {number} position - Start position (token index)
    * @param {number} span - Number of consecutive tokens
@@ -110,52 +120,56 @@ class WasmStringProcessor {
   /**
    * Get all precomputed strings as JavaScript Map
    *
-   * Useful for debugging and verification
-   *
-   * @returns {Map<string, string>} String cache (keys: "pos-span" → value: string)
+   * @returns {Map<string, string>}
    */
   getAllStrings() {
     if (!this.initialized || !this.processor) return new Map();
-    return this.processor.getAllStrings();
+    try {
+      const obj = JSON.parse(this.processor.getAllStrings());
+      return new Map(Object.entries(obj));
+    } catch {
+      return new Map();
+    }
   }
 
   /**
    * Get cache statistics for monitoring and debugging
    *
-   * @returns {Object} Statistics object with:
-   *   - tokenCount: number of tokens
-   *   - cacheSize: number of cached strings
-   *   - maxSpan: maximum span configured
-   *   - memoryBytes: estimated memory usage
-   *   - stringBytes: bytes used for string storage
+   * @returns {{tokenCount: number, cacheSize: number, maxSpan: number, memoryBytes: number, stringBytes: number}}
    */
   getStats() {
     if (!this.initialized || !this.processor) {
-      return {
-        tokenCount: 0,
-        cacheSize: 0,
-        maxSpan: 0,
-        memoryBytes: 0,
-        stringBytes: 0,
-      };
+      return { tokenCount: 0, cacheSize: 0, maxSpan: 0, memoryBytes: 0, stringBytes: 0 };
     }
-    return this.processor.getStats();
+    try {
+      return JSON.parse(this.processor.getStats());
+    } catch {
+      return { tokenCount: 0, cacheSize: 0, maxSpan: 0, memoryBytes: 0, stringBytes: 0 };
+    }
   }
 
   /**
    * Clear cache and free memory
-   *
-   * Call this when done processing to release memory
    */
   clear() {
     if (this.initialized && this.processor) {
       this.processor.clear();
     }
   }
+
+  /** Retire this processor when shared WASM module panics */
+  retireOnSharedModulePanic() {
+    this.processor = null;
+    this.initialized = false;
+    this.initializationFailed = true;
+  }
 }
 
 // Export singleton instance
 export const wasmStringProcessor = new WasmStringProcessor();
+
+// Register cascade handler so other panicking wrappers can retire this one
+registerCascadeHandler(() => wasmStringProcessor.retireOnSharedModulePanic());
 
 // Trigger background initialization at import time so WASM is ready before first call
 wasmStringProcessor.initialize().catch((err) => {

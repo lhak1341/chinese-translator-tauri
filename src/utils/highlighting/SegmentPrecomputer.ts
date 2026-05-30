@@ -715,8 +715,13 @@ export class SegmentPrecomputer {
           const remainingForBoundary = text.substring(currentPosition);
           const nextBoundaryMatch = remainingForBoundary.search(TEXT_BOUNDARY);
           // MEDIUM-1 FIX: Cap skipDistance to remaining text length to prevent overflow
+          // nextBoundaryMatch===0: boundary is at current position; advance 1 to avoid infinite loop
           const uncappedSkipDistance =
-            nextBoundaryMatch > 0 ? nextBoundaryMatch : remainingText.length;
+            nextBoundaryMatch > 0
+              ? nextBoundaryMatch
+              : nextBoundaryMatch === 0
+                ? 1
+                : remainingText.length;
           const skipDistance = Math.min(uncappedSkipDistance, text.length - currentPosition);
           currentPosition += skipDistance;
           continue;
