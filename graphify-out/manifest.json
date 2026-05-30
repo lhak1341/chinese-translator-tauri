@@ -132,8 +132,8 @@
     "hash": "3974930f4472b5c5e527b4b34ef71b93"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/number_processor.rs": {
-    "mtime": 1780128951.5197449,
-    "hash": "c294cda1bd98904622acf256d6448568"
+    "mtime": 1780157322.0237427,
+    "hash": "64238719947567c70257d20476aec7a2"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/src/text_assembly.rs": {
     "mtime": 1771549841.7391691,
@@ -416,8 +416,8 @@
     "hash": "74c4ee328ae5ae684a40dc58d0e78af5"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/highlighting/SegmentPrecomputer.ts": {
-    "mtime": 1780109337.7192357,
-    "hash": "9cebf8a91625dc2266ab6b8b770fc4bd"
+    "mtime": 1780152889.349934,
+    "hash": "a389f856e16716dea4a1ef17461268ad"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/highlighting/ScrollHelpers.ts": {
     "mtime": 1778865935.882595,
@@ -460,8 +460,8 @@
     "hash": "b539d975575243ac60e99161ddd030d4"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmNumberProcessor.js": {
-    "mtime": 1780128971.701958,
-    "hash": "8d299291e41e8ebb282e5b2ec4482dd0"
+    "mtime": 1780157205.5046523,
+    "hash": "50120c58bccebb74fe98eeaf0e9ca35d"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmProcessorLifecycle.js": {
     "mtime": 1779838723.4078863,
@@ -480,8 +480,8 @@
     "hash": "53a863d3caf1b6bfe50514e0e04b97cf"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmPatternProcessor.js": {
-    "mtime": 1780131017.2690663,
-    "hash": "5dfd0bedad163031b1cb73d5d53fdbc6"
+    "mtime": 1780152889.4591546,
+    "hash": "7fd19435c3c99bd3a8b7ed5a85429857"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/wasm/WasmDictionaryManager.js": {
     "mtime": 1780131020.6447194,
@@ -852,8 +852,8 @@
     "hash": "7483544f7a5441e6db3ed3b400c8773b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md": {
-    "mtime": 1780152802.855186,
-    "hash": "72077140a11c8b1909eb599c7970b6b8"
+    "mtime": 1780157247.686834,
+    "hash": "e8feb40c2959625fad22a806eec79df2"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/OPTIMIZATION_MASTER_INDEX_2026-01-31.md": {
     "mtime": 1769906376.693171,
@@ -1116,8 +1116,8 @@
     "hash": "d869e553890c601787bbe5469a07c7ac"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/CLAUDE.md": {
-    "mtime": 1779856712.7957373,
-    "hash": "f3c26e3b6a6681953b83a0c7ec2d931f"
+    "mtime": 1780157628.0635564,
+    "hash": "d458aef264dde8dd6596fc1324adc2e0"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/wasm-core/WARNINGS.md": {
     "mtime": 1764739368.9793117,

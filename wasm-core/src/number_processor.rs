@@ -30,25 +30,19 @@ pub struct Token {
 }
 
 // Match result for number patterns
-#[derive(Debug, Clone)]
 struct NumberMatch {
-    original_text: String,
     result: String,
-    pattern_name: String,
     end_index: usize,
 }
 
 // Conversion pattern definition
 struct ConversionPattern {
-    name: &'static str,
     regex: Regex,
     converter: fn(&NumberProcessor, &[&str]) -> Option<String>,
 }
 
 #[wasm_bindgen]
-pub struct NumberProcessor {
-    number_map: HashMap<char, u32>,
-}
+pub struct NumberProcessor {}
 
 // ============================================================================
 // PARSING REGEX (LAZY_STATIC TO PREVENT MEMORY LEAKS)
@@ -89,6 +83,7 @@ lazy_static! {
 // CODE REVIEW FIX (CRITICAL-2): Add validation and error handling for regex compilation
 lazy_static! {
     static ref PATTERNS: Vec<ConversionPattern> = create_conversion_patterns();
+    static ref NUMBER_MAP: HashMap<char, u32> = create_number_map();
 }
 
 /// Create conversion patterns with validation
@@ -108,7 +103,6 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
             match Regex::new($regex) {
                 Ok(regex) => {
                     patterns.push(ConversionPattern {
-                        name: $name,
                         regex,
                         converter: $converter,
                     });
@@ -264,65 +258,63 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
     patterns
 }
 
+fn create_number_map() -> HashMap<char, u32> {
+    let mut m = HashMap::new();
+    m.insert('一', 1);
+    m.insert('二', 2);
+    m.insert('两', 2);
+    m.insert('三', 3);
+    m.insert('四', 4);
+    m.insert('五', 5);
+    m.insert('六', 6);
+    m.insert('七', 7);
+    m.insert('八', 8);
+    m.insert('九', 9);
+    m.insert('十', 10);
+    m.insert('零', 0);
+    m
+}
+
 #[wasm_bindgen]
 impl NumberProcessor {
     #[wasm_bindgen(constructor)]
     pub fn new() -> NumberProcessor {
         console_error_panic_hook::set_once();
-
-        let mut number_map = HashMap::new();
-        number_map.insert('一', 1);
-        number_map.insert('二', 2);
-        number_map.insert('两', 2);
-        number_map.insert('三', 3);
-        number_map.insert('四', 4);
-        number_map.insert('五', 5);
-        number_map.insert('六', 6);
-        number_map.insert('七', 7);
-        number_map.insert('八', 8);
-        number_map.insert('九', 9);
-        number_map.insert('十', 10);
-        number_map.insert('零', 0);
+        // Pre-initialize NUMBER_MAP here (outside the &self borrow window) so that
+        // the first processTokens call never triggers lazy_static init while a
+        // wasm-bindgen RcRef borrow is live.
+        let _ = &*NUMBER_MAP;
 
         #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&"🔢 WASM NumberProcessor initialized".into());
 
-        NumberProcessor { number_map }
+        NumberProcessor {}
     }
 
-    /// Process tokens to convert Chinese numbers
+    /// Process tokens to convert Chinese numbers.
     ///
-    /// # JS interop contract
-    /// Accepts a JSON string (caller: `JSON.stringify(tokens)`) and returns a JSON string
-    /// (caller: `JSON.parse(result)`). Zero `serde_wasm_bindgen` / JS-FFI calls happen while
-    /// the wasm-bindgen `RcRef<NumberProcessor>` borrow is live — prevents Rust 1.84
-    /// `hint::assert_unchecked` panic in `alloc/rc.rs` and the subsequent OOB trap in
-    /// `HashMap::contains_key` caused by allocator state corruption.
+    /// Accepts a JSON string (`JSON.stringify(tokens)`) and returns a JSON string
+    /// (`JSON.parse(result)`). No JS-FFI calls while the wasm-bindgen RcRef borrow
+    /// is live — avoids the Rust 1.84 `hint::assert_unchecked` / OOB trap.
     #[wasm_bindgen(js_name = processTokens)]
     pub fn process_tokens(&self, tokens_json: &str) -> Result<String, JsValue> {
-        // Pure Rust deserialization — zero JS interop while Rc borrow is live
         let mut tokens: Vec<Token> = serde_json::from_str(tokens_json)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse tokens: {}", e)))?;
 
-        // Process each token position
         let mut i = 0;
         while i < tokens.len() {
-            // Only process untranslated Chinese characters that start with a recognized number char
             if tokens[i].token_type != "chinese_char"
                 || tokens[i].translated.is_some()
                 || tokens[i].translation_source.is_some()
-                || !tokens[i].value.chars().any(|c| self.number_map.contains_key(&c)) {
+                || !tokens[i].value.chars().any(|c| NUMBER_MAP.contains_key(&c)) {
                 i += 1;
                 continue;
             }
 
-            // Try to find longest number match starting from this position
             if let Some(number_match) = self.find_longest_number_match(&tokens, i) {
-                // Apply conversion result
                 tokens[i].translated = Some(number_match.result);
                 tokens[i].translation_source = Some("number_conversion".to_string());
 
-                // Mark consumed tokens
                 for j in (i + 1)..=number_match.end_index {
                     tokens[j].translated = None;
                     tokens[j].translation_source = Some("number_conversion_consumed".to_string());
@@ -334,7 +326,6 @@ impl NumberProcessor {
             }
         }
 
-        // Pure Rust serialization — zero JS interop while Rc borrow is live
         serde_json::to_string(&tokens)
             .map_err(|e| JsValue::from_str(&format!("Failed to serialize tokens: {}", e)))
     }
@@ -397,12 +388,7 @@ impl NumberProcessor {
 
                         // Try to convert
                         if let Some(result) = (pattern.converter)(self, &groups) {
-                            longest_match = Some(NumberMatch {
-                                original_text: test_sequence.clone(),
-                                result,
-                                pattern_name: pattern.name.to_string(),
-                                end_index,
-                            });
+                            longest_match = Some(NumberMatch { result, end_index });
                             longest_length = test_sequence.chars().count();
                         }
                     }
@@ -415,7 +401,7 @@ impl NumberProcessor {
 
     /// Get numeric value for a Chinese character
     fn get_number(&self, ch: char) -> Option<u32> {
-        self.number_map.get(&ch).copied()
+        NUMBER_MAP.get(&ch).copied()
     }
 
     /// Parse complex Chinese number string
