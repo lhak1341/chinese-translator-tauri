@@ -306,12 +306,14 @@ export async function reinitializeWasmPatternProcessor(patternsDict) {
 // block on network I/O during the critical translation path.
 // Does NOT call wasmModule.default() or create WasmPatternProcessor instances —
 // those steps require patternsDict and happen in initializeWasmPatternProcessor.
-(async () => {
-  try {
-    await import('../../wasm/translation_wasm_core.js'); // warms ES module cache
-    await fetchWasmBinary(_WASM_BINARY_URL); // warms binary cache
-    logger.debug('🔥 WASM PatternProcessor module and binary pre-warmed');
-  } catch (err) {
-    logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err);
-  }
-})();
+if (import.meta.env.MODE !== 'test') {
+  (async () => {
+    try {
+      await import('../../wasm/translation_wasm_core.js'); // warms ES module cache
+      await fetchWasmBinary(_WASM_BINARY_URL); // warms binary cache
+      logger.debug('🔥 WASM PatternProcessor module and binary pre-warmed');
+    } catch (err) {
+      logger.warn('WASM PatternProcessor pre-warm failed (non-critical):', err);
+    }
+  })();
+}

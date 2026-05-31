@@ -292,9 +292,11 @@ export const wasmTextChunker = new WasmTextChunker();
 registerCascadeHandler(() => wasmTextChunker.retireOnSharedModulePanic());
 
 // Background init: warms up WASM so first caller hits the fast path
-wasmTextChunker.initialize().catch((err) => {
-  logger.warn('Background WASM TextChunker initialization failed:', err);
-});
+if (import.meta.env.MODE !== 'test') {
+  wasmTextChunker.initialize().catch((err) => {
+    logger.warn('Background WASM TextChunker initialization failed:', err);
+  });
+}
 
 // Expose globally for debugging
 if (typeof window !== 'undefined') {
