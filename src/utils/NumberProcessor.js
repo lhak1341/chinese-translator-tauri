@@ -274,6 +274,7 @@ export class NumberProcessor {
     for (let i = startIndex + 1; i <= matchResult.endIndex; i++) {
       tokens[i].translated = null;
       tokens[i].translationSource = 'number_conversion_consumed';
+      tokens[i].groupLeader = startIndex;
     }
 
     // Add to semantic array builder if provided

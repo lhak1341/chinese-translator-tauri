@@ -113,7 +113,7 @@ Use `isWasmPatternProcessorReady()` from `wasm/WasmPatternProcessor.js` — comb
 
 ### `applyHierarchicalResults` (Phase 1) Does Not Set `isGrouped` or `groupedWith`
 
-Phase 1 marks only `translationSource` + `translated` on tokens. `isGrouped` stays `false`; `groupedWith` stays `[]`. Detecting a Phase 1 leader: `translated !== null && translationSource && !translationSource.endsWith('_consumed')`. Do NOT use `isGrouped` or `groupedWith.length` — they are always `false`/`0` for Phase 1 output.
+Phase 1 marks `translationSource`, `translated`, and `groupLeader` on tokens. `isGrouped` stays `false`; `groupedWith` stays `[]`. Detecting a Phase 1 leader: `translated !== null && translationSource && !translationSource.endsWith('_consumed')`. Do NOT use `isGrouped` or `groupedWith.length` — they are always `false`/`0` for Phase 1 output.
 
 ### `applyMatchToTokens` Orphan-Release Loop Must Not Be Removed
 
@@ -121,7 +121,7 @@ When Phase 2+ overwrites a Phase 1 leader token, the orphan-release code in `app
 
 ### `postProcess` Orphan Safety Net Must Not Be Collapsed to `continue`
 
-The `else if (token.translationSource)` branch contains an orphan-recovery path: consumed Chinese tokens whose leader is null or has `translated === null` are recovered via char dict fallback instead of skipped. Do NOT replace this with a plain `continue` — doing so silently drops content whenever a Phase 1 group is partially overwritten by a later phase.
+The `else if (token.translationSource)` branch contains an orphan-recovery path: consumed Chinese tokens whose `groupLeader === null` (released by orphan-release) or whose leader has `translated === null` are recovered via char dict fallback instead of skipped. Do NOT replace with `continue`. **Every phase must set `groupLeader = startIndex` on consumed tokens at the mark site** — `=== undefined` (never set) also triggers char-fallback, silently corrupting every multi-token match from that phase. `applyMatchToTokens` (Phase 2/4), `applyHierarchicalResults` (Phase 1), and `NumberProcessor.applyConversionResult` (Phase 3 JS) all set it. `copyWasmTokens` does NOT copy `groupLeader` — WASM-path phases need a post-`copyWasmTokens` sweep.
 
 ### WASM Wrapper Retire-After-Panic
 

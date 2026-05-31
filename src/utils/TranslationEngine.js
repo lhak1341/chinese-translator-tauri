@@ -2809,6 +2809,7 @@ export class TranslationEngine {
         if (tokens[i]) {
           tokens[i].translated = null; // Must be null - postProcess checks !== null
           tokens[i].translationSource = consumedSource;
+          tokens[i].groupLeader = result.startIndex; // needed by postProcess orphan check
         }
       }
 
@@ -7830,6 +7831,21 @@ export class TranslationEngine {
               // Post-copy verification (lightweight sanity check)
               if (tokens.some((t) => t.translated === undefined)) {
                 throw new Error('WASM copy failed: undefined values detected after copy');
+              }
+
+              // WASM only writes translated/translationSource — set groupLeader on consumed tokens
+              // so the postProcess orphan check doesn't misidentify them as orphaned.
+              {
+                let lastLeader = -1;
+                for (let i = 0; i < tokens.length; i++) {
+                  if (tokens[i].translationSource === 'number_conversion') {
+                    lastLeader = i;
+                  } else if (tokens[i].translationSource === 'number_conversion_consumed') {
+                    tokens[i].groupLeader = lastLeader;
+                  } else {
+                    lastLeader = -1;
+                  }
+                }
               }
 
               // Add number conversions to semantic array for clickable highlighting
