@@ -1,7 +1,7 @@
 # Handoff: Shared WASM Module Panic Cascade
 
-**Date:** 2026-05-23 (updated 2026-05-30)
-**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46)
+**Date:** 2026-05-23 (updated 2026-05-31)
+**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47)
 **Priority:** Low (WASM falls back to JS gracefully; correctness unaffected)
 
 ---
@@ -66,7 +66,59 @@ Circular dep constraint: `WasmTextChunker` imports `WasmDictionaryManager`; ther
 
 ---
 
-## Remaining Issue: OOB in NumberProcessor (debug WASM only)
+## Session 46: NP OOB Fixed (2026-05-30) — See History Below
+
+The `RuntimeError: Out of bounds memory access` in `numberprocessor_processTokens` was fixed in session 46 by emptying `NumberProcessor` struct and moving `number_map` to `lazy_static! { static ref NUMBER_MAP }`, pre-initialized in `new()`. Full investigation notes retained below.
+
+**WASM binary hash after session 46: `2a61115456695c49`**
+
+---
+
+## Session 47: NP Intermittent `alloc/rc.rs:3743` Fixed (2026-05-31)
+
+### Error
+
+```
+panicked at /...alloc/src/rc.rs:3743:13:
+unsafe precondition(s) violated: hint::assert_unchecked must never be called when the condition is false
+  numberprocessor_processTokens multivalue shim
+  processTokens (translation_wasm_core.js:777)
+  processNumbersWasm (WasmNumberProcessor.js:127)
+```
+
+### Root cause
+
+Session 46 pre-initialized `NUMBER_MAP` in `new()` but NOT the 6 parsing regexes (`THOUSANDS_RE`, `HUNDREDS_ZERO_RE`, `HUNDREDS_RE`, `ZERO_TENS_RE`, `TENS_RE`, `IMPLICIT_TENS_PARSE_RE`) or `PATTERNS` (16 conversion Regex objects).
+
+The first `processTokens` call that processes compound Chinese numbers (thousands, hundreds) triggers `parse_chinese_number`, which accesses `THOUSANDS_RE` and friends. `PATTERNS.iter()` is also accessed on every call. Both lazy_static initializations fire **while the wasm-bindgen `RcRefMut<NumberProcessor>` borrow is live**, causing Rust 1.84 debug builds to fire `hint::assert_unchecked` at `alloc/rc.rs:3743`.
+
+**Why intermittent:** lazy_static initializes once — only the first translation containing compound numbers triggers it. Subsequent calls (or input with only simple/no numbers) do not.
+
+### Fix (session 47)
+
+Pre-initialize ALL lazy_statics in `new()`:
+
+```rust
+let _ = &*NUMBER_MAP;
+let _ = &*PATTERNS;
+let _ = &*THOUSANDS_RE;
+let _ = &*HUNDREDS_ZERO_RE;
+let _ = &*HUNDREDS_RE;
+let _ = &*ZERO_TENS_RE;
+let _ = &*TENS_RE;
+let _ = &*IMPLICIT_TENS_PARSE_RE;
+```
+
+- 191 Rust tests pass
+- **WASM binary hash: `fe547c8d43918889`** (2026-05-31)
+
+### General rule
+
+**Any `#[wasm_bindgen]` method that accesses a lazy_static on its first call will violate the Rc borrow-window invariant in Rust 1.84+ debug builds.** Pre-initialize ALL lazy_statics in the constructor, outside the `&self` borrow window.
+
+---
+
+## Session 46 Investigation Notes (OOB)
 
 ### Error
 
@@ -79,69 +131,9 @@ RuntimeError: Out of bounds memory access
   (anonymous function) (TranslationEngine.js:5998)
 ```
 
-### This is a PRIMARY panic (not secondary cascade)
+The `ptr0, len0` signature confirms the `serde_json` fix is applied. NP panicked on its own first call. Cascade correctly retired siblings.
 
-The `ptr0, len0` signature confirms the `serde_json` fix is applied (it's passing a `&str`, not `JsValue`). NP panics on its own first call, not after being corrupted by a sibling wrapper. The cascade correctly retires all siblings after NP catches it, but NP itself has already OOB'd.
-
-### Root cause investigation (Session 45)
-
-**Ruled out: shadow stack exhaustion.** Session 45 verified:
-
-- Binary has `global[0] = 4194304 (0x400000)` — shadow stack IS 4MB
-- Initial memory: 76 pages = 4.86MB
-- OOB persists with 4MB stack → NOT shadow stack overflow
-
-**What was tried (ineffective):**
-
-- Option C: `warmup()` `&self` method calling `PATTERNS.len()` — PATTERNS pre-initialized but OOB persists
-- RUSTFLAGS `-C link-arg=-z -C link-arg=stack-size=4194304` in `build-wasm-dev` — shadow stack increased to 4MB, OOB persists
-
-**Session 45 confirmed findings:**
-
-1. **Shadow stack exhaustion hypothesis DISPROVED.** Binary inspection confirmed:
-   - `global[0] = 4194304 (0x400000)` — shadow stack IS 4MB (set by RUSTFLAGS)
-   - Initial memory: 76 pages = 4.86MB (heap starts at 4MB)
-   - OOB persists with 4MB stack → NOT shadow stack overflow
-
-2. **OOB is INSIDE `process_tokens` function body** (not in generated wrapper):
-   - `web_sys::console::log_1` at function entry fires → OOB comes after
-   - Wrapper generates correctly, self_ptr valid
-
-3. **warmup() causes secondary heap corruption → TC failure:**
-   - `instance.warmup()` calls `PATTERNS.len()` → initializes 16 regex objects (potentially 10-50MB of DFA tables)
-   - These large allocations corrupt dlmalloc state for adjacent structs
-   - `TextChunker.chunkText` subsequently fires `alloc/rc.rs:3743: hint::assert_unchecked` (Rc strong count = 0 = use-after-free)
-   - warmup() removed from JS init — TextChunker failure should stop
-
-4. **Two separate failures:**
-   - **Primary:** NP OOBs on first `processTokens` call (exact location TBD)
-   - **Secondary:** TC Rc violation on second translation (caused by heap corruption from NP's primary OOB)
-   - warmup() was a THIRD problem — introduced by session 45 fix attempt — now removed from JS
-
-**Staged log result (session 46, 2026-05-30):**
-
-- `[NP] process_tokens entered, 1857 bytes` — fires ✓
-- `[NP] deserialized 13 tokens` — fires ✓
-- OOB fires before `[NP] first numeric token`
-
-**Conclusion:** OOB is in the while loop filter condition, specifically `self.number_map.contains_key(&c)`. Accessing the heap-allocated `HashMap` through the struct raw pointer (`this.__wbg_ptr`) causes the OOB.
-
-**Fix applied (session 46): Option D — `NumberProcessor` empty struct + `NUMBER_MAP` lazy_static**
-
-Root cause: `self.number_map` was a heap-allocated `HashMap<char, u32>` field inside a `Box<NumberProcessor>`. Dereferencing through `this.__wbg_ptr` → struct → HashMap → ctrl (bucket array) caused the OOB. Moving to `lazy_static! { static ref NUMBER_MAP }` puts the HashMap in WASM static storage at a fixed known-valid address, eliminating the heap pointer chain.
-
-Changes:
-
-- `NumberProcessor` struct emptied (no fields, ZST-like)
-- `NUMBER_MAP: HashMap<char, u32>` added as lazy_static (pre-initialized in `new()` outside the `&self` borrow window)
-- `process_tokens` filter: `self.number_map.contains_key(&c)` → `NUMBER_MAP.contains_key(&c)`
-- `get_number`: `self.number_map.get(&ch)` → `NUMBER_MAP.get(&ch)`
-- All converter methods (`get_number`, `parse_chinese_number`, etc.) cascade-updated via `self.get_number()`
-- 191 Rust tests pass, 0 errors
-- New binary hash: `228f21fc97c58b72` (interim), `2a61115456695c49` (final, after cleanup)
-- Tested: OOB gone, 3 successful `processTokens` calls confirmed in dev logs
-
-**WASM binary hash: `2a61115456695c49`** (as of 2026-05-30, final clean build)
+**Root cause:** `self.number_map` was a heap-allocated `HashMap<char, u32>` field. Dereferencing through `this.__wbg_ptr → struct → HashMap ctrl → bucket array` caused the OOB. Fix: emptied `NumberProcessor` struct; moved `number_map` to `lazy_static! { static ref NUMBER_MAP }` pre-initialized in `new()`.
 
 **Cleanup done (session 46):**
 
@@ -150,36 +142,20 @@ Changes:
 - Removed `'warmup'` from `expectedMethods` in `WasmNumberProcessor.js`
 - Binary rebuilt: `2a61115456695c49`
 
-### Fix options
-
-**Option A (confirmed working):** Use release WASM in development.
-
-```bash
-pnpm build-wasm   # release profile — no OOB (opt-level=3 eliminates the issue)
-```
-
-Downside: slower rebuild, no debug info.
-
-**Option B (code fix, not yet tried):** Add an early-return pre-check in `find_longest_number_match` before PATTERNS.iter(). Not expected to fix if root cause is the wrapper borrow issue.
-
-**Option C (implemented, ineffective):** `warmup()` `&self` method to pre-initialize PATTERNS. Does not fix OOB.
-
-**Option D (applied, session 46 — testing pending):** Emptied `NumberProcessor` struct; moved `number_map` to `lazy_static! { static ref NUMBER_MAP }` pre-initialized in `new()`. Eliminates heap pointer dereference chain `this.__wbg_ptr → struct → HashMap ctrl → bucket array`. JS interface unchanged (`instance.processTokens(json)` still works). See session 46 notes above for details.
-
 ---
 
 ## Key Files
 
-| File                                           | Role                                                                                                               |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `src/utils/wasm/WasmCascadeRegistry.js`        | **New (session 44)** — dep-free cascade registry; all wrappers register + fire here                                |
-| `src/utils/wasm/WasmNumberProcessor.js`        | Cascade + permanentlyFail; primary OOB source                                                                      |
-| `src/utils/wasm/WasmPatternProcessor.js`       | Cascade + permanentlyFail                                                                                          |
-| `src/utils/wasm/WasmTextAssembler.js`          | `retireOnSharedModulePanic()` method, self-retires in own catch                                                    |
-| `src/utils/wasm/WasmTextChunker.js`            | Cascade fixed; imports DM (DM cannot import TC back — use WasmCascadeRegistry instead)                             |
-| `src/utils/wasm/WasmDictionaryManager.js`      | `_sharedModuleCorrupted` flag + `getDictionaryCount`/`getTotalEntries` guard fixed                                 |
-| `src/utils/wasm/WasmConflictResolution.js`     | `retireWasmConflictResolutionOnSharedPanic()` export; cascades TA/TC/DM                                            |
-| `src/utils/wasm/WasmStringProcessor.js`        | **Updated (session 44)** — cascade registered; buildCache error handling added                                     |
-| `src/utils/wasm/WasmProcessorLifecycle.js`     | `permanentlyFail()` method                                                                                         |
-| `src/utils/highlighting/SegmentPrecomputer.ts` | **Fixed (session 44)** — infinite loop at boundary pos 0                                                           |
-| `wasm-core/src/number_processor.rs`            | **Updated (session 46)** — `NumberProcessor` now empty struct; `NUMBER_MAP` lazy_static pre-initialized in `new()` |
+| File                                           | Role                                                                                            |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `src/utils/wasm/WasmCascadeRegistry.js`        | **New (session 44)** — dep-free cascade registry; all wrappers register + fire here             |
+| `src/utils/wasm/WasmNumberProcessor.js`        | Cascade + permanentlyFail; OOB fixed (s46), lazy_static borrow-window fixed (s47)               |
+| `src/utils/wasm/WasmPatternProcessor.js`       | Cascade + permanentlyFail                                                                       |
+| `src/utils/wasm/WasmTextAssembler.js`          | `retireOnSharedModulePanic()` method, self-retires in own catch                                 |
+| `src/utils/wasm/WasmTextChunker.js`            | Cascade fixed; imports DM (DM cannot import TC back — use WasmCascadeRegistry instead)          |
+| `src/utils/wasm/WasmDictionaryManager.js`      | `_sharedModuleCorrupted` flag + `getDictionaryCount`/`getTotalEntries` guard fixed              |
+| `src/utils/wasm/WasmConflictResolution.js`     | `retireWasmConflictResolutionOnSharedPanic()` export; cascades TA/TC/DM                         |
+| `src/utils/wasm/WasmStringProcessor.js`        | **Updated (session 44)** — cascade registered; buildCache error handling added                  |
+| `src/utils/wasm/WasmProcessorLifecycle.js`     | `permanentlyFail()` method                                                                      |
+| `src/utils/highlighting/SegmentPrecomputer.ts` | **Fixed (session 44)** — infinite loop at boundary pos 0                                        |
+| `wasm-core/src/number_processor.rs`            | **Updated (session 47)** — all 8 lazy_statics pre-initialized in `new()` (was: NUMBER_MAP only) |

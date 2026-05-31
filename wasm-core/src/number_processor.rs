@@ -280,10 +280,20 @@ impl NumberProcessor {
     #[wasm_bindgen(constructor)]
     pub fn new() -> NumberProcessor {
         console_error_panic_hook::set_once();
-        // Pre-initialize NUMBER_MAP here (outside the &self borrow window) so that
-        // the first processTokens call never triggers lazy_static init while a
-        // wasm-bindgen RcRef borrow is live.
+        // Pre-initialize ALL lazy_statics here (outside any &self borrow window) so that
+        // no lazy_static init fires inside processTokens while the wasm-bindgen RcRefMut
+        // borrow is live. Partial pre-init (NUMBER_MAP only) caused an intermittent
+        // alloc/rc.rs:3743 hint::assert_unchecked violation on the first translation
+        // containing compound Chinese numbers, when PATTERNS or the parsing regexes
+        // (THOUSANDS_RE etc.) initialized mid-borrow via the PATTERNS.iter() / parse_chinese_number paths.
         let _ = &*NUMBER_MAP;
+        let _ = &*PATTERNS;
+        let _ = &*THOUSANDS_RE;
+        let _ = &*HUNDREDS_ZERO_RE;
+        let _ = &*HUNDREDS_RE;
+        let _ = &*ZERO_TENS_RE;
+        let _ = &*TENS_RE;
+        let _ = &*IMPLICIT_TENS_PARSE_RE;
 
         #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&"🔢 WASM NumberProcessor initialized".into());
