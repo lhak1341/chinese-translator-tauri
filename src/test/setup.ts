@@ -7,6 +7,16 @@ afterEach(() => {
   cleanup();
 });
 
+// Prevent async WASM init from logging after test teardown.
+// In CI, wasm-pack build runs before tests so translation_wasm_core.js exists;
+// its real init() is async and can resolve after environment teardown begins,
+// causing EnvironmentTeardownError. Failing synchronously avoids floating promises.
+vi.mock('../wasm/translation_wasm_core.js', () => ({
+  default: async () => {
+    throw new Error('WASM not available in test environment');
+  },
+}));
+
 // Mock Tauri API for tests
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
