@@ -109,6 +109,10 @@ Use `isWasmPatternProcessorReady()` from `wasm/WasmPatternProcessor.js` — comb
 
 `src/utils/pattern/PatternFailureTracker.js` owns `_count`, `_lastSuccessTime`, and retry `_warningShown`. Do NOT add `patternFailureCount` / `lastPatternSuccessTime` back to the engine. Engine's `_wasmInitWarningShown` is separate — it guards the WASM init-failure toast, not retry warnings.
 
+### `EnhancedDictionaryManager.findAllMatchesParallel` Has Independent Sort in WASM Path
+
+Overrides `DictionaryManager.findAllMatchesParallel` and routes to `findAllMatchesWasm` when WASM is available. That method maintains its own sort (lines ~387-392 of `EnhancedDictionaryManager.js`), separate from the base class. Any change to match-ordering in `DictionaryManager.findAllMatchesParallel` or `findAllMatchesSequential` must be mirrored in `findAllMatchesWasm`.
+
 ### `.trie.json` Files Are JS Map Cache, Not WASM
 
 `*.trie.json` in the dictionaries folder are written by `PrecomputedTrieCache.js` — they cache the JS Map-based trie, not anything WASM-related. Do not delete them; they speed up cold starts.

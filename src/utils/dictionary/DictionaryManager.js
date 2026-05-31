@@ -1378,7 +1378,16 @@ export class DictionaryManager {
       matches = positionMatches[categoryMap[category]];
     }
 
-    return matches || [];
+    const result = matches || [];
+    // Rust index stores matches in dictionary-iteration order (priority order), not length order.
+    // Sort here to match findAllMatchesSequential: longer match wins, priority as tiebreak.
+    if (result.length > 1) {
+      return [...result].sort((a, b) => {
+        if (a.word.length !== b.word.length) return b.word.length - a.word.length;
+        return (a.priority || 0) - (b.priority || 0);
+      });
+    }
+    return result;
   }
 
   /**

@@ -383,12 +383,12 @@ export class EnhancedDictionaryManager extends DictionaryManager {
         allMatches.push(...enrichedMatches);
       }
 
-      // Sort by priority and length (same as parent implementation)
+      // Sort by length first (longer = more specific), priority as tiebreak
       return allMatches.sort((a, b) => {
-        if (a.priority !== b.priority) {
-          return a.priority - b.priority;
+        if (a.word.length !== b.word.length) {
+          return b.word.length - a.word.length;
         }
-        return b.word.length - a.word.length;
+        return a.priority - b.priority;
       });
     } catch (error) {
       this.log(1, '⚠️ WASM parallel lookup failed, using JavaScript:', error);
