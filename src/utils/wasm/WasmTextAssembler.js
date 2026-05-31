@@ -404,6 +404,8 @@ export const wasmTextAssembler = new WasmTextAssemblerWrapper();
 registerCascadeHandler(() => wasmTextAssembler.retireOnSharedModulePanic());
 
 // Auto-initialize in background (same pattern as WasmNumberProcessor.js)
-wasmTextAssembler.initialize().catch((err) => {
-  logger.warn('Background WASM TextAssembler initialization failed:', err);
-});
+if (import.meta.env.MODE !== 'test') {
+  wasmTextAssembler.initialize().catch((err) => {
+    logger.warn('Background WASM TextAssembler initialization failed:', err);
+  });
+}

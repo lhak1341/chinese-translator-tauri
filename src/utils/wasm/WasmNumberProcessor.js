@@ -192,7 +192,9 @@ export function isWasmNumberProcessorAvailable() {
 }
 
 // Auto-initialize on import (non-blocking)
-initializeWasmNumberProcessor().catch((err) => {
-  logger.warn('Background WASM NumberProcessor initialization failed:', err);
-  wasmNumberProcessor = null;
-});
+if (import.meta.env.MODE !== 'test') {
+  initializeWasmNumberProcessor().catch((err) => {
+    logger.warn('Background WASM NumberProcessor initialization failed:', err);
+    wasmNumberProcessor = null;
+  });
+}
