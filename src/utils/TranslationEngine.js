@@ -3873,10 +3873,11 @@ export class TranslationEngine {
           if (!hasConflict) {
             const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
 
-            // Lookahead: if a longer-rightward match exists within our span, defer to it.
+            // Lookahead: if a LONGER match exists starting within our span, defer to it.
             // Prevents greedy left-to-right from picking a short match (e.g. "日元", 2 chars)
             // and consuming a character needed by a longer match at the next position
-            // (e.g. "元始圣人", 4 chars) that extends further right.
+            // (e.g. "元始圣人", 4 chars). Only defers when j's match is STRICTLY LONGER —
+            // same-length matches at a later start position lose to the earlier match.
             let deferToLookahead = false;
             for (let j = i + 1; j < i + tokenSpan && !deferToLookahead; j++) {
               if (
@@ -3907,7 +3908,7 @@ export class TranslationEngine {
                     (m.metadata && m.metadata.allowAsPatternVariable === true)
                 );
               }
-              if (jMatches.length > 0 && jTextPos + jMatches[0].word.length > matchEnd) {
+              if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
                 deferToLookahead = true;
               }
             }

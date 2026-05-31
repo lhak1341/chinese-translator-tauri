@@ -58,8 +58,10 @@ Since the parallel merge loop drops `originalStart`, this path never activates f
 ### Phase 2 Proper Noun Lookahead
 
 `applyDictionaryTranslation` defers a match at position i if any position j ∈ [i+1, i+tokenSpan) has a
-dictionary match extending further right than matchEnd. Prevents "日元" (2 chars at i=1) from consuming
-元 needed by "元始圣人" (4 chars at i=2). Applies to both shared-index and fallback paths.
+dictionary match that is **strictly longer** than the current match. Prevents "日元" (2 chars at i=1) from
+consuming 元 needed by "元始圣人" (4 chars at i=2). Same-length matches at a later position do NOT trigger
+deferral — earlier start wins (e.g. 孔宣 beats 宣兄 when both are 2 chars). Applies to both shared-index
+and fallback paths.
 
 ### `resolveGlobalConflicts` and `resolveMatchConflicts` Are Siblings With Intentionally Inverted Priority
 
