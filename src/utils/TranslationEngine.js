@@ -3794,19 +3794,17 @@ export class TranslationEngine {
         }
 
         // OPTIMIZATION: Use shared lookup index when available
+        const category =
+          {
+            properNouns: 'properNouns',
+            phrases: 'phrases',
+            characters: 'characters',
+            general: 'phrases',
+          }[phase] || 'phrases';
         let matches;
         if (useSharedLookupIndex) {
           // Get text position for this token to look up in the index
           const textPosition = getTextPositionForTokenIndex(tokens, i);
-
-          // Map phase to dictionary category for lookup index
-          const categoryMap = {
-            properNouns: 'properNouns',
-            phrases: 'phrases',
-            characters: 'characters',
-            general: 'phrases', // Default fallback
-          };
-          const category = categoryMap[phase] || 'phrases';
 
           // Get pre-computed matches from lookup index
           matches = this.dictionaryManager.getIndexedMatches(
@@ -3873,6 +3871,50 @@ export class TranslationEngine {
           }
 
           if (!hasConflict) {
+            const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
+
+            // Lookahead: if a longer-rightward match exists within our span, defer to it.
+            // Prevents greedy left-to-right from picking a short match (e.g. "日元", 2 chars)
+            // and consuming a character needed by a longer match at the next position
+            // (e.g. "元始圣人", 4 chars) that extends further right.
+            let deferToLookahead = false;
+            for (let j = i + 1; j < i + tokenSpan && !deferToLookahead; j++) {
+              if (
+                tokens[j].translated !== null ||
+                (tokens[j].translationSource && !tokens[j].isPatternPartialReset)
+              )
+                continue;
+              const jTextPos = getTextPositionForTokenIndex(tokens, j);
+              let jMatches;
+              if (useSharedLookupIndex) {
+                jMatches = this.dictionaryManager.getIndexedMatches(
+                  options.lookupIndex,
+                  jTextPos,
+                  category
+                );
+                jMatches = jMatches.filter((m) => dictionarySet.has(m.dictionary));
+              } else {
+                jMatches = await this.findAllMatches(
+                  reconstructTextFromIndex(tokens, j),
+                  0,
+                  dictionaryOrder
+                );
+              }
+              if (options.onlyPatternVariables) {
+                jMatches = jMatches.filter(
+                  (m) =>
+                    m.dictionary !== 'phrases' ||
+                    (m.metadata && m.metadata.allowAsPatternVariable === true)
+                );
+              }
+              if (jMatches.length > 0 && jTextPos + jMatches[0].word.length > matchEnd) {
+                deferToLookahead = true;
+              }
+            }
+            if (deferToLookahead) {
+              continue;
+            }
+
             // Apply translation to the matched tokens
             this.applyMatchToTokens(tokens, i, bestMatch, options);
             phaseMatches++;
@@ -3884,9 +3926,6 @@ export class TranslationEngine {
               end: matchEnd,
               source: phase,
             });
-
-            // Calculate token span for skipping ahead
-            const tokenSpan = getTokenSpanForText(tokens, i, bestMatch.word);
 
             // Skip ahead past the matched tokens
             // BUG FIX: Ensure we never go backwards or stay in same place
