@@ -95,6 +95,15 @@ Adapter-specific logic that stays in each file: Semantic's Phase A result inject
 
 `requiredTypes` collects all types in any pattern's `allowedVariableTypes`. Filtering by `requiredTypes` is only correct when ALL patterns are constrained — any unconstrained pattern accepts any type, so filtering would silently exclude entries it needs. Guard: `if (!requiredTypes || hasUnconstrainedPatterns) return true;`.
 
+### Phrase Followers vs Pattern-Consumed Tokens: `isGrouped` Is the Discriminator
+
+Both types have `groupLeader` set, but they differ:
+
+- **Phrase follower**: `groupLeader = N`, `isGrouped = true`, `translationSource = 'phrases_consumed'`
+- **Pattern-consumed**: `groupLeader = N`, `isGrouped` unset, `translationSource = '*_consumed'`
+
+Code filtering by `groupLeader` alone conflates both. `getTextFromTokens` and `getSemanticTokens` use `isGrouped && groupLeader !== null` to exclude only phrase followers. Pattern-consumed tokens must stay in `getTextFromTokens` output so text aligns with tokenizer-cached `.start` positions — stripping them shifts phrase lookup offsets for every token after the gap.
+
 ### `SemanticPatternProcessor.processTokens()` Returns Results — Do Not Ignore
 
 Returns `Promise<PatternProcessorResult[]>`. Callers MUST capture the return value and pass it to `applyHierarchicalResults(tokens, results, options)`. Ignoring the return silently drops all JS pattern translations — no error, tokens fall through to phases 4/5.

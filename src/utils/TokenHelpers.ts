@@ -210,7 +210,7 @@ export function reconstructTextFromIndex(tokens: TextToken[], startIndex: number
  */
 export function getTextFromTokens(tokens: TextToken[]): string {
   return tokens
-    .filter((token) => token.groupLeader === null || token.groupLeader === undefined) // Skip tokens that are part of another token group
+    .filter((token) => !(token.isGrouped && token.groupLeader !== null)) // Skip phrase followers only (not pattern-consumed tokens)
     .map((token) => token.value)
     .join('');
 }
