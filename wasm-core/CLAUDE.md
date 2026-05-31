@@ -25,6 +25,34 @@ Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or d
 
 **OOB diagnosis:** If `cargo test` passes, bug is WASM-specific debug build. Two confirmed causes: (1) shadow stack exhaustion (deep opt-level=0 chains) — split work across separate WASM calls; (2) heap-allocated fields on a `#[wasm_bindgen]` struct accessed via raw `__wbg_ptr` (HashMap, Vec, etc.) — move such fields to `lazy_static!` and pre-initialize in constructor outside the `&self` borrow window. Narrow OOB location with `web_sys::console::log_1` checkpoints at key statements.
 
+## Phase A Composite-Coverage Scoring
+
+`select_non_overlapping_phase_a` scores candidates as `own_chars + composite_bonus`.
+`composite_bonus` = verified literal chars a Phase B pattern would add if this candidate were its variable
+(trailing after candidate, or leading before it). Shorter candidate wins if it enables a longer composite.
+**Debugging:** if Phase A picks the wrong candidate, check whether the losing candidate's semantic type
+passes `allowedVariableTypes` of the intended wrapping Phase B pattern — that's what the bonus check gates on.
+
+## Phase B Protection Blocks Shorter-or-Equal Matches
+
+`matcher.rs:603-615`: a Phase B match spanning Phase A protected tokens is rejected if
+`match_chars <= max_phase_a_chars`. Only Phase B matches LONGER than the Phase A result pass.
+This is what enables hierarchical composition — the outer pattern must cover more chars than the inner.
+
+## `semanticType: "$X"` Resolves at Match Time
+
+A pattern with `semanticType: "$X"` stores the resolved type (e.g., `"character"`) in
+`PatternProcessingResult.semantic_type` — NOT the literal `"$X"`. Phase B enhanced cache uses
+this resolved type for `allowedVariableTypes` checks. Wrong type on the Phase A result = Phase B
+composite silently fails type gate.
+
+## Two Competing `allowAsPatternVariable: true` Patterns Block Compositing
+
+If pattern A (inner) and pattern B (outer) both have `allowAsPatternVariable: true`, they race in
+Phase A. B can win by being longer, consuming tokens A needed, then Phase B can't form the composite
+(Phase B is blocked by the ≤-length guard). Fix: set `allowAsPatternVariable: false` on the intended
+outer pattern so only A runs in Phase A and B wraps it in Phase B.
+
 ## Test locations
 
 - `tests/two_phase_test.rs` — two-phase + hierarchical composite tests

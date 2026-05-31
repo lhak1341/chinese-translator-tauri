@@ -12,7 +12,7 @@
 
 use super::index::PatternIndex;
 use super::matcher::{find_best_pattern_match, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
-use super::pattern::SemanticPattern;
+use super::pattern::{SemanticPattern, TokenType};
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
@@ -263,39 +263,53 @@ impl TwoPhasePatternProcessor {
             position += 1; // always +1 — collect every position before selecting
         }
 
-        // Pass 2: select non-overlapping candidates, longest span wins.
-        Self::select_non_overlapping_phase_a(candidates)
+        // Pass 2: select non-overlapping candidates, composite-coverage score wins.
+        self.select_non_overlapping_phase_a(candidates, semantic_tokens)
     }
 
-    /// Select non-overlapping Phase A candidates by longest text coverage.
-    /// Uses original_text.chars().count() rather than end-start token diff so that
-    /// compound-word tokens (e.g. "传奇" as a single 2-char token) are measured by
-    /// character count.  With token-index diff, "这种传奇" (tokens 0-2) and
-    /// "传奇级武器" (tokens 2-4) both score 2, making the sort indeterminate and
-    /// allowing the shorter-coverage pattern to win.  Char count gives 4 vs 5,
-    /// correctly preferring "传奇级武器".
+    /// Select non-overlapping Phase A candidates by composite-coverage score.
+    ///
+    /// Score = own_chars + composite_bonus, where composite_bonus estimates how many
+    /// additional chars a Phase B pattern would cover if this candidate were its variable.
+    ///
+    /// Example: input "这只刍吾的速度"
+    ///   - "刍吾的速度" (5 chars, own) — no Phase B pattern wraps a "concept"-typed variable here → score 5
+    ///   - "这只刍吾"   (4 chars, own) — Phase B "X的速度" wraps "character"-typed X, adds "的速度" (3 chars) → score 7
+    ///   "这只刍吾" wins; Phase B then produces the full 7-char composite.
+    ///
     /// Tie-break: higher pattern priority wins.
-    /// Mirrors the dedup logic in select_optimal_results for consistency.
-    fn select_non_overlapping_phase_a(mut candidates: Vec<PatternProcessingResult>) -> Vec<PatternProcessingResult> {
+    fn select_non_overlapping_phase_a(
+        &self,
+        candidates: Vec<PatternProcessingResult>,
+        semantic_tokens: &[SemanticToken],
+    ) -> Vec<PatternProcessingResult> {
         if candidates.len() <= 1 {
             return candidates;
         }
 
-        // Sort: most chars covered first, then higher priority.
-        candidates.sort_by(|a, b| {
-            let a_span = a.original_text.chars().count();
-            let b_span = b.original_text.chars().count();
-            b_span.cmp(&a_span).then_with(|| {
-                let a_priority = a.pattern.as_ref().map(|p| p.priority).unwrap_or(0);
-                let b_priority = b.pattern.as_ref().map(|p| p.priority).unwrap_or(0);
-                b_priority.cmp(&a_priority)
+        // Score each candidate: own chars + verified Phase B composite bonus.
+        let mut scored: Vec<(usize, PatternProcessingResult)> = candidates
+            .into_iter()
+            .map(|c| {
+                let own = c.original_text.chars().count();
+                let bonus = self.compute_composite_bonus(&c, semantic_tokens);
+                (own + bonus, c)
+            })
+            .collect();
+
+        // Sort: highest composite score first, then higher priority.
+        scored.sort_by(|(a_score, a_res), (b_score, b_res)| {
+            b_score.cmp(a_score).then_with(|| {
+                let a_p = a_res.pattern.as_ref().map(|p| p.priority).unwrap_or(0);
+                let b_p = b_res.pattern.as_ref().map(|p| p.priority).unwrap_or(0);
+                b_p.cmp(&a_p)
             })
         });
 
         let mut selected = Vec::new();
         let mut used_tokens: HashSet<usize> = HashSet::new();
 
-        for candidate in candidates {
+        for (_, candidate) in scored {
             let overlaps = (candidate.start_index..=candidate.end_index)
                 .any(|i| used_tokens.contains(&i));
             if !overlaps {
@@ -307,6 +321,115 @@ impl TwoPhasePatternProcessor {
         }
 
         selected
+    }
+
+    /// Estimate how many additional chars a Phase B pattern would cover if this
+    /// Phase A candidate were used as its variable.
+    ///
+    /// For each Phase B pattern: find the first variable slot whose type accepts the
+    /// candidate's semantic type, then count literal chars that appear immediately
+    /// before (leading) and after (trailing) the candidate in the token stream.
+    /// Returns the maximum bonus across all patterns.
+    fn compute_composite_bonus(
+        &self,
+        candidate: &PatternProcessingResult,
+        semantic_tokens: &[SemanticToken],
+    ) -> usize {
+        let candidate_type = candidate.semantic_type.as_deref();
+        let effective_type = candidate_type.unwrap_or("unknown");
+        let mut max_bonus: usize = 0;
+
+        for pattern in &self.all_patterns {
+            for (var_idx, tok) in pattern.tokens.iter().enumerate() {
+                if tok.token_type != TokenType::Variable {
+                    continue;
+                }
+                let var_name = tok.name.as_deref().unwrap_or("X");
+
+                // Mirror matcher.rs type enforcement: None type → "unknown"
+                let type_ok = match &pattern.metadata.allowed_variable_types {
+                    Some(allowed) => match allowed.get(var_name) {
+                        Some(types) => types.iter().any(|t| t == effective_type),
+                        None => true,
+                    },
+                    None => true,
+                };
+                if !type_ok {
+                    continue;
+                }
+
+                let trailing = self.estimate_trailing_bonus(
+                    pattern, var_idx, semantic_tokens, candidate.end_index + 1,
+                );
+                let leading = if var_idx > 0 && candidate.start_index > 0 {
+                    self.estimate_leading_bonus(pattern, var_idx, semantic_tokens, candidate.start_index)
+                } else {
+                    0
+                };
+
+                let bonus = trailing + leading;
+                if bonus > max_bonus {
+                    max_bonus = bonus;
+                }
+                break; // First compatible variable slot per pattern is sufficient
+            }
+        }
+
+        max_bonus
+    }
+
+    /// Count the literal chars immediately after `var_idx` in `pattern` that are
+    /// present in `semantic_tokens` starting at `after_pos`.
+    /// Stops counting at the next variable token (conservative — variable spans unknown).
+    fn estimate_trailing_bonus(
+        &self,
+        pattern: &SemanticPattern,
+        var_idx: usize,
+        semantic_tokens: &[SemanticToken],
+        after_pos: usize,
+    ) -> usize {
+        let mut lit_text = String::new();
+        for tok in &pattern.tokens[var_idx + 1..] {
+            match tok.token_type {
+                TokenType::Literal => {
+                    if let Some(v) = &tok.value { lit_text.push_str(v); }
+                }
+                TokenType::Variable => break,
+            }
+        }
+        if lit_text.is_empty() || after_pos >= semantic_tokens.len() {
+            return 0;
+        }
+        let available: String = semantic_tokens[after_pos..].iter().map(|t| t.value.as_str()).collect();
+        if available.starts_with(&lit_text) { lit_text.chars().count() } else { 0 }
+    }
+
+    /// Count the literal chars immediately before `var_idx` in `pattern` (the final
+    /// literal run — resets at each variable scanning backwards) that appear as a
+    /// suffix of `semantic_tokens[..before_pos]`.
+    fn estimate_leading_bonus(
+        &self,
+        pattern: &SemanticPattern,
+        var_idx: usize,
+        semantic_tokens: &[SemanticToken],
+        before_pos: usize,
+    ) -> usize {
+        // Collect literals in forward order, resetting at each variable so we only
+        // take the contiguous literal run that immediately precedes the variable.
+        let mut lit_text = String::new();
+        for tok in &pattern.tokens[..var_idx] {
+            match tok.token_type {
+                TokenType::Literal => {
+                    if let Some(v) = &tok.value { lit_text.push_str(v); }
+                }
+                TokenType::Variable => lit_text.clear(),
+            }
+        }
+        if lit_text.is_empty() || before_pos == 0 {
+            return 0;
+        }
+        let available: String = semantic_tokens[..before_pos].iter().map(|t| t.value.as_str()).collect();
+        if available.ends_with(&lit_text) { lit_text.chars().count() } else { 0 }
     }
 
     /// Mark tokens consumed by Phase A as protected from Phase B

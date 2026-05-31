@@ -55,6 +55,12 @@ Chinese chars are 3 bytes each, making `token.start` ~3× too large for char-pos
 
 Since the parallel merge loop drops `originalStart`, this path never activates for multi-chunk translations — only for single-chunk (short) texts. Fixing the merge loop can trigger "no highlighting" regression if the path has latent bugs — test both short and long texts separately before enabling.
 
+### Phase 2 Proper Noun Lookahead
+
+`applyDictionaryTranslation` defers a match at position i if any position j ∈ [i+1, i+tokenSpan) has a
+dictionary match extending further right than matchEnd. Prevents "日元" (2 chars at i=1) from consuming
+元 needed by "元始圣人" (4 chars at i=2). Applies to both shared-index and fallback paths.
+
 ### `resolveGlobalConflicts` and `resolveMatchConflicts` Are Siblings With Intentionally Inverted Priority
 
 `resolveMatchConflicts` (Phase 2, ~line 2383): patterns beat regular phrases at equal length. `resolveGlobalConflicts` (Phase 4, ~line 2686): phrases beat patterns at equal length (Phase 1 pattern tokens are already consumed by Phase 4). Do NOT harmonize them — the inversion is architectural. Algorithm changes must be mirrored in all three: `resolveMatchConflicts` JS, `resolveGlobalConflicts` JS body (delegates to `WasmConflictResolution.js`), and `wasm-core/src/conflict_resolution.rs::run_conflict_resolution`.
