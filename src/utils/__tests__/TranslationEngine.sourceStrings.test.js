@@ -17,50 +17,12 @@
  * 3. Consumed token detection matches exactly the '_consumed' suffix contract
  * 4. Priority ordering is Phase1 < Phase2 < Phase3 < Phase4 < Phase5
  *
- * These tests mirror the logic inside translateSinglePass() which cannot be
- * imported directly (it's a local function). If the engine's PHASE_PRIORITIES
- * or getSourcePriority logic changes, update these tests to match.
+ * PHASE_PRIORITIES and getSourcePriority are imported from TranslationSourcePriority.ts.
+ * If the engine's priority logic changes, update that module and these tests stay correct.
  */
 
 import { describe, test, expect } from 'vitest';
-
-// ============================================================================
-// Mirror of PHASE_PRIORITIES from TranslationEngine.js:translateSinglePass()
-// If you change this in the engine, update it here too.
-// ============================================================================
-const PHASE_PRIORITIES = {
-  // Phase 1 — Pattern (all possible source strings from JS and WASM paths)
-  pattern: 1,
-  hierarchical_pattern: 1,
-  hierarchical_patterns: 1,
-  hierarchical_patterns_composite: 1,
-  // Phase 2 — Proper noun: dynamic dictionary names, resolved separately
-  // Phase 3 — Number
-  number_conversion: 3,
-  number_plus_liang_fix: 3,
-  // Phase 4 — Phrase
-  phrases: 4,
-  // Phase 5 — Character
-  characters: 5,
-};
-
-/**
- * Mirror of getSourcePriority() from TranslationEngine.js:7510-7522
- * Dynamic proper-noun dict names (e.g. 'properNouns-MyNovel') are handled
- * via the activeProperNouns check — here we pass them in explicitly.
- */
-function getSourcePriority(translationSource, activeProperNouns = []) {
-  if (!translationSource || translationSource.includes('_consumed')) {
-    return null;
-  }
-  if (Object.prototype.hasOwnProperty.call(PHASE_PRIORITIES, translationSource)) {
-    return PHASE_PRIORITIES[translationSource];
-  }
-  if (activeProperNouns.includes(translationSource)) {
-    return 2;
-  }
-  return 999;
-}
+import { getSourcePriority, PHASE_PRIORITIES } from '../TranslationSourcePriority.js';
 
 describe('TranslationEngine — Phase Source String Contracts', () => {
   // --------------------------------------------------------------------------

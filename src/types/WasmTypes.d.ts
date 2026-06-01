@@ -8,6 +8,8 @@
  * Type mismatches can cause serialization errors and memory safety violations.
  */
 
+import type { TranslationSource } from './TranslationEngineTypes';
+
 /**
  * A token at the WASM-JavaScript boundary
  * Used by validateWasmToken and copyWasmTokens
@@ -22,8 +24,12 @@ export interface WasmToken {
   /** Translation result, or null for consumed/untranslated tokens */
   translated: string | null;
 
-  /** Translation phase that produced this token, or null if untranslated */
-  translationSource: string | null;
+  /**
+   * Translation phase that produced this token, or null if untranslated.
+   * Must be a valid TranslationSource — unknown strings cause getSourcePriority()
+   * to return 999, silently deprioritizing below character-level fallback.
+   */
+  translationSource: TranslationSource | null;
 }
 
 /**

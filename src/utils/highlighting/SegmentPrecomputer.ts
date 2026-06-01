@@ -181,9 +181,7 @@ export class SegmentPrecomputer {
         }
         // Fall through to JavaScript if WASM returned null
       } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-          logger.warn('⚠️ WASM segment computation failed, falling back to JavaScript:', error);
-        }
+        logger.warn('⚠️ WASM segment computation failed, falling back to JavaScript:', error);
         // Fall through to JavaScript implementation
       }
     }

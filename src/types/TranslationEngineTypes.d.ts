@@ -14,6 +14,62 @@ import { SemanticArrays } from './SemanticTypes';
 import { TextPositionMapping } from './ViewportTypes';
 
 // ============================================================================
+// Translation Source Strings
+// ============================================================================
+
+/** Phase 1 leader source strings (JS adapter + WASM paths) */
+export type TranslationPhase1Source =
+  | 'pattern'
+  | 'hierarchical_pattern'
+  | 'hierarchical_patterns'
+  | 'hierarchical_patterns_composite';
+
+/** Phase 3 number conversion source strings */
+export type TranslationPhase3Source = 'number_conversion' | 'number_plus_liang_fix';
+
+/** Phase 4 phrase source string */
+export type TranslationPhase4Source = 'phrases';
+
+/** Phase 5 character source string */
+export type TranslationPhase5Source = 'characters';
+
+/**
+ * Phase 2: dynamic proper-noun dictionary name, e.g. 'properNouns-MyNovel'.
+ * The template literal enforces the required prefix at the type level.
+ */
+export type ProperNounSource = `properNouns-${string}`;
+
+/**
+ * All valid leader (non-consumed) translation source strings.
+ *
+ * INVARIANT: getSourcePriority() returns 999 for any string not matching
+ * this type — silently deprioritizing below character-level fallback with
+ * no error. Always use this type at translationSource assignment sites.
+ */
+export type TranslationLeaderSource =
+  | TranslationPhase1Source
+  | TranslationPhase3Source
+  | TranslationPhase4Source
+  | TranslationPhase5Source
+  | ProperNounSource;
+
+/**
+ * All valid consumed-token translation source strings.
+ * Consumed tokens have translated === null and source ends with '_consumed'.
+ */
+export type TranslationConsumedSource =
+  | `${TranslationPhase1Source}_consumed`
+  | `${TranslationPhase3Source}_consumed`
+  | `${TranslationPhase4Source}_consumed`
+  | `properNouns-${string}_consumed`;
+
+/**
+ * All valid translationSource values for pipeline tokens.
+ * Use this anywhere a token's translationSource is written or read.
+ */
+export type TranslationSource = TranslationLeaderSource | TranslationConsumedSource;
+
+// ============================================================================
 // Debug and Logging Configuration
 // ============================================================================
 

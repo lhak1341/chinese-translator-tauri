@@ -167,6 +167,9 @@ import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
+import {
+  getSourcePriority as getSourcePriorityFn,
+} from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import {
   SmartMemoryPressureDetector,
@@ -7309,6 +7312,12 @@ export class TranslationEngine {
    * @see createOptimalPhraseGroups - Phase 4 implementation
    * @see processRemainingTokensInBatches - Phase 5 implementation
    *
+   * @sideeffects Mutates the `tokens` array in place — every phase writes
+   * `translated`, `translationSource`, `groupLeader`, and `isGrouped` directly
+   * onto the token objects. The returned array IS the mutated input.
+   * Calling this method a second time on the same tokens will re-translate
+   * already-translated tokens (no idempotency guard).
+   *
    * @architectural
    * This method CANNOT be extracted or split because:
    * - Phases share token state (synchronous coordination required)
@@ -7364,44 +7373,10 @@ export class TranslationEngine {
     let lastPhaseIndex = -1;
     const phaseFailures = new Map(); // Track failure reasons for MEDIUM-1
 
-    // CODE REVIEW 2026-01-27: Phase priority mapping (for validation)
-    // Lower numbers = higher priority (earlier phases override later phases)
-    // Keys must match the actual translationSource strings written onto tokens,
-    // NOT the phase names used in REQUIRED_PHASE_ORDER.
-    const PHASE_PRIORITIES = {
-      // Phase 1 — Pattern (all possible source strings from JS and WASM paths)
-      pattern: 1,
-      hierarchical_pattern: 1,
-      hierarchical_patterns: 1,
-      hierarchical_patterns_composite: 1,
-      // Phase 2 — Proper noun: source is the dynamic dictionary name (e.g. 'properNouns-MyNovel').
-      // Dynamic names are resolved by getSourcePriority() below; no static keys here.
-      // Phase 3 — Number
-      number_conversion: 3,
-      number_plus_liang_fix: 3,
-      // Phase 4 — Phrase
-      phrases: 4,
-      // Phase 5 — Character
-      characters: 5,
-    };
-
-    // Returns the phase priority for a leader translationSource string.
-    // Returns null for consumed sources (they are not leaders).
-    // Returns 2 for dynamic proper-noun dictionary names (Phase 2).
-    // Returns 999 for unrecognised sources so priority violations are not silently missed.
-    const getSourcePriority = (translationSource) => {
-      if (!translationSource || translationSource.includes('_consumed')) {
-        return null;
-      }
-      if (Object.prototype.hasOwnProperty.call(PHASE_PRIORITIES, translationSource)) {
-        return PHASE_PRIORITIES[translationSource];
-      }
-      // Dynamic proper-noun dictionary names (e.g. 'properNouns-MyNovel')
-      if (this.activeProperNouns && this.activeProperNouns.includes(translationSource)) {
-        return 2;
-      }
-      return 999;
-    };
+    // PHASE_PRIORITIES and getSourcePriority are imported from TranslationSourcePriority.js.
+    // The wrapper closes over this.activeProperNouns so callers pass only the source string.
+    const getSourcePriority = (translationSource) =>
+      getSourcePriorityFn(translationSource, this.activeProperNouns ?? []);
 
     const validatePhaseOrder = (phaseName) => {
       const currentIndex = REQUIRED_PHASE_ORDER.indexOf(phaseName);
