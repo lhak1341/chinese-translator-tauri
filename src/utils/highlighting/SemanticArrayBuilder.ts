@@ -135,8 +135,8 @@ export class SemanticArrayBuilder {
   // Performance tracking
   private stats: PerformanceStats;
 
-  // Pre-compiled pattern for capitalization check
-  private readonly uppercasePattern: RegExp = /^[A-ZÀ-ÿ]/;
+  // Pre-compiled pattern for capitalization check — /u flag required for \p{Lu}
+  private readonly uppercasePattern: RegExp = /^\p{Lu}/u;
 
   // Position tracking
   private lastPositionSet: number = -1;

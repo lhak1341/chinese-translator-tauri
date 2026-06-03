@@ -300,14 +300,17 @@ export class SegmentPrecomputer {
       }
 
       if (process.env.NODE_ENV === 'development' && usingMetadata) {
-        const indexOfPosition = normalizedText.indexOf(translatedUnit, currentPosition);
-        if (indexOfPosition !== -1 && actualPosition !== indexOfPosition) {
+        const textAtPosition = normalizedText.substring(
+          actualPosition,
+          actualPosition + unitLength
+        );
+        if (textAtPosition.toLowerCase() !== translatedUnit.toLowerCase()) {
           logger.error('❌ Character-only position mismatch detected!', {
             unitIndex: i,
             translatedUnit,
             metadataPosition: actualPosition,
-            indexOfPosition,
-            impact: 'Inconsistent highlighting between methods',
+            textAtPosition,
+            impact: 'Metadata position does not match unit text — incorrect highlighting position',
           });
         }
       }
