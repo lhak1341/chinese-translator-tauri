@@ -753,7 +753,7 @@ export class SemanticPatternProcessor {
 
     const debugLevel = options.debugLevel || 3; // TEMP: Enable debug for pattern investigation
     const prioritizedPatterns = options.prioritizedPatterns || [];
-    /** @type {import('../../utils/TranslationEngine.js').PatternProcessorResult[]} */
+    /** @type {import('../../types/PatternProcessingTypes').PatternProcessorResult[]} */
     const results = [];
     const consumedOriginalIndices = new Set();
 

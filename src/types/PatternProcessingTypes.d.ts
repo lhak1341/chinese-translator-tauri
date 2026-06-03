@@ -12,6 +12,7 @@
  */
 
 import type { Token } from './SemanticTypes';
+import type { TranslationSource } from './TranslationEngineTypes';
 
 // ============================================================================
 // Pattern Structure Types
@@ -697,7 +698,10 @@ export interface SemanticPatternProcessor {
   ): SemanticPattern | null;
   indexPattern(pattern: SemanticPattern): void;
   calculatePriority(tokens: PatternToken[], variables: string[], lowPriority?: boolean): number;
-  processTokens(tokens: Token[], options?: PatternProcessingOptions): void;
+  processTokens(
+    tokens: Token[],
+    options?: PatternProcessingOptions
+  ): Promise<PatternProcessorResult[]>;
   findBestPatternMatch(
     semanticTokens: Token[],
     position: number,
@@ -730,7 +734,10 @@ export interface TwoPhasePatternProcessor {
 
   // Methods
   categorizePatterns(): void;
-  processTokens(tokens: Token[], options: PatternProcessingOptions): Promise<PatternMatchResult[]>;
+  processTokens(
+    tokens: Token[],
+    options: PatternProcessingOptions
+  ): Promise<PatternProcessorResult[]>;
   processPhaseA(tokens: Token[], options: PatternProcessingOptions): Promise<PhaseAResult[]>;
   processPhaseB(
     tokens: Token[],
@@ -783,4 +790,33 @@ export interface CompositePatternDetector {
     phaseBCandidate: PhaseBResult,
     tokens: Token[]
   ): AbsorptionInfo | null;
+}
+
+/**
+ * Output shape returned by both PatternProcessor adapters.
+ * Consumed by applyHierarchicalResults(); neither adapter mutates tokens directly.
+ */
+export interface PatternProcessorResult {
+  startIndex: number;
+  endIndex: number;
+  originalText: string;
+  translation: string;
+  translationSource: TranslationSource;
+  semanticType: string | null;
+  pattern: { originalPattern: string };
+  type: 'simple' | 'composite' | 'hierarchical';
+  components?: unknown[];
+}
+
+/**
+ * Contract both PatternProcessor adapters satisfy.
+ * Selection between WASM (TwoPhasePatternProcessor) and JS (SemanticPatternProcessor)
+ * happens once in applyPatterns(); both return the same shape so applyHierarchicalResults()
+ * applies either without branching.
+ */
+export interface PatternProcessorAdapter {
+  processTokens(
+    tokens: Token[],
+    options: PatternProcessingOptions
+  ): Promise<PatternProcessorResult[]>;
 }

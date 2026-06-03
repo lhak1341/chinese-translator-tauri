@@ -167,15 +167,13 @@ import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
-import {
-  getSourcePriority as getSourcePriorityFn,
-} from './TranslationSourcePriority.js';
+import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import {
   SmartMemoryPressureDetector,
   BackgroundCleanupManager,
   ComponentMemoryProfiler,
-} from './wasm/MemoryManagementRefinements.js';
+} from './memory/index.js';
 import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './performance/SystemPerformanceMonitor.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
@@ -254,31 +252,7 @@ import {
  * @typedef {'pattern'|'hierarchical_pattern'|'hierarchical_patterns'|'hierarchical_patterns_composite'|'number_conversion'|'number_plus_liang_fix'|'phrases'|'characters'|string} TranslationSource
  */
 
-/**
- * Shared result shape returned by both PatternProcessor adapters.
- * applyHierarchicalResults() consumes this; neither adapter mutates tokens directly.
- *
- * @typedef {Object} PatternProcessorResult
- * @property {number} startIndex - Index of the match leader in the original tokens array
- * @property {number} endIndex - Index of the last consumed token in the original tokens array
- * @property {string} originalText - Concatenated source values of all matched tokens
- * @property {string} translation - Output translation string
- * @property {TranslationSource} translationSource - Phase source tag ('pattern', 'hierarchical_pattern', etc.)
- * @property {string|null} semanticType - Semantic classification, or null
- * @property {Object} pattern - Matched pattern object; exposes .originalPattern for debug
- * @property {'simple'|'composite'|'hierarchical'} type - Result category
- * @property {Array} [components] - Composite sub-components (type === 'composite' only)
- */
-
-/**
- * Contract both PatternProcessor adapters must satisfy.
- * Selection between WASM (TwoPhasePatternProcessor) and JS (SemanticPatternProcessor)
- * happens once in applyPatterns(); both return the same shape so applyHierarchicalResults()
- * applies either without branching.
- *
- * @typedef {Object} PatternProcessor
- * @property {function(Array, Object): Promise<PatternProcessorResult[]>} processTokens
- */
+// PatternProcessorResult and PatternProcessorAdapter — canonical types in src/types/PatternProcessingTypes.d.ts
 
 // ============================================================================
 // SECTION 1: MEMORY MANAGEMENT UTILITIES

@@ -12,7 +12,10 @@
  * - Safe fallback to standard allocation
  */
 
-import { SmartMemoryPressureDetector, MemoryPressure } from './MemoryManagementRefinements.js';
+import {
+  SmartMemoryPressureDetector,
+  type MemoryPressure,
+} from '../memory/SmartMemoryPressureDetector.js';
 import { logger } from '../logger';
 
 /**
@@ -665,7 +668,7 @@ export class WasmMemoryPool {
 
     // Stop memory pressure monitoring
     // CRITICAL: Verified SmartMemoryPressureDetector.stop() clears samplingTimer interval (3s sampling)
-    // See MemoryManagementRefinements.ts:341-346 for implementation
+    // See src/utils/memory/SmartMemoryPressureDetector.ts for implementation
     if (this.memoryPressureDetector) {
       // Double-check detector is actually stopped
       this.memoryPressureDetector.stop();

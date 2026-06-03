@@ -8,16 +8,7 @@ import { loadAppConfig } from '../../utils/appConfig';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import { SemanticTypePicker } from './SemanticTypePicker';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
-import {
-  capitalizeAll,
-  lowercaseAll,
-  capitalizeExceptLast,
-  capitalizeExceptLastTwo,
-  capitalizeExceptLastThree,
-  moveLastWordToBeginning,
-  moveLastTwoWordsToBeginning,
-  moveLastThreeWordsToBeginning,
-} from '../../utils/wordTransformHelpers';
+import { WordTransformToolbar } from './WordTransformToolbar';
 
 /**
  * Existing entry detection data
@@ -510,21 +501,6 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     }
   };
 
-  // Capitalization handlers
-  const handleCapitalizeAll = (): void => setTranslation(capitalizeAll(translation));
-  const handleCapitalizeExceptLast = (): void => setTranslation(capitalizeExceptLast(translation));
-  const handleCapitalizeExceptLastTwo = (): void =>
-    setTranslation(capitalizeExceptLastTwo(translation));
-  const handleCapitalizeExceptLastThree = (): void =>
-    setTranslation(capitalizeExceptLastThree(translation));
-  const handleLowercaseAll = (): void => setTranslation(lowercaseAll(translation));
-  const handleMoveLastWordToBeginning = (): void =>
-    setTranslation(moveLastWordToBeginning(translation));
-  const handleMoveLastTwoWordsToBeginning = (): void =>
-    setTranslation(moveLastTwoWordsToBeginning(translation));
-  const handleMoveLastThreeWordsToBeginning = (): void =>
-    setTranslation(moveLastThreeWordsToBeginning(translation));
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!source.trim() || !translation.trim()) {
@@ -792,98 +768,11 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               disabled={isSaving}
             />
 
-            {/* Helper buttons: Capitalization and Word Reordering */}
-            <div className={styles.utilityActions}>
-              {/* Capitalization Group */}
-              <fieldset className={styles.utilityGroup}>
-                <legend className={styles.utilityGroupLegend}>Capitalize</legend>
-                <button
-                  type="button"
-                  onClick={handleCapitalizeAll}
-                  disabled={isSaving || !translation.trim()}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Capitalize all words (Title Case)"
-                >
-                  AAAA
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCapitalizeExceptLast}
-                  disabled={isSaving || !translation.trim()}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Capitalize all words except the last one"
-                >
-                  ---a
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCapitalizeExceptLastTwo}
-                  disabled={isSaving || !translation.trim()}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Capitalize all words except the last two"
-                >
-                  --aa
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCapitalizeExceptLastThree}
-                  disabled={isSaving || !translation.trim()}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Capitalize all words except the last three"
-                >
-                  -aaa
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLowercaseAll}
-                  disabled={isSaving || !translation.trim()}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Lowercase all words"
-                >
-                  aaaa
-                </button>
-              </fieldset>
-
-              {/* Word Reordering Group */}
-              <fieldset className={styles.utilityGroup}>
-                <legend className={styles.utilityGroupLegend}>Move to front</legend>
-                <button
-                  type="button"
-                  onClick={handleMoveLastWordToBeginning}
-                  disabled={isSaving || translation.trim().split(' ').length < 2}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Move last word to beginning"
-                >
-                  ←1
-                </button>
-                <button
-                  type="button"
-                  onClick={handleMoveLastTwoWordsToBeginning}
-                  disabled={isSaving || translation.trim().split(' ').length < 3}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Move last 2 words to beginning"
-                >
-                  ←2
-                </button>
-                <button
-                  type="button"
-                  onClick={handleMoveLastThreeWordsToBeginning}
-                  disabled={isSaving || translation.trim().split(' ').length < 4}
-                  tabIndex={-1}
-                  className={styles.utilityButton}
-                  title="Move last 3 words to beginning"
-                >
-                  ←3
-                </button>
-              </fieldset>
-            </div>
+            <WordTransformToolbar
+              value={translation}
+              onChange={setTranslation}
+              disabled={isSaving}
+            />
           </div>
 
           {(activeDictionary === 'phrases' || activeDictionary === 'patterns') && (

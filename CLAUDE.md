@@ -55,7 +55,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Intentionally JavaScript (never TypeScript):** `TranslationEngine.js`, `Translator.jsx`, `SemanticPatternProcessor.js`
 
-`src/utils/` has 8 concern-based subdirectories with `index.ts`: `dictionary/` · `text/` · `pattern/` · `highlighting/` · `performance/` · `caching/` · `ui/` — `wasm/` has no barrel, import directly.
+`src/utils/` has 9 concern-based subdirectories with `index.ts`: `dictionary/` · `text/` · `pattern/` · `highlighting/` · `performance/` · `caching/` · `ui/` · `memory/` — `wasm/` has no barrel, import directly.
 
 ---
 
@@ -81,6 +81,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `useTranslationController.forceCleanup` — removed (unused); hook returns only `{createController, cleanup, cancelAll, getActiveCount}`
 - `WasmDictionaryTrieWrapper` from `wasm/WasmDictionaryTrie.js`, `validateWasmDictionaryTrie` from `WasmDictionaryTrieValidator.js` — deleted; WASM trie is 2x slower than JS Map at current dictionary size (benchmarked 2026-01-31)
 - `WasmRetryManager.js` / `wasmRetryManager` — absorbed into `WasmProcessorLifecycle`; retry logic is now private (`_retryWithBackoff`, `_isTransientError`, `_calculateDelay`)
+- `MemoryManagementRefinements.ts` from `wasm/` — split into `src/utils/memory/` (`SmartMemoryPressureDetector.ts`, `BackgroundCleanupManager.ts`, `ComponentMemoryProfiler.ts`)
 
 **Non-obvious contracts:**
 

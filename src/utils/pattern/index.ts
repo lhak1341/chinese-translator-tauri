@@ -19,6 +19,10 @@ export { PatternTemplateEngine } from './PatternTemplateEngine.js';
 export { default as PatternAnalyzer } from './PatternAnalyzer.js';
 
 export type { PatternToken, PatternVariable, PriorityBreakdown } from './PatternPriorityCalculator';
+export type {
+  PatternProcessorResult,
+  PatternProcessorAdapter,
+} from '../../types/PatternProcessingTypes';
 export {
   PRIORITY_WEIGHTS,
   calculatePatternPriority,
