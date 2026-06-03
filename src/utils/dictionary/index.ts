@@ -22,3 +22,7 @@ export { translationSegmentCache } from './TranslationSegmentCache';
 // --- Duplicate detection ---
 export type { DuplicateRow } from './DuplicateAnalyzer';
 export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';
+
+// --- Backend IO ---
+export type { BatchLoadResult } from './DictionaryBackend';
+export { loadAllDictionaries } from './DictionaryBackend';

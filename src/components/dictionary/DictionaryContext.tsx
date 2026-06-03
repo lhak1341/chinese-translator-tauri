@@ -29,7 +29,7 @@ import type { DictionaryData, DictionaryContextInterface } from '../../types/Dic
 import { useDictionaryHistory } from './useDictionaryHistory';
 import { useDictionaryCRUD } from './useDictionaryCRUD';
 import type { MoveOpUpdates } from './useDictionaryCRUD';
-import type { BatchDictionaryResult } from '../../types/ElectronTypes';
+import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
 
 /**
  * Dictionary Context value.
@@ -219,76 +219,27 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           setSelectedDictionary(config.session.lastSelectedDictionary);
         }
 
-        // Use Rust's parallel batch loading for multi-core performance
-        // This distributes dictionary loading across all CPU cores via Rayon
+        // Use Rust's parallel batch loading with automatic serial retry for cold-launch failures.
         const dictionaryIds = Object.keys(types);
-        const startTime = performance.now();
+        const {
+          loadedDictionaries: rawDictionaries,
+          stillFailedIds,
+          total,
+        } = await loadAllDictionaries(dictionaryIds);
 
-        const batchResult = await window.electronAPI.loadDictionariesParallel(dictionaryIds);
-
-        const endTime = performance.now();
-        const loadTime = (endTime - startTime).toFixed(2);
-
-        logger.log(
-          `📚 Parallel dictionary loading: ${batchResult.successful}/${batchResult.total} dictionaries loaded in ${loadTime}ms`
-        );
-
-        // Process results and sort dictionaries
-        const failedIds: string[] = [];
-        batchResult.results.forEach((result: BatchDictionaryResult) => {
-          if (result.success && result.data) {
-            loadedDictionaries[result.dictionary_id] = sortDictionaryEntries(
-              result.data,
-              result.dictionary_id
-            );
-          } else {
-            logger.error(`Failed to load dictionary ${result.dictionary_id}:`, result.error);
-            failedIds.push(result.dictionary_id);
-            // Initialize with empty dictionary if load fails
-            loadedDictionaries[result.dictionary_id] = {};
-          }
-        });
-
-        // Auto-retry failed dictionaries once via the single-dict serial path
-        // before declaring partial failure. Cold-launch flakiness (file lock,
-        // Rayon thread pool warmup, OS read pressure) sometimes drops a
-        // dictionary on the parallel path; the same file loads cleanly on a
-        // retry, which is exactly what the manual "Reload" button does. We
-        // do this here so users do not have to click reload to recover.
-        const stillFailedIds: string[] = [];
-        if (failedIds.length > 0) {
-          logger.warn(
-            `⚠️ Initial parallel load failed for ${failedIds.length} dictionaries — retrying serially: ${failedIds.join(', ')}`
-          );
-          const retryResults = await Promise.all(
-            failedIds.map(async (id) => {
-              try {
-                const r = await window.electronAPI.loadDictionary(id);
-                if (r.success && r.data) return { id, data: r.data, success: true as const };
-                return { id, success: false as const, error: r.error };
-              } catch (e) {
-                return { id, success: false as const, error: extractErrorMessage(e) };
-              }
-            })
-          );
-          for (const r of retryResults) {
-            if (r.success) {
-              loadedDictionaries[r.id] = sortDictionaryEntries(r.data, r.id);
-              logger.log(`✅ Retry succeeded for dictionary "${r.id}"`);
-            } else {
-              stillFailedIds.push(r.id);
-              logger.error(`❌ Retry failed for dictionary "${r.id}":`, r.error);
-            }
-          }
+        // Apply sort to each loaded dictionary
+        for (const [id, data] of Object.entries(rawDictionaries)) {
+          loadedDictionaries[id] =
+            Object.keys(data).length > 0 ? sortDictionaryEntries(data, id) : data;
         }
 
-        const totalSuccessful = batchResult.total - stillFailedIds.length;
+        const totalSuccessful = total - stillFailedIds.length;
 
         // Surface a load error to consumers if ALL dictionaries failed (engine
         // would initialize with empty tries → garbage translations). Partial
         // failures still allow translation to proceed with degraded coverage.
-        if (totalSuccessful === 0 && batchResult.total > 0) {
-          const msg = `All ${batchResult.total} dictionaries failed to load. Translation unavailable.`;
+        if (totalSuccessful === 0 && total > 0) {
+          const msg = `All ${total} dictionaries failed to load. Translation unavailable.`;
           setLoadError(msg);
           toast.error(msg, {
             duration: TOAST_DURATIONS.CRITICAL,
@@ -296,10 +247,10 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
           });
         } else if (stillFailedIds.length > 0) {
           logger.warn(
-            `⚠️ ${stillFailedIds.length}/${batchResult.total} dictionaries failed after retry: ${stillFailedIds.join(', ')}`
+            `⚠️ ${stillFailedIds.length}/${total} dictionaries failed after retry: ${stillFailedIds.join(', ')}`
           );
           toast.warning(
-            `${stillFailedIds.length} of ${batchResult.total} dictionaries failed to load. Use the Reload button if proper nouns are missing.`,
+            `${stillFailedIds.length} of ${total} dictionaries failed to load. Use the Reload button if proper nouns are missing.`,
             { duration: TOAST_DURATIONS.LOAD_FAILURE, id: TOAST_IDS.DICT_LOAD_FAILED }
           );
         }

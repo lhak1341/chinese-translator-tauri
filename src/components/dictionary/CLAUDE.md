@@ -14,6 +14,8 @@ After touching any CRUD function or `addToHistory`, audit for:
 
 **Single-dict CRUD protocol**: `addEntry`, `updateEntry`, `deleteEntry`, `bulkDeleteEntries` all go through `persistDictionaryMutation(dictionaryId, oldData, sortedEntries) → Promise<boolean>`. This helper owns optimistic `setDictionaries` → `saveDictionary` → rollback on failure. Callers own: diff computation, `sortDictionaryEntries`, `addToHistory`, toast, `invokeEngineInvalidator`. Move ops (`moveEntry`, `bulkMoveEntries`) do NOT use this helper — they touch 2 dicts with partial revert logic.
 
+**Load protocol**: `loadInitialState` delegates to `loadAllDictionaries()` in `src/utils/dictionary/DictionaryBackend.ts` (parallel batch + serial retry + classification). Save/move IPC stays in the provider — those are thin and already behind `CommitMutation`/`PersistDictionaryMutation` typed abstractions. See ADR-014.
+
 `undo`/`redo` live in `src/components/dictionary/useDictionaryHistory.ts`. Dep arrays: `[history, currentHistoryIndex, commitMutation, invalidateEngine]` — `dictionariesRef` intentionally excluded (stable ref); read `dictionariesRef.current` directly.
 
 ## React State Updater Rules
