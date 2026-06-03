@@ -8,7 +8,7 @@
     "dev": "pnpm run build-wasm-dev && vite",
     "build": "pnpm run build-wasm && tsc && vite build",
     "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm && pnpm run generate-wasm-hashes",
-    "build-wasm-dev": "cd wasm-core && RUSTFLAGS=\"-C link-arg=-z -C link-arg=stack-size=4194304\" wasm-pack build --dev --target web --out-dir ../src/wasm && pnpm run generate-wasm-hashes",
+    "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm && pnpm run generate-wasm-hashes",
     "generate-wasm-hashes": "node scripts/generate-wasm-hashes.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
