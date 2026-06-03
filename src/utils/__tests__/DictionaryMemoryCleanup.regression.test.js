@@ -14,7 +14,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { DictionaryManager, DictionaryTrie } from '../dictionary/DictionaryManager.js';
 import { TranslationCache } from '../dictionary/TranslationCache.js';
 import { WasmDictionaryManager } from '../wasm/WasmDictionaryManager.js';
-import { EnhancedDictionaryManager } from '../dictionary/EnhancedDictionaryManager.js';
 
 describe('Dictionary Memory Cleanup Regression Tests', () => {
   describe('CRITICAL-1: Dictionary dispose() on reload', () => {
@@ -302,7 +301,7 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
 
   describe('HIGH-1: EnhancedDictionaryManager cleanup chain', () => {
     it('should call parent loadDictionaries which includes disposal', async () => {
-      const manager = new EnhancedDictionaryManager();
+      const manager = new DictionaryManager();
 
       // Disable WASM for simpler testing
       manager.enableWasm = false;
@@ -326,23 +325,22 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     });
 
     it('should clear WASM dictionaries on reload if available', async () => {
-      const manager = new EnhancedDictionaryManager();
+      const manager = new DictionaryManager();
 
-      // Mock WASM manager
-      manager.wasmInitialized = true;
-      manager.wasmManager = {
-        clearAllDictionaries: vi.fn(),
-        isInFallbackMode: vi.fn(() => false),
+      // Mock WASM adapter
+      const clearAllSpy = vi.fn();
+      manager._wasmInitialized = true;
+      manager._wasmAdapter = {
+        clearAll: clearAllSpy,
+        isReady: vi.fn(() => false),
+        loadDictionary: vi.fn(async () => true),
       };
-
-      // Mock syncDictionariesToWasm
-      vi.spyOn(manager, 'syncDictionariesToWasm').mockResolvedValue(true);
 
       await manager.reloadDictionaries({
         characters: { 的: 'của' },
       });
 
-      expect(manager.wasmManager.clearAllDictionaries).toHaveBeenCalled();
+      expect(clearAllSpy).toHaveBeenCalled();
     });
   });
 

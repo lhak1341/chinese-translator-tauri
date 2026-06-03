@@ -133,7 +133,8 @@
  */
 
 import { TextTokenizer, TokenType } from './text/TextTokenizer.js';
-import { EnhancedDictionaryManager } from './dictionary/EnhancedDictionaryManager.js';
+import { DictionaryManager } from './dictionary/DictionaryManager.js';
+import { WasmDictionaryAdapter } from './wasm/WasmDictionaryAdapter.js';
 import tauriAPI from '../tauriAPI.js';
 import {
   getSemanticTokens,
@@ -295,26 +296,26 @@ export class TranslationEngine {
     // Get dictionary configuration from ParallelConfig
     const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
 
-    this.dictionaryManager = new EnhancedDictionaryManager({
+    this.dictionaryManager = new DictionaryManager({
       // Enable caching with optimized cache sizes
       cacheEnabled: true,
-      characterCacheSize: 500, // Most frequently used
-      phraseCacheSize: 1000, // Moderate frequency
-      patternCacheSize: 200, // Less frequent but expensive
-      lookupCacheSize: 800, // Multi-dictionary searches
+      characterCacheSize: 500,
+      phraseCacheSize: 1000,
+      patternCacheSize: 200,
+      lookupCacheSize: 800,
 
-      // Phase-level parallelization: Dictionary lookup parallelization
+      // Phase-level parallelization
       enableParallelLookups: dictionaryConfig.enabled,
       maxParallelDictionaries: dictionaryConfig.maxParallelDictionaries,
       dictionaryParallelThreshold: dictionaryConfig.parallelThreshold,
 
-      // WASM integration settings
-      enableWasm: true,
-      debugLevel: 1, // INFO level for WASM logs
+      // WASM acceleration via adapter (omit to get pure-JS / NullWasmAdapter behaviour)
+      wasmAdapter: new WasmDictionaryAdapter(),
+      debugLevel: 1,
 
       // Dictionary Precomputation: 5-7x faster loading with cached tries
-      enablePrecomputedCache: true, // Enable precomputed trie caching
-      tauriAPI: tauriAPI, // Required for cache file operations
+      enablePrecomputedCache: true,
+      tauriAPI: tauriAPI,
     });
     this.semanticPatternProcessor = new SemanticPatternProcessor();
     this.textChunker = new TextChunker({

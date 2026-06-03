@@ -21,7 +21,6 @@
 
 import { describe, test, expect, beforeEach } from 'vitest';
 import { DictionaryManager } from '../dictionary/DictionaryManager.js';
-import { EnhancedDictionaryManager } from '../dictionary/EnhancedDictionaryManager.js';
 
 describe('DictionaryManager API Contract', () => {
   let manager;
@@ -122,11 +121,11 @@ describe('DictionaryManager API Contract', () => {
   });
 });
 
-describe('EnhancedDictionaryManager API Contract', () => {
+describe('DictionaryManager (WASM adapter) API Contract', () => {
   let manager;
 
   beforeEach(async () => {
-    manager = new EnhancedDictionaryManager({ enableVerboseLogging: false });
+    manager = new DictionaryManager({ enableVerboseLogging: false });
     await manager.loadDictionaries({
       test_dict: {
         在: 'ở',
@@ -180,9 +179,9 @@ describe('EnhancedDictionaryManager API Contract', () => {
 
       expect(status).not.toBeInstanceOf(Promise);
       expect(status).toMatchObject({
-        enabled: expect.any(Boolean),
         initialized: expect.any(Boolean),
-        isInFallbackMode: expect.any(Boolean),
+        ready: expect.any(Boolean),
+        hasAdapter: expect.any(Boolean),
       });
     });
 

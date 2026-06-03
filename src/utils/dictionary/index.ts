@@ -7,7 +7,6 @@
 
 // --- Dictionary manager ---
 export { DictionaryTrie, DictionaryManager } from './DictionaryManager';
-export { EnhancedDictionaryManager } from './EnhancedDictionaryManager';
 
 // --- Loading ---
 export { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader';
