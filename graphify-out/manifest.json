@@ -356,8 +356,8 @@
     "hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/TranslationEngine.js": {
-    "mtime": 1780498314.6159363,
-    "hash": "7e26549b87ade79b8a4d34886d595cdb"
+    "mtime": 1780501328.433572,
+    "hash": "67304a38cbdda16fefad29efb583f28d"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/logger.ts": {
     "mtime": 1777743411.8961227,
@@ -788,8 +788,8 @@
     "hash": "377ae0c45f092ba20f10ee6814c86e9d"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/DictionaryContext.tsx": {
-    "mtime": 1780499879.9878533,
-    "hash": "377f73eb9c24ee1d237ee7f0848f5d63"
+    "mtime": 1780500240.2675648,
+    "hash": "14abc27d18d71aa2c7e287ff12312747"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/SemanticTypePicker.tsx": {
     "mtime": 1779504122.6401281,
@@ -1010,6 +1010,10 @@
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-007-wasm-pattern-processor-no-js-fallback.md": {
     "mtime": 1778886777.4667783,
     "hash": "b2e8adefcccf8f876b11e4d8b952dfb3"
+  },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-015-skip-text-processing-pipeline.md": {
+    "mtime": 1780501590.295835,
+    "hash": "92f32a28b8fe8445713ac65495866e21"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/plans/2026-02-28-patterns-semantic-column-design.md": {
     "mtime": 1772258650.109735,

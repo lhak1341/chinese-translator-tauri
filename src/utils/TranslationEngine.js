@@ -291,7 +291,7 @@ export const DEBUG_LEVELS = {
 // ============================================================================
 
 export class TranslationEngine {
-  constructor() {
+  constructor({ performanceProfiler: injectedProfiler = performanceProfiler } = {}) {
     this.tokenizer = new TextTokenizer();
     // Get dictionary configuration from ParallelConfig
     const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
@@ -365,6 +365,7 @@ export class TranslationEngine {
 
     // Initialize translation profiler for performance analysis
     this.profiler = new TranslationProfiler();
+    this.performanceProfiler = injectedProfiler;
 
     // Store reference to TwoPhasePatternProcessor for internal profiling
     this.twoPhaseProcessor = null;
@@ -1909,7 +1910,7 @@ export class TranslationEngine {
   async translateWithSegments(text, options = {}) {
     // Phase 7: Start performance profiling
     const operationId = `translation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    performanceProfiler.startTranslationProfile(operationId, text, options);
+    this.performanceProfiler.startTranslationProfile(operationId, text, options);
 
     // Performance monitoring: Start timing for bottleneck detection
     const perfId = `translateWithSegments_${Date.now()}`;
@@ -1999,7 +2000,7 @@ export class TranslationEngine {
       prebuiltSegments: this.prebuiltSegments || [], // Instant segments built during translation
     };
 
-    performanceProfiler.endTranslationProfile(operationId, translatedText, result);
+    this.performanceProfiler.endTranslationProfile(operationId, translatedText, result);
 
     // Performance monitoring: End timing and check for bottlenecks
     performanceLogger.endTiming(perfId, {
@@ -4958,10 +4959,10 @@ export class TranslationEngine {
       ? this.dictionaryManager.getSortingStats()
       : null;
 
-    performanceProfiler.updateDictionaryMetrics(cacheStats, sortingStats);
-    performanceProfiler.updateMemoryMetrics();
+    this.performanceProfiler.updateDictionaryMetrics(cacheStats, sortingStats);
+    this.performanceProfiler.updateMemoryMetrics();
 
-    return performanceProfiler.getPerformanceReport();
+    return this.performanceProfiler.getPerformanceReport();
   }
 
   /**
@@ -4970,7 +4971,7 @@ export class TranslationEngine {
    * @returns {Object} Dashboard metrics
    */
   getDashboardMetrics() {
-    return performanceProfiler.getDashboardMetrics();
+    return this.performanceProfiler.getDashboardMetrics();
   }
 
   /**
@@ -5073,7 +5074,7 @@ export class TranslationEngine {
    * Phase 7: Performance profiler reset
    */
   resetPerformanceProfiler() {
-    performanceProfiler.reset();
+    this.performanceProfiler.reset();
   }
 
   /**
@@ -9922,4 +9923,4 @@ export class TranslationEngine {
 }
 
 // Factory function
-export const createTranslationEngine = () => new TranslationEngine();
+export const createTranslationEngine = (options = {}) => new TranslationEngine(options);
