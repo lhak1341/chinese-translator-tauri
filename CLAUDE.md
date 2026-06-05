@@ -34,7 +34,7 @@ pnpm type-check  # 0 errors expected
 
 ### Dual-Path Architecture
 
-- **Character-only**: `src/components/char-only/ClickableTranslationSemantic.tsx` + `ClickableOriginalSemantic.tsx` → `SegmentPrecomputer.ts`
+- **Character-only**: `src/components/char-only/ClickableTranslationSemantic.tsx` + `ClickableOriginalSemantic.tsx` → `PositionMetadataSegmenter.ts` (sync; `SegmentPrecomputer.ts` is async/WASM only)
 - **Full Translation**: `src/components/full-translation/ClickableTranslationOptimized.tsx` → `TranslationEngine.js`
 
 Completely separate code paths. Debug the right one. Both subdirectories have an `index.ts` entry point.

@@ -40,7 +40,7 @@ After touching any CRUD function or `addToHistory`, audit for:
 
 ## `VirtualRowComponent` Is at Module Scope
 
-Lives in `VirtualRowComponent.tsx` (sibling file), imported by `EnhancedVirtualizedDictionaryTable`. Do NOT wrap in `useMemo` or move inside any render function — any dep change creates a new React component _type_, unmounting all rows and destroying inline edit state (`editingSource`, `tempSource`, etc.). `ITEM_HEIGHT` is exported from `VirtualRowComponent.tsx` — import it from there, not redeclared locally.
+Lives in `VirtualRowComponent.tsx` (sibling file), imported by `EnhancedVirtualizedDictionaryTable`. Do NOT wrap in `useMemo` or move inside any render function — any dep change creates a new React component _type_, unmounting all rows and destroying inline edit state (`sourceEdit`/`translEdit` from `useInlineFieldEdit`). `ITEM_HEIGHT` is exported from `VirtualRowComponent.tsx` — import it from there, not redeclared locally.
 
 ## `SemanticType` Canonical Values
 

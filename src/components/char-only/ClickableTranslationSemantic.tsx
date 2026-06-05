@@ -10,6 +10,7 @@ import type {
 } from '../../types/ClickableTypes';
 import { SegmentPrecomputer } from '../../utils/highlighting';
 import type { Segment } from '../../utils/highlighting';
+import { segmentFromPositionMetadata } from '../../utils/highlighting/PositionMetadataSegmenter';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
 import styles from '../../styles/ClickableTranslationSemantic.module.css';
 import { logger } from '../../utils/logger';
@@ -42,7 +43,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
         setSegments([]);
         return;
       }
-      setSegments(SegmentPrecomputer.precomputeSegmentsSync(translatedText, semanticArrays));
+      setSegments(segmentFromPositionMetadata(translatedText, semanticArrays));
       return;
     }
 

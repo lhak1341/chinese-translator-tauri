@@ -1,4 +1,5 @@
 import React from 'react';
+import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
@@ -258,20 +259,37 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     const allowedVariableTypes =
       (typeof translation === 'object' && translation.allowedVariableTypes) || {};
 
-    // State for inline editing
-    const [editingSource, setEditingSource] = React.useState(false);
-    const [editingTranslation, setEditingTranslation] = React.useState(false);
-    const [tempSource, setTempSource] = React.useState(source);
-    const [tempTranslation, setTempTranslation] = React.useState(translationText);
+    const buildTextSaveMetadata = () =>
+      selectedDictionary === 'patterns' ||
+      selectedDictionary === 'phrases' ||
+      selectedDictionary.startsWith('properNouns')
+        ? {
+            allowAsPatternVariable,
+            lowPriority,
+            ...(semanticType && { semanticType }),
+            ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
+          }
+        : {};
 
-    // Update temp values when props change (after save)
-    React.useEffect(() => {
-      if (!editingSource) setTempSource(source);
-    }, [source, editingSource]);
+    const sourceEdit = useInlineFieldEdit(source, async (newSource) => {
+      await onUpdateEntry(
+        selectedDictionary,
+        source,
+        newSource,
+        translationText,
+        buildTextSaveMetadata()
+      );
+    });
 
-    React.useEffect(() => {
-      if (!editingTranslation) setTempTranslation(translationText);
-    }, [translationText, editingTranslation]);
+    const translEdit = useInlineFieldEdit(translationText, async (newTranslation) => {
+      await onUpdateEntry(
+        selectedDictionary,
+        source,
+        source,
+        newTranslation,
+        buildTextSaveMetadata()
+      );
+    });
 
     const buildBaseMetadata = (): any => {
       const m: any = { allowAsPatternVariable, lowPriority };
@@ -330,78 +348,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       }
     };
 
-    const handleTextSave = async (field: 'source' | 'translation'): Promise<void> => {
-      try {
-        const metadata =
-          selectedDictionary === 'patterns' ||
-          selectedDictionary === 'phrases' ||
-          selectedDictionary.startsWith('properNouns')
-            ? {
-                allowAsPatternVariable,
-                lowPriority,
-                ...(semanticType && { semanticType }),
-                ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
-              }
-            : {};
-
-        if (field === 'source') {
-          if (tempSource !== source && tempSource.trim()) {
-            await onUpdateEntry(
-              selectedDictionary,
-              source,
-              tempSource.trim(),
-              translationText,
-              metadata
-            );
-          }
-          setEditingSource(false);
-        } else if (field === 'translation') {
-          if (tempTranslation !== translationText && tempTranslation.trim()) {
-            await onUpdateEntry(
-              selectedDictionary,
-              source,
-              source,
-              tempTranslation.trim(),
-              metadata
-            );
-          }
-          setEditingTranslation(false);
-        }
-      } catch (error) {
-        logger.error(`Failed to update ${field}:`, error);
-        if (field === 'source') {
-          setTempSource(source);
-          setEditingSource(false);
-        } else {
-          setTempTranslation(translationText);
-          setEditingTranslation(false);
-        }
-      }
-    };
-
-    const handleTextCancel = (field: 'source' | 'translation'): void => {
-      if (field === 'source') {
-        setTempSource(source);
-        setEditingSource(false);
-      } else {
-        setTempTranslation(translationText);
-        setEditingTranslation(false);
-      }
-    };
-
-    const handleKeyDown = (
-      e: React.KeyboardEvent<HTMLInputElement>,
-      field: 'source' | 'translation'
-    ): void => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleTextSave(field);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        handleTextCancel(field);
-      }
-    };
-
     // Patterns layout: checkbox | source (25%) | translation+badges (34%) | semantic (15%) | X types (13%) | Y types (13%)
     if (selectedDictionary === 'patterns') {
       const hasX = source.includes('X');
@@ -429,19 +375,19 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           </div>
 
           <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
-            {editingSource ? (
+            {sourceEdit.editing ? (
               <input
                 type="text"
-                value={tempSource}
-                onChange={(e) => setTempSource(e.target.value)}
-                onBlur={() => handleTextSave('source')}
-                onKeyDown={(e) => handleKeyDown(e, 'source')}
+                value={sourceEdit.tempValue}
+                onChange={(e) => sourceEdit.handleChange(e.target.value)}
+                onBlur={sourceEdit.commitEdit}
+                onKeyDown={sourceEdit.onKeyDown}
                 autoFocus
                 className={styles.inlineEditInput}
               />
             ) : (
               <span
-                onClick={() => setEditingSource(true)}
+                onClick={sourceEdit.startEdit}
                 className={styles.clickableText}
                 title="Click to edit"
               >
@@ -451,20 +397,20 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           </div>
 
           <div className={styles.cellEditable} style={{ width: '34%' }}>
-            {editingTranslation ? (
+            {translEdit.editing ? (
               <input
                 type="text"
-                value={tempTranslation}
-                onChange={(e) => setTempTranslation(e.target.value)}
-                onBlur={() => handleTextSave('translation')}
-                onKeyDown={(e) => handleKeyDown(e, 'translation')}
+                value={translEdit.tempValue}
+                onChange={(e) => translEdit.handleChange(e.target.value)}
+                onBlur={translEdit.commitEdit}
+                onKeyDown={translEdit.onKeyDown}
                 autoFocus
                 className={styles.inlineEditInput}
               />
             ) : (
               <>
                 <span
-                  onClick={() => setEditingTranslation(true)}
+                  onClick={translEdit.startEdit}
                   className={styles.clickableText}
                   title="Click to edit"
                 >
@@ -549,19 +495,19 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
               whiteSpace: 'nowrap',
             }}
           >
-            {editingSource ? (
+            {sourceEdit.editing ? (
               <input
                 type="text"
-                value={tempSource}
-                onChange={(e) => setTempSource(e.target.value)}
-                onBlur={() => handleTextSave('source')}
-                onKeyDown={(e) => handleKeyDown(e, 'source')}
+                value={sourceEdit.tempValue}
+                onChange={(e) => sourceEdit.handleChange(e.target.value)}
+                onBlur={sourceEdit.commitEdit}
+                onKeyDown={sourceEdit.onKeyDown}
                 autoFocus
                 className={styles.inlineEditInput}
               />
             ) : (
               <span
-                onClick={() => setEditingSource(true)}
+                onClick={sourceEdit.startEdit}
                 className={styles.clickableText}
                 title="Click to edit"
               >
@@ -580,20 +526,20 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
               overflow: 'hidden',
             }}
           >
-            {editingTranslation ? (
+            {translEdit.editing ? (
               <input
                 type="text"
-                value={tempTranslation}
-                onChange={(e) => setTempTranslation(e.target.value)}
-                onBlur={() => handleTextSave('translation')}
-                onKeyDown={(e) => handleKeyDown(e, 'translation')}
+                value={translEdit.tempValue}
+                onChange={(e) => translEdit.handleChange(e.target.value)}
+                onBlur={translEdit.commitEdit}
+                onKeyDown={translEdit.onKeyDown}
                 autoFocus
                 className={styles.inlineEditInput}
               />
             ) : (
               <>
                 <span
-                  onClick={() => setEditingTranslation(true)}
+                  onClick={translEdit.startEdit}
                   className={styles.clickableText}
                   title="Click to edit"
                 >
@@ -663,13 +609,13 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
         </div>
 
         <div className={styles.cell} style={{ width: sourceWidth }}>
-          {editingSource ? (
+          {sourceEdit.editing ? (
             <input
               type="text"
-              value={tempSource}
-              onChange={(e) => setTempSource(e.target.value)}
-              onBlur={() => handleTextSave('source')}
-              onKeyDown={(e) => handleKeyDown(e, 'source')}
+              value={sourceEdit.tempValue}
+              onChange={(e) => sourceEdit.handleChange(e.target.value)}
+              onBlur={sourceEdit.commitEdit}
+              onKeyDown={sourceEdit.onKeyDown}
               autoFocus
               style={{
                 width: '100%',
@@ -684,7 +630,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             />
           ) : (
             <span
-              onClick={() => setEditingSource(true)}
+              onClick={sourceEdit.startEdit}
               style={{
                 cursor: 'pointer',
                 display: 'block',
@@ -709,13 +655,13 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             overflow: 'hidden',
           }}
         >
-          {editingTranslation ? (
+          {translEdit.editing ? (
             <input
               type="text"
-              value={tempTranslation}
-              onChange={(e) => setTempTranslation(e.target.value)}
-              onBlur={() => handleTextSave('translation')}
-              onKeyDown={(e) => handleKeyDown(e, 'translation')}
+              value={translEdit.tempValue}
+              onChange={(e) => translEdit.handleChange(e.target.value)}
+              onBlur={translEdit.commitEdit}
+              onKeyDown={translEdit.onKeyDown}
               autoFocus
               style={{
                 width: '100%',
@@ -730,7 +676,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             />
           ) : (
             <span
-              onClick={() => setEditingTranslation(true)}
+              onClick={translEdit.startEdit}
               style={{
                 cursor: 'pointer',
                 flex: 1,
