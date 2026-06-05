@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { buildPatternVariableCache } from '../pattern/PatternVariableCache.js';
-import { DictionaryTrie } from '../dictionary/DictionaryManager.js';
+import { DictionaryTrie } from '../dictionary/DictionaryTrie.js';
 
 function makeTrie(entries) {
   const trie = new DictionaryTrie();

@@ -295,6 +295,25 @@ impl NumberProcessor {
         let _ = &*TENS_RE;
         let _ = &*IMPLICIT_TENS_PARSE_RE;
 
+        // Pre-warm regex-automata Pool<Cache> (regex 1.11 / regex-automata 0.4.x).
+        // Regex::new() builds the NFA/DFA but each Regex owns a Pool<Cache, F> whose
+        // Cache is allocated lazily by Pool::get_slow on the FIRST search call — not at
+        // construction time. That allocation fires inside process_tokens (inside the
+        // WasmRefCell<NumberProcessor> &self borrow window), corrupting the borrow count
+        // and causing Drop for Ref<'_, T> to panic with "attempt to subtract with overflow"
+        // at rt/mod.rs:287. Running a dummy find("") here forces Pool::get_slow to run
+        // before any &self borrow window exists.
+        let dummy = "";
+        for pattern in PATTERNS.iter() {
+            let _ = pattern.regex.find(dummy);
+        }
+        let _ = THOUSANDS_RE.find(dummy);
+        let _ = HUNDREDS_ZERO_RE.find(dummy);
+        let _ = HUNDREDS_RE.find(dummy);
+        let _ = ZERO_TENS_RE.find(dummy);
+        let _ = TENS_RE.find(dummy);
+        let _ = IMPLICIT_TENS_PARSE_RE.find(dummy);
+
         #[cfg(target_arch = "wasm32")]
         web_sys::console::log_1(&"🔢 WASM NumberProcessor initialized".into());
 

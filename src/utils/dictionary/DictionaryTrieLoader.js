@@ -14,24 +14,17 @@ import {
   precomputedTrieStats,
 } from '../caching/PrecomputedTrieCache.js';
 import { logger } from '../logger.js';
+import { DictionaryTrie, TrieNode } from './DictionaryTrie.js';
 
 /**
  * Load dictionary with precomputed trie caching
  *
  * @param {string} dictionaryName - Name of dictionary (e.g., "phrases", "characters")
  * @param {Object} dictionaryData - Dictionary key-value pairs
- * @param {new(...args: any[]) => any} TrieConstructor - DictionaryTrie constructor
- * @param {new(...args: any[]) => any} TrieNodeConstructor - TrieNode constructor
  * @param {{ loadDictionary: Function, saveDictionary: Function }} tauriAPI - Tauri API for file operations
  * @returns {Promise<Object>} {trie: DictionaryTrie, fromCache: boolean, loadTime: number}
  */
-export async function loadDictionaryWithCache(
-  dictionaryName,
-  dictionaryData,
-  TrieConstructor,
-  TrieNodeConstructor,
-  tauriAPI
-) {
+export async function loadDictionaryWithCache(dictionaryName, dictionaryData, tauriAPI) {
   const startTime = performance.now();
 
   // Helper to load cache file
@@ -52,12 +45,12 @@ export async function loadDictionaryWithCache(
     dictionaryName,
     dictionaryData,
     loadCacheFile,
-    TrieNodeConstructor
+    TrieNode
   );
 
   if (cached) {
     // Cache hit - create trie with cached data
-    const trie = new TrieConstructor();
+    const trie = new DictionaryTrie();
     const cachedTrie = /** @type {{ root: any, size: number }} */ (cached);
     trie.root = cachedTrie.root;
     trie.size = cachedTrie.size;
@@ -78,7 +71,7 @@ export async function loadDictionaryWithCache(
 
   // Cache miss - build trie from dictionary
   const buildStartTime = performance.now();
-  const trie = new TrieConstructor();
+  const trie = new DictionaryTrie();
 
   for (const [source, target] of Object.entries(dictionaryData)) {
     if (typeof source === 'string') {

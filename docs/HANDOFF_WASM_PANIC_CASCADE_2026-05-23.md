@@ -1,7 +1,7 @@
 # Handoff: Shared WASM Module Panic Cascade
 
-**Date:** 2026-05-23 (updated 2026-05-31)
-**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47)
+**Date:** 2026-05-23 (updated 2026-06-05)
+**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47) + NP regex Pool&lt;Cache&gt; pre-warm fix (session 48)
 **Priority:** Low (WASM falls back to JS gracefully; correctness unaffected)
 
 ---
@@ -118,6 +118,66 @@ let _ = &*IMPLICIT_TENS_PARSE_RE;
 
 ---
 
+## Session 48: NP `rt/mod.rs:287` Subtract-Overflow Fixed (2026-06-05)
+
+### Error
+
+```
+panicked at /...wasm-bindgen-0.2.100/src/rt/mod.rs:287:25:
+attempt to subtract with overflow
+  numberprocessor_processTokens multivalue shim
+  processTokens (translation_wasm_core.js:777)
+  processNumbersWasm (WasmNumberProcessor.js:127)
+  processNumbers (NumberProcessingAdapter.js:37)
+  TranslationEngine.js:6005
+```
+
+### Root cause
+
+`regex 1.11.2` / `regex-automata 0.4.10`'s `Pool<Cache, F>` (in `pool.rs`) allocates its `Cache` lazily on the **first search call** — not at `Regex::new()` time. `Pool::get_slow` (line 562) calls `(self.create)()` (heap alloc) when the thread-local `THREAD_ID` doesn't match `owner`. This fires during the first `process_tokens` call that exercises number patterns, **inside the `WasmRefCell<NumberProcessor>` borrow window**.
+
+The `Drop for Ref<'_, T>` impl at `rt/mod.rs:287` does `self.borrow.set(self.borrow.get() - 1)`. When the borrow count has been corrupted to 0 mid-call (by the alloc inside the borrow window), drop subtracts from 0 → unsigned overflow → panic. This is a **different mechanism from session 47** (`alloc/rc.rs:3743` fired from `std::sync::Once` inside lazy_static), but the same borrow-window root category.
+
+**Why different from s47:** s47 fixed lazy_static initialization (one-time `std::sync::Once`). The regex `Pool<Cache>` allocates its per-thread cache separately from the static initialization — pre-touching `&*PATTERNS` does not warm the `Pool`. Only calling `.find()` / `.captures()` does.
+
+### Fix (session 48)
+
+Added regex DFA cache pre-warming block in `new()`, after the existing lazy_static pre-inits:
+
+```rust
+// Pre-warm regex-automata Pool<Cache> (regex 1.11 / regex-automata 0.4.x).
+// Regex::new() builds the NFA/DFA but each Regex owns a Pool<Cache, F> whose
+// Cache is allocated lazily by Pool::get_slow on the FIRST search call — not at
+// construction time. That allocation fires inside process_tokens (inside the
+// WasmRefCell<NumberProcessor> &self borrow window), corrupting the borrow count
+// and causing Drop for Ref<'_, T> to panic with "attempt to subtract with overflow"
+// at rt/mod.rs:287. Running a dummy find("") here forces Pool::get_slow to run
+// before any &self borrow window exists.
+let dummy = "";
+for pattern in PATTERNS.iter() {
+    let _ = pattern.regex.find(dummy);
+}
+let _ = THOUSANDS_RE.find(dummy);
+let _ = HUNDREDS_ZERO_RE.find(dummy);
+let _ = HUNDREDS_RE.find(dummy);
+let _ = ZERO_TENS_RE.find(dummy);
+let _ = TENS_RE.find(dummy);
+let _ = IMPLICIT_TENS_PARSE_RE.find(dummy);
+```
+
+- 191 Rust tests pass (4 ignored)
+- **WASM binary hash: `1fb09d60bb1916a7`** (2026-06-05)
+
+### Updated general rule
+
+Any `#[wasm_bindgen]` struct method that touches a lazy_static OR calls `.find()`/`.captures()` on a `regex::Regex` for the first time will violate the wasm-bindgen borrow-window invariant in Rust 1.84+ debug builds. Three known categories:
+
+1. **`serde_wasm_bindgen` inside method** — calls `__wbindgen_malloc` (s44 fix: use `serde_json` strings)
+2. **`lazy_static!` first access inside method** — `std::sync::Once` init allocates (s47 fix: pre-touch all statics in `new()`)
+3. **`regex::Regex::find/captures` first call inside method** — `regex-automata Pool<Cache>` lazy-allocates thread-local cache (s48 fix: run `.find("")` on all Regexes in `new()`)
+
+---
+
 ## Session 46 Investigation Notes (OOB)
 
 ### Error
@@ -146,16 +206,16 @@ The `ptr0, len0` signature confirms the `serde_json` fix is applied. NP panicked
 
 ## Key Files
 
-| File                                           | Role                                                                                            |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `src/utils/wasm/WasmCascadeRegistry.js`        | **New (session 44)** — dep-free cascade registry; all wrappers register + fire here             |
-| `src/utils/wasm/WasmNumberProcessor.js`        | Cascade + permanentlyFail; OOB fixed (s46), lazy_static borrow-window fixed (s47)               |
-| `src/utils/wasm/WasmPatternProcessor.js`       | Cascade + permanentlyFail                                                                       |
-| `src/utils/wasm/WasmTextAssembler.js`          | `retireOnSharedModulePanic()` method, self-retires in own catch                                 |
-| `src/utils/wasm/WasmTextChunker.js`            | Cascade fixed; imports DM (DM cannot import TC back — use WasmCascadeRegistry instead)          |
-| `src/utils/wasm/WasmDictionaryManager.js`      | `_sharedModuleCorrupted` flag + `getDictionaryCount`/`getTotalEntries` guard fixed              |
-| `src/utils/wasm/WasmConflictResolution.js`     | `retireWasmConflictResolutionOnSharedPanic()` export; cascades TA/TC/DM                         |
-| `src/utils/wasm/WasmStringProcessor.js`        | **Updated (session 44)** — cascade registered; buildCache error handling added                  |
-| `src/utils/wasm/WasmProcessorLifecycle.js`     | `permanentlyFail()` method                                                                      |
-| `src/utils/highlighting/SegmentPrecomputer.ts` | **Fixed (session 44)** — infinite loop at boundary pos 0                                        |
-| `wasm-core/src/number_processor.rs`            | **Updated (session 47)** — all 8 lazy_statics pre-initialized in `new()` (was: NUMBER_MAP only) |
+| File                                           | Role                                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `src/utils/wasm/WasmCascadeRegistry.js`        | **New (session 44)** — dep-free cascade registry; all wrappers register + fire here               |
+| `src/utils/wasm/WasmNumberProcessor.js`        | Cascade + permanentlyFail; OOB fixed (s46), lazy_static borrow-window fixed (s47)                 |
+| `src/utils/wasm/WasmPatternProcessor.js`       | Cascade + permanentlyFail                                                                         |
+| `src/utils/wasm/WasmTextAssembler.js`          | `retireOnSharedModulePanic()` method, self-retires in own catch                                   |
+| `src/utils/wasm/WasmTextChunker.js`            | Cascade fixed; imports DM (DM cannot import TC back — use WasmCascadeRegistry instead)            |
+| `src/utils/wasm/WasmDictionaryManager.js`      | `_sharedModuleCorrupted` flag + `getDictionaryCount`/`getTotalEntries` guard fixed                |
+| `src/utils/wasm/WasmConflictResolution.js`     | `retireWasmConflictResolutionOnSharedPanic()` export; cascades TA/TC/DM                           |
+| `src/utils/wasm/WasmStringProcessor.js`        | **Updated (session 44)** — cascade registered; buildCache error handling added                    |
+| `src/utils/wasm/WasmProcessorLifecycle.js`     | `permanentlyFail()` method                                                                        |
+| `src/utils/highlighting/SegmentPrecomputer.ts` | **Fixed (session 44)** — infinite loop at boundary pos 0                                          |
+| `wasm-core/src/number_processor.rs`            | **Updated (session 48)** — all 8 lazy_statics + all regex Pool&lt;Cache&gt; pre-warmed in `new()` |

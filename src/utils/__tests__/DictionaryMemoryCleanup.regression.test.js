@@ -11,7 +11,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { DictionaryManager, DictionaryTrie } from '../dictionary/DictionaryManager.js';
+import { DictionaryManager } from '../dictionary/DictionaryManager.js';
+import { DictionaryTrie } from '../dictionary/DictionaryTrie.js';
 import { TranslationCache } from '../dictionary/TranslationCache.js';
 import { WasmDictionaryManager } from '../wasm/WasmDictionaryManager.js';
 

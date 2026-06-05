@@ -80,6 +80,16 @@ Injected dependencies: `dictionariesRef` (reads snapshot before mutation — nev
 
 Entry point: `src/components/dictionary/useDictionaryCRUD.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
 
+## DictionaryTrie
+
+The per-dictionary lookup structure. A prefix trie where each node owns `children: Map<char, TrieNode>`, `isEndOfWord`, `translation`, and `metadata`. Core operations: `insert`, `get`, `getWithMetadata`, `findMatches` (all prefix matches from a position), `findLongestMatch`, `getWithPrefix` (DFS collect).
+
+Owns its own structural health: `validateIntegrity()` detects circular references, orphaned nodes, missing translations, and size mismatches; `repair()` fixes size mismatches and removes orphans; `getHealthScore()` produces an A–F grade. `dispose()` is mandatory before discarding an instance — recursively nullifies all node references for GC.
+
+`TrieNode` is exported from the same file so `DictionaryTrieLoader` can reconstruct cached tries without passing constructor references at the call site.
+
+Entry point: `src/utils/dictionary/DictionaryTrie.js`. Consumed by `DictionaryManager` (one `DictionaryTrie` per loaded dictionary) and `DictionaryTrieLoader` (cache hit/miss reconstruction).
+
 ## DictionaryBackend
 
 The IO module for dictionary persistence. Owns the load protocol: parallel batch load via `loadDictionariesParallel` → serial retry for cold-launch failures (file lock, Rayon thread pool warmup, OS read pressure) → classification of still-failed IDs. Returns raw (unsorted) data; callers own sorting, toasting, and React state.

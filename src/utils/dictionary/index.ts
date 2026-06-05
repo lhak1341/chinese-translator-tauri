@@ -5,8 +5,9 @@
  *   - loadDictionaryWithCache()  — trie loading with caching
  */
 
-// --- Dictionary manager ---
-export { DictionaryTrie, DictionaryManager } from './DictionaryManager';
+// --- Dictionary trie + manager ---
+export { DictionaryTrie } from './DictionaryTrie';
+export { DictionaryManager } from './DictionaryManager';
 
 // --- Loading ---
 export { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader';
