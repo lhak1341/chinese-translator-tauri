@@ -26,13 +26,12 @@ import { useThrottledValue } from './useThrottledValue';
  *
  * @param {number} [throttleMs=100] - Throttle delay for streaming state updates (default: 100ms)
  * @returns {{
- *   streamingTranslation: StreamingTranslationState,
  *   progressInfo: ProgressData | null,
  *   partialSemanticArrays: SemanticArrays | null,
  *   throttledStreamingState: StreamingTranslationState,
  *   updateStreaming: (data: Partial<StreamingTranslationState>) => void,
- *   setProgress: (info: ProgressData | null) => void,
- *   setPartialArrays: (arrays: SemanticArrays | null) => void,
+ *   setProgressInfo: (info: ProgressData | null) => void,
+ *   setPartialSemanticArrays: (arrays: SemanticArrays | null) => void,
  *   resetStreaming: () => void
  * }} Streaming translation state and update functions
  */
@@ -67,11 +66,7 @@ export function useStreamingTranslation(throttleMs = 100) {
     }));
   }, []);
 
-  /**
-   * Set partial semantic arrays
-   * @param {Object} arrays - Partial semantic arrays
-   */
-  const setPartialArrays = useCallback((arrays) => {
+  const setPartialSemanticArraysCallback = useCallback((arrays) => {
     setPartialSemanticArrays(arrays);
   }, []);
 
@@ -93,13 +88,12 @@ export function useStreamingTranslation(throttleMs = 100) {
   }, []);
 
   return {
-    streamingTranslation,
     progressInfo,
     partialSemanticArrays,
     throttledStreamingState,
     updateStreaming,
-    setProgress: setProgressInfo,
-    setPartialArrays,
+    setProgressInfo,
+    setPartialSemanticArrays: setPartialSemanticArraysCallback,
     resetStreaming,
   };
 }

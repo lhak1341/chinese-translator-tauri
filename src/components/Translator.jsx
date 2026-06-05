@@ -113,13 +113,12 @@ const Translator = ({ isActive = true }) => {
 
   // Streaming translation hook (extracted)
   const {
-    streamingTranslation,
     progressInfo,
     partialSemanticArrays,
     throttledStreamingState,
     updateStreaming,
-    setProgress: setProgressInfo,
-    setPartialArrays: setPartialSemanticArrays,
+    setProgressInfo,
+    setPartialSemanticArrays,
     resetStreaming,
   } = useStreamingTranslation(100); // 100ms throttle
 

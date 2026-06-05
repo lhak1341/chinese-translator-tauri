@@ -14,6 +14,7 @@
 
 import { LRUCache } from '../caching/LRUCache.js';
 import { logger } from '../logger.js';
+import { warmNovelSpecificVocabulary } from './VocabularyWarmup.js';
 
 export class TranslationCache {
   constructor(options = {}) {
@@ -575,136 +576,7 @@ export class TranslationCache {
    * @returns {Promise<number>} Number of proper nouns warmed
    */
   async preWarmNovelSpecificVocabulary(dictionaryManager, activeProperNouns, limits = {}) {
-    let properNounsWarmed = 0;
-    let phrasesWarmed = 0;
-
-    const maxCharacters = limits.maxCharacters || 50;
-    const maxPhrases = limits.maxPhrases || 30;
-
-    for (const dictionaryName of activeProperNouns) {
-      try {
-        // Get the dictionary trie for this proper noun dictionary
-        const dictionary = dictionaryManager.getDictionary(dictionaryName);
-        if (!dictionary) continue;
-
-        // Extract high-frequency vocabulary from the dictionary
-        const vocabularyEntries = this.extractHighFrequencyVocabulary(dictionary, dictionaryName);
-
-        // Limit entries warmed per dictionary
-        const entriesToWarm = vocabularyEntries.slice(
-          0,
-          Math.floor(maxCharacters / activeProperNouns.length)
-        );
-
-        // Pre-warm cache with proper noun translations
-        for (const entry of entriesToWarm) {
-          if (properNounsWarmed >= maxCharacters) break; // Hard limit
-
-          const result = dictionaryManager.translate(entry.word, [dictionaryName]);
-          if (result) {
-            this.setCharacter(entry.word, dictionaryName, result);
-            properNounsWarmed++;
-          }
-        }
-
-        // Pre-warm common character combinations that appear with proper nouns
-        const characterCombos = this.generateCharacterCombinations(vocabularyEntries);
-        const combosToWarm = characterCombos.slice(
-          0,
-          Math.floor(maxPhrases / activeProperNouns.length)
-        );
-
-        for (const combo of combosToWarm) {
-          if (phrasesWarmed >= maxPhrases) break; // Hard limit
-
-          const result = dictionaryManager.translate(combo, ['phrases', 'characters']);
-          if (result) {
-            this.setPhrase(combo, 'phrases', result);
-            phrasesWarmed++;
-          }
-        }
-      } catch (error) {
-        logger.warn(`Failed to pre-warm vocabulary from ${dictionaryName}:`, error.message);
-      }
-    }
-
-    return properNounsWarmed + phrasesWarmed;
-  }
-
-  /**
-   * Extract high-frequency vocabulary from a dictionary trie
-   * @param {Object} dictionary - Dictionary trie
-   * @param {string} dictionaryName - Name of the dictionary
-   * @returns {Array} Array of vocabulary entries with frequency data
-   */
-  extractHighFrequencyVocabulary(dictionary, dictionaryName) {
-    const entries = [];
-    const maxEntries = 50; // Limit to top 50 entries per dictionary
-
-    // Traverse the trie to collect all entries
-    const collectEntries = (node, currentWord = '') => {
-      if (entries.length >= maxEntries) return;
-
-      if (node.isEndOfWord && node.translation) {
-        // Prioritize shorter proper nouns (characters, names) over longer phrases
-        const priority = currentWord.length <= 3 ? 1 : currentWord.length <= 5 ? 2 : 3;
-
-        entries.push({
-          word: currentWord,
-          translation: node.translation,
-          priority: priority,
-          dictionary: dictionaryName,
-        });
-      }
-
-      // Continue traversing children
-      for (const [char, childNode] of node.children.entries()) {
-        if (entries.length < maxEntries) {
-          collectEntries(childNode, currentWord + char);
-        }
-      }
-    };
-
-    collectEntries(dictionary.root);
-
-    // Sort by priority (shorter entries first) and limit results
-    return entries
-      .sort((a, b) => a.priority - b.priority || a.word.localeCompare(b.word))
-      .slice(0, maxEntries);
-  }
-
-  /**
-   * Generate common character combinations from proper noun vocabulary
-   * @param {Array} vocabularyEntries - Extracted vocabulary entries
-   * @returns {Array} Array of character combinations
-   */
-  generateCharacterCombinations(vocabularyEntries) {
-    const combinations = new Set();
-
-    // Extract individual characters from proper nouns for combination generation
-    const characters = new Set();
-    vocabularyEntries.forEach((entry) => {
-      if (entry.word.length <= 3) {
-        // Focus on shorter proper nouns
-        Array.from(entry.word).forEach((char) => characters.add(char));
-      }
-    });
-
-    // Generate combinations with common function words used with proper nouns
-    const functionWords = ['的', '了', '在', '说', '看', '到', '从', '对', '和', '与'];
-    const charArray = Array.from(characters).slice(0, 20); // Limit characters used
-
-    for (const char of charArray) {
-      for (const functionWord of functionWords.slice(0, 5)) {
-        // Top 5 function words
-        combinations.add(char + functionWord);
-        combinations.add(functionWord + char);
-        if (combinations.size >= 30) break; // Limit total combinations
-      }
-      if (combinations.size >= 30) break;
-    }
-
-    return Array.from(combinations);
+    return warmNovelSpecificVocabulary(dictionaryManager, activeProperNouns, limits, this);
   }
 
   /**

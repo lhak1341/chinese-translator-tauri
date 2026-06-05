@@ -552,8 +552,8 @@
     "hash": "26c30a0865e89d1545a16bb1ca7e1e29"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/dictionary/TranslationCache.js": {
-    "mtime": 1774166545.0843844,
-    "hash": "254735683df9a3af92a4114f80c0dfa9"
+    "mtime": 1780623387.366433,
+    "hash": "16fa4dacb1168c899d736b70817b1232"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/dictionary/ParallelDictionaryLoader.js": {
     "mtime": 1777744922.7090824,
@@ -564,12 +564,16 @@
     "hash": "d7e960bd056841e1d81fcccb2e349da7"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/dictionary/index.ts": {
-    "mtime": 1780590803.2062962,
-    "hash": "5456f31954763116ce339052280c5be1"
+    "mtime": 1780623393.2097726,
+    "hash": "89b64fc15462416e5b18fb32ac2b6afd"
+  },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/dictionary/VocabularyWarmup.js": {
+    "mtime": 1780623365.2256496,
+    "hash": "85e63fd955ad6751d8d5809d3ef9fd64"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/dictionary/DictionaryTrieLoader.js": {
-    "mtime": 1780590791.4714088,
-    "hash": "3a01afaa9caf5796f69119969a764568"
+    "mtime": 1780622731.2912793,
+    "hash": "11a1aa92591368712994c2a0661bc2a0"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/text/ParagraphGrouping.ts": {
     "mtime": 1772666306.8221302,
@@ -724,8 +728,8 @@
     "hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/Translator.jsx": {
-    "mtime": 1779500370.1236792,
-    "hash": "453e42c277f2ba4b07531329ed8be22f"
+    "mtime": 1780623718.1441507,
+    "hash": "061135f1d2192784ef9eeac6aab6f9ad"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/ErrorBoundary.tsx": {
     "mtime": 1772897608.4774516,
@@ -828,8 +832,8 @@
     "hash": "b02064c1ec2f776476af3a0d8473b857"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useStreamingTranslation.js": {
-    "mtime": 1779467425.4779346,
-    "hash": "bbc806aa248ef11edf9539a90b467814"
+    "mtime": 1780623706.3171673,
+    "hash": "3d8cbc451540a974d502ba228011a0eb"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useDictionaryModals.js": {
     "mtime": 1778885294.7148623,
@@ -852,8 +856,8 @@
     "hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/CONTEXT.md": {
-    "mtime": 1780590813.7369769,
-    "hash": "5e83d9d8e386842bac883270d3449c7a"
+    "mtime": 1780623402.467942,
+    "hash": "76221dc5bd82c75e551d0fd73932935e"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/README.md": {
     "mtime": 1780499049.8451948,
@@ -888,8 +892,8 @@
     "hash": "7483544f7a5441e6db3ed3b400c8773b"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md": {
-    "mtime": 1780620611.655957,
-    "hash": "046baae19b9908c851bea69b8b8e9fe9"
+    "mtime": 1780622730.930179,
+    "hash": "4e65f5a608a90e23b454783a739e61a2"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/OPTIMIZATION_MASTER_INDEX_2026-01-31.md": {
     "mtime": 1769906376.693171,
@@ -971,6 +975,10 @@
     "mtime": 1780500182.461141,
     "hash": "07b02ea10b4e0f0a4c9ce84409140dc6"
   },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-016-skip-streaming-context-record.md": {
+    "mtime": 1780623738.427948,
+    "hash": "7678bbfc238209d4eee5157d683942a8"
+  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-001-wasm-batch-loading-failure.md": {
     "mtime": 1778865935.0033405,
     "hash": "5e177025ea8290395e8714a27a1872b7"
@@ -1010,6 +1018,10 @@
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-009-wasm-processor-lifecycle.md": {
     "mtime": 1778959937.6122184,
     "hash": "c0ab0ff9f043af25423448df72384c15"
+  },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-017-skip-wasm-pool-analytics-separation.md": {
+    "mtime": 1780625022.6583734,
+    "hash": "0c32dbde05b2f33d0f92239d87a09fd2"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/docs/adr/ADR-007-wasm-pattern-processor-no-js-fallback.md": {
     "mtime": 1778886777.4667783,

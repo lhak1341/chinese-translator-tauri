@@ -20,6 +20,13 @@ export { dictionarySorter } from './IncrementalDictionarySorter';
 export { TranslationCache } from './TranslationCache';
 export { translationSegmentCache } from './TranslationSegmentCache';
 
+// --- Vocabulary warmup ---
+export {
+  extractHighFrequencyVocabulary,
+  generateCharacterCombinations,
+  warmNovelSpecificVocabulary,
+} from './VocabularyWarmup';
+
 // --- Duplicate detection ---
 export type { DuplicateRow } from './DuplicateAnalyzer';
 export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';
