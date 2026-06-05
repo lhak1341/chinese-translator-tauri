@@ -106,6 +106,14 @@ Injected dependencies: `dictionariesRef` (reads snapshot before mutation — nev
 
 Entry point: `src/components/dictionary/useDictionaryCRUD.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
 
+## DictionaryHealthMonitor
+
+Diagnostic tool for trie structural health. Wraps the `validateIntegrity()`, `getHealthScore()`, and `repair()` methods of every loaded `DictionaryTrie` into four aggregate operations: `validateAllDictionaries()`, `repairAllDictionaries()`, `getDictionaryHealthReport()`, and `monitorDictionaryHealth(name, frequency)`. Never called in production — dev/diagnostic import only.
+
+Injected dependencies: `getDictionary(name) → DictionaryTrie|null`, `getDictionaryNames() → IterableIterator<string>`. Both are satisfied by the two same-named accessors on `DictionaryManager`.
+
+Entry point: `src/utils/dictionary/DictionaryHealthMonitor.js`. Not wired into any production dependency graph — import directly when diagnosing trie corruption.
+
 ## DictionaryTrie
 
 The per-dictionary lookup structure. A prefix trie where each node owns `children: Map<char, TrieNode>`, `isEndOfWord`, `translation`, and `metadata`. Core operations: `insert`, `get`, `getWithMetadata`, `findMatches` (all prefix matches from a position), `findLongestMatch`, `getWithPrefix` (DFS collect).

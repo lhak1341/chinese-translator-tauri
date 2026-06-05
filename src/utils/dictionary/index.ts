@@ -8,6 +8,7 @@
 // --- Dictionary trie + manager ---
 export { DictionaryTrie } from './DictionaryTrie';
 export { DictionaryManager } from './DictionaryManager';
+export { DictionaryHealthMonitor } from './DictionaryHealthMonitor';
 
 // --- Loading ---
 export { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader';
