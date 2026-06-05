@@ -109,6 +109,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
+  const selectedEntriesRef = useRef<Set<string>>(new Set());
+  selectedEntriesRef.current = selectedEntries;
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState<boolean>(false);
   const [scrollTop, setScrollTop] = useState<number>(0);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
@@ -666,7 +668,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   );
 
   const handleBulkDelete = useCallback(async (): Promise<void> => {
-    if (selectedEntries.size === 0) return;
+    const entries = selectedEntriesRef.current;
+    if (entries.size === 0) return;
 
     setIsDeleting(true);
 
@@ -675,12 +678,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
     try {
       if (showDuplicatesMode) {
-        // Duplicate mode: selectedEntries contains composite keys (source::dictionaryId)
+        // Duplicate mode: entries contains composite keys (source::dictionaryId)
         // Group deletions by dictionary, handling malformed keys gracefully
         const deletionsByDict = new Map<string, string[]>();
 
         // Parse all keys first, collecting errors
-        for (const key of selectedEntries) {
+        for (const key of entries) {
           try {
             const { source, dictionaryId } = parseDuplicateKey(key);
             if (!deletionsByDict.has(dictionaryId)) {
@@ -725,8 +728,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           errors.push(...result.errors);
         }
       } else {
-        // Normal mode: selectedEntries contains source strings, all from same dictionary
-        const entriesToDelete = Array.from(selectedEntries);
+        // Normal mode: entries contains source strings, all from same dictionary
+        const entriesToDelete = Array.from(entries);
         try {
           const result = await bulkDeleteEntries(selectedDictionary, entriesToDelete);
           successCount = result.successCount;
@@ -742,13 +745,13 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         if (successCount > 0) {
           // Partial success
           toast.warning(
-            `Deleted ${successCount} of ${selectedEntries.size} entries. ${errors.length} failed.`,
+            `Deleted ${successCount} of ${entries.size} entries. ${errors.length} failed.`,
             6000
           );
         } else {
           // All failed
           toast.error(
-            `Failed to delete ${selectedEntries.size} ${selectedEntries.size === 1 ? 'entry' : 'entries'}.`,
+            `Failed to delete ${entries.size} ${entries.size === 1 ? 'entry' : 'entries'}.`,
             6000
           );
         }
@@ -758,6 +761,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           `Deleted ${successCount} ${successCount === 1 ? 'entry' : 'entries'} successfully`,
           3000
         );
+      }
+
+      // Clear selection and close confirm for any partial or full success
+      if (successCount > 0) {
         setSelectedEntries(new Set());
         setShowBulkDeleteConfirm(false);
       }
@@ -776,18 +783,18 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       setIsDeleting(false);
     }
   }, [
-    selectedEntries,
     selectedDictionary,
     bulkDeleteEntries,
     dictionaries,
     showDuplicatesMode,
     onRefreshDuplicates,
+    onScrollSave,
   ]);
 
   const handleBulkMove = useCallback((): void => {
-    if (selectedEntries.size === 0) return;
+    if (selectedEntriesRef.current.size === 0) return;
     setShowBulkMoveDialog(true);
-  }, [selectedEntries]);
+  }, []);
 
   // Notify parent about selection changes — placed after handleBulkDelete /
   // handleBulkMove so the dep array can reference their stable useCallback values.

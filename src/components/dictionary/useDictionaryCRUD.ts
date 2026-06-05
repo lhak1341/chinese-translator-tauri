@@ -336,7 +336,9 @@ export function useDictionaryCRUD(
           }
         }
 
-        const sortAnchor = deletedEntries[0]?.source ?? sources[0];
+        // Incremental sort only handles one key at a time — use full sort for bulk (>1 entry).
+        const sortAnchor =
+          deletedEntries.length === 1 ? (deletedEntries[0]?.source ?? sources[0]) : null;
         const sortedDictionary = sortDictionaryEntries(updatedDictionary, dictionaryId, sortAnchor);
 
         const ok = await persistDictionaryMutation(dictionaryId, oldData, sortedDictionary);
@@ -451,9 +453,10 @@ export function useDictionaryCRUD(
         }
       }
 
-      const sortAnchor = movedEntries[0]?.source ?? sources[0];
-      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, sortAnchor);
-      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, sortAnchor);
+      // Incremental sort only handles one key at a time — use full sort for bulk (>1 entry).
+      const changedKey = movedEntries.length === 1 ? (movedEntries[0]?.source ?? sources[0]) : null;
+      const sortedSourceDict = sortDictionaryEntries(updatedSourceDict, sourceDictId, changedKey);
+      const sortedTargetDict = sortDictionaryEntries(updatedTargetDict, targetDictId, changedKey);
 
       const ok = await commitMoveOp({
         sourceDictId,

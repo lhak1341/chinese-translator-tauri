@@ -1,5 +1,9 @@
 # src/components/dictionary — Gotchas
 
+## `sortDictionaryEntries` Bulk-Op Constraint
+
+**`sortDictionaryEntries` bulk ops:** pass `null` as `changedKey` when modifying >1 entry — `IncrementalDictionarySorter.incrementalSort` only repositions ONE key per call; a non-null anchor silently drops the other N-1 entries from the persisted dict.
+
 ## `DictionaryContext.tsx` CRUD Audit Checklist
 
 After touching any CRUD function or `addToHistory`, audit for:
