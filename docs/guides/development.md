@@ -554,6 +554,8 @@ Swapping imports between production code and tests will silently reverse the cop
 
 **React Testing Library paragraph selector** (2026-02-13): `container.querySelectorAll('div > div')` matches both the component container AND paragraph children (RTL wraps everything in an extra div). Use `div > div > div` to select only paragraph-level divs inside a two-level component.
 
+**RTL `waitFor` must throw, not return falsy** (2026-06-05): `waitFor(() => !result.current.isLoading)` resolves immediately — RTL only retries when the callback throws. Use `waitFor(() => expect(result.current.isLoading).toBe(false))` instead.
+
 **`PunctuationProcessor.isAlreadyProperlySpaced` regex — brackets not matched** (2026-02-13): `openingQuotePattern` embedded inside another `[...]` class closes early. The regex matches opening _quotes_ but NOT literal `[`/`(` brackets. Write tests using quote chars, not bracket chars.
 
 **`PatternMatchResult::success()` sets `pattern: None`**: The struct stores `pattern_id` (the `original_pattern` string) instead of cloning the full pattern. Tests must use `result.pattern_id.as_deref().unwrap()`, not `result.pattern.as_ref().unwrap()`.

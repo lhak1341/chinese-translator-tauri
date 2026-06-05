@@ -74,6 +74,7 @@ registerCascadeHandler(() => {
   // __destroy_into_raw() unregisters the FinalizationRegistry entry and zeroes __wbg_ptr
   // without calling into the (now-corrupted) WASM module. Prevents stale GC callbacks from
   // decrementing the Rc of a future NumberProcessor that reuses the same heap address.
+  // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated .d.ts
   wasmNumberProcessor?.__destroy_into_raw();
   wasmNumberProcessor = null;
   lifecycle.permanentlyFail();
@@ -92,6 +93,7 @@ async function initializeWasmNumberProcessor() {
   if (success) {
     showedNumberWarning = false;
   } else {
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated .d.ts
     wasmNumberProcessor?.__destroy_into_raw();
     wasmNumberProcessor = null;
     logger.warn('Falling back to character-by-character translation for numbers');
@@ -149,6 +151,7 @@ export async function processNumbersWasm(tokens) {
     // Retire the broken instance — after a WASM panic, the shared linear memory is
     // permanently corrupted. permanentlyFail() (not reset()) prevents re-initialization
     // from the corrupted module on subsequent translations.
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated .d.ts
     wasmNumberProcessor?.__destroy_into_raw();
     wasmNumberProcessor = null;
     lifecycle.permanentlyFail();
@@ -201,6 +204,7 @@ export function isWasmNumberProcessorAvailable() {
 if (import.meta.env.MODE !== 'test') {
   initializeWasmNumberProcessor().catch((err) => {
     logger.warn('Background WASM NumberProcessor initialization failed:', err);
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated .d.ts
     wasmNumberProcessor?.__destroy_into_raw();
     wasmNumberProcessor = null;
   });

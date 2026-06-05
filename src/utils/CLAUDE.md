@@ -150,6 +150,8 @@ Any `Wasm*.js` `catch` block for a WASM call must immediately do `this.obj = nul
 
 **`instance = null` without `.__destroy_into_raw()` first leaves FinalizationRegistry active.** Stale callback fires when dlmalloc reuses the freed Rc address for a new instance → next method call panics (`alloc/rc.rs hint::assert_unchecked(strong != 0)`). Always `instance?.__destroy_into_raw()` before every `instance = null` in any `Wasm*.js` wrapper. Use `__destroy_into_raw()` (JS-only cleanup, safe post-panic), NOT `.free()` (calls into WASM, unsafe after `panic = "abort"`).
 
+**`translation_wasm_core.d.ts` is auto-generated** — the linter reverts manual additions on next format. `__destroy_into_raw` is absent from the generated types; suppress TS2339 with `// @ts-ignore` on the call line, not by editing the `.d.ts`.
+
 ### All 6 WASM Wrappers Share One Binary — Cascade-Retire Required
 
 All 6 wrappers (NumberProcessor, PatternProcessor, TextAssembler, TextChunker, DictionaryManager, ConflictResolution) share `translation_wasm_core.js`. Any panic permanently corrupts the shared linear memory (`dlmalloc` state). Every primary panic catch must cascade-retire all other wrappers before returning. WasmConflictResolution fires at TWO pipeline points: Phase 2 (before NumberProcessor) and Phase 4 (after DictionaryManager) — it must appear in every cascade. Circular dep constraint: `WasmTextChunker` imports `WasmDictionaryManager`; `WasmDictionaryManager` therefore cannot import `WasmTextChunker` (TC→DM→TC circular).
