@@ -16,8 +16,8 @@ import { performanceHealth } from '../utils/performance';
  * @returns {{
  *   performanceStats: PerformanceMetrics,
  *   regressionHealth: RegressionHealth,
- *   recordTranslation: (operationTimeMs: number, translationSegmentCache: any) => void,
- *   refreshCacheStats: (translationSegmentCache: any) => void
+ *   recordTranslation: (operationTimeMs: number) => void,
+ *   refreshCacheStats: () => void
  * }} Performance monitoring state and update functions
  */
 export function usePerformanceMonitoring() {
@@ -36,14 +36,13 @@ export function usePerformanceMonitoring() {
     baselines: initialReport.baselines,
   });
 
-  const recordTranslation = useCallback((operationTimeMs, translationSegmentCache) => {
+  const recordTranslation = useCallback((operationTimeMs) => {
     performanceHealth.recordTranslation(operationTimeMs);
-    const hitRate = translationSegmentCache.getStats().hitRate;
-    const report = performanceHealth.getReport(hitRate);
+    const report = performanceHealth.getReport(0);
     setPerformanceStats({
       operations: report.operations,
       avgTime: report.avgTime,
-      cacheHitRate: hitRate,
+      cacheHitRate: 0,
     });
     setRegressionHealth({
       status: report.status,
@@ -53,10 +52,8 @@ export function usePerformanceMonitoring() {
     });
   }, []);
 
-  const refreshCacheStats = useCallback((translationSegmentCache) => {
-    const hitRate = translationSegmentCache.getStats().hitRate;
-    const report = performanceHealth.getReport(hitRate);
-    setPerformanceStats((prev) => ({ ...prev, cacheHitRate: hitRate }));
+  const refreshCacheStats = useCallback(() => {
+    const report = performanceHealth.getReport(0);
     setRegressionHealth({
       status: report.status,
       criticalAlerts: report.criticalAlerts,

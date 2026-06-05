@@ -25,7 +25,7 @@ import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
-import { translationSegmentCache, parallelDictionaryLoader } from '../utils/dictionary';
+import { parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
 import { systemPerformanceMonitor } from '../utils/performance';
 import { scrollToHighlightedElement } from '../utils/highlighting';
@@ -318,12 +318,6 @@ const Translator = ({ isActive = true }) => {
       if (highlightScrollTimeoutRef.current) {
         clearTimeout(highlightScrollTimeoutRef.current);
         highlightScrollTimeoutRef.current = null;
-      }
-
-      // Clean up translation segment cache timer
-      if (translationSegmentCache && typeof translationSegmentCache.destroy === 'function') {
-        translationSegmentCache.destroy();
-        logger.log('🧹 Translation segment cache timer cleaned up');
       }
 
       // Clean up system performance monitor timer
@@ -1147,34 +1141,6 @@ const Translator = ({ isActive = true }) => {
    *
    * Performance: Lightweight check (1-2ms) runs every 5 minutes.
    */
-  useEffect(() => {
-    const checkCacheHealth = () => {
-      try {
-        const stats = translationSegmentCache.getStats();
-
-        // Only alert if cache has been used enough to be meaningful
-        if (stats.hitRate < 50 && stats.totalLookups > 100) {
-          logger.warn(
-            `⚠️ Cache degradation detected: ${stats.hitRate.toFixed(1)}% hit rate after ${stats.totalLookups} lookups`
-          );
-          toast.warning(
-            'Translation cache degraded. Consider reloading dictionaries for better performance.',
-            {
-              duration: TOAST_DURATIONS.CACHE_WARNING,
-              id: TOAST_IDS.CACHE_DEGRADATION, // Prevent duplicate toasts
-            }
-          );
-        }
-      } catch (error) {
-        logger.error('Failed to check cache health:', error);
-      }
-    };
-
-    // Check cache health every 5 minutes during active use
-    const interval = setInterval(checkCacheHealth, UI_TIMEOUTS.CACHE_HEALTH_CHECK_INTERVAL);
-    return () => clearInterval(interval);
-  }, []);
-
   // Use translation controller hook for cancellation and timeout management
   const {
     createController: createTranslationController,
@@ -1516,7 +1482,7 @@ const Translator = ({ isActive = true }) => {
 
           // Update performance stats
           const translationTimeMs = performance.now() - translationStartTime;
-          recordTranslation(translationTimeMs, translationSegmentCache);
+          recordTranslation(translationTimeMs);
 
           return result;
         } else {
@@ -1867,14 +1833,6 @@ const Translator = ({ isActive = true }) => {
       // IMPORTANT-6 FIX: Show progress
       setTranslatedText('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
 
-      // Clear translation segment cache (prevents formatting corruption from cached results)
-      try {
-        translationSegmentCache.clear();
-        logger.log('✅ Translation segment cache cleared');
-      } catch (_cacheError) {
-        logger.error('❌ Error clearing translation cache:', _cacheError);
-      }
-
       // Semantic translation cache removed - no longer used
 
       if (engineRef.current) {
@@ -2119,7 +2077,7 @@ const Translator = ({ isActive = true }) => {
                 setCharacterOnlySemanticArrays(dualResults.characterResult.semanticArrays);
 
                 // Update cache hit rate after dictionary reload
-                refreshCacheStats(translationSegmentCache);
+                refreshCacheStats();
               } catch (_optimizedError) {
                 logger.error(
                   '🔄 Optimized reload translation failed, falling back to sequential:',

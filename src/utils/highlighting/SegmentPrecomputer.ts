@@ -121,20 +121,6 @@ export interface Segment {
 }
 
 /**
- * Render-optimized segment with additional display properties
- */
-export interface RenderSegment extends Segment {
-  /** Unique React key */
-  key: string;
-
-  /** Whether segment is highlighted */
-  isHighlighted: boolean;
-
-  /** CSS class name */
-  className: string;
-}
-
-/**
  * Minimal WASM segment matcher interface
  */
 interface WasmSegmentMatcher {
@@ -895,83 +881,6 @@ export class SegmentPrecomputer {
     }
 
     return segments;
-  }
-
-  /**
-   * Create optimized segment data structure for rendering
-   * @param segments - Pre-computed segments
-   * @param highlightedUnitIndex - Currently highlighted unit index (original to translation)
-   * @param highlightedTranslationUnitIndex - Currently highlighted translation index (translation to original)
-   * @returns Render-optimized segments
-   */
-  static createRenderSegments(
-    segments: Segment[],
-    highlightedUnitIndex: number = -1,
-    highlightedTranslationUnitIndex: number = -1
-  ): RenderSegment[] {
-    return segments.map((segment, index) => {
-      const isHighlighted =
-        segment.unitIndex === highlightedUnitIndex ||
-        segment.unitIndex === highlightedTranslationUnitIndex;
-      return {
-        ...segment,
-        key: `segment-${segment.type}-${index}-${segment.start}`,
-        isHighlighted,
-        className: this.getSegmentClassName(segment, isHighlighted),
-      };
-    });
-  }
-
-  /**
-   * Get optimized CSS class name for segment
-   * @param segment - Segment data
-   * @param isHighlighted - Whether segment is highlighted
-   * @returns CSS class name
-   */
-  static getSegmentClassName(segment: Segment, isHighlighted: boolean): string {
-    const classes: string[] = ['segment'];
-
-    if (segment.isClickable) {
-      classes.push('clickable');
-
-      // Add source-specific styling
-      if (segment.source) {
-        classes.push(`source-${segment.source.replace(/[^a-zA-Z0-9]/g, '-')}`);
-      }
-
-      if (isHighlighted) {
-        classes.push('highlighted');
-      }
-    }
-
-    return classes.join(' ');
-  }
-
-  /**
-   * Extract highlight styles for better performance
-   * @param isHighlighted - Whether segment is highlighted
-   * @returns Style object
-   */
-  static getSegmentStyles(isHighlighted: boolean): { color?: string; fontWeight?: number } {
-    if (isHighlighted) {
-      return {
-        color: 'var(--primary-color)',
-        fontWeight: 600,
-      };
-    }
-
-    return {};
-  }
-
-  /**
-   * Optimize segments for virtual scrolling
-   * @param segments - Pre-computed segments
-   * @param startIndex - Start index for visible area
-   * @param endIndex - End index for visible area
-   * @returns Visible segments only
-   */
-  static getVisibleSegments(segments: Segment[], startIndex: number, endIndex: number): Segment[] {
-    return segments.slice(startIndex, endIndex + 1);
   }
 
   /**

@@ -164,7 +164,6 @@ import {
 } from './wasm/WasmConflictResolution.js';
 
 import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
-// TranslationSegmentCache removed - cache quality issues led to removal
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
@@ -5309,11 +5308,6 @@ export class TranslationEngine {
     } catch (error) {
       // Handle parallel processing errors with performance tracking
       this.log(DEBUG_LEVELS.ERROR, 'Parallel chunk processing failed:', error);
-
-      // Record fallback in performance profiler if available
-      if (this.performanceProfiler?.recordParallelFallback) {
-        this.performanceProfiler.recordParallelFallback('chunk_processing', error);
-      }
 
       throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
     } finally {

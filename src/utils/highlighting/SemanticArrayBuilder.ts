@@ -44,7 +44,15 @@ function validatePosition(
 /**
  * Optimized semantic metadata (excludes originalText/translatedText for memory efficiency)
  */
-interface SemanticArrayMetadata {
+export interface SemanticArraySnapshot {
+  readonly original: readonly string[];
+  readonly translated: readonly string[];
+  readonly metadata: readonly SemanticArrayMetadata[];
+  readonly length: number;
+  readonly capacity: number;
+}
+
+export interface SemanticArrayMetadata {
   index: number;
   source: string;
   tokenIndex: number;
@@ -802,18 +810,7 @@ export class SemanticArrayBuilder {
     );
   }
 
-  /**
-   * CRITICAL-4 FIX: Validate that semantic arrays stay synchronized
-   * HIGH-6 FIX: Returns validation result instead of throwing (allows graceful degradation)
-   *
-   * NOTE: Capacity checks (this.original.length === this.translated.length) always pass
-   * because resizeArrays() co-allocates all three arrays. The meaningful check is whether
-   * actual written elements exist at this.length-1 in all three arrays, which detects a
-   * partial write (e.g. addUnit() throws after writing original but before writing metadata).
-   *
-   * @returns True if arrays are synchronized, false if desynchronized
-   */
-  validateArrays(): boolean {
+  private validateArrays(): boolean {
     const capacitiesMatch =
       this.original.length === this.translated.length &&
       this.original.length === this.metadata.length;
@@ -825,24 +822,17 @@ export class SemanticArrayBuilder {
       this.length <= this.metadata.length;
 
     if (!isLengthValid) {
-      const error = {
+      logger.error('❌ CRITICAL: Optimized semantic arrays desynchronized!', {
         actualLength: this.length,
         originalCapacity: this.original.length,
         translatedCapacity: this.translated.length,
         metadataCapacity: this.metadata.length,
         capacitiesMatch,
         impact: 'Highlighting functionality may break',
-      };
-      logger.error('❌ CRITICAL: Optimized semantic arrays desynchronized!', error);
-      // HIGH-6 FIX: Return false instead of throwing - let caller decide recovery strategy
-      // Throwing breaks entire translation, returning false allows graceful degradation
+      });
       return false;
     }
 
-    // Element-level desync check: verify that the last written slot has data in all three
-    // arrays. resizeArrays() always co-allocates so capacities are always equal above.
-    // A partial write in addUnit() (thrown after writing one array but not others) would
-    // leave undefined in the trailing array — only this per-element check can catch it.
     if (this.length > 0) {
       const lastIdx = this.length - 1;
       const elementsSynced =
@@ -865,30 +855,18 @@ export class SemanticArrayBuilder {
     return true;
   }
 
-  hasValidPositions(meta: SemanticArrayMetadata): boolean {
-    return (
-      meta.translatedStart >= 0 &&
-      meta.translatedEnd >= 0 &&
-      meta.translatedEnd >= meta.translatedStart
-    );
-  }
-
-  validateAllPositions(): {
-    total: number;
-    valid: number;
-    invalid: number;
-    coverage: number;
-    invalidEntries: Array<{ index: number; meta: SemanticArrayMetadata }>;
-  } {
-    const invalidEntries: Array<{ index: number; meta: SemanticArrayMetadata }> = [];
-    for (let i = 0; i < this.length; i++) {
-      if (!this.hasValidPositions(this.metadata[i])) {
-        invalidEntries.push({ index: i, meta: this.metadata[i] });
-      }
-    }
-    const valid = this.length - invalidEntries.length;
-    const coverage = this.length > 0 ? (valid / this.length) * 100 : 0;
-    return { total: this.length, valid, invalid: invalidEntries.length, coverage, invalidEntries };
+  /**
+   * Return a read-only snapshot of the builder's internal arrays for external validation.
+   * Passes raw (capacity-sized) arrays so validators can detect partial writes at index length-1.
+   */
+  getSnapshot(): SemanticArraySnapshot {
+    return {
+      original: this.original,
+      translated: this.translated,
+      metadata: this.metadata,
+      length: this.length,
+      capacity: this.original.length,
+    };
   }
 
   /**

@@ -7,14 +7,11 @@
  */
 
 export { SemanticArrayBuilder } from './SemanticArrayBuilder';
+export type { SemanticArrayMetadata, SemanticArraySnapshot } from './SemanticArrayBuilder';
+export { SemanticArrayValidator, semanticArrayValidator } from './SemanticArrayValidator';
 
 // --- Segment pre-computation (character-only mode) ---
-export type {
-  SegmentPrecomputerOptions,
-  SemanticArrays,
-  Segment,
-  RenderSegment,
-} from './SegmentPrecomputer';
+export type { SegmentPrecomputerOptions, SemanticArrays, Segment } from './SegmentPrecomputer';
 export { SegmentPrecomputer } from './SegmentPrecomputer';
 
 // --- Scroll ---

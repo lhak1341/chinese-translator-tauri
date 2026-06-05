@@ -19,7 +19,6 @@ export { dictionarySorter } from './IncrementalDictionarySorter';
 
 // --- Caching ---
 export { TranslationCache } from './TranslationCache';
-export { translationSegmentCache } from './TranslationSegmentCache';
 
 // --- Vocabulary warmup ---
 export {

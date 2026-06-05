@@ -363,35 +363,6 @@ export interface MemoryMetrics {
 }
 
 /**
- * Parallel processing metrics
- */
-export interface ParallelMetrics {
-  /** Time spent processing chunks (ms) */
-  chunkProcessingTime: number;
-
-  /** Time spent on dictionary lookups (ms) */
-  dictionaryLookupTime: number;
-
-  /** Parallel efficiency (time saved vs sequential) */
-  parallelEfficiency: number;
-
-  /** Average concurrency level */
-  concurrencyLevel: number;
-
-  /** Fallback rate to sequential */
-  fallbackRate: number;
-
-  /** Total parallel operations */
-  totalParallelOperations: number;
-
-  /** Total sequential fallbacks */
-  totalSequentialFallbacks: number;
-
-  /** Average speedup factor vs sequential */
-  avgParallelSpeedup: number;
-}
-
-/**
  * Performance bottleneck
  */
 export interface PerformanceBottleneck {
@@ -545,9 +516,6 @@ export interface PerformanceReport {
     peakMemory: string;
     initialMemory: string;
   };
-
-  /** Parallel processing metrics */
-  parallel?: ParallelMetrics;
 
   /** Detected bottlenecks */
   bottlenecks: PerformanceBottleneck[];
@@ -907,7 +875,6 @@ export interface PerformanceProfilerInterface {
     dictionary: DictionaryMetrics;
     rendering: RenderingMetrics;
     memory: MemoryMetrics;
-    parallel: ParallelMetrics;
     bottlenecks: PerformanceBottleneck[];
   };
   profilerStartTime: number;

@@ -72,16 +72,6 @@ export class PerformanceProfiler {
         peakMemory: 0,
         cacheMemoryUsage: 0,
       },
-      parallel: {
-        chunkProcessingTime: 0,
-        dictionaryLookupTime: 0,
-        parallelEfficiency: 0, // Time saved vs sequential
-        concurrencyLevel: 0, // Average parallel operations
-        fallbackRate: 0, // Rate of fallback to sequential
-        totalParallelOperations: 0,
-        totalSequentialFallbacks: 0,
-        avgParallelSpeedup: 0, // Speedup factor vs sequential
-      },
       bottlenecks: [], // Array of detected performance issues
     };
 
@@ -506,153 +496,12 @@ export class PerformanceProfiler {
         peakMemory: 0,
         cacheMemoryUsage: 0,
       },
-      parallel: {
-        chunkProcessingTime: 0,
-        dictionaryLookupTime: 0,
-        parallelEfficiency: 0,
-        concurrencyLevel: 0,
-        fallbackRate: 0,
-        totalParallelOperations: 0,
-        totalSequentialFallbacks: 0,
-        avgParallelSpeedup: 0,
-      },
       bottlenecks: [],
     };
 
     this.profilerStartTime = performance.now();
     this.activeProfiles.clear();
     this.performanceHistory = [];
-  }
-
-  /**
-   * Record parallel processing performance metrics
-   * @param {string} operationType - Type of parallel operation (chunk, dictionary)
-   * @param {number} parallelTime - Time taken for parallel processing
-   * @param {number} sequentialTime - Time taken for equivalent sequential processing
-   * @param {number} concurrencyLevel - Number of parallel operations
-   * @param {Object} metadata - Additional operation data
-   */
-  recordParallelPerformance(
-    operationType,
-    parallelTime,
-    sequentialTime,
-    concurrencyLevel,
-    _metadata = {}
-  ) {
-    if (operationType === 'chunk') {
-      this.metrics.parallel.chunkProcessingTime += parallelTime;
-    } else if (operationType === 'dictionary') {
-      this.metrics.parallel.dictionaryLookupTime += parallelTime;
-    }
-
-    // Calculate efficiency (time saved)
-    const timeSaved = sequentialTime - parallelTime;
-    const efficiency = sequentialTime > 0 ? timeSaved / sequentialTime : 0;
-
-    // Update parallel metrics
-    this.metrics.parallel.parallelEfficiency =
-      (this.metrics.parallel.parallelEfficiency + efficiency) / 2;
-
-    this.metrics.parallel.concurrencyLevel =
-      (this.metrics.parallel.concurrencyLevel + concurrencyLevel) / 2;
-
-    this.metrics.parallel.totalParallelOperations++;
-
-    // Calculate speedup factor
-    const speedup = sequentialTime > 0 ? sequentialTime / parallelTime : 1;
-    this.metrics.parallel.avgParallelSpeedup =
-      (this.metrics.parallel.avgParallelSpeedup + speedup) / 2;
-
-    // Detect performance issues
-    if (efficiency < 0) {
-      this.addBottleneck(
-        'parallel',
-        `${operationType} parallel processing slower than sequential`,
-        {
-          parallelTime,
-          sequentialTime,
-          efficiency,
-        }
-      );
-    }
-  }
-
-  /**
-   * Record parallel processing fallback
-   * @param {string} operationType - Type of operation that fell back
-   * @param {Error} error - Error that caused the fallback
-   */
-  recordParallelFallback(operationType, error) {
-    this.metrics.parallel.totalSequentialFallbacks++;
-
-    // Calculate fallback rate
-    const totalOperations =
-      this.metrics.parallel.totalParallelOperations +
-      this.metrics.parallel.totalSequentialFallbacks;
-    this.metrics.parallel.fallbackRate =
-      this.metrics.parallel.totalSequentialFallbacks / totalOperations;
-
-    // Record as bottleneck if fallback rate is high
-    if (this.metrics.parallel.fallbackRate > 0.1) {
-      // >10% fallback rate
-      this.addBottleneck('parallel', `High ${operationType} parallel processing fallback rate`, {
-        fallbackRate: this.metrics.parallel.fallbackRate,
-        error: error.message,
-      });
-    }
-  }
-
-  /**
-   * Get parallel processing performance report
-   * @returns {Object} Parallel processing metrics and analysis
-   */
-  getParallelPerformanceReport() {
-    return {
-      metrics: { ...this.metrics.parallel },
-      recommendations: this.generateParallelRecommendations(),
-      efficiency: {
-        overall: this.metrics.parallel.parallelEfficiency,
-        speedup: this.metrics.parallel.avgParallelSpeedup,
-        reliability: 1 - this.metrics.parallel.fallbackRate,
-      },
-    };
-  }
-
-  /**
-   * Generate recommendations for parallel processing optimization
-   * @returns {Array} Array of optimization recommendations
-   */
-  generateParallelRecommendations() {
-    const recommendations = [];
-
-    if (this.metrics.parallel.parallelEfficiency < 0.2) {
-      recommendations.push({
-        type: 'efficiency',
-        priority: 'high',
-        message: 'Parallel processing shows low efficiency gains',
-        suggestion: 'Consider increasing batch sizes or reducing parallel overhead',
-      });
-    }
-
-    if (this.metrics.parallel.fallbackRate > 0.15) {
-      recommendations.push({
-        type: 'reliability',
-        priority: 'medium',
-        message: 'High fallback rate detected in parallel processing',
-        suggestion: 'Investigate and fix common parallel processing failures',
-      });
-    }
-
-    if (this.metrics.parallel.concurrencyLevel < 2) {
-      recommendations.push({
-        type: 'concurrency',
-        priority: 'low',
-        message: 'Low concurrency level in parallel operations',
-        suggestion: 'Check device capabilities and parallel processing thresholds',
-      });
-    }
-
-    return recommendations;
   }
 }
 

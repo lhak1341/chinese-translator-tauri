@@ -26,13 +26,10 @@ export interface UsePerformanceMonitoringReturn {
   performanceStats: PerformanceMetrics;
   /** Regression detection health status */
   regressionHealth: RegressionHealth;
-  /** Record a completed translation — timing + fresh cache hit rate */
-  recordTranslation: (
-    operationTimeMs: number,
-    translationSegmentCache: { getStats(): { hitRate: number } }
-  ) => void;
-  /** Refresh cache hit rate after a cache-driven event (e.g. dictionary reload) */
-  refreshCacheStats: (translationSegmentCache: { getStats(): { hitRate: number } }) => void;
+  /** Record a completed translation — timing only */
+  recordTranslation: (operationTimeMs: number) => void;
+  /** Refresh regression health after a cache-driven event (e.g. dictionary reload) */
+  refreshCacheStats: () => void;
 }
 
 /**

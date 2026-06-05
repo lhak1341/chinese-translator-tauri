@@ -18,6 +18,7 @@
 
 import { describe, test, expect } from 'vitest';
 import { SemanticArrayBuilder } from '../highlighting/SemanticArrayBuilder';
+import { semanticArrayValidator } from '../highlighting/SemanticArrayValidator';
 import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
@@ -106,8 +107,8 @@ describe('CRITICAL-4: Semantic Array Synchronization', () => {
 
     // HIGH-6 FIX: validateArrays now returns false instead of throwing
     // This allows graceful degradation instead of breaking entire translation
-    expect(builder.validateArrays()).toBe(false);
-    expect(() => builder.validateArrays()).not.toThrow(); // No longer throws
+    expect(semanticArrayValidator.validateArrays(builder.getSnapshot())).toBe(false);
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
   });
 
   test('should pass validation when arrays are synchronized', () => {
@@ -116,8 +117,8 @@ describe('CRITICAL-4: Semantic Array Synchronization', () => {
     builder.addUnit('那', 'đó', 'characters', 1);
 
     // Should not throw
-    expect(() => builder.validateArrays()).not.toThrow();
-    expect(builder.validateArrays()).toBe(true);
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
+    expect(semanticArrayValidator.validateArrays(builder.getSnapshot())).toBe(true);
   });
 
   test('optimized builder should validate on addUnit', () => {
@@ -176,12 +177,12 @@ describe('HIGH-5: Position Metadata Validation', () => {
 
     // Before setting position
     const invalidMeta = builder.getArrays().metadata[0];
-    expect(builder.hasValidPositions(invalidMeta)).toBe(false);
+    expect(semanticArrayValidator.hasValidPositions(invalidMeta)).toBe(false);
 
     // After setting position
     builder.setPositionByMatch(0, 'ở', 0, 2);
     const validMeta = builder.getArrays().metadata[0];
-    expect(builder.hasValidPositions(validMeta)).toBe(true);
+    expect(semanticArrayValidator.hasValidPositions(validMeta)).toBe(true);
   });
 
   test('should detect invalid position ranges', () => {
@@ -193,7 +194,7 @@ describe('HIGH-5: Position Metadata Validation', () => {
     meta.translatedStart = 5;
     meta.translatedEnd = 3; // End < start
 
-    expect(builder.hasValidPositions(meta)).toBe(false);
+    expect(semanticArrayValidator.hasValidPositions(meta)).toBe(false);
   });
 
   test('should provide validation report for all positions', () => {
@@ -206,7 +207,7 @@ describe('HIGH-5: Position Metadata Validation', () => {
     builder.setPositionByMatch(0, 'ở', 0, 2);
     builder.setPositionByMatch(1, 'đó', 3, 5);
 
-    const report = builder.validateAllPositions();
+    const report = semanticArrayValidator.validateAllPositions(builder.getSnapshot());
 
     expect(report.total).toBe(3);
     expect(report.valid).toBe(2);
@@ -370,10 +371,10 @@ describe('Integration: Full Translation Flow', () => {
     expect(builder.setPositionByMatch(3, 'trong', 12, 17)).toBe(true);
 
     // Validate arrays
-    expect(() => builder.validateArrays()).not.toThrow();
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
 
     // Validate positions
-    const report = builder.validateAllPositions();
+    const report = semanticArrayValidator.validateAllPositions(builder.getSnapshot());
     expect(report.valid).toBe(3);
     expect(report.invalid).toBe(0);
     expect(report.coverage).toBe(100);
@@ -386,7 +387,7 @@ describe('Integration: Full Translation Flow', () => {
 
     // Verify all positions are valid
     arrays.metadata.forEach((meta) => {
-      expect(builder.hasValidPositions(meta)).toBe(true);
+      expect(semanticArrayValidator.hasValidPositions(meta)).toBe(true);
     });
   });
 
@@ -407,7 +408,7 @@ describe('Integration: Full Translation Flow', () => {
     builder.setPositionByMatch(1, 'bầu trời', 3, 11);
     builder.setPositionByMatch(3, 'trong', 12, 17);
 
-    expect(() => builder.validateArrays()).not.toThrow();
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
 
     const arrays = builder.getArrays();
     expect(arrays.original).toEqual(['在', '天空', '中']);
@@ -420,10 +421,10 @@ describe('Edge Cases and Error Handling', () => {
   test('should handle empty semantic arrays', () => {
     const builder = new SemanticArrayBuilder();
 
-    expect(() => builder.validateArrays()).not.toThrow();
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
     expect(builder.isValid()).toBe(true);
 
-    const report = builder.validateAllPositions();
+    const report = semanticArrayValidator.validateAllPositions(builder.getSnapshot());
     expect(report.total).toBe(0);
     expect(report.valid).toBe(0);
     expect(report.invalid).toBe(0);
@@ -434,8 +435,8 @@ describe('Edge Cases and Error Handling', () => {
     builder.addUnit('在', 'ở', 'characters', 0);
     builder.setPositionByMatch(0, 'ở', 0, 2);
 
-    expect(() => builder.validateArrays()).not.toThrow();
-    expect(builder.hasValidPositions(builder.getArrays().metadata[0])).toBe(true);
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
+    expect(semanticArrayValidator.hasValidPositions(builder.getArrays().metadata[0])).toBe(true);
   });
 
   test('should handle very long semantic arrays', () => {
@@ -446,7 +447,7 @@ describe('Edge Cases and Error Handling', () => {
       builder.addUnit(`原${i}`, `dịch${i}`, 'characters', i);
     }
 
-    expect(() => builder.validateArrays()).not.toThrow();
+    expect(() => semanticArrayValidator.validateArrays(builder.getSnapshot())).not.toThrow();
     expect(builder.getLength()).toBe(1000);
   });
 
@@ -463,8 +464,8 @@ describe('Edge Cases and Error Handling', () => {
 
     // Both should have valid positions
     const arrays = builder.getArrays();
-    expect(builder.hasValidPositions(arrays.metadata[0])).toBe(true);
-    expect(builder.hasValidPositions(arrays.metadata[1])).toBe(true);
+    expect(semanticArrayValidator.hasValidPositions(arrays.metadata[0])).toBe(true);
+    expect(semanticArrayValidator.hasValidPositions(arrays.metadata[1])).toBe(true);
 
     // Positions should be different
     expect(arrays.metadata[0].translatedStart).not.toBe(arrays.metadata[1].translatedStart);

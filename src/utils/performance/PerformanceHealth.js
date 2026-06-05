@@ -68,9 +68,7 @@ class PerformanceHealth {
   /**
    * Build a unified health report from both monitoring singletons.
    *
-   * @param {number} [cacheHitRate=0] - Current cache hit rate (0–100). Pass the
-   *   value from translationSegmentCache.getStats().hitRate. Kept separate because
-   *   the cache lives outside the performance monitoring singletons.
+   * @param {number} [cacheHitRate=0] - Cache hit rate (0–100) for the health report.
    * @returns {HealthReport}
    */
   getReport(cacheHitRate = 0) {
