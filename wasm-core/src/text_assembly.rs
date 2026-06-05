@@ -257,10 +257,10 @@ impl TextAssembler {
             current_position += segment.original.chars().count();
         }
 
-        // Update stats
-        self.stats.total_assemblies += 1;
-        self.stats.total_segments += segment_count;
-        self.stats.total_chars += translated_len + original_len;
+        // Update stats — saturating_add prevents dev-build overflow panics inside borrow window
+        self.stats.total_assemblies = self.stats.total_assemblies.saturating_add(1);
+        self.stats.total_segments = self.stats.total_segments.saturating_add(segment_count);
+        self.stats.total_chars = self.stats.total_chars.saturating_add(translated_len + original_len);
         self.stats.avg_segments = self.stats.total_segments as f32 / self.stats.total_assemblies as f32;
 
         // Build result
