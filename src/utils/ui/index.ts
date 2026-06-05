@@ -17,3 +17,7 @@ export { DebouncedProgressHandler, SmoothLoadingManager } from './UIResponsivene
 
 // --- Virtual scrolling ---
 export { adaptiveBufferCalculator } from './AdaptiveVirtualScrolling';
+
+// --- Scroll position recovery ---
+export type { ScrollPositions, RecoveryOptions, AttemptFn } from './ScrollPositionRecovery';
+export { ScrollPositionRecovery } from './ScrollPositionRecovery';

@@ -31,6 +31,14 @@ export {
 export type { DuplicateRow } from './DuplicateAnalyzer';
 export { findConflictingEntries, createDuplicateKey, parseDuplicateKey } from './DuplicateAnalyzer';
 
+// --- Entry validation ---
+export type { ValidationResult } from './DictionaryEntryValidator';
+export {
+  isCharacterSourceValid,
+  isPatternValid,
+  validateDictionaryEntry,
+} from './DictionaryEntryValidator';
+
 // --- Backend IO ---
 export type { BatchLoadResult } from './DictionaryBackend';
 export { loadAllDictionaries } from './DictionaryBackend';

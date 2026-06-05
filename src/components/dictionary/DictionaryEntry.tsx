@@ -9,6 +9,11 @@ import type { SemanticType, PatternSemanticTypeRef } from '../../constants/Seman
 import { SemanticTypePicker } from './SemanticTypePicker';
 import type { DictionaryEntryValue, EditingEntryData } from '../../types/DictionaryTypes';
 import { WordTransformToolbar } from './WordTransformToolbar';
+import {
+  isCharacterSourceValid,
+  isPatternValid,
+  validateDictionaryEntry,
+} from '../../utils/dictionary';
 
 /**
  * Existing entry detection data
@@ -126,46 +131,18 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   // Function to validate character dictionary entries
   const validateCharacterEntry = useCallback(
     (sourceText: string): boolean => {
-      if (activeDictionary === 'characters') {
-        const trimmedSource = sourceText.trim();
-        if (trimmedSource.length > 1) {
-          setShowCharacterValidation(true);
-          return false;
-        }
-      }
-      setShowCharacterValidation(false);
-      return true;
+      const valid = activeDictionary !== 'characters' || isCharacterSourceValid(sourceText);
+      setShowCharacterValidation(!valid);
+      return valid;
     },
     [activeDictionary]
   );
 
-  // Function to validate pattern dictionary entries
   const validatePatternEntry = useCallback(
     (sourceText: string, translationText?: string): boolean => {
-      if (activeDictionary === 'patterns') {
-        const trimmedSource = sourceText.trim();
-        const xCount = (trimmedSource.match(/X/g) || []).length;
-        if (xCount !== 1) {
-          setShowPatternValidation(true);
-          return false;
-        }
-        if (translationText !== undefined && translationText.trim().length > 0) {
-          const trimmedTranslation = translationText.trim();
-          if (!(trimmedTranslation.match(/X/g) || []).length) {
-            setShowPatternValidation(true);
-            return false;
-          }
-          if (
-            (trimmedSource.match(/Y/g) || []).length > 0 &&
-            !(trimmedTranslation.match(/Y/g) || []).length
-          ) {
-            setShowPatternValidation(true);
-            return false;
-          }
-        }
-      }
-      setShowPatternValidation(false);
-      return true;
+      const valid = activeDictionary !== 'patterns' || isPatternValid(sourceText, translationText);
+      setShowPatternValidation(!valid);
+      return valid;
     },
     [activeDictionary]
   );
@@ -503,22 +480,13 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    if (!source.trim() || !translation.trim()) {
-      setError('Both source text and translation are required');
-      return;
-    }
 
-    // Validate character dictionary entries
-    if (!validateCharacterEntry(source)) {
-      setError('Character dictionary entries must be exactly 1 character long');
-      return;
-    }
-
-    // Validate pattern dictionary entries
-    if (!validatePatternEntry(source, translation)) {
-      setError(
-        'Pattern entry invalid — source needs exactly one X, translation must contain X (and Y if source has Y)'
-      );
+    // Update inline UI hints and check submit validity in one pass
+    validateCharacterEntry(source);
+    validatePatternEntry(source, translation);
+    const result = validateDictionaryEntry(source, translation, activeDictionary);
+    if (!result.valid) {
+      setError(result.error!);
       return;
     }
 

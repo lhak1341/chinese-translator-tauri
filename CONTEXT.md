@@ -26,6 +26,22 @@ Each WASM processor (Pattern, Number, Dictionary) holds one `WasmProcessorLifecy
 
 Entry point: `src/utils/wasm/WasmProcessorLifecycle.js`.
 
+## PerformanceMonitor
+
+Sampling-based global operation stats. Owns: sample-rate gating (5% prod / 20% dev), rolling sample buffer, aggregate stats (`totalOperations`, `avgTime`, `minTime`, `maxTime`, `opsPerSecond`), `startTimer`/`endTimer`, `getMetrics()`. Also provides `log(level, message)` — a performance-aware logging channel that silences everything below error level in production to prevent console spam.
+
+Exports `globalPerformanceMonitor` singleton. Two callers: `PerformanceHealth` (reads via `endTimer` + `getMetrics` — callers should go through `PerformanceHealth`, not import the singleton directly) and `TranslationEngine` (uses `.log()` as a debug channel — this is intentionally direct; `PerformanceHealth` does not expose a log method).
+
+Entry point: `src/utils/performance/PerformanceMonitor.js`.
+
+## TranslationProfiler
+
+Per-phase profiler for the 5-phase translation pipeline. Tracks wall-clock time per phase (pattern, properNouns, numbers, phrases, characters) plus total. Interface: `enable()`, `disable()`, `profile(phase, fn)`, `recordPhaseCompletion(phase)`, `getReport()`, `printReport()`, `reset()`. Dev/debug tool — used to identify which phases to migrate to WASM.
+
+Single caller: `TranslationEngine` (`this.profiler = new TranslationProfiler()`). Accessed via engine methods `enableProfiling()`, `disableProfiling()`, `getProfilingReport()`. Not a production monitoring path — disabled by default (`enabled = false`).
+
+Entry point: `src/utils/performance/TranslationProfiler.js`.
+
 ## PerformanceHealth
 
 Unified gateway for performance monitoring concerns — the single import callers need for both writing timing data and reading health status.
@@ -97,6 +113,16 @@ The warmup strategy for novel-specific vocabulary. Owns three pure concerns: (1)
 No cache state owned — `warmNovelSpecificVocabulary` receives `cache` as an injected dependency. Testable by passing a stub `{ setCharacter, setPhrase }` object without constructing a real `TranslationCache`.
 
 Entry point: `src/utils/dictionary/VocabularyWarmup.js`. Called from `TranslationCache.preWarmNovelSpecificVocabulary` (which now delegates entirely). Also exported from `src/utils/dictionary/index.ts` for direct use.
+
+## ScrollPositionRecovery
+
+The retry algorithm for restoring scroll positions after a dictionary reload or translation update. Owns: RAF-first attempt, exponential-backoff retry loop (up to `maxRetryAttempts`, delay doubles each miss, capped at `maxRetryDelay`), timer handle lifecycle (`cancel()`).
+
+Does not touch the DOM. Callers inject an `AttemptFn: (positions) => boolean` — returns `true` when refs were ready and positions were written; `false` to trigger a retry. The hook adapter (`useScrollPositionManager`) supplies the concrete attempt function: DOM readiness check (`scrollHeight > 0`) + bounds-clamped write of `scrollTop`/`scrollLeft`.
+
+Interface: `restore(positions, options?): Promise<void>` — resolves when attempt succeeds or retries are exhausted (never rejects). `cancel()` aborts any pending RAF or setTimeout; second `restore()` call implicitly cancels the first.
+
+Entry point: `src/utils/ui/ScrollPositionRecovery.ts`, re-exported from `src/utils/ui/index.ts`. Consumed exclusively by `useScrollPositionManager` via a stable `useRef` instance.
 
 ## DictionaryBackend
 
