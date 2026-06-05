@@ -40,6 +40,10 @@ class WasmTextAssemblerWrapper {
     }
     try {
       await init();
+      // Re-check: cascade may have fired while suspended at the await above.
+      if (this.initializationFailed) {
+        return false;
+      }
       this.assembler = new TextAssembler();
       this.initialized = true;
       logger.log('✅ WASM TextAssembler initialized');
@@ -93,6 +97,8 @@ class WasmTextAssemblerWrapper {
       // A WASM panic leaves the TextAssembler in a permanently unusable state — retire
       // the instance so all future calls go straight to the JS fallback.
       logger.error('WASM assembleTranslation failed, retiring instance:', error);
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.assembler?.__destroy_into_raw();
       this.assembler = null;
       this.initialized = false;
       this.initializationFailed = true;
@@ -119,6 +125,8 @@ class WasmTextAssemblerWrapper {
       // A WASM panic leaves the TextAssembler in a permanently unusable state — retire
       // the instance so all future calls go straight to the JS fallback.
       logger.error('WASM assembleTranslatedText failed, retiring instance:', error);
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.assembler?.__destroy_into_raw();
       this.assembler = null;
       this.initialized = false;
       this.initializationFailed = true;
@@ -146,7 +154,12 @@ class WasmTextAssemblerWrapper {
       const statsJson = this.assembler.getStats();
       return JSON.parse(statsJson);
     } catch (error) {
-      logger.error('Failed to get stats:', error);
+      logger.error('WASM getStats failed, retiring instance:', error);
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.assembler?.__destroy_into_raw();
+      this.assembler = null;
+      this.initialized = false;
+      this.initializationFailed = true;
       return {};
     }
   }
@@ -156,7 +169,16 @@ class WasmTextAssemblerWrapper {
    */
   resetStats() {
     if (this.initialized && this.assembler) {
-      this.assembler.resetStats();
+      try {
+        this.assembler.resetStats();
+      } catch (error) {
+        logger.error('WASM resetStats failed, retiring instance:', error);
+        // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+        this.assembler?.__destroy_into_raw();
+        this.assembler = null;
+        this.initialized = false;
+        this.initializationFailed = true;
+      }
     }
   }
 
@@ -166,6 +188,8 @@ class WasmTextAssemblerWrapper {
    * Prevents a secondary panic on the next assembleWithSpacing call.
    */
   retireOnSharedModulePanic() {
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+    this.assembler?.__destroy_into_raw();
     this.assembler = null;
     this.initialized = false;
     this.initializationFailed = true;
@@ -198,6 +222,8 @@ class WasmTextAssemblerWrapper {
       // the RefMut drop, so borrow_mut_count stays at 1. Retire the instance so all future
       // calls go straight to the JS fallback without retrying the corrupted object.
       logger.error('WASM assembleWithSpacing failed, retiring instance:', error);
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.assembler?.__destroy_into_raw();
       this.assembler = null;
       this.initialized = false;
       this.initializationFailed = true;

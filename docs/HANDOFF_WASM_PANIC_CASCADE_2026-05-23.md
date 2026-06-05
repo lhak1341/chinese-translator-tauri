@@ -1,7 +1,7 @@
 # Handoff: Shared WASM Module Panic Cascade
 
 **Date:** 2026-05-23 (updated 2026-06-05)
-**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47) + NP regex Pool&lt;Cache&gt; pre-warm fix (session 48) + JS FinalizationRegistry stale-callback fix (session 50)
+**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47) + NP regex Pool&lt;Cache&gt; pre-warm fix (session 48) + JS FinalizationRegistry stale-callback fix (session 50) + TA missing \_\_destroy_into_raw + TA getStats/resetStats retire paths + TA initialize() race fix (session 52)
 **Priority:** Low (WASM falls back to JS gracefully; correctness unaffected)
 
 ---
@@ -205,18 +205,53 @@ The `ptr0, len0` signature confirms the `serde_json` fix is applied. NP panicked
 
 ---
 
+## Session 52: WasmTextAssembler Missing Retire Paths Fixed (2026-06-05)
+
+### Reported Error
+
+```
+[Error] ❌ "WASM assembleWithSpacing failed, retiring instance:"
+Error: recursive use of an object detected which would lead to unsafe aliasing in rust
+  assembleWithSpacing — translation_wasm_core.js:1571
+  assembleWithSpacing — WasmTextAssembler.js:194
+  postProcess — TranslationEngine.js:4204
+```
+
+The "recursive use" message is wasm-bindgen's JS glue throwing because `borrow_mut_count` is already 1 — a prior call to a `TextAssembler` method panicked inside the borrow window, skipping `RefMut`'s `Drop`.
+
+### Root Causes (3)
+
+**1. `getStats()` didn't retire on panic.** If `getStats()` was called after the WASM module was corrupted (e.g., after a prior NP/PP panic that slipped past the cascade), it would panic and leave `borrow_mut_count=1`. The catch block only logged and returned `{}` — never nulled the instance. Next `assembleWithSpacing` call on the same instance → "recursive use".
+
+**2. `resetStats()` had no try/catch.** A panic would propagate uncaught, leaving `borrow_mut_count=1` with no retirement.
+
+**3. All 5 retire paths (`assembleTranslation` catch, `assembleTranslatedText` catch, `assembleWithSpacing` catch, `getStats` catch, `retireOnSharedModulePanic()`) did `this.assembler = null` without `.__destroy_into_raw()` first.** FinalizationRegistry callback stays registered (category 5 from session 50 — was fixed in NP but not propagated to TA).
+
+**Bonus: `initialize()` race.** Entry-guard `if (this.initializationFailed)` is checked before `await init()`. If a cascade fires while suspended at the `await`, `initializationFailed` becomes `true` but `initialize()` resumes and assigns `this.assembler = new TextAssembler()` anyway — creating a new instance on a corrupted module.
+
+### Fix Applied
+
+- All 5 retire paths: added `this.assembler?.__destroy_into_raw()` before `this.assembler = null`
+- `getStats()` catch: retires instance (+ `fireCascadeRetire()` not needed here since it's stats-only, but instance is now null)
+- `resetStats()`: wrapped in try/catch with full retirement
+- `initialize()`: added post-`await` re-check `if (this.initializationFailed) return false`
+
+No Rust changes, no binary rebuild needed.
+
+---
+
 ## Key Files
 
-| File                                           | Role                                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `src/utils/wasm/WasmCascadeRegistry.js`        | **New (session 44)** — dep-free cascade registry; all wrappers register + fire here               |
-| `src/utils/wasm/WasmNumberProcessor.js`        | Cascade + permanentlyFail; OOB fixed (s46), lazy_static borrow-window fixed (s47)                 |
-| `src/utils/wasm/WasmPatternProcessor.js`       | Cascade + permanentlyFail                                                                         |
-| `src/utils/wasm/WasmTextAssembler.js`          | `retireOnSharedModulePanic()` method, self-retires in own catch                                   |
-| `src/utils/wasm/WasmTextChunker.js`            | Cascade fixed; imports DM (DM cannot import TC back — use WasmCascadeRegistry instead)            |
-| `src/utils/wasm/WasmDictionaryManager.js`      | `_sharedModuleCorrupted` flag + `getDictionaryCount`/`getTotalEntries` guard fixed                |
-| `src/utils/wasm/WasmConflictResolution.js`     | `retireWasmConflictResolutionOnSharedPanic()` export; cascades TA/TC/DM                           |
-| `src/utils/wasm/WasmStringProcessor.js`        | **Updated (session 44)** — cascade registered; buildCache error handling added                    |
-| `src/utils/wasm/WasmProcessorLifecycle.js`     | `permanentlyFail()` method                                                                        |
-| `src/utils/highlighting/SegmentPrecomputer.ts` | **Fixed (session 44)** — infinite loop at boundary pos 0                                          |
-| `wasm-core/src/number_processor.rs`            | **Updated (session 48)** — all 8 lazy_statics + all regex Pool&lt;Cache&gt; pre-warmed in `new()` |
+| File                                           | Role                                                                                                                                                                                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/utils/wasm/WasmCascadeRegistry.js`        | **New (session 44)** — dep-free cascade registry; all wrappers register + fire here                                                                                                                        |
+| `src/utils/wasm/WasmNumberProcessor.js`        | Cascade + permanentlyFail; OOB fixed (s46), lazy_static borrow-window fixed (s47)                                                                                                                          |
+| `src/utils/wasm/WasmPatternProcessor.js`       | Cascade + permanentlyFail                                                                                                                                                                                  |
+| `src/utils/wasm/WasmTextAssembler.js`          | `retireOnSharedModulePanic()` method, self-retires in own catch; s52: `__destroy_into_raw()` in all 5 retire paths, `getStats`/`resetStats` now retire, `initialize()` re-checks flag after `await init()` |
+| `src/utils/wasm/WasmTextChunker.js`            | Cascade fixed; imports DM (DM cannot import TC back — use WasmCascadeRegistry instead)                                                                                                                     |
+| `src/utils/wasm/WasmDictionaryManager.js`      | `_sharedModuleCorrupted` flag + `getDictionaryCount`/`getTotalEntries` guard fixed                                                                                                                         |
+| `src/utils/wasm/WasmConflictResolution.js`     | `retireWasmConflictResolutionOnSharedPanic()` export; cascades TA/TC/DM                                                                                                                                    |
+| `src/utils/wasm/WasmStringProcessor.js`        | **Updated (session 44)** — cascade registered; buildCache error handling added                                                                                                                             |
+| `src/utils/wasm/WasmProcessorLifecycle.js`     | `permanentlyFail()` method                                                                                                                                                                                 |
+| `src/utils/highlighting/SegmentPrecomputer.ts` | **Fixed (session 44)** — infinite loop at boundary pos 0                                                                                                                                                   |
+| `wasm-core/src/number_processor.rs`            | **Updated (session 48)** — all 8 lazy_statics + all regex Pool&lt;Cache&gt; pre-warmed in `new()`                                                                                                          |
