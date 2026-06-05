@@ -71,6 +71,10 @@ const lifecycle = new WasmProcessorLifecycle({
 let wasmNumberProcessor = null;
 let showedNumberWarning = false;
 registerCascadeHandler(() => {
+  // __destroy_into_raw() unregisters the FinalizationRegistry entry and zeroes __wbg_ptr
+  // without calling into the (now-corrupted) WASM module. Prevents stale GC callbacks from
+  // decrementing the Rc of a future NumberProcessor that reuses the same heap address.
+  wasmNumberProcessor?.__destroy_into_raw();
   wasmNumberProcessor = null;
   lifecycle.permanentlyFail();
 });
@@ -88,6 +92,7 @@ async function initializeWasmNumberProcessor() {
   if (success) {
     showedNumberWarning = false;
   } else {
+    wasmNumberProcessor?.__destroy_into_raw();
     wasmNumberProcessor = null;
     logger.warn('Falling back to character-by-character translation for numbers');
   }
@@ -144,6 +149,7 @@ export async function processNumbersWasm(tokens) {
     // Retire the broken instance — after a WASM panic, the shared linear memory is
     // permanently corrupted. permanentlyFail() (not reset()) prevents re-initialization
     // from the corrupted module on subsequent translations.
+    wasmNumberProcessor?.__destroy_into_raw();
     wasmNumberProcessor = null;
     lifecycle.permanentlyFail();
     // Both processors share one WASM module — a NumberProcessor panic corrupts the shared
@@ -195,6 +201,7 @@ export function isWasmNumberProcessorAvailable() {
 if (import.meta.env.MODE !== 'test') {
   initializeWasmNumberProcessor().catch((err) => {
     logger.warn('Background WASM NumberProcessor initialization failed:', err);
+    wasmNumberProcessor?.__destroy_into_raw();
     wasmNumberProcessor = null;
   });
 }

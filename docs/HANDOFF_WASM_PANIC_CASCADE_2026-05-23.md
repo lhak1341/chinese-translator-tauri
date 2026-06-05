@@ -1,7 +1,7 @@
 # Handoff: Shared WASM Module Panic Cascade
 
 **Date:** 2026-05-23 (updated 2026-06-05)
-**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47) + NP regex Pool&lt;Cache&gt; pre-warm fix (session 48)
+**Status:** FIXED — cascade-retire complete + NP OOB resolved (session 46) + NP lazy_static borrow-window fix (session 47) + NP regex Pool&lt;Cache&gt; pre-warm fix (session 48) + JS FinalizationRegistry stale-callback fix (session 50)
 **Priority:** Low (WASM falls back to JS gracefully; correctness unaffected)
 
 ---
@@ -170,11 +170,12 @@ let _ = IMPLICIT_TENS_PARSE_RE.find(dummy);
 
 ### Updated general rule
 
-Any `#[wasm_bindgen]` struct method that touches a lazy_static OR calls `.find()`/`.captures()` on a `regex::Regex` for the first time will violate the wasm-bindgen borrow-window invariant in Rust 1.84+ debug builds. Three known categories:
+Any `#[wasm_bindgen]` struct method that touches a lazy_static OR calls `.find()`/`.captures()` on a `regex::Regex` for the first time will violate the wasm-bindgen borrow-window invariant in Rust 1.84+ debug builds. Four known Rust-side categories + one JS-side category:
 
 1. **`serde_wasm_bindgen` inside method** — calls `__wbindgen_malloc` (s44 fix: use `serde_json` strings)
 2. **`lazy_static!` first access inside method** — `std::sync::Once` init allocates (s47 fix: pre-touch all statics in `new()`)
 3. **`regex::Regex::find/captures` first call inside method** — `regex-automata Pool<Cache>` lazy-allocates thread-local cache (s48 fix: run `.find("")` on all Regexes in `new()`)
+4. **JS FinalizationRegistry stale callback** — JS-side category, not Rust borrow-window. When a `#[wasm_bindgen]` struct's JS wrapper is nulled without calling `.free()`, the FinalizationRegistry callback stays registered. If dlmalloc reuses the freed Rc address for a new instance, the stale callback fires and decrements the NEW instance's Rc strong count to 0. Next method call: `Rc::increment_strong_count` reads count=0 → `inc_strong` fires `hint::assert_unchecked` at `alloc/rc.rs` (line 3743 in Rust 1.84, 3753 in Rust 1.96 — same check, line shifted by toolchain update). Fix: call `instance.__destroy_into_raw()` (not `.free()`) before nulling — unregisters FinalizationRegistry without calling into possibly-corrupted WASM.
 
 ---
 
