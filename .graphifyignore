@@ -30,6 +30,7 @@ logs
 .claude/
 .gemini/
 .fallow/
+temp/
 
 # Test output
 coverage

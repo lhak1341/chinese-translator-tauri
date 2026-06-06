@@ -181,6 +181,8 @@ export class WasmTextChunker {
           env: process.env.NODE_ENV,
         }
       );
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.chunker?.__destroy_into_raw();
       this.chunker = null;
       this.initialized = false;
       this.initializationFailed = true; // prevents lazy-init from re-trying the same broken module
@@ -266,6 +268,8 @@ export class WasmTextChunker {
    * Prevents a secondary panic on the next chunkText call.
    */
   retireOnSharedModulePanic() {
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+    this.chunker?.__destroy_into_raw();
     this.chunker = null;
     this.initialized = false;
     this.initializationFailed = true;

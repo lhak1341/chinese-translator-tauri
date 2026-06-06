@@ -143,6 +143,7 @@ describe('WasmPatternProcessor Error Handling', () => {
             }),
             isInitialized: vi.fn(() => true),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+            __destroy_into_raw: vi.fn(),
           };
         }),
       }));
@@ -171,6 +172,7 @@ describe('WasmPatternProcessor Error Handling', () => {
             processTokens: vi.fn(() => []),
             isInitialized: vi.fn(() => true),
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+            __destroy_into_raw: vi.fn(),
           };
         }),
       }));
@@ -242,6 +244,7 @@ describe('WasmPatternProcessor Error Handling', () => {
             initialize: mockInit,
             getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
             isInitialized: vi.fn(() => true),
+            __destroy_into_raw: vi.fn(),
           };
         }),
       }));

@@ -61,7 +61,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 ## Development
 
-**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
+**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
 
 **Large file edits:** Edit tool old_string fails for blocks >~100 lines. Use `python3 -c "with open(p) as f: lines=f.readlines(); open(p,'w').writelines(lines[:N]+lines[M:])"` to remove line range N–M (0-indexed).
 

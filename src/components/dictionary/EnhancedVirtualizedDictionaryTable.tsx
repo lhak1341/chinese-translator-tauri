@@ -5,15 +5,10 @@ import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import BulkMoveDialog from './BulkMoveDialog';
 import { adaptiveBufferCalculator } from '../../utils/ui';
-import { createDuplicateKey, parseDuplicateKey } from '../../utils/dictionary';
+import { createDuplicateKey } from '../../utils/dictionary';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { logger } from '../../utils/logger';
-import { toast } from '../ToastContext';
-import type {
-  DictionaryEntryValue,
-  EditingEntryData,
-  MoveEntryData,
-} from '../../types/DictionaryTypes';
+import type { EditingEntryData, MoveEntryData } from '../../types/DictionaryTypes';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
@@ -21,30 +16,9 @@ import {
 } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 import { VirtualRowComponent, ITEM_HEIGHT } from './VirtualRowComponent';
-
-/**
- * Selection state passed to parent component
- */
-interface SelectionState {
-  selectedEntries: Set<string>;
-  selectedCount: number;
-  onBulkDelete: () => Promise<void>;
-  isDeleting: boolean;
-  showBulkDeleteConfirm: boolean;
-  setShowBulkDeleteConfirm: (show: boolean) => void;
-  onBulkMove?: () => void;
-  isMoving?: boolean;
-}
-
-/**
- * Context menu state
- */
-interface ContextMenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  entry: { source: string; translation: string } | null;
-}
+import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
+import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
+import { useContextMenu } from '../../hooks/useContextMenu';
 
 /**
  * Props for EnhancedVirtualizedDictionaryTable component
@@ -106,20 +80,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [editingEntry, setEditingEntry] = useState<EditingEntryData | null>(null);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
-  const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
-  const selectedEntriesRef = useRef<Set<string>>(new Set());
-  selectedEntriesRef.current = selectedEntries;
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState<boolean>(false);
   const [scrollTop, setScrollTop] = useState<number>(0);
-  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
-    visible: false,
-    x: 0,
-    y: 0,
-    entry: null,
-  });
-  const [showBulkMoveDialog, setShowBulkMoveDialog] = useState<boolean>(false);
   const [containerHeight, setContainerHeight] = useState<number>(600);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [preservedScrollTop, setPreservedScrollTop] = useState<number | null>(null);
@@ -174,11 +136,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     // Always reset transient UI state
     setEditingEntry(null);
     setMoveEntry(null);
-    setSelectedEntries(new Set());
-    setShowBulkDeleteConfirm(false);
-    setShowBulkMoveDialog(false);
-    setContextMenu({ visible: false, x: 0, y: 0, entry: null });
-    setIsDeleting(false);
+    resetSelection();
+    closeContextMenu();
     setIsUpdating(false);
     // Reset DOM scroll position as well as React state.
     // Without the DOM reset, a stale browser scrollTop (from the previous
@@ -200,9 +159,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   // Clear selections when switching between duplicate and normal modes
   // BUGFIX: Prevents composite keys from persisting when exiting duplicate mode
   useEffect(() => {
-    setSelectedEntries(new Set());
-    setShowBulkDeleteConfirm(false);
-  }, [showDuplicatesMode]);
+    resetSelection();
+  }, [showDuplicatesMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search term
   useEffect(() => {
@@ -276,119 +234,36 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     }
   }, []);
 
-  // Optimized filtered entries with early termination for large datasets
-  const filteredEntries = useMemo((): [string, DictionaryEntryValue][] => {
-    // In duplicate mode, return empty array (use filteredDuplicateRows instead)
-    if (showDuplicatesMode) {
-      return [];
-    }
-
-    const dictionary = dictionaries[selectedDictionary];
-    if (!dictionary) return [];
-
-    let entries = Object.entries(dictionary) as [string, DictionaryEntryValue][];
-
-    if (debouncedSearchTerm) {
-      const searchLower = debouncedSearchTerm.toLowerCase();
-      entries = entries.filter(([source, translation]) => {
-        const translationText =
-          typeof translation === 'string' ? translation : translation.translation;
-        return (
-          source.toLowerCase().includes(searchLower) ||
-          translationText.toLowerCase().includes(searchLower)
-        );
-      });
-    }
-
-    if (filterVariable !== 'all') {
-      entries = entries.filter(([, translation]) => {
-        const allowed =
-          typeof translation === 'object' && translation.allowAsPatternVariable === true;
-        return filterVariable === 'allowed' ? allowed : !allowed;
-      });
-    }
-
-    if (filterPatternType.size > 0) {
-      entries = entries.filter(([source]) => {
-        const hasX = source.includes('X');
-        const hasY = source.includes('Y');
-        const matchXOnly = filterPatternType.has('x-only') && hasX && !hasY;
-        const matchXY = filterPatternType.has('x-y') && hasX && hasY;
-        return matchXOnly || matchXY;
-      });
-    }
-
-    if (filterAllowAsVariable) {
-      entries = entries.filter(
-        ([, translation]) =>
-          typeof translation === 'object' && translation.allowAsPatternVariable === true
-      );
-    }
-
-    if (filterLowPriority) {
-      entries = entries.filter(
-        ([, translation]) => typeof translation === 'object' && translation.lowPriority === true
-      );
-    }
-
-    if (filterSemanticTypes.size > 0) {
-      entries = entries.filter(([, translation]) => {
-        const semType = (typeof translation === 'object' && translation.semanticType) || '';
-        if (filterSemanticTypes.has('none')) {
-          const specificTypes = new Set([...filterSemanticTypes].filter((t) => t !== 'none'));
-          return semType === '' || specificTypes.has(semType);
-        }
-        return filterSemanticTypes.has(semType);
-      });
-    }
-
-    return entries;
-  }, [
-    dictionaries,
-    selectedDictionary,
-    debouncedSearchTerm,
-    showDuplicatesMode,
-    filterVariable,
-    filterSemanticTypes,
-    filterPatternType,
-    filterAllowAsVariable,
-    filterLowPriority,
-  ]);
-
-  // Filtered duplicate rows for duplicate mode
-  const filteredDuplicateRows = useMemo(() => {
-    if (!showDuplicatesMode) return [];
-
-    if (!debouncedSearchTerm) return duplicateRows;
-
-    const searchLower = debouncedSearchTerm.toLowerCase();
-    return duplicateRows.filter((row) => {
-      return (
-        row.source.toLowerCase().includes(searchLower) ||
-        row.translation.toLowerCase().includes(searchLower) ||
-        row.dictionaryLabel.toLowerCase().includes(searchLower)
-      );
+  const { filteredEntries, filteredDuplicateRows, duplicateGroupIndices } =
+    useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, {
+      debouncedSearchTerm,
+      showDuplicatesMode,
+      filterVariable,
+      filterSemanticTypes,
+      filterPatternType,
+      filterAllowAsVariable,
+      filterLowPriority,
     });
-  }, [duplicateRows, debouncedSearchTerm, showDuplicatesMode]);
 
-  // Pre-calculate group indices for alternating backgrounds (memoized for performance)
-  const duplicateGroupIndices = useMemo(() => {
-    if (!showDuplicatesMode || filteredDuplicateRows.length === 0) return [];
-
-    const indices: number[] = [];
-    let groupIndex = 0;
-    let lastSource = '';
-
-    for (const row of filteredDuplicateRows) {
-      if (row.source !== lastSource) {
-        if (lastSource !== '') groupIndex++;
-        lastSource = row.source;
-      }
-      indices.push(groupIndex);
-    }
-
-    return indices;
-  }, [filteredDuplicateRows, showDuplicatesMode]);
+  const {
+    selectedEntries,
+    showBulkMoveDialog,
+    setShowBulkMoveDialog,
+    handleSelectEntry,
+    handleSelectAll,
+    resetSelection,
+  } = useEntrySelection({
+    selectedDictionary,
+    filteredEntries,
+    dictionaries,
+    showDuplicatesMode,
+    scrollRef,
+    setScrollTop,
+    bulkDeleteEntries,
+    onRefreshDuplicates,
+    onScrollSave,
+    onSelectionChange,
+  });
 
   // Dynamic buffer sizing based on list size
   // OPTIMIZATION: Adaptive buffer size calculation
@@ -618,307 +493,48 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     };
   }, [scrollRestore, onScrollSave]);
 
-  // Selection handlers with scroll preservation
-  const handleSelectEntry = useCallback((source: string, isSelected: boolean): void => {
-    // Capture scroll position before selection state change
-    // BUGFIX: Use scrollRef.current directly to avoid infinite loop
-    const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
-
-    setSelectedEntries((prev) => {
-      const newSet = new Set(prev);
-      if (isSelected) {
-        newSet.add(source);
-      } else {
-        newSet.delete(source);
-      }
-      return newSet;
-    });
-
-    // Restore scroll position after state update
-    requestAnimationFrame(() => {
-      if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-        scrollRef.current.scrollTop = currentScrollTop;
-        setScrollTop(currentScrollTop);
-      }
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(
-    (isSelected: boolean): void => {
-      // Capture scroll position before bulk selection change
-      // BUGFIX: Use scrollRef.current directly to avoid infinite loop
-      const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
-
-      if (isSelected) {
-        const allSources = filteredEntries.map(([source]) => source);
-        setSelectedEntries(new Set(allSources));
-      } else {
-        setSelectedEntries(new Set());
-      }
-
-      // Restore scroll position after state update
-      requestAnimationFrame(() => {
-        if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-          scrollRef.current.scrollTop = currentScrollTop;
-          setScrollTop(currentScrollTop);
-        }
+  // Context menu — action callbacks (EVDT-owned state side effects)
+  const onContextMenuEdit = useCallback(
+    (entry: { source: string; translation: string }): void => {
+      const dictionary = dictionaries[selectedDictionary];
+      if (!dictionary) return;
+      const value = dictionary[entry.source];
+      setEditingEntry({
+        source: entry.source,
+        translation: value,
+        allowAsPatternVariable:
+          typeof value === 'object' && value.allowAsPatternVariable ? true : false,
+        lowPriority: typeof value === 'object' && value.lowPriority ? true : false,
       });
     },
-    [filteredEntries]
+    [dictionaries, selectedDictionary]
   );
 
-  const handleBulkDelete = useCallback(async (): Promise<void> => {
-    const entries = selectedEntriesRef.current;
-    if (entries.size === 0) return;
-
-    setIsDeleting(true);
-
-    const errors: string[] = [];
-    let successCount = 0;
-
-    try {
-      if (showDuplicatesMode) {
-        // Duplicate mode: entries contains composite keys (source::dictionaryId)
-        // Group deletions by dictionary, handling malformed keys gracefully
-        const deletionsByDict = new Map<string, string[]>();
-
-        // Parse all keys first, collecting errors
-        for (const key of entries) {
-          try {
-            const { source, dictionaryId } = parseDuplicateKey(key);
-            if (!deletionsByDict.has(dictionaryId)) {
-              deletionsByDict.set(dictionaryId, []);
-            }
-            deletionsByDict.get(dictionaryId)!.push(source);
-          } catch (parseError) {
-            errors.push(`Invalid key format: ${key}`);
-            logger.error('Key parsing error:', parseError);
-          }
-        }
-
-        // Delete from each dictionary using bulkDeleteEntries (more efficient - one save per dictionary)
-        // CODE REVIEW FIX 2026-02-09 (MEDIUM): Add dictionary existence check and parallelize deletions
-        const deletionPromises = Array.from(deletionsByDict.entries()).map(
-          async ([dictionaryId, sources]) => {
-            try {
-              // Check if dictionary still exists before attempting deletion
-              if (!dictionaries[dictionaryId]) {
-                return {
-                  successCount: 0,
-                  errors: [`Dictionary '${dictionaryId}' no longer exists`],
-                };
-              }
-
-              const result = await bulkDeleteEntries(dictionaryId, sources);
-              return result;
-            } catch (deleteError) {
-              const errorMsg = `Failed to delete entries from ${dictionaryId}: ${(deleteError as Error).message}`;
-              logger.error('Bulk delete error:', deleteError);
-              return { successCount: 0, errors: [errorMsg] };
-            }
-          }
-        );
-
-        // Wait for all deletions to complete in parallel
-        const results = await Promise.all(deletionPromises);
-
-        // Aggregate results
-        for (const result of results) {
-          successCount += result.successCount;
-          errors.push(...result.errors);
-        }
-      } else {
-        // Normal mode: entries contains source strings, all from same dictionary
-        const entriesToDelete = Array.from(entries);
-        try {
-          const result = await bulkDeleteEntries(selectedDictionary, entriesToDelete);
-          successCount = result.successCount;
-          errors.push(...result.errors);
-        } catch (deleteError) {
-          errors.push(`Failed to delete entries: ${(deleteError as Error).message}`);
-          logger.error('Bulk delete error:', deleteError);
-        }
-      }
-
-      // Report results to user using toast
-      if (errors.length > 0) {
-        if (successCount > 0) {
-          // Partial success
-          toast.warning(
-            `Deleted ${successCount} of ${entries.size} entries. ${errors.length} failed.`,
-            6000
-          );
-        } else {
-          // All failed
-          toast.error(
-            `Failed to delete ${entries.size} ${entries.size === 1 ? 'entry' : 'entries'}.`,
-            6000
-          );
-        }
-      } else {
-        // All succeeded
-        toast.success(
-          `Deleted ${successCount} ${successCount === 1 ? 'entry' : 'entries'} successfully`,
-          3000
-        );
-      }
-
-      // Clear selection and close confirm for any partial or full success
-      if (successCount > 0) {
-        setSelectedEntries(new Set());
-        setShowBulkDeleteConfirm(false);
-      }
-
-      // Refresh duplicate view if in duplicate mode (to show updated state)
-      if (showDuplicatesMode && onRefreshDuplicates && onScrollSave) {
-        // Save scroll position for restoration after duplicateRows updates
-        const currentScroll = scrollRef.current?.scrollTop ?? 0;
-        await onRefreshDuplicates();
-        onScrollSave(currentScroll);
-      }
-    } catch (error) {
-      toast.error(`Critical error during deletion: ${(error as Error).message}`, 6000);
-      logger.error('Bulk delete error:', error);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [
-    selectedDictionary,
-    bulkDeleteEntries,
-    dictionaries,
-    showDuplicatesMode,
-    onRefreshDuplicates,
-    onScrollSave,
-  ]);
-
-  const handleBulkMove = useCallback((): void => {
-    if (selectedEntriesRef.current.size === 0) return;
-    setShowBulkMoveDialog(true);
+  const onContextMenuMove = useCallback((entry: { source: string; translation: string }): void => {
+    setMoveEntry(entry);
   }, []);
 
-  // Notify parent about selection changes — placed after handleBulkDelete /
-  // handleBulkMove so the dep array can reference their stable useCallback values.
-  useEffect(() => {
-    if (onSelectionChange) {
-      onSelectionChange({
-        selectedEntries,
-        selectedCount: selectedEntries.size,
-        onBulkDelete: handleBulkDelete,
-        isDeleting,
-        showBulkDeleteConfirm,
-        setShowBulkDeleteConfirm,
-        onBulkMove: handleBulkMove,
-        isMoving: false,
-      });
-    }
-  }, [
-    selectedEntries,
-    isDeleting,
-    showBulkDeleteConfirm,
-    onSelectionChange,
-    handleBulkDelete,
-    handleBulkMove,
-  ]);
-
-  // Context menu handlers
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent, source: string, translation: string): void => {
-      e.preventDefault();
-      setContextMenu({
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        entry: { source, translation },
-      });
+  const onContextMenuDelete = useCallback(
+    async (source: string): Promise<void> => {
+      await deleteEntry(selectedDictionary, source);
     },
-    []
+    [deleteEntry, selectedDictionary]
   );
 
-  const closeContextMenu = useCallback((): void => {
-    setContextMenu({ visible: false, x: 0, y: 0, entry: null });
-  }, []);
-
-  const handleContextMenuEdit = (): void => {
-    if (!contextMenu.entry) return;
-    const dictionary = dictionaries[selectedDictionary];
-    if (!dictionary) return;
-
-    const value = dictionary[contextMenu.entry.source];
-    setEditingEntry({
-      source: contextMenu.entry.source,
-      translation: value,
-      allowAsPatternVariable:
-        typeof value === 'object' && value.allowAsPatternVariable ? true : false,
-      lowPriority: typeof value === 'object' && value.lowPriority ? true : false,
-    });
-    closeContextMenu();
-  };
-
-  const handleContextMenuMove = (): void => {
-    if (!contextMenu.entry) return;
-    setMoveEntry(contextMenu.entry);
-    closeContextMenu();
-  };
-
-  const handleContextMenuDelete = async (): Promise<void> => {
-    if (!contextMenu.entry) return;
-    try {
-      await deleteEntry(selectedDictionary, contextMenu.entry.source);
-      closeContextMenu();
-    } catch (error) {
-      toast.error(`Failed to delete entry: ${(error as Error).message}`, 6000);
-      closeContextMenu();
-    }
-  };
-
-  // Close context menu when clicking outside
-  useEffect(() => {
-    if (contextMenu.visible) {
-      const handleClickOutside = () => closeContextMenu();
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-    return undefined;
-  }, [contextMenu.visible, closeContextMenu]);
-
-  // Context menu keyboard navigation ref
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-
-  // Auto-focus first menu item when context menu opens
-  useEffect(() => {
-    if (contextMenu.visible && contextMenuRef.current) {
-      const firstButton =
-        contextMenuRef.current.querySelector<HTMLButtonElement>('[role="menuitem"]');
-      firstButton?.focus();
-    }
-  }, [contextMenu.visible]);
-
-  // Handle keyboard navigation inside context menu
-  const handleContextMenuKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>): void => {
-      if (!contextMenuRef.current) return;
-      const items = Array.from(
-        contextMenuRef.current.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')
-      );
-      const focused = document.activeElement as HTMLButtonElement;
-      const currentIndex = items.indexOf(focused);
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        items[(currentIndex + 1) % items.length]?.focus();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        items[(currentIndex - 1 + items.length) % items.length]?.focus();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        closeContextMenu();
-      } else if (e.key === 'Tab') {
-        e.preventDefault();
-        closeContextMenu();
-      }
-    },
-    [closeContextMenu]
-  );
+  const {
+    contextMenu,
+    contextMenuRef,
+    closeContextMenu,
+    handleContextMenu,
+    handleContextMenuEdit,
+    handleContextMenuMove,
+    handleContextMenuDelete,
+    handleContextMenuKeyDown,
+  } = useContextMenu({
+    onEdit: onContextMenuEdit,
+    onMove: onContextMenuMove,
+    onDelete: onContextMenuDelete,
+  });
 
   // Optimized row component with React.memo (defined at module scope to prevent type churn)
   const VirtualRow = VirtualRowComponent;
@@ -1047,15 +663,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {
-                            const newSet = new Set(selectedEntries);
-                            if (isSelected) {
-                              newSet.delete(key);
-                            } else {
-                              newSet.add(key);
-                            }
-                            setSelectedEntries(newSet);
-                          }}
+                          onChange={() => handleSelectEntry(key, !isSelected)}
                           style={{ cursor: 'pointer' }}
                           aria-label={`Select ${row.source} from ${row.dictionaryLabel}`}
                         />
@@ -1860,10 +1468,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           selectedDictionary={selectedDictionary}
           selectedEntries={selectedEntries}
           onClose={() => setShowBulkMoveDialog(false)}
-          onMoveSuccess={() => {
-            setSelectedEntries(new Set());
-            setShowBulkMoveDialog(false);
-          }}
+          onMoveSuccess={() => resetSelection()}
         />
       )}
     </div>

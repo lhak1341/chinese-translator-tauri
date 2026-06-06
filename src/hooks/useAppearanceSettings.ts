@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { AppearanceSettings } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
+import {
+  applyFontChange,
+  applyFollowFullTranslation,
+  applyReset,
+  type AppearanceSection,
+  type FontProperty,
+} from '../utils/ui/AppearanceReducer';
 
-export type AppearanceSection = 'chineseText' | 'fullTranslation' | 'characterOnly' | 'uiFont';
-export type FontProperty = 'fontFamily' | 'fontSize' | 'letterSpacing' | 'paragraphSpacing';
+export type { AppearanceSection, FontProperty } from '../utils/ui/AppearanceReducer';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   chineseText: {
@@ -104,13 +110,7 @@ export function useAppearanceSettings() {
 
   const handleFontChange = useCallback(
     (section: AppearanceSection, property: FontProperty, value: string): void => {
-      setAppearance((prev) => {
-        const next = { ...prev, [section]: { ...prev[section], [property]: value } };
-        if (section === 'fullTranslation' && (prev.characterOnlyFollowsFullTranslation ?? true)) {
-          next.characterOnly = { ...next.characterOnly, [property]: value };
-        }
-        return next;
-      });
+      setAppearance((prev) => applyFontChange(prev, section, property, value));
     },
     []
   );
@@ -131,15 +131,7 @@ export function useAppearanceSettings() {
 
   const handleFollowFullTranslationChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-      const isChecked = e.target.checked;
-      const next: AppearanceSettings = isChecked
-        ? {
-            ...appearanceRef.current,
-            characterOnly: { ...appearanceRef.current.fullTranslation },
-            characterOnlyFollowsFullTranslation: true,
-          }
-        : { ...appearanceRef.current, characterOnlyFollowsFullTranslation: false };
-
+      const next = applyFollowFullTranslation(appearanceRef.current, e.target.checked);
       setAppearance(next);
       try {
         const result = await window.electronAPI.saveAppearanceSettings(next);
@@ -154,12 +146,7 @@ export function useAppearanceSettings() {
 
   const resetToDefault = useCallback(
     async (section: AppearanceSection, property: FontProperty): Promise<void> => {
-      const defaultValue =
-        DEFAULT_APPEARANCE[section][property as keyof (typeof DEFAULT_APPEARANCE)[typeof section]];
-      const next: AppearanceSettings = {
-        ...appearanceRef.current,
-        [section]: { ...appearanceRef.current[section], [property]: defaultValue },
-      };
+      const next = applyReset(appearanceRef.current, DEFAULT_APPEARANCE, section, property);
       setAppearance(next);
       try {
         const result = await window.electronAPI.saveAppearanceSettings(next);

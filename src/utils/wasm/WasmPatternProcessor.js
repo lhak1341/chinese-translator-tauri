@@ -75,6 +75,8 @@ let wasmPatternProcessor = null;
 let lastPatternWarningTime = 0;
 const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
 registerCascadeHandler(() => {
+  // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+  wasmPatternProcessor?.__destroy_into_raw();
   wasmPatternProcessor = null;
   lifecycle.permanentlyFail();
 });
@@ -219,6 +221,8 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   } catch (error) {
     const errorMsg = `WASM pattern processing error: ${error.message}`;
     logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+    wasmPatternProcessor?.__destroy_into_raw();
     wasmPatternProcessor = null;
     lifecycle.permanentlyFail();
     wasmTextAssembler.retireOnSharedModulePanic();
@@ -295,6 +299,8 @@ export function getWasmPatternProcessorStats() {
  */
 export async function reinitializeWasmPatternProcessor(patternsDict) {
   if (!lifecycle.reset()) return false;
+  // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+  wasmPatternProcessor?.__destroy_into_raw();
   wasmPatternProcessor = null;
   wasmModule = null;
   lastPatternWarningTime = 0;

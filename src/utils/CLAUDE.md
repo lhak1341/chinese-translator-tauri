@@ -207,5 +207,6 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - `WasmProcessorLifecycle` in WASM module tests: mock the entire class — `initialize` calls `fetchWasmBinary` internally and throws in jsdom. Mock pattern: `vi.mock('../wasm/WasmProcessorLifecycle', () => ({ WasmProcessorLifecycle: vi.fn(function() { return { initialize: vi.fn(async (fn) => { await fn(new ArrayBuffer(0)); return true; }), hasFailed: false, pendingInit: null }; }) }))`.
 - `SemanticPatternProcessor.initializePatterns` object-format dict: key is `translation`, not `template` — `{ 'X的': { translation: 'của X', allowAsPatternVariable: true } }`
 - `vi.useFakeTimers()` + `requestAnimationFrame`: RAF fires at ~16ms, not 0ms — use `vi.advanceTimersByTimeAsync(20)` to advance past it before asserting retry/cancel behavior.
+- `WasmPatternProcessor` mock instances must include `__destroy_into_raw: vi.fn()` — catch blocks in `processTokensWasm` and `reinitializeWasmPatternProcessor` call `instance?.__destroy_into_raw()`, throwing "not a function" if absent.
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)

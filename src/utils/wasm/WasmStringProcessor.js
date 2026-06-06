@@ -81,6 +81,8 @@ class WasmStringProcessor {
       return success;
     } catch (error) {
       logger.error('Failed to build string cache:', error);
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.processor?.__destroy_into_raw();
       this.processor = null;
       this.initialized = false;
       this.initializationFailed = true;
@@ -159,6 +161,8 @@ class WasmStringProcessor {
 
   /** Retire this processor when shared WASM module panics */
   retireOnSharedModulePanic() {
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+    this.processor?.__destroy_into_raw();
     this.processor = null;
     this.initialized = false;
     this.initializationFailed = true;

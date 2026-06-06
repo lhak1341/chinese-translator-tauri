@@ -67,6 +67,10 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 `DictionaryTypes.ts` has a LOCAL `interface DictionaryInfo { label, description }` — display-only type for dictionary type metadata. NOT the same as `ComponentTypes.d.ts::DictionaryInfo { id, name, path, isActive, ... }` which is the API/IPC type used by `ElectronTypes.d.ts`. Do not re-export the local one, do not merge the two. Import `DictionaryInfo` from `../../types/ComponentTypes` for the API type.
 
+## `useEntrySelection` Hook — Selection State Not in EVDT
+
+`showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT.
+
 ## WASM Wrapper Methods
 
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.
