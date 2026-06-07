@@ -6,66 +6,29 @@ import { performanceHealth } from '../utils/performance';
  */
 
 /**
- * Performance monitoring hook
+ * Performance monitoring hook.
  *
- * Manages performance statistics and regression detection health status.
- * Health is assessed at action time (after translate / after reload) rather
- * than on a polling interval — health is most meaningful right after work
- * is done. Uses performanceHealth.getReport() as the single read path.
+ * Returns a single unified report from performanceHealth.getReport() so all
+ * fields are always consistent — no callback can update regressionHealth while
+ * leaving performanceStats stale (the bug in the prior split-state design).
  *
  * @returns {{
- *   performanceStats: PerformanceMetrics,
- *   regressionHealth: RegressionHealth,
+ *   report: PerformanceMetrics & RegressionHealth,
  *   recordTranslation: (operationTimeMs: number) => void,
  *   refreshCacheStats: () => void
- * }} Performance monitoring state and update functions
+ * }}
  */
 export function usePerformanceMonitoring() {
-  const initialReport = performanceHealth.getReport(0);
-
-  const [performanceStats, setPerformanceStats] = useState({
-    operations: initialReport.operations,
-    avgTime: initialReport.avgTime,
-    cacheHitRate: 0,
-  });
-
-  const [regressionHealth, setRegressionHealth] = useState({
-    status: initialReport.status,
-    criticalAlerts: initialReport.criticalAlerts,
-    warningAlerts: initialReport.warningAlerts,
-    baselines: initialReport.baselines,
-  });
+  const [report, setReport] = useState(() => performanceHealth.getReport(0));
 
   const recordTranslation = useCallback((operationTimeMs) => {
     performanceHealth.recordTranslation(operationTimeMs);
-    const report = performanceHealth.getReport(0);
-    setPerformanceStats({
-      operations: report.operations,
-      avgTime: report.avgTime,
-      cacheHitRate: 0,
-    });
-    setRegressionHealth({
-      status: report.status,
-      criticalAlerts: report.criticalAlerts,
-      warningAlerts: report.warningAlerts,
-      baselines: report.baselines,
-    });
+    setReport(performanceHealth.getReport(0));
   }, []);
 
   const refreshCacheStats = useCallback(() => {
-    const report = performanceHealth.getReport(0);
-    setRegressionHealth({
-      status: report.status,
-      criticalAlerts: report.criticalAlerts,
-      warningAlerts: report.warningAlerts,
-      baselines: report.baselines,
-    });
+    setReport(performanceHealth.getReport(0));
   }, []);
 
-  return {
-    performanceStats,
-    regressionHealth,
-    recordTranslation,
-    refreshCacheStats,
-  };
+  return { report, recordTranslation, refreshCacheStats };
 }

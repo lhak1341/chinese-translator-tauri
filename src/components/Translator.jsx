@@ -108,8 +108,7 @@ const Translator = ({ isActive = true }) => {
   } = useDictionary();
 
   // Performance monitoring hook (extracted)
-  const { performanceStats, regressionHealth, recordTranslation, refreshCacheStats } =
-    usePerformanceMonitoring();
+  const { report, recordTranslation, refreshCacheStats } = usePerformanceMonitoring();
 
   // Streaming translation hook (extracted)
   const {
@@ -2033,9 +2032,9 @@ const Translator = ({ isActive = true }) => {
         isTranslating={isTranslating}
         progressInfo={progressInfo}
         activeTranslations={activeTranslations}
-        performanceStats={performanceStats}
+        performanceStats={report}
         wasmStatus={wasmStatus}
-        regressionHealth={regressionHealth}
+        regressionHealth={report}
         throttledStreamingState={throttledStreamingState}
       />
 

@@ -30,6 +30,7 @@ import { useDictionaryHistory } from './useDictionaryHistory';
 import { useDictionaryCRUD } from './useDictionaryCRUD';
 import type { MoveOpUpdates } from './useDictionaryCRUD';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
+import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
 
 /**
  * Dictionary Context value.
@@ -233,26 +234,21 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
             Object.keys(data).length > 0 ? sortDictionaryEntries(data, id) : data;
         }
 
-        const totalSuccessful = total - stillFailedIds.length;
-
-        // Surface a load error to consumers if ALL dictionaries failed (engine
-        // would initialize with empty tries → garbage translations). Partial
-        // failures still allow translation to proceed with degraded coverage.
-        if (totalSuccessful === 0 && total > 0) {
-          const msg = `All ${total} dictionaries failed to load. Translation unavailable.`;
-          setLoadError(msg);
-          toast.error(msg, {
+        const outcome = classifyLoadResult(stillFailedIds, total);
+        if (outcome.severity === 'critical') {
+          setLoadError(outcome.message);
+          toast.error(outcome.message, {
             duration: TOAST_DURATIONS.CRITICAL,
             id: TOAST_IDS.DICT_LOAD_FAILED,
           });
-        } else if (stillFailedIds.length > 0) {
+        } else if (outcome.severity === 'warning') {
           logger.warn(
-            `⚠️ ${stillFailedIds.length}/${total} dictionaries failed after retry: ${stillFailedIds.join(', ')}`
+            `⚠️ ${outcome.failedIds.length}/${outcome.total} dictionaries failed after retry: ${outcome.failedIds.join(', ')}`
           );
-          toast.warning(
-            `${stillFailedIds.length} of ${total} dictionaries failed to load. Use the Reload button if proper nouns are missing.`,
-            { duration: TOAST_DURATIONS.LOAD_FAILURE, id: TOAST_IDS.DICT_LOAD_FAILED }
-          );
+          toast.warning(outcome.message, {
+            duration: TOAST_DURATIONS.LOAD_FAILURE,
+            id: TOAST_IDS.DICT_LOAD_FAILED,
+          });
         }
 
         setDictionaries(loadedDictionaries);

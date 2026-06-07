@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { TabId } from '../types/ComponentTypes';
+import { matchHotkey } from '../utils/ui/HotkeyDispatchTable';
+import type { HotkeyAction } from '../utils/ui/HotkeyDispatchTable';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
@@ -36,6 +38,8 @@ export interface HotkeyHandlerOptions {
  * - Cmd/Ctrl+Shift+Z: Redo
  * - Cmd/Ctrl+Shift+V: Translate from clipboard
  * - Cmd/Ctrl+Shift+N: Quick add entry
+ *
+ * Dispatch logic lives in HotkeyDispatchTable.matchHotkey — testable as a pure function.
  */
 export function useHotkeyHandler({
   onTranslateFromClipboard,
@@ -127,132 +131,75 @@ export function useHotkeyHandler({
       }
     };
 
+    const dispatch = async (action: HotkeyAction, event: KeyboardEvent): Promise<void> => {
+      switch (action.type) {
+        case 'tabSwitch':
+          onTabSwitchRef.current?.(action.tab);
+          break;
+        case 'quickAdd':
+          onQuickAddRef.current?.();
+          break;
+        case 'translateFromClipboard':
+          onTranslateFromClipboardRef.current?.();
+          break;
+        case 'dictionaryTabHotkey':
+          await onDictionaryTabHotkeyRef.current?.(action.key);
+          break;
+        case 'quickAddCharacter':
+          await handleQuickAdd(event, onQuickAddCharacterRef.current, 'Quick Add Character');
+          break;
+        case 'quickAddPhrase':
+          await handleQuickAdd(event, onQuickAddPhraseRef.current, 'Quick Add Phrase');
+          break;
+        case 'quickAddProperNoun':
+          await handleQuickAdd(event, onQuickAddProperNounRef.current, 'Quick Add Proper Noun');
+          break;
+        case 'quickAddPattern':
+          await handleQuickAdd(event, onQuickAddPatternRef.current, 'Quick Add Pattern');
+          break;
+        case 'quickAddCustomProperNoun':
+          await handleQuickAdd(
+            event,
+            onQuickAddCustomProperNounRef.current,
+            'Quick Add Custom Proper Noun'
+          );
+          break;
+        case 'focusSearch':
+          onFocusSearchRef.current?.();
+          break;
+        case 'undo':
+          onUndoRef.current?.();
+          break;
+        case 'redo':
+          onRedoRef.current?.();
+          break;
+        case 'reloadDictionary':
+          onReloadDictionaryRef.current?.();
+          break;
+      }
+    };
+
     const handleKeyDown = async (event: KeyboardEvent): Promise<void> => {
-      // CODE REVIEW FIX (MEDIUM-1): Wrap the entire body in try-catch.
-      // addEventListener ignores the returned Promise, so any unhandled rejection
-      // from an async callback becomes an unhandled promise rejection.  The inner
-      // handleQuickAdd already catches its own errors, but synchronous throws from
-      // optional-chained callbacks (onTabSwitch, onRedo, etc.) would escape without this.
+      // addEventListener ignores the returned Promise — wrap in try-catch so any
+      // synchronous throw from optional-chained callbacks doesn't become an
+      // unhandled rejection. handleQuickAdd catches its own async errors.
       try {
         const target = event.target as HTMLElement;
-        if (
+        const isInputFocused =
           target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
-          target.isContentEditable
-        ) {
-          return;
-        }
+          target.isContentEditable;
 
-        if (event.metaKey || event.ctrlKey) {
-          if (event.shiftKey) {
-            switch (event.key) {
-              case '1':
-                event.preventDefault();
-                onTabSwitchRef.current?.('translator');
-                break;
-              case '2':
-                event.preventDefault();
-                onTabSwitchRef.current?.('dictionary');
-                break;
-              case '3':
-                event.preventDefault();
-                onTabSwitchRef.current?.('configuration');
-                break;
-              case '4':
-                event.preventDefault();
-                onTabSwitchRef.current?.('appearance');
-                break;
-              case 'n':
-                event.preventDefault();
-                onQuickAddRef.current?.();
-                break;
-              case 'v':
-                event.preventDefault();
-                onTranslateFromClipboardRef.current?.();
-                break;
-            }
-          } else {
-            switch (event.key) {
-              case '1':
-                if (activeTabRef.current === 'dictionary') {
-                  event.preventDefault();
-                  await onDictionaryTabHotkeyRef.current?.('1');
-                } else {
-                  await handleQuickAdd(
-                    event,
-                    onQuickAddCharacterRef.current,
-                    'Quick Add Character'
-                  );
-                }
-                break;
-              case '2':
-                if (activeTabRef.current === 'dictionary') {
-                  event.preventDefault();
-                  await onDictionaryTabHotkeyRef.current?.('2');
-                } else {
-                  await handleQuickAdd(event, onQuickAddPhraseRef.current, 'Quick Add Phrase');
-                }
-                break;
-              case '3':
-                if (activeTabRef.current === 'dictionary') {
-                  event.preventDefault();
-                  await onDictionaryTabHotkeyRef.current?.('3');
-                } else {
-                  await handleQuickAdd(
-                    event,
-                    onQuickAddProperNounRef.current,
-                    'Quick Add Proper Noun'
-                  );
-                }
-                break;
-              case '4':
-                if (activeTabRef.current === 'dictionary') {
-                  event.preventDefault();
-                  await onDictionaryTabHotkeyRef.current?.('4');
-                } else {
-                  await handleQuickAdd(event, onQuickAddPatternRef.current, 'Quick Add Pattern');
-                }
-                break;
-              case '5':
-                if (activeTabRef.current === 'dictionary') {
-                  event.preventDefault();
-                  await onDictionaryTabHotkeyRef.current?.('5');
-                } else {
-                  await handleQuickAdd(
-                    event,
-                    onQuickAddCustomProperNounRef.current,
-                    'Quick Add Custom Proper Noun'
-                  );
-                }
-                break;
-              case 'l':
-                if (activeTabRef.current === 'dictionary') {
-                  event.preventDefault();
-                  onFocusSearchRef.current?.();
-                }
-                break;
-            }
-          }
-
-          switch (event.key.toLowerCase()) {
-            case 'z':
-              if (event.shiftKey && canRedoRef.current) {
-                event.preventDefault();
-                onRedoRef.current?.();
-              } else if (!event.shiftKey && canUndoRef.current) {
-                event.preventDefault();
-                onUndoRef.current?.();
-              }
-              break;
-            case 'r':
-              if (activeTabRef.current === 'translator') {
-                event.preventDefault();
-                onReloadDictionaryRef.current?.();
-              }
-              break;
-          }
-        }
+        const action = matchHotkey(event, {
+          activeTab: activeTabRef.current,
+          canUndo: canUndoRef.current,
+          canRedo: canRedoRef.current,
+          isInputFocused,
+        });
+        if (!action) return;
+        event.preventDefault();
+        await dispatch(action, event);
       } catch (error) {
         logger.error('Hotkey handler error:', error);
       }

@@ -89,7 +89,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Non-obvious contracts:**
 
-- **Hotkey architecture:** `useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props.
+- **Hotkey architecture:** `useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props. Key→action dispatch table lives in `src/utils/ui/HotkeyDispatchTable.ts` (`matchHotkey`) — add/change shortcuts there, not in the hook body.
 - **Config reads:** Use `loadAppConfig()` from `utils/appConfig.ts` — caches after first load, returns typed `AppConfig` with defaults applied. In force-reload paths, call `invalidateAppConfig()` first. Never call `window.electronAPI.loadConfiguration()` directly — returns raw unvalidated data with absent/wrong-typed defaults.
 - `src/utils/wasm/WasmBoundaryValidation.ts` — `copyWasmTokens`: param1=JS dest, param2=WASM src
 - `types/WasmTypes.ts` (root-level, tests only) — `copyWasmTokens`: param1=WASM src, param2=JS dest (**reversed**)

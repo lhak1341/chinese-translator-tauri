@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useReducer, useCallback } from 'react';
 import { useThrottledValue } from './useThrottledValue';
 
 /**
@@ -17,12 +17,53 @@ import { useThrottledValue } from './useThrottledValue';
  * @property {number} avgTimePerChunk - Average time per chunk in ms
  */
 
+/** @type {StreamingTranslationState} */
+export const INITIAL_STREAMING = {
+  partialText: '',
+  progress: 0,
+  isStreaming: false,
+  completedChunks: 0,
+  totalChunks: 0,
+  batchNumber: 0,
+  avgTimePerChunk: 0,
+};
+
+export const INITIAL_STATE = {
+  progressInfo: /** @type {ProgressData | null} */ (null),
+  streamingTranslation: INITIAL_STREAMING,
+  partialSemanticArrays: /** @type {SemanticArrays | null} */ (null),
+};
+
 /**
- * Streaming translation hook
+ * @param {typeof INITIAL_STATE} state
+ * @param {{ type: string; payload?: any }} action
+ * @returns {typeof INITIAL_STATE}
+ */
+export function streamingReducer(state, action) {
+  switch (action.type) {
+    case 'UPDATE_STREAMING':
+      return {
+        ...state,
+        streamingTranslation: { ...state.streamingTranslation, ...action.payload },
+      };
+    case 'SET_PROGRESS_INFO':
+      return { ...state, progressInfo: action.payload };
+    case 'SET_PARTIAL_ARRAYS':
+      return { ...state, partialSemanticArrays: action.payload };
+    case 'RESET':
+      return INITIAL_STATE;
+    default:
+      return state;
+  }
+}
+
+/**
+ * Streaming translation hook.
  *
  * Manages streaming translation state for progressive translation with incremental UI updates.
  * Includes built-in throttling to prevent UI flooding during rapid updates.
- * Updated only via translation callbacks, with no reverse dependencies.
+ * Uses a single reducer so RESET atomically clears all three state pieces in one dispatch —
+ * the invariant is structural rather than enforced by convention across three separate setters.
  *
  * @param {number} [throttleMs=100] - Throttle delay for streaming state updates (default: 100ms)
  * @returns {{
@@ -33,67 +74,36 @@ import { useThrottledValue } from './useThrottledValue';
  *   setProgressInfo: (info: ProgressData | null) => void,
  *   setPartialSemanticArrays: (arrays: SemanticArrays | null) => void,
  *   resetStreaming: () => void
- * }} Streaming translation state and update functions
+ * }}
  */
 export function useStreamingTranslation(throttleMs = 100) {
-  // Progressive translation state
-  const [progressInfo, setProgressInfo] = useState(null);
+  const [state, dispatch] = useReducer(streamingReducer, INITIAL_STATE);
 
-  // Streaming translation state for incremental UI updates
-  const [streamingTranslation, setStreamingTranslation] = useState({
-    partialText: '',
-    progress: 0,
-    isStreaming: false,
-    completedChunks: 0,
-    totalChunks: 0,
-    batchNumber: 0,
-    avgTimePerChunk: 0,
-  });
+  const throttledStreamingState = useThrottledValue(state.streamingTranslation, throttleMs);
 
-  // Partial semantic arrays for streaming highlighting
-  const [partialSemanticArrays, setPartialSemanticArrays] = useState(null);
-
-  const throttledStreamingState = useThrottledValue(streamingTranslation, throttleMs);
-
-  /**
-   * Update streaming translation state
-   * @param {Object} data - Partial state to update
-   */
   const updateStreaming = useCallback((data) => {
-    setStreamingTranslation((prev) => ({
-      ...prev,
-      ...data,
-    }));
+    dispatch({ type: 'UPDATE_STREAMING', payload: data });
   }, []);
 
-  const setPartialSemanticArraysCallback = useCallback((arrays) => {
-    setPartialSemanticArrays(arrays);
+  const setProgressInfo = useCallback((info) => {
+    dispatch({ type: 'SET_PROGRESS_INFO', payload: info });
   }, []);
 
-  /**
-   * Reset all streaming state
-   */
+  const setPartialSemanticArrays = useCallback((arrays) => {
+    dispatch({ type: 'SET_PARTIAL_ARRAYS', payload: arrays });
+  }, []);
+
   const resetStreaming = useCallback(() => {
-    setProgressInfo(null);
-    setStreamingTranslation({
-      partialText: '',
-      progress: 0,
-      isStreaming: false,
-      completedChunks: 0,
-      totalChunks: 0,
-      batchNumber: 0,
-      avgTimePerChunk: 0,
-    });
-    setPartialSemanticArrays(null);
+    dispatch({ type: 'RESET' });
   }, []);
 
   return {
-    progressInfo,
-    partialSemanticArrays,
+    progressInfo: state.progressInfo,
+    partialSemanticArrays: state.partialSemanticArrays,
     throttledStreamingState,
     updateStreaming,
     setProgressInfo,
-    setPartialSemanticArrays: setPartialSemanticArraysCallback,
+    setPartialSemanticArrays,
     resetStreaming,
   };
 }
