@@ -3,15 +3,12 @@
  * Uses precomputed segments from SegmentPrecomputer for reliable highlighting
  */
 import React, { useMemo } from 'react';
-import type {
-  ClickableOriginalSemanticProps,
-  SegmentClickPayload,
-  SegmentClickHandler,
-} from '../../types/ClickableTypes';
+import type { ClickableOriginalSemanticProps } from '../../types/ClickableTypes';
 import { SegmentPrecomputer } from '../../utils/highlighting';
+import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
+import { HighlightableSegment } from './HighlightableSegment';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
 import styles from '../../styles/ClickableOriginalSemantic.module.css';
-import { logger } from '../../utils/logger';
 
 const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   originalText,
@@ -20,44 +17,11 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   highlightedTranslationUnitIndex = -1,
   onSegmentClick,
 }) => {
-  // Handle click on a semantic unit in original text
-  const handleUnitClick = (unitIndex: number) => {
-    // HIGH-1 FIX: Add comprehensive null/undefined guards
-    if (!semanticArrays || unitIndex < 0 || unitIndex >= semanticArrays.original.length) {
-      if (process.env.NODE_ENV === 'development') {
-        logger.warn('Invalid unit index or no semantic arrays:', unitIndex);
-      }
-      return;
-    }
-
-    const originalText = semanticArrays.original[unitIndex];
-    const translatedText = semanticArrays.translated[unitIndex];
-    const metadata = semanticArrays.metadata[unitIndex];
-
-    // Debug: Log which component is handling the click
-    if (process.env.NODE_ENV === 'development') {
-      logger.log(`🎯 ClickableOriginalSemantic (original-to-translation) handling click:`, {
-        unitIndex,
-        originalText,
-        translatedText,
-      });
-    }
-
-    // CRITICAL-6 FIX: Use proper SegmentClickPayload type with explicit handler cast
-    // Cast is needed because FlexibleClickHandler is a union type (SegmentClickHandler | SimpleClickHandler)
-    // TypeScript can't infer which one without the cast, but we know we're using SegmentClickHandler
-    if (onSegmentClick) {
-      const payload: SegmentClickPayload = {
-        unitIndex,
-        originalText,
-        translatedText,
-        source: metadata.source,
-        metadata,
-        direction: 'original-to-translation',
-      };
-      (onSegmentClick as SegmentClickHandler)(payload);
-    }
-  };
+  const handleUnitClick = useSegmentClickHandler(
+    semanticArrays,
+    onSegmentClick,
+    'original-to-translation'
+  );
 
   // Use SegmentPrecomputer to create reliable segments
   const segments = useMemo(() => {
@@ -84,18 +48,16 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
           highlightedTranslationUnitIndex === segment.unitIndex);
 
       return (
-        <span
+        <HighlightableSegment
           key={`segment-${segment.unitIndex}-${segment.start}-${index}`}
-          data-unit-index={segment.unitIndex}
-          onClick={() => handleUnitClick(segment.unitIndex)}
-          className={`${styles.clickableSegment} ${isHighlighted ? styles.clickableSegmentHighlighted : ''}`}
+          text={segment.text}
+          unitIndex={segment.unitIndex}
+          isHighlighted={isHighlighted}
           title={`"${segment.originalText}" → "${segment.translatedText}" (${segment.source})`}
-        >
-          {segment.text}
-        </span>
+          onClick={() => handleUnitClick(segment.unitIndex)}
+        />
       );
     } else {
-      // Non-clickable text (characters, punctuation, etc.)
       return (
         <span key={`text-${index}-${segment.start}`} className={styles.nonClickableText}>
           {segment.text}

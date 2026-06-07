@@ -11,22 +11,6 @@
   white-space: pre-wrap;
 }
 
-/* Clickable Segment */
-.clickableSegment {
-  cursor: pointer;
-  transition: color 0.15s ease;
-  display: inline;
-}
-
-.clickableSegment:hover {
-  color: var(--primary-color);
-}
-
-.clickableSegmentHighlighted {
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
 /* Non-clickable Text */
 .nonClickableText {
   color: var(--muted-text);

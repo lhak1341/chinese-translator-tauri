@@ -28,7 +28,7 @@ import AppReadinessOverlay from './AppReadinessOverlay';
 import { parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
 import { systemPerformanceMonitor } from '../utils/performance';
-import { scrollToHighlightedElement } from '../utils/highlighting';
+import { scrollToHighlightedElement, findCharacterOnlyMatch } from '../utils/highlighting';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
@@ -737,55 +737,12 @@ const Translator = ({ isActive = true }) => {
   const smoothLoadingManager = useRef(new SmoothLoadingManager());
 
   /**
-   * Character Only bridge effect - maps highlighting between Full Translation and Character Only
-   *
-   * Lifecycle: Runs when highlighting changes in Original or Full Translation panels
-   * Dependencies: highlightedUnitIndex, highlightedTranslationUnitIndex, semanticArrays,
-   *               characterOnlySemanticArrays, isCharacterOnlyClick
-   *
-   * Algorithm:
-   * 1. Skip if highlight originated from Character Only (prevents infinite loops)
-   * 2. Determine which text is highlighted (Full Translation or Original)
-   * 3. Find target segment in semantic arrays
-   * 4. Search for matching segments in Character Only arrays
-   * 5. For single match: Use directly
-   * 6. For multiple matches: Use context-based scoring algorithm
-   *
-   * Context-based scoring (for multiple occurrences):
-   * - Immediate context (±2 segments): 10 points per match
-   * - Distant context (±50 segments): 2 points per match
-   * - Sequential occurrence matching: 100 points for correct position
-   * - Falls back to position ratio if no context match
-   *
-   * Performance optimizations:
-   * - MAX_MATCHES limit (100) prevents memory exhaustion
-   * - CONTEXT_WINDOW limit (50) reduces slice overhead
-   * - Precomputed occurrence count (avoids O(n²) nested loop)
-   * - Precomputed context strings (eliminates repeated concatenation)
-   * - Early breaks when reaching MAX_MATCHES
-   *
-   * Race condition prevention:
-   * - Uses `cancelled` flag for cleanup
-   * - Validates array bounds before access
-   * - Checks cancelled flag before expensive scoring loop
-   *
-   * Error handling:
-   * - Validates semantic arrays exist
-   * - Bounds checking before array access
-   * - Clears highlighting if no matches found
-   * - Logs warnings for edge cases
+   * Character Only bridge effect — maps a Full Translation / Original highlight to the
+   * corresponding Character Only unit(s).
+   * Scoring algorithm: findCharacterOnlyMatch in CharacterOnlyBridge.ts.
    */
   useEffect(() => {
-    // HIGH-1 FIX: Add cleanup function to cancel in-flight operations
-    // Prevents race conditions when dependencies change during scoring algorithm
-    let cancelled = false;
-
-    // CODE REVIEW FIX (2026-02-01): Track computation state for proper cleanup
-    const computationState = {
-      cancelled: false,
-      targetSegment: null,
-      allMatches: null,
-    };
+    const computationState = { cancelled: false, targetSegment: null, allMatches: null };
     highlightingComputationRef.current = computationState;
 
     if (!semanticArrays || !characterOnlySemanticArrays) {
@@ -793,7 +750,6 @@ const Translator = ({ isActive = true }) => {
       return;
     }
 
-    // Skip this mapping if the highlight change originated from Character Only
     if (isCharacterOnlyClick) {
       logger.log(
         '🚫 Skipping Chinese Text → Character Only mapping (Character Only click in progress)'
@@ -801,15 +757,9 @@ const Translator = ({ isActive = true }) => {
       return;
     }
 
-    let targetSegment = null;
-    let sourceType = '';
-
-    // DEBUG: Bridge useEffect logging removed for performance
-
-    // Determine which text is highlighted
-    // HIGH-1 FIX: Validate array bounds before access to prevent undefined access
+    // Determine which index is highlighted (Full Translation takes priority over Original)
+    let activeIndex = -1;
     if (highlightedTranslationUnitIndex !== -1 && semanticArrays?.original) {
-      // Bounds check before accessing array
       if (highlightedTranslationUnitIndex >= semanticArrays.original.length) {
         logger.error('❌ Index out of bounds in bridge useEffect:', {
           index: highlightedTranslationUnitIndex,
@@ -819,12 +769,8 @@ const Translator = ({ isActive = true }) => {
         dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
         return;
       }
-      // Full Translation is highlighted
-      targetSegment = semanticArrays.original[highlightedTranslationUnitIndex];
-      sourceType = `Full Translation[${highlightedTranslationUnitIndex}]`;
-      logger.log('🎯 Detected Full Translation highlight:', { targetSegment, sourceType });
+      activeIndex = highlightedTranslationUnitIndex;
     } else if (highlightedUnitIndex !== -1 && semanticArrays?.original) {
-      // Bounds check before accessing array
       if (highlightedUnitIndex >= semanticArrays.original.length) {
         logger.error('❌ Index out of bounds in bridge useEffect:', {
           index: highlightedUnitIndex,
@@ -834,255 +780,20 @@ const Translator = ({ isActive = true }) => {
         dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
         return;
       }
-      // Chinese Text is highlighted (same semantic arrays as Full Translation)
-      targetSegment = semanticArrays.original[highlightedUnitIndex];
-      sourceType = `Chinese Text[${highlightedUnitIndex}]`;
-      // DEBUG: Chinese Text highlight detection (removed for performance)
+      activeIndex = highlightedUnitIndex;
     }
 
-    // HIGH-1 FIX: Check if operation was cancelled before proceeding
-    if (cancelled) return;
+    const matchIndices =
+      activeIndex !== -1
+        ? findCharacterOnlyMatch(activeIndex, semanticArrays, characterOnlySemanticArrays)
+        : null;
 
-    if (targetSegment) {
-      // DEBUG: Character Only mapping (removed for performance)
+    dispatchHighlighting({
+      type: 'SET_CHARACTER_ONLY_INDEX',
+      unitIndex: matchIndices ?? -1,
+    });
 
-      // Since Full Translation arrays are scrambled, use a direct matching approach
-      // Find all occurrences of this segment in Character Only arrays
-      // DEBUG: Array sampling removed for performance
-
-      const activeIndex =
-        highlightedTranslationUnitIndex !== -1
-          ? highlightedTranslationUnitIndex
-          : highlightedUnitIndex;
-      // DEBUG: Active segment lookup (removed for performance)
-
-      // Find all possible matches for this segment in Character Only
-      // HIGH-2 FIX: Limit matches to prevent memory exhaustion in long documents
-      // LOW-1 FIX: Document MAX_MATCHES value choice with reasoning
-      // MAX_MATCHES limits memory usage and scoring algorithm runtime:
-      // - Too low (<50): Accuracy degrades for common characters (missing correct occurrence)
-      // - 100: Good balance - 95%+ accuracy, <10MB memory spike, scoring <50ms on long docs
-      // - Too high (>200): Minimal accuracy gain, >20MB memory, scoring >100ms (noticeable lag)
-      // Value validated on 10,000+ character documents with common single-character segments
-      const MAX_MATCHES = 100;
-      const allMatches = [];
-
-      if (targetSegment.length === 1) {
-        // Single character - find all occurrences (with limit)
-        for (
-          let i = 0;
-          i < characterOnlySemanticArrays.original.length && allMatches.length < MAX_MATCHES;
-          i++
-        ) {
-          if (characterOnlySemanticArrays.original[i] === targetSegment) {
-            allMatches.push({ startIndex: i, indices: [i] });
-            // MEDIUM-1 FIX: Early break after reaching MAX_MATCHES to avoid unnecessary iterations
-            if (allMatches.length >= MAX_MATCHES) {
-              break;
-            }
-          }
-        }
-      } else {
-        // Multi-character segment - find consecutive matches (with limit)
-        for (
-          let i = 0;
-          i <= characterOnlySemanticArrays.original.length - targetSegment.length &&
-          allMatches.length < MAX_MATCHES;
-          i++
-        ) {
-          let isMatch = true;
-          const indices = [];
-
-          for (let j = 0; j < targetSegment.length; j++) {
-            if (characterOnlySemanticArrays.original[i + j] !== targetSegment[j]) {
-              isMatch = false;
-              break;
-            }
-            indices.push(i + j);
-          }
-
-          if (isMatch) {
-            allMatches.push({ startIndex: i, indices });
-            // MEDIUM-1 FIX: Early break after reaching MAX_MATCHES to avoid unnecessary inner loop iterations
-            if (allMatches.length >= MAX_MATCHES) {
-              break;
-            }
-          }
-        }
-      }
-
-      // Warn if limit reached (may affect accuracy)
-      if (allMatches.length === MAX_MATCHES) {
-        logger.warn(
-          `⚠️ Exceeded maximum matches (${MAX_MATCHES}) for "${targetSegment}" - scoring may be incomplete`
-        );
-      }
-
-      logger.log(`  Found ${allMatches.length} matches for "${targetSegment}":`, allMatches);
-
-      if (allMatches.length > 0) {
-        // For single occurrence, use it directly
-        if (allMatches.length === 1) {
-          // LOW-1 FIX: Add consistent logging for successful match selection
-          logger.log(`  Single match found at indices:`, allMatches[0].indices);
-          dispatchHighlighting({
-            type: 'SET_CHARACTER_ONLY_INDEX',
-            unitIndex: allMatches[0].indices,
-          });
-        } else {
-          // For multiple occurrences, determine which one by looking at surrounding context
-          // Find the context before and after the highlighted segment in Full Translation
-          // HIGH-2 FIX: Limit context window to prevent memory exhaustion (50 segments = ~1KB)
-          // For 20,000 char documents, unlimited slice creates 100KB+ per click
-          // LOW-2 FIX: Document CONTEXT_WINDOW value choice with reasoning
-          // CONTEXT_WINDOW limits memory usage during context-based scoring:
-          // - Too low (<20): Insufficient context for accurate occurrence matching (60-70% accuracy)
-          // - 50: Good balance - 90%+ accuracy, <1KB memory per segment, <5ms context extraction
-          // - Too high (>100): Minimal accuracy gain, >2KB memory, >10ms extraction (perceptible lag)
-          // Value validated on 20,000+ character documents with multiple occurrence segments
-          const CONTEXT_WINDOW = 50;
-          const segmentsBefore = semanticArrays.original.slice(
-            Math.max(0, activeIndex - CONTEXT_WINDOW),
-            activeIndex
-          );
-          const segmentsAfter = semanticArrays.original.slice(
-            activeIndex + 1,
-            Math.min(semanticArrays.original.length, activeIndex + 1 + CONTEXT_WINDOW)
-          );
-
-          // DEBUG: Context logging removed for performance
-
-          // HIGH-1 FIX: Check if operation was cancelled before expensive scoring loop
-          if (cancelled) return;
-
-          // MEDIUM-1 FIX: Precompute occurrence count to avoid O(n²) nested loop
-          // Count how many times targetSegment appears EARLIER IN CHINESE TEXT than activeIndex.
-          //
-          // BUG FIX: processChunksInParallel runs chunks concurrently — entries from a later
-          // chunk (e.g., "嘴巴" from chunk 2) can land at a LOWER array index than entries from
-          // an earlier chunk (e.g., "嘴" from chunk 1). Using `i < activeIndex` (array-index
-          // order) incorrectly counts out-of-order cross-chunk entries, making
-          // occurrenceInFullTranslation = 1 instead of 0, so the bridge picks the wrong
-          // character-only occurrence.
-          //
-          // Fix: compare by tokenIndex (global raw token index, monotonically increasing with
-          // Chinese text position after the getSemanticTokens fix in processChunksInParallel).
-          // Fall back to array-index order only when tokenIndex is unavailable.
-          const clickedTokenIndex = semanticArrays.metadata?.[activeIndex]?.tokenIndex ?? -1;
-          let occurrenceInFullTranslation = 0;
-          for (let i = 0; i < semanticArrays.original.length; i++) {
-            if (i === activeIndex) continue;
-            const appearsBeforeInText =
-              clickedTokenIndex >= 0
-                ? (semanticArrays.metadata?.[i]?.tokenIndex ?? -1) >= 0 &&
-                  semanticArrays.metadata[i].tokenIndex < clickedTokenIndex
-                : i < activeIndex; // fallback when tokenIndex unavailable
-            if (
-              appearsBeforeInText &&
-              (semanticArrays.original[i] === targetSegment ||
-                semanticArrays.original[i].includes(targetSegment))
-            ) {
-              occurrenceInFullTranslation++;
-            }
-          }
-
-          // LOW-3 FIX: Precompute context strings before scoring loop (avoid repeated concatenation)
-          // These strings don't change during iteration, so compute once
-          const immediateContextStr =
-            segmentsBefore.slice(-2).join('') + segmentsAfter.slice(0, 2).join('');
-          const fullContextStr = segmentsBefore.join('') + segmentsAfter.join('');
-
-          // Try to match context in Character Only to determine which occurrence
-          let bestMatch = allMatches[0]; // Default to first match
-          let bestScore = -1;
-
-          for (let matchIndex = 0; matchIndex < allMatches.length; matchIndex++) {
-            const match = allMatches[matchIndex];
-            let score = 0;
-
-            // Look for context characters around this match in Character Only
-            const beforeIndex = match.startIndex - 1;
-            const afterIndex = match.startIndex + targetSegment.length;
-
-            // Check immediate surrounding characters for direct match
-            if (beforeIndex >= 0) {
-              const charBefore = characterOnlySemanticArrays.original[beforeIndex];
-
-              // LOW-3 FIX: Use precomputed context strings (eliminates repeated concatenation)
-              if (immediateContextStr.includes(charBefore)) {
-                score += 10; // Higher weight for immediate context
-              } else if (fullContextStr.includes(charBefore)) {
-                score += 2; // Lower weight for distant context
-              }
-            }
-
-            if (afterIndex < characterOnlySemanticArrays.original.length) {
-              const charAfter = characterOnlySemanticArrays.original[afterIndex];
-
-              // LOW-3 FIX: Use precomputed context strings (eliminates repeated concatenation)
-              if (immediateContextStr.includes(charAfter)) {
-                score += 10; // Higher weight for immediate context
-              } else if (fullContextStr.includes(charAfter)) {
-                score += 2; // Lower weight for distant context
-              }
-            }
-
-            // Sequential occurrence matching: match Nth occurrence in Full Translation to Nth occurrence in Character Only
-            // MEDIUM-1 FIX: Use precomputed occurrence count (no longer nested O(n²) loop)
-            // occurrenceInFullTranslation is now computed once before the matchIndex loop
-
-            // This match represents the Nth occurrence in Character Only (0-indexed)
-            const occurrenceInCharacterOnly = matchIndex;
-
-            // Perfect match: same occurrence number gets maximum points
-            const occurrenceMatch = occurrenceInFullTranslation === occurrenceInCharacterOnly;
-            const sequentialScore = occurrenceMatch ? 100 : 0; // 100 points for sequential match, 0 for mismatch
-            const contextScore = score; // Context gets 0-20 points max
-
-            score = sequentialScore + contextScore;
-
-            // DEBUG: Per-match scoring removed for performance - only log final result
-
-            if (score > bestScore) {
-              bestScore = score;
-              bestMatch = match;
-            }
-          }
-
-          // If no context match found, fall back to position-based heuristic
-          if (bestScore === -1) {
-            // CRITICAL-2 FIX: Use position ratio instead of arbitrary threshold
-            // Calculate which occurrence based on relative position in translation
-            const totalUnits = semanticArrays.original.length;
-            const positionRatio = totalUnits > 0 ? activeIndex / totalUnits : 0;
-            const estimatedOccurrence = Math.round(positionRatio * (allMatches.length - 1));
-            const matchIndex = Math.max(0, Math.min(estimatedOccurrence, allMatches.length - 1));
-
-            bestMatch = allMatches[matchIndex];
-            logger.log(
-              `  No context match, using position ratio (${(positionRatio * 100).toFixed(0)}%): match ${matchIndex}/${allMatches.length - 1}`
-            );
-          } else {
-            logger.log(`  Best context match: score ${bestScore}`);
-          }
-
-          logger.log(`  Selected match at indices:`, bestMatch.indices);
-          dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: bestMatch.indices });
-        }
-      } else {
-        logger.warn(`⚠️ No matches found for "${targetSegment}" in Character Only`);
-        dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
-      }
-    } else {
-      // PERFORMANCE: Remove debugging noise from console
-      // Highlighting system works silently - no need to log when matches aren't found
-      dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
-    }
-
-    // HIGH-1 FIX: Cleanup function to cancel operation if dependencies change
-    // CODE REVIEW FIX (2026-02-01): Clear intermediate computation state to prevent memory leaks
     return () => {
-      cancelled = true;
       if (highlightingComputationRef.current) {
         highlightingComputationRef.current.cancelled = true;
         highlightingComputationRef.current.targetSegment = null;

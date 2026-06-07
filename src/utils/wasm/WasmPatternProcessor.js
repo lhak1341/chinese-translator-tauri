@@ -116,6 +116,8 @@ export async function initializeWasmPatternProcessor(patternsDict) {
   if (success) {
     lastPatternWarningTime = 0;
   } else {
+    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+    wasmPatternProcessor?.__destroy_into_raw();
     wasmPatternProcessor = null;
     wasmModule = null;
     logger.error('Pattern matching will not be available. Please check WASM configuration.');

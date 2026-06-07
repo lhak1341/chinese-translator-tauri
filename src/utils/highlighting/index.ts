@@ -14,6 +14,9 @@ export { SemanticArrayValidator, semanticArrayValidator } from './SemanticArrayV
 export type { SegmentPrecomputerOptions, SemanticArrays, Segment } from './SegmentPrecomputer';
 export { SegmentPrecomputer } from './SegmentPrecomputer';
 
+// --- Character-Only bridge scoring ---
+export { findCharacterOnlyMatch, MAX_MATCHES, CONTEXT_WINDOW } from './CharacterOnlyBridge';
+
 // --- Scroll ---
 export { scrollToHighlightedElement } from './ScrollHelpers';
 

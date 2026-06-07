@@ -89,6 +89,42 @@ describe('WasmPatternProcessor Error Handling', () => {
       expect(result).toBe(false);
     });
 
+    it('should call __destroy_into_raw on instance when verifyWasmInstance fails after instantiation', async () => {
+      const mockDestroyIntoRaw = vi.fn();
+
+      // Obtain the fresh (post-resetModules) verifyWasmInstance mock and make it fail
+      // once — simulates the lifecycle calling verifyWasmInstance AFTER instantiateFn
+      // already set wasmPatternProcessor = instance.
+      const integrityMod = await import('../wasm/wasmIntegrityVerifier');
+      vi.mocked(integrityMod.verifyWasmInstance).mockReturnValueOnce({
+        valid: false,
+        errors: ['Missing method: free'],
+      });
+
+      vi.doMock('../../wasm/translation_wasm_core.js', () => ({
+        default: vi.fn(() => Promise.resolve()),
+        WasmPatternProcessor: vi.fn(function () {
+          return {
+            initialize: vi.fn(() => true),
+            processTokens: vi.fn(() => []),
+            getStatistics: vi.fn(() => ({ phaseAPatterns: 5 })),
+            free: vi.fn(),
+            __destroy_into_raw: mockDestroyIntoRaw,
+          };
+        }),
+      }));
+
+      const { initializeWasmPatternProcessor } = await import('../wasm/WasmPatternProcessor.js');
+
+      const result = await initializeWasmPatternProcessor({ X的Y: 'Y của X' });
+
+      expect(result).toBe(false);
+      // __destroy_into_raw must be called to unregister the FinalizationRegistry —
+      // without it, a stale callback can free memory reused by TextAssembler, corrupting
+      // borrow_count and causing "recursive use" on the next assembleWithSpacing call.
+      expect(mockDestroyIntoRaw).toHaveBeenCalledTimes(1);
+    });
+
     it('should not re-initialize if already initialized', async () => {
       const mockInit = vi.fn(() => true);
       const mockIsInitialized = vi.fn(() => true);

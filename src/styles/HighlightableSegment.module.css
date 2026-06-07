@@ -1,0 +1,16 @@
+/* Canonical styles for the clickable span primitive used by char-only components. */
+
+.clickableSegment {
+  cursor: pointer;
+  transition: color 0.15s ease;
+  display: inline;
+}
+
+.clickableSegment:hover {
+  color: var(--primary-color);
+}
+
+.clickableSegmentHighlighted {
+  color: var(--primary-color);
+  font-weight: 600;
+}
