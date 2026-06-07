@@ -1,6 +1,3 @@
-import { dictionarySorter } from './dictionary/IncrementalDictionarySorter.js';
-import type { DictionaryData, SortingStats } from '../types/DictionaryTypes';
-
 /**
  * Converts a dictionary ID to a human-readable label.
  *
@@ -48,39 +45,3 @@ export function compareDictionaryOrder(a: { id: string }, b: { id: string }): nu
   if (b.id === 'properNouns') return 1;
   return a.id.localeCompare(b.id);
 }
-
-/**
- * Sort dictionary entries by length and then alphabetically.
- * Uses IncrementalDictionarySorter for better performance on partial updates.
- *
- * Shared between DictionaryContext and LazyDictionaryContext.
- */
-export const sortDictionaryEntries = (
-  dictionary: DictionaryData,
-  dictionaryId: string = 'unknown',
-  changedKey: string | null = null,
-  oldKey: string | null = null
-): DictionaryData => {
-  return dictionarySorter.sortDictionary(
-    dictionary,
-    dictionaryId,
-    changedKey ?? undefined,
-    oldKey ?? undefined
-  ) as DictionaryData;
-};
-
-/**
- * Get performance statistics from the incremental dictionary sorter.
- * Centralised here so context files don't need a direct dictionarySorter import.
- */
-export const getSortingStats = (): SortingStats => {
-  return dictionarySorter.getStats() as SortingStats;
-};
-
-/**
- * Reset performance statistics on the incremental dictionary sorter.
- * Centralised here so context files don't need a direct dictionarySorter import.
- */
-export const resetSortingStats = (): void => {
-  dictionarySorter.resetStats();
-};

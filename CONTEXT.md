@@ -174,4 +174,18 @@ Interface: `loadAllDictionaries(dictionaryIds: string[]): Promise<BatchLoadResul
 
 No React, no toast, no sorting. Testable as a plain async function — stub `window.electronAPI` and verify retry+classification behavior directly without mounting the provider.
 
-Entry point: `src/utils/dictionary/DictionaryBackend.ts`. Called exclusively from `loadInitialState` in `DictionaryContext.tsx`.
+Entry point: `src/utils/dictionary/DictionaryBackend.ts`. Called from `loadInitialState` (startup) and `loadDictionary` (single reload) in `DictionaryContext.tsx` — both use the same parallel+retry protocol.
+
+## DictionaryOperationReverter
+
+Pure diff-reversal for the undo/redo subsystem. `computeUndoMutation(op, currentDicts)` and `computeRedoMutation(op, currentDicts)` each take a `HistoryOperation` and current dict snapshot, return `MutationUpdate[] | null` (null = required dict missing). Returned entries are already sorted — pass directly to `commitMutation`. Covers all 5 op types: `add`, `update`, `delete`, `bulk_delete`, `move`/`bulk_move`.
+
+No React, no async, no side effects. All reversal logic is testable as plain functions.
+
+Entry point: `src/utils/dictionary/DictionaryOperationReverter.ts`. Called exclusively from `useDictionaryHistory`; the hook owns React state and wiring, this module owns all domain logic.
+
+## DictionaryPersistence
+
+The two write-to-disk protocols used by dictionary CRUD. `persistDictionaryMutation` — single-dict: optimistic `setDictionaries` → `saveDictionary` → rollback on failure. `commitMoveOp` — two-dict: optimistic `setDictionaries` → parallel save → partial revert (if one save succeeds and the other fails, the successful write is reverted to disk). Both returned callbacks are stable (no deps beyond `setDictionaries`).
+
+Entry point: `src/components/dictionary/useDictionaryPersistence.ts`. Injected into `useDictionaryCRUD` by `DictionaryProvider` via `const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries)`.

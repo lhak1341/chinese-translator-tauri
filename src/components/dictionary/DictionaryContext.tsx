@@ -15,11 +15,7 @@ import React, {
 import { usePersistSelectedDictionary } from '../../hooks/usePersistSelectedDictionary';
 import toast from '../../utils/toast';
 import { getDictionaryTypes } from './DictionaryTypes';
-import {
-  sortDictionaryEntries,
-  getSortingStats,
-  resetSortingStats,
-} from '../../utils/dictionaryHelpers';
+import { sortDictionaryEntries, getSortingStats, resetSortingStats } from '../../utils/dictionary';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import { logger } from '../../utils/logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
@@ -28,7 +24,7 @@ import { loadAppConfig } from '../../utils/appConfig';
 import type { DictionaryData, DictionaryContextInterface } from '../../types/DictionaryTypes';
 import { useDictionaryHistory } from './useDictionaryHistory';
 import { useDictionaryCRUD } from './useDictionaryCRUD';
-import type { MoveOpUpdates } from './useDictionaryCRUD';
+import { useDictionaryPersistence } from './useDictionaryPersistence';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
 import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
 
@@ -140,57 +136,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     invalidateEngine
   );
 
-  // Shared mutation protocol for single-dictionary CRUD ops.
-  // Owns: optimistic setDictionaries → saveDictionary → rollback on failure.
-  // Callers own: diff computation, sort, addToHistory, toast, invalidateEngine.
-  const persistDictionaryMutation = useCallback(
-    async (
-      dictionaryId: string,
-      oldData: DictionaryData,
-      sortedEntries: DictionaryData
-    ): Promise<boolean> => {
-      setDictionaries((prev) => ({ ...prev, [dictionaryId]: sortedEntries }));
-      const result = await window.electronAPI.saveDictionary(dictionaryId, sortedEntries);
-      if (result.success && result.data) return true;
-      setDictionaries((prev) => ({ ...prev, [dictionaryId]: oldData }));
-      return false;
-    },
-    [] // stable — setDictionaries is stable, window.electronAPI is a module global
-  );
-
-  // Two-dict move protocol: optimistic update → parallel save → partial revert on failure.
-  const commitMoveOp = useCallback(
-    async ({
-      sourceDictId,
-      oldSource,
-      newSource,
-      targetDictId,
-      oldTarget,
-      newTarget,
-    }: MoveOpUpdates): Promise<boolean> => {
-      setDictionaries((prev) => ({
-        ...prev,
-        [sourceDictId]: newSource,
-        [targetDictId]: newTarget,
-      }));
-      const [sr, tr] = await Promise.all([
-        window.electronAPI.saveDictionary(sourceDictId, newSource),
-        window.electronAPI.saveDictionary(targetDictId, newTarget),
-      ]);
-      if (sr.success && tr.success) return true;
-      setDictionaries((prev) => ({
-        ...prev,
-        [sourceDictId]: oldSource,
-        [targetDictId]: oldTarget,
-      }));
-      if (sr.success && !tr.success)
-        await window.electronAPI.saveDictionary(sourceDictId, oldSource).catch(() => {});
-      else if (!sr.success && tr.success)
-        await window.electronAPI.saveDictionary(targetDictId, oldTarget).catch(() => {});
-      return false;
-    },
-    []
-  ); // stable — setDictionaries is stable, window.electronAPI is a module global
+  const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries);
 
   const { addEntry, updateEntry, deleteEntry, bulkDeleteEntries, moveEntry, bulkMoveEntries } =
     useDictionaryCRUD(
@@ -271,14 +217,23 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   // Persist selected dictionary to configuration
   usePersistSelectedDictionary(selectedDictionary, isLoading);
 
-  // Function to load a specific dictionary
+  // Reload a single dictionary — same protocol as loadInitialState (parallel+retry via DictionaryBackend).
   const loadDictionary = useCallback(async (dictionaryId: string): Promise<void> => {
     try {
-      const result = await window.electronAPI.loadDictionary(dictionaryId);
-      if (result.success && result.data) {
+      const { loadedDictionaries, stillFailedIds, total } = await loadAllDictionaries([
+        dictionaryId,
+      ]);
+      const outcome = classifyLoadResult(stillFailedIds, total);
+      if (outcome.severity === 'critical') {
+        logger.error(`Failed to reload dictionary ${dictionaryId}`);
+        return;
+      }
+      const data = loadedDictionaries[dictionaryId];
+      if (data) {
         setDictionaries((prev) => ({
           ...prev,
-          [dictionaryId]: sortDictionaryEntries(result.data, dictionaryId),
+          [dictionaryId]:
+            Object.keys(data).length > 0 ? sortDictionaryEntries(data, dictionaryId) : data,
         }));
       }
     } catch (error) {

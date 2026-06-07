@@ -6,7 +6,7 @@ import { sanitizeDictionaryEntry } from '../../utils/text';
 import { logger } from '../../utils/logger';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../../utils/errors';
 import { extractErrorMessage } from '../../utils/errorHelpers';
-import { sortDictionaryEntries } from '../../utils/dictionaryHelpers';
+import { sortDictionaryEntries } from '../../utils/dictionary';
 import type {
   DictionaryData,
   DictionaryEntryValue,
