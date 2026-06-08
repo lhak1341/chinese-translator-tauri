@@ -9,7 +9,7 @@
  */
 
 use translation_wasm_core::pattern_processor::{
-    parse_pattern, SemanticToken, TwoPhasePatternProcessor, VariableCacheEntry,
+    parse_pattern, parse_patterns_dict, SemanticToken, TwoPhasePatternProcessor, VariableCacheEntry,
 };
 use std::collections::HashMap;
 
@@ -913,4 +913,129 @@ fn test_phase_b_variable_span_covers_long_phase_a_result() {
     assert_eq!(results[0].end_index, 8);
     assert_eq!(results[0].translation, "Ở trong suy đoán của Felix");
     assert_eq!(results[0].source, "hierarchical_composition");
+}
+
+/// Same as test_longer_pattern_beats_shorter_phase_a but via JSON round-trip (mirrors WASM path)
+#[test]
+fn test_longer_pattern_via_json_roundtrip() {
+    let patterns_json = r#"{
+        "X的手腕": {"allowAsPatternVariable":true,"allowedVariableTypes":{"X":["person","character"]},"lowPriority":false,"semanticType":"object","translation":"cổ tay X"},
+        "X的手腕上": {"allowAsPatternVariable":false,"allowedVariableTypes":{"X":["character"]},"lowPriority":false,"translation":"trên cổ tay X"}
+    }"#;
+    let tokens_json = r#"[
+        {"value":"还","originalIndex":0,"hasPrecedingBoundary":false},
+        {"value":"有","originalIndex":1,"hasPrecedingBoundary":false},
+        {"value":"他","originalIndex":2,"hasPrecedingBoundary":false},
+        {"value":"的","originalIndex":3,"hasPrecedingBoundary":false},
+        {"value":"手","originalIndex":4,"hasPrecedingBoundary":false},
+        {"value":"腕","originalIndex":5,"hasPrecedingBoundary":false},
+        {"value":"上","originalIndex":6,"hasPrecedingBoundary":false}
+    ]"#;
+    let cache_json = r#"{"他":{"translation":"hắn","source":"phrases_pattern_variable","type":"character"}}"#;
+
+    let patterns_map: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(patterns_json).unwrap();
+    let patterns = parse_patterns_dict(patterns_map);
+    let processor = TwoPhasePatternProcessor::new(patterns);
+
+    let mut tokens: Vec<SemanticToken> = serde_json::from_str(tokens_json).unwrap();
+    let cache: HashMap<String, VariableCacheEntry> = serde_json::from_str(cache_json).unwrap();
+
+    let results = processor.process_tokens(&mut tokens, &cache);
+
+    assert_eq!(results.len(), 1, "Expected 1 result, got: {:?}", results.iter().map(|r| format!("{} -> {}", r.original_text, r.translation)).collect::<Vec<_>>());
+    assert_eq!(results[0].original_text, "他的手腕上");
+    assert_eq!(results[0].translation, "trên cổ tay hắn");
+}
+
+/// Exact production replica: uses verbatim tokens/cache JSON from the browser debug log
+#[test]
+fn test_production_exact_json_replica() {
+    let tokens_json = r#"[
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"还","start":0,"end":1,"originalIndex":0,"hasPrecedingBoundary":false},
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"有","start":1,"end":2,"originalIndex":1,"hasPrecedingBoundary":false},
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"他","start":2,"end":3,"originalIndex":2,"hasPrecedingBoundary":false},
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"的","start":3,"end":4,"originalIndex":3,"hasPrecedingBoundary":false},
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"手","start":4,"end":5,"originalIndex":4,"hasPrecedingBoundary":false},
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"腕","start":5,"end":6,"originalIndex":5,"hasPrecedingBoundary":false},
+        {"translated":null,"isGrouped":false,"groupedWith":[],"groupLeader":null,"type":"chinese_char","value":"上","start":6,"end":7,"originalIndex":6,"hasPrecedingBoundary":false}
+    ]"#;
+    let cache_json = r#"{"他":{"translation":"hắn","source":"phrases_pattern_variable","type":"character"}}"#;
+    let patterns_json = r#"{
+        "X的手腕": {"allowAsPatternVariable":true,"allowedVariableTypes":{"X":["person","character"]},"lowPriority":false,"semanticType":"object","translation":"cổ tay X"},
+        "X的手腕上": {"allowAsPatternVariable":false,"allowedVariableTypes":{"X":["character"]},"lowPriority":false,"translation":"trên cổ tay X"}
+    }"#;
+
+    let patterns_map: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(patterns_json).unwrap();
+    let patterns = parse_patterns_dict(patterns_map);
+    let processor = TwoPhasePatternProcessor::new(patterns);
+
+    let mut tokens: Vec<SemanticToken> = serde_json::from_str(tokens_json).unwrap();
+    let cache: HashMap<String, VariableCacheEntry> = serde_json::from_str(cache_json).unwrap();
+
+    let results = processor.process_tokens(&mut tokens, &cache);
+
+    assert_eq!(results.len(), 1, "got: {:?}", results.iter().map(|r| format!("{}→{} [{}]", r.original_text, r.translation, r.source)).collect::<Vec<_>>());
+    assert_eq!(results[0].original_text, "他的手腕上");
+    assert_eq!(results[0].translation, "trên cổ tay hắn");
+}
+
+/// Regression test: "X的手腕上" (longer, Phase B only) must beat "X的手腕" (shorter, Phase A)
+/// Input: 还有他的手腕上 → tokens [还,有,他,的,手,腕,上] each a single char
+/// "X的手腕"  allowAsPatternVariable=true,  allowedVariableTypes={X:["person","character"]}
+/// "X的手腕上" allowAsPatternVariable=false, allowedVariableTypes={X:["character"]}
+/// Variable cache: 他 → {type:"character", translation:"hắn"}
+/// Expected: "X的手腕上" wins → translation "trên cổ tay hắn"
+#[test]
+fn test_longer_pattern_beats_shorter_phase_a() {
+    let mut allowed_short = HashMap::new();
+    allowed_short.insert("X".to_string(), vec!["person".to_string(), "character".to_string()]);
+
+    let mut allowed_long = HashMap::new();
+    allowed_long.insert("X".to_string(), vec!["character".to_string()]);
+
+    let pattern_short = parse_pattern(
+        "X的手腕".to_string(),
+        "cổ tay X".to_string(),
+        Some(allowed_short),
+        true,  // allowAsPatternVariable
+        false,
+        Some("object".to_string()),
+    );
+    let pattern_long = parse_pattern(
+        "X的手腕上".to_string(),
+        "trên cổ tay X".to_string(),
+        Some(allowed_long),
+        false, // NOT allowAsPatternVariable
+        false,
+        None,
+    );
+
+    let processor = TwoPhasePatternProcessor::new(vec![pattern_short, pattern_long]);
+
+    // Tokens: 还(0) 有(1) 他(2) 的(3) 手(4) 腕(5) 上(6)
+    let mut tokens = vec![
+        create_token("还", 0),
+        create_token("有", 1),
+        create_token("他", 2),
+        create_token("的", 3),
+        create_token("手", 4),
+        create_token("腕", 5),
+        create_token("上", 6),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "他".to_string(),
+        VariableCacheEntry {
+            translation: "hắn".to_string(),
+            source: "phrases_pattern_variable".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    assert_eq!(results.len(), 1, "Expected exactly one result, got: {:?}", results.iter().map(|r| format!("{} -> {}", r.original_text, r.translation)).collect::<Vec<_>>());
+    assert_eq!(results[0].original_text, "他的手腕上", "Expected longer pattern to win");
+    assert_eq!(results[0].translation, "trên cổ tay hắn");
 }

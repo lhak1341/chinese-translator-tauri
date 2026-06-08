@@ -949,6 +949,7 @@ pub fn find_best_pattern_match(
     let mut best_match: Option<PatternMatchResult> = None;
     let mut best_priority: i32 = -1;
     let mut best_length: usize = 0;
+    let mut best_var_count: usize = usize::MAX;
 
     // Test each candidate pattern
     for pattern in patterns {
@@ -966,14 +967,20 @@ pub fn find_best_pattern_match(
                 .map(|t| t.len())
                 .unwrap_or(0);
 
-            // Prefer longer matches first, then higher priority
-            let is_better = match_length > best_length ||
-                           (match_length == best_length && priority > best_priority);
+            let var_count = pattern.variables.len();
+
+            // Prefer longer matches first.
+            // On equal length, prefer fewer variables (more literal chars = more specific).
+            // On equal length and equal variable count, prefer higher priority.
+            let is_better = match_length > best_length
+                || (match_length == best_length && var_count < best_var_count)
+                || (match_length == best_length && var_count == best_var_count && priority > best_priority);
 
             if is_better {
                 best_match = Some(match_result);
                 best_priority = priority;
                 best_length = match_length;
+                best_var_count = var_count;
             }
         }
     }

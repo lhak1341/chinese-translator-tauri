@@ -1041,9 +1041,14 @@ export class SemanticPatternProcessor {
       if (matchResult.success) {
         const matchLen = matchResult.matchedTokens.length;
         const bestLen = bestMatch?.matchedTokens.length ?? -1;
+        const varCount = pattern.variables.length;
+        const bestVarCount = bestMatch?.pattern?.variables?.length ?? Infinity;
         if (
           matchLen > bestLen ||
-          (matchLen === bestLen && pattern.metadata.priority > bestPriority)
+          (matchLen === bestLen && varCount < bestVarCount) ||
+          (matchLen === bestLen &&
+            varCount === bestVarCount &&
+            pattern.metadata.priority > bestPriority)
         ) {
           bestMatch = matchResult;
           bestPriority = pattern.metadata.priority;
@@ -1151,11 +1156,27 @@ export class SemanticPatternProcessor {
             lookaheadPos++;
           }
 
-          // Check if the semantic token matches the literal sequence
-          if (semanticToken.value === literalSequence) {
-            matchedTokens.push(semanticToken);
-            currentPosition++;
-            // Skip ahead in pattern tokens since we consumed multiple literals
+          // Accumulate semantic tokens until their concat equals literalSequence.
+          // Handles both: many pattern literals → one semantic token (身+体 → 身体)
+          // and: many pattern literals → many semantic tokens (手+腕+上 → 手腕, 上).
+          // Mirrors Rust matcher.rs literal grouping fallback (lines 478–508).
+          let running = '';
+          let semConsumed = 0;
+          let grouped = false;
+          while (currentPosition + semConsumed < semanticTokens.length) {
+            running += semanticTokens[currentPosition + semConsumed].value;
+            semConsumed++;
+            if (running === literalSequence) {
+              grouped = true;
+              break;
+            }
+            if (running.length >= literalSequence.length) break;
+          }
+          if (grouped) {
+            for (let k = 0; k < semConsumed; k++) {
+              matchedTokens.push(semanticTokens[currentPosition + k]);
+            }
+            currentPosition += semConsumed;
             i = lookaheadPos - 1; // -1 because loop will increment
           } else {
             return { success: false };

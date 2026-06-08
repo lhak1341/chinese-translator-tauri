@@ -213,3 +213,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - `renderHook` hook dep objects must be stable `const` defined outside the callback — `makeArrays()` inline creates a new reference each render, triggers the effect dep, and causes OOM via infinite re-render loop.
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)
+
+### `find_best_pattern_match` / `findBestPatternMatch` Tie-Break Order
+
+When multiple patterns match the same token span: (1) longer match wins, (2) fewer variables wins (more literal chars = more specific), (3) higher priority wins. Without rule (2), a 2-variable pattern like `X的Y上` silently beats a 1-variable `X的手腕上` at equal length — do not change this order.
