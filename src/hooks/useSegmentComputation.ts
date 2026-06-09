@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ClickDirection } from '../types/ClickableTypes';
 import type { Segment, SemanticArrays } from '../utils/highlighting';
-import { SegmentPrecomputer } from '../utils/highlighting';
+import { precomputeSegments } from '../utils/highlighting';
 import { segmentFromPositionMetadata } from '../utils/highlighting/PositionMetadataSegmenter';
 import { logger } from '../utils/logger';
 
@@ -10,7 +10,7 @@ import { logger } from '../utils/logger';
  *
  * Routes by direction:
  *   'character-only-to-original' → segmentFromPositionMetadata (sync, uses translatedStart/End metadata)
- *   all other directions          → SegmentPrecomputer.precomputeSegments (async, WASM → JS fallback)
+ *   all other directions          → precomputeSegments (sync JS)
  *
  * Manages the async cancellation guard so callers hold only Segment[].
  */
@@ -47,10 +47,7 @@ export function useSegmentComputation(
 
     let cancelled = false;
     (async () => {
-      const computedSegments = await SegmentPrecomputer.precomputeSegments(
-        translatedText,
-        semanticArrays
-      );
+      const computedSegments = await precomputeSegments(translatedText, semanticArrays);
       if (!cancelled) {
         setSegments(computedSegments);
       }

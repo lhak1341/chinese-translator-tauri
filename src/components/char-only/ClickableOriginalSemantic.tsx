@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import type { ClickableOriginalSemanticProps } from '../../types/ClickableTypes';
-import { SegmentPrecomputer } from '../../utils/highlighting';
+import { precomputeOriginalSegments } from '../../utils/highlighting';
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
 import { HighlightableSegment } from './HighlightableSegment';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
@@ -28,7 +28,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
     if (!semanticArrays || !semanticArrays.original || semanticArrays.original.length === 0) {
       return [];
     }
-    return SegmentPrecomputer.precomputeOriginalSegments(originalText!, semanticArrays);
+    return precomputeOriginalSegments(originalText!, semanticArrays);
   }, [originalText, semanticArrays]);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)

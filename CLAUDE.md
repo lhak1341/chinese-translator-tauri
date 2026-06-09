@@ -34,7 +34,7 @@ pnpm type-check  # 0 errors expected
 
 ### Dual-Path Architecture
 
-- **Character-only**: `src/components/char-only/ClickableTranslationSemantic.tsx` + `ClickableOriginalSemantic.tsx` → `PositionMetadataSegmenter.ts` (sync; `SegmentPrecomputer.ts` is async/WASM only)
+- **Character-only**: `src/components/char-only/ClickableTranslationSemantic.tsx` + `ClickableOriginalSemantic.tsx` → `PositionMetadataSegmenter.ts` (sync; `SegmentPrecomputer.ts` is sync JS, named exports)
 - **Full Translation**: `src/components/full-translation/ClickableTranslationOptimized.tsx` → `TranslationEngine.js`
 
 Completely separate code paths. Debug the right one. Both subdirectories have an `index.ts` entry point.
@@ -67,6 +67,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Dynamic JSON imports:** Never use `import(path, { assert: { type: 'json' } })` — Rolldown silently fails to rewrite the path in production. Use a static `import data from '...json'` at the top of the file.
 
+**Unicode line terminators in regex:** `\u2028` (LINE SEPARATOR) and `\u2029` (PARAGRAPH SEPARATOR) are ECMAScript line terminators — stored as actual Unicode characters in a JS/TS file they break a regex literal. Always use `\u2028\u2029` escape sequences in regex character classes.
+
 **Testing:** `src/test/setup.ts` must stay — referenced by `vitest.config.ts:10`.
 
 **Deleted symbols — do not recreate:**
@@ -85,6 +87,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `EnhancedDictionaryManager` from `dictionary/EnhancedDictionaryManager.js` — merged into `DictionaryManager` via injected `WasmDictionaryAdapter`; use `new DictionaryManager({ wasmAdapter: new WasmDictionaryAdapter() })`
 - `TranslationSegmentCache` class + `translationSegmentCache` singleton from `utils/dictionary` — deleted (cache was removed from engine; hit rate permanently 0)
 - `SegmentPrecomputer.createRenderSegments`, `.getSegmentClassName`, `.getSegmentStyles`, `.getVisibleSegments` — deleted (dead, zero callers); `RenderSegment` interface also removed from highlighting barrel
+- `SegmentPrecomputer` class — declassed to named exports `precomputeSegments`, `precomputeOriginalSegments`, `findUnitMatch`, `normalizeText` from same file; `precomputeSegmentsWasm`, `convertMatchesToSegments`, `addNonSemanticSegments` deleted (dead WASM path, `WasmSegmentMatcher` was never globally defined)
 - `PerformanceProfiler.recordParallelPerformance`, `.recordParallelFallback`, `.getParallelPerformanceReport`, `.generateParallelRecommendations` — deleted (dead, zero callers)
 
 **Non-obvious contracts:**

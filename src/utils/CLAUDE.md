@@ -35,7 +35,7 @@ All three stem from the same root cause — `processChunksInParallel` assigns se
 
 1. **Full Translation word-level builder** (`TranslationEngine.js` ~line 6644): sort `candidateWords` by `tokenIndex` ascending for same-length ties.
 2. **Full Translation → Char-only bridge** (`CharacterOnlyBridge.ts`): count `occurrenceInSource` using `metadata[i].tokenIndex < clickedTokenIndex`, not `i < activeIndex`.
-3. **Original Chinese panel** (`SegmentPrecomputer.ts` ~line 724): sort `firstCharIndex` candidate lists by `tokenIndex` ascending after building them.
+3. **Original Chinese panel** (`SegmentPrecomputer.ts`, inside `precomputeOriginalSegments`): sort `firstCharIndex` candidate lists by `tokenIndex` ascending after building them.
 
 Any new greedy scan or occurrence counter over the semantic array must use `tokenIndex` order.
 
@@ -208,7 +208,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - `SemanticPatternProcessor.initializePatterns` object-format dict: key is `translation`, not `template` — `{ 'X的': { translation: 'của X', allowAsPatternVariable: true } }`
 - `vi.useFakeTimers()` + `requestAnimationFrame`: RAF fires at ~16ms, not 0ms — use `vi.advanceTimersByTimeAsync(20)` to advance past it before asserting retry/cancel behavior.
 - `WasmPatternProcessor` mock instances must include `__destroy_into_raw: vi.fn()` — catch blocks in `processTokensWasm` and `reinitializeWasmPatternProcessor` call `instance?.__destroy_into_raw()`, throwing "not a function" if absent.
-- `src/utils/highlighting` barrel: never use `vi.importActual` — the barrel re-exports WASM modules that crash the worker process. Mock minimally: `vi.mock('…/highlighting', () => ({ SegmentPrecomputer: { precomputeSegments: vi.fn() } }))`.
+- `src/utils/highlighting` barrel: never use `vi.importActual` — the barrel re-exports WASM modules that crash the worker process. Mock minimally: `vi.mock('…/highlighting', () => ({ precomputeSegments: vi.fn() }))`.
 - `vi.mock` factory is hoisted before module-level `const` declarations — use bare `vi.fn()` in the factory body and set return values in `beforeEach`.
 - `renderHook` hook dep objects must be stable `const` defined outside the callback — `makeArrays()` inline creates a new reference each render, triggers the effect dep, and causes OOM via infinite re-render loop.
 

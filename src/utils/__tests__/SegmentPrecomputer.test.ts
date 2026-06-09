@@ -1,18 +1,17 @@
 /**
- * Tests for SegmentPrecomputer
+ * Tests for segment pre-computation functions.
  *
- * Covers the JavaScript fallback path (precomputeSegmentsJS) which is the
- * entire character-only clickable highlighting engine, as well as the static
- * helpers that the WASM path shares: convertMatchesToSegments,
- * addNonSemanticSegments, findUnitMatch, createRenderSegments, and
- * getSegmentClassName.
- *
- * WASM path (precomputeSegmentsWasm) is excluded — it requires a live
- * WasmSegmentMatcher instance not available in the test environment.
+ * Covers: precomputeSegments (translated text), precomputeOriginalSegments
+ * (original Chinese text), findUnitMatch, and normalizeText.
  */
 
 import { describe, test, expect } from 'vitest';
-import { SegmentPrecomputer } from '../highlighting/SegmentPrecomputer';
+import {
+  precomputeSegments,
+  precomputeOriginalSegments,
+  findUnitMatch,
+  normalizeText,
+} from '../highlighting/SegmentPrecomputer';
 import type { SemanticArrays, Segment } from '../highlighting/SegmentPrecomputer';
 
 // ---------------------------------------------------------------------------
@@ -40,19 +39,19 @@ function nonSemanticSegments(segments: Segment[]) {
 }
 
 // ---------------------------------------------------------------------------
-// precomputeSegmentsJS — basic matching
+// precomputeSegments — basic matching
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
+describe('precomputeSegments — basic matching', () => {
   test('empty text returns empty segments', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const result = SegmentPrecomputer.precomputeSegmentsJS('', sa);
+    const result = precomputeSegments('', sa);
     expect(result).toEqual([]);
   });
 
   test('empty semantic arrays returns empty array (early-exit guard)', () => {
     // The function has an early-exit guard for empty translated arrays
-    const result = SegmentPrecomputer.precomputeSegmentsJS('hello', {
+    const result = precomputeSegments('hello', {
       translated: [],
       original: [],
       metadata: [],
@@ -62,7 +61,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
 
   test('single word match produces one semantic segment', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn', sa);
+    const segments = precomputeSegments('bạn', sa);
 
     const sem = semanticSegments(segments);
     expect(sem).toHaveLength(1);
@@ -74,7 +73,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
 
   test('assigns correct start/end positions', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn', sa);
+    const segments = precomputeSegments('bạn', sa);
     const sem = semanticSegments(segments);
     expect(sem[0].start).toBe(0);
     expect(sem[0].end).toBe('bạn'.length);
@@ -83,7 +82,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
   test('multiple words each produce a separate semantic segment (adjacent, no gap)', () => {
     // Use adjacent units with no space to avoid normalization-trim space-absorption
     const sa = makeSemanticArrays(['bạn', 'tốt'], ['你', '好']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạntốt', sa);
+    const segments = precomputeSegments('bạntốt', sa);
 
     const sem = semanticSegments(segments);
     expect(sem).toHaveLength(2);
@@ -96,14 +95,14 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
     // verify all characters are accounted for.
     const sa = makeSemanticArrays(['bạn', 'tốt'], ['你', '好']);
     const text = 'bạn tốt';
-    const segments = SegmentPrecomputer.precomputeSegmentsJS(text, sa);
+    const segments = precomputeSegments(text, sa);
     const reconstructed = segments.map((s) => s.text).join('');
     expect(reconstructed).toBe(text);
   });
 
   test('unmatched text at end produces non-semantic text segment', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn xyz', sa);
+    const segments = precomputeSegments('bạn xyz', sa);
 
     const sem = semanticSegments(segments);
     expect(sem).toHaveLength(1);
@@ -114,7 +113,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
 
   test('text before first match becomes a non-clickable segment', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('hello bạn', sa);
+    const segments = precomputeSegments('hello bạn', sa);
 
     const nonSem = nonSemanticSegments(segments);
     expect(nonSem.some((s) => s.text.includes('hello'))).toBe(true);
@@ -123,14 +122,14 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — basic matching', () => {
 });
 
 // ---------------------------------------------------------------------------
-// precomputeSegmentsJS — duplicate words
+// precomputeSegments — duplicate words
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.precomputeSegmentsJS — duplicate words', () => {
+describe('precomputeSegments — duplicate words', () => {
   test('two identical translated words each get their own segment', () => {
     // "bạn" appears twice in translated text (two different Chinese chars)
     const sa = makeSemanticArrays(['bạn', 'bạn'], ['你', '您']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn bạn', sa);
+    const segments = precomputeSegments('bạn bạn', sa);
 
     const sem = semanticSegments(segments);
     expect(sem).toHaveLength(2);
@@ -140,7 +139,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — duplicate words', () => {
 
   test('duplicate words preserve order: first occurrence maps to first unit', () => {
     const sa = makeSemanticArrays(['bạn', 'bạn'], ['你', '您'], ['character', 'proper_noun']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn bạn', sa);
+    const segments = precomputeSegments('bạn bạn', sa);
 
     const sem = semanticSegments(segments);
     expect(sem[0].unitIndex).toBe(0); // metadata.tokenIndex=0
@@ -149,17 +148,17 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — duplicate words', () => {
 });
 
 // ---------------------------------------------------------------------------
-// precomputeSegmentsJS — Vietnamese NFC normalization
+// precomputeSegments — Vietnamese NFC normalization
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.precomputeSegmentsJS — NFC normalization', () => {
+describe('precomputeSegments — NFC normalization', () => {
   test('matches NFD-encoded unit in NFC-encoded text', () => {
     // "màu" in NFC = 3 chars, in NFD = 4 chars
-    const nfdUnit = 'ma\u0300u'; // NFD decomposed
+    const nfdUnit = 'màu'; // NFD decomposed
     const nfcText = 'màu'; // NFC precomposed (U+00E0)
 
     const sa = makeSemanticArrays([nfdUnit], ['颜色']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS(nfcText, sa);
+    const segments = precomputeSegments(nfcText, sa);
 
     const sem = semanticSegments(segments);
     expect(sem).toHaveLength(1);
@@ -167,13 +166,13 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — NFC normalization', () => 
 });
 
 // ---------------------------------------------------------------------------
-// precomputeSegmentsJS — line breaks and punctuation
+// precomputeSegments — line breaks and punctuation
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.precomputeSegmentsJS — line breaks', () => {
+describe('precomputeSegments — line breaks', () => {
   test('newline produces a text segment', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn\ntốt', sa);
+    const segments = precomputeSegments('bạn\ntốt', sa);
 
     const lineBreaks = segments.filter((s) => s.type === 'text' && /[\r\n]/.test(s.text));
     expect(lineBreaks.length).toBeGreaterThanOrEqual(1);
@@ -181,7 +180,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — line breaks', () => {
 
   test('semantic segment after newline is still matched', () => {
     const sa = makeSemanticArrays(['bạn', 'tốt'], ['你', '好']);
-    const segments = SegmentPrecomputer.precomputeSegmentsJS('bạn\ntốt', sa);
+    const segments = precomputeSegments('bạn\ntốt', sa);
 
     // Due to normalizeText trimming, the newline may be absorbed into the second
     // segment's offset=0 match. What matters is that both originals are represented
@@ -195,14 +194,14 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — line breaks', () => {
 });
 
 // ---------------------------------------------------------------------------
-// precomputeSegmentsJS — position integrity
+// precomputeSegments — position integrity
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.precomputeSegmentsJS — position integrity', () => {
+describe('precomputeSegments — position integrity', () => {
   test('segment positions cover entire text without gaps or overlaps', () => {
     const sa = makeSemanticArrays(['bạn', 'tốt', 'lắm'], ['你', '好', '很']);
     const text = 'bạn tốt lắm';
-    const segments = SegmentPrecomputer.precomputeSegmentsJS(text, sa);
+    const segments = precomputeSegments(text, sa);
 
     // Verify that segments are sorted by start position
     for (let i = 1; i < segments.length; i++) {
@@ -219,7 +218,7 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — position integrity', () =>
   test('segment text matches substring of original text', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
     const text = 'bạn';
-    const segments = SegmentPrecomputer.precomputeSegmentsJS(text, sa);
+    const segments = precomputeSegments(text, sa);
 
     for (const seg of segments) {
       expect(seg.text).toBe(text.substring(seg.start, seg.end));
@@ -231,9 +230,9 @@ describe('SegmentPrecomputer.precomputeSegmentsJS — position integrity', () =>
 // findUnitMatch
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.findUnitMatch', () => {
+describe('findUnitMatch', () => {
   test('exact match at start returns found=true, offset=0', () => {
-    const result = SegmentPrecomputer.findUnitMatch('bạn', 'bạn');
+    const result = findUnitMatch('bạn', 'bạn');
     expect(result.found).toBe(true);
     expect(result.offset).toBe(0);
   });
@@ -242,34 +241,34 @@ describe('SegmentPrecomputer.findUnitMatch', () => {
     // normalizeText trims, so " bạn" normalises to "bạn" → matches at offset=0.
     // The exact offset value is an implementation detail of the fast-path;
     // the important assertion is that the unit IS found.
-    const result = SegmentPrecomputer.findUnitMatch(' bạn tốt', 'bạn');
+    const result = findUnitMatch(' bạn tốt', 'bạn');
     expect(result.found).toBe(true);
   });
 
   test('match after leading punctuation returns correct offset', () => {
-    const result = SegmentPrecomputer.findUnitMatch('"bạn', 'bạn');
+    const result = findUnitMatch('"bạn', 'bạn');
     expect(result.found).toBe(true);
     expect(result.offset).toBeGreaterThanOrEqual(1);
   });
 
   test('no match returns found=false', () => {
-    const result = SegmentPrecomputer.findUnitMatch('xyz', 'bạn');
+    const result = findUnitMatch('xyz', 'bạn');
     expect(result.found).toBe(false);
   });
 
   test('empty remainingText returns found=false', () => {
-    const result = SegmentPrecomputer.findUnitMatch('', 'bạn');
+    const result = findUnitMatch('', 'bạn');
     expect(result.found).toBe(false);
   });
 
   test('case-insensitive matching (Bạn matches bạn)', () => {
-    const result = SegmentPrecomputer.findUnitMatch('Bạn', 'bạn');
+    const result = findUnitMatch('Bạn', 'bạn');
     expect(result.found).toBe(true);
   });
 
   test('offset does not exceed remainingText length', () => {
     // Safety: offset must always be a valid index into the original text
-    const result = SegmentPrecomputer.findUnitMatch('  bạn', 'bạn');
+    const result = findUnitMatch('  bạn', 'bạn');
     expect(result.offset).toBeLessThan('  bạn'.length);
   });
 });
@@ -278,122 +277,27 @@ describe('SegmentPrecomputer.findUnitMatch', () => {
 // normalizeText
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.normalizeText', () => {
+describe('normalizeText', () => {
   test('lowercases text', () => {
-    expect(SegmentPrecomputer.normalizeText('Bạn')).toBe('bạn');
+    expect(normalizeText('Bạn')).toBe('bạn');
   });
 
   test('collapses whitespace', () => {
-    expect(SegmentPrecomputer.normalizeText('bạn  tốt')).toBe('bạn tốt');
+    expect(normalizeText('bạn  tốt')).toBe('bạn tốt');
   });
 
   test('zero-width space (U+200B) is handled by whitespace normalization', () => {
-    // U+200B falls in the \u2000-\u200F range that gets collapsed to a regular space.
+    // U+200B falls in the  -‏ range that gets collapsed to a regular space.
     // Then the ZWS removal regex runs but it's already a space.
     // The actual result is 'b ạn' (space inserted where ZWS was).
-    const result = SegmentPrecomputer.normalizeText('b\u200Bạn');
+    const result = normalizeText('b​ạn');
     // The ZWS is either removed or replaced with a space — in either case the
     // result does NOT still contain the original U+200B codepoint.
-    expect(result).not.toContain('\u200B');
+    expect(result).not.toContain('​');
   });
 
   test('trims leading/trailing whitespace', () => {
-    expect(SegmentPrecomputer.normalizeText('  bạn  ')).toBe('bạn');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// addNonSemanticSegments
-// ---------------------------------------------------------------------------
-
-describe('SegmentPrecomputer.addNonSemanticSegments', () => {
-  test('space character produces type=space segment', () => {
-    const segs: Segment[] = [];
-    SegmentPrecomputer.addNonSemanticSegments(segs, ' ', 0);
-    expect(segs).toHaveLength(1);
-    expect(segs[0].type).toBe('space');
-    expect(segs[0].isClickable).toBe(false);
-  });
-
-  test('newline produces type=text segment', () => {
-    const segs: Segment[] = [];
-    SegmentPrecomputer.addNonSemanticSegments(segs, '\n', 0);
-    expect(segs.length).toBeGreaterThanOrEqual(1);
-    expect(segs[0].type).toBe('text');
-  });
-
-  test('plain text produces type=text segment', () => {
-    const segs: Segment[] = [];
-    SegmentPrecomputer.addNonSemanticSegments(segs, 'xyz', 5);
-    expect(segs.some((s) => s.text.includes('xyz'))).toBe(true);
-    expect(segs[0].start).toBe(5);
-  });
-
-  test('positions are offset by startPosition', () => {
-    const segs: Segment[] = [];
-    SegmentPrecomputer.addNonSemanticSegments(segs, 'abc', 10);
-    expect(segs[0].start).toBe(10);
-    expect(segs[0].end).toBe(13);
-  });
-
-  test('empty text produces no segments', () => {
-    const segs: Segment[] = [];
-    SegmentPrecomputer.addNonSemanticSegments(segs, '', 0);
-    expect(segs).toHaveLength(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// convertMatchesToSegments
-// ---------------------------------------------------------------------------
-
-describe('SegmentPrecomputer.convertMatchesToSegments', () => {
-  test('single match produces one semantic segment', () => {
-    const text = 'bạn tốt';
-    const matches = [{ position: 0, length: 3, unitIndex: 0 }];
-    const units = [
-      { index: 0, unit: 'bạn', original: '你', metadata: { source: 'character', tokenIndex: 0 } },
-    ];
-
-    const segments = SegmentPrecomputer.convertMatchesToSegments(text, matches, units);
-    const sem = semanticSegments(segments);
-    expect(sem).toHaveLength(1);
-    expect(sem[0].text).toBe('bạn');
-    expect(sem[0].isClickable).toBe(true);
-  });
-
-  test('text between matches becomes non-semantic segment', () => {
-    const text = 'bạn tốt';
-    const matches = [
-      { position: 0, length: 3, unitIndex: 0 },
-      { position: 4, length: 3, unitIndex: 1 },
-    ];
-    const units = [
-      { index: 0, unit: 'bạn', original: '你', metadata: { source: 'character', tokenIndex: 0 } },
-      { index: 1, unit: 'tốt', original: '好', metadata: { source: 'character', tokenIndex: 1 } },
-    ];
-
-    const segments = SegmentPrecomputer.convertMatchesToSegments(text, matches, units);
-    // Space at position 3 should be non-semantic
-    const nonSem = nonSemanticSegments(segments);
-    expect(nonSem.some((s) => s.text === ' ')).toBe(true);
-  });
-
-  test('text after last match is included', () => {
-    const text = 'bạn xyz';
-    const matches = [{ position: 0, length: 3, unitIndex: 0 }];
-    const units = [
-      { index: 0, unit: 'bạn', original: '你', metadata: { source: 'character', tokenIndex: 0 } },
-    ];
-
-    const segments = SegmentPrecomputer.convertMatchesToSegments(text, matches, units);
-    const allText = segments.map((s) => s.text).join('');
-    expect(allText).toBe('bạn xyz');
-  });
-
-  test('empty matches array returns only non-semantic segments', () => {
-    const segments = SegmentPrecomputer.convertMatchesToSegments('hello', [], []);
-    expect(semanticSegments(segments)).toHaveLength(0);
+    expect(normalizeText('  bạn  ')).toBe('bạn');
   });
 });
 
@@ -401,10 +305,10 @@ describe('SegmentPrecomputer.convertMatchesToSegments', () => {
 // precomputeOriginalSegments
 // ---------------------------------------------------------------------------
 
-describe('SegmentPrecomputer.precomputeOriginalSegments', () => {
+describe('precomputeOriginalSegments', () => {
   test('matches original Chinese characters', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeOriginalSegments('你好', sa);
+    const segments = precomputeOriginalSegments('你好', sa);
 
     const sem = semanticSegments(segments);
     expect(sem).toHaveLength(1);
@@ -414,7 +318,7 @@ describe('SegmentPrecomputer.precomputeOriginalSegments', () => {
 
   test('unmatched characters become non-clickable', () => {
     const sa = makeSemanticArrays(['bạn'], ['你']);
-    const segments = SegmentPrecomputer.precomputeOriginalSegments('你好', sa);
+    const segments = precomputeOriginalSegments('你好', sa);
 
     const nonSem = nonSemanticSegments(segments);
     expect(nonSem.some((s) => s.text === '好')).toBe(true);
@@ -422,7 +326,7 @@ describe('SegmentPrecomputer.precomputeOriginalSegments', () => {
 
   test('empty original returns empty array', () => {
     const sa = makeSemanticArrays([], [], []);
-    const segments = SegmentPrecomputer.precomputeOriginalSegments('你好', sa);
+    const segments = precomputeOriginalSegments('你好', sa);
     expect(segments).toHaveLength(0);
   });
 });

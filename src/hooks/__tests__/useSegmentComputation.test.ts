@@ -25,17 +25,17 @@ const ASYNC_SEGMENT = {
 };
 
 vi.mock('../../utils/highlighting', () => ({
-  SegmentPrecomputer: { precomputeSegments: vi.fn() },
+  precomputeSegments: vi.fn(),
 }));
 
 vi.mock('../../utils/highlighting/PositionMetadataSegmenter', () => ({
   segmentFromPositionMetadata: vi.fn(),
 }));
 
-import { SegmentPrecomputer } from '../../utils/highlighting';
+import { precomputeSegments } from '../../utils/highlighting';
 import { segmentFromPositionMetadata } from '../../utils/highlighting/PositionMetadataSegmenter';
 
-const mockPrecompute = SegmentPrecomputer.precomputeSegments as ReturnType<typeof vi.fn>;
+const mockPrecompute = precomputeSegments as ReturnType<typeof vi.fn>;
 const mockSync = segmentFromPositionMetadata as ReturnType<typeof vi.fn>;
 
 // Stable fixture — must NOT be created inside renderHook callbacks.
@@ -94,7 +94,7 @@ describe('useSegmentComputation — empty / guard cases', () => {
 });
 
 describe('useSegmentComputation — character-only-to-original path (sync)', () => {
-  test('calls segmentFromPositionMetadata, not SegmentPrecomputer', () => {
+  test('calls segmentFromPositionMetadata, not precomputeSegments', () => {
     renderHook(() => useSegmentComputation('character-only-to-original', 'tốt của tốt', ARRAYS));
     expect(mockSync).toHaveBeenCalledOnce();
     expect(mockSync).toHaveBeenCalledWith('tốt của tốt', ARRAYS);
@@ -110,7 +110,7 @@ describe('useSegmentComputation — character-only-to-original path (sync)', () 
 });
 
 describe('useSegmentComputation — translation-to-original path (async)', () => {
-  test('calls SegmentPrecomputer.precomputeSegments, not segmentFromPositionMetadata', async () => {
+  test('calls precomputeSegments, not segmentFromPositionMetadata', async () => {
     renderHook(() => useSegmentComputation('translation-to-original', 'hello world', ARRAYS));
     await waitFor(() => expect(mockPrecompute).toHaveBeenCalledOnce());
     expect(mockSync).not.toHaveBeenCalled();
