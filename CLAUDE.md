@@ -77,7 +77,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `LegacySystemFlags.js` and all its exports — permanently removed
 - `createReadonlyTokens` from `ReadonlyOptimizationUtils.js` — only `scanTokens` exported
 - `OptimizedSemanticArrayBuilder` — entire class deleted; renamed to `SemanticArrayBuilder` (do not import old name)
-- `V8OptimizationUtils.js`, `PatternParityTest.js` — in `src/utils/__benchmarks__/` (dev/debug only)
+- `V8OptimizationUtils.js`, `PatternParityTest.js`, `OptimizationBenchmarks.js` — in `src/utils/__benchmarks__/` (dev/debug only); `OptimizationBenchmarks.js` is dynamically imported in `App.jsx` inside the `process.env.NODE_ENV === 'development'` block — not in the production bundle
 - `SemanticPatternProcessor.applyPatternMatch` — deleted; `processTokens()` now returns `PatternProcessorResult[]`, apply via `applyHierarchicalResults(tokens, results, options)`
 - `useDictionaryConfig.js` — deleted; use `useDictionaryModals` from `src/hooks/useDictionaryModals.js`
 - `useTranslationController.forceCleanup` — removed (unused); hook returns only `{createController, cleanup, cancelAll, getActiveCount}`
@@ -91,6 +91,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `PerformanceProfiler.recordParallelPerformance`, `.recordParallelFallback`, `.getParallelPerformanceReport`, `.generateParallelRecommendations` — deleted (dead, zero callers)
 - `DictionaryManager._wasmAdapter`, `._wasmInitialized`, `._wasmInitPromise`, `._wasmValidationCallCount`, `.performanceComparison` — extracted to `DictionaryWasmLookup`; use `this.wasmLookup` (set in constructor if `options.wasmAdapter` provided)
 - `DictionaryManager._translateWasm`, `._findAllMatchesWasm`, `._validateWasmSync`, `._syncDictionariesToWasmSequential`, `._initializeWasm` — extracted to `DictionaryWasmLookup` as `translate()`, `findAllMatches()`, `_validate()`, `sync()`, `_doInit()`
+- `EVDT` inline scroll state (`scrollTop`, `containerHeight`, `isScrolling`, `scrollVelocity`), refs (`scrollRef`, `scrollTimeoutRef`, `lastScrollTop`, `lastScrollTime`, `resizeObserverRef`), and callbacks (`scrollRefCallback`, `handleScroll`, `scrollToTop`, `scrollToBottom`, `visibleRange` memo, `scrollRestore` RAF effect) — extracted to `useVirtualScrollRange` in `src/hooks/useVirtualScrollRange.ts`; EVDT uses `const scroll = useVirtualScrollRange(totalItems, { itemHeight, bufferSize, isActive, scrollRestore, onScrollSave })`. Hook exposes `scroll.scrollRef` (for `useEntrySelection` + restore effect) and `scroll.setScrollTop` (state-only sync). `bufferSize` + adaptive buffer effect stay in EVDT.
 
 **Non-obvious contracts:**
 

@@ -15,7 +15,7 @@
  */
 
 import { logger } from '../logger';
-import { systemPerformanceMonitor } from './SystemPerformanceMonitor.js';
+import { systemPerformanceMonitor } from '../performance/SystemPerformanceMonitor.js';
 
 /**
  * Optimization benchmark suite
@@ -1303,13 +1303,4 @@ export class OptimizationBenchmarks {
   }
 }
 
-// Export singleton instance
 export const optimizationBenchmarks = new OptimizationBenchmarks();
-
-// Development API exposure
-if (process.env.NODE_ENV === 'development') {
-  if (typeof window !== 'undefined') {
-    window.optimizationBenchmarks = optimizationBenchmarks;
-    window.runOptimizationBenchmarks = () => optimizationBenchmarks.runFullSuite();
-  }
-}

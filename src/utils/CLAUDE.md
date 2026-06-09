@@ -211,6 +211,9 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - `src/utils/highlighting` barrel: never use `vi.importActual` — the barrel re-exports WASM modules that crash the worker process. Mock minimally: `vi.mock('…/highlighting', () => ({ precomputeSegments: vi.fn() }))`.
 - `vi.mock` factory is hoisted before module-level `const` declarations — use bare `vi.fn()` in the factory body and set return values in `beforeEach`.
 - `renderHook` hook dep objects must be stable `const` defined outside the callback — `makeArrays()` inline creates a new reference each render, triggers the effect dep, and causes OOM via infinite re-render loop.
+- `ResizeObserver` (and other browser APIs called with `new`) must be mocked with class syntax — `vi.fn().mockImplementation(arrow)` is not constructable; use `class MockRO { constructor(cb) {...} observe = vi.fn(); disconnect = vi.fn(); }` then `global.ResizeObserver = MockRO as unknown as typeof ResizeObserver`.
+- Read-only DOM properties (`scrollHeight`, `clientHeight`, `scrollWidth`) can't be set via `Object.assign` or direct assignment — use `Object.defineProperty(node, 'scrollHeight', { get: () => 8000 })`.
+- `renderHook` + `useRef(null)`: effects that early-return on `!ref.current` never fire their body — no DOM node is attached at render time. Either move the guard inside the async callback, remove it from the top-level guard, or call the callback ref before the effect is expected to run.
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)
 

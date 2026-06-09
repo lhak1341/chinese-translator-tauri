@@ -19,6 +19,7 @@ import { VirtualRowComponent, ITEM_HEIGHT } from './VirtualRowComponent';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
 import { useContextMenu } from '../../hooks/useContextMenu';
+import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
 
 /**
  * Props for EnhancedVirtualizedDictionaryTable component
@@ -81,15 +82,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
   const [editingEntry, setEditingEntry] = useState<EditingEntryData | null>(null);
   const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
-  const [scrollTop, setScrollTop] = useState<number>(0);
-  const [containerHeight, setContainerHeight] = useState<number>(600);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [preservedScrollTop, setPreservedScrollTop] = useState<number | null>(null);
-  const [isScrolling, setIsScrolling] = useState<boolean>(false);
 
   // OPTIMIZATION: Adaptive buffer sizing state
   const [bufferSize, setBufferSize] = useState<number>(10); // Start with default, will be optimized
-  const [scrollVelocity, setScrollVelocity] = useState<number>(0);
 
   // Filter panel state
   const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
@@ -101,11 +98,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [filterLowPriority, setFilterLowPriority] = useState<boolean>(false);
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const lastScrollTop = useRef<number>(0);
-  const lastScrollTime = useRef<number>(Date.now());
 
   // Reset transient states when dictionary changes; search/filter state is global and
   // only reset when switching to a dictionary type where a filter doesn't apply:
@@ -139,21 +132,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     resetSelection();
     closeContextMenu();
     setIsUpdating(false);
-    // Reset DOM scroll position as well as React state.
-    // Without the DOM reset, a stale browser scrollTop (from the previous
-    // dictionary) can persist even after scrollTop state is zeroed.  The
-    // browser only auto-constrains scrollTop when the new totalHeight is
-    // SMALLER than the old scroll position; when the new list is long enough
-    // to contain the old position the DOM stays put but React renders as
-    // though scrollTop=0 — mismatching offsetY leaves the viewport empty.
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
-    }
-    setScrollTop(0);
     setPreservedScrollTop(null);
-    setIsScrolling(false);
-    setScrollVelocity(0);
-    lastScrollTop.current = 0;
+    // scroll is declared after this effect but the closure runs post-render, so it's initialized
+    scroll.resetScroll();
   }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selections when switching between duplicate and normal modes
@@ -179,61 +160,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     };
   }, [searchTerm]);
 
-  // Reset scroll position when search term changes.
-  // Without this, a stale `scrollTop` state can cause `startIndex` to exceed
-  // `filteredEntries.length`, rendering no rows — the spacer background colour
-  // then looks like "alternating shading stopped".
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
-    }
-    setScrollTop(0);
-    lastScrollTop.current = 0;
-  }, [debouncedSearchTerm]);
-
-  // Remeasure container height when tab becomes active (fixes virtualization on tab switch)
-  useEffect(() => {
-    if (isActive && scrollRef.current) {
-      // Use requestAnimationFrame to ensure DOM has fully rendered
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          const height = scrollRef.current.clientHeight;
-          if (height > 0) {
-            setContainerHeight(height);
-          }
-        }
-      });
-    }
-  }, [isActive]);
-
-  // Track ResizeObserver instance for cleanup
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-
-  // Callback ref to set up ResizeObserver when scroll element is ready
-  const scrollRefCallback = useCallback((node: HTMLDivElement | null) => {
-    // Cleanup previous observer
-    if (resizeObserverRef.current) {
-      resizeObserverRef.current.disconnect();
-      resizeObserverRef.current = null;
-    }
-
-    // Store ref for other code that uses scrollRef.current
-    scrollRef.current = node;
-
-    if (node) {
-      // Set up ResizeObserver to measure viewport height
-      const resizeObserver = new ResizeObserver((entries) => {
-        for (let entry of entries) {
-          const height = entry.contentRect.height;
-          setContainerHeight(height);
-        }
-      });
-
-      resizeObserver.observe(node);
-      resizeObserverRef.current = resizeObserver;
-    }
-  }, []);
-
   const { filteredEntries, filteredDuplicateRows, duplicateGroupIndices } =
     useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, {
       debouncedSearchTerm,
@@ -244,6 +170,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       filterAllowAsVariable,
       filterLowPriority,
     });
+
+  const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
+
+  const scroll = useVirtualScrollRange(totalItems, {
+    itemHeight: ITEM_HEIGHT,
+    bufferSize,
+    isActive,
+    scrollRestore,
+    onScrollSave,
+  });
 
   const {
     selectedEntries,
@@ -257,13 +193,20 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     filteredEntries,
     dictionaries,
     showDuplicatesMode,
-    scrollRef,
-    setScrollTop,
+    scrollRef: scroll.scrollRef,
+    setScrollTop: scroll.setScrollTop,
     bulkDeleteEntries,
     onRefreshDuplicates,
     onScrollSave,
     onSelectionChange,
   });
+
+  // Reset scroll + transient state when search term changes.
+  // Without the scroll reset, a stale scrollTop can push startIndex past the filtered
+  // list end, leaving the spacer background visible ("alternating shading stopped").
+  useEffect(() => {
+    scroll.resetScroll();
+  }, [debouncedSearchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dynamic buffer sizing based on list size
   // OPTIMIZATION: Adaptive buffer size calculation
@@ -271,11 +214,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     const calculateOptimalBuffer = async () => {
       try {
         const optimalSize = await adaptiveBufferCalculator.calculateOptimalBufferSize({
-          containerHeight,
+          containerHeight: scroll.containerHeight,
           itemHeight: ITEM_HEIGHT,
           totalItems: filteredEntries.length,
-          scrollVelocity,
-          isScrolling,
+          scrollVelocity: scroll.scrollVelocity,
+          isScrolling: scroll.isScrolling,
         });
 
         if (optimalSize !== bufferSize) {
@@ -291,40 +234,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     const debounceTimer = setTimeout(calculateOptimalBuffer, 100);
     return () => clearTimeout(debounceTimer);
   }, [
-    containerHeight,
+    scroll.containerHeight,
     filteredEntries.length,
     filteredDuplicateRows.length,
-    scrollVelocity,
-    isScrolling,
+    scroll.scrollVelocity,
+    scroll.isScrolling,
     bufferSize,
-  ]);
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Optimized visible range calculation with adaptive buffer
-  const visibleRange = useMemo(() => {
-    const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
-    // bufferSize can be a non-integer (e.g. 22.5 from the 'medium' tier 1.5× multiplier).
-    // Floor it here so that startIndex, offsetY, and backgroundPositionY are all integers —
-    // a fractional startIndex produces sub-pixel row positioning and a wrong gradient phase.
-    const buffer = Math.floor(bufferSize);
-    // Clamp startIndex to [0, totalItems) so that a stale scrollTop (from before a
-    // search that shrank filteredEntries) never pushes startIndex beyond the list end,
-    // which would make visibleEntries empty and leave the spacer background visible.
-    const rawStart = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - buffer);
-    const startIndex = Math.min(rawStart, Math.max(0, totalItems - 1));
-    const visibleCount = Math.ceil(containerHeight / ITEM_HEIGHT);
-    const endIndex = Math.min(totalItems, startIndex + visibleCount + buffer * 2);
-
-    return { startIndex, endIndex, visibleCount };
-  }, [
-    scrollTop,
-    containerHeight,
-    filteredEntries.length,
-    filteredDuplicateRows.length,
-    showDuplicatesMode,
-    bufferSize,
-  ]);
-
-  const { startIndex, endIndex } = visibleRange;
+  const { startIndex, endIndex } = scroll.visibleRange;
 
   // Use different data source based on mode
   const visibleEntries = showDuplicatesMode
@@ -335,76 +253,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     ? filteredDuplicateRows.slice(startIndex, endIndex)
     : [];
 
-  // Calculate virtual scrolling properties based on mode
-  const totalHeight = showDuplicatesMode
-    ? filteredDuplicateRows.length * ITEM_HEIGHT
-    : filteredEntries.length * ITEM_HEIGHT;
+  const totalHeight = totalItems * ITEM_HEIGHT;
   const offsetY = startIndex * ITEM_HEIGHT;
-
-  // OPTIMIZATION: Enhanced scroll handler with velocity tracking and performance monitoring
-  const handleScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>): void => {
-      const frameStartTime = performance.now();
-      const newScrollTop = e.currentTarget.scrollTop;
-      const currentTime = Date.now();
-
-      // Calculate scroll velocity
-      const timeDelta = currentTime - lastScrollTime.current;
-      const scrollDelta = newScrollTop - lastScrollTop.current;
-      const velocity = timeDelta > 0 ? scrollDelta / timeDelta : 0;
-
-      // Update scroll state
-      lastScrollTop.current = newScrollTop;
-      setScrollTop(newScrollTop);
-      setScrollVelocity(velocity);
-      setIsScrolling(true);
-
-      // Clear existing timeout
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-
-      // Set scrolling to false after scroll ends
-      scrollTimeoutRef.current = setTimeout(() => {
-        setIsScrolling(false);
-        setScrollVelocity(0);
-      }, 150);
-
-      // Track performance metrics
-      const frameEndTime = performance.now();
-      const frameTime = frameEndTime - frameStartTime;
-
-      adaptiveBufferCalculator.trackScrollingMetrics({
-        frameTime,
-        scrollVelocity: velocity,
-        scrollTop: newScrollTop,
-        isScrolling: true,
-        bufferSize: bufferSize,
-        visibleItems: Math.ceil(containerHeight / ITEM_HEIGHT),
-        totalItems: filteredEntries.length,
-      });
-
-      // Update refs for next calculation
-      lastScrollTime.current = currentTime;
-    },
-    [bufferSize, containerHeight, filteredEntries.length]
-  );
-
-  // Optimized scroll utilities
-  const scrollToTop = useCallback((): void => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, []);
-
-  const scrollToBottom = useCallback((): void => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: totalHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [totalHeight]);
 
   // Wrapped updateEntry function that preserves scroll position
   const updateEntryWithScrollPreservation = useCallback(
@@ -418,7 +268,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       // Capture scroll position before update
       // BUGFIX: Use scrollRef.current directly to avoid infinite loop
       // scrollTop in deps would cause callback recreation on every scroll → cascade of updates
-      const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
+      const currentScrollTop = scroll.scrollRef.current?.scrollTop ?? 0;
       setPreservedScrollTop(currentScrollTop);
       setIsUpdating(true);
 
@@ -433,65 +283,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   // Restore scroll position after dictionary updates
   useEffect(() => {
-    if (!isUpdating && preservedScrollTop !== null && scrollRef.current) {
+    if (!isUpdating && preservedScrollTop !== null && scroll.scrollRef.current) {
       requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = preservedScrollTop;
-          setScrollTop(preservedScrollTop);
+        if (scroll.scrollRef.current) {
+          scroll.scrollRef.current.scrollTop = preservedScrollTop;
+          scroll.setScrollTop(preservedScrollTop);
         }
         setPreservedScrollTop(null);
       });
     }
-  }, [isUpdating, preservedScrollTop]);
-
-  // Restore scroll position after duplicate rows refresh
-  // CODE REVIEW FIX 2026-02-09 (CRITICAL): Add timeout cleanup and replace hardcoded delay with RAF
-  useEffect(() => {
-    // Track RAF ID for cleanup
-    let rafId: number | null = null;
-
-    if (
-      scrollRestore !== null &&
-      scrollRestore !== undefined &&
-      scrollRef.current &&
-      onScrollSave
-    ) {
-      const position = scrollRestore;
-      let attempts = 0;
-      const maxAttempts = 60; // Max 1 second at 60fps
-
-      // Use RAF to wait for virtualized list to finish rendering
-      // More reliable than fixed 300ms delay - adapts to device performance
-      const waitForRender = () => {
-        attempts++;
-
-        if (scrollRef.current && onScrollSave) {
-          // Check if we can safely restore scroll
-          // The virtualized list is ready when the container has proper height
-          const container = scrollRef.current;
-          const isReady = container.scrollHeight > 0 && attempts > 3; // Wait at least 3 frames
-
-          if (isReady || attempts >= maxAttempts) {
-            container.scrollTop = position;
-            setScrollTop(position);
-            onScrollSave(null); // Clear the restore position
-          } else {
-            // Try again next frame
-            rafId = requestAnimationFrame(waitForRender);
-          }
-        }
-      };
-
-      rafId = requestAnimationFrame(waitForRender);
-    }
-
-    // Cleanup RAF on unmount or when dependencies change
-    return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
-    };
-  }, [scrollRestore, onScrollSave]);
+  }, [isUpdating, preservedScrollTop]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Context menu — action callbacks (EVDT-owned state side effects)
   const onContextMenuEdit = useCallback(
@@ -623,8 +424,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
           {/* Rows */}
           <div
-            ref={scrollRef}
-            onScroll={handleScroll}
+            ref={scroll.scrollRefCallback}
+            onScroll={scroll.handleScroll}
             style={{ flex: 1, overflow: 'auto', position: 'relative' }}
           >
             <div style={{ height: totalHeight, position: 'relative' }}>
@@ -749,7 +550,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         />
         <div style={{ display: 'flex', gap: '0.25rem' }}>
           <button
-            onClick={scrollToTop}
+            onClick={scroll.scrollToTop}
             className="icon"
             title="Scroll to top"
             style={{ padding: '0.5rem' }}
@@ -757,7 +558,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             <ChevronsUp size={16} />
           </button>
           <button
-            onClick={scrollToBottom}
+            onClick={scroll.scrollToBottom}
             className="icon"
             title="Scroll to bottom"
             style={{ padding: '0.5rem' }}
@@ -1009,7 +810,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           {process.env.NODE_ENV === 'development' && performanceMetrics.isLargeDataset && (
             <span>
               Render efficiency: {performanceMetrics.renderEfficiency}%
-              {isScrolling && ' (scrolling)'}
+              {scroll.isScrolling && ' (scrolling)'}
             </span>
           )}
           {/* OPTIMIZATION: Adaptive buffer indicator */}
@@ -1328,8 +1129,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
             {/* Scrollable content with enhanced performance */}
             <div
-              ref={scrollRefCallback}
-              onScroll={handleScroll}
+              ref={scroll.scrollRefCallback}
+              onScroll={scroll.handleScroll}
               style={{
                 flex: 1,
                 minHeight: 0,
@@ -1357,7 +1158,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 <div
                   style={{
                     transform: `translateY(${offsetY}px)`,
-                    willChange: isScrolling ? 'transform' : 'auto',
+                    willChange: scroll.isScrolling ? 'transform' : 'auto',
                     backgroundImage: `repeating-linear-gradient(to bottom, var(--background-color) 0px, var(--background-color) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT * 2}px)`,
                     backgroundPositionY: `${(startIndex % 2) * ITEM_HEIGHT}px`,
                   }}
@@ -1370,7 +1171,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                         source={source}
                         translation={translation}
                         _index={index}
-                        isScrolling={isScrolling}
+                        isScrolling={scroll.isScrolling}
                         isSelected={selectedEntries.has(source)}
                         selectedDictionary={selectedDictionary}
                         onUpdateEntry={updateEntryWithScrollPreservation}

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
-import { systemPerformanceMonitor, optimizationBenchmarks } from './utils/performance';
+import { systemPerformanceMonitor } from './utils/performance';
 import { logger } from './utils/logger';
 // NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
 // Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
@@ -337,13 +337,20 @@ function App() {
         };
 
         // Expose optimization benchmarks for TypeScript/Rust optimization tracking
-        window.optimizationBenchmarks = optimizationBenchmarks;
-        window.runOptimizationBenchmarks = () => optimizationBenchmarks.runFullSuite();
-
-        logger.log('🚀 Optimization benchmarks available:');
-        logger.log('   - window.runOptimizationBenchmarks() - Run full benchmark suite');
-        logger.log('   - window.optimizationBenchmarks.exportResults() - Export benchmark data');
-        logger.log('   - window.optimizationBenchmarks.compareToBaseline() - Compare to baseline');
+        import('./utils/__benchmarks__/OptimizationBenchmarks.js').then(
+          ({ optimizationBenchmarks }) => {
+            window.optimizationBenchmarks = optimizationBenchmarks;
+            window.runOptimizationBenchmarks = () => optimizationBenchmarks.runFullSuite();
+            logger.log('🚀 Optimization benchmarks available:');
+            logger.log('   - window.runOptimizationBenchmarks() - Run full benchmark suite');
+            logger.log(
+              '   - window.optimizationBenchmarks.exportResults() - Export benchmark data'
+            );
+            logger.log(
+              '   - window.optimizationBenchmarks.compareToBaseline() - Compare to baseline'
+            );
+          }
+        );
       }
 
       // Set up cleanup on unmount.
