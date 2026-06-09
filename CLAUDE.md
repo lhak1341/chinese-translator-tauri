@@ -89,6 +89,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `SegmentPrecomputer.createRenderSegments`, `.getSegmentClassName`, `.getSegmentStyles`, `.getVisibleSegments` — deleted (dead, zero callers); `RenderSegment` interface also removed from highlighting barrel
 - `SegmentPrecomputer` class — declassed to named exports `precomputeSegments`, `precomputeOriginalSegments`, `findUnitMatch`, `normalizeText` from same file; `precomputeSegmentsWasm`, `convertMatchesToSegments`, `addNonSemanticSegments` deleted (dead WASM path, `WasmSegmentMatcher` was never globally defined)
 - `PerformanceProfiler.recordParallelPerformance`, `.recordParallelFallback`, `.getParallelPerformanceReport`, `.generateParallelRecommendations` — deleted (dead, zero callers)
+- `DictionaryManager._wasmAdapter`, `._wasmInitialized`, `._wasmInitPromise`, `._wasmValidationCallCount`, `.performanceComparison` — extracted to `DictionaryWasmLookup`; use `this.wasmLookup` (set in constructor if `options.wasmAdapter` provided)
+- `DictionaryManager._translateWasm`, `._findAllMatchesWasm`, `._validateWasmSync`, `._syncDictionariesToWasmSequential`, `._initializeWasm` — extracted to `DictionaryWasmLookup` as `translate()`, `findAllMatches()`, `_validate()`, `sync()`, `_doInit()`
 
 **Non-obvious contracts:**
 

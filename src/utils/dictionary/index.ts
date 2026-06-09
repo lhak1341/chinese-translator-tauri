@@ -12,6 +12,7 @@ import type { DictionaryData, SortingStats } from '../../types/DictionaryTypes';
 // --- Dictionary trie + manager ---
 export { DictionaryTrie } from './DictionaryTrie';
 export { DictionaryManager } from './DictionaryManager';
+export { DictionaryWasmLookup } from './DictionaryWasmLookup';
 export { DictionaryHealthMonitor } from './DictionaryHealthMonitor';
 
 // --- Loading ---

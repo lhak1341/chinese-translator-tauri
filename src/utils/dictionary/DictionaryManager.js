@@ -36,7 +36,7 @@
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader.js';
-import { validateWasmDictionaryMatch } from '../wasm/WasmBoundaryValidation.js';
+import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
 import { DictionaryTrie } from './DictionaryTrie.js';
 
 // Debug logging levels
@@ -93,20 +93,9 @@ export class DictionaryManager {
     };
 
     // WASM acceleration — provide wasmAdapter option to enable (omit for pure-JS / tests)
-    this._wasmAdapter = options.wasmAdapter ?? null;
-    this._wasmInitialized = false;
-    this._wasmInitPromise = null;
-    this._wasmValidationCallCount = 0;
-    this.performanceComparison = {
-      wasmLookups: 0,
-      jsLookups: 0,
-      wasmTotalTime: 0,
-      jsTotalTime: 0,
-      wasmAverageTime: 0,
-      jsAverageTime: 0,
-      speedupRatio: 1.0,
-    };
-    if (this._wasmAdapter) {
+    this.wasmLookup = options.wasmAdapter ? new DictionaryWasmLookup(options.wasmAdapter) : null;
+    this._validationCallCount = 0;
+    if (this.wasmLookup) {
       this._initializeWasmBackground();
     }
   }
@@ -332,7 +321,7 @@ export class DictionaryManager {
       }
     }
 
-    if (this._wasmAdapter && this._wasmInitialized) {
+    if (this.wasmLookup?.isReady()) {
       try {
         await this.syncDictionariesToWasm();
       } catch (error) {
@@ -373,9 +362,9 @@ export class DictionaryManager {
       return null;
     }
 
-    if (this._wasmAdapter?.isReady() && this._wasmInitPromise && this._wasmInitialized) {
+    if (this.wasmLookup?.isReady()) {
       try {
-        return this._translateWasm(word, dictionaryOrder);
+        return this.wasmLookup.translate(word, dictionaryOrder || this.getDefaultSearchOrder());
       } catch (error) {
         this.log(1, '⚠️ WASM translate failed, falling back to JavaScript:', error);
       }
@@ -472,9 +461,13 @@ export class DictionaryManager {
   async findAllMatchesParallel(text, startPos = 0, dictionaryOrder = null) {
     if (!this.ready) return [];
 
-    if (this._wasmAdapter?.isReady() && this._wasmInitialized) {
+    if (this.wasmLookup?.isReady()) {
       try {
-        return await this._findAllMatchesWasm(text, startPos, dictionaryOrder);
+        return await this.wasmLookup.findAllMatches(
+          text,
+          startPos,
+          dictionaryOrder || this.getDefaultSearchOrder()
+        );
       } catch (error) {
         this.log(1, '⚠️ WASM parallel lookup failed, using JavaScript:', error);
       }
@@ -956,15 +949,9 @@ export class DictionaryManager {
       this.dictionaryHealthMonitors = null;
     }
 
-    // Cleanup WASM adapter
-    if (this._wasmAdapter) {
-      try {
-        this._wasmAdapter.cleanup();
-      } catch (_) {}
-      this._wasmAdapter = null;
-    }
-    this._wasmInitialized = false;
-    this._wasmInitPromise = null;
+    // Cleanup WASM lookup
+    this.wasmLookup?.dispose();
+    this.wasmLookup = null;
 
     // Reset state flags
     this.ready = false;
@@ -1184,68 +1171,44 @@ export class DictionaryManager {
   // ─── WASM Acceleration ────────────────────────────────────────────────────
 
   async _initializeWasmBackground() {
-    if (this._wasmInitPromise) return this._wasmInitPromise;
-    this._wasmInitPromise = this._initializeWasm();
-    return this._wasmInitPromise;
-  }
-
-  async _initializeWasm() {
-    try {
-      this.log(1, '🦀 Initializing WASM integration...');
-      const config = {
-        maxMemoryMB: 15,
-        enableParallelLookups: this.enableParallelLookups,
-        maxParallelDictionaries: this.maxParallelDictionaries,
-        cacheSize: this.cache?.lookupCacheSize,
-      };
-      const success = await this._wasmAdapter.initialize(config);
-      if (success) {
-        this._wasmInitialized = true;
-        await this.syncDictionariesToWasm();
-        this.log(1, '✅ WASM integration initialized successfully');
-        logger.log('✅ [DictionaryManager] WASM DictionaryEngine active');
-        return true;
-      }
+    if (!this.wasmLookup) return;
+    const config = {
+      maxMemoryMB: 15,
+      enableParallelLookups: this.enableParallelLookups,
+      maxParallelDictionaries: this.maxParallelDictionaries,
+      cacheSize: this.cache?.lookupCacheSize,
+    };
+    const ok = await this.wasmLookup.initialize(config);
+    if (ok) {
+      await this.syncDictionariesToWasm();
+      this.log(1, '✅ WASM integration initialized successfully');
+    } else {
       this.log(1, '⚠️ WASM initialization failed, using JavaScript fallback');
       logger.warn(
         '⚠️ [DictionaryManager] WASM initialization returned false, using JavaScript fallback'
       );
-      return false;
-    } catch (error) {
-      this.log(0, '❌ WASM initialization error:', error);
-      logger.error('❌ [DictionaryManager] WASM initialization failed:', error);
-      this._wasmInitialized = false;
-      return false;
     }
   }
 
   async syncDictionariesToWasm() {
-    if (!this._wasmInitialized || !this._wasmAdapter) return;
-    return this._syncDictionariesToWasmSequential();
+    if (!this.wasmLookup?.isReady()) return;
+    return this.wasmLookup.sync(this._extractAllEntries(), this._extractPriorityMap());
   }
 
-  async _syncDictionariesToWasmSequential() {
-    const allDictionaries = [];
+  _extractAllEntries() {
+    const result = new Map();
     for (const [name, trie] of this.dictionaries) {
-      try {
-        const entries = this._extractTrieEntries(trie);
-        await this._wasmAdapter.loadDictionary(name, entries);
-        allDictionaries.push({ name, entries });
-        this.log(2, `📚 Synced dictionary '${name}': ${entries.length} entries`);
-      } catch (error) {
-        this.log(0, `❌ Failed to sync dictionary '${name}':`, error);
-      }
+      result.set(name, this._extractTrieEntries(trie));
     }
-    if (allDictionaries.length > 0) {
-      const ok = await this._validateWasmSync(allDictionaries);
-      if (!ok) {
-        this.log(2, '⚠️ Sequential WASM sync validation failed');
-        return false;
-      }
-      this.log(1, '✅ Sequential WASM sync validated successfully');
-      return true;
+    return result;
+  }
+
+  _extractPriorityMap() {
+    const result = new Map();
+    for (const [name, meta] of this.metadata) {
+      result.set(name, meta.priority ?? 999);
     }
-    return false;
+    return result;
   }
 
   _extractTrieEntries(trie) {
@@ -1266,91 +1229,13 @@ export class DictionaryManager {
     return entries;
   }
 
-  async _validateWasmSync(allDictionaries) {
-    if (!this._wasmAdapter || allDictionaries.length === 0) return true;
-    try {
-      for (const { name, entries } of allDictionaries) {
-        if (entries.length === 0) continue;
-        const testWord = entries[0].chinese;
-        const matches = this._wasmAdapter.findMatches(name, testWord, 0);
-        for (const match of matches) {
-          try {
-            validateWasmDictionaryMatch(match);
-            if (match.translation === undefined || match.word === undefined) {
-              this.log(0, `❌ WASM validation failed: undefined values in ${name} dictionary`);
-              return false;
-            }
-          } catch (validationError) {
-            this.log(0, `❌ WASM validation error in ${name}:`, validationError);
-            return false;
-          }
-        }
-      }
-      return true;
-    } catch (error) {
-      this.log(1, '⚠️ WASM sync validation skipped:', error);
-      return true;
-    }
-  }
-
-  _translateWasm(word, dictionaryOrder = null) {
-    const startTime = performance.now();
-    const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-    for (const dictionaryName of searchOrder) {
-      if (!this._wasmAdapter.hasDictionary(dictionaryName)) continue;
-      const matches = this._wasmAdapter.findMatches(dictionaryName, word, 0);
-      if (matches && matches.length > 0) {
-        const elapsed = performance.now() - startTime;
-        this.performanceComparison.wasmLookups++;
-        this.performanceComparison.wasmTotalTime += elapsed;
-        this.performanceComparison.wasmAverageTime =
-          this.performanceComparison.wasmTotalTime / this.performanceComparison.wasmLookups;
-        if (this.performanceComparison.jsAverageTime > 0) {
-          this.performanceComparison.speedupRatio =
-            this.performanceComparison.jsAverageTime / this.performanceComparison.wasmAverageTime;
-        }
-        const best = matches[0];
-        return {
-          word,
-          translation: best.translation,
-          dictionary: dictionaryName,
-          metadata: best.metadata,
-        };
-      }
-    }
-    const elapsed = performance.now() - startTime;
-    this.performanceComparison.wasmLookups++;
-    this.performanceComparison.wasmTotalTime += elapsed;
-    this.performanceComparison.wasmAverageTime =
-      this.performanceComparison.wasmTotalTime / this.performanceComparison.wasmLookups;
-    return null;
-  }
-
-  async _findAllMatchesWasm(text, startPos = 0, dictionaryOrder = null) {
-    const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-    const allMatches = [];
-    for (const dictionaryName of searchOrder) {
-      if (!this._wasmAdapter.hasDictionary(dictionaryName)) continue;
-      const matches = this._wasmAdapter.findMatches(dictionaryName, text, startPos);
-      const priority = this.metadata.get(dictionaryName)?.priority ?? 999;
-      for (const match of matches) {
-        allMatches.push({ ...match, priority, dictionary: dictionaryName });
-      }
-    }
-    // Longer match first (more specific), priority as tiebreak — mirrors EDM sort
-    return allMatches.sort((a, b) => {
-      if (a.word.length !== b.word.length) return b.word.length - a.word.length;
-      return a.priority - b.priority;
-    });
-  }
-
   /**
    * Validate WASM produces results identical to JavaScript for a word sample.
    * Called from Translator.jsx during force-reload diagnostics.
    */
   validateWasmFallback(testWords = null, dictionaryOrder = null) {
     const validation = {
-      wasmAvailable: this._wasmAdapter?.isReady() ?? false,
+      wasmAvailable: this.wasmLookup?.isReady() ?? false,
       status: 'PENDING',
       reason: null,
       results: { tested: 0, passed: 0, failed: 0, wasmErrors: 0, jsErrors: 0 },
@@ -1373,7 +1258,10 @@ export class DictionaryManager {
       let wasmResult = null;
       let jsResult = null;
       try {
-        wasmResult = this._translateWasm(word, dictionaryOrder);
+        wasmResult = this.wasmLookup.translate(
+          word,
+          dictionaryOrder || this.getDefaultSearchOrder()
+        );
       } catch (error) {
         validation.results.wasmErrors++;
         validation.errors.push({ word, type: 'wasm', error: error.message });
@@ -1400,14 +1288,18 @@ export class DictionaryManager {
 
     validation.status =
       validation.results.failed === 0 && validation.results.wasmErrors === 0 ? 'PASSED' : 'FAILED';
-    validation.performance = { ...this.performanceComparison };
+    validation.performance = this.wasmLookup?.getStatus().performanceComparison ?? {
+      wasmTotalTime: 0,
+      jsTotalTime: 0,
+      speedupRatio: 1.0,
+    };
     return validation;
   }
 
   periodicWasmValidation(currentWord, validationFrequency = 100) {
-    if (!this._wasmAdapter?.isReady()) return;
-    this._wasmValidationCallCount++;
-    if (this._wasmValidationCallCount % validationFrequency !== 0) return;
+    if (!this.wasmLookup?.isReady()) return;
+    this._validationCallCount++;
+    if (this._validationCallCount % validationFrequency !== 0) return;
     const result = this.validateWasmFallback([currentWord]);
     if (result.status === 'FAILED' || result.results.wasmErrors > 0) {
       this.log(0, '❌ Periodic WASM validation failed', result);
@@ -1451,30 +1343,46 @@ export class DictionaryManager {
   }
 
   getWasmStatus() {
-    return {
-      initialized: this._wasmInitialized,
-      ready: this._wasmAdapter?.isReady() ?? false,
-      hasAdapter: !!this._wasmAdapter,
-      performanceComparison: { ...this.performanceComparison },
-    };
+    return (
+      this.wasmLookup?.getStatus() ?? {
+        initialized: false,
+        ready: false,
+        hasAdapter: false,
+        performanceComparison: {
+          wasmLookups: 0,
+          jsLookups: 0,
+          wasmTotalTime: 0,
+          jsTotalTime: 0,
+          wasmAverageTime: 0,
+          jsAverageTime: 0,
+          speedupRatio: 1.0,
+        },
+      }
+    );
   }
 
   getEnhancedPerformanceReport() {
-    return {
-      wasmEnabled: !!this._wasmAdapter,
-      wasmReady: this._wasmAdapter?.isReady() ?? false,
-      performanceComparison: { ...this.performanceComparison },
-      wasmAdapterStats: this._wasmAdapter?.getTimingStats() ?? null,
-      isWasmBeneficial: this.isWasmBeneficial(),
-    };
+    return (
+      this.wasmLookup?.getPerformanceReport() ?? {
+        wasmEnabled: false,
+        wasmReady: false,
+        performanceComparison: {
+          wasmLookups: 0,
+          jsLookups: 0,
+          wasmTotalTime: 0,
+          jsTotalTime: 0,
+          wasmAverageTime: 0,
+          jsAverageTime: 0,
+          speedupRatio: 1.0,
+        },
+        wasmAdapterStats: null,
+        isWasmBeneficial: false,
+      }
+    );
   }
 
   isWasmBeneficial() {
-    return (
-      (this._wasmAdapter?.isReady() ?? false) &&
-      this.performanceComparison.speedupRatio > 1.2 &&
-      this.performanceComparison.wasmLookups > 10
-    );
+    return this.wasmLookup?.isBeneficial() ?? false;
   }
 
   getMemoryUsage() {
