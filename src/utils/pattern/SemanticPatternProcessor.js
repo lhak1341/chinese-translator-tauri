@@ -23,6 +23,7 @@ import { calculatePatternPriority } from './PatternPriorityCalculator.js';
 import { logger } from '../logger.js';
 import { wasmStringProcessor } from '../wasm/WasmStringProcessor.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
+import { classifyVariableType } from './VariableTypeClassifier.js';
 
 /**
  * PrecomputedTokenStrings - Optimization for fast string generation during pattern matching
@@ -385,7 +386,7 @@ export class SemanticPatternProcessor {
     const result = buildPatternVariableCache(
       tokens,
       { activeProperNouns, dictionaryManager, patterns: this.patterns },
-      (source, word, meta) => this.classifyVariableType(source, word, meta),
+      (source, word, meta) => classifyVariableType(source, word, meta),
       phaseAInitial
     );
 
@@ -438,137 +439,6 @@ export class SemanticPatternProcessor {
     }
 
     return results;
-  }
-
-  /**
-   * Classify variable type for metadata with enhanced semantic analysis
-   *
-   * Uses explicit semantic type from metadata if available, otherwise applies
-   * heuristic-based classification. Variable types are used for pattern matching
-   * constraints (e.g., allowedVariableTypes).
-   *
-   * @param {string} source - Translation source (e.g., 'properNoun_pattern_variable')
-   * @param {string} word - The actual word for enhanced classification (default: '')
-   * @param {Object} metadata - Dictionary metadata with optional semanticType field (default: {})
-   * @returns {string} Variable type string used for allowedVariableTypes constraint matching.
-   *
-   * IMPORTANT: This method returns two distinct sets of strings:
-   *
-   * 1. **Canonical SemanticType values** (from SemanticTypes.ts) when `metadata.semanticType` is
-   *    set or when heuristic classification succeeds:
-   *    'character', 'location', 'organization', 'concept', 'object'
-   *    These match the values stored in dictionary JSON and used in allowedVariableTypes constraints.
-   *
-   * 2. **Internal discriminator strings** returned only as heuristic fallbacks when no
-   *    explicit semanticType exists. These are NOT canonical SemanticType values:
-   *    - 'proper_noun' — generic proper noun without explicit type; TwoPhasePatternProcessor
-   *      special-cases this to null (always include). See TwoPhasePatternProcessor.js shouldInclude().
-   *    - 'character_unit' — character dictionary entry (individual hanzi, not a character name)
-   *    - 'unknown' — no information available
-   *
-   *    Tokens classified as 'character_unit' or 'unknown' will FAIL allowedVariableTypes
-   *    constraints that require canonical types (e.g. 'character'). This is intentional:
-   *    untyped character-dictionary entries are not the same as named characters.
-   */
-  classifyVariableType(source, word = '', metadata = {}) {
-    // Use explicit semantic type from dictionary metadata if available.
-    // Returns a canonical SemanticType value ('character', 'location', etc.)
-    if (metadata?.semanticType) {
-      return metadata.semanticType;
-    }
-
-    // Enhanced classification based on source
-    if (source?.includes('properNoun')) {
-      // Try to infer semantic type from dictionary name for proper nouns
-      if (source.includes('HarryPotter') || source.includes('DuongThan')) {
-        return 'character'; // Character names from novel dictionaries (canonical)
-      }
-
-      // For generic proper nouns, try heuristic classification first
-      if (word) {
-        const heuristicType = this.getHeuristicType(word);
-        if (heuristicType !== 'unknown') {
-          return heuristicType; // Returns canonical type or 'unknown'
-        }
-      }
-
-      // Internal discriminator: TwoPhasePatternProcessor maps this to null (always include)
-      return 'proper_noun';
-    }
-
-    if (source?.includes('phrase')) {
-      return 'concept'; // Canonical SemanticType
-    }
-
-    if (source?.includes('character')) {
-      // Internal discriminator: individual hanzi, not a named character.
-      // Fails 'character' allowedVariableTypes constraints intentionally.
-      return 'character_unit';
-    }
-
-    // Heuristic-based classification for words without metadata
-    if (word) {
-      return this.getHeuristicType(word);
-    }
-
-    return 'unknown'; // Internal discriminator: no constraint matching
-  }
-
-  /**
-   * Get semantic type based on heuristic analysis of Chinese words
-   *
-   * Uses common Chinese patterns to infer semantic type when explicit metadata
-   * is unavailable. Checks for place indicators (市, 省, 国), person indicators
-   * (common surnames), and concept indicators (法, 术, 道).
-   *
-   * @param {string} word - Chinese word to analyze
-   * @returns {string} Inferred semantic type ('location', 'character', 'concept', 'unknown')
-   */
-  getHeuristicType(word) {
-    if (!word) return 'unknown';
-
-    // Enhanced heuristics based on common Chinese patterns
-    // Place indicators
-    if (
-      word.includes('市') ||
-      word.includes('省') ||
-      word.includes('国') ||
-      word.includes('县') ||
-      word.includes('区') ||
-      word.includes('镇') ||
-      word.includes('村') ||
-      word.includes('州') ||
-      word.includes('府') ||
-      word.endsWith('京') ||
-      word.endsWith('海') ||
-      word.endsWith('川')
-    ) {
-      return 'location';
-    }
-
-    // Person indicators
-    if (
-      word.length >= 2 &&
-      /[人名姓李王张刘陈杨赵黄周吴徐孙胡朱高林何郭罗梁宋郑谢韩唐冯于董萧程曹袁邓许傅沈曾彭吕苏卢蒋蔡贾丁魏薛叶阎余潘杜戴夏钟汪田任姜范方石姚谭廖邹熊金陆郝孔白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔贺赖龚文]/.test(
-        word
-      )
-    ) {
-      return 'character';
-    }
-
-    // Object/concept indicators
-    if (
-      word.includes('法') ||
-      word.includes('术') ||
-      word.includes('道') ||
-      word.includes('力') ||
-      word.includes('功') ||
-      word.includes('技')
-    ) {
-      return 'concept';
-    }
-
-    return 'unknown';
   }
 
   /**

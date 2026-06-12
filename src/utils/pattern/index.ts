@@ -12,6 +12,8 @@
  */
 
 export { SemanticPatternProcessor } from './SemanticPatternProcessor.js';
+export { classifyVariableType } from './VariableTypeClassifier.js';
+export type { VariableClassification } from './VariableTypeClassifier.js';
 export { default as TwoPhasePatternProcessor } from './TwoPhasePatternProcessor.js';
 export { PatternFailureTracker } from './PatternFailureTracker.js';
 export { buildTypeFilter, buildPatternVariableCache } from './PatternVariableCache.js';
