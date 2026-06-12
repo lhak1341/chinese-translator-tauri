@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useVirtualScrollRange } from '../useVirtualScrollRange';
+import { adaptiveBufferCalculator } from '../../utils/ui';
 
 vi.mock('../../utils/ui', () => ({
   adaptiveBufferCalculator: {
@@ -12,7 +13,7 @@ vi.mock('../../utils/ui', () => ({
 const ITEM_H = 40;
 
 function makeOptions(overrides: Partial<Parameters<typeof useVirtualScrollRange>[1]> = {}) {
-  return { itemHeight: ITEM_H, bufferSize: 5, ...overrides };
+  return { itemHeight: ITEM_H, ...overrides };
 }
 
 beforeEach(() => vi.useFakeTimers());
@@ -22,11 +23,11 @@ afterEach(() => vi.useRealTimers());
 
 describe('visibleRange', () => {
   it('renders first buffer+visible items when scrolled to top', () => {
-    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions({ bufferSize: 5 })));
+    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
     const { startIndex, endIndex, visibleCount } = result.current.visibleRange;
     expect(startIndex).toBe(0);
-    // 600px container / 40px = 15 visible, +5 buffer*2=10 → 25
-    expect(endIndex).toBe(25);
+    // 600px container / 40px = 15 visible, +10 buffer*2=20 → 35
+    expect(endIndex).toBe(35);
     expect(visibleCount).toBe(15);
   });
 
@@ -36,13 +37,14 @@ describe('visibleRange', () => {
     expect(result.current.visibleRange.endIndex).toBe(0);
   });
 
-  it('floors fractional bufferSize to avoid sub-pixel positioning', () => {
-    const { result } = renderHook(() =>
-      useVirtualScrollRange(100, makeOptions({ bufferSize: 7.5 }))
-    );
-    const { startIndex } = result.current.visibleRange;
-    // With scrollTop=0 and bufferSize floored to 7: rawStart = max(0, 0-7)=0
-    expect(startIndex).toBe(0);
+  it('floors fractional bufferSize from adaptive calculator to avoid sub-pixel positioning', async () => {
+    vi.mocked(adaptiveBufferCalculator.calculateOptimalBufferSize).mockResolvedValue(7.5);
+    const { result } = renderHook(() => useVirtualScrollRange(100, makeOptions()));
+    await act(async () => {
+      vi.advanceTimersByTime(110);
+    });
+    // bufferSize floored to 7: endIndex = 0 + 15 + 7*2 = 29 (not 30 with unfloored 7.5)
+    expect(result.current.visibleRange.endIndex).toBe(29);
   });
 });
 
@@ -57,8 +59,8 @@ describe('handleScroll', () => {
       result.current.handleScroll(fakeEvent);
     });
 
-    // visibleRange startIndex = floor(400/40) - 5 = 10-5 = 5
-    expect(result.current.visibleRange.startIndex).toBe(5);
+    // visibleRange startIndex = floor(400/40) - 10 = 10-10 = 0
+    expect(result.current.visibleRange.startIndex).toBe(0);
     expect(result.current.isScrolling).toBe(true);
   });
 
@@ -178,5 +180,42 @@ describe('scrollRestore', () => {
       useVirtualScrollRange(100, makeOptions({ scrollRestore: null, onScrollSave }))
     );
     expect(onScrollSave).not.toHaveBeenCalled();
+  });
+});
+
+// ─── adaptive buffer sizing ───────────────────────────────────────────────────
+
+describe('adaptive buffer sizing', () => {
+  it('calls calculateOptimalBufferSize with current context after 100ms', async () => {
+    vi.mocked(adaptiveBufferCalculator.calculateOptimalBufferSize).mockResolvedValue(20);
+    renderHook(() => useVirtualScrollRange(150, makeOptions()));
+    await act(async () => {
+      vi.advanceTimersByTime(110);
+    });
+    expect(adaptiveBufferCalculator.calculateOptimalBufferSize).toHaveBeenCalledWith(
+      expect.objectContaining({ totalItems: 150, itemHeight: ITEM_H })
+    );
+  });
+
+  it('updates visibleRange when calculator returns new bufferSize', async () => {
+    vi.mocked(adaptiveBufferCalculator.calculateOptimalBufferSize).mockResolvedValue(20);
+    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
+    await act(async () => {
+      vi.advanceTimersByTime(110);
+    });
+    // bufferSize=20: endIndex = 0 + 15 + 20*2 = 55
+    expect(result.current.visibleRange.endIndex).toBe(55);
+  });
+
+  it('ignores non-number return from calculator', async () => {
+    vi.mocked(adaptiveBufferCalculator.calculateOptimalBufferSize).mockResolvedValue(
+      undefined as unknown as number
+    );
+    const { result } = renderHook(() => useVirtualScrollRange(200, makeOptions()));
+    await act(async () => {
+      vi.advanceTimersByTime(110);
+    });
+    // bufferSize stays at 10: endIndex = 0 + 15 + 10*2 = 35
+    expect(result.current.visibleRange.endIndex).toBe(35);
   });
 });

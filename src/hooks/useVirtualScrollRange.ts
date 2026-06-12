@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { RefCallback } from 'react';
 import { adaptiveBufferCalculator } from '../utils/ui';
+import { logger } from '../utils/logger';
 
 interface UseVirtualScrollRangeOptions {
   itemHeight: number;
-  bufferSize: number;
   isActive?: boolean;
   scrollRestore?: number | null;
   onScrollSave?: (pos: number | null) => void;
@@ -34,12 +34,13 @@ export function useVirtualScrollRange(
   totalItems: number,
   options: UseVirtualScrollRangeOptions
 ): UseVirtualScrollRangeResult {
-  const { itemHeight, bufferSize, isActive, scrollRestore, onScrollSave } = options;
+  const { itemHeight, isActive, scrollRestore, onScrollSave } = options;
 
   const [scrollTop, setScrollTop] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(600);
   const [isScrolling, setIsScrolling] = useState<boolean>(false);
   const [scrollVelocity, setScrollVelocity] = useState<number>(0);
+  const [bufferSize, setBufferSize] = useState<number>(10);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -58,6 +59,34 @@ export function useVirtualScrollRange(
       });
     }
   }, [isActive]);
+
+  // Adaptive buffer sizing: adjusts bufferSize based on device performance,
+  // viewport dimensions, and scroll velocity. Debounced 100ms to batch rapid changes.
+  useEffect(() => {
+    const calculate = async () => {
+      try {
+        const optimalSize = await adaptiveBufferCalculator.calculateOptimalBufferSize({
+          containerHeight,
+          itemHeight,
+          totalItems,
+          scrollVelocity,
+          isScrolling,
+        });
+        if (
+          typeof optimalSize === 'number' &&
+          isFinite(optimalSize) &&
+          optimalSize > 0 &&
+          optimalSize !== bufferSize
+        ) {
+          setBufferSize(optimalSize);
+        }
+      } catch (error) {
+        logger.warn('Buffer size calculation failed:', error);
+      }
+    };
+    const timer = setTimeout(calculate, 100);
+    return () => clearTimeout(timer);
+  }, [containerHeight, totalItems, itemHeight, scrollVelocity, isScrolling, bufferSize]);
 
   const scrollRefCallback: RefCallback<HTMLDivElement> = useCallback((node) => {
     if (resizeObserverRef.current) {

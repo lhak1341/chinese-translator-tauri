@@ -4,10 +4,8 @@ import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
 import BulkMoveDialog from './BulkMoveDialog';
-import { adaptiveBufferCalculator } from '../../utils/ui';
 import { createDuplicateKey } from '../../utils/dictionary';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { logger } from '../../utils/logger';
 import type { EditingEntryData, MoveEntryData } from '../../types/DictionaryTypes';
 import {
   SEMANTIC_TYPE_COLORS,
@@ -45,8 +43,6 @@ interface EnhancedVirtualizedDictionaryTableProps {
   onScrollSave?: (position: number | null) => void;
 }
 
-// OPTIMIZATION: Dynamic buffer sizing replaced fixed BUFFER_SIZE = 10
-// Now calculated based on device performance, viewport, and memory pressure
 const SEARCH_DEBOUNCE_MS = 150; // Debounce search input
 const LARGE_LIST_THRESHOLD = 1000; // When to apply additional optimizations
 
@@ -84,9 +80,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const [preservedScrollTop, setPreservedScrollTop] = useState<number | null>(null);
-
-  // OPTIMIZATION: Adaptive buffer sizing state
-  const [bufferSize, setBufferSize] = useState<number>(10); // Start with default, will be optimized
 
   // Filter panel state
   const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
@@ -175,7 +168,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   const scroll = useVirtualScrollRange(totalItems, {
     itemHeight: ITEM_HEIGHT,
-    bufferSize,
     isActive,
     scrollRestore,
     onScrollSave,
@@ -207,40 +199,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   useEffect(() => {
     scroll.resetScroll();
   }, [debouncedSearchTerm]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Dynamic buffer sizing based on list size
-  // OPTIMIZATION: Adaptive buffer size calculation
-  useEffect(() => {
-    const calculateOptimalBuffer = async () => {
-      try {
-        const optimalSize = await adaptiveBufferCalculator.calculateOptimalBufferSize({
-          containerHeight: scroll.containerHeight,
-          itemHeight: ITEM_HEIGHT,
-          totalItems: filteredEntries.length,
-          scrollVelocity: scroll.scrollVelocity,
-          isScrolling: scroll.isScrolling,
-        });
-
-        if (optimalSize !== bufferSize) {
-          setBufferSize(optimalSize);
-        }
-      } catch (error) {
-        logger.warn('Buffer size calculation failed:', error);
-        // Keep current buffer size on error
-      }
-    };
-
-    // Calculate on significant changes
-    const debounceTimer = setTimeout(calculateOptimalBuffer, 100);
-    return () => clearTimeout(debounceTimer);
-  }, [
-    scroll.containerHeight,
-    filteredEntries.length,
-    filteredDuplicateRows.length,
-    scroll.scrollVelocity,
-    scroll.isScrolling,
-    bufferSize,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { startIndex, endIndex } = scroll.visibleRange;
 
@@ -812,10 +770,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               Render efficiency: {performanceMetrics.renderEfficiency}%
               {scroll.isScrolling && ' (scrolling)'}
             </span>
-          )}
-          {/* OPTIMIZATION: Adaptive buffer indicator */}
-          {process.env.NODE_ENV === 'development' && (
-            <span style={{ color: 'var(--muted-text)' }}>Buffer: {bufferSize} (adaptive)</span>
           )}
         </div>
       </div>
