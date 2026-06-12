@@ -2,7 +2,7 @@
  * Shared type definitions for dictionary entries and metadata
  */
 
-import type { SemanticType } from '../constants/SemanticTypes';
+import type { SemanticType, PatternSemanticTypeRef } from '../constants/SemanticTypes';
 
 /**
  * Dictionary entry value type (can be string or object with metadata)
@@ -12,7 +12,7 @@ export type DictionaryEntryValue = {
   translation: string;
   allowAsPatternVariable?: boolean;
   lowPriority?: boolean;
-  semanticType?: SemanticType;
+  semanticType?: SemanticType | PatternSemanticTypeRef;
   allowedVariableTypes?: Record<string, string[]>;
 };
 
@@ -22,7 +22,7 @@ export type DictionaryEntryValue = {
 export interface DictionaryEntryMetadata {
   allowAsPatternVariable?: boolean;
   lowPriority?: boolean;
-  semanticType?: SemanticType;
+  semanticType?: SemanticType | PatternSemanticTypeRef;
   allowedVariableTypes?: Record<string, string[]>;
 }
 
@@ -62,6 +62,17 @@ export interface EditingEntryData {
 export interface MoveEntryData {
   source: string;
   translation: string;
+}
+
+/**
+ * Existing-entry detection result for the DictionaryEntry form
+ */
+export interface ExistingEntryData {
+  dictionaryId: string;
+  dictionaryName: string;
+  source: string;
+  translation: string;
+  isSelectedDictionary: boolean;
 }
 
 /**
