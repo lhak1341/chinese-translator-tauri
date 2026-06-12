@@ -1,5 +1,21 @@
 # Domain Glossary
 
+## TextPositionMapper
+
+The greedy longest-match algorithm that maps each character position in a text string to the index of the semantic unit covering it. Produces an `Int32Array` of length `text.length`; positions not covered by any unit are `-1`.
+
+Algorithm: builds a first-grapheme index (Map&lt;grapheme, unitIndices[]&gt;) for O(1) candidate lookup per position, then walks the text left-to-right, greedily selecting the longest unused unit that matches at each position.
+
+Two modes: **case-sensitive** (original Chinese text) and **case-insensitive** (Vietnamese translated text — handles capitalization differences from `updateWithCapitalizedText`).
+
+Interface: `mapToPositions(text, units, count, caseInsensitive?): Int32Array`. `units` is the raw pre-allocated array from `SemanticArrayBuilder`; `count` is the number of valid entries (avoids slice allocation).
+
+Bug history encoded in the implementation: CRITICAL-1 (skip empty units), MEDIUM-2 (grapheme-aware first-char extraction for Vietnamese combining diacritics), CRITICAL-5 (explicit bounds check before inner comparison loop).
+
+Replaces two near-identical private methods (`buildOriginalMapping`, `buildTranslatedMapping`) that previously lived in `SemanticArrayBuilder`. `SemanticArrayBuilder.buildPositionMappings` now delegates both passes to this function.
+
+Entry point: `src/utils/highlighting/TextPositionMapper.ts`, re-exported from `src/utils/highlighting/index.ts`.
+
 ## HotkeyDispatchTable
 
 The pure dispatch table that maps (key + modifiers + app context) → `HotkeyAction | null`. No side effects, no React, no DOM. Input: a `KeyboardEvent`-shaped object (`key`, `metaKey`, `ctrlKey`, `shiftKey`) plus `MatchHotkeyContext` (`activeTab`, `canUndo`, `canRedo`, `isInputFocused`). Output: a discriminated union action tag, or `null` if no shortcut matches.

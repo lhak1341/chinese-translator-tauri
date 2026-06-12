@@ -5,7 +5,7 @@
 
 import { batchLog } from '../BatchLogger.js';
 import { logger } from '../logger';
-import { getFirstGrapheme } from '../GraphemeHelper.js';
+import { mapToPositions } from './TextPositionMapper';
 
 // Rejects out-of-order, overlapping, or invalid-range positions to prevent bidirectional highlighting corruption.
 function validatePosition(
@@ -79,14 +79,6 @@ interface PositionCandidate {
   index: number;
   meta: SemanticArrayMetadata;
   isMapped: boolean;
-}
-
-/**
- * Best match result
- */
-interface BestMatch {
-  index: number;
-  length: number;
 }
 
 /**
@@ -425,229 +417,23 @@ export class SemanticArrayBuilder {
   }
 
   /**
-   * Build position mappings with optimized data structures
-   * @param originalText - Final original text
-   * @param translatedText - Final translated text
-   * @returns Position mappings using efficient typed arrays
+   * Build position mappings for both original Chinese text and translated Vietnamese text.
+   * Delegates to TextPositionMapper.mapToPositions for the greedy longest-match algorithm.
    */
   buildPositionMappings(originalText: string, translatedText: string): PositionMappings {
-    // CRITICAL-2 FIX: Validate text length before allocating typed arrays
-    // Empty text or mismatched length would cause silent data loss
     if (!originalText || originalText.length === 0) {
       logger.warn('⚠️ Empty original text in buildPositionMappings');
-      return {
-        originalPositions: new Int32Array(0),
-        translatedPositions: new Int32Array(0),
-      };
+      return { originalPositions: new Int32Array(0), translatedPositions: new Int32Array(0) };
     }
     if (!translatedText || translatedText.length === 0) {
       logger.warn('⚠️ Empty translated text in buildPositionMappings');
-      return {
-        originalPositions: new Int32Array(0),
-        translatedPositions: new Int32Array(0),
-      };
+      return { originalPositions: new Int32Array(0), translatedPositions: new Int32Array(0) };
     }
-
-    // Use typed arrays for better memory efficiency and performance
-    const originalPositions = new Int32Array(originalText.length);
-    const translatedPositions = new Int32Array(translatedText.length);
-
-    // CRITICAL-2 FIX: Validate typed array allocation succeeded
-    if (originalPositions.length !== originalText.length) {
-      logger.error('❌ Typed array allocation failed for originalPositions', {
-        expectedLength: originalText.length,
-        actualLength: originalPositions.length,
-        impact: 'Position mapping will be incomplete',
-      });
-    }
-    if (translatedPositions.length !== translatedText.length) {
-      logger.error('❌ Typed array allocation failed for translatedPositions', {
-        expectedLength: translatedText.length,
-        actualLength: translatedPositions.length,
-        impact: 'Position mapping will be incomplete',
-      });
-    }
-
-    // Initialize with -1 (no mapping)
-    originalPositions.fill(-1);
-    translatedPositions.fill(-1);
-
-    // Track used indices with Set for O(1) lookup
-    const usedIndices = new Set<number>();
-
-    // Build original text position mapping
-    this.buildOriginalMapping(originalText, originalPositions, usedIndices);
-
-    // Reset for translation mapping
-    usedIndices.clear();
-
-    // Build translated text position mapping
-    this.buildTranslatedMapping(translatedText, translatedPositions, usedIndices);
 
     return {
-      originalPositions,
-      translatedPositions,
+      originalPositions: mapToPositions(originalText, this.original, this.length),
+      translatedPositions: mapToPositions(translatedText, this.translated, this.length, true),
     };
-  }
-
-  /**
-   * Build original text position mapping optimized
-   * @private
-   */
-  private buildOriginalMapping(
-    originalText: string,
-    positions: Int32Array,
-    usedIndices: Set<number>
-  ): void {
-    // OPTIMIZATION: Build first-character index (40-60% speedup for large texts)
-    const firstCharIndex = new Map<string, number[]>();
-    for (let i = 0; i < this.length; i++) {
-      // CRITICAL-1 FIX: Skip empty strings to prevent [0] access crash
-      if (!this.original[i] || this.original[i].length === 0) {
-        continue;
-      }
-      // MEDIUM-2 FIX: Use grapheme-aware first character extraction for Vietnamese diacritics
-      // [0] indexing breaks for combining diacritics (e.g., "ả" = "a" + combining mark)
-      const firstChar = getFirstGrapheme(this.original[i]);
-      if (!firstCharIndex.has(firstChar)) {
-        firstCharIndex.set(firstChar, []);
-      }
-      firstCharIndex.get(firstChar)!.push(i);
-    }
-
-    let currentPos = 0;
-
-    while (currentPos < originalText.length) {
-      let bestMatch: BestMatch | null = null;
-      let bestLength = 0;
-
-      // OPTIMIZATION: Only check units starting with current character
-      // MEDIUM-2 FIX: Use grapheme-aware lookup for consistency with index building
-      const currentFirstGrapheme = getFirstGrapheme(originalText.substring(currentPos));
-      const candidateIndices = firstCharIndex.get(currentFirstGrapheme) || [];
-
-      // Find longest unused semantic unit at current position
-      for (const i of candidateIndices) {
-        if (usedIndices.has(i)) continue;
-
-        const unit = this.original[i];
-        const remainingLength = originalText.length - currentPos;
-
-        // Check if unit fits and matches
-        if (unit.length <= remainingLength && unit.length > bestLength) {
-          // Direct string comparison is faster than substring + startsWith
-          let matches = true;
-          for (let j = 0; j < unit.length; j++) {
-            if (originalText[currentPos + j] !== unit[j]) {
-              matches = false;
-              break;
-            }
-          }
-
-          if (matches) {
-            bestMatch = { index: i, length: unit.length };
-            bestLength = unit.length;
-          }
-        }
-      }
-
-      if (bestMatch) {
-        // Fill positions for this match
-        for (let j = 0; j < bestMatch.length; j++) {
-          positions[currentPos + j] = bestMatch.index;
-        }
-        usedIndices.add(bestMatch.index);
-        currentPos += bestMatch.length;
-      } else {
-        currentPos++;
-      }
-    }
-  }
-
-  /**
-   * Build translated text position mapping optimized
-   * @private
-   */
-  private buildTranslatedMapping(
-    translatedText: string,
-    positions: Int32Array,
-    usedIndices: Set<number>
-  ): void {
-    const translatedLower = translatedText.toLowerCase(); // Cache lowercase version
-
-    // OPTIMIZATION: Build first-character index (case-insensitive, 40-60% speedup)
-    const firstCharIndex = new Map<string, number[]>();
-    for (let i = 0; i < this.length; i++) {
-      // CRITICAL-1 FIX: Skip empty strings to prevent [0] access crash
-      if (!this.translated[i] || this.translated[i].length === 0) {
-        continue;
-      }
-      // MEDIUM-2 FIX: Use grapheme-aware first character extraction for Vietnamese diacritics
-      // [0] indexing breaks for combining diacritics (e.g., "ả" = "a" + combining mark)
-      const firstChar = getFirstGrapheme(this.translated[i]).toLowerCase();
-      if (!firstCharIndex.has(firstChar)) {
-        firstCharIndex.set(firstChar, []);
-      }
-      firstCharIndex.get(firstChar)!.push(i);
-    }
-
-    let currentPos = 0;
-
-    while (currentPos < translatedText.length) {
-      let bestMatch: BestMatch | null = null;
-      let bestLength = 0;
-
-      // OPTIMIZATION: Only check units starting with current character (case-insensitive)
-      // MEDIUM-2 FIX: Use grapheme-aware lookup for consistency with index building
-      const currentFirstGrapheme = getFirstGrapheme(
-        translatedText.substring(currentPos)
-      ).toLowerCase();
-      const candidateIndices = firstCharIndex.get(currentFirstGrapheme) || [];
-
-      // Find longest unused semantic unit at current position (case-insensitive)
-      for (const i of candidateIndices) {
-        if (usedIndices.has(i)) continue;
-
-        const unit = this.translated[i];
-        const unitLower = unit.toLowerCase();
-        const remainingLength = translatedText.length - currentPos;
-
-        // CRITICAL-5 FIX: Add explicit bounds validation before inner loop
-        // Prevents out-of-bounds access if translatedLower differs from translatedText
-        // Previous: Relied on remainingLength check (implicit safety)
-        // Fixed: Explicit validation makes safety guarantee clear
-        if (
-          unitLower.length <= remainingLength &&
-          unitLower.length > bestLength &&
-          currentPos + unitLower.length <= translatedLower.length // ← Explicit bounds check
-        ) {
-          // Direct character comparison on lowercase strings (now guaranteed safe)
-          let matches = true;
-          for (let j = 0; j < unitLower.length; j++) {
-            if (translatedLower[currentPos + j] !== unitLower[j]) {
-              matches = false;
-              break;
-            }
-          }
-
-          if (matches) {
-            bestMatch = { index: i, length: unit.length };
-            bestLength = unit.length;
-          }
-        }
-      }
-
-      if (bestMatch) {
-        // Fill positions for this match
-        for (let j = 0; j < bestMatch.length; j++) {
-          positions[currentPos + j] = bestMatch.index;
-        }
-        usedIndices.add(bestMatch.index);
-        currentPos += bestMatch.length;
-      } else {
-        currentPos++;
-      }
-    }
   }
 
   /**
@@ -939,10 +725,6 @@ export class SemanticArrayBuilder {
       `Compacted arrays from ${oldCapacity} to ${this.length} capacity`
     );
   }
-
-  // CRITICAL-3 FIX: Removed duplicate getFirstGrapheme() method
-  // Now using shared GraphemeHelper.getFirstGrapheme() with singleton Intl.Segmenter
-  // Eliminates duplicate implementation and per-call instance creation overhead
 }
 
 // default export intentionally omitted — use named export only

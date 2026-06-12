@@ -32,3 +32,4 @@ export {
   buildFullTextFromTokens,
   convertWasmMatchToTokenMatch,
 } from './PositionMappingUtils';
+export { mapToPositions } from './TextPositionMapper';
