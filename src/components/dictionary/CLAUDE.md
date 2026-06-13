@@ -75,6 +75,10 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 `showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT.
 
+## `useDictionaryEntryFilter` Hook — Filter State Not in EVDT
+
+All filter state lives in `src/hooks/useDictionaryEntryFilter.ts`. Call as `useDictionaryEntryFilter(dicts, selectedDictionary, duplicateRows, showDuplicatesMode)` — the old `DictionaryEntryFilters` filters-object 4th param is **deleted**. Destructure: filter state + setters (`setFilterVariable`, `setFilterSemanticTypes`, `setFilterPatternType`, `setFilterAllowAsVariable`, `setFilterLowPriority`, `setShowFilterPanel`, `setSearchTerm`) + `debouncedSearchTerm` (used by EVDT's scroll-reset effect — must be destructured) + `hasActiveFilter` + `resetFilters(newSelectedDictionary)`. Setters are `Dispatch<SetStateAction<T>>` — functional updater form `(prev) => ...` works. `resetFilters` is called from the `selectedDictionary` coordinator effect alongside `resetEditAndMove`/`resetSelection`/`closeContextMenu`/`scroll.resetScroll`.
+
 ## Hook Tests — jsdom Gotchas
 
 **`requestAnimationFrame` does not fire in jsdom.** Tests asserting RAF-triggered side effects must mock it:

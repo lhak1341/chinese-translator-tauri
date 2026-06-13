@@ -7,7 +7,6 @@ import {
   useReducer,
   startTransition,
 } from 'react';
-import { listen } from '@tauri-apps/api/event'; // CODE REVIEW FIX (CRITICAL-2): Listen for cache poisoning events
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { TranslationInputValidator } from '../utils/TranslationInputValidator';
@@ -34,6 +33,7 @@ import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
+import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
@@ -179,9 +179,12 @@ const Translator = ({ isActive = true }) => {
   wasmStatusRef.current = wasmStatus;
   const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
-  // CODE REVIEW FIX (CRITICAL-2): Track cache poisoning for user notification
-  const [cachePoisoningDetected, setCachePoisoningDetected] = useState(false);
-  const [cachePoisoningCount, setCachePoisoningCount] = useState(0);
+  const {
+    cachePoisoningDetected,
+    cachePoisoningCount,
+    cachePoisoningRecommendation,
+    dismissCachePoisoning,
+  } = useCachePoisoningGuard();
 
   /**
    * Clears all highlighting state across all panels
@@ -436,62 +439,6 @@ const Translator = ({ isActive = true }) => {
 
   // Note: Configuration changes are now handled only during manual reload
   // to prevent constant reinitializations during normal operation
-
-  /**
-   * CODE REVIEW FIX (CRITICAL-2): Listen for dictionary cache poisoning events
-   *
-   * Lifecycle: Runs once on component mount
-   * Dependencies: None (event listener cleanup on unmount)
-   *
-   * Monitors cache mutex poisoning events emitted from Rust backend.
-   * Displays persistent warning banner when poisoning is detected.
-   * Recommends application restart to ensure data integrity.
-   */
-  useEffect(() => {
-    let unsubscribe = null;
-    let isMounted = true;
-
-    const setupListener = async () => {
-      try {
-        const unsub = await listen('dictionary-cache-critical-error', (event) => {
-          // Ignore events after component unmount
-          if (!isMounted) return;
-
-          logger.error('🚨 Dictionary cache critical error detected:', event.payload);
-
-          const { event_count, message, recommendation } = event.payload;
-
-          // Update state to show warning banner
-          setCachePoisoningDetected(true);
-          setCachePoisoningCount(event_count || 0);
-
-          // Show toast notification
-          toast.error(`${message}\n\n${recommendation}`, {
-            duration: TOAST_DURATIONS.ERROR,
-            id: TOAST_IDS.CACHE_POISONING,
-          });
-        });
-
-        // If component already unmounted, cleanup immediately
-        if (isMounted) {
-          unsubscribe = unsub;
-        } else {
-          unsub();
-        }
-      } catch (error) {
-        logger.error('Failed to set up cache poisoning event listener:', error);
-      }
-    };
-
-    setupListener();
-
-    return () => {
-      isMounted = false;
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, []); // Empty deps - run once on mount
 
   /**
    * Quick Add handlers (provided by useDictionaryConfig hook)
@@ -1995,7 +1942,6 @@ const Translator = ({ isActive = true }) => {
         </div>
       )}
 
-      {/* CODE REVIEW FIX (CRITICAL-2): Show cache poisoning warning banner */}
       {cachePoisoningDetected && (
         <div className={styles.criticalWarningBanner} role="alert">
           <div className={styles.errorHeader}>
@@ -2006,17 +1952,15 @@ const Translator = ({ isActive = true }) => {
             cause incorrect translations or degraded performance.
           </div>
           <div className={styles.errorMessage}>
-            <strong>Recommended action:</strong> Save your work and restart the application to
-            ensure data integrity.
+            <strong>Recommended action:</strong>{' '}
+            {cachePoisoningRecommendation ??
+              'Save your work and restart the application to ensure data integrity.'}
           </div>
           <div className={styles.errorActions}>
             <button onClick={() => window.location.reload()} className={styles.errorButton}>
               Restart Application
             </button>
-            <button
-              onClick={() => setCachePoisoningDetected(false)}
-              className={styles.errorButtonSecondary}
-            >
+            <button onClick={dismissCachePoisoning} className={styles.errorButtonSecondary}>
               Dismiss Warning
             </button>
           </div>

@@ -63,6 +63,10 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 
 When engine init fails: `initializationError` is truthy AND `enginePhase === 'error'` (not `'ready'`). Adding `!initializationError` to the condition hides the overlay and lets users interact with a broken engine. Correct condition: `!loadError && (isLoading || enginePhase !== 'ready')`.
 
+## `useCachePoisoningGuard` Hook — Cache Poisoning State Not in Translator
+
+`cachePoisoningDetected`, `cachePoisoningCount`, `cachePoisoningSeverity`, `cachePoisoningRecommendation`, and `dismissCachePoisoning` live in `src/hooks/useCachePoisoningGuard.ts`. `Translator.jsx` has no direct `@tauri-apps/api/event` import. Hook injects `listenFn = listen` as a default param for testability. `cachePoisoningRecommendation` comes from Rust payload (dynamic per event-count threshold) — the banner uses it instead of hardcoded text.
+
 ## Error Utilities
 
 Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of `error instanceof Error ? error.message : 'Unknown error'` — the inline form misses `string`, `{ message }`, and `null` inputs.

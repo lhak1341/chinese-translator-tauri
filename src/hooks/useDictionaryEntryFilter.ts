@@ -1,36 +1,76 @@
-import { useMemo } from 'react';
+import { useState, useCallback, useMemo, type Dispatch, type SetStateAction } from 'react';
+import { useThrottledValue } from './useThrottledValue';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
 
-export interface DictionaryEntryFilters {
-  debouncedSearchTerm: string;
-  showDuplicatesMode: boolean;
-  filterVariable: 'all' | 'allowed' | 'not-allowed';
-  filterSemanticTypes: Set<string>;
-  filterPatternType: Set<string>;
-  filterAllowAsVariable: boolean;
-  filterLowPriority: boolean;
-}
+const SEARCH_DEBOUNCE_MS = 150;
 
 export function useDictionaryEntryFilter(
   dictionaries: Record<string, DictionaryData>,
   selectedDictionary: string,
   duplicateRows: DuplicateRow[],
-  filters: DictionaryEntryFilters
+  showDuplicatesMode: boolean
 ): {
   filteredEntries: [string, DictionaryEntryValue][];
   filteredDuplicateRows: DuplicateRow[];
   duplicateGroupIndices: number[];
+  hasActiveFilter: boolean;
+  searchTerm: string;
+  setSearchTerm: Dispatch<SetStateAction<string>>;
+  debouncedSearchTerm: string;
+  showFilterPanel: boolean;
+  setShowFilterPanel: Dispatch<SetStateAction<boolean>>;
+  filterVariable: 'all' | 'allowed' | 'not-allowed';
+  setFilterVariable: Dispatch<SetStateAction<'all' | 'allowed' | 'not-allowed'>>;
+  filterSemanticTypes: Set<string>;
+  setFilterSemanticTypes: Dispatch<SetStateAction<Set<string>>>;
+  filterPatternType: Set<string>;
+  setFilterPatternType: Dispatch<SetStateAction<Set<string>>>;
+  filterAllowAsVariable: boolean;
+  setFilterAllowAsVariable: Dispatch<SetStateAction<boolean>>;
+  filterLowPriority: boolean;
+  setFilterLowPriority: Dispatch<SetStateAction<boolean>>;
+  resetFilters: (newSelectedDictionary: string) => void;
 } {
-  const {
-    debouncedSearchTerm,
-    showDuplicatesMode,
-    filterVariable,
-    filterSemanticTypes,
-    filterPatternType,
-    filterAllowAsVariable,
-    filterLowPriority,
-  } = filters;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterVariable, setFilterVariable] = useState<'all' | 'allowed' | 'not-allowed'>('all');
+  const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<string>>(new Set());
+  const [filterPatternType, setFilterPatternType] = useState<Set<string>>(new Set());
+  const [filterAllowAsVariable, setFilterAllowAsVariable] = useState(false);
+  const [filterLowPriority, setFilterLowPriority] = useState(false);
+
+  const debouncedSearchTerm = useThrottledValue(searchTerm, SEARCH_DEBOUNCE_MS);
+
+  // Resets only the filters that don't apply to the new dictionary type.
+  // Called from EVDT's selectedDictionary coordinator effect alongside other hook resets.
+  const resetFilters = useCallback((newSelectedDictionary: string): void => {
+    const newIsPatterns = newSelectedDictionary === 'patterns';
+    const newIsPhrases = newSelectedDictionary === 'phrases';
+    const newIsProperNouns = newSelectedDictionary.startsWith('properNouns');
+
+    if (!newIsPatterns) {
+      setFilterPatternType(new Set());
+      setFilterAllowAsVariable(false);
+      setFilterLowPriority(false);
+    }
+    if (!newIsPhrases) {
+      setFilterVariable('all');
+    }
+    if (!newIsPhrases && !newIsProperNouns) {
+      setFilterSemanticTypes(new Set());
+    }
+    if (!newIsPatterns && !newIsPhrases && !newIsProperNouns) {
+      setShowFilterPanel(false);
+    }
+  }, []);
+
+  const hasActiveFilter =
+    filterVariable !== 'all' ||
+    filterSemanticTypes.size > 0 ||
+    filterPatternType.size > 0 ||
+    filterAllowAsVariable ||
+    filterLowPriority;
 
   const filteredEntries = useMemo((): [string, DictionaryEntryValue][] => {
     if (showDuplicatesMode) return [];
@@ -138,5 +178,26 @@ export function useDictionaryEntryFilter(
     return indices;
   }, [filteredDuplicateRows, showDuplicatesMode]);
 
-  return { filteredEntries, filteredDuplicateRows, duplicateGroupIndices };
+  return {
+    filteredEntries,
+    filteredDuplicateRows,
+    duplicateGroupIndices,
+    hasActiveFilter,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearchTerm,
+    showFilterPanel,
+    setShowFilterPanel,
+    filterVariable,
+    setFilterVariable,
+    filterSemanticTypes,
+    setFilterSemanticTypes,
+    filterPatternType,
+    setFilterPatternType,
+    filterAllowAsVariable,
+    setFilterAllowAsVariable,
+    filterLowPriority,
+    setFilterLowPriority,
+    resetFilters,
+  };
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback } from 'react';
 import { Edit2, Trash2, Loader, ChevronsUp, ChevronsDown, Filter } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
@@ -43,7 +43,6 @@ interface EnhancedVirtualizedDictionaryTableProps {
   onScrollSave?: (position: number | null) => void;
 }
 
-const SEARCH_DEBOUNCE_MS = 150; // Debounce search input
 const LARGE_LIST_THRESHOLD = 1000; // When to apply additional optimizations
 
 /**
@@ -74,20 +73,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 }) => {
   const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, isLoading } = useDictionary();
 
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
-
-  // Filter panel state
-  const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
-  const [filterVariable, setFilterVariable] = useState<'all' | 'allowed' | 'not-allowed'>('all');
-  const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<string>>(new Set());
-  // Pattern-specific filters
-  const [filterPatternType, setFilterPatternType] = useState<Set<string>>(new Set()); // 'x-only' | 'x-y'
-  const [filterAllowAsVariable, setFilterAllowAsVariable] = useState<boolean>(false);
-  const [filterLowPriority, setFilterLowPriority] = useState<boolean>(false);
-
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Clear selections when switching between duplicate and normal modes
   // BUGFIX: Prevents composite keys from persisting when exiting duplicate mode
@@ -95,33 +81,28 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     resetSelection();
   }, [showDuplicatesMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search term
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-
-    searchDebounceRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [searchTerm]);
-
-  const { filteredEntries, filteredDuplicateRows, duplicateGroupIndices } =
-    useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, {
-      debouncedSearchTerm,
-      showDuplicatesMode,
-      filterVariable,
-      filterSemanticTypes,
-      filterPatternType,
-      filterAllowAsVariable,
-      filterLowPriority,
-    });
+  const {
+    filteredEntries,
+    filteredDuplicateRows,
+    duplicateGroupIndices,
+    hasActiveFilter,
+    searchTerm,
+    setSearchTerm,
+    debouncedSearchTerm,
+    showFilterPanel,
+    setShowFilterPanel,
+    filterVariable,
+    setFilterVariable,
+    filterSemanticTypes,
+    setFilterSemanticTypes,
+    filterPatternType,
+    setFilterPatternType,
+    filterAllowAsVariable,
+    setFilterAllowAsVariable,
+    filterLowPriority,
+    setFilterLowPriority,
+    resetFilters,
+  } = useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, showDuplicatesMode);
 
   const totalItems = showDuplicatesMode ? filteredDuplicateRows.length : filteredEntries.length;
 
@@ -218,25 +199,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   //   filterVariable       → phrases only
   //   filterPatternType / filterAllowAsVariable / filterLowPriority → patterns only
   useEffect(() => {
-    const newIsPatterns = selectedDictionary === 'patterns';
-    const newIsPhrases = selectedDictionary === 'phrases';
-    const newIsProperNouns = selectedDictionary.startsWith('properNouns');
-
-    if (!newIsPatterns) {
-      setFilterPatternType(new Set());
-      setFilterAllowAsVariable(false);
-      setFilterLowPriority(false);
-    }
-    if (!newIsPhrases) {
-      setFilterVariable('all');
-    }
-    if (!newIsPhrases && !newIsProperNouns) {
-      setFilterSemanticTypes(new Set());
-    }
-    if (!newIsPatterns && !newIsPhrases && !newIsProperNouns) {
-      setShowFilterPanel(false);
-    }
-
+    resetFilters(selectedDictionary);
     resetEditAndMove();
     resetSelection();
     closeContextMenu();
@@ -255,13 +218,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const showSemanticTypeFilter =
     isPhrasesDictionary || isProperNounsDictionary || isPatternsDictionary;
   const hasFilterOptions = showPatternFilter || showVariableFilter || showSemanticTypeFilter;
-  const hasActiveFilter =
-    filterVariable !== 'all' ||
-    filterSemanticTypes.size > 0 ||
-    filterPatternType.size > 0 ||
-    filterAllowAsVariable ||
-    filterLowPriority;
-
   // Performance monitoring for large lists
   const performanceMetrics = useMemo(() => {
     const listSize = filteredEntries.length;
