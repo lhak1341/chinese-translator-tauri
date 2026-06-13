@@ -67,9 +67,30 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 `DictionaryTypes.ts` has a LOCAL `interface DictionaryInfo { label, description }` — display-only type for dictionary type metadata. NOT the same as `ComponentTypes.d.ts::DictionaryInfo { id, name, path, isActive, ... }` which is the API/IPC type used by `ElectronTypes.d.ts`. Do not re-export the local one, do not merge the two. Import `DictionaryInfo` from `../../types/ComponentTypes` for the API type.
 
+## `useEntryEditAndMove` Hook — Edit/Move State Not in EVDT
+
+`editingEntry`, `moveEntry`, `isUpdating`, `preservedScrollTop`, `updateEntryWithScrollPreservation`, `onContextMenuEdit`, `onContextMenuMove` live in `src/hooks/useEntryEditAndMove.ts`. EVDT uses `reset: resetEditAndMove` in the dict-switch effect to clear all four state fields atomically. **Scroll-preservation invariant**: `preservedScrollTop` is captured BEFORE `isUpdating=true`; the RAF-based restore fires only when `isUpdating` transitions false with a non-null `preservedScrollTop`. The restore `useEffect` has an intentional eslint-disable — `scrollRef`/`setScrollTop` are excluded from deps to prevent the RAF from firing on every scroll event.
+
 ## `useEntrySelection` Hook — Selection State Not in EVDT
 
 `showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT.
+
+## Hook Tests — jsdom Gotchas
+
+**`requestAnimationFrame` does not fire in jsdom.** Tests asserting RAF-triggered side effects must mock it:
+
+```ts
+const rafCalls: FrameRequestCallback[] = [];
+vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+  rafCalls.push(cb);
+  return 0;
+});
+// after act():
+act(() => rafCalls.forEach((cb) => cb(0)));
+vi.restoreAllMocks();
+```
+
+Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
 
 ## WASM Wrapper Methods
 

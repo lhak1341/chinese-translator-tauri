@@ -6,7 +6,6 @@ import MoveEntryDialog from './MoveEntryDialog';
 import BulkMoveDialog from './BulkMoveDialog';
 import { createDuplicateKey } from '../../utils/dictionary';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import type { EditingEntryData, MoveEntryData } from '../../types/DictionaryTypes';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
@@ -18,6 +17,7 @@ import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
 import { useContextMenu } from '../../hooks/useContextMenu';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
+import { useEntryEditAndMove } from '../../hooks/useEntryEditAndMove';
 
 /**
  * Props for EnhancedVirtualizedDictionaryTable component
@@ -76,10 +76,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>('');
-  const [editingEntry, setEditingEntry] = useState<EditingEntryData | null>(null);
-  const [moveEntry, setMoveEntry] = useState<MoveEntryData | null>(null);
-  const [isUpdating, setIsUpdating] = useState<boolean>(false);
-  const [preservedScrollTop, setPreservedScrollTop] = useState<number | null>(null);
 
   // Filter panel state
   const [showFilterPanel, setShowFilterPanel] = useState<boolean>(false);
@@ -92,43 +88,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Reset transient states when dictionary changes; search/filter state is global and
-  // only reset when switching to a dictionary type where a filter doesn't apply:
-  //   filterSemanticTypes  → phrases + proper nouns
-  //   filterVariable       → phrases only
-  //   filterPatternType / filterAllowAsVariable / filterLowPriority → patterns only
-  useEffect(() => {
-    const newIsPatterns = selectedDictionary === 'patterns';
-    const newIsPhrases = selectedDictionary === 'phrases';
-    const newIsProperNouns = selectedDictionary.startsWith('properNouns');
-
-    if (!newIsPatterns) {
-      setFilterPatternType(new Set());
-      setFilterAllowAsVariable(false);
-      setFilterLowPriority(false);
-    }
-    if (!newIsPhrases) {
-      setFilterVariable('all');
-    }
-    if (!newIsPhrases && !newIsProperNouns) {
-      setFilterSemanticTypes(new Set());
-    }
-    // Close filter panel when switching to a dictionary with no filter options
-    if (!newIsPatterns && !newIsPhrases && !newIsProperNouns) {
-      setShowFilterPanel(false);
-    }
-
-    // Always reset transient UI state
-    setEditingEntry(null);
-    setMoveEntry(null);
-    resetSelection();
-    closeContextMenu();
-    setIsUpdating(false);
-    setPreservedScrollTop(null);
-    // scroll is declared after this effect but the closure runs post-render, so it's initialized
-    scroll.resetScroll();
-  }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selections when switching between duplicate and normal modes
   // BUGFIX: Prevents composite keys from persisting when exiting duplicate mode
@@ -214,64 +173,22 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const totalHeight = totalItems * ITEM_HEIGHT;
   const offsetY = startIndex * ITEM_HEIGHT;
 
-  // Wrapped updateEntry function that preserves scroll position
-  const updateEntryWithScrollPreservation = useCallback(
-    async (
-      dictionaryId: string,
-      oldSource: string,
-      newSource: string,
-      translation: string,
-      metadata?: any
-    ): Promise<void> => {
-      // Capture scroll position before update
-      // BUGFIX: Use scrollRef.current directly to avoid infinite loop
-      // scrollTop in deps would cause callback recreation on every scroll → cascade of updates
-      const currentScrollTop = scroll.scrollRef.current?.scrollTop ?? 0;
-      setPreservedScrollTop(currentScrollTop);
-      setIsUpdating(true);
-
-      try {
-        await updateEntry(dictionaryId, oldSource, newSource, translation, metadata);
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    [updateEntry]
-  );
-
-  // Restore scroll position after dictionary updates
-  useEffect(() => {
-    if (!isUpdating && preservedScrollTop !== null && scroll.scrollRef.current) {
-      requestAnimationFrame(() => {
-        if (scroll.scrollRef.current) {
-          scroll.scrollRef.current.scrollTop = preservedScrollTop;
-          scroll.setScrollTop(preservedScrollTop);
-        }
-        setPreservedScrollTop(null);
-      });
-    }
-  }, [isUpdating, preservedScrollTop]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Context menu — action callbacks (EVDT-owned state side effects)
-  const onContextMenuEdit = useCallback(
-    (entry: { source: string; translation: string }): void => {
-      const dictionary = dictionaries[selectedDictionary];
-      if (!dictionary) return;
-      const value = dictionary[entry.source];
-      setEditingEntry({
-        source: entry.source,
-        translation: value,
-        allowAsPatternVariable:
-          typeof value === 'object' && value.allowAsPatternVariable ? true : false,
-        lowPriority: typeof value === 'object' && value.lowPriority ? true : false,
-      });
-    },
-    [dictionaries, selectedDictionary]
-  );
-
-  const onContextMenuMove = useCallback((entry: { source: string; translation: string }): void => {
-    setMoveEntry(entry);
-  }, []);
+  const {
+    editingEntry,
+    setEditingEntry,
+    moveEntry,
+    setMoveEntry,
+    updateEntryWithScrollPreservation,
+    onContextMenuEdit,
+    onContextMenuMove,
+    reset: resetEditAndMove,
+  } = useEntryEditAndMove({
+    dictionaries,
+    selectedDictionary,
+    updateEntry,
+    scrollRef: scroll.scrollRef as React.RefObject<HTMLElement>,
+    setScrollTop: scroll.setScrollTop,
+  });
 
   const onContextMenuDelete = useCallback(
     async (source: string): Promise<void> => {
@@ -294,6 +211,37 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     onMove: onContextMenuMove,
     onDelete: onContextMenuDelete,
   });
+
+  // Reset all per-dictionary transient state when the selected dictionary changes.
+  // Filter state is only reset for dictionary types where a filter doesn't apply:
+  //   filterSemanticTypes  → phrases + proper nouns
+  //   filterVariable       → phrases only
+  //   filterPatternType / filterAllowAsVariable / filterLowPriority → patterns only
+  useEffect(() => {
+    const newIsPatterns = selectedDictionary === 'patterns';
+    const newIsPhrases = selectedDictionary === 'phrases';
+    const newIsProperNouns = selectedDictionary.startsWith('properNouns');
+
+    if (!newIsPatterns) {
+      setFilterPatternType(new Set());
+      setFilterAllowAsVariable(false);
+      setFilterLowPriority(false);
+    }
+    if (!newIsPhrases) {
+      setFilterVariable('all');
+    }
+    if (!newIsPhrases && !newIsProperNouns) {
+      setFilterSemanticTypes(new Set());
+    }
+    if (!newIsPatterns && !newIsPhrases && !newIsProperNouns) {
+      setShowFilterPanel(false);
+    }
+
+    resetEditAndMove();
+    resetSelection();
+    closeContextMenu();
+    scroll.resetScroll();
+  }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Optimized row component with React.memo (defined at module scope to prevent type churn)
   const VirtualRow = VirtualRowComponent;
