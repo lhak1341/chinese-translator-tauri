@@ -63,6 +63,14 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 
 When engine init fails: `initializationError` is truthy AND `enginePhase === 'error'` (not `'ready'`). Adding `!initializationError` to the condition hides the overlay and lets users interact with a broken engine. Correct condition: `!loadError && (isLoading || enginePhase !== 'ready')`.
 
+## `useHighlightingState` Hook — Highlighting State Not in Translator
+
+`highlighting` (useReducer), `clearHighlighting`, `validateSemanticArraySize`, `MAX_SAFE_SEGMENTS`, and `HIGHLIGHT_SCROLL_DELAY_MS` live in `src/hooks/useHighlightingState.ts`. Translator imports `useHighlightingState(semanticArrays)` and the two constants from that module. `highlightScrollTimeoutRef` is NOT in the hook — used in 10+ scroll-callback sites in Translator and stays there.
+
+## `highlightingReducer.js` — JSDoc `unitIndex` Simplification
+
+`@typedef HighlightingAction` declares `unitIndex?: number`, but `SET_CHARACTER_ONLY_INDEX` accepts `number[]` at runtime (multi-word segment arrays). In TypeScript callers, define a local `HighlightingAction` with `unitIndex?: number | number[]` and cast: `dispatchHighlighting as React.Dispatch<HighlightingAction>`.
+
 ## `useCachePoisoningGuard` Hook — Cache Poisoning State Not in Translator
 
 `cachePoisoningDetected`, `cachePoisoningCount`, `cachePoisoningSeverity`, `cachePoisoningRecommendation`, and `dismissCachePoisoning` live in `src/hooks/useCachePoisoningGuard.ts`. `Translator.jsx` has no direct `@tauri-apps/api/event` import. Hook injects `listenFn = listen` as a default param for testability. `cachePoisoningRecommendation` comes from Rust payload (dynamic per event-count threshold) — the banner uses it instead of hardcoded text.

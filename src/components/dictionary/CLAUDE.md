@@ -96,6 +96,10 @@ vi.restoreAllMocks();
 
 Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
 
+## `useEntryMetadataEdit` Hook — Metadata Handlers Not in `VirtualRowComponent`
+
+`handleCheckboxChange`, `handleToggleVariableType`, `handleSetSemanticType`, and `buildBaseMetadata` live in `src/hooks/useEntryMetadataEdit.ts`. Invariant: every handler snapshots full metadata via `buildBaseMetadata` first, then patches one field. `handleToggleVariableType` owns the add/remove/delete-key logic for `allowedVariableTypes` — toggling the only type for a variable deletes the key; emptying all keys deletes `allowedVariableTypes` from the metadata object entirely.
+
 ## WASM Wrapper Methods
 
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.

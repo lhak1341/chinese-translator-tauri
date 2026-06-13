@@ -1,5 +1,6 @@
 import React from 'react';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
+import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
@@ -9,7 +10,6 @@ import {
 import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { logger } from '../../utils/logger';
 
 /** Height of each table row in pixels. Exported so the table can compute totalHeight. */
 export const ITEM_HEIGHT = 40;
@@ -291,62 +291,17 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       );
     });
 
-    const buildBaseMetadata = (): any => {
-      const m: any = { allowAsPatternVariable, lowPriority };
-      if (semanticType) m.semanticType = semanticType;
-      if (Object.keys(allowedVariableTypes).length > 0)
-        m.allowedVariableTypes = allowedVariableTypes;
-      return m;
-    };
-
-    const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
-      try {
-        const metadata = buildBaseMetadata();
-        metadata[field] = value;
-        await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
-      } catch (error) {
-        logger.error(`Failed to update ${field}:`, error);
-      }
-    };
-
-    const handleToggleVariableType = async (varName: string, type: string): Promise<void> => {
-      try {
-        const current = allowedVariableTypes[varName] || [];
-        const newAllowedTypes = { ...allowedVariableTypes };
-        const isActive = current.includes(type);
-
-        if (isActive) {
-          const filtered = current.filter((t) => t !== type);
-          if (filtered.length > 0) {
-            newAllowedTypes[varName] = filtered;
-          } else {
-            delete newAllowedTypes[varName];
-          }
-        } else {
-          newAllowedTypes[varName] = [...current, type];
-        }
-
-        const metadata = buildBaseMetadata();
-        if (Object.keys(newAllowedTypes).length > 0)
-          metadata.allowedVariableTypes = newAllowedTypes;
-        else delete metadata.allowedVariableTypes;
-
-        await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
-      } catch (error) {
-        logger.error(`Failed to toggle variable ${varName} type ${type}:`, error);
-      }
-    };
-
-    const handleSetSemanticType = async (newType: string): Promise<void> => {
-      try {
-        const metadata = buildBaseMetadata();
-        if (newType) metadata.semanticType = newType;
-        else delete metadata.semanticType;
-        await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
-      } catch (error) {
-        logger.error('Failed to set semantic type:', error);
-      }
-    };
+    const { handleCheckboxChange, handleToggleVariableType, handleSetSemanticType } =
+      useEntryMetadataEdit({
+        source,
+        translationText,
+        semanticType,
+        allowedVariableTypes,
+        allowAsPatternVariable,
+        lowPriority,
+        selectedDictionary,
+        onUpdateEntry,
+      });
 
     // Patterns layout: checkbox | source (25%) | translation+badges (34%) | semantic (15%) | X types (13%) | Y types (13%)
     if (selectedDictionary === 'patterns') {

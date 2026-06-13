@@ -1,12 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
-  useReducer,
-  startTransition,
-} from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { TranslationInputValidator } from '../utils/TranslationInputValidator';
@@ -35,9 +27,10 @@ import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import {
-  highlightingReducer,
-  INITIAL_HIGHLIGHTING_STATE,
-} from '../reducers/highlightingReducer.js';
+  useHighlightingState,
+  MAX_SAFE_SEGMENTS,
+  HIGHLIGHT_SCROLL_DELAY_MS,
+} from '../hooks/useHighlightingState';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -142,11 +135,8 @@ const Translator = ({ isActive = true }) => {
   const [characterOnlySemanticArrays, setCharacterOnlySemanticArrays] = useState(null);
   const [prebuiltSegments, setPrebuiltSegments] = useState([]);
 
-  // Highlighting state managed by reducer for atomic updates
-  const [highlighting, dispatchHighlighting] = useReducer(
-    highlightingReducer,
-    INITIAL_HIGHLIGHTING_STATE
-  );
+  const { highlighting, dispatchHighlighting, clearHighlighting, validateSemanticArraySize } =
+    useHighlightingState(semanticArrays);
 
   // Destructure for easier access (maintains backward compatibility with existing code)
   const {
@@ -186,36 +176,6 @@ const Translator = ({ isActive = true }) => {
     dismissCachePoisoning,
   } = useCachePoisoningGuard();
 
-  /**
-   * Clears all highlighting state across all panels
-   *
-   * Resets highlighting indices to -1 for Original, Full Translation, and Character Only panels.
-   * Called when input text changes or translation starts to prevent stale highlights.
-   *
-   * @returns {void}
-   */
-  const clearHighlighting = useCallback(() => {
-    dispatchHighlighting({ type: 'CLEAR_ALL' });
-  }, []);
-
-  /**
-   * Clear stale highlights when semantic arrays change (new translation completes)
-   *
-   * Lifecycle: Runs when new semantic arrays are set
-   * Dependencies: semanticArrays, clearHighlighting
-   *
-   * Prevents highlighting indices from previous translation causing errors or wrong highlighting
-   * when new translation has different array lengths.
-   *
-   * Critical for preventing array index out of bounds errors when switching between translations.
-   */
-  useEffect(() => {
-    if (semanticArrays !== null) {
-      // New translation completed - clear any stale highlighting from previous translation
-      clearHighlighting();
-    }
-  }, [semanticArrays, clearHighlighting]);
-
   // Refs for auto-scrolling to highlighted elements
   const originalTextRef = useRef(null);
   const translationTextRef = useRef(null);
@@ -243,15 +203,6 @@ const Translator = ({ isActive = true }) => {
   // CODE REVIEW FIX: Consolidated from two separate reload state variables to prevent race conditions
   const [isDictionaryReloading, setIsDictionaryReloading] = useState(false);
 
-  // ISSUE-4 FIX: Timing constant for highlight scroll delay (eliminates magic number)
-  // Wait for React state update to complete before scrolling to highlighted element
-  const HIGHLIGHT_SCROLL_DELAY_MS = 10;
-  // CODE REVIEW FIX (2026-02-01): Prevent integer overflow in position calculations for large documents
-  // Position mapping multiplies segment indices by character positions, so we need conservative bounds
-  // Calculation: (MAX_SAFE_INTEGER / 1000) / 100 assumes ~100 chars per segment average
-  const MAX_POSITION_VALUE = Number.MAX_SAFE_INTEGER / 1000; // Conservative multiplier for position arithmetic
-  const MAX_SAFE_SEGMENTS = Math.floor(MAX_POSITION_VALUE / 100); // ~90 trillion segments (assumes 100 chars/segment)
-
   // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
   const highlightScrollTimeoutRef = useRef(null);
 
@@ -267,30 +218,6 @@ const Translator = ({ isActive = true }) => {
 
   // CODE REVIEW FIX (2026-02-01): Track highlighting computation state for proper cleanup
   const highlightingComputationRef = useRef(null);
-
-  /**
-   * CODE REVIEW FIX (2026-02-01): Validate semantic array size to prevent integer overflow
-   * Throws error if array exceeds MAX_SAFE_SEGMENTS to prevent position calculation overflow
-   *
-   * @param {Object} semanticArrays - Semantic arrays object with original/translated arrays
-   * @param {string} context - Context description for error message
-   * @throws {Error} If array size exceeds safe limit
-   */
-  const validateSemanticArraySize = useCallback((semanticArrays, context) => {
-    if (!semanticArrays?.original) return;
-
-    const arrayLength = semanticArrays.original.length;
-    if (arrayLength > MAX_SAFE_SEGMENTS) {
-      const error = new Error(
-        `Document too large for ${context}: ${arrayLength.toLocaleString()} segments exceeds maximum ${MAX_SAFE_SEGMENTS.toLocaleString()}`
-      );
-      logger.error(error.message);
-      toast.error(
-        `Document too large: ${arrayLength.toLocaleString()} segments (max: ${MAX_SAFE_SEGMENTS.toLocaleString()})`
-      );
-      throw error;
-    }
-  }, []);
 
   /**
    * Cleanup effect - prevents memory leaks on component unmount
