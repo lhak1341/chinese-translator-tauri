@@ -215,6 +215,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - `ResizeObserver` (and other browser APIs called with `new`) must be mocked with class syntax — `vi.fn().mockImplementation(arrow)` is not constructable; use `class MockRO { constructor(cb) {...} observe = vi.fn(); disconnect = vi.fn(); }` then `global.ResizeObserver = MockRO as unknown as typeof ResizeObserver`.
 - Read-only DOM properties (`scrollHeight`, `clientHeight`, `scrollWidth`) can't be set via `Object.assign` or direct assignment — use `Object.defineProperty(node, 'scrollHeight', { get: () => 8000 })`.
 - `renderHook` + `useRef(null)`: effects that early-return on `!ref.current` never fire their body — no DOM node is attached at render time. Either move the guard inside the async callback, remove it from the top-level guard, or call the callback ref before the effect is expected to run.
+- `isDictionaryCategory` uses case-sensitive `String.includes()` — dict names with uppercase midpoints (e.g. `'twoPhasePatterns'`) silently fail `includes('pattern')` (capital P). Use kebab-case in tests: `'pattern-structural'`, `'phrases-extended'`.
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)
 

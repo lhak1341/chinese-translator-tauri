@@ -152,6 +152,7 @@ import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
+import { getIndexedMatches } from './dictionary/LookupIndexUtils.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM NumberProcessor added as focused feature (following migration guide advice)
@@ -1774,11 +1775,7 @@ export class TranslationEngine {
         let match = null;
         if (options.useSharedLookupIndex && options.lookupIndex) {
           const textPosition = getTextPositionForTokenIndex(tokens, i);
-          const indexedMatches = this.dictionaryManager.getIndexedMatches(
-            options.lookupIndex,
-            textPosition,
-            'characters'
-          );
+          const indexedMatches = getIndexedMatches(options.lookupIndex, textPosition, 'characters');
 
           // Take the first (longest) match for characters
           if (indexedMatches.length > 0) {
@@ -3785,11 +3782,7 @@ export class TranslationEngine {
           const textPosition = getTextPositionForTokenIndex(tokens, i);
 
           // Get pre-computed matches from lookup index
-          matches = this.dictionaryManager.getIndexedMatches(
-            options.lookupIndex,
-            textPosition,
-            category
-          );
+          matches = getIndexedMatches(options.lookupIndex, textPosition, category);
 
           // Filter matches by the specific dictionaries for this phase (since index contains all matches)
           matches = matches.filter((match) => dictionarySet.has(match.dictionary));
@@ -3866,11 +3859,7 @@ export class TranslationEngine {
               const jTextPos = getTextPositionForTokenIndex(tokens, j);
               let jMatches;
               if (useSharedLookupIndex) {
-                jMatches = this.dictionaryManager.getIndexedMatches(
-                  options.lookupIndex,
-                  jTextPos,
-                  category
-                );
+                jMatches = getIndexedMatches(options.lookupIndex, jTextPos, category);
                 jMatches = jMatches.filter((m) => dictionarySet.has(m.dictionary));
               } else {
                 jMatches = await this.findAllMatches(

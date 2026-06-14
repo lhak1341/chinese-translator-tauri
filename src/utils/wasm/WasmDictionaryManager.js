@@ -70,28 +70,6 @@ export class WasmDictionaryManager {
       toastDuration: TOAST_DURATIONS.LOAD_FAILURE,
     });
 
-    // ARCHITECTURAL FIX: Track sync failures for performance dashboard
-    // CODE REVIEW FIX (CRITICAL-2): Use pre-allocated circular buffers
-    this.syncFailureTracking = {
-      totalSyncAttempts: 0,
-      successfulSyncs: 0,
-      failedSyncs: 0,
-      lastSyncAttempt: null,
-      lastSyncSuccess: null,
-      lastSyncFailure: null,
-      failureReasons: new Array(10).fill(null), // Pre-allocated circular buffer
-      syncHistory: new Array(20).fill(null), // Pre-allocated circular buffer
-      // Track batch vs sequential loading separately
-      batchAttempts: 0,
-      batchSuccesses: 0,
-      sequentialAttempts: 0,
-      sequentialSuccesses: 0,
-    };
-
-    // Circular buffer indices for O(1) operations
-    this.failureReasonsIndex = 0;
-    this.syncHistoryIndex = 0;
-
     // Memory pool integration
     this.memoryPool = wasmMemoryPoolManager;
   }
@@ -135,36 +113,16 @@ export class WasmDictionaryManager {
    * Reduces boundary crossings from N calls to 1 call
    */
   async loadDictionariesBatch(dictionaries) {
-    // ARCHITECTURAL FIX: Track sync attempt
-    this.syncFailureTracking.totalSyncAttempts++;
-    this.syncFailureTracking.batchAttempts++;
-    this.syncFailureTracking.lastSyncAttempt = Date.now();
-
     if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       logger.log('🔄 Using fallback for batch loading (WASM not available)');
-      this._recordSyncFailure('WASM not initialized or in fallback mode', 'batch');
-      // CRITICAL FIX: Pass _skipMetrics=true to prevent double-counting
-      // Batch attempt already counted above (line 116), fallback loop shouldn't increment sequential metrics
-      // Without this: batch fail for 12 dicts = 1 batch attempt + 12 sequential attempts (wrong!)
-      // With this: batch fail for 12 dicts = 1 batch attempt + 0 sequential attempts (correct!)
       let successCount = 0;
       for (const { name, entries } of dictionaries) {
-        const success = await this.loadDictionary(name, entries, true); // Skip metrics
+        const success = await this.loadDictionary(name, entries);
         if (success) successCount++;
       }
       logger.log(
         `✅ Sequential fallback loaded ${successCount}/${dictionaries.length} dictionaries`
       );
-
-      // CODE REVIEW FIX (CRITICAL-1): Record sequential fallback success
-      if (successCount === dictionaries.length) {
-        this._recordSyncSuccess('sequential_fallback');
-      } else {
-        this._recordSyncFailure(
-          `Sequential fallback only loaded ${successCount}/${dictionaries.length} dictionaries`,
-          'sequential_fallback'
-        );
-      }
 
       // Return actual success — callers must know when only a partial set loaded
       // so they can avoid producing silent translation gaps from missing dictionaries.
@@ -222,13 +180,9 @@ export class WasmDictionaryManager {
           logger.log(
             `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
           );
-          // ARCHITECTURAL FIX: Record successful sync
-          this._recordSyncSuccess('batch');
-
           return true;
         } else {
           logger.log('⚠️ Memory pool batch loading returned false, using sequential fallback');
-          this._recordSyncFailure('Batch loading returned false', 'batch');
           return false; // Trigger fallback to sequential loading
         }
       } finally {
@@ -241,9 +195,6 @@ export class WasmDictionaryManager {
     } catch (error) {
       logger.error('❌ Batch dictionary loading failed:', error);
 
-      // ARCHITECTURAL FIX: Record sync failure with reason
-      this._recordSyncFailure(error.message || 'Unknown error', 'batch');
-
       // REFACTOR (2026-01-28): Use centralized failure handling
       this.handleFailure();
 
@@ -251,16 +202,9 @@ export class WasmDictionaryManager {
     }
   }
 
-  async loadDictionary(name, entries, _skipMetrics = false) {
-    // ARCHITECTURAL FIX: Track sequential loading attempts
-    // CRITICAL FIX: Skip metrics when called as batch fallback to prevent double-counting
-    if (!_skipMetrics) {
-      this.syncFailureTracking.sequentialAttempts++;
-    }
-
+  async loadDictionary(name, entries) {
     if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       logger.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
-      this._recordSyncFailure(`Sequential: WASM not available for ${name}`, 'sequential');
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
     }
 
@@ -282,20 +226,11 @@ export class WasmDictionaryManager {
         this.fallbackHandler.recordSuccess();
 
         this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
-
-        // ARCHITECTURAL FIX: Record sequential success
-        this._recordSyncSuccess('sequential');
-      } else {
-        this._recordSyncFailure(
-          `Sequential: load_dictionary returned false for ${name}`,
-          'sequential'
-        );
       }
 
       return success;
     } catch (error) {
       logger.error(`❌ WASM dictionary loading failed for ${name}:`, error);
-      this._recordSyncFailure(`Sequential: ${error.message} for ${name}`, 'sequential');
       this.handleFailure();
       return this.fallbackManager?.loadDictionary(name, entries) ?? false;
     }
@@ -581,146 +516,6 @@ export class WasmDictionaryManager {
     return {
       ...baseReport,
       memoryPool: this.memoryPool.getStats(),
-    };
-  }
-
-  /**
-   * ARCHITECTURAL FIX: Record successful sync for performance dashboard
-   * CODE REVIEW FIX (CRITICAL-2): Use circular buffer for O(1) operations
-   * @private
-   * @param {string} method - 'batch' or 'sequential'
-   */
-  _recordSyncSuccess(method = 'unknown') {
-    this.syncFailureTracking.successfulSyncs++;
-    this.syncFailureTracking.lastSyncSuccess = Date.now();
-
-    // Track method-specific successes
-    if (method === 'batch') {
-      this.syncFailureTracking.batchSuccesses++;
-    } else if (method === 'sequential') {
-      this.syncFailureTracking.sequentialSuccesses++;
-    }
-
-    // Add to history using circular buffer (O(1) instead of O(n) with shift)
-    this.syncFailureTracking.syncHistory[this.syncHistoryIndex] = {
-      timestamp: Date.now(),
-      success: true,
-      method: method,
-      reason: null,
-    };
-
-    this.syncHistoryIndex = (this.syncHistoryIndex + 1) % 20;
-  }
-
-  /**
-   * ARCHITECTURAL FIX: Record sync failure with reason for performance dashboard
-   * CODE REVIEW FIX (CRITICAL-2): Use circular buffer + truncate messages
-   * @private
-   * @param {string} reason - Failure reason
-   * @param {string} method - 'batch' or 'sequential'
-   */
-  _recordSyncFailure(reason, method = 'unknown') {
-    this.syncFailureTracking.failedSyncs++;
-    this.syncFailureTracking.lastSyncFailure = Date.now();
-
-    // CRITICAL FIX: Truncate large error messages to prevent unbounded growth
-    const MAX_REASON_LENGTH = 200; // 200 chars = ~200 bytes
-    const truncatedReason =
-      typeof reason === 'string' && reason.length > MAX_REASON_LENGTH
-        ? reason.substring(0, MAX_REASON_LENGTH) + '...'
-        : reason;
-
-    // Use circular buffer (O(1) instead of O(n) with shift)
-    this.syncFailureTracking.failureReasons[this.failureReasonsIndex] = {
-      timestamp: Date.now(),
-      method: method,
-      reason: truncatedReason,
-    };
-
-    this.failureReasonsIndex = (this.failureReasonsIndex + 1) % 10;
-
-    // Add to history using circular buffer
-    this.syncFailureTracking.syncHistory[this.syncHistoryIndex] = {
-      timestamp: Date.now(),
-      success: false,
-      method: method,
-      reason: truncatedReason,
-    };
-
-    this.syncHistoryIndex = (this.syncHistoryIndex + 1) % 20;
-  }
-
-  /**
-   * ARCHITECTURAL FIX: Get sync metrics for performance dashboard
-   * CODE REVIEW FIX (CRITICAL-2): Filter null entries from circular buffers
-   * @returns {Object} Sync metrics including success rate and recent failures
-   */
-  getSyncMetrics() {
-    const {
-      totalSyncAttempts,
-      successfulSyncs,
-      failedSyncs,
-      batchAttempts,
-      batchSuccesses,
-      sequentialAttempts,
-      sequentialSuccesses,
-    } = this.syncFailureTracking;
-
-    // Calculate overall success rate
-    const overallSuccessRate =
-      totalSyncAttempts > 0 ? ((successfulSyncs / totalSyncAttempts) * 100).toFixed(1) : '0.0';
-
-    // Calculate batch success rate
-    const batchSuccessRate =
-      batchAttempts > 0 ? ((batchSuccesses / batchAttempts) * 100).toFixed(1) : 'N/A';
-
-    // Calculate sequential success rate
-    const sequentialSuccessRate =
-      sequentialAttempts > 0
-        ? ((sequentialSuccesses / sequentialAttempts) * 100).toFixed(1)
-        : 'N/A';
-
-    // Filter out null entries from circular buffers
-    const validFailures = this.syncFailureTracking.failureReasons.filter((f) => f !== null);
-    const validHistory = this.syncFailureTracking.syncHistory.filter((h) => h !== null);
-
-    return {
-      // Overall metrics
-      totalAttempts: totalSyncAttempts,
-      successfulSyncs: successfulSyncs,
-      failedSyncs: failedSyncs,
-      successRate: overallSuccessRate,
-
-      // Batch loading metrics
-      batch: {
-        attempts: batchAttempts,
-        successes: batchSuccesses,
-        successRate: batchSuccessRate,
-      },
-
-      // Sequential loading metrics
-      sequential: {
-        attempts: sequentialAttempts,
-        successes: sequentialSuccesses,
-        successRate: sequentialSuccessRate,
-      },
-
-      // Timestamps
-      lastSyncAttempt: this.syncFailureTracking.lastSyncAttempt,
-      lastSyncSuccess: this.syncFailureTracking.lastSyncSuccess,
-      lastSyncFailure: this.syncFailureTracking.lastSyncFailure,
-
-      // Failure tracking (filter nulls from circular buffer)
-      recentFailures: validFailures.slice(-5), // Last 5 non-null failures
-      syncHistory: validHistory, // All non-null history entries
-
-      // Status
-      currentStatus: this.fallbackHandler.isInFallbackMode()
-        ? 'FALLBACK_MODE'
-        : this.initialized
-          ? 'ACTIVE'
-          : 'NOT_INITIALIZED',
-      consecutiveFailures: this.fallbackHandler.getFailureCount(),
     };
   }
 

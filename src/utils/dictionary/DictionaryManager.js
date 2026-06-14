@@ -38,6 +38,7 @@ import { logger } from '../logger.js';
 import { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader.js';
 import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
 import { DictionaryTrie } from './DictionaryTrie.js';
+import { isDictionaryCategory } from './LookupIndexUtils.js';
 
 // Debug logging levels
 const DEBUG_LEVELS = {
@@ -700,13 +701,13 @@ export class DictionaryManager {
         if (allMatches.length > 0) {
           // Categorize matches by dictionary type for different phases
           const categorizedMatches = {
-            patterns: allMatches.filter((m) => this.isDictionaryType(m.dictionary, 'patterns')),
+            patterns: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'patterns')),
             properNouns: allMatches.filter((m) =>
-              this.isDictionaryType(m.dictionary, 'properNouns')
+              isDictionaryCategory(m.dictionary, 'properNouns')
             ),
-            phrases: allMatches.filter((m) => this.isDictionaryType(m.dictionary, 'phrases')),
-            characters: allMatches.filter((m) => this.isDictionaryType(m.dictionary, 'characters')),
-            numbers: allMatches.filter((m) => this.isDictionaryType(m.dictionary, 'numbers')),
+            phrases: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'phrases')),
+            characters: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'characters')),
+            numbers: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'numbers')),
           };
 
           // Only store position if it has matches for any category
@@ -739,89 +740,6 @@ export class DictionaryManager {
       // Return empty index on failure - phases will fall back to individual lookups
       return new Map();
     }
-  }
-
-  /**
-   * Determine if a dictionary belongs to a specific category/type
-   * @param {string} dictionaryName - Name of the dictionary
-   * @param {string} category - Category to check ('patterns', 'properNouns', 'phrases', 'characters', 'numbers')
-   * @returns {boolean} True if dictionary matches category
-   */
-  isDictionaryType(dictionaryName, category) {
-    const metadata = this.metadata.get(dictionaryName);
-    if (!metadata) return false;
-
-    // Map dictionary names to categories based on naming patterns and metadata
-    switch (category) {
-      case 'patterns':
-        return dictionaryName.includes('pattern') || metadata.type === 'patterns';
-
-      case 'properNouns':
-        return (
-          dictionaryName.includes('proper') ||
-          dictionaryName.includes('noun') ||
-          dictionaryName.includes('character') ||
-          dictionaryName.includes('place') ||
-          metadata.type === 'properNouns'
-        );
-
-      case 'phrases':
-        return (
-          dictionaryName.includes('phrase') ||
-          dictionaryName === 'phrases' ||
-          metadata.type === 'phrases'
-        );
-
-      case 'characters':
-        return dictionaryName === 'characters' || metadata.type === 'characters';
-
-      case 'numbers':
-        return dictionaryName.includes('number') || metadata.type === 'numbers';
-
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * Get matches from lookup index for a specific position and category
-   * @param {Map} lookupIndex - Pre-built lookup index
-   * @param {number} position - Text position
-   * @param {string} category - Dictionary category ('patterns', 'properNouns', 'phrases', 'characters')
-   * @returns {Array} Matches for the category at this position
-   */
-  getIndexedMatches(lookupIndex, position, category) {
-    const positionMatches = lookupIndex.get(position);
-    if (!positionMatches) return [];
-
-    // Handle both camelCase (JavaScript) and snake_case (Rust) field names
-    // Rust uses: proper_nouns, JavaScript uses: properNouns
-    const categoryMap = {
-      properNouns: 'proper_nouns', // Map JavaScript name to Rust name
-      phrases: 'phrases',
-      characters: 'characters',
-      patterns: 'patterns',
-      numbers: 'numbers',
-    };
-
-    // Try the category directly first (for JavaScript-built indexes)
-    let matches = positionMatches[category];
-
-    // If not found and category is camelCase, try snake_case (for Rust-built indexes)
-    if (!matches && categoryMap[category]) {
-      matches = positionMatches[categoryMap[category]];
-    }
-
-    const result = matches || [];
-    // Rust index stores matches in dictionary-iteration order (priority order), not length order.
-    // Sort here to match findAllMatchesSequential: longer match wins, priority as tiebreak.
-    if (result.length > 1) {
-      return [...result].sort((a, b) => {
-        if (a.word.length !== b.word.length) return b.word.length - a.word.length;
-        return (a.priority || 0) - (b.priority || 0);
-      });
-    }
-    return result;
   }
 
   /**

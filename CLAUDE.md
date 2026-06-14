@@ -95,6 +95,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `DictionaryEntryFilters` interface from `useDictionaryEntryFilter` — deleted; filter state now owned by the hook; 4th param is `showDuplicatesMode: boolean` (not a filters object)
 - `SemanticArrayBuilder.buildOriginalMapping`, `.buildTranslatedMapping` (private methods) — extracted to `mapToPositions(text, units, count, caseInsensitive?)` in `src/utils/highlighting/TextPositionMapper.ts`; `buildPositionMappings` now delegates both passes to this function
 - `SemanticPatternProcessor.classifyVariableType`, `.getHeuristicType` — extracted to `src/utils/pattern/VariableTypeClassifier.ts`; `classifyVariableType` exported (pure fn), `getHeuristicType` module-private; `properNouns-f_HarryPotter`/`DuongThan` name hardcode deleted
+- `DictionaryManager.isDictionaryType`, `.getIndexedMatches` — extracted to `src/utils/dictionary/LookupIndexUtils.ts`
+- `WasmDictionaryManager.syncFailureTracking`, `._recordSyncSuccess`, `._recordSyncFailure`, `.getSyncMetrics`, `.failureReasonsIndex`, `.syncHistoryIndex`, `loadDictionary._skipMetrics` param — deleted (zero callers on `getSyncMetrics`; see ADR-020 for restoration shape if perf dashboard is built); use `isDictionaryCategory(name, cat)` (imported into DM internally) and `getIndexedMatches(index, pos, cat)` (imported directly in `TranslationEngine.js`, no longer on DM's interface). `DictionaryManager.metadata.type` was never written — the `metadata.type === 'X'` branches in `isDictionaryType` were dead code; do not recreate them.
 
 **Non-obvious contracts:**
 

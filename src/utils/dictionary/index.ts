@@ -61,3 +61,7 @@ export {
 // --- Backend IO ---
 export type { BatchLoadResult } from './DictionaryBackend';
 export { loadAllDictionaries } from './DictionaryBackend';
+
+// --- Lookup index utilities ---
+export type { DictionaryCategory } from './LookupIndexUtils';
+export { isDictionaryCategory, getIndexedMatches } from './LookupIndexUtils';
