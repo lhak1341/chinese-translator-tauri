@@ -1,19 +1,19 @@
-# Graph Report - chinese-translator-tauri (2026-06-14)
+# Graph Report - chinese-translator-tauri (2026-06-15)
 
 ## Corpus Check
 
-- 330 files · ~439,796 words
+- 323 files · ~431,018 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 6160 nodes · 8798 edges · 428 communities (359 shown, 69 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 118 edges (avg confidence: 0.8)
+- 5807 nodes · 7966 edges · 345 communities (297 shown, 48 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 51 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `570353c7`
+- Built from commit: `eefe9561`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -73,6 +73,7 @@
 - [[_COMMUNITY_Community 51|Community 51]]
 - [[_COMMUNITY_Community 52|Community 52]]
 - [[_COMMUNITY_Community 53|Community 53]]
+- [[_COMMUNITY_Community 54|Community 54]]
 - [[_COMMUNITY_Community 55|Community 55]]
 - [[_COMMUNITY_Community 56|Community 56]]
 - [[_COMMUNITY_Community 57|Community 57]]
@@ -151,7 +152,6 @@
 - [[_COMMUNITY_Community 130|Community 130]]
 - [[_COMMUNITY_Community 131|Community 131]]
 - [[_COMMUNITY_Community 132|Community 132]]
-- [[_COMMUNITY_Community 133|Community 133]]
 - [[_COMMUNITY_Community 134|Community 134]]
 - [[_COMMUNITY_Community 135|Community 135]]
 - [[_COMMUNITY_Community 136|Community 136]]
@@ -223,7 +223,6 @@
 - [[_COMMUNITY_Community 202|Community 202]]
 - [[_COMMUNITY_Community 203|Community 203]]
 - [[_COMMUNITY_Community 204|Community 204]]
-- [[_COMMUNITY_Community 205|Community 205]]
 - [[_COMMUNITY_Community 206|Community 206]]
 - [[_COMMUNITY_Community 207|Community 207]]
 - [[_COMMUNITY_Community 208|Community 208]]
@@ -233,6 +232,7 @@
 - [[_COMMUNITY_Community 212|Community 212]]
 - [[_COMMUNITY_Community 213|Community 213]]
 - [[_COMMUNITY_Community 214|Community 214]]
+- [[_COMMUNITY_Community 215|Community 215]]
 - [[_COMMUNITY_Community 216|Community 216]]
 - [[_COMMUNITY_Community 217|Community 217]]
 - [[_COMMUNITY_Community 218|Community 218]]
@@ -240,10 +240,11 @@
 - [[_COMMUNITY_Community 220|Community 220]]
 - [[_COMMUNITY_Community 221|Community 221]]
 - [[_COMMUNITY_Community 222|Community 222]]
-- [[_COMMUNITY_Community 223|Community 223]]
 - [[_COMMUNITY_Community 224|Community 224]]
 - [[_COMMUNITY_Community 225|Community 225]]
 - [[_COMMUNITY_Community 226|Community 226]]
+- [[_COMMUNITY_Community 227|Community 227]]
+- [[_COMMUNITY_Community 228|Community 228]]
 - [[_COMMUNITY_Community 229|Community 229]]
 - [[_COMMUNITY_Community 230|Community 230]]
 - [[_COMMUNITY_Community 231|Community 231]]
@@ -256,10 +257,11 @@
 - [[_COMMUNITY_Community 238|Community 238]]
 - [[_COMMUNITY_Community 239|Community 239]]
 - [[_COMMUNITY_Community 240|Community 240]]
-- [[_COMMUNITY_Community 242|Community 242]]
+- [[_COMMUNITY_Community 241|Community 241]]
 - [[_COMMUNITY_Community 243|Community 243]]
 - [[_COMMUNITY_Community 244|Community 244]]
 - [[_COMMUNITY_Community 245|Community 245]]
+- [[_COMMUNITY_Community 246|Community 246]]
 - [[_COMMUNITY_Community 247|Community 247]]
 - [[_COMMUNITY_Community 248|Community 248]]
 - [[_COMMUNITY_Community 249|Community 249]]
@@ -278,6 +280,7 @@
 - [[_COMMUNITY_Community 262|Community 262]]
 - [[_COMMUNITY_Community 263|Community 263]]
 - [[_COMMUNITY_Community 264|Community 264]]
+- [[_COMMUNITY_Community 265|Community 265]]
 - [[_COMMUNITY_Community 266|Community 266]]
 - [[_COMMUNITY_Community 267|Community 267]]
 - [[_COMMUNITY_Community 268|Community 268]]
@@ -321,6 +324,7 @@
 - [[_COMMUNITY_Community 306|Community 306]]
 - [[_COMMUNITY_Community 307|Community 307]]
 - [[_COMMUNITY_Community 308|Community 308]]
+- [[_COMMUNITY_Community 309|Community 309]]
 - [[_COMMUNITY_Community 310|Community 310]]
 - [[_COMMUNITY_Community 311|Community 311]]
 - [[_COMMUNITY_Community 312|Community 312]]
@@ -337,6 +341,7 @@
 - [[_COMMUNITY_Community 323|Community 323]]
 - [[_COMMUNITY_Community 324|Community 324]]
 - [[_COMMUNITY_Community 325|Community 325]]
+- [[_COMMUNITY_Community 326|Community 326]]
 - [[_COMMUNITY_Community 327|Community 327]]
 - [[_COMMUNITY_Community 328|Community 328]]
 - [[_COMMUNITY_Community 329|Community 329]]
@@ -344,69 +349,54 @@
 - [[_COMMUNITY_Community 331|Community 331]]
 - [[_COMMUNITY_Community 332|Community 332]]
 - [[_COMMUNITY_Community 333|Community 333]]
-- [[_COMMUNITY_Community 334|Community 334]]
-- [[_COMMUNITY_Community 335|Community 335]]
-- [[_COMMUNITY_Community 336|Community 336]]
-- [[_COMMUNITY_Community 337|Community 337]]
-- [[_COMMUNITY_Community 338|Community 338]]
-- [[_COMMUNITY_Community 342|Community 342]]
-- [[_COMMUNITY_Community 377|Community 377]]
-- [[_COMMUNITY_Community 378|Community 378]]
-- [[_COMMUNITY_Community 379|Community 379]]
-- [[_COMMUNITY_Community 380|Community 380]]
-- [[_COMMUNITY_Community 381|Community 381]]
-- [[_COMMUNITY_Community 382|Community 382]]
-- [[_COMMUNITY_Community 383|Community 383]]
-- [[_COMMUNITY_Community 384|Community 384]]
-- [[_COMMUNITY_Community 385|Community 385]]
-- [[_COMMUNITY_Community 386|Community 386]]
-- [[_COMMUNITY_Community 387|Community 387]]
-- [[_COMMUNITY_Community 425|Community 425]]
-- [[_COMMUNITY_Community 426|Community 426]]
-- [[_COMMUNITY_Community 427|Community 427]]
 
 ## God Nodes (most connected - your core abstractions)
 
-1. `TranslationEngine` - 130 edges
-2. `Logger` - 116 edges
-3. `DictionaryManager()` - 67 edges
-4. `parse_pattern()` - 53 edges
-5. `TranslationEngine Internals` - 40 edges
-6. `passStringToWasm0()` - 32 edges
-7. `Implementation Log` - 30 edges
-8. `TranslationSegmentCache` - 29 edges
-9. `NumberProcessor` - 28 edges
-10. `takeFromExternrefTable0()` - 27 edges
+1. `TranslationEngine` - 129 edges
+2. `Logger` - 100 edges
+3. `DictionaryManager()` - 52 edges
+4. `TranslationEngine Internals` - 36 edges
+5. `passStringToWasm0()` - 32 edges
+6. `Implementation Log` - 30 edges
+7. `takeFromExternrefTable0()` - 27 edges
+8. `NumberProcessor` - 26 edges
+9. `Domain Glossary` - 25 edges
+10. `NumberProcessor` - 24 edges
 
 ## Surprising Connections (you probably didn't know these)
 
-- `phase_a_semantic_type_satisfies_phase_b_constraint()` --calls--> `parse_pattern()` [INFERRED]
-  wasm-core/tests/pattern_semantic_type_test.rs → wasm-core/src/pattern_processor/parser.rs
-- `phase_a_without_semantic_type_defaults_to_structural_pattern()` --calls--> `parse_pattern()` [INFERRED]
-  wasm-core/tests/pattern_semantic_type_test.rs → wasm-core/src/pattern_processor/parser.rs
 - `bench_two_phase_processing()` --calls--> `parse_pattern()` [INFERRED]
   wasm-core/benches/pattern_matching.rs → wasm-core/src/pattern_processor/parser.rs
-- `test_parse_and_index_workflow()` --calls--> `parse_pattern()` [INFERRED]
-  wasm-core/src/pattern_processor/mod.rs → wasm-core/src/pattern_processor/parser.rs
 - `build_lookup_index()` --calls--> `build_comprehensive_lookup_index()` [INFERRED]
   src-tauri/src/dictionary_commands.rs → src-tauri/src/lookup_index_engine.rs
+- `bench_single_pattern_match()` --calls--> `parse_pattern()` [INFERRED]
+  wasm-core/benches/pattern_matching.rs → wasm-core/src/pattern_processor/parser.rs
+- `bench_pattern_competition()` --calls--> `parse_pattern()` [INFERRED]
+  wasm-core/benches/pattern_matching.rs → wasm-core/src/pattern_processor/parser.rs
+- `bench_phase_a_processing()` --calls--> `parse_pattern()` [INFERRED]
+  wasm-core/benches/pattern_matching.rs → wasm-core/src/pattern_processor/parser.rs
 
-## Communities (428 total, 69 thin omitted)
+## Communities (345 total, 48 thin omitted)
 
 ### Community 0 - "Community 0"
 
-Cohesion: 0.05
-Nodes (87): BatchDictionaryRequest, BatchDictionaryResponse, BatchDictionaryResult, build_lookup_index(), build_trie_from_entries(), CacheHealthResponse, check_dictionary_cache_health(), check_json_depth() (+79 more)
+Cohesion: 0.07
+Nodes (67): BatchDictionaryResponse, BatchDictionaryResult, build_lookup_index(), build_trie_from_entries(), CacheHealthResponse, check_dictionary_cache_health(), check_json_depth(), create_proper_nouns_dictionary() (+59 more)
 
 ### Community 1 - "Community 1"
 
 Cohesion: 0.05
-Nodes (61): BulkMoveDialog(), BulkMoveDialogProps, DictionaryContext, DictionaryContextValue, DictionaryProvider(), DictionaryProviderProps, prepareMutationEntry(), classifyLoadResult() (+53 more)
+Nodes (34): PatternProcessingResult, test_pattern_categorization(), TwoPhasePatternProcessor, TwoPhaseStats, StringProcessor, test_build_cache_from_json(), test_cache_operations(), test_clear() (+26 more)
+
+### Community 2 - "Community 2"
+
+Cohesion: 0.05
+Nodes (16): PatternAnalyzer, calculatePatternPriority(), PatternToken, PatternTokenType, PatternVariable, PRIORITY_WEIGHTS, PriorityBreakdown, buildPatternVariableCache() (+8 more)
 
 ### Community 3 - "Community 3"
 
 Cohesion: 0.05
-Nodes (12): OptimizationBenchmarks, getV8OptimizationMetrics(), printV8OptimizationReport(), OptimizationBenchmarks, applyTokenUpdates(), createTokenUpdate(), findConsecutiveUnprocessed(), findUnprocessedTokens() (+4 more)
+Nodes (21): calculateDictionaryChecksum(), deserializeTrie(), invalidatePrecomputedTrie(), PrecomputedTrieStats, savePrecomputedTrie(), serializeTrie(), tryLoadPrecomputedTrie(), DEBUG_LEVELS (+13 more)
 
 ### Community 4 - "Community 4"
 
@@ -415,13 +405,18 @@ Nodes (38): ConversionPattern, create_conversion_patterns(), create_number_map()
 
 ### Community 5 - "Community 5"
 
-Cohesion: 0.08
-Nodes (36): binary, cleared, instance, instantiateFn, lc, status, recordFallback(), fetchWasmBinary() (+28 more)
+Cohesion: 0.05
+Nodes (14): CacheStatistics, ContentAwarePositionCache, ContentAwarePositionCacheOptions, ContentSignature, GetStatsResult, PositionMappingCacheEntry, ExtendedCacheStats, LRUCache (+6 more)
+
+### Community 6 - "Community 6"
+
+Cohesion: 0.05
+Nodes (16): OptimizationBenchmarks, cacheEntryIterator, dictionaryEntryIterator, getV8OptimizationMetrics(), memoryStatsIterator, optimizationMetrics, performanceMetricsIterator, printV8OptimizationReport() (+8 more)
 
 ### Community 7 - "Community 7"
 
 Cohesion: 0.09
-Nodes (21): addToExternrefTable0(), \_assertBoolean(), \_assertNum(), CoreTranslationEngine, debugString(), DictionaryEngine, getDataViewMemory0(), getStringFromWasm0() (+13 more)
+Nodes (22): addToExternrefTable0(), \_assertBoolean(), \_assertNum(), buf, CoreTranslationEngine, debugString(), DictionaryEngine, getDataViewMemory0() (+14 more)
 
 ### Community 8 - "Community 8"
 
@@ -430,8 +425,8 @@ Nodes (50): CacheConfiguration, DebugLevel, DictionaryData, DictionaryEntry, Dic
 
 ### Community 9 - "Community 9"
 
-Cohesion: 0.05
-Nodes (50): 1. Cascade-Retire Fix (small, ~10 lines), 2. Root-Cause Investigation (larger, needs reproducer), Cascade-retire wired across all 6 wrappers, code:js (registerCascadeHandler(fn); // called once at module load by), code:block2 (panicked at /...alloc/src/rc.rs:3743:13:), code:rust (let \_ = &\*NUMBER_MAP;), code:block4 (panicked at /...wasm-bindgen-0.2.100/src/rt/mod.rs:287:25:), code:rust (// Pre-warm regex-automata Pool<Cache> (regex 1.11 / regex-a) (+42 more)
+Cohesion: 0.06
+Nodes (37): Toast, PATTERN_SEMANTIC_TYPE_REF_LIST, PATTERN_SEMANTIC_TYPE_REFS, PatternSemanticTypeRef, SEMANTIC_TYPE_ABBREVIATIONS, SEMANTIC_TYPE_COLORS, SEMANTIC_TYPE_LABELS, SEMANTIC_TYPE_LIST (+29 more)
 
 ### Community 10 - "Community 10"
 
@@ -440,58 +435,48 @@ Nodes (49): AdvancedPerformanceStats, BatchPerformanceMetrics, CharacterOnlyResu
 
 ### Community 11 - "Community 11"
 
-Cohesion: 0.05
-Nodes (33): BadgeProps, buildBaseMetadata(), BulkMoveDialog(), BulkMoveDialogProps, ContextMenuState, EnhancedVirtualizedDictionaryTable(), EnhancedVirtualizedDictionaryTableProps, getTargetLabel() (+25 more)
+Cohesion: 0.04
+Nodes (48): 1.1 ChineseNumberConverter.js (400-500 lines), 1.2 useScrollPositionManager.js (300 lines), 1.3 TranslationInputValidator.js (100 lines), 2.1 PatternTemplateEngine.js (150-200 lines), 2.2 SemanticPositionMapper.js (300-400 lines), 3.1 useTranslationController.js (200 lines), 3.2 useDictionaryReload.js (250 lines), 4.1 Remove duplicate escapeRegExp implementations (+40 more)
 
 ### Community 12 - "Community 12"
 
 Cohesion: 0.04
-Nodes (48): 1.1 ChineseNumberConverter.js (400-500 lines), 1.2 useScrollPositionManager.js (300 lines), 1.3 TranslationInputValidator.js (100 lines), 2.1 PatternTemplateEngine.js (150-200 lines), 2.2 SemanticPositionMapper.js (300-400 lines), 3.1 useTranslationController.js (200 lines), 3.2 useDictionaryReload.js (250 lines), 4.1 Remove duplicate escapeRegExp implementations (+40 more)
+Nodes (47): ArrayElement, AsyncCallback, AsyncConsumer, AsyncFunction, AsyncMapper, AsyncPredicate, AsyncReducer, AsyncSupplier (+39 more)
 
 ### Community 13 - "Community 13"
 
-Cohesion: 0.05
-Nodes (21): BackgroundCleanupManager, BackgroundCleanupStats, CleanupEvent, CleanupPriority, CleanupTask, ComponentMemoryProfiler, ComponentMetrics, ComponentProfile (+13 more)
+Cohesion: 0.08
+Nodes (13): charLengthToTokenCount(), convertWasmMatchToTokenMatch(), globalPerformanceMonitor, formatMessage(), isDevelopment(), LOG_PREFIXES, Logger, LogLevel (+5 more)
 
 ### Community 14 - "Community 14"
 
-Cohesion: 0.08
-Nodes (14): calculateDictionaryChecksum(), deserializeTrie(), invalidatePrecomputedTrie(), PrecomputedTrieStats, savePrecomputedTrie(), serializeTrie(), tryLoadPrecomputedTrie(), DictionaryTrie (+6 more)
-
-### Community 15 - "Community 15"
-
-Cohesion: 0.04
-Nodes (47): code:javascript (// Import added), code:javascript (try {), code:javascript (// Must verify exact matches for:), code:bash (# Found only 13 regex compilations total), code:rust (// Rust implementation), code:javascript (async function\* translateStream(text, options) {), code:javascript (// Build-time script), code:javascript (// Import added) (+39 more)
+Cohesion: 0.07
+Nodes (30): BatchLoadResult, loadAllDictionaries(), DictionaryContext, DictionaryContextValue, DictionaryProvider(), DictionaryProviderProps, classifyLoadResult(), LoadOutcome (+22 more)
 
 ### Community 16 - "Community 16"
 
 Cohesion: 0.04
-Nodes (46): 1. ✅ Local-Only WASM Loading (CRITICAL), 2. ✅ Binary Integrity Verification (SHA-256 Hashing), 3. ✅ Module Structure Verification, 4. ✅ Instance Method Verification, 5. ✅ Graceful Degradation, 6. ✅ Retry Logic with Exponential Backoff, 7. ✅ No Dynamic WASM Loading, Attack Scenarios (If Exploited) (+38 more)
-
-### Community 17 - "Community 17"
-
-Cohesion: 0.06
-Nodes (14): test_content_hash_chinese(), test_content_hash_deterministic(), test_content_hash_different(), test_content_hash_empty(), test_content_hash_long_text(), test_content_hash_simple(), test_content_hash_vietnamese(), base36_encode() (+6 more)
+Nodes (47): code:javascript (// Import added), code:javascript (try {), code:javascript (// Must verify exact matches for:), code:bash (# Found only 13 regex compilations total), code:rust (// Rust implementation), code:javascript (async function\* translateStream(text, options) {), code:javascript (// Build-time script), code:javascript (// Import added) (+39 more)
 
 ### Community 18 - "Community 18"
 
 Cohesion: 0.04
-Nodes (45): code:rust (// dictionary_commands.rs:173), code:json ({), code:html (<!-- Should be blocked: -->), code:rust (// No size check before parsing potentially huge JSON), code:javascript (// Send 1GB JSON file), code:rust (// Add size limits configuration), code:rust (lazy_static! {), code:rust (self.cache.lock().unwrap().get(key).cloned() // Panics on p) (+37 more)
+Nodes (46): 1. ✅ Local-Only WASM Loading (CRITICAL), 2. ✅ Binary Integrity Verification (SHA-256 Hashing), 3. ✅ Module Structure Verification, 4. ✅ Instance Method Verification, 5. ✅ Graceful Degradation, 6. ✅ Retry Logic with Exponential Backoff, 7. ✅ No Dynamic WASM Loading, Attack Scenarios (If Exploited) (+38 more)
 
 ### Community 19 - "Community 19"
 
 Cohesion: 0.04
-Nodes (45): Behavior Changes, Benefits, Code Documentation, code:javascript (// WasmPatternProcessor.js:111), code:json ({), code:bash (cargo check --manifest-path src-tauri/Cargo.toml), code:bash (cargo check --manifest-path wasm-core/Cargo.toml), code:bash (npm test -- --run) (+37 more)
+Nodes (45): code:rust (// dictionary_commands.rs:173), code:json ({), code:html (<!-- Should be blocked: -->), code:rust (// No size check before parsing potentially huge JSON), code:javascript (// Send 1GB JSON file), code:rust (// Add size limits configuration), code:rust (lazy_static! {), code:rust (self.cache.lock().unwrap().get(key).cloned() // Panics on p) (+37 more)
 
 ### Community 20 - "Community 20"
 
 Cohesion: 0.04
-Nodes (44): code:javascript (// Record sequential fallback success after batch failure), code:javascript (import { categorizeWasmError, formatWasmError } from './wasm), code:javascript (// Chinese: 3 bytes/char (typical CJK in UTF-8)), code:javascript (const PATTERN_WARNING_COOLDOWN = 10 _ 60 _ 1000; // 10 minut), code:javascript (// CODE REVIEW NOTE (MEDIUM-4): Performance degradation moni), code:rust (/// CODE REVIEW FIX (MEDIUM-5): TODO - Expose regex compilat), code:javascript (/\*\*), code:javascript (import { cleanupWasmNumberProcessor } from './utils/WasmNumb) (+36 more)
+Nodes (45): Behavior Changes, Benefits, Code Documentation, code:javascript (// WasmPatternProcessor.js:111), code:json ({), code:bash (cargo check --manifest-path src-tauri/Cargo.toml), code:bash (cargo check --manifest-path wasm-core/Cargo.toml), code:bash (npm test -- --run) (+37 more)
 
 ### Community 21 - "Community 21"
 
 Cohesion: 0.04
-Nodes (44): `addUnit` Requires All 6 Args at Every Call Site, `addUnit` Third Arg Must Be a Valid `PHASE_PRIORITIES` Key, All 6 WASM Wrappers Share One Binary — Cascade-Retire Required, `applyHierarchicalResults` Has No Overlap Check — Do Not Add One, `applyHierarchicalResults` (Phase 1) Does Not Set `isGrouped` or `groupedWith`, `applyMatchToTokens` Orphan-Release Loop Must Not Be Removed, `buildSegmentsFromPositions` Fires Only When ALL `metadata[].originalStart >= 0`, `buildVariableCache` Delegates to `PatternVariableCache.buildPatternVariableCache` (+36 more)
+Nodes (44): code:javascript (// Record sequential fallback success after batch failure), code:javascript (import { categorizeWasmError, formatWasmError } from './wasm), code:javascript (// Chinese: 3 bytes/char (typical CJK in UTF-8)), code:javascript (const PATTERN_WARNING_COOLDOWN = 10 _ 60 _ 1000; // 10 minut), code:javascript (// CODE REVIEW NOTE (MEDIUM-4): Performance degradation moni), code:rust (/// CODE REVIEW FIX (MEDIUM-5): TODO - Expose regex compilat), code:javascript (/\*\*), code:javascript (import { cleanupWasmNumberProcessor } from './utils/WasmNumb) (+36 more)
 
 ### Community 22 - "Community 22"
 
@@ -505,8 +490,8 @@ Nodes (43): Batch Operations (Medium Priority):, code:rust (use serde_wasm_bindg
 
 ### Community 24 - "Community 24"
 
-Cohesion: 0.05
-Nodes (42): AggregatedStats, AlertThresholds, BaselineMetrics, BaselineSummary, BaselineTrackerOptions, BenchmarkEnvironment, BenchmarkResults, BenchmarkScenario (+34 more)
+Cohesion: 0.08
+Nodes (30): DictionaryEntry(), DictionaryEntryProps, computeRedoMutation(), computeUndoMutation(), MutationUpdate, DuplicateRow, findConflictingEntries(), METADATA_KEYS (+22 more)
 
 ### Community 25 - "Community 25"
 
@@ -530,23 +515,23 @@ Nodes (42): Analyze Performance Baselines, Architectural restructuring, Bounded 
 
 ### Community 29 - "Community 29"
 
-Cohesion: 0.12
-Nodes (33): build_comprehensive_lookup_index(), build_index_parallel(), build_index_serial(), categorize_matches(), CategorizedMatches, Dictionary, DictionaryMatch, DictionaryType (+25 more)
+Cohesion: 0.05
+Nodes (41): AggregatedStats, AlertThresholds, BaselineMetrics, BaselineSummary, BaselineTrackerOptions, BenchmarkEnvironment, BenchmarkResults, BenchmarkScenario (+33 more)
 
 ### Community 30 - "Community 30"
-
-Cohesion: 0.1
-Nodes (5): AdaptiveBufferCalculator, formatMessage(), isDevelopment(), Logger, wasmMemoryPoolManager
-
-### Community 31 - "Community 31"
 
 Cohesion: 0.05
 Nodes (41): Code Review Fixes - 2026-02-01 (Second Review), code:rust (// CODE REVIEW FIX (2026-02-01): Document that mutex is perm), code:javascript (if (!manifest) {), code:javascript (// CODE REVIEW FIX (2026-02-01): Track pending cleanup callb), code:javascript (// CODE REVIEW FIX (2026-02-01): Track and cancel cleanup ca), code:javascript (// CODE REVIEW FIX (2026-02-01): Cancel all pending cleanup ), code:javascript (const startPos = segment.startPosition;), code:javascript (// CODE REVIEW FIX (2026-02-01): Prevent integer overflow in) (+33 more)
 
-### Community 32 - "Community 32"
+### Community 31 - "Community 31"
 
 Cohesion: 0.05
 Nodes (41): Active vs Dead Code, Architecture / Extraction, CI/CD Pipeline, Code Formatting (Prettier), code:javascript (// Extend around existing systems without modifying core log), code:bash (# Development), code:bash (pnpm format # Format all src/ files), code:json (// .vscode/settings.json) (+33 more)
+
+### Community 32 - "Community 32"
+
+Cohesion: 0.12
+Nodes (32): build_comprehensive_lookup_index(), build_index_parallel(), build_index_serial(), categorize_matches(), CategorizedMatches, Dictionary, DictionaryMatch, DictionaryType (+24 more)
 
 ### Community 33 - "Community 33"
 
@@ -555,83 +540,83 @@ Nodes (40): AbsorptionInfo, CompositeDetectionConfig, CompositeGeneratorConfig, 
 
 ### Community 34 - "Community 34"
 
-Cohesion: 0.06
-Nodes (20): buildPatternVariableCache(), buildTypeFilter(), TwoPhasePatternProcessor, initialCache, resolveType(), result, tokens, trie (+12 more)
+Cohesion: 0.05
+Nodes (40): 1. TypeScript Migration Best Practices, 2. Algorithm Optimization (LRUCache), 3. Type Safety Benefits (Real-World), Breaking Changes, Code Quality Metrics, code:typescript (// Before: O(n) - Map re-insertion reorganizes all subsequen), code:typescript (// Before: JavaScript - runtime type errors possible), code:typescript (// Before: JavaScript - capacity overflow possible) (+32 more)
 
 ### Community 35 - "Community 35"
 
 Cohesion: 0.05
-Nodes (40): 1. TypeScript Migration Best Practices, 2. Algorithm Optimization (LRUCache), 3. Type Safety Benefits (Real-World), Breaking Changes, Code Quality Metrics, code:typescript (// Before: O(n) - Map re-insertion reorganizes all subsequen), code:typescript (// Before: JavaScript - runtime type errors possible), code:typescript (// Before: JavaScript - capacity overflow possible) (+32 more)
+Nodes (40): Automated Testing, Backward Compatibility: FULL, Breaking Changes: NONE, Code Consistency, Code Review Fixes - Implementation Summary, code:javascript (// Consistent pattern across all phases:), code:javascript (const validateConsumedTokenContract = (phaseName) => {), code:javascript (// NOTE (CODE REVIEW 2026-01-27): This cache is primarily us) (+32 more)
 
 ### Community 36 - "Community 36"
 
 Cohesion: 0.05
-Nodes (40): Automated Testing, Backward Compatibility: FULL, Breaking Changes: NONE, Code Consistency, Code Review Fixes - Implementation Summary, code:javascript (// Consistent pattern across all phases:), code:javascript (const validateConsumedTokenContract = (phaseName) => {), code:javascript (// NOTE (CODE REVIEW 2026-01-27): This cache is primarily us) (+32 more)
+Nodes (40): code:block1 (✓ src/test/PatternPriorityCalculator.test.js (25 tests) 4ms), code:bash (npm test -- PatternPriorityCalculator --run), code:javascript (// In browser console), code:javascript (// Constructor initialization), code:javascript (if (tokens.length !== tokensLengthBeforePhase) {), code:javascript (if (failedPhases.length > 0) {), code:javascript (const VALID_TOKEN_TYPES = ['literal', 'variable'];), code:javascript (// Module-level state) (+32 more)
 
 ### Community 37 - "Community 37"
 
 Cohesion: 0.05
-Nodes (40): code:block1 (✓ src/test/PatternPriorityCalculator.test.js (25 tests) 4ms), code:bash (npm test -- PatternPriorityCalculator --run), code:javascript (// In browser console), code:javascript (// Constructor initialization), code:javascript (if (tokens.length !== tokensLengthBeforePhase) {), code:javascript (if (failedPhases.length > 0) {), code:javascript (const VALID_TOKEN_TYPES = ['literal', 'variable'];), code:javascript (// Module-level state) (+32 more)
+Nodes (40): Clickable Highlighting - Code Review Fixes Summary, code:javascript (if (bestMatch.length !== originalTranslation.length) {), code:bash (npm test -- ClickableHighlighting.fixes.test.js --run), code:bash (npm run type-check), code:javascript (if (process.env.NODE_ENV === 'development' && usingMetadata)), code:javascript (validateArrays() {), code:typescript ((onSegmentClick as any)({ unitIndex, originalText, ... }); /), code:typescript (const payload: SegmentClickPayload = {) (+32 more)
 
 ### Community 38 - "Community 38"
 
 Cohesion: 0.05
-Nodes (40): Clickable Highlighting - Code Review Fixes Summary, code:javascript (if (bestMatch.length !== originalTranslation.length) {), code:bash (npm test -- ClickableHighlighting.fixes.test.js --run), code:bash (npm run type-check), code:javascript (if (process.env.NODE_ENV === 'development' && usingMetadata)), code:javascript (validateArrays() {), code:typescript ((onSegmentClick as any)({ unitIndex, originalText, ... }); /), code:typescript (const payload: SegmentClickPayload = {) (+32 more)
+Nodes (40): `addUnit` Requires All 6 Args at Every Call Site, `addUnit` Third Arg Must Be a Valid `PHASE_PRIORITIES` Key, All 6 WASM Wrappers Share One Binary — Cascade-Retire Required, `applyHierarchicalResults` Has No Overlap Check — Do Not Add One, `applyHierarchicalResults` (Phase 1) Does Not Set `isGrouped` or `groupedWith`, `applyMatchToTokens` Orphan-Release Loop Must Not Be Removed, `buildSegmentsFromPositions` Fires Only When ALL `metadata[].originalStart >= 0`, `buildVariableCache` Delegates to `PatternVariableCache.buildPatternVariableCache` (+32 more)
 
 ### Community 39 - "Community 39"
-
-Cohesion: 0.07
-Nodes (18): getAdaptiveMaxSegments(), PatternFailureTracker, chunker, chunks, DICTS, buildProperNounCapitalizationMap(), createTranslationEngine(), getSourcePriority() (+10 more)
-
-### Community 40 - "Community 40"
 
 Cohesion: 0.05
 Nodes (39): 1. Imports (Lines 135-142), 2. Feature Flag (Lines 283-297), 3. Dictionary Loading (Lines 1233-1266), 4. WASM Lookup Wrapper (Lines 8481-8536), 5. Lookup Integration (Lines 8541-8594), 6. Cache Invalidation (Lines 9612-9645), Architecture: WASM-First with JavaScript Fallback, 📝 Code Changes Summary (+31 more)
 
-### Community 41 - "Community 41"
+### Community 40 - "Community 40"
 
 Cohesion: 0.05
 Nodes (39): 1. Character-only mode, 1. WASM Number Processor, 2. Full Translation mode, 2. WASM Pattern Processor, 3. WASM Dictionary Engine, 4. Rust Lookup Index, 5-Phase Translation Pipeline (IMMUTABLE), `applyFinalCleanup()` - Final Spacing Fixes (+31 more)
 
-### Community 42 - "Community 42"
+### Community 41 - "Community 41"
 
 Cohesion: 0.09
 Nodes (15): get_allocated_bytes(), get_allocation_count(), get_memory_stats(), ManagedBuffer, ManagedDictionary, ManagedStringCache, MemoryStats, record_allocation() (+7 more)
 
-### Community 43 - "Community 43"
-
-Cohesion: 0.09
-Nodes (27): Translator(), BatchLoadResult, loadAllDictionaries(), useDictionary(), CachePoisoningPayload, CachePoisoningState, ListenFn, useCachePoisoningGuard() (+19 more)
-
-### Community 44 - "Community 44"
-
-Cohesion: 0.08
-Nodes (32): createDuplicateKey(), DuplicateRow, findConflictingEntries(), METADATA_KEYS, parseDuplicateKey(), shouldSkipKey(), isMoving(), createDuplicateKey() (+24 more)
-
-### Community 45 - "Community 45"
+### Community 42 - "Community 42"
 
 Cohesion: 0.05
 Nodes (38): 1. Documentation Improvements, 1. `src/utils/TranslationEngine.js`, 1. Understanding Code Flow is Critical, 2. Add Execution Path Diagrams, 2. `src/utils/PunctuationProcessor.ts`, 2. Understanding When Functions Are Called, 3. Lightweight Always-On Logging, 3. `src/utils/TextChunker.js` (+30 more)
 
-### Community 46 - "Community 46"
+### Community 43 - "Community 43"
 
 Cohesion: 0.05
 Nodes (37): A1 — lookup_index_engine.rs: chars pre-collection, A2 — LazyDictionaryContext: useMemo on context value, A3 — EnhancedVirtualizedDictionaryTable: three sub-fixes, A4 — TranslationSegmentCache: sync keys + O(1) metadata ops, A5 — pattern_processor/matcher.rs: AtomicBool + lock consolidation, A6 — pattern_processor/two_phase.rs: clone elimination, B1 — PunctuationProcessor: pre-compiled regexes, B2 — useConfigurationLoader: side-effect in useState initializer (+29 more)
 
-### Community 47 - "Community 47"
+### Community 44 - "Community 44"
 
 Cohesion: 0.05
 Nodes (37): Code Review Fixes - Translation Process, code:javascript (// Before:), code:javascript (// src/constants/TranslationConstants.js), code:javascript (// Before:), code:javascript (// Before:), code:bash (Test Files 28 passed (28)), code:javascript (// Validate structure BEFORE mutating original tokens array), code:javascript (this.patternFailureCount++;) (+29 more)
 
-### Community 48 - "Community 48"
+### Community 45 - "Community 45"
+
+Cohesion: 0.08
+Nodes (7): base36_encode(), DictionaryEngine, DictionaryEntry, DictionaryVersion, generate_content_hash(), PerformanceStats, VersionedDictionary
+
+### Community 46 - "Community 46"
 
 Cohesion: 0.06
 Nodes (35): 1. Fixed JavaScript Parity Gap ✅, 2. Created Parity Verification System ✅, 3. Verified Complete Parity ✅, 4. Removed JavaScript Fallback ✅, 5. Updated Documentation ✅, Best Practices Established, Build Verification ✅, Code Quality (+27 more)
 
-### Community 49 - "Community 49"
+### Community 47 - "Community 47"
 
 Cohesion: 0.06
 Nodes (35): 1. Column Width Ratio (TranslatorDisplayPanels), 1. Flexbox Behavior, 2. CSS Property Typo (AppearanceManager), 2. Third-Party Library CSS, 3. CSS Module Import Syntax, 3. Toast Styling in Production Build, 4. Dynamic Styles Decision, Bugs Fixed (+27 more)
+
+### Community 48 - "Community 48"
+
+Cohesion: 0.06
+Nodes (34): AcceleratedMapperStats, AcceleratedPerformanceStats, AcceleratedPositionMapperInterface, AcceleratedPositionMapperOptions, AccelerationConfiguration, AccelerationInfo, AccelerationStrategy, ContentAwareCacheStats (+26 more)
+
+### Community 50 - "Community 50"
+
+Cohesion: 0.08
+Nodes (13): DebugInfo, MemoryStats, PerformanceStats, PositionCandidate, PositionMappings, SemanticArrayBuilder, SemanticArrayMetadata, SemanticArraySnapshot (+5 more)
 
 ### Community 51 - "Community 51"
 
@@ -645,43 +630,53 @@ Nodes (34): Background for the Implementer, code:block1 (checkbox(40px) | source
 
 ### Community 53 - "Community 53"
 
-Cohesion: 0.09
-Nodes (26): makeProps(), makeSegment(), dict, entry, error, input, list, result (+18 more)
+Cohesion: 0.06
+Nodes (33): AppConfiguration, AppearanceSettings, AsyncOperationState, ClickableSegmentProps, ClickDirection, DictionaryEntry, DictionaryEntryMetadata, DictionaryInfo (+25 more)
+
+### Community 54 - "Community 54"
+
+Cohesion: 0.06
+Nodes (33): AnimationConfig, AnimationTiming, Breakpoints, ColorScheme, CSSVariables, FontWeight, KeyboardShortcut, LayoutConfig (+25 more)
 
 ### Community 55 - "Community 55"
 
 Cohesion: 0.1
-Nodes (6): PrecomputedTokenStrings, SemanticPatternProcessor, DICT, proc, stats, tokens
+Nodes (22): Translator(), useDictionary(), useCachePoisoningGuard(), useDictionaryModals(), HighlightingAction, HighlightingActionType, HighlightingState, MAX_SAFE_SEGMENTS (+14 more)
 
 ### Community 56 - "Community 56"
 
-Cohesion: 0.06
-Nodes (32): 1. Memory Pool Cleanup Verification, 2. Race Condition in WASM Initialization, 3. Unbounded Error Counter Growth, 4. Unsafe Buffer Size Calculation, 5. Missing Null Check in Pattern Processor, 6. Metadata JSON Parsing Without Size Limit, 7. Inconsistent Cleanup Method Naming, 8. Trie Traversal Performance Optimization (+24 more)
+Cohesion: 0.09
+Nodes (23): setGlobalToast(), ToastContainer(), ToastContext, ToastContextType, ToastInternalContext, ToastProvider(), ToastType, useToast() (+15 more)
 
 ### Community 57 - "Community 57"
 
 Cohesion: 0.06
-Nodes (32): 1. WASM Initialization Race Condition ✅, 2. Missing Input Sanitization in Tauri IPC Commands ✅, 3. Memory Leak: Timeout Not Cleared on Component Unmount ✅, 4. Potential Integer Overflow in Position Mapping ✅, 5. WASM Validation Only Checks Structure, Not Content Integrity ✅, 6. Dictionary Reload State Race Condition ✅, 7. Inconsistent Error Handling Between Sequential and Batch Dictionary Loading ✅, 8. Excessive console.log Usage Despite Logger Utility ✅ (+24 more)
+Nodes (32): 1. Memory Pool Cleanup Verification, 2. Race Condition in WASM Initialization, 3. Unbounded Error Counter Growth, 4. Unsafe Buffer Size Calculation, 5. Missing Null Check in Pattern Processor, 6. Metadata JSON Parsing Without Size Limit, 7. Inconsistent Cleanup Method Naming, 8. Trie Traversal Performance Optimization (+24 more)
 
 ### Community 58 - "Community 58"
 
-Cohesion: 0.11
-Nodes (28): parse_pattern(), test_multi_token_variable_resolution(), test_multi_variable_pattern_match(), test_pattern_competition_higher_priority_wins(), test_pattern_competition_low_priority_loses(), test_pattern_competition_no_match(), test_pattern_match_failure_literal_mismatch(), test_pattern_match_failure_not_enough_tokens() (+20 more)
+Cohesion: 0.06
+Nodes (32): 1. WASM Initialization Race Condition ✅, 2. Missing Input Sanitization in Tauri IPC Commands ✅, 3. Memory Leak: Timeout Not Cleared on Component Unmount ✅, 4. Potential Integer Overflow in Position Mapping ✅, 5. WASM Validation Only Checks Structure, Not Content Integrity ✅, 6. Dictionary Reload State Race Condition ✅, 7. Inconsistent Error Handling Between Sequential and Batch Dictionary Loading ✅, 8. Excessive console.log Usage Despite Logger Utility ✅ (+24 more)
 
 ### Community 59 - "Community 59"
 
-Cohesion: 0.07
-Nodes (21): BackgroundCleanupStats, CleanupTask, IdleDeadline, CleanupEvent, CleanupPriority, MemoryEventCallback, MemoryEventData, MemoryPressure (+13 more)
+Cohesion: 0.06
+Nodes (31): AppearanceChangeEvent, AppEvent, CacheClearEvent, CacheHitEvent, CacheMissEvent, ConfigurationChangeEvent, ConfigurationErrorEvent, ConfigurationSaveEvent (+23 more)
 
 ### Community 60 - "Community 60"
 
-Cohesion: 0.08
-Nodes (10): ComponentMemoryProfiler, ComponentMetrics, ComponentProfile, ComponentStats, MemorySample, MemorySnapshot, Performance, ProfilerStats (+2 more)
+Cohesion: 0.06
+Nodes (31): code:js (registerCascadeHandler(fn); // called once at module load by), code:block2 (panicked at /...alloc/src/rc.rs:3743:13:), code:rust (let \_ = &\*NUMBER_MAP;), code:block4 (panicked at /...wasm-bindgen-0.2.100/src/rt/mod.rs:287:25:), code:rust (// Pre-warm regex-automata Pool<Cache> (regex 1.11 / regex-a), code:block6 ([Error] ❌ WASM number processing wasm_runtime error:), code:block7 ([Error] ❌ "WASM assembleWithSpacing failed, retiring instanc), Error (+23 more)
 
 ### Community 61 - "Community 61"
 
 Cohesion: 0.1
-Nodes (21): DEBUG_LEVELS, TrieNode, DictionaryCategory, getIndexedMatches(), IndexedMatch, isDictionaryCategory(), RUST_KEY, sortMatchesByPrecedence() (+13 more)
+Nodes (18): calculateChecksum(), DictionaryTrie, **dirname, **filename, main(), precomputeDictionary(), TrieNode, BoundaryOptimizer (+10 more)
+
+### Community 62 - "Community 62"
+
+Cohesion: 0.07
+Nodes (28): BaseSegment, ClickableOriginalOptimizedProps, ClickableOriginalSemanticProps, ClickablePerformanceMetrics, ClickableSegment, ClickableTranslationOptimizedProps, ClickableTranslationSemanticProps, ClickDirection (+20 more)
 
 ### Community 63 - "Community 63"
 
@@ -690,653 +685,658 @@ Nodes (28): code:bash (npm run tauri:dev), code:bash (npm run tauri:dev), code:j
 
 ### Community 64 - "Community 64"
 
-Cohesion: 0.11
-Nodes (16): calculateChecksum(), DictionaryTrie, main(), precomputeDictionary(), TrieNode, BoundaryOptimizer, BoundaryStats, deserialize_binary() (+8 more)
+Cohesion: 0.17
+Nodes (25): addToExternrefTable0(), buf, debugString(), disable_matcher_profiling(), enable_matcher_profiling(), generateContentHash(), getArrayU8FromWasm0(), getDataViewMemory0() (+17 more)
 
 ### Community 65 - "Community 65"
 
-Cohesion: 0.08
-Nodes (6): mockDictionaryEngine, mockFallbackManager, result, results, clearPanelLayoutStorage(), FallbackManager
+Cohesion: 0.11
+Nodes (15): ClickableOriginalSemantic(), ClickableTranslationSemantic(), HighlightableSegment, HighlightableSegmentProps, SegmentComponent, useSegmentClickHandler(), useSegmentComputation(), PrebuiltSegment (+7 more)
 
-### Community 67 - "Community 67"
-
-Cohesion: 0.12
-Nodes (7): EnhancedDictionaryManager, activeProperNouns, criticalSyncMethods, manager, matches, result, status
-
-### Community 68 - "Community 68"
+### Community 66 - "Community 66"
 
 Cohesion: 0.07
 Nodes (26): ADR-003: TypeScript Hybrid Architecture, Alternative 1: Full TypeScript Migration, Alternative 2: Keep Everything JavaScript, Alternative 3: Strategic Hybrid (TypeScript for Boundaries, JavaScript for Core) ✅ SELECTED, Alternatives Considered, code:typescript (// TypeScript strict mode makes shared-mutable-state coordin), code:javascript (// package.json), code:block2 (✅ Pure utilities (zero `this.*` references)) (+18 more)
 
-### Community 69 - "Community 69"
+### Community 67 - "Community 67"
 
 Cohesion: 0.07
 Nodes (26): Benchmark Evidence, Benchmark Setup, code:javascript (class PrecomputedTokenStrings {), code:rust (use wasm_bindgen::prelude::\*;), code:javascript (import init, { StringProcessor } from '../wasm/translation_w), code:javascript (import { wasmStringProcessor } from './WasmStringProcessor.j), code:javascript (// Test with 200 tokens, maxSpan = 10 (typical 2000-char tex), Current Bottleneck (SemanticPatternProcessor.js:34-64) (+18 more)
 
-### Community 70 - "Community 70"
+### Community 68 - "Community 68"
 
 Cohesion: 0.12
 Nodes (13): build_result(), MatcherProfilingData, PatternMatcher, PatternMatcher<'a>, PatternMatchResult, PhaseAPattern, PhaseAResult, SemanticToken (+5 more)
 
-### Community 71 - "Community 71"
+### Community 69 - "Community 69"
 
 Cohesion: 0.08
 Nodes (25): AsyncState, DictionaryConfig, KeyModifiers, StreamingTranslationState, UseAsyncOptions, UseAsyncReturn, UseDebounceOptions, UseDebounceReturn (+17 more)
 
-### Community 72 - "Community 72"
+### Community 70 - "Community 70"
 
-Cohesion: 0.09
-Nodes (23): HighlightingAction, HighlightingActionType, HighlightingState, MAX_SAFE_SEGMENTS, UseHighlightingStateResult, highlightingReducer(), isValidUnitIndex(), action (+15 more)
+Cohesion: 0.13
+Nodes (21): MEMORY_THRESHOLDS, MemoryThresholds, UI_UPDATE_THRESHOLDS, UIUpdateThresholds, DEVICE_MEMORY_LIMITS, DICTIONARY_LOOKUP, getAdaptiveMaxSegments(), MEMORY_MANAGEMENT (+13 more)
 
-### Community 74 - "Community 74"
+### Community 71 - "Community 71"
 
 Cohesion: 0.08
 Nodes (25): AppConfig, AppearanceSettings (hook), CharacterOnlyBridge, DictionaryBackend, DictionaryCRUD, DictionaryEntryForm, DictionaryHealthMonitor, DictionaryOperationHistory (+17 more)
 
-### Community 75 - "Community 75"
+### Community 72 - "Community 72"
 
-Cohesion: 0.08
-Nodes (10): AssemblyResult, AssemblySegment, AssemblyStats, is_chinese_type(), needs_space(), PositionEntry, SegmentMetadata, SemanticArrays (+2 more)
+Cohesion: 0.1
+Nodes (5): getGlobalChunkerStats(), SegmentMatcher, StringProcessor, takeFromExternrefTable0(), WasmPatternProcessor
 
-### Community 77 - "Community 77"
+### Community 73 - "Community 73"
 
-Cohesion: 0.13
-Nodes (9): PatternAnalyzer, analyzed, analyzer, pattern, patterns, phaseA, result, results (+1 more)
+Cohesion: 0.25
+Nodes (17): fireCascadeRetire(), \_handlers, registerCascadeHandler(), getPhase2Priority(), jsFallback(), jsFallbackPhase2(), packMatches(), packMatchesPhase2() (+9 more)
 
-### Community 78 - "Community 78"
+### Community 74 - "Community 74"
 
 Cohesion: 0.08
 Nodes (24): Candidate 1 — Wire `TextAssembler` into `postProcess()` (HIGHEST PRIORITY), Candidate 2 — `resolveGlobalConflicts()`: consolidate into Rust (MEDIUM PRIORITY), Candidate 3 — `applyFinalCleanup()` + `capitalizeFirstLetter()` + `applyLightFormatting()` as a bundled string post-processor (LOW PRIORITY), Candidate 4 — `findPositionOptimized()` and `buildSegmentsFromSemanticArrays()` batch position finding (LOW-MEDIUM PRIORITY), Candidate 5 — `estimateDictionaryDensity()` and `analyzeTextComplexity()` (NEGLIGIBLE), `ChineseNumberConverter.js`, Code Quality Issues Found (Not WASM-related), Code Review: Pure Computation Migration to wasm-core (+16 more)
 
-### Community 79 - "Community 79"
+### Community 75 - "Community 75"
 
 Cohesion: 0.08
 Nodes (24): ✅ ALL CRITICAL & HIGH PRIORITY ISSUES FIXED, ✅ Automated Checks Pass, ⏳ Automated Tests Recommended, Breaking Changes: NONE, Code Review Fix Summary - 2026-01-27, code:javascript (// 1. Consumed Token Contract Validation), code:javascript (// Phase X:), code:bash (npm run type-check # ✅ 0 errors) (+16 more)
 
-### Community 80 - "Community 80"
+### Community 77 - "Community 77"
 
-Cohesion: 0.1
-Nodes (7): getGlobalChunkerStats(), getTokenizerStats(), normalizeBatch(), SegmentMatcher, StringProcessor, takeFromExternrefTable0(), tokenizeText()
+Cohesion: 0.14
+Nodes (15): MatchCandidate, segmentFromPositionMetadata(), buildSegmentsFromPositions(), findUnitMatch(), MatchResult, normalizeText(), precomputeOriginalSegments(), precomputeSegments() (+7 more)
 
-### Community 81 - "Community 81"
-
-Cohesion: 0.2
-Nodes (20): DictionaryEntry(), DictionaryEntryProps, ExistingEntryData, SemanticTypePicker(), SemanticTypePickerProps, supportsSemanticTypes(), WordTransformToolbar(), WordTransformToolbarProps (+12 more)
-
-### Community 84 - "Community 84"
-
-Cohesion: 0.15
-Nodes (18): ConflictCandidate, MatchType, resolve_global_conflicts(), resolve_labels(), test_does_not_mutate_input_order(), test_longer_match_wins_over_shorter_overlapping(), test_non_overlapping_adjacent_both_selected(), test_partial_overlap_first_blocks_second() (+10 more)
-
-### Community 85 - "Community 85"
-
-Cohesion: 0.17
-Nodes (15): assemble_original_text(), assemble_translated_text(), test_assemble_translated_text(), test_assemble_translation(), test_assemble_with_spacing_chinese_then_latin(), test_assemble_with_spacing_empty(), test_assemble_with_spacing_inserts_space_between_chinese(), test_assemble_with_spacing_no_space_latin_to_latin() (+7 more)
-
-### Community 86 - "Community 86"
+### Community 78 - "Community 78"
 
 Cohesion: 0.11
-Nodes (20): test_full_dictionary_parsing(), test_parse_and_index_workflow(), test_priority_ordering(), parse_patterns_dict(), test_parse_multi_variable_pattern(), test_parse_pattern_with_low_priority(), test_parse_pattern_with_repeated_variable(), test_parse_patterns_dict_simple() (+12 more)
+Nodes (17): AddToHistory, CommitMoveOp, DictionaryCRUDAPI, InvalidateEngine, MoveOpUpdates, PersistDictionaryMutation, prepareMutationEntry(), CommitMoveOp (+9 more)
 
-### Community 87 - "Community 87"
-
-Cohesion: 0.13
-Nodes (14): HotkeyHandler(), DICTIONARY_HOTKEY_MAP, TabbedInterface(), TabId, TABS, useToast(), DictionaryManagerProps, SelectionState (+6 more)
-
-### Community 90 - "Community 90"
+### Community 82 - "Community 82"
 
 Cohesion: 0.09
 Nodes (22): Background for the Implementer, code:ts (const showSemanticTypeFilter = isPhrasesDictionary || isProp), code:ts (const showSemanticTypeFilter =), code:bash (# TypeScript check:), code:bash (npm run type-check 2>&1 | tail -5), code:ts (const showSemanticTypeFilter = isPhrasesDictionary || isProp), code:ts (const showSemanticTypeFilter =), code:bash (npm run type-check 2>&1 | tail -5) (+14 more)
 
-### Community 93 - "Community 93"
+### Community 83 - "Community 83"
 
 Cohesion: 0.09
-Nodes (22): 1. Path Traversal Vulnerability, 2. Asset Protocol Too Permissive, 3. CSP Too Permissive, 4. No Size Limits (DoS Risk), code:rust (/// Validate dictionary ID to prevent path traversal), code:bash (# 1. Path traversal blocked), code:bash (# 1. Apply fixes to code), code:bash (# Should be blocked:) (+14 more)
+Nodes (22): Appendix: File Reference, Areas for Improvement, Best Practices Observed, Clickable Highlighting Feature - Code Review, Code Reviews (Historical), Conclusion, Core Implementation, Coverage Analysis (+14 more)
 
-### Community 94 - "Community 94"
+### Community 84 - "Community 84"
 
-Cohesion: 0.16
-Nodes (6): precomputeSegments(), SegmentPrecomputer, getNormalizationStats(), isNFC(), normalizeVietnameseText(), normalizeVietnameseTexts()
+Cohesion: 0.09
+Nodes (21): AdaptationStats, AdaptiveChunker, AdaptiveChunkerOptions, BatchProcessingConfig, BatchProcessingResult, BatchProcessingStats, ChunkerDiagnosticInfo, ChunkingStrategy (+13 more)
 
-### Community 95 - "Community 95"
+### Community 85 - "Community 85"
+
+Cohesion: 0.13
+Nodes (13): fetchWasmBinary(), wasmBinaryCache, computeSHA256(), EXPECTED_EXPORTS, loadIntegrityManifest(), verifyWasmBinaryIntegrity(), verifyWasmInstance(), verifyWasmModule() (+5 more)
+
+### Community 86 - "Community 86"
 
 Cohesion: 0.09
 Nodes (21): 1. Start the Development Server, 2. Open Browser DevTools, 3. Run Full Benchmark Suite, 4. Export Results, 5. Save Baseline, Benchmark Baseline Instructions, code:bash (npm run tauri:dev), code:javascript (// Run complete optimization benchmark suite) (+13 more)
 
-### Community 96 - "Community 96"
+### Community 87 - "Community 87"
 
 Cohesion: 0.09
 Nodes (21): ADR-002: Dual-Path Clickable Highlighting Architecture, Alternative 1: Consolidate Into Unified Highlighting System, Alternative 2: Keep Separate Paths (Current Implementation) ✅ SELECTED, Alternative 3: Partial Consolidation (Helper Functions), Alternatives Considered, code:javascript (// Unified approach tried:), code:javascript (// Component: ClickableTranslationSemantic.tsx (src/compone), code:javascript (// Component: ClickableTranslationOptimized.tsx (src/compon) (+13 more)
 
-### Community 97 - "Community 97"
-
-Cohesion: 0.09
-Nodes (22): code:javascript (dispose() {), code:javascript (dispose() {), code:javascript (this.syncFailureTracking = {), code:javascript (const MAX_REASON_LENGTH = 200;), code:javascript (const validFailures = this.syncFailureTracking.failureReason), code:javascript (this.dictionaryIndex = {), code:javascript (setCharacter(character, dictionaryName, result) {), code:javascript (invalidateDictionary(dictionaryName) {) (+14 more)
-
-### Community 99 - "Community 99"
+### Community 88 - "Community 88"
 
 Cohesion: 0.2
 Nodes (8): PatternIndex, test_clear_index(), test_get_all_patterns(), test_get_nonexistent_pattern(), test_index_literal_starting_pattern(), test_index_mixed_patterns(), test_index_multiple_patterns_same_first_token(), test_index_variable_starting_pattern()
 
-### Community 100 - "Community 100"
+### Community 90 - "Community 90"
 
-Cohesion: 0.12
-Nodes (14): MatchCandidate, buildSegmentsFromPositions(), findUnitMatch(), MatchResult, normalizeText(), precomputeOriginalSegments(), RenderSegment, Segment (+6 more)
-
-### Community 101 - "Community 101"
-
-Cohesion: 0.18
-Nodes (8): getSemanticTokens(), getTextFromTokens(), getTextPositionForTokenIndex(), getTokenSpanForText(), LegacyTextToken, reconstructChineseText(), reconstructTextFromIndex(), TextToken
-
-### Community 102 - "Community 102"
-
-Cohesion: 0.1
-Nodes (20): Areas for Improvement, Benchmark Results (from documentation), Best Practices Observed, Clickable Highlighting Feature - Code Review, Conclusion, Coverage Analysis, ✅ Excellent Practices, Executive Summary (+12 more)
-
-### Community 104 - "Community 104"
-
-Cohesion: 0.14
-Nodes (14): AppearanceManager(), handleFontChange(), handleInputChange(), handleResetClick(), resetToDefault(), AppearanceSection, DEFAULT_APPEARANCE, FontProperty (+6 more)
-
-### Community 105 - "Community 105"
-
-Cohesion: 0.25
+Cohesion: 0.24
 Nodes (18): flat(), resolve_global_conflicts(), resolve_match_conflicts(), run_conflict_resolution(), run_conflict_resolution_priority_first(), test_earlier_start_wins_on_equal_length_and_type(), test_input_not_mutated(), test_longer_beats_shorter_overlapping() (+10 more)
 
-### Community 106 - "Community 106"
+### Community 91 - "Community 91"
 
 Cohesion: 0.16
 Nodes (7): RegexUtils, test_chinese_punctuation(), test_number_range(), test_pattern_variables(), test_punctuation_positions(), test_sentence_splitting(), test_whitespace_normalization()
 
-### Community 109 - "Community 109"
+### Community 94 - "Community 94"
 
 Cohesion: 0.1
 Nodes (19): Architecture Decision, Better Approach: Create Shared WASM Module, code:rust (// Tauri command pattern), code:rust (use std::collections::HashMap;), code:rust (mod dictionary_trie;), code:javascript (import init, { WasmDictionaryTrie } from '../wasm/translatio), code:javascript (import { wasmDictionaryTrie } from './WasmDictionaryTrie.js'), Current State: Dual Implementation (+11 more)
 
-### Community 110 - "Community 110"
+### Community 99 - "Community 99"
 
-Cohesion: 0.15
-Nodes (6): calculatePatternPriority(), calculatePriorityBreakdown(), classifyVariableType(), getHeuristicType(), VariableClassification, WasmStringProcessor
+Cohesion: 0.12
+Nodes (12): GroupedToken, PhraseCandidate, ProcessingStrategy, TextAnalysis, TextComplexity, Token, TokenGroups, TokenType (+4 more)
 
-### Community 112 - "Community 112"
+### Community 100 - "Community 100"
 
 Cohesion: 0.11
 Nodes (18): Additional Documentation, Architecture, Architecture Decision Records (ADRs), Archive, Clickable Highlighting, Code Reviews, Core Guides, Development (+10 more)
 
-### Community 113 - "Community 113"
+### Community 101 - "Community 101"
 
 Cohesion: 0.11
 Nodes (18): Best Practices, Code Optimization Summary (2026-01-29), Completed Optimizations, Lessons Learned, LRUCache Optimization, Performance Impact Summary, Progress: 9/9 Tasks Complete (100%) ✅, ✅ Task #1: SemanticArrayBuilder TypeScript Migration (+10 more)
 
-### Community 114 - "Community 114"
+### Community 102 - "Community 102"
 
 Cohesion: 0.11
 Nodes (18): code:ts (const rafCalls: FrameRequestCallback[] = [];), Dictionary JSON Format: Two Tiers, `DictionaryContext.tsx` CRUD Audit Checklist, `DictionaryInfo` Name Collision, Error Handling, Hook Tests — jsdom Gotchas, Pattern Variable Contract, React State Updater Rules (+10 more)
 
-### Community 116 - "Community 116"
-
-Cohesion: 0.23
-Nodes (4): PatternProcessingResult, test_pattern_categorization(), TwoPhasePatternProcessor, TwoPhaseStats
-
-### Community 117 - "Community 117"
+### Community 103 - "Community 103"
 
 Cohesion: 0.11
 Nodes (17): CacheEntry, CacheKeyGenerator, CacheKeyOptions, CacheStats, ContentAwarePositionCache, ContentAwarePositionCacheOptions, ContentAwarePositionCacheStats, ContentSignature (+9 more)
 
-### Community 118 - "Community 118"
+### Community 104 - "Community 104"
 
-Cohesion: 0.12
-Nodes (6): DebouncedProgressHandler, LoadingCallback, LoadingState, ProgressCallbacks, ProgressData, SmoothLoadingManager
+Cohesion: 0.18
+Nodes (3): getTextFromTokens(), getTextPositionForTokenIndex(), reconstructTextFromIndex()
 
-### Community 120 - "Community 120"
+### Community 105 - "Community 105"
+
+Cohesion: 0.17
+Nodes (13): HotkeyHandler(), DICTIONARY_HOTKEY_MAP, TabbedInterface(), TabId, TABS, DictionaryManagerProps, SelectionState, DICTIONARY_TYPES (+5 more)
+
+### Community 106 - "Community 106"
 
 Cohesion: 0.11
 Nodes (17): ADR-006: PatternProcessor Interface — Return Results, No Inline Mutation, Alternative 1: Keep inline mutation per adapter ✗ Rejected, Alternative 2: Return results, single apply site ✅ Selected, Alternatives Considered, code:javascript (// @typedef PatternProcessor), code:javascript (`${result.translationSource}_consumed`;), Consequences, Context and Problem Statement (+9 more)
 
-### Community 121 - "Community 121"
+### Community 107 - "Community 107"
 
-Cohesion: 0.32
-Nodes (15): addToExternrefTable0(), debugString(), disable_matcher_profiling(), enable_matcher_profiling(), getDataViewMemory0(), handleError(), initSync(), isLikeNone() (+7 more)
+Cohesion: 0.11
+Nodes (18): code:javascript (dispose() {), code:javascript (dispose() {), code:javascript (this.syncFailureTracking = {), code:javascript (const MAX_REASON_LENGTH = 200;), code:javascript (const validFailures = this.syncFailureTracking.failureReason), code:javascript (delete(key: K): boolean {), code:javascript (returnBuffer(buffer: ArrayBuffer | null): void {), code:javascript (constructor() {) (+10 more)
 
-### Community 123 - "Community 123"
+### Community 108 - "Community 108"
 
 Cohesion: 0.26
 Nodes (10): PositionMapper, test_case_insensitive(), test_chinese_text(), test_chinese_text_second_occurrence(), test_find_all(), test_length_char_count(), test_not_found(), test_simple_search() (+2 more)
 
-### Community 124 - "Community 124"
-
-Cohesion: 0.16
-Nodes (4): callWasmWithTimeout(), createTimeoutWrapper(), TimeoutError, TimeoutManager
-
-### Community 125 - "Community 125"
-
-Cohesion: 0.24
-Nodes (7): ClickableOriginalSemantic(), ClickableTranslationSemantic(), HighlightableSegment, HighlightableSegmentProps, segmentFromPositionMetadata(), useSegmentClickHandler(), useSegmentComputation()
-
-### Community 126 - "Community 126"
+### Community 109 - "Community 109"
 
 Cohesion: 0.12
 Nodes (16): 1. Profiler Methods (2 locations), 2. System Performance Monitor (5 locations), 3. Performance Dashboard (1 location), code:javascript (// Before (unsafe)), code:javascript (// Before (unsafe)), code:javascript (// Before (unsafe)), code:javascript (// ✅ CORRECT: Check both existence and type), Date: 2026-01-27 (+8 more)
 
-### Community 127 - "Community 127"
+### Community 110 - "Community 110"
 
 Cohesion: 0.12
 Nodes (17): 2. Denial of Service (DoS) Prevention ⭐⭐⭐⭐, 3. Memory Safety ⭐⭐⭐⭐, 4. CSP Compliance ⭐⭐⭐⭐⭐, Array Size Warnings (ClickableTranslationSemantic.tsx:65-70), code:typescript (if (semanticArrays.translated.length > 10000) {), code:typescript (const elapsedMs = performance.now() - startTime;), code:typescript (const MAX_CACHE_SIZE = 100;), code:typescript (useEffect(() => {) (+9 more)
 
-### Community 128 - "Community 128"
+### Community 111 - "Community 111"
+
+Cohesion: 0.18
+Nodes (14): BoundaryOptimizer, DictionaryEngine, InitInput, InitOutput, NumberProcessor, PositionMapper, RegexUtils, SegmentMatcher (+6 more)
+
+### Community 112 - "Community 112"
+
+Cohesion: 0.12
+Nodes (15): AppearanceResult, BatchDictionaryResponse, BatchDictionaryResult, ConfigurationResult, DictionaryListResult, DictionaryLoadResult, DictionaryOperationResult, DirectorySelectOptions (+7 more)
+
+### Community 113 - "Community 113"
 
 Cohesion: 0.19
 Nodes (9): PatternMetadata, PatternToken, PatternUsage, SemanticPattern, test_low_priority_penalty(), test_pattern_token_creation(), test_priority_calculation(), test_variable_first_pattern() (+1 more)
 
-### Community 129 - "Community 129"
+### Community 114 - "Community 114"
 
 Cohesion: 0.12
 Nodes (15): CoreTranslationEngine, WasmBenchmarkResult, WasmDictionaryEntry, WasmEngineStats, WasmError, WasmErrorType, WasmInit, WasmInitOptions (+7 more)
 
-### Community 130 - "Community 130"
+### Community 115 - "Community 115"
 
-Cohesion: 0.16
-Nodes (4): jsAssembleWithSpacing(), isChinese(), needsSpace(), WasmTextAssemblerWrapper
+Cohesion: 0.12
+Nodes (15): MemoryStats, PerformanceAlert, PerformanceBaseline, PerformanceBaselineOptions, PerformanceDataPoint, PerformanceMetrics, PerformanceMonitorConfig, PerformanceProfilerOptions (+7 more)
 
-### Community 131 - "Community 131"
+### Community 118 - "Community 118"
 
 Cohesion: 0.12
 Nodes (15): ADR-009: WasmProcessorLifecycle — Shared Init Contract for All WASM Processors, Alternative 1: Copy-fix across all three processors ✗ Rejected, Alternative 2: Base class / mixin for WASM processors ✗ Rejected, Alternative 3: WasmProcessorLifecycle class ✅ Selected, Alternatives Considered, code:javascript (class WasmProcessorLifecycle {), Consequences, Context and Problem Statement (+7 more)
 
-### Community 132 - "Community 132"
+### Community 119 - "Community 119"
 
 Cohesion: 0.12
 Nodes (15): code:rust (// pattern.rs — PatternMetadata), code:rust (// parser.rs), code:rust (enhanced_cache.insert(matched_text.clone(), CacheEntry {), code:rust (enhanced_cache.insert(matched_text.clone(), CacheEntry {), code:javascript (token.patternSemanticType = matchedPattern.semanticType ?? n), code:javascript (const entryType = token.patternSemanticType ?? null;), Constraints, Design (+7 more)
 
-### Community 135 - "Community 135"
+### Community 120 - "Community 120"
 
 Cohesion: 0.22
 Nodes (3): getArrayJsValueFromWasm0(), passStringToWasm0(), RegexUtils
 
-### Community 136 - "Community 136"
+### Community 121 - "Community 121"
 
-Cohesion: 0.15
-Nodes (8): BadgeProps, VirtualRowComponent, VirtualRowProps, EntryMetadataEditOptions, EntryMetadataEditResult, useEntryMetadataEdit(), InlineFieldEdit, useInlineFieldEdit()
+Cohesion: 0.13
+Nodes (14): CacheEntryShape, DictionaryEntryMetadataShape, DictionaryEntryShape, HiddenClassMetrics, MemoryStatsShape, MetadataFlagsShape, MonomorphicFunction, PerformanceMetricsShape (+6 more)
 
-### Community 137 - "Community 137"
+### Community 122 - "Community 122"
 
-Cohesion: 0.2
-Nodes (11): BestMatch, DebugInfo, MemoryStats, PerformanceStats, PositionCandidate, PositionMappings, SemanticArrayMetadata, SemanticArraySnapshot (+3 more)
+Cohesion: 0.28
+Nodes (13): WordTransformToolbar(), WordTransformToolbarProps, capitalizeAll(), capitalizeExceptLast(), capitalizeExceptLastThree(), capitalizeExceptLastTwo(), lowercaseAll(), moveLastNWordsToBeginning() (+5 more)
 
-### Community 138 - "Community 138"
+### Community 123 - "Community 123"
+
+Cohesion: 0.16
+Nodes (4): createWasmTextAssembler(), isChinese(), needsSpace(), WasmTextAssemblerWrapper
+
+### Community 124 - "Community 124"
 
 Cohesion: 0.17
-Nodes (4): Token, initializeWasm(), isWasmTextTokenizerSupported(), WasmTextTokenizer
+Nodes (9): PunctuationComponents, PunctuationDebugInfo, SpecialPattern, NormalizeTarget, QUOTE_CATEGORIES, QUOTE_TYPES, QuoteInfo, QuoteTypeName (+1 more)
 
-### Community 140 - "Community 140"
+### Community 125 - "Community 125"
 
 Cohesion: 0.13
 Nodes (14): App Constraints That Drive This Decision, Comparison Matrix, Current: Tauri v2, Dioxus, egui, Framework-by-Framework Analysis, gpui, GUI Framework Evaluation: Tauri vs. Rust-Native Alternatives (+6 more)
 
-### Community 141 - "Community 141"
+### Community 126 - "Community 126"
 
 Cohesion: 0.13
 Nodes (14): ADR-001: WASM Batch Loading — Remove JS Batch Wrapper, Keep Sequential, Consequences, Context and Problem Statement, Decision, If Startup Latency Becomes a Problem, Implementation, Monitoring and Review, Negative (+6 more)
 
-### Community 142 - "Community 142"
+### Community 127 - "Community 127"
 
 Cohesion: 0.13
 Nodes (14): ADR-005: Eager Dictionary Loading via DictionaryContext, Alternative 1: Complete the LazyDictionaryContext migration ✗ Rejected, Alternative 2: Keep eager loading, delete LazyDictionaryContext ✅ Selected, Alternatives Considered, Consequences, Context and Problem Statement, Decision, Decision Drivers (+6 more)
 
-### Community 143 - "Community 143"
+### Community 128 - "Community 128"
 
 Cohesion: 0.13
 Nodes (15): Background, code:tsx ({(activeDictionary === 'phrases' || activeDictionary.startsW), code:bash (npm run type-check), code:tsx ({), code:tsx ({), code:bash (npm run type-check), code:bash (npm test -- --run), code:bash (git add src/components/dictionary/DictionaryEntry.tsx) (+7 more)
 
-### Community 144 - "Community 144"
+### Community 129 - "Community 129"
 
 Cohesion: 0.13
 Nodes (15): code:javascript (export class DictionaryManager {), code:block10 (TranslationCache.invalidateDictionary 89.3ms SLOW), code:javascript (/**), code:javascript (export class DictionaryTrie {), code:javascript (/**), code:javascript (// Test memory cleanup), code:javascript (this.syncFailureTracking = {), code:javascript (// After 2 hours of use with intermittent WASM failures:) (+7 more)
 
-### Community 145 - "Community 145"
-
-Cohesion: 0.13
-Nodes (14): Conclusion, Dictionary Memory Management Fixes - 2026-02-03, Future Improvements, GC Pressure Reduction, Long Term, Manual Verification Completed, Memory Leak Elimination, Overview (+6 more)
-
-### Community 146 - "Community 146"
+### Community 130 - "Community 130"
 
 Cohesion: 0.29
 Nodes (5): MatchResult, test_basic_insertion_and_lookup(), test_entry_count(), test_no_match(), TrieNode
 
-### Community 148 - "Community 148"
+### Community 131 - "Community 131"
+
+Cohesion: 0.25
+Nodes (12): test_full_dictionary_parsing(), test_parse_and_index_workflow(), test_priority_ordering(), parse_pattern(), parse_patterns_dict(), test_parse_multi_variable_pattern(), test_parse_pattern_with_low_priority(), test_parse_pattern_with_repeated_variable() (+4 more)
+
+### Community 132 - "Community 132"
+
+Cohesion: 0.14
+Nodes (13): ApplyUpdatesOptions, ApplyUpdatesResult, CharacterPhaseContext, NumberPhaseContext, PatternPhaseContext, PhaseProcessingContext, PhrasePhaseContext, ProperNounPhaseContext (+5 more)
+
+### Community 134 - "Community 134"
+
+Cohesion: 0.15
+Nodes (12): BackgroundCleanupStats, CleanupTask, IdleDeadline, CleanupEvent, CleanupPriority, MemoryEventCallback, MemoryEventData, MemoryPressure (+4 more)
+
+### Community 135 - "Community 135"
+
+Cohesion: 0.15
+Nodes (5): ErrorBoundary, ErrorBoundaryProps, ErrorBoundaryState, tauriAPI, clearPanelLayoutStorage()
+
+### Community 136 - "Community 136"
+
+Cohesion: 0.21
+Nodes (6): debugObjectPool, getLogEntry(), getPerformanceMetric(), releaseLogEntry(), releasePerformanceMetric(), batchLog
+
+### Community 137 - "Community 137"
 
 Cohesion: 0.14
 Nodes (13): ADR-008: Dictionary Cache Invalidation — Locality in handleForceReload, Not DictionaryContext, Alternative 1: Move cache invalidation to `DictionaryContext` ✗ Rejected, Alternative 2: Keep invalidation in `handleForceReload` ✅ Selected, Alternatives Considered, Consequences, Context and Problem Statement, Critical Invariants, Decision (+5 more)
 
-### Community 149 - "Community 149"
+### Community 138 - "Community 138"
 
 Cohesion: 0.14
 Nodes (13): ADR-012: Skip HotkeyRegistry, Keep useHotkeyHandler, Alternative 1: Full HotkeyRegistry ✗ Rejected, Alternative 2: Split into useTranslatorHotkeys + useDictionaryHotkeys ✗ Rejected, Alternative 3: Keep useHotkeyHandler ✅ Selected, Alternatives Considered, Consequences, Context and Problem Statement, Decision (+5 more)
 
-### Community 150 - "Community 150"
+### Community 139 - "Community 139"
 
 Cohesion: 0.14
 Nodes (13): ADR-007: TwoPhasePatternProcessor — No JS Fallback, Hard Failure on WASM Error, Alternative 1: Restore JS fallback in `TwoPhasePatternProcessor` ✗ Rejected, Alternative 2: Extract `WasmPatternBridge` seam ✗ Rejected, Alternative 3: Throw on `{ success: false }`, no bridge ✅ Selected, Alternatives Considered, Consequences, Context and Problem Statement, Critical Invariants (+5 more)
 
-### Community 151 - "Community 151"
+### Community 140 - "Community 140"
 
 Cohesion: 0.14
 Nodes (14): code:rust (let (template, allowed_variable_types, allow_as_pattern_vari), code:rust (let (template, allowed_variable_types, allow_as_pattern_vari), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:bash (git add wasm-core/src/pattern_processor/parser.rs wasm-core/), code:rust (#[test]), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), Step 1: Write a failing test (+6 more)
 
-### Community 152 - "Community 152"
-
-Cohesion: 0.14
-Nodes (14): Background, code:javascript (import { describe, it, expect } from 'vitest';), code:bash (npm test -- --run src/utils/**tests**/TwoPhasePatternProcess), code:javascript (// 1b. Cache pattern-translated tokens that carry an explici), code:bash (npm test -- --run src/utils/**tests**/TwoPhasePatternProcess), code:bash (npm test -- --run), code:bash (git add src/utils/TwoPhasePatternProcessor.js src/utils/\_\_te), Step 1: Write a failing test (+6 more)
-
-### Community 153 - "Community 153"
+### Community 141 - "Community 141"
 
 Cohesion: 0.14
 Nodes (14): code:rust (/// A Phase A pattern with semanticType "person" should sati), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:rust (// CURRENT (hardcoded):), code:rust (// FIXED:), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:rust (#[test]), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:bash (git add wasm-core/src/pattern_processor/ wasm-core/tests/) (+6 more)
 
-### Community 154 - "Community 154"
+### Community 142 - "Community 142"
 
 Cohesion: 0.14
-Nodes (14): code:javascript (// Run benchmarks), code:rust (// Rust already uses lazy_static for regex optimization), code:javascript (const segmentKeys = Object.keys(sampleSegment || {}); // Dyn), code:typescript (// Define exact shape enables V8 hidden class optimization), code:rust (/// Build index using parallel processing with Rayon), code:rust (// Option 1: Use wasm-bindgen's js-sys for zero-copy typed a), code:rust (pub struct TrieNode {), Detailed Optimization Tracking (+6 more)
+Nodes (14): Background, code:javascript (import { describe, it, expect } from 'vitest';), code:bash (npm test -- --run src/utils/**tests**/TwoPhasePatternProcess), code:javascript (// 1b. Cache pattern-translated tokens that carry an explici), code:bash (npm test -- --run src/utils/**tests**/TwoPhasePatternProcess), code:bash (npm test -- --run), code:bash (git add src/utils/TwoPhasePatternProcessor.js src/utils/\_\_te), Step 1: Write a failing test (+6 more)
 
-### Community 155 - "Community 155"
+### Community 143 - "Community 143"
+
+Cohesion: 0.14
+Nodes (13): Code Changes ✅ COMPLETED, Conclusion, Dictionary Management and Memory Code Review, Documentation 📝, Executive Summary, Immediate Actions (Within 1 Week), Long-Term Optimizations (Within 1 Month), Next Steps (+5 more)
+
+### Community 144 - "Community 144"
+
+Cohesion: 0.14
+Nodes (13): Conclusion, Dictionary Memory Management Fixes - 2026-02-03, Executive Summary, Future Improvements, Issues Fixed, Long Term, Manual Verification Completed, Memory Impact (+5 more)
+
+### Community 145 - "Community 145"
+
+Cohesion: 0.14
+Nodes (13): code:javascript (// Run benchmarks), code:rust (// Rust already uses lazy_static for regex optimization), code:rust (/// Build index using parallel processing with Rayon), code:rust (// Option 1: Use wasm-bindgen's js-sys for zero-copy typed a), code:javascript (// Pre-computation optimization added due to this bottleneck), code:rust (pub struct TrieNode {), Detailed Optimization Tracking, ✅ Task #11: Performance Benchmarking Infrastructure (+5 more)
+
+### Community 146 - "Community 146"
 
 Cohesion: 0.14
 Nodes (14): code:typescript (// ClickableTranslationSemantic.tsx:169-180), code:typescript (if (usingMetadata) {), code:typescript (// src/utils/**tests**/PositionTracking.integration.test.ts), code:markdown (## Dual-Path Synchronization Checklist), code:typescript (// ClickableTranslationSemantic.tsx:217), code:typescript (// Recommendation: Extract to configuration), code:typescript (if (!usingMetadata) {), code:typescript (// Track how often we fall back to indexOf (production-safe)) (+6 more)
 
-### Community 157 - "Community 157"
-
-Cohesion: 0.21
-Nodes (11): BoundaryOptimizer, DictionaryEngine, NumberProcessor, PositionMapper, RegexUtils, SegmentMatcher, StringProcessor, TextAssembler (+3 more)
-
-### Community 158 - "Community 158"
-
-Cohesion: 0.27
-Nodes (5): StringProcessor, test_build_cache_from_json(), test_cache_operations(), test_clear(), test_string_processor_basic()
-
-### Community 160 - "Community 160"
-
-Cohesion: 0.15
-Nodes (11): builder, largeMedian, largeStart, largeTimes, { originalPositions, translatedPositions }, result, smallMedian, smallStart (+3 more)
-
-### Community 161 - "Community 161"
+### Community 148 - "Community 148"
 
 Cohesion: 0.22
-Nodes (3): TranslationProfiler, fn, makeInstantiateFn()
+Nodes (10): BulkMoveDialog(), BulkMoveDialogProps, getDictionaryTypes(), AvailableDictionary, FullEntryData, MoveEntryDialog(), MoveEntryDialogProps, DictionaryEntryMetadata (+2 more)
 
-### Community 163 - "Community 163"
+### Community 150 - "Community 150"
 
 Cohesion: 0.15
 Nodes (12): Active ADRs, [ADR-001: WASM Batch Loading — Remove Batch Wrapper](./ADR-001-wasm-batch-loading-failure.md), [ADR-002: Dual-Path Clickable Highlighting](./ADR-002-dual-path-clickable-highlighting.md), [ADR-003: TypeScript Hybrid Architecture](./ADR-003-typescript-hybrid-architecture.md), [ADR-004: 5-Phase Processing Order Immutability](./ADR-004-five-phase-processing-order-immutability.md), [ADR-006: PatternProcessor Interface](./ADR-006-pattern-processor-interface.md), ADR Format, Architecture Decision Records (ADRs) (+4 more)
 
-### Community 164 - "Community 164"
+### Community 151 - "Community 151"
 
 Cohesion: 0.15
 Nodes (12): ADR-011: Skip useTranslatorSession Coordinator Hook, Alternative 1: Extract useTranslatorSession ✗ Rejected, Alternative 2: Keep coordination in Translator.jsx ✅ Selected, Alternatives Considered, Consequences, Context and Problem Statement, Decision, Decision Drivers (+4 more)
 
-### Community 165 - "Community 165"
+### Community 152 - "Community 152"
 
 Cohesion: 0.15
 Nodes (13): code:rust (#[test]), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:rust (#[derive(Debug, Clone, Serialize, Deserialize)]), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:bash (cargo test --manifest-path wasm-core/Cargo.toml -- --test-th), code:bash (git add wasm-core/src/pattern_processor/pattern.rs wasm-core), Step 1: Write a failing test, Step 2: Run test to verify it fails (+5 more)
 
-### Community 166 - "Community 166"
+### Community 153 - "Community 153"
 
 Cohesion: 0.15
 Nodes (13): Background, code:javascript (import { describe, it, expect, vi } from 'vitest';), code:bash (npm test -- --run src/utils/**tests**/TranslationEngine.patt), code:javascript (tokens[idx].patternSemanticType = result.semanticType ?? nul), code:bash (npm test -- --run src/utils/**tests**/TranslationEngine.patt), code:bash (npm test -- --run), code:bash (git add src/utils/TranslationEngine.js src/utils/**tests**/T), Step 1: Write a JS test (+5 more)
 
-### Community 167 - "Community 167"
-
-Cohesion: 0.15
-Nodes (13): code:javascript (export class DictionaryTrie {), code:javascript (// Two async operations on same trie), code:javascript (findMatches(text, startPos = 0) {), code:javascript (async preWarmCaches(dictionaryManager, options = {}) {), code:javascript (async preWarmCaches(dictionaryManager, options = {}) {), code:rust (static ALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);), code:javascript (// JavaScript detects memory pressure), code:rust (// Add to wasm-core/src/memory_management.rs) (+5 more)
-
-### Community 168 - "Community 168"
+### Community 154 - "Community 154"
 
 Cohesion: 0.15
 Nodes (13): code:javascript (recordSnapshot(operation = 'unknown', context = {}) {), code:javascript (// During batch translation:), code:javascript (/\*\*), code:javascript (delete(key: K): boolean {), code:javascript (// Cache manager manually clears old entries), code:javascript (delete(key: K): boolean {), code:javascript (returnBuffer(buffer: ArrayBuffer | null): void {), code:javascript (const buffer = pool.getBuffer(1024);) (+5 more)
 
-### Community 169 - "Community 169"
+### Community 155 - "Community 155"
+
+Cohesion: 0.15
+Nodes (13): code:javascript (export class DictionaryTrie {), code:javascript (// Two async operations on same trie), code:javascript (findMatches(text, startPos = 0) {), code:javascript (async preWarmCaches(dictionaryManager, options = {}) {), code:javascript (async preWarmCaches(dictionaryManager, options = {}) {), code:rust (static ALLOCATED_BYTES: AtomicUsize = AtomicUsize::new(0);), code:javascript (// JavaScript detects memory pressure), code:rust (// Add to wasm-core/src/memory_management.rs) (+5 more)
+
+### Community 156 - "Community 156"
 
 Cohesion: 0.15
 Nodes (13): 7. Clickable Highlighting Feature Analysis, Are They Doing Redundant Work?, code:block14 (TranslationEngine.translateWithSegments()), code:javascript ({), code:javascript (// Text: "màu trắng mà tôi thích"), code:typescript (interface Segment {), Component Architecture, Full Translation Highlighting Path (+5 more)
 
-### Community 170 - "Community 170"
+### Community 157 - "Community 157"
 
 Cohesion: 0.15
 Nodes (12): Canonical Type Homes, `ClickableTranslationOptimized` Paragraph Logic, ConfigurationManager Settings Must Be Traced to the Engine, Engine Lifecycle — `useTranslatorEngine` Hook, Error Utilities, `highlightingReducer.js` — JSDoc `unitIndex` Simplification, React Stale Dependencies, Renamed Exports — Grep `Translator.jsx` After Any Rename (+4 more)
 
-### Community 171 - "Community 171"
+### Community 158 - "Community 158"
 
-Cohesion: 0.22
-Nodes (4): getLogEntry(), getPerformanceMetric(), releaseLogEntry(), releasePerformanceMetric()
+Cohesion: 0.18
+Nodes (8): copyWasmTokens(), RustLookupMatch, validateWasmToken(), WasmBatchDictionaryResult, WasmDictionaryMatch, WasmNumberProcessorResult, WasmPatternMatch, WasmToken
 
-### Community 172 - "Community 172"
+### Community 159 - "Community 159"
 
 Cohesion: 0.21
 Nodes (4): test_basic_chunking(), test_punctuation_detection(), TextChunker, TextChunkResult
 
-### Community 173 - "Community 173"
+### Community 160 - "Community 160"
 
-Cohesion: 0.21
-Nodes (5): useScrollPositionManager(), AttemptFn, RecoveryOptions, ScrollPositionRecovery, ScrollPositions
+Cohesion: 0.17
+Nodes (11): CompiledPattern, DictionaryEntry, DictionaryMatch, DictionaryStats, DictionaryTrie, PatternDictionaryEntry, PatternMatchResult, PatternToken (+3 more)
 
-### Community 176 - "Community 176"
+### Community 163 - "Community 163"
+
+Cohesion: 0.23
+Nodes (8): getJsProcessor(), processNumbers(), categorizeWasmError(), formatWasmError(), WASM_ERROR_TYPES, initializeWasmNumberProcessor(), isWasmNumberProcessorAvailable(), processNumbersWasm()
+
+### Community 165 - "Community 165"
+
+Cohesion: 0.27
+Nodes (8): AppearanceManager(), DEFAULT_APPEARANCE, useAppearanceSettings(), AppearanceSection, applyFollowFullTranslation(), applyFontChange(), applyReset(), FontProperty
+
+### Community 166 - "Community 166"
 
 Cohesion: 0.17
 Nodes (11): 1. `translationSource: string` — 4 Phase-1 variants, silent priority-999 fallback, 2. `TranslationEngine.js` dual interface: return + shared pipeline state, 3. WASM binary staleness is structurally undiscoverable, AI Readiness Evaluation: chinese-translator-tauri, Behavioral Clarity Detail (Dimension 5), Recommended Changes, Scores, Summary (+3 more)
 
-### Community 177 - "Community 177"
+### Community 167 - "Community 167"
 
 Cohesion: 0.17
 Nodes (12): 3. Performance Optimizations ⭐⭐⭐⭐⭐, code:typescript (// Segments built during translation (TranslationEngine.js:p), code:typescript (// Try WASM first (8-20x faster)), code:typescript (// Uses Rust trie for O(n+k) matching instead of O(n*m*k)), code:typescript (// Previous: substring(currentPosition) creates new string E), code:typescript (// Pre-filter empty units before iteration), code:typescript (// Cache compiled regexes with LRU eviction), code:typescript (// Memoized segment component prevents re-renders) (+4 more)
 
-### Community 178 - "Community 178"
+### Community 168 - "Community 168"
 
 Cohesion: 0.17
 Nodes (11): Build Profile, PatternIndex Key Is First Char — Lookup Must Match, Phase A Composite-Coverage Scoring, Phase B Protection Blocks Shorter-or-Equal Matches, RUSTFLAGS for wasm32, `semanticType: "$X"` Resolves at Match Time, Test locations, Two Competing `allowAsPatternVariable: true` Patterns Block Compositing (+3 more)
 
-### Community 179 - "Community 179"
-
-Cohesion: 0.2
-Nodes (4): BoundaryOptimizer, getArrayU8FromWasm0(), getUint8ArrayMemory0(), passArray8ToWasm0()
-
-### Community 180 - "Community 180"
+### Community 169 - "Community 169"
 
 Cohesion: 0.22
 Nodes (4): SegmentMatch, SegmentMatcher, SemanticUnit, TrieNode
 
-### Community 181 - "Community 181"
+### Community 170 - "Community 170"
 
 Cohesion: 0.29
 Nodes (8): get_byte_position(), is_chinese_char(), is_digit(), is_latin_letter(), is_punctuation(), Token, tokenize_text(), TokenType
 
-### Community 182 - "Community 182"
+### Community 171 - "Community 171"
 
-Cohesion: 0.27
-Nodes (9): find_best_pattern_match(), dollar_ref_to_missing_variable_resolves_to_none(), dollar_x_resolves_to_none_when_variable_untyped(), dollar_x_resolves_to_variable_type_from_cache(), dollar_x_with_proper_noun_var_type_resolves_to_proper_noun(), dollar_y_resolves_to_variable_type_from_cache(), fixed_semantic_type_unchanged(), phase_a_semantic_type_satisfies_phase_b_constraint() (+1 more)
+Cohesion: 0.18
+Nodes (5): DebouncedProgressHandler, LoadingCallback, LoadingState, ProgressCallbacks, ProgressData
 
-### Community 184 - "Community 184"
+### Community 172 - "Community 172"
 
-Cohesion: 0.29
-Nodes (6): comparePatternResults(), runAllParityTests(), testPatternParity(), PerformanceHealth, hasWasmPatternProcessorFailed(), isWasmPatternProcessorAvailable()
+Cohesion: 0.22
+Nodes (5): callWasmWithTimeout(), createTimeoutWrapper(), DEFAULT_WASM_TIMEOUTS, TimeoutError, TimeoutManager
 
-### Community 185 - "Community 185"
+### Community 175 - "Community 175"
+
+Cohesion: 0.18
+Nodes (10): StreamingProgressBar, StreamingProgressBarProps, StreamingState, StreamingStateForProgress, StreamingTextRenderer, StreamingTextRendererProps, StreamingTranslationDisplay, StreamingTranslationDisplayProps (+2 more)
+
+### Community 176 - "Community 176"
 
 Cohesion: 0.18
 Nodes (10): Areas for Improvement 🔧, Code Quality Observations, Code Review: TypeScript/Rust Optimization Opportunities, Conclusion, Critical Test Files:, Excellent Practices ✅, For Each Migration:, Performance Impact Projections (+2 more)
 
-### Community 186 - "Community 186"
+### Community 177 - "Community 177"
 
 Cohesion: 0.18
-Nodes (11): code:javascript (// Line 5881: Memory tracking), code:javascript (import { segmentIterator } from './V8OptimizationUtils.js';), code:javascript (// Phase 4: Find unprocessed tokens), code:javascript (import { scanTokens } from './ReadonlyOptimizationUtils.js';), Integration #3: V8 Optimization for Memory Tracking (Task #8), Integration #4: ReadonlyArray for Phase Processing (Task #5), Integration #7: Zero-Copy WASM Boundary (Task #2), Integration #8: Regex Utilities (Task #6) (+3 more)
+Nodes (10): 2026-01-31 - Session 1 (Infrastructure + Analysis), For Each Optimization:, Future Optimization Ideas:, Key Learnings:, Notes, Overall Integration Testing:, Progress Log, Testing Strategy (+2 more)
 
-### Community 187 - "Community 187"
+### Community 178 - "Community 178"
+
+Cohesion: 0.18
+Nodes (10): Code Review: 5-Phase Processing Token Consumption, Conclusion, Executive Summary, High Priority (Within 1 Week), Immediate Actions (CRITICAL), Key Concerns, Key Strengths, Low Priority (Nice to Have) (+2 more)
+
+### Community 179 - "Community 179"
 
 Cohesion: 0.18
 Nodes (11): code:javascript (// Verify validatePhaseOrder catches violations), code:javascript (// Verify corruption detection in all phases), code:javascript (// Verify consumed tokens have correct structure), code:javascript (// Verify phase priority is respected), code:javascript (// Verify corruption detection per phase), Test 1: Phase Order Violation, Test 2: Token Array Corruption, Test 3: Consumed Token Contract (+3 more)
 
-### Community 188 - "Community 188"
+### Community 180 - "Community 180"
 
 Cohesion: 0.18
 Nodes (11): code:javascript (// Phase 1 & 2: Record profiling metrics (lines 6394-6397)), code:javascript (// After each phase), code:javascript (// Pre-validate array length (line 6569)), code:javascript (// No validation that WASM respects consumed tokens from ear), code:javascript (// Before WASM processing), code:javascript (// Timeout helper references PHASE_TIMEOUTS constant (line 6), code:javascript (// PHASE_TIMEOUTS (from constants file - verify these values), ⚠️ MEDIUM-1: Inconsistent Phase Completion Logging (+3 more)
 
-### Community 189 - "Community 189"
+### Community 181 - "Community 181"
 
 Cohesion: 0.18
 Nodes (10): Category 1: Future Integration APIs (18 warnings), Category 2: Helper/Utility Methods (8 warnings), Category 3: Dead Code from Earlier Phases (3 warnings), Compilation Warnings - Explained, Current Status, Fixed Warnings (7 total), Remaining Warnings (29 total) - All Expected, Summary (+2 more)
 
+### Community 184 - "Community 184"
+
+Cohesion: 0.29
+Nodes (6): comparePatternResults(), PARITY_TEST_CASES, runAllParityTests(), testPatternParity(), PerformanceHealth, isWasmPatternProcessorAvailable()
+
+### Community 189 - "Community 189"
+
+Cohesion: 0.2
+Nodes (9): 5-Phase Pipeline (order is immutable), Architecture, Chinese-Vietnamese Translation App, code:bash (cargo check --manifest-path src-tauri/Cargo.toml # NOT cd +), Critical Constraints, Development, Dual-Path Architecture, Essential Commands (+1 more)
+
 ### Community 190 - "Community 190"
 
-Cohesion: 0.22
-Nodes (3): getArrayU32FromWasm0(), getUint32ArrayMemory0(), PositionMapper
+Cohesion: 0.2
+Nodes (9): 5-Phase Pipeline (order is immutable), Architecture, Chinese-Vietnamese Translation App, code:bash (cargo check --manifest-path src-tauri/Cargo.toml # NOT cd +), Critical Constraints, Development, Dual-Path Architecture, Essential Commands (+1 more)
 
 ### Community 191 - "Community 191"
-
-Cohesion: 0.24
-Nodes (4): generateContentHash(), getStringFromWasm0(), normalizeSingle(), TextAssembler
-
-### Community 197 - "Community 197"
-
-Cohesion: 0.2
-Nodes (9): 5-Phase Pipeline (order is immutable), Architecture, Chinese-Vietnamese Translation App, code:bash (cargo check --manifest-path src-tauri/Cargo.toml # NOT cd +), Critical Constraints, Development, Dual-Path Architecture, Essential Commands (+1 more)
-
-### Community 198 - "Community 198"
-
-Cohesion: 0.2
-Nodes (9): 5-Phase Pipeline (order is immutable), Architecture, Chinese-Vietnamese Translation App, code:bash (cargo check --manifest-path src-tauri/Cargo.toml # NOT cd +), Critical Constraints, Development, Dual-Path Architecture, Essential Commands (+1 more)
-
-### Community 199 - "Community 199"
 
 Cohesion: 0.2
 Nodes (10): code:bash (npm run precompute-dictionaries # Optional: pre-generate .t), code:javascript (// Get cache performance stats), Integration #2: Parallel Dictionary Loading (Task #9), Integration #3: V8 Optimization (Task #8), Integration #4: ReadonlyArray Optimization (Task #5), Integration #5: WASM String Processor (Task #3) - VERIFIED, Integration #6: WASM Text Chunking (NEW - HIGH PRIORITY), Integration #7: Dictionary Precomputation (NEW - BUILD-TIME + RUNTIME CACHING) (+2 more)
 
-### Community 200 - "Community 200"
+### Community 192 - "Community 192"
 
 Cohesion: 0.2
 Nodes (10): 2.1 WASM Position Mapping Module, 2.2 WASM Content Hash Generator, 3.1 LRUCache Doubly-Linked List ✅, code:javascript (// SemanticArrayBuilder.js:434-476), code:rust (// wasm-core/src/position_mapper.rs), code:javascript (// ContentAwarePositionCache.js:75-83), code:rust (use std::collections::hash_map::DefaultHasher;), Identified Optimization Opportunities (+2 more)
 
-### Community 201 - "Community 201"
+### Community 193 - "Community 193"
 
 Cohesion: 0.2
-Nodes (9): Approach: **Minimal Surface Area**, Critical Constraints (from CLAUDE.md), ❌ DO NOT MODIFY, Integration Strategy: Surgical Changes Only, Next Steps, Optimization Integration Plan, Principle: **Feature Flags + Graceful Degradation**, Questions for Review (+1 more)
+Nodes (9): Approach: **Minimal Surface Area**, Development Tools, Integration Strategy: Surgical Changes Only, Monitoring & Validation, Next Steps, Optimization Integration Plan, Performance Dashboards, Principle: **Feature Flags + Graceful Degradation** (+1 more)
 
-### Community 202 - "Community 202"
+### Community 194 - "Community 194"
 
 Cohesion: 0.2
 Nodes (9): Background for the Implementer, code:bash (# Rust (run after every Rust task):), code:bash (# All Rust tests), Final Verification, How pattern-within-pattern type checking works today, Key files and line numbers, Pattern Semantic Type Implementation Plan, Running tests (+1 more)
 
-### Community 203 - "Community 203"
-
-Cohesion: 0.2
-Nodes (10): 6. Edge Case Analysis, code:javascript (if (!text || typeof text !== 'string') {), code:javascript (if (!text || typeof text !== 'string') {), code:javascript (if (numberCandidates.length > 25 && this.wasmManager?.number), code:javascript (if (text.length > USE_LOOKUP_INDEX_THRESHOLD && this.diction), code:javascript (// Use case-insensitive indexOf with offset to find each occ), ✅ HANDLED: Duplicate Translations, ✅ HANDLED: Empty Input (+2 more)
-
-### Community 204 - "Community 204"
+### Community 195 - "Community 195"
 
 Cohesion: 0.2
 Nodes (9): 10. Code Review Checklist, 11. Conclusion, 1. Path Comparison Matrix, 8. Memory & Performance Profile, Character-Only (same 1000-char text), Efficiency Verdict, Executive Summary, Full Translation (1000-char text, typical) (+1 more)
 
-### Community 205 - "Community 205"
+### Community 196 - "Community 196"
 
 Cohesion: 0.2
 Nodes (10): 5. Code Quality Review, code:javascript (// Full Translation - Line 2025), code:javascript (// Phase 1: Pattern Processing (Line 7869)), code:javascript (const USE_LOOKUP_INDEX_THRESHOLD = 50; // characters), code:javascript (const USE_LOOKUP_INDEX_THRESHOLD = 500; // characters), ✅ GOOD: Clear Separation of Concerns, ✅ GOOD: Performance Optimizations Already Applied, ✅ GOOD: Phase Execution Documentation (+2 more)
 
-### Community 206 - "Community 206"
+### Community 197 - "Community 197"
+
+Cohesion: 0.2
+Nodes (10): 6. Edge Case Analysis, code:javascript (if (!text || typeof text !== 'string') {), code:javascript (if (!text || typeof text !== 'string') {), code:javascript (if (numberCandidates.length > 25 && this.wasmManager?.number), code:javascript (if (text.length > USE_LOOKUP_INDEX_THRESHOLD && this.diction), code:javascript (// Use case-insensitive indexOf with offset to find each occ), ✅ HANDLED: Duplicate Translations, ✅ HANDLED: Empty Input (+2 more)
+
+### Community 198 - "Community 198"
 
 Cohesion: 0.2
 Nodes (10): code:javascript (/\*\*), code:javascript (// NEW FILE: src/constants/TranslationPhases.js), code:block13 (Input Text), code:mermaid (graph TD), P0: Keep As-Is (Confidence: 85%, Effort: 0h, Impact: HIGH), P1: Add Method-Level JSDoc (Confidence: 95%, Effort: 2-3h, Impact: MEDIUM), P2: Extract Constants (Confidence: 90%, Effort: 1-2h, Impact: LOW), P3: Create Visual Diagrams (Confidence: 100%, Effort: 1-2h, Impact: MEDIUM) (+2 more)
 
-### Community 207 - "Community 207"
-
-Cohesion: 0.2
-Nodes (9): 2026-01-31 - Session 1 (Infrastructure + Analysis), Baseline Measurements (Before Optimizations), For Each Optimization:, Overall Integration Testing:, Performance Metrics, Post-Optimization Measurements, Progress Log, Testing Strategy (+1 more)
-
-### Community 208 - "Community 208"
+### Community 199 - "Community 199"
 
 Cohesion: 0.2
 Nodes (10): 5. Testing Coverage ⭐⭐⭐⭐⭐, Code Quality Assessment, code:javascript (test('CRITICAL-1: setPositionByMatch should reject out-of-or), code:typescript (test('should use position metadata for duplicate units', () ), code:javascript (test('O(n\*m) position mapping should complete in reasonable ), code:javascript (test('Integration: Full translation flow with position track), code:javascript (describe('Performance benchmarks', () => {), Test Categories (+2 more)
 
-### Community 209 - "Community 209"
-
-Cohesion: 0.2
-Nodes (9): Code Review: 5-Phase Processing Token Consumption, code:javascript (try {), code:javascript (// In translateSinglePass:), Conclusion, Executive Summary, Key Concerns, Key Strengths, ℹ️ LOW-1: Phase 3 Nested Try-Catch Complexity (+1 more)
-
-### Community 210 - "Community 210"
-
-Cohesion: 0.2
-Nodes (10): 1. Excellent Token Array Length Validation (Phases 1-2), 2. Robust Phase Order Enforcement, 3. Comprehensive Phase Failure Reporting, 4. Correct Consumed Token Handling in postProcess, 5. WASM Validation is Thorough, code:javascript (// Lines 6403-6429), code:javascript (const validatePhaseOrder = (phaseName) => {), code:javascript (const failedPhases = ['patterns', 'properNouns', 'numbers', ) (+2 more)
-
-### Community 211 - "Community 211"
+### Community 200 - "Community 200"
 
 Cohesion: 0.2
 Nodes (10): code:javascript (const REQUIRED_PHASE_ORDER = ['patterns', 'properNouns', 'nu), code:javascript (// Phase 1 (Patterns) - HAS corruption check ✅), code:javascript (// FIX: Add consistent corruption detection for ALL phases), code:javascript (// postProcess checks consumed tokens (lines 3542-3549)), code:javascript (// CRITICAL: No validation that phases correctly mark consum), code:javascript (// After Phase 1 (line ~6434)), ✅ CRITICAL-1: Phase Order Enforcement (GOOD), ⚠️ CRITICAL-2: Token Array Corruption Detection (INCONSISTENT) (+2 more)
 
-### Community 216 - "Community 216"
+### Community 201 - "Community 201"
+
+Cohesion: 0.2
+Nodes (10): 1. Excellent Token Array Length Validation (Phases 1-2), 2. Robust Phase Order Enforcement, 3. Comprehensive Phase Failure Reporting, 4. Correct Consumed Token Handling in postProcess, 5. WASM Validation is Thorough, code:javascript (// Lines 6403-6429), code:javascript (const validatePhaseOrder = (phaseName) => {), code:javascript (const failedPhases = ['patterns', 'properNouns', 'numbers', ) (+2 more)
+
+### Community 204 - "Community 204"
+
+Cohesion: 0.22
+Nodes (8): DictionaryMatch, PatternMatchResult, ProgressData, SemanticArrays, SemanticMetadata, Token, TranslationOptions, TranslationSegment
+
+### Community 206 - "Community 206"
+
+Cohesion: 0.22
+Nodes (8): ComponentMetrics, ComponentProfile, ComponentStats, MemorySample, MemorySnapshot, Performance, ProfilerStats, TopMemoryConsumer
+
+### Community 207 - "Community 207"
+
+Cohesion: 0.22
+Nodes (8): BufferMetadata, MemoryPoolStats, OptimizationRecommendation, PoolCategory, PoolConfig, PoolStats, wasmMemoryPoolManager, WasmMemoryPoolOptions
+
+### Community 211 - "Community 211"
+
+Cohesion: 0.31
+Nodes (3): initializeWasm(), isWasmTextTokenizerSupported(), WasmTextTokenizer
+
+### Community 212 - "Community 212"
 
 Cohesion: 0.22
 Nodes (8): 🔮 Future Integration Work, Measured Gains (Integrated), Optimization Master Index - Complete Reference, 📊 Performance Summary, Potential Future Gains (Not Yet Integrated), Priority Roadmap, 📞 Quick Answers to Common Questions, 📋 Quick Navigation
 
-### Community 217 - "Community 217"
+### Community 213 - "Community 213"
 
 Cohesion: 0.22
 Nodes (9): 1.1 SemanticArrayBuilder.js → TypeScript, 1.2 OptimizedSemanticArrayBuilder.js → TypeScript, 1.3 TranslationSegmentCache.js → TypeScript, 1.4 SegmentPrecomputer.js → TypeScript, code:typescript (interface SemanticArrayMetadata {), code:typescript (class OptimizedSemanticArrayBuilder {), code:typescript (interface CacheEntry {), code:typescript (interface PrecomputedSegment {) (+1 more)
 
-### Community 218 - "Community 218"
+### Community 214 - "Community 214"
+
+Cohesion: 0.22
+Nodes (9): code:javascript (import { wasmDictionaryTrie } from './WasmDictionaryTrie.js'), code:javascript (// Phase 5: Character dictionary lookup), Integration #5: String Processor for Pattern Matching (Task #3), Integration #6: Dictionary Trie for Phase 5 (Task #4), Integration #7: Zero-Copy WASM Boundary (Task #2), Integration #8: Regex Utilities (Task #6), Integration Roadmap (8 Integration Points), 🔴 Priority 3: High-Impact, Higher-Risk (Careful Integration) (+1 more)
+
+### Community 215 - "Community 215"
 
 Cohesion: 0.22
 Nodes (8): 🎉 Conclusion, 📝 Documentation Created, Expected Overall Impact, Measured Gains, Optimization Integration Session Summary, 📊 Performance Improvements, 📖 Reference Documentation, 🎯 Session Objectives
 
-### Community 219 - "Community 219"
+### Community 216 - "Community 216"
 
 Cohesion: 0.22
 Nodes (8): ADR-014: DictionaryBackend Owns Load Protocol Only — Save/Move IPC Stays in Provider, Alternative 1: Extract all five IPC call sites into DictionaryBackend ✗ Rejected, Alternative 2: Extract loadInitialState only ✓ Accepted, Alternatives Considered, Consequences, Context and Problem Statement, Decision, Decision Drivers
 
-### Community 220 - "Community 220"
+### Community 217 - "Community 217"
 
 Cohesion: 0.22
 Nodes (8): Column header, Design, Design: Semantic Column in Patterns Dictionary Table, Files Touched, No new components, Problem, Row cell, Width adjustment
 
-### Community 221 - "Community 221"
-
-Cohesion: 0.22
-Nodes (8): Conclusion, Dictionary Management and Memory Code Review, Executive Summary, Immediate Actions (Within 1 Week), Long-Term Optimizations (Within 1 Month), Recommendations, Short-Term Improvements (Within 2 Weeks), Summary
-
-### Community 222 - "Community 222"
+### Community 218 - "Community 218"
 
 Cohesion: 0.22
 Nodes (8): Rust Arithmetic, Rust String Lengths, Tauri Backend + WASM Core — Gotchas, Tauri Command Security, WASM-Bridged Structs, wasm-core Architecture, WASM `&mut self` Borrow Rule (Rust 1.84+), WASM-Only Symbols Cause SIGABRT on Native Tests
 
-### Community 229 - "Community 229"
+### Community 221 - "Community 221"
+
+Cohesion: 0.36
+Nodes (7): bench_large_token_array(), bench_pattern_competition(), bench_phase_a_processing(), bench_single_pattern_match(), bench_two_phase_processing(), create_token(), find_best_pattern_match()
+
+### Community 226 - "Community 226"
 
 Cohesion: 0.25
-Nodes (8): 📍 Code Locations Map, code:block3 (lib.rs # Main WASM module (Dictionary Tri), code:block4 (WasmStringProcessor.js # ✅ INTEGRATED), code:block5 (TranslationEngine.js # Lines 3146-3218 (✅ ReadonlyArray), File Paths Reference, Infrastructure (Used by Other Modules), Integrated Code (Active in Production), Ready to Integrate (Code Complete, Not Active)
+Nodes (3): ModalErrorBoundary, ModalErrorBoundaryProps, ModalErrorBoundaryState
+
+### Community 229 - "Community 229"
+
+Cohesion: 0.29
+Nodes (4): AttemptFn, RecoveryOptions, ScrollPositionRecovery, ScrollPositions
 
 ### Community 230 - "Community 230"
 
 Cohesion: 0.25
-Nodes (8): code:block4 (npm test -- --run), code:block5 (npm run type-check), code:block6 (wasm-pack build), Manual Testing Performed, Test Results, 🧪 Testing & Validation, Type Checking, WASM Build
+Nodes (8): 📍 Code Locations Map, code:block3 (lib.rs # Main WASM module (Dictionary Tri), code:block4 (WasmStringProcessor.js # ✅ INTEGRATED), code:block5 (TranslationEngine.js # Lines 3146-3218 (✅ ReadonlyArray), File Paths Reference, Infrastructure (Used by Other Modules), Integrated Code (Active in Production), Ready to Integrate (Code Complete, Not Active)
 
 ### Community 231 - "Community 231"
 
 Cohesion: 0.25
-Nodes (7): ADR-010: Dictionary Match Sort — Specificity Over Provenance, Alternatives Considered, code:js (// DictionaryManager.js — findAllMatchesSequential + findAll), Consequences, Context, Decision, Rationale
+Nodes (8): code:block4 (npm test -- --run), code:block5 (npm run type-check), code:block6 (wasm-pack build), Manual Testing Performed, Test Results, 🧪 Testing & Validation, Type Checking, WASM Build
 
 ### Community 232 - "Community 232"
 
 Cohesion: 0.25
-Nodes (7): ADR-015: Skip TextProcessingPipeline Extraction — TextChunker and AdaptiveChunker Are Not Composable, Alternative 1: Extract `TextProcessingPipeline` ✗ Rejected, Alternative 2: Keep coordination in TranslationEngine ✓ Accepted, Alternatives Considered, Consequences, Context and Problem Statement, Decision Drivers
+Nodes (7): ADR-010: Dictionary Match Sort — Specificity Over Provenance, Alternatives Considered, code:js (// DictionaryManager.js — findAllMatchesSequential + findAll), Consequences, Context, Decision, Rationale
 
 ### Community 233 - "Community 233"
 
 Cohesion: 0.25
-Nodes (7): Behaviour, Change, code:ts (// Before), Design, Design: Semantic Type Filter for Structural Patterns, Files Touched, Problem
+Nodes (7): ADR-015: Skip TextProcessingPipeline Extraction — TextChunker and AdaptiveChunker Are Not Composable, Alternative 1: Extract `TextProcessingPipeline` ✗ Rejected, Alternative 2: Keep coordination in TranslationEngine ✓ Accepted, Alternatives Considered, Consequences, Context and Problem Statement, Decision Drivers
 
 ### Community 234 - "Community 234"
 
 Cohesion: 0.25
-Nodes (8): Character-Only Highlighting Path, code:block16 (TranslationEngine.translateWithCharactersOnly()), code:javascript (// CRITICAL: Happens AFTER all text transformations), code:javascript (// Case-insensitive search in remaining text), code:block19 (ClickableTranslationSemantic.tsx), Strategy 1: Position Metadata (Preferred, Fastest), Strategy 2: indexOf Fallback (Synchronous), Strategy 3: Async SegmentPrecomputer (Comprehensive)
+Nodes (7): Behaviour, Change, code:ts (// Before), Design, Design: Semantic Type Filter for Structural Patterns, Files Touched, Problem
 
 ### Community 235 - "Community 235"
 
 Cohesion: 0.25
-Nodes (8): code:block1 (Before Refactoring (2026-01-30 morning):), Extraction Success Metrics, Part 1: Recent Refactoring Success Analysis, Phase 1: Core Utilities & State Management (-663 lines), Phase 2: Pattern Processing (-43 lines), Phase 3: Translation Control (-80 lines), Phase 4: Dead Code & Helpers (-390 lines), What Was Extracted (2026-01-30)
+Nodes (8): Character-Only Highlighting Path, code:block16 (TranslationEngine.translateWithCharactersOnly()), code:javascript (// CRITICAL: Happens AFTER all text transformations), code:javascript (// Case-insensitive search in remaining text), code:block19 (ClickableTranslationSemantic.tsx), Strategy 1: Position Metadata (Preferred, Fastest), Strategy 2: indexOf Fallback (Synchronous), Strategy 3: Async SegmentPrecomputer (Comprehensive)
 
 ### Community 236 - "Community 236"
 
@@ -1346,27 +1346,37 @@ Nodes (8): code:javascript (// Proposed structure), code:javascript (class Trans
 ### Community 237 - "Community 237"
 
 Cohesion: 0.25
-Nodes (8): 1. Error Handling ⭐⭐⭐⭐⭐, code:typescript (// Example: Comprehensive null guards before processing), code:typescript (// Multi-layered validation: undefined check → -1 check → bo), code:typescript (// src/utils/PositionValidationHelpers.ts), code:typescript (// CRITICAL-1 FIX: Prevent infinite loop from zero-length se), Infinite Loop Prevention (SegmentPrecomputer.ts:525-535, 614-628), Input Validation (ClickableTranslationSemantic.tsx), Position Metadata Validation (lines 86-118)
+Nodes (8): code:block1 (Before Refactoring (2026-01-30 morning):), Extraction Success Metrics, Part 1: Recent Refactoring Success Analysis, Phase 1: Core Utilities & State Management (-663 lines), Phase 2: Pattern Processing (-43 lines), Phase 3: Translation Control (-80 lines), Phase 4: Dead Code & Helpers (-390 lines), What Was Extracted (2026-01-30)
 
 ### Community 238 - "Community 238"
 
 Cohesion: 0.25
-Nodes (8): code:javascript (// Documentation states phase priority:), code:javascript (// Phases check `token.translated !== null` before processin), code:javascript (// After each phase, validate no lower-priority translations), code:javascript (// Check for corruption after ALL phases (line 6886)), code:javascript (// Helper function), ⚠️ HIGH-2: Phase Priority Not Validated at Runtime, ⚠️ HIGH-3: Semantic Array Corruption Detection (PARTIAL), HIGH Priority Issues
+Nodes (8): 1. Error Handling ⭐⭐⭐⭐⭐, code:typescript (// Example: Comprehensive null guards before processing), code:typescript (// Multi-layered validation: undefined check → -1 check → bo), code:typescript (// src/utils/PositionValidationHelpers.ts), code:typescript (// CRITICAL-1 FIX: Prevent infinite loop from zero-length se), Infinite Loop Prevention (SegmentPrecomputer.ts:525-535, 614-628), Input Validation (ClickableTranslationSemantic.tsx), Position Metadata Validation (lines 86-118)
 
 ### Community 239 - "Community 239"
 
 Cohesion: 0.25
-Nodes (7): mockGetStats, mockInit, mockIsInitialized, mockStats, mockToast, stats, tokens
+Nodes (8): code:javascript (// Documentation states phase priority:), code:javascript (// Phases check `token.translated !== null` before processin), code:javascript (// After each phase, validate no lower-priority translations), code:javascript (// Check for corruption after ALL phases (line 6886)), code:javascript (// Helper function), ⚠️ HIGH-2: Phase Priority Not Validated at Runtime, ⚠️ HIGH-3: Semantic Array Corruption Detection (PARTIAL), HIGH Priority Issues
 
 ### Community 240 - "Community 240"
 
-Cohesion: 0.54
-Nodes (5): copyWasmTokens(), validateRustLookupMatch(), validateWasmDictionaryMatch(), validateWasmPatternMatch(), validateWasmToken()
+Cohesion: 0.33
+Nodes (6): computeFileHash(), **dirname, **filename, generateIntegrityManifest(), MANIFEST_PATH, WASM_DIR
 
-### Community 243 - "Community 243"
+### Community 244 - "Community 244"
 
-Cohesion: 0.38
-Nodes (6): bench_large_token_array(), bench_pattern_competition(), bench_phase_a_processing(), bench_single_pattern_match(), bench_two_phase_processing(), create_token()
+Cohesion: 0.29
+Nodes (6): CategoryInfo, CharacterInfo, CompiledRegexes, PunctuationCategory, ResolvedConfig, UnicodePunctuationConfig
+
+### Community 245 - "Community 245"
+
+Cohesion: 0.43
+Nodes (6): AppReadinessOverlay(), AppReadinessOverlayProps, pickStatus(), stageClass(), stageIcon(), StageStatus
+
+### Community 246 - "Community 246"
+
+Cohesion: 0.29
+Nodes (5): PerformanceStats, ProgressInfo, RegressionHealth, TranslatorControlsProps, WasmStatus
 
 ### Community 247 - "Community 247"
 
@@ -1391,112 +1401,112 @@ Nodes (7): code:javascript (// Line 5550-5561: postProcess()), code:javascript (
 ### Community 251 - "Community 251"
 
 Cohesion: 0.29
-Nodes (6): ADR-019: Skip Absorbing WASM Status Sync into useTranslatorEngine, Consequence, Context, Decision, Reasoning, What Was Done Instead
+Nodes (7): code:javascript (// Line 5881: Memory tracking), code:javascript (import { segmentIterator } from './V8OptimizationUtils.js';), code:javascript (// Phase 4: Find unprocessed tokens), code:javascript (import { scanTokens } from './ReadonlyOptimizationUtils.js';), Integration #3: V8 Optimization for Memory Tracking (Task #8), Integration #4: ReadonlyArray for Phase Processing (Task #5), 🟡 Priority 2: Medium-Impact, Medium-Risk
 
 ### Community 252 - "Community 252"
 
 Cohesion: 0.29
-Nodes (6): ADR-016: Skip StreamingContext Record Wrapper for useStreamingTranslation, Consequence, Context, Decision, Reasoning, What Was Done Instead
+Nodes (6): ADR-019: Skip Absorbing WASM Status Sync into useTranslatorEngine, Consequence, Context, Decision, Reasoning, What Was Done Instead
 
 ### Community 253 - "Community 253"
 
 Cohesion: 0.29
-Nodes (6): ADR-020: Delete WasmDictionaryManager Sync Tracking Instead of Extracting, code:ts (type SyncMode = 'batch' | 'sequential' | 'sequential_fallbac), Context, Decision, If a Performance Dashboard Is Built, Reason
+Nodes (6): ADR-016: Skip StreamingContext Record Wrapper for useStreamingTranslation, Consequence, Context, Decision, Reasoning, What Was Done Instead
 
 ### Community 254 - "Community 254"
 
 Cohesion: 0.29
-Nodes (7): code:javascript (// DictionaryManager disposal), code:javascript (// Memory leak detection), code:javascript (// Cache invalidation benchmark), Integration Tests, Performance Benchmarks, Testing Strategy, Unit Tests
+Nodes (6): ADR-020: Delete WasmDictionaryManager Sync Tracking Instead of Extracting, code:ts (type SyncMode = 'batch' | 'sequential' | 'sequential_fallbac), Context, Decision, If a Performance Dashboard Is Built, Reason
 
 ### Community 255 - "Community 255"
 
 Cohesion: 0.29
-Nodes (7): 12. Implementation Summary (2026-02-07), Code Quality Improvements, code:block24 (✅ All tests pass: 1033 passed | 60 skipped), Files Created, Files Modified, Impact, Test Results
+Nodes (7): code:javascript (// DictionaryManager disposal), code:javascript (// Memory leak detection), code:javascript (// Cache invalidation benchmark), Integration Tests, Performance Benchmarks, Testing Strategy, Unit Tests
 
 ### Community 256 - "Community 256"
 
 Cohesion: 0.29
-Nodes (7): Automated Testing, code:javascript (// Check WASM drops in development console), code:javascript (const cache = new TranslationCache();), code:javascript (describe('Dictionary Memory Management', () => {), code:javascript (// Load dictionaries), Manual Testing, Testing Recommendations
+Nodes (7): 12. Implementation Summary (2026-02-07), Code Quality Improvements, code:block24 (✅ All tests pass: 1033 passed | 60 skipped), Files Created, Files Modified, Impact, Test Results
 
 ### Community 257 - "Community 257"
 
 Cohesion: 0.29
-Nodes (7): code:markdown (**Large files are intentional:**), code:markdown (**Large files are PARTIALLY intentional:**), Conclusion, Final Verdict, Recommended Actions, Summary of Findings, Updated CLAUDE.md Guidance
+Nodes (7): Automated Testing, code:javascript (// Check WASM drops in development console), code:javascript (const cache = new TranslationCache();), code:javascript (describe('Dictionary Memory Management', () => {), code:javascript (// Load dictionaries), Manual Testing, Testing Recommendations
 
 ### Community 258 - "Community 258"
 
 Cohesion: 0.29
-Nodes (7): Appendix: Evidence & Metrics, code:block17 (TranslationEngine.js:), code:block18 (Tests Created (2026-01-30):), code:block19 (TypeScript Errors: 0), File Size Evolution, Quality Metrics, Test Coverage
+Nodes (7): 1. Five-Phase Translation Pipeline (~1,291 lines), 2. Dictionary Operations & Cache Management (~162 lines), 3. Post-Processing & Semantic Arrays (~2,484 lines), code:javascript (// CRITICAL: Shared token state requires synchronous coordin), code:javascript (findAllMatchesWithSemanticCache(tokens, startIdx, dictionari), code:javascript (postProcess(translationSegments) {), Part 2: What MUST Stay Coupled (Architectural Analysis)
 
 ### Community 259 - "Community 259"
 
 Cohesion: 0.29
-Nodes (7): 1. Five-Phase Translation Pipeline (~1,291 lines), 2. Dictionary Operations & Cache Management (~162 lines), 3. Post-Processing & Semantic Arrays (~2,484 lines), code:javascript (// CRITICAL: Shared token state requires synchronous coordin), code:javascript (findAllMatchesWithSemanticCache(tokens, startIdx, dictionari), code:javascript (postProcess(translationSegments) {), Part 2: What MUST Stay Coupled (Architectural Analysis)
+Nodes (7): Appendix: Evidence & Metrics, code:block17 (TranslationEngine.js:), code:block18 (Tests Created (2026-01-30):), code:block19 (TypeScript Errors: 0), File Size Evolution, Quality Metrics, Test Coverage
 
 ### Community 260 - "Community 260"
 
 Cohesion: 0.29
-Nodes (7): code:typescript (const CLICKABLE_CONFIG = {), code:typescript (test('should handle 10,000 segments without degradation', ()), code:typescript (performanceMonitor.trackOperation('segment_computation', ela), High Priority ✨, Low Priority 📝, Medium Priority 🔄, Recommendations Summary
+Nodes (7): code:markdown (**Large files are intentional:**), code:markdown (**Large files are PARTIALLY intentional:**), Conclusion, Final Verdict, Recommended Actions, Summary of Findings, Updated CLAUDE.md Guidance
 
 ### Community 261 - "Community 261"
 
 Cohesion: 0.29
-Nodes (7): 1. XSS Prevention ⭐⭐⭐⭐⭐, code:typescript (// ClickableTranslationSemantic.tsx:327), code:tsx (// All text content rendered via React (automatic escaping)), code:bash ($ grep -r "dangerouslySetInnerHTML" src/components/Clickable), Input Sanitization, No `dangerouslySetInnerHTML`, React Automatic Escaping
+Nodes (7): 4. Type Safety ⭐⭐⭐⭐, Click Handler Type Safety (CRITICAL-6 FIX), code:typescript (// Discriminated unions for segment types), code:typescript (// Before: Bypassed type safety), code:bash (npm run type-check # 0 errors expected), Type Coverage, Type Definitions (ClickableTypes.d.ts)
 
 ### Community 262 - "Community 262"
 
 Cohesion: 0.29
-Nodes (7): 4. Type Safety ⭐⭐⭐⭐, Click Handler Type Safety (CRITICAL-6 FIX), code:typescript (// Discriminated unions for segment types), code:typescript (// Before: Bypassed type safety), code:bash (npm run type-check # 0 errors expected), Type Coverage, Type Definitions (ClickableTypes.d.ts)
+Nodes (7): code:typescript (const CLICKABLE_CONFIG = {), code:typescript (test('should handle 10,000 segments without degradation', ()), code:typescript (performanceMonitor.trackOperation('segment_computation', ela), High Priority ✨, Low Priority 📝, Medium Priority 🔄, Recommendations Summary
+
+### Community 263 - "Community 263"
+
+Cohesion: 0.29
+Nodes (7): 1. XSS Prevention ⭐⭐⭐⭐⭐, code:typescript (// ClickableTranslationSemantic.tsx:327), code:tsx (// All text content rendered via React (automatic escaping)), code:bash ($ grep -r "dangerouslySetInnerHTML" src/components/Clickable), Input Sanitization, No `dangerouslySetInnerHTML`, React Automatic Escaping
 
 ### Community 264 - "Community 264"
 
-Cohesion: 0.47
-Nodes (4): validateNonOverlappingPosition(), validatePosition(), validatePositionRange(), validatePosition()
+Cohesion: 0.33
+Nodes (5): CoreTranslationEngine, DictionaryEngine, InitInput, InitOutput, SyncInitInput
 
-### Community 266 - "Community 266"
-
-Cohesion: 0.6
-Nodes (4): buildFullTextFromTokens(), charLengthToTokenCount(), convertWasmMatchToTokenMatch(), tokenPositionToCharPosition()
-
-### Community 267 - "Community 267"
+### Community 265 - "Community 265"
 
 Cohesion: 0.33
-Nodes (6): 🚀 How to Use This Index, I want to integrate one of the ready optimizations, I want to know what code exists but isn't used, I want to see performance improvements, I want to understand what was done today, I want to write new optimizations
+Nodes (5): SegmentData, Segmenter, SegmenterConstructor, SegmenterOptions, Segments
 
 ### Community 268 - "Community 268"
 
 Cohesion: 0.33
-Nodes (6): code:javascript (// Import), ✅ Completed Work, ✅ Integration #2: Parallel Dictionary Loading, ✅ Integration #5: WASM String Processor (Verified), Phase A: Safe Integrations, Phase C: High-Impact Integrations
+Nodes (6): 🚀 How to Use This Index, I want to integrate one of the ready optimizations, I want to know what code exists but isn't used, I want to see performance improvements, I want to understand what was done today, I want to write new optimizations
 
 ### Community 269 - "Community 269"
 
 Cohesion: 0.33
-Nodes (5): ADR-018: Unified PerformanceReport State in usePerformanceMonitoring, Consequence, Context, Decision, Reasoning
+Nodes (6): code:javascript (// Import), ✅ Completed Work, ✅ Integration #2: Parallel Dictionary Loading, ✅ Integration #5: WASM String Processor (Verified), Phase A: Safe Integrations, Phase C: High-Impact Integrations
 
 ### Community 270 - "Community 270"
 
 Cohesion: 0.33
-Nodes (5): ADR-017: Skip WasmMemoryPool Analytics Separation, Consequence, Context, Decision, Reasoning
+Nodes (5): ADR-018: Unified PerformanceReport State in usePerformanceMonitoring, Consequence, Context, Decision, Reasoning
 
 ### Community 271 - "Community 271"
 
 Cohesion: 0.33
-Nodes (6): code:rust (#[wasm_bindgen]), code:javascript (// JavaScript side:), code:javascript (// Chrome DevTools Memory Profiler:), code:rust (#[wasm_bindgen]), code:javascript (// WasmDictionaryManager.js), HIGH-4: WASM Dictionary Trie - No JS-Visible Disposal
+Nodes (5): ADR-017: Skip WasmMemoryPool Analytics Separation, Consequence, Context, Decision, Reasoning
 
 ### Community 272 - "Community 272"
 
 Cohesion: 0.33
-Nodes (6): 4. Potential Optimization Opportunities, code:javascript (// Line 1545-1552 in TranslationEngine.js), ⚠️ MINOR: Share Lookup Index Instance, ❌ REJECTED: Parallel Execution, ❌ REJECTED: Reuse Phase 5 from Full Translation, ❌ REJECTED: Unify Semantic Array Builders
+Nodes (6): code:rust (#[wasm_bindgen]), code:javascript (// JavaScript side:), code:javascript (// Chrome DevTools Memory Profiler:), code:rust (#[wasm_bindgen]), code:javascript (// WasmDictionaryManager.js), HIGH-4: WASM Dictionary Trie - No JS-Visible Disposal
 
 ### Community 273 - "Community 273"
 
 Cohesion: 0.33
-Nodes (6): Architecture Overview, code:block1 (Translation Phase → postProcess() → Position Recording → Sem), Dual-Path Design, Path 1: Character-Only Mode, Path 2: Full Translation Mode, Position Tracking Flow
+Nodes (6): 4. Potential Optimization Opportunities, code:javascript (// Line 1545-1552 in TranslationEngine.js), ⚠️ MINOR: Share Lookup Index Instance, ❌ REJECTED: Parallel Execution, ❌ REJECTED: Reuse Phase 5 from Full Translation, ❌ REJECTED: Unify Semantic Array Builders
 
 ### Community 274 - "Community 274"
 
 Cohesion: 0.33
-Nodes (6): Appendix: File Reference, Code Reviews (Historical), Core Implementation, Documentation, Testing, Type Definitions
+Nodes (6): Architecture Overview, code:block1 (Translation Phase → postProcess() → Position Recording → Sem), Dual-Path Design, Path 1: Character-Only Mode, Path 2: Full Translation Mode, Position Tracking Flow
 
 ### Community 275 - "Community 275"
 
@@ -1508,60 +1518,70 @@ Nodes (6): 2. Unicode Handling ⭐⭐⭐⭐, code:typescript (// CODE REVIEW FIX
 Cohesion: 0.33
 Nodes (5): Animations and Keyframes, File Placement, Hiding Elements — Use Conditional Rendering, Not `visibility: hidden`, Modal Overlays, src/styles — CSS Module Conventions
 
-### Community 278 - "Community 278"
+### Community 277 - "Community 277"
 
 Cohesion: 0.6
 Nodes (4): isCharacterSourceValid(), isPatternValid(), validateDictionaryEntry(), ValidationResult
 
-### Community 280 - "Community 280"
+### Community 278 - "Community 278"
 
 Cohesion: 0.4
 Nodes (5): Implementation Roadmap, Phase 1: TypeScript Migration (Estimated: 2-3 days), Phase 2: Rust/WASM Acceleration (Estimated: 5-7 days), Phase 3: Additional TypeScript Migrations (Estimated: 2-3 days), Phase 4: WASM Hash Generator (Estimated: 1-2 days)
 
-### Community 281 - "Community 281"
+### Community 279 - "Community 279"
 
 Cohesion: 0.4
 Nodes (5): Immediate Actions (Week 1), Medium-Term (Month 1-2), Recommendations, Short-Term (Weeks 2-3), Success Criteria
 
-### Community 282 - "Community 282"
+### Community 280 - "Community 280"
 
 Cohesion: 0.4
 Nodes (5): Integration Sequence (Recommended Order), Phase A: Safe Integrations (Week 1), Phase B: Medium-Risk Integrations (Week 2), Phase C: High-Impact Integrations (Week 3), Phase D: Infrastructure Documentation
 
-### Community 283 - "Community 283"
-
-Cohesion: 0.4
-Nodes (5): code:javascript (import { wasmDictionaryTrie } from './WasmDictionaryTrie.js'), code:javascript (// Phase 5: Character dictionary lookup), Integration #5: String Processor for Pattern Matching (Task #3), Integration #6: Dictionary Trie for Phase 5 (Task #4), 🔴 Priority 3: High-Impact, Higher-Risk (Careful Integration)
-
-### Community 284 - "Community 284"
-
-Cohesion: 0.4
-Nodes (5): Immediate (This Week), Long-term (6-12 Months), Medium-term (3-6 Months), 🚀 Next Steps, Short-term (Next Month)
-
-### Community 285 - "Community 285"
-
-Cohesion: 0.4
-Nodes (5): Changes Ready to Commit, code:bash (# Modified files), code:bash (# Commit 1: ParallelDictionaryLoader integration), 🔄 Git Status, Recommended Commit Strategy
-
-### Community 286 - "Community 286"
+### Community 281 - "Community 281"
 
 Cohesion: 0.4
 Nodes (5): code:javascript (// Import), code:javascript (// Import), ✅ Integration #3: V8 Optimization for Memory Tracking, ✅ Integration #4: ReadonlyArray for Phase Processing, Phase B: Medium-Risk Integrations
 
-### Community 287 - "Community 287"
+### Community 282 - "Community 282"
+
+Cohesion: 0.4
+Nodes (5): Immediate (This Week), Long-term (6-12 Months), Medium-term (3-6 Months), 🚀 Next Steps, Short-term (Next Month)
+
+### Community 283 - "Community 283"
+
+Cohesion: 0.4
+Nodes (5): Changes Ready to Commit, code:bash (# Modified files), code:bash (# Commit 1: ParallelDictionaryLoader integration), 🔄 Git Status, Recommended Commit Strategy
+
+### Community 284 - "Community 284"
 
 Cohesion: 0.4
 Nodes (4): Dictionary tab, Global (any tab), Keyboard Shortcuts, Translator tab
 
+### Community 285 - "Community 285"
+
+Cohesion: 0.4
+Nodes (5): Critical Issues - ✅ ALL FIXED, High-Priority Issues - ✅ ALL FIXED, Implementation Status 🎯, Medium-Priority Issues - ✅ ALL FIXED, Performance Improvements Achieved
+
+### Community 286 - "Community 286"
+
+Cohesion: 0.4
+Nodes (5): 3. Current Optimizations (Already Implemented), code:javascript (// Translator.jsx:1853-1869), ✅ Infrastructure Sharing, ✅ Sequential Execution (Intentional UX Design), ✅ WASM/Rust Acceleration
+
+### Community 287 - "Community 287"
+
+Cohesion: 0.4
+Nodes (5): Core Files, Documentation, Highlighting Components, References, Shared Utilities (Extracted)
+
 ### Community 288 - "Community 288"
 
 Cohesion: 0.4
-Nodes (5): Code Changes ✅ COMPLETED, Documentation 📝, Next Steps, Testing ✅ COMPLETED, Verification Checklist
+Nodes (5): 9. Recommendations, ✅ DO NOT MERGE PHASE 5, ✅ DO NOT PARALLELIZE, ✅ KEEP CURRENT ARCHITECTURE, ✅ MONITOR, DON'T OPTIMIZE
 
 ### Community 289 - "Community 289"
 
 Cohesion: 0.4
-Nodes (5): Critical Issues - ✅ ALL FIXED, High-Priority Issues - ✅ ALL FIXED, Implementation Status 🎯, Medium-Priority Issues - ✅ ALL FIXED, Performance Improvements Achieved
+Nodes (5): ✅ ALREADY EXTRACTED: Position Validation Helpers, code:typescript (import { normalizeVietnameseText } from '../utils/TextNormal), code:typescript (import { validatePosition } from './PositionValidationHelper), ✅ IMPLEMENTED: Extract NFC Normalization Helper, ✅ IMPLEMENTED Micro-Optimizations (2026-02-07)
 
 ### Community 290 - "Community 290"
 
@@ -1571,22 +1591,22 @@ Nodes (5): 2. Architectural Analysis, code:javascript (// Phase 1: Pattern proce
 ### Community 291 - "Community 291"
 
 Cohesion: 0.4
-Nodes (5): Core Files, Documentation, Highlighting Components, References, Shared Utilities (Extracted)
+Nodes (5): Code Quality Improvements, Consistency, Documentation, Error Handling, Maintainability
 
 ### Community 292 - "Community 292"
 
 Cohesion: 0.4
-Nodes (5): 9. Recommendations, ✅ DO NOT MERGE PHASE 5, ✅ DO NOT PARALLELIZE, ✅ KEEP CURRENT ARCHITECTURE, ✅ MONITOR, DON'T OPTIMIZE
+Nodes (5): code:javascript (// Before (incorrect):), Fix 8: BONUS - Fix method name typos in TranslationCache, Impact, Problem, Solution
 
 ### Community 293 - "Community 293"
 
 Cohesion: 0.4
-Nodes (5): ✅ ALREADY EXTRACTED: Position Validation Helpers, code:typescript (import { normalizeVietnameseText } from '../utils/TextNormal), code:typescript (import { validatePosition } from './PositionValidationHelper), ✅ IMPLEMENTED: Extract NFC Normalization Helper, ✅ IMPLEMENTED Micro-Optimizations (2026-02-07)
+Nodes (5): code:javascript (/\*\*), Fix 2: HIGH-2 - Call clearAllDictionaries() in cleanup(), Impact, Problem, Solution
 
 ### Community 294 - "Community 294"
 
 Cohesion: 0.4
-Nodes (5): 3. Current Optimizations (Already Implemented), code:javascript (// Translator.jsx:1853-1869), ✅ Infrastructure Sharing, ✅ Sequential Execution (Intentional UX Design), ✅ WASM/Rust Acceleration
+Nodes (5): code:javascript (// CODE REVIEW FIX (CRITICAL-1): Dispose existing tries befo), Fix 1: CRITICAL-1 - Add dispose() before dictionaries.clear(), Impact, Problem, Solution
 
 ### Community 295 - "Community 295"
 
@@ -1601,12 +1621,12 @@ Nodes (5): code:javascript (// Dispose cache), Detailed Fix Descriptions, Fix 6:
 ### Community 297 - "Community 297"
 
 Cohesion: 0.4
-Nodes (5): Code Quality Improvements, Consistency, Documentation, Error Handling, Maintainability
+Nodes (5): code:javascript (/\*\*), Fix 3: HIGH-1 - Add dispose() in EnhancedDictionaryManager.reloadDictionaries(), Impact, Problem, Solution
 
 ### Community 298 - "Community 298"
 
 Cohesion: 0.4
-Nodes (5): code:javascript (/\*\*), Fix 3: HIGH-1 - Add dispose() in EnhancedDictionaryManager.reloadDictionaries(), Impact, Problem, Solution
+Nodes (5): code:javascript (/\*\*), Fix 5: MEDIUM-1 - Add dispose() to TranslationCache, Impact, Problem, Solution
 
 ### Community 299 - "Community 299"
 
@@ -1616,184 +1636,179 @@ Nodes (5): code:javascript (// CODE REVIEW FIX (MEDIUM-2): Clear pending diction
 ### Community 300 - "Community 300"
 
 Cohesion: 0.4
-Nodes (5): code:javascript (/\*\*), Fix 2: HIGH-2 - Call clearAllDictionaries() in cleanup(), Impact, Problem, Solution
+Nodes (5): Candidate 1: Cleanup Strategies (~150 lines), Candidate 2: Match Conflict Resolution (~270 lines), code:javascript (cleanupSegments() {), code:javascript (resolveMatchConflicts(matches, tokens, currentPhase) {), Part 3: What Could Be Extracted (But Shouldn't Be)
 
 ### Community 301 - "Community 301"
 
 Cohesion: 0.4
-Nodes (5): code:javascript (/\*\*), Fix 5: MEDIUM-1 - Add dispose() to TranslationCache, Impact, Problem, Solution
+Nodes (5): code:markdown (**Large files are PARTIALLY intentional:**), Failed Extractions (Correctly Avoided), Part 5: Comparison with Past Refactoring Attempts, Successful Extractions (2026-01-30), Validation of CLAUDE.md Guidance
 
 ### Community 302 - "Community 302"
 
 Cohesion: 0.4
-Nodes (5): code:javascript (// CODE REVIEW FIX (CRITICAL-1): Dispose existing tries befo), Fix 1: CRITICAL-1 - Add dispose() before dictionaries.clear(), Impact, Problem, Solution
+Nodes (4): Code Review: Large Files Refactoring Analysis, Executive Summary, Key Findings (High Confidence: ≥95%), Recommendations
 
 ### Community 303 - "Community 303"
 
 Cohesion: 0.4
-Nodes (5): code:javascript (// Before (incorrect):), Fix 8: BONUS - Fix method name typos in TranslationCache, Impact, Problem, Solution
-
-### Community 304 - "Community 304"
-
-Cohesion: 0.4
-Nodes (5): code:markdown (**Large files are PARTIALLY intentional:**), Failed Extractions (Correctly Avoided), Part 5: Comparison with Past Refactoring Attempts, Successful Extractions (2026-01-30), Validation of CLAUDE.md Guidance
-
-### Community 305 - "Community 305"
-
-Cohesion: 0.4
-Nodes (4): Code Review: Large Files Refactoring Analysis, Executive Summary, Key Findings (High Confidence: ≥95%), Recommendations
-
-### Community 306 - "Community 306"
-
-Cohesion: 0.4
-Nodes (5): Candidate 1: Cleanup Strategies (~150 lines), Candidate 2: Match Conflict Resolution (~270 lines), code:javascript (cleanupSegments() {), code:javascript (resolveMatchConflicts(matches, tokens, currentPhase) {), Part 3: What Could Be Extracted (But Shouldn't Be)
-
-### Community 307 - "Community 307"
-
-Cohesion: 0.4
-Nodes (5): High Priority (Within 1 Week), Immediate Actions (CRITICAL), Low Priority (Nice to Have), Medium Priority (Within 1 Month), Summary of Recommendations
-
-### Community 308 - "Community 308"
-
-Cohesion: 0.4
 Nodes (5): code:javascript (// OPTIMIZATION: Cache semantic tokens after proper noun gro), code:javascript (// Cache is populated AFTER Phase 2 (line 6494)), code:javascript (// From documentation: getSemanticTokens filters unconsumed ), code:javascript (// Before Phase 3, 4, 5), ⚠️ HIGH-1: Cached Semantic Tokens Invalidation Timing
 
-### Community 311 - "Community 311"
-
-Cohesion: 0.5
-Nodes (4): ✅ Verification Checklist, What Needs More Work, What's Integrated and Working, What's Ready to Integrate (Code Complete)
-
-### Community 312 - "Community 312"
+### Community 305 - "Community 305"
 
 Cohesion: 0.5
 Nodes (4): 🎯 Complete Optimization Timeline, Phase 1: Optimization Module Creation (Completed), Phase 2: Integration Planning (Completed), Phase 3: Integration Execution (Today's Session)
 
-### Community 313 - "Community 313"
+### Community 306 - "Community 306"
 
 Cohesion: 0.5
-Nodes (4): High Risk (Not Recommended) ❌, Low Risk (Recommended) ✅, Medium Risk (Evaluate Benefits) 🟡, Risk Assessment
+Nodes (4): ✅ Verification Checklist, What Needs More Work, What's Integrated and Working, What's Ready to Integrate (Code Complete)
 
-### Community 314 - "Community 314"
+### Community 307 - "Community 307"
 
 Cohesion: 0.5
 Nodes (4): Assessment, Current State, Executive Summary, Work Completed
 
-### Community 315 - "Community 315"
+### Community 308 - "Community 308"
+
+Cohesion: 0.5
+Nodes (4): High Risk (Not Recommended) ❌, Low Risk (Recommended) ✅, Medium Risk (Evaluate Benefits) 🟡, Risk Assessment
+
+### Community 309 - "Community 309"
 
 Cohesion: 0.5
 Nodes (4): Code Quality Requirements, Functional Requirements, Performance Requirements, Success Criteria
 
-### Community 316 - "Community 316"
+### Community 310 - "Community 310"
 
 Cohesion: 0.5
 Nodes (4): High-Risk Areas, Performance Validation, Risk Mitigation, Safety Measures
 
-### Community 317 - "Community 317"
+### Community 311 - "Community 311"
 
 Cohesion: 0.5
 Nodes (4): After Each Integration, Rollback Plan, Test Cases, Testing Strategy
 
-### Community 318 - "Community 318"
+### Community 312 - "Community 312"
 
 Cohesion: 0.5
 Nodes (4): Best Practices Followed, 🎓 Lessons Learned, What Was Challenging, What Worked Well
 
-### Community 319 - "Community 319"
+### Community 313 - "Community 313"
 
 Cohesion: 0.5
 Nodes (4): Core Integration Files, 📁 Files Modified, Supporting Files (Already Existed), WASM Modules (Compiled Successfully)
 
-### Community 320 - "Community 320"
+### Community 314 - "Community 314"
 
 Cohesion: 0.5
 Nodes (4): Code Quality Requirements, Functional Requirements, Performance Requirements, ✅ Success Criteria Met
 
-### Community 321 - "Community 321"
+### Community 315 - "Community 315"
 
 Cohesion: 0.5
 Nodes (4): ⏭️ Deferred Integrations, Integration #1: Text Assembly, Integration #6: Dictionary Trie, Integration #8: Regex Utilities
 
-### Community 322 - "Community 322"
+### Community 316 - "Community 316"
+
+Cohesion: 0.5
+Nodes (4): code:javascript (this.dictionaryIndex = {), code:javascript (setCharacter(character, dictionaryName, result) {), code:javascript (invalidateDictionary(dictionaryName) {), CRITICAL-3: TranslationCache Index Maps ✅ IMPLEMENTED
+
+### Community 317 - "Community 317"
 
 Cohesion: 0.5
 Nodes (4): code:javascript (constructor() {), code:javascript (const lightweightSnapshot = {), code:javascript (getSnapshotContext(snapshot) {), HIGH-1: MemoryLeakDetector WeakMap ✅ IMPLEMENTED
 
-### Community 323 - "Community 323"
+### Community 318 - "Community 318"
 
 Cohesion: 0.5
-Nodes (4): Future Optimization Ideas:, Key Learnings:, Notes, Unexpected Challenges:
+Nodes (4): GC Pressure Reduction, Memory Leak Elimination, Performance Impact, User-Visible Benefits
 
-### Community 324 - "Community 324"
-
-Cohesion: 0.5
-Nodes (4): Optimization Roadmap, Phase 1: Immediate Wins (2-3 days, 20-30% improvement), Phase 2: Rust Migrations (1-2 weeks, additional 15-25% improvement), Phase 3: Architectural Improvements (Ongoing)
-
-### Community 325 - "Community 325"
+### Community 319 - "Community 319"
 
 Cohesion: 0.5
 Nodes (4): code:javascript (// Run full benchmark suite), Development Tools:, Documentation:, Resources
 
-### Community 330 - "Community 330"
+### Community 320 - "Community 320"
+
+Cohesion: 0.5
+Nodes (4): Optimization Roadmap, Phase 1: Immediate Wins (2-3 days, 20-30% improvement), Phase 2: Rust Migrations (1-2 weeks, additional 15-25% improvement), Phase 3: Architectural Improvements (Ongoing)
+
+### Community 321 - "Community 321"
+
+Cohesion: 0.5
+Nodes (4): Benchmark Results (from documentation), Memory Usage, Performance Analysis, Scalability
+
+### Community 322 - "Community 322"
+
+Cohesion: 0.5
+Nodes (4): code:javascript (try {), code:javascript (// In translateSinglePass:), ℹ️ LOW-1: Phase 3 Nested Try-Catch Complexity, LOW Priority Issues
+
+### Community 325 - "Community 325"
 
 Cohesion: 0.67
 Nodes (3): Current Session (2026-01-31), 📚 Documentation Map, Prior Work
 
-### Community 331 - "Community 331"
+### Community 326 - "Community 326"
 
 Cohesion: 0.67
-Nodes (3): Development Tools, Monitoring & Validation, Performance Dashboards
+Nodes (3): Critical Constraints (from CLAUDE.md), ❌ DO NOT MODIFY, ✅ SAFE TO MODIFY
 
-### Community 332 - "Community 332"
-
-Cohesion: 0.67
-Nodes (3): Executive Summary, Issues Fixed, Memory Impact
-
-### Community 333 - "Community 333"
-
-Cohesion: 0.67
-Nodes (3): code:javascript (// Critical cleanup - synchronous and blocking), code:rust (// Rust Drop trait handles cleanup automatically), ⏸️ Task #10: Optimize Memory Cleanup (Opportunity #10)
-
-### Community 334 - "Community 334"
-
-Cohesion: 0.67
-Nodes (3): Architectural Constraints (from CLAUDE.md):, Risk Mitigation, Rollback Plan:
-
-### Community 335 - "Community 335"
-
-Cohesion: 0.67
-Nodes (3): code:javascript (// Phase 4 phrase processing (lines 3145-3175)), code:typescript (// Declare token arrays as readonly where possible), ✅ Task #5: Apply TypeScript ReadonlyArray Optimizations (High-Impact #4)
-
-### Community 337 - "Community 337"
-
-Cohesion: 0.67
-Nodes (3): code:javascript (// Every chunk creates new semantic array entries), code:rust (// Rust String with capacity pre-allocation), ✅ Task #7: Rust String Builder for Post-Processing (Medium #7)
-
-### Community 338 - "Community 338"
+### Community 327 - "Community 327"
 
 Cohesion: 0.67
 Nodes (3): code:typescript (// Line 146, 329:), code:typescript (// Strict typing eliminates runtime checks), ⏸️ Task #1: Fix WASM Boundary Type Safety (Critical #1)
 
+### Community 328 - "Community 328"
+
+Cohesion: 0.67
+Nodes (3): code:javascript (// Every chunk creates new semantic array entries), code:rust (// Rust String with capacity pre-allocation), ✅ Task #7: Rust String Builder for Post-Processing (Medium #7)
+
+### Community 329 - "Community 329"
+
+Cohesion: 0.67
+Nodes (3): code:javascript (const segmentKeys = Object.keys(sampleSegment || {}); // Dyn), code:typescript (// Define exact shape enables V8 hidden class optimization), ✅ Task #8: TypeScript Interfaces for V8 Optimization (Medium #8)
+
+### Community 330 - "Community 330"
+
+Cohesion: 0.67
+Nodes (3): code:javascript (// Critical cleanup - synchronous and blocking), code:rust (// Rust Drop trait handles cleanup automatically), ⏸️ Task #10: Optimize Memory Cleanup (Opportunity #10)
+
+### Community 331 - "Community 331"
+
+Cohesion: 0.67
+Nodes (3): Architectural Constraints (from CLAUDE.md):, Risk Mitigation, Rollback Plan:
+
+### Community 332 - "Community 332"
+
+Cohesion: 0.67
+Nodes (3): code:javascript (// Phase 4 phrase processing (lines 3145-3175)), code:typescript (// Declare token arrays as readonly where possible), ✅ Task #5: Apply TypeScript ReadonlyArray Optimizations (High-Impact #4)
+
+### Community 333 - "Community 333"
+
+Cohesion: 0.67
+Nodes (3): Baseline Measurements (Before Optimizations), Performance Metrics, Post-Optimization Measurements
+
 ## Knowledge Gaps
 
-- **2352 isolated node(s):** `DictionaryMatch`, `CategorizedMatches`, `Dictionary`, `BatchDictionaryResponse`, `DictionaryEntry` (+2347 more)
+- **2569 isolated node(s):** `WasmNumberProcessorResult`, `WasmPatternMatch`, `WasmDictionaryMatch`, `WasmBatchDictionaryResult`, `RustLookupMatch` (+2564 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **69 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **48 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Logger` connect `Community 30` to `Community 1`, `Community 3`, `Community 5`, `Community 136`, `Community 137`, `Community 266`, `Community 138`, `Community 11`, `Community 13`, `Community 14`, `Community 264`, `Community 34`, `Community 39`, `Community 171`, `Community 43`, `Community 173`, `Community 53`, `Community 184`, `Community 59`, `Community 61`, `Community 65`, `Community 194`, `Community 72`, `Community 81`, `Community 87`, `Community 225`, `Community 100`, `Community 104`, `Community 110`, `Community 119`, `Community 124`, `Community 125`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Why does `TranslationEngine` connect `Community 6` to `Community 227`, `Community 228`, `Community 101`, `Community 39`, `Community 265`, `Community 54`, `Community 215`?**
-  _High betweenness centrality (0.021) - this node is a cross-community bridge._
-- **Are the 46 inferred relationships involving `parse_pattern()` (e.g. with `phase_a_semantic_type_satisfies_phase_b_constraint()` and `phase_a_without_semantic_type_defaults_to_structural_pattern()`) actually correct?**
-  _`parse_pattern()` has 46 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `DictionaryMatch`, `CategorizedMatches`, `Dictionary` to the rest of the system?**
-  _2352 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `Logger` connect `Community 13` to `Community 2`, `Community 3`, `Community 5`, `Community 6`, `Community 135`, `Community 136`, `Community 134`, `Community 9`, `Community 14`, `Community 148`, `Community 24`, `Community 163`, `Community 165`, `Community 172`, `Community 50`, `Community 55`, `Community 56`, `Community 184`, `Community 65`, `Community 70`, `Community 73`, `Community 77`, `Community 78`, `Community 207`, `Community 211`, `Community 85`, `Community 226`, `Community 105`, `Community 244`, `Community 124`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **Why does `Window` connect `Community 68` to `Community 112`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **Why does `DictionaryManager()` connect `Community 15` to `Community 105`, `Community 3`, `Community 70`, `Community 55`?**
+  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+- **What connects `WasmNumberProcessorResult`, `WasmPatternMatch`, `WasmDictionaryMatch` to the rest of the system?**
+  _2569 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.05 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._

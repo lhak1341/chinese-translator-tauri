@@ -40,6 +40,9 @@ coverage
 **/__tests__/
 **/*.test.*
 **/*.spec.*
+**/tests/**
+src/test/
+**/*_test.rs
 
 # Archived docs
 docs/archive/
