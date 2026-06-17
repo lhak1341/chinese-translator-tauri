@@ -96,6 +96,10 @@ vi.restoreAllMocks();
 
 Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
 
+## `DuplicateDictionaryTableView` — Duplicate Rendering Not in EVDT
+
+4-column duplicate layout lives in `DuplicateDictionaryTableView.tsx`. Pure view, no hooks. EVDT passes scroll state as props (`scrollRefCallback`, `onScroll`, `totalHeight`, `offsetY`) — `useVirtualScrollRange` stays in EVDT. When adding duplicate-mode UI, edit `DuplicateDictionaryTableView`, not EVDT.
+
 ## `useEntryMetadataEdit` Hook — Metadata Handlers Not in `VirtualRowComponent`
 
 `handleCheckboxChange`, `handleToggleVariableType`, `handleSetSemanticType`, and `buildBaseMetadata` live in `src/hooks/useEntryMetadataEdit.ts`. Invariant: every handler snapshots full metadata via `buildBaseMetadata` first, then patches one field. `handleToggleVariableType` owns the add/remove/delete-key logic for `allowedVariableTypes` — toggling the only type for a variable deletes the key; emptying all keys deletes `allowedVariableTypes` from the metadata object entirely.

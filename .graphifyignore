@@ -29,6 +29,7 @@ logs
 # AI / tool state
 .claude/
 .gemini/
+.codex/
 .fallow/
 temp/
 

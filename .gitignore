@@ -47,6 +47,7 @@ src-tauri/gen
 # AI / tool state
 .claude/
 .gemini/
+.codex/
 .fallow/
 temp/
 
