@@ -752,8 +752,8 @@
     "hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/Translator.jsx": {
-    "mtime": 1781370732.712365,
-    "hash": "68a63963ad60ebfd0ccc7698b91f844d"
+    "mtime": 1781704543.5065696,
+    "hash": "432fe8b74f7210fd15002516e2120a7e"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/ErrorBoundary.tsx": {
     "mtime": 1772897608.4774516,
@@ -844,8 +844,8 @@
     "hash": "1586dd244011a53dcd14dee74caa2395"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/DuplicateDictionaryTableView.tsx": {
-    "mtime": 1781703202.703269,
-    "hash": "bec62199b380a727b42214cdba54cd45"
+    "mtime": 1781703737.7150042,
+    "hash": "b8e1cc07cc7d35c515590f2210389186"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/DictionaryTypes.ts": {
     "mtime": 1777771531.3949704,
@@ -894,6 +894,10 @@
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useDictionaryEntryFilter.ts": {
     "mtime": 1781351197.0984051,
     "hash": "11a1ba918fe516ad318601191fb71f13"
+  },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useTranslationResults.js": {
+    "mtime": 1781704416.6777382,
+    "hash": "7009174bb413ad0cb7cb1cc834325582"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useEntryEditAndMove.ts": {
     "mtime": 1781316203.760873,
@@ -1296,8 +1300,8 @@
     "hash": "68f3f5ce5b40676e1ac262623b7d0cea"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/CLAUDE.md": {
-    "mtime": 1781370522.3682444,
-    "hash": "4cc1e81cefa7a877eee502293ed1bccd"
+    "mtime": 1781704849.8555949,
+    "hash": "6f39f8ebaa48b5f4de45bbce73ef43ff"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/CLAUDE.md": {
     "mtime": 1781703418.3404472,

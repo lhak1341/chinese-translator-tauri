@@ -26,6 +26,7 @@ import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
+import { useTranslationResults } from '../hooks/useTranslationResults';
 import {
   useHighlightingState,
   MAX_SAFE_SEGMENTS,
@@ -129,11 +130,22 @@ const Translator = ({ isActive = true }) => {
   } = useDictionaryModals();
 
   const [inputText, setInputText] = useState('');
-  const [translatedText, setTranslatedText] = useState('');
-  const [characterOnlyText, setCharacterOnlyText] = useState('');
-  const [semanticArrays, setSemanticArrays] = useState(null);
-  const [characterOnlySemanticArrays, setCharacterOnlySemanticArrays] = useState(null);
-  const [prebuiltSegments, setPrebuiltSegments] = useState([]);
+  const {
+    translatedText,
+    characterOnlyText,
+    semanticArrays,
+    characterOnlySemanticArrays,
+    prebuiltSegments,
+    setStreamingText,
+    setFullResult,
+    setResultArrays,
+    setDualResults,
+    setCharOnlyResult,
+    setStatusMessage,
+    setError: setTranslationError,
+    clearFullResult,
+    reset: resetTranslationResults,
+  } = useTranslationResults();
 
   const { highlighting, dispatchHighlighting, clearHighlighting, validateSemanticArraySize } =
     useHighlightingState(semanticArrays);
@@ -265,8 +277,7 @@ const Translator = ({ isActive = true }) => {
     setEngineStats(engineRef.current.getEngineStats());
     debouncedProgressHandler.current.setCallbacks({
       onProgressUpdate: setProgressInfo,
-      onTranslationUpdate: setTranslatedText,
-      onSemanticArraysUpdate: setSemanticArrays,
+      onTranslationUpdate: setStreamingText,
     });
     registerCacheInvalidator((id) => engineRef.current?.invalidateDictionaryCaches(id));
     if (process.env.NODE_ENV === 'development') {
@@ -762,8 +773,7 @@ const Translator = ({ isActive = true }) => {
     );
 
     if (!text || !text.trim()) {
-      setCharacterOnlyText('');
-      setCharacterOnlySemanticArrays(null);
+      setCharOnlyResult('', null);
       return Promise.resolve();
     }
 
@@ -789,8 +799,7 @@ const Translator = ({ isActive = true }) => {
           }
           // Use requestAnimationFrame for smooth UI updates during parallel processing
           requestAnimationFrame(() => {
-            setCharacterOnlyText(result.translatedText);
-            setCharacterOnlySemanticArrays(result.semanticArrays);
+            setCharOnlyResult(result.translatedText, result.semanticArrays);
           });
         }
       }
@@ -1010,14 +1019,11 @@ const Translator = ({ isActive = true }) => {
                 } catch (validationError) {
                   // Validation error already logged and toasted in validateSemanticArraySize
                   // Clear translation state on overflow
-                  setTranslatedText('');
-                  setSemanticArrays(null);
-                  setPrebuiltSegments([]);
+                  clearFullResult();
                   return;
                 }
 
-                setSemanticArrays(segmentResult.semanticArrays);
-                setPrebuiltSegments(segmentResult.prebuiltSegments || []);
+                setResultArrays(segmentResult.semanticArrays, segmentResult.prebuiltSegments || []);
               }
 
               // Clear progress info when done
@@ -1165,7 +1171,7 @@ const Translator = ({ isActive = true }) => {
           isTranslatingRef.current = true;
           // Clear previous highlighting when starting new translation
           clearHighlighting();
-          setSemanticArrays(null);
+          setResultArrays(null, []);
 
           // Character-only translation runs after main translation to avoid engine interference
 
@@ -1174,7 +1180,7 @@ const Translator = ({ isActive = true }) => {
             // Use sequential translation approach for reliability
             const newTranslation = await translateText(inputText);
             logger.log(`📝 Translation completed: ${newTranslation.length} chars`);
-            setTranslatedText(newTranslation);
+            setStreamingText(newTranslation);
 
             // Show success notification for large translations
             if (inputText.length > UI_TIMEOUTS.LARGE_TRANSLATION_THRESHOLD) {
@@ -1389,7 +1395,7 @@ const Translator = ({ isActive = true }) => {
     try {
       logger.log('🔄 Starting Reload Dictionary sequence...');
       // IMPORTANT-6 FIX: Show initial progress message
-      setTranslatedText(
+      setStatusMessage(
         '🔄 Starting dictionary reload...\n\nStep 1: Stopping active translations...'
       );
 
@@ -1415,7 +1421,7 @@ const Translator = ({ isActive = true }) => {
       // Step 2: Clear engine and caches
       logger.log('Step 2: Clearing engine and translation caches...');
       // IMPORTANT-6 FIX: Show progress
-      setTranslatedText('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
+      setStatusMessage('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
 
       // Semantic translation cache removed - no longer used
 
@@ -1446,7 +1452,7 @@ const Translator = ({ isActive = true }) => {
       logger.log('Step 4: Force reloading all dictionaries from storage...');
       // IMPORTANT-6 FIX: Show progress with dictionary count
       const allDictionaryIds = Object.keys(dictionaries || {});
-      setTranslatedText(
+      setStatusMessage(
         `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
       );
 
@@ -1550,16 +1556,13 @@ const Translator = ({ isActive = true }) => {
       const reloadMessage =
         '🔄 Reload Dictionary in progress...\n\nCaches cleared, dictionaries reloaded from storage.\nReinitializing engine...';
       logger.log('📝 Showing reload status message');
-      setTranslatedText(reloadMessage);
-      setSemanticArrays({ original: [], translated: [], metadata: [] });
-      setCharacterOnlySemanticArrays(null);
-      setCharacterOnlyText('');
+      setStatusMessage(reloadMessage);
       clearHighlighting();
       setEngineStats(null);
 
       // Steps 6+7: Reload config and reinitialize engine (config reload moved into reinitialize)
       logger.log('Steps 6+7: Reinitializing engine with fresh configuration and dictionaries...');
-      setTranslatedText(
+      setStatusMessage(
         '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
       );
       const dictionariesToUse =
@@ -1571,7 +1574,7 @@ const Translator = ({ isActive = true }) => {
           debugLevel: DEBUG_LEVELS.ERROR,
         });
         if (!engineRef.current?.isReady()) {
-          setTranslatedText(
+          setTranslationError(
             '❌ Reload Dictionary failed!\n\nError reinitializing engine. Check console for details.'
           );
           toast.error('Failed to reinitialize engine. Try reloading the app.');
@@ -1621,7 +1624,7 @@ const Translator = ({ isActive = true }) => {
         if (inputText.trim()) {
           logger.log('Step 8: Retranslating current text...');
           const retranslateMessage = '🔄 Engine ready - retranslating text...';
-          setTranslatedText(retranslateMessage);
+          setStatusMessage(retranslateMessage);
 
           // Wait a bit to ensure engine is fully ready
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -1655,10 +1658,7 @@ const Translator = ({ isActive = true }) => {
                 }
 
                 // Update both translations efficiently
-                setTranslatedText(dualResults.fullResult.translatedText);
-                setSemanticArrays(dualResults.fullResult.semanticArrays);
-                setCharacterOnlyText(dualResults.characterResult.translatedText);
-                setCharacterOnlySemanticArrays(dualResults.characterResult.semanticArrays);
+                setDualResults(dualResults.fullResult, dualResults.characterResult);
 
                 // Update cache hit rate after dictionary reload
                 refreshCacheStats();
@@ -1670,7 +1670,7 @@ const Translator = ({ isActive = true }) => {
 
                 // Fallback to original sequential method
                 const newTranslation = await translateText(inputText);
-                setTranslatedText(newTranslation);
+                setFullResult(newTranslation, null);
 
                 // Run character-only translation after main completes during reload (non-blocking)
                 setTimeout(() => translateCharacterOnly(inputText), 0);
@@ -1678,7 +1678,7 @@ const Translator = ({ isActive = true }) => {
             } else {
               // Fallback for engines without optimization
               const newTranslation = await translateText(inputText);
-              setTranslatedText(newTranslation);
+              setFullResult(newTranslation, null);
 
               // Run character-only translation after main completes during reload (non-blocking)
               setTimeout(() => translateCharacterOnly(inputText), 0);
@@ -1689,20 +1689,20 @@ const Translator = ({ isActive = true }) => {
           } catch (_retranslateError) {
             logger.error('❌ Retranslation failed:', _retranslateError);
             const errorMessage = '❌ Retranslation failed!\n\nError: ' + _retranslateError.message;
-            setTranslatedText(errorMessage);
+            setTranslationError(errorMessage);
             toast.error(`Retranslation failed: ${_retranslateError.message}`);
           }
         } else {
           const completedMessage =
             '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.';
-          setTranslatedText(completedMessage);
+          setStatusMessage(completedMessage);
           toast.success('Dictionary reloaded successfully');
         }
       } else {
         logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
         const warningMessage =
           '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.';
-        setTranslatedText(warningMessage);
+        setStatusMessage(warningMessage);
         toast.error('Dictionaries not ready - please try again');
       }
 
@@ -1712,7 +1712,7 @@ const Translator = ({ isActive = true }) => {
       logger.error('❌ Reload Dictionary failed:', error);
       const unexpectedErrorMessage =
         '❌ Reload Dictionary failed!\n\nUnexpected error: ' + error.message;
-      setTranslatedText(unexpectedErrorMessage);
+      setTranslationError(unexpectedErrorMessage);
       toast.error(`Dictionary reload failed: ${error.message}`);
     } finally {
       // CRITICAL-1 FIX: Keep isDictionaryReloading=true until AFTER scroll restoration
