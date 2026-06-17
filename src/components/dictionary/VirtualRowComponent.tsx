@@ -1,4 +1,5 @@
 import React from 'react';
+import { classifyDictionaryId } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import {
@@ -259,10 +260,9 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     const allowedVariableTypes =
       (typeof translation === 'object' && translation.allowedVariableTypes) || {};
 
+    const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(selectedDictionary);
     const buildTextSaveMetadata = () =>
-      selectedDictionary === 'patterns' ||
-      selectedDictionary === 'phrases' ||
-      selectedDictionary.startsWith('properNouns')
+      isPatterns || isPhrases || isProperNouns
         ? {
             allowAsPatternVariable,
             lowPriority,

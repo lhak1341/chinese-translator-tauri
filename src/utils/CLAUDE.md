@@ -160,6 +160,10 @@ All 6 wrappers (NumberProcessor, PatternProcessor, TextAssembler, TextChunker, D
 
 Any `src/utils/wasm/Wasm*.js` that exports a singleton must trigger background init at import time. Missing this forces every first caller onto the slow JS fallback path. **Exception — `WasmPatternProcessor.js`**: exports functions, not a singleton; its module-bottom prewarm is a self-calling IIFE that only warms the ES module cache via `fetchWasmBinary`.
 
+### `WasmMemoryPool.getCurrentMemoryUsage()` Is Private — Use `getStats().totalMemoryUsage`
+
+`getCurrentMemoryUsage()` is `private` on `WasmMemoryPool` — callable from JS but not part of `WasmBufferAllocator`. Use `getStats().totalMemoryUsage` in any external caller. `WasmDictionaryManager` was fixed this session (was calling the private method directly).
+
 ### `new URL(path, import.meta.url)` Requires a Static String Literal
 
 Template literals prevent Vite's asset URL transform — the URL resolves in dev but breaks in production. Always write: `new URL('../../wasm/name.wasm', import.meta.url)` with a hard-coded string. Applies to every `fetchWasmBinary` call site and the prewarm IIFE in `WasmPatternProcessor.js`.

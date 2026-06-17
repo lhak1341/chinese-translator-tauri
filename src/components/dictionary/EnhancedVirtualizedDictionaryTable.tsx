@@ -12,6 +12,7 @@ import {
   SEMANTIC_TYPES,
 } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
+import { classifyDictionaryId } from '../../utils/dictionary';
 import { VirtualRowComponent, ITEM_HEIGHT } from './VirtualRowComponent';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
@@ -210,9 +211,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const VirtualRow = VirtualRowComponent;
 
   // Determine which filter options are relevant for the selected dictionary
-  const isPatternsDictionary = selectedDictionary === 'patterns';
-  const isPhrasesDictionary = selectedDictionary === 'phrases';
-  const isProperNounsDictionary = selectedDictionary.startsWith('properNouns');
+  const {
+    isPatterns: isPatternsDictionary,
+    isPhrases: isPhrasesDictionary,
+    isProperNouns: isProperNounsDictionary,
+  } = classifyDictionaryId(selectedDictionary);
   const showPatternFilter = isPatternsDictionary;
   const showVariableFilter = isPhrasesDictionary; // phrases only; patterns use showPatternFilter
   const showSemanticTypeFilter =

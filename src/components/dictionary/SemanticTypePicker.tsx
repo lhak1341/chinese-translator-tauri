@@ -8,6 +8,7 @@ import {
 } from '../../constants/SemanticTypes';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
+import { classifyDictionaryId } from '../../utils/dictionary';
 
 interface SemanticTypePickerProps {
   semanticType: SemanticType | PatternSemanticTypeRef | '';
@@ -20,10 +21,10 @@ interface SemanticTypePickerProps {
   isSaving: boolean;
 }
 
-const supportsSemanticTypes = (activeDictionary: string): boolean =>
-  activeDictionary === 'phrases' ||
-  activeDictionary.startsWith('properNouns') ||
-  activeDictionary === 'patterns';
+const supportsSemanticTypes = (activeDictionary: string): boolean => {
+  const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(activeDictionary);
+  return isPhrases || isProperNouns || isPatterns;
+};
 
 /**
  * Semantic type badge picker and per-variable type constraint toggles.

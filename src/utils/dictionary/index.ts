@@ -65,3 +65,7 @@ export { loadAllDictionaries } from './DictionaryBackend';
 // --- Lookup index utilities ---
 export type { DictionaryCategory } from './LookupIndexUtils';
 export { isDictionaryCategory, getIndexedMatches } from './LookupIndexUtils';
+
+// --- UI-layer dictionary ID classification ---
+export type { DictionaryTypeFlags } from './DictionaryIdClassifier';
+export { classifyDictionaryId } from './DictionaryIdClassifier';

@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, type Dispatch, type SetStateAction } fr
 import { useThrottledValue } from './useThrottledValue';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
+import { classifyDictionaryId } from '../utils/dictionary';
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -45,9 +46,11 @@ export function useDictionaryEntryFilter(
   // Resets only the filters that don't apply to the new dictionary type.
   // Called from EVDT's selectedDictionary coordinator effect alongside other hook resets.
   const resetFilters = useCallback((newSelectedDictionary: string): void => {
-    const newIsPatterns = newSelectedDictionary === 'patterns';
-    const newIsPhrases = newSelectedDictionary === 'phrases';
-    const newIsProperNouns = newSelectedDictionary.startsWith('properNouns');
+    const {
+      isPatterns: newIsPatterns,
+      isPhrases: newIsPhrases,
+      isProperNouns: newIsProperNouns,
+    } = classifyDictionaryId(newSelectedDictionary);
 
     if (!newIsPatterns) {
       setFilterPatternType(new Set());

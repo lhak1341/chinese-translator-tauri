@@ -19,6 +19,7 @@
 
 import init, { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager } from './WasmMemoryPoolManager.js';
+/** @import { WasmBufferAllocator } from './WasmMemoryPoolManager.js' */
 import { logger } from '../logger';
 import { wasmTextAssembler } from './WasmTextAssembler';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
@@ -39,7 +40,8 @@ export function retireWasmDictionaryOnSharedPanic() {
 registerCascadeHandler(retireWasmDictionaryOnSharedPanic);
 
 export class WasmDictionaryManager {
-  constructor() {
+  /** @param {WasmBufferAllocator} [allocator] */
+  constructor(allocator = wasmMemoryPoolManager) {
     this._lifecycle = new WasmProcessorLifecycle({
       name: 'DictionaryManager',
       wasmFileName: 'translation_wasm_core_bg.wasm',
@@ -71,7 +73,7 @@ export class WasmDictionaryManager {
     });
 
     // Memory pool integration
-    this.memoryPool = wasmMemoryPoolManager;
+    this.memoryPool = allocator;
   }
 
   async initialize(fallbackManager, config = {}) {
@@ -176,7 +178,7 @@ export class WasmDictionaryManager {
 
         if (success) {
           // Update performance stats with memory pool usage
-          this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
+          this.performanceStats.memoryUsage = this.memoryPool.getStats().totalMemoryUsage;
           logger.log(
             `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
           );
@@ -225,7 +227,7 @@ export class WasmDictionaryManager {
         // REFACTOR (2026-01-28): Use centralized failure tracking
         this.fallbackHandler.recordSuccess();
 
-        this.performanceStats.memoryUsage = this.memoryPool.getCurrentMemoryUsage();
+        this.performanceStats.memoryUsage = this.memoryPool.getStats().totalMemoryUsage;
       }
 
       return success;

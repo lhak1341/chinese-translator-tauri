@@ -176,6 +176,18 @@ export interface OptimizationRecommendation {
 }
 
 /**
+ * Narrow interface for buffer allocation. WasmMemoryPool satisfies this.
+ * WasmDictionaryManager depends on this interface, not the full singleton —
+ * lets tests inject a trivial fake without wiring the optimization scheduler.
+ */
+export interface WasmBufferAllocator {
+  getBuffer(estimatedSizeBytes: number): ArrayBuffer;
+  returnBuffer(buffer: ArrayBuffer | null): void;
+  getStats(): MemoryPoolStats;
+  cleanup(): void;
+}
+
+/**
  * Memory Pool for WASM Operations
  * Pre-allocates and manages memory buffers for efficient WASM communication
  */
