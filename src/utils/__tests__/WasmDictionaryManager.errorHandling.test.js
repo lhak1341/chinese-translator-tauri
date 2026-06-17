@@ -35,6 +35,7 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
 vi.mock('../wasm/WasmMemoryPoolManager.js', () => ({
   wasmMemoryPoolManager: {
     getCurrentMemoryUsage: vi.fn(() => 0),
+    getStats: vi.fn(() => ({ totalMemoryUsage: 0 })),
   },
   WasmDictionaryOperationHelper: vi.fn(),
 }));

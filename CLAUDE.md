@@ -83,6 +83,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `useTranslationController.forceCleanup` — removed (unused); hook returns only `{createController, cleanup, cancelAll, getActiveCount}`
 - `WasmDictionaryTrieWrapper` from `wasm/WasmDictionaryTrie.js`, `validateWasmDictionaryTrie` from `WasmDictionaryTrieValidator.js` — deleted; WASM trie is 2x slower than JS Map at current dictionary size (benchmarked 2026-01-31)
 - `WasmRetryManager.js` / `wasmRetryManager` — absorbed into `WasmProcessorLifecycle`; retry logic is now private (`_retryWithBackoff`, `_isTransientError`, `_calculateDelay`)
+- `WasmTextChunker.initialize(useUnicodeProperties, timeoutMs)` — removed; init is module-private `_initializeTextChunker()`; background init fires at module bottom; `wasmTextChunker` singleton still exported
 - `MemoryManagementRefinements.ts` from `wasm/` — split into `src/utils/memory/` (`SmartMemoryPressureDetector.ts`, `BackgroundCleanupManager.ts`, `ComponentMemoryProfiler.ts`)
 - `EnhancedDictionaryManager` from `dictionary/EnhancedDictionaryManager.js` — merged into `DictionaryManager` via injected `WasmDictionaryAdapter`; use `new DictionaryManager({ wasmAdapter: new WasmDictionaryAdapter() })`
 - `TranslationSegmentCache` class + `translationSegmentCache` singleton from `utils/dictionary` — deleted (cache was removed from engine; hit rate permanently 0)
