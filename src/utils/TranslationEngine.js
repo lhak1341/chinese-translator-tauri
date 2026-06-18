@@ -146,6 +146,7 @@ import {
 import { SemanticPatternProcessor } from './pattern/SemanticPatternProcessor.js';
 import { PatternTemplateEngine } from './pattern/PatternTemplateEngine.js';
 import { TextChunker } from './text/TextChunker.js';
+import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
@@ -321,6 +322,7 @@ export class TranslationEngine {
     this.textChunker = new TextChunker({
       excludedCharacters: new Set(['/']), // Don't treat / as chunk separator (used in fractions like 23/30)
     });
+    this.chunkPostProcessor = new ChunkPostProcessor();
     this.numberProcessor = new NumberProcessor();
 
     // WASM Core Engine REMOVED:
@@ -6308,7 +6310,7 @@ export class TranslationEngine {
 
     // PHASE 1: Apply final processing to match original translateWithChunking method exactly
     // Apply punctuation translation to all chunks (needed for cross-chunk context like comma-quote spacing)
-    this.textChunker.translatePunctuation(chunks, this.punctuationDict);
+    this.chunkPostProcessor.translatePunctuation(chunks, this.punctuationDict);
 
     // Apply capitalization to all chunks
     this.applySmartCapitalization(chunks);
@@ -6320,7 +6322,10 @@ export class TranslationEngine {
       translated: [],
       metadata: [],
     };
-    const reconstructed = this.textChunker.reconstructTextWithSegments(chunks, semanticArrays);
+    const reconstructed = this.chunkPostProcessor.reconstructTextWithSegments(
+      chunks,
+      semanticArrays
+    );
     const finalResult = reconstructed.text;
     const cleanedFinalResult = this.applyFinalCleanup(finalResult).normalize('NFC');
 
@@ -6911,7 +6916,7 @@ export class TranslationEngine {
     }
 
     // Step 4: Apply punctuation translation
-    this.textChunker.translatePunctuation(chunks, this.punctuationDict);
+    this.chunkPostProcessor.translatePunctuation(chunks, this.punctuationDict);
 
     // Step 5: Apply smart capitalization based on punctuation context
     this.applySmartCapitalization(chunks);
@@ -6923,7 +6928,7 @@ export class TranslationEngine {
       translated: [],
       metadata: [],
     };
-    const reconstructed = this.textChunker.reconstructTextWithSegments(
+    const reconstructed = this.chunkPostProcessor.reconstructTextWithSegments(
       chunks,
       semanticArraysForReconstruction
     );
@@ -8951,7 +8956,7 @@ export class TranslationEngine {
    */
   processBatchChunksProgressive(currentBatch, _allChunks, _batchStartIndex) {
     // Apply punctuation translation to only the current batch chunks
-    this.textChunker.translatePunctuation(currentBatch, this.punctuationDict);
+    this.chunkPostProcessor.translatePunctuation(currentBatch, this.punctuationDict);
 
     // Capitalization is handled at the final level (not per-batch)
   }
@@ -8965,7 +8970,7 @@ export class TranslationEngine {
   async processBatchWithProgressivePositioning(currentBatch, _allChunks, _batchStartIndex) {
     try {
       // Step 1: Reconstruct just the current batch text
-      const batchText = this.textChunker.reconstructText(currentBatch);
+      const batchText = this.chunkPostProcessor.reconstructText(currentBatch);
       const cleanedBatchText = this.applyFinalCleanup(batchText);
 
       // Step 2: Get semantic arrays for current batch from the builder
@@ -9004,7 +9009,7 @@ export class TranslationEngine {
       logger.error('Progressive positioning error:', error);
 
       // Fallback: Return basic batch info without progressive segments
-      const fallbackText = this.textChunker.reconstructText(currentBatch);
+      const fallbackText = this.chunkPostProcessor.reconstructText(currentBatch);
       const cleanedFallbackText = this.applyFinalCleanup(fallbackText);
 
       // Still update position tracker to maintain text continuity

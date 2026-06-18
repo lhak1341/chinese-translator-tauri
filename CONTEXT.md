@@ -1,5 +1,17 @@
 # Domain Glossary
 
+## ChunkPostProcessor
+
+Phase 5 post-processing over `TextChunk[]` arrays: punctuation translation and text reconstruction. Separated from `TextChunker` so that post-processing bugs have a single locality and the methods are testable with a `TextChunk[]` fixture without constructing a `TextChunker`.
+
+Owns: `translatePunctuation(chunks, dict)` (delegates to `translatePunctuationNormally` + `fixAngleQuotePositioning`), `reconstructText(chunks)` (char-only path, returns string), `reconstructTextWithSegments(chunks, semanticArrays?)` (full translation path, returns `{text, segments}`). Internally owns a `PunctuationProcessor` instance (constructed with no args; no injection needed — only one implementation exists).
+
+JS/WASM divergence: `fixAngleQuotePositioning` handles the JS chunker's empty-chunk representation of `《` only. WASM accumulates `《` into the preceding chunk's `punctuation` field; `applySmartCapitalization` in `TranslationEngine` handles that path. `「` (U+300C) is also skipped by `fixAngleQuotePositioning` — `QuoteProcessor.isOpeningQuote('「')` returns false; the fallback in `applySmartCapitalization` covers it.
+
+`TranslationEngine` holds `this.chunkPostProcessor = new ChunkPostProcessor()` alongside `this.textChunker`. All 3 `translatePunctuation` call sites and 4 `reconstruct*` call sites go through `this.chunkPostProcessor`.
+
+Entry point: `src/utils/text/ChunkPostProcessor.js`, re-exported from `src/utils/text/index.ts`.
+
 ## TextPositionMapper
 
 The greedy longest-match algorithm that maps each character position in a text string to the index of the semantic unit covering it. Produces an `Int32Array` of length `text.length`; positions not covered by any unit are `-1`.

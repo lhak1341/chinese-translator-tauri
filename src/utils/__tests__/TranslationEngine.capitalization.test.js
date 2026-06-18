@@ -10,7 +10,7 @@
  */
 import { describe, test, expect, beforeAll } from 'vitest';
 import { createTranslationEngine } from '../TranslationEngine.js';
-import { TextChunker } from '../text/TextChunker.js';
+import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { QUOTE_TYPES } from '../text/QuoteProcessor.js';
 
 // Minimal dictionaries — only characters needed; capitalization is punctuation-driven
@@ -110,10 +110,10 @@ describe('TranslationEngine.applySmartCapitalization', () => {
   });
 });
 
-// ── TextChunker.fixAngleQuotePositioning ───────────────────────────────────
+// ── ChunkPostProcessor.fixAngleQuotePositioning ────────────────────────────
 
-describe('TextChunker.fixAngleQuotePositioning', () => {
-  const chunker = new TextChunker();
+describe('ChunkPostProcessor.fixAngleQuotePositioning', () => {
+  const chunker = new ChunkPostProcessor();
 
   test('「-only chunk: isOpeningQuote returns false → colon NOT propagated', () => {
     const chunks = [

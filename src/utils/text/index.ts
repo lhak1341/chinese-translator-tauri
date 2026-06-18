@@ -26,6 +26,7 @@ export {
 
 // --- Chunking ---
 export { TextChunk, TextChunker, createChunker } from './TextChunker';
+export { ChunkPostProcessor } from './ChunkPostProcessor';
 export { adaptiveChunker } from './AdaptiveChunker';
 
 // --- Normalization ---
