@@ -1670,7 +1670,7 @@ const Translator = ({ isActive = true }) => {
 
                 // Fallback to original sequential method
                 const newTranslation = await translateText(inputText);
-                setFullResult(newTranslation, null);
+                setStreamingText(newTranslation);
 
                 // Run character-only translation after main completes during reload (non-blocking)
                 setTimeout(() => translateCharacterOnly(inputText), 0);
@@ -1678,7 +1678,7 @@ const Translator = ({ isActive = true }) => {
             } else {
               // Fallback for engines without optimization
               const newTranslation = await translateText(inputText);
-              setFullResult(newTranslation, null);
+              setStreamingText(newTranslation);
 
               // Run character-only translation after main completes during reload (non-blocking)
               setTimeout(() => translateCharacterOnly(inputText), 0);
