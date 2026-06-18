@@ -62,3 +62,6 @@ export { buildProperNounCapitalizationMap } from './ProperNounCapitalizationMap'
 // --- Quote handling ---
 export type { QuoteTypeName, NormalizeTarget, QuoteInfo } from './QuoteProcessor';
 export { QUOTE_TYPES, QUOTE_CATEGORIES, QuoteProcessor } from './QuoteProcessor';
+
+// --- Pattern variable formatting ---
+export { PATTERN_VARIABLE_COLORS, highlightPatternVariables } from './PatternTextFormatter';

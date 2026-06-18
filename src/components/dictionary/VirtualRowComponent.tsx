@@ -11,34 +11,10 @@ import {
 import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
+import { highlightPatternVariables } from '../../utils/text/PatternTextFormatter';
 
 /** Height of each table row in pixels. Exported so the table can compute totalHeight. */
 export const ITEM_HEIGHT = 40;
-
-const highlightPatternVariables = (text: string): React.ReactNode => {
-  const parts = text.split(/([A-Z])/);
-  const variableColors: Record<string, string> = {
-    X: '#dc2626',
-    Y: '#16a34a',
-    Z: '#0891b2',
-    A: '#ea580c',
-    B: '#7c3aed',
-    C: '#0d9488',
-    D: '#db2777',
-    E: '#2563eb',
-  };
-  return parts.map((part, index) => {
-    if (part.length === 1 && /[A-Z]/.test(part)) {
-      const color = variableColors[part] || '#059669';
-      return (
-        <span key={index} className={styles.patternVariable} style={{ color }}>
-          {part}
-        </span>
-      );
-    }
-    return <React.Fragment key={index}>{part}</React.Fragment>;
-  });
-};
 
 interface BadgeProps {
   type: 'variable' | 'lowPriority';

@@ -366,7 +366,7 @@ export class TranslationEngine {
     };
 
     // Initialize translation profiler for performance analysis
-    this.profiler = new TranslationProfiler();
+    this.phaseProfiler = new TranslationProfiler();
     this.performanceProfiler = injectedProfiler;
 
     // Store reference to TwoPhasePatternProcessor for internal profiling
@@ -4970,14 +4970,14 @@ export class TranslationEngine {
    * Then translate text and call getProfilingReport() to see breakdown
    */
   enableProfiling() {
-    this.profiler.enable();
+    this.phaseProfiler.enable();
   }
 
   /**
    * Disable translation profiling
    */
   disableProfiling() {
-    this.profiler.disable();
+    this.phaseProfiler.disable();
   }
 
   /**
@@ -4985,21 +4985,21 @@ export class TranslationEngine {
    * @returns {Object} Profiling report with phase breakdown and recommendations
    */
   getProfilingReport() {
-    return this.profiler.getReport();
+    return this.phaseProfiler.getReport();
   }
 
   /**
    * Print formatted profiling report to console
    */
   printProfilingReport() {
-    this.profiler.printReport();
+    this.phaseProfiler.printReport();
   }
 
   /**
    * Reset profiling data
    */
   resetProfiling() {
-    this.profiler.reset();
+    this.phaseProfiler.reset();
   }
 
   /**
@@ -7490,7 +7490,7 @@ export class TranslationEngine {
     // If hanging is observed in production, add timeouts then (not worth complexity now)
 
     // Record total translation time for profiling
-    await this.profiler.profile('total', async () => {
+    await this.phaseProfiler.profile('total', async () => {
       // Phase 1: Apply patterns first (they need full context)
       // HIGH FIX: Snapshot token count before phase for corruption detection
       const tokensLengthBeforePhase1 = tokens.length;
@@ -7512,10 +7512,6 @@ export class TranslationEngine {
           'patterns'
         );
         completedPhases.add('patterns');
-        // Record profiling metrics (if profiler has this method)
-        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
-          await this.profiler.recordPhaseCompletion('patterns');
-        }
 
         // Post-phase validation — O(n) checks gated to debug builds
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
@@ -7583,10 +7579,6 @@ export class TranslationEngine {
           'properNouns'
         );
         completedPhases.add('properNouns');
-        // Record profiling metrics (if profiler has this method)
-        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
-          await this.profiler.recordPhaseCompletion('properNouns');
-        }
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('properNouns');
@@ -7658,7 +7650,7 @@ export class TranslationEngine {
           );
         }
         await withTimeout(
-          this.profiler.profile('numbers', async () => {
+          this.phaseProfiler.profile('numbers', async () => {
             // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
             // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
             // CODE REVIEW FIX (HIGH-6): Add performance monitoring
@@ -7963,12 +7955,6 @@ export class TranslationEngine {
           'numbers'
         );
 
-        // CODE REVIEW FIX 2026-01-27: Post-phase validation for Phase 3
-        // Record profiling metrics (standardize with Phases 1-2)
-        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
-          await this.profiler.recordPhaseCompletion('numbers');
-        }
-
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('numbers');
           validatePhasePriority('numbers', 3, tokensBeforePhase3);
@@ -8037,19 +8023,13 @@ export class TranslationEngine {
           );
         }
         await withTimeout(
-          this.profiler.profile('phrases', async () => {
+          this.phaseProfiler.profile('phrases', async () => {
             await this.createOptimalPhraseGroups(tokens, options);
           }),
           PHASE_TIMEOUTS.phrases,
           'phrases'
         );
         completedPhases.add('phrases');
-
-        // CODE REVIEW FIX 2026-01-27: Post-phase validation for Phase 4
-        // Record profiling metrics (standardize with Phases 1-3)
-        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
-          await this.profiler.recordPhaseCompletion('phrases');
-        }
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('phrases');
@@ -8133,19 +8113,13 @@ export class TranslationEngine {
           );
         }
         await withTimeout(
-          this.profiler.profile('characters', async () => {
+          this.phaseProfiler.profile('characters', async () => {
             await this.processRemainingTokensInBatches(tokens, processedTokens, options);
           }),
           PHASE_TIMEOUTS.characters,
           'characters'
         );
         completedPhases.add('characters');
-
-        // CODE REVIEW FIX 2026-01-27: Post-phase validation for Phase 5
-        // Record profiling metrics (standardize with Phases 1-4)
-        if (this.profiler && typeof this.profiler.recordPhaseCompletion === 'function') {
-          await this.profiler.recordPhaseCompletion('characters');
-        }
 
         if (this.debugLevel >= DEBUG_LEVELS.DEBUG) {
           validateConsumedTokenContract('characters');
@@ -8191,7 +8165,7 @@ export class TranslationEngine {
       }
 
       // Apply final fixes that need to run after all processing
-      this.profiler.profileSync('postProcess', () => {
+      this.phaseProfiler.profileSync('postProcess', () => {
         this.fixNumberPlusLiangTranslations(tokens);
       });
 

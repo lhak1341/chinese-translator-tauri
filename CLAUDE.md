@@ -65,6 +65,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Large file edits:** Edit tool old_string fails for blocks >~100 lines. Use `python3 -c "with open(p) as f: lines=f.readlines(); open(p,'w').writelines(lines[:N]+lines[M:])"` to remove line range N–M (0-indexed).
 
+**JSX in utils:** `src/utils/` files returning JSX must use `.tsx` extension — TypeScript gives misleading parse errors (`')' expected`, not "JSX not supported") otherwise. Do NOT include `.tsx` in import paths; `allowImportingTsExtensions` is off.
+
 **Dynamic JSON imports:** Never use `import(path, { assert: { type: 'json' } })` — Rolldown silently fails to rewrite the path in production. Use a static `import data from '...json'` at the top of the file.
 
 **Unicode line terminators in regex:** `\u2028` (LINE SEPARATOR) and `\u2029` (PARAGRAPH SEPARATOR) are ECMAScript line terminators — stored as actual Unicode characters in a JS/TS file they break a regex literal. Always use `\u2028\u2029` escape sequences in regex character classes.
