@@ -29,11 +29,11 @@ import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
 import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
 import { useTranslationResults } from '../hooks/useTranslationResults';
+import { useHighlightingState } from '../hooks/useHighlightingState';
 import {
-  useHighlightingState,
   MAX_SAFE_SEGMENTS,
   HIGHLIGHT_SCROLL_DELAY_MS,
-} from '../hooks/useHighlightingState';
+} from '../utils/highlighting/semanticArrayConstants';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -149,8 +149,16 @@ const Translator = ({ isActive = true }) => {
     reset: resetTranslationResults,
   } = useTranslationResults();
 
-  const { highlighting, dispatchHighlighting, clearHighlighting, validateSemanticArraySize } =
-    useHighlightingState(semanticArrays);
+  const {
+    highlighting,
+    highlightOriginal: _highlightOriginal,
+    highlightTranslation,
+    highlightBoth,
+    highlightFromCharacterOnly,
+    setCharacterOnlyIndex,
+    clearHighlighting,
+    validateSemanticArraySize,
+  } = useHighlightingState(semanticArrays);
 
   // Destructure for easier access (maintains backward compatibility with existing code)
   const {
@@ -447,7 +455,7 @@ const Translator = ({ isActive = true }) => {
         // Clicked translation text, highlight original text AND keep translation highlighted
         // CRITICAL FIX: Use HIGHLIGHT_BOTH to keep Full Translation highlighted
         // while also highlighting Original and Character-only (via bridge useEffect)
-        dispatchHighlighting({ type: 'HIGHLIGHT_BOTH', unitIndex: segmentInfo.unitIndex });
+        highlightBoth(segmentInfo.unitIndex);
 
         // Auto-scroll to highlighted element in original text after state update
         // Clear previous timeout to prevent memory leak
@@ -465,7 +473,7 @@ const Translator = ({ isActive = true }) => {
         }
       } else if (segmentInfo.direction === 'original-to-translation') {
         // Clicked original text, highlight translation text
-        dispatchHighlighting({ type: 'HIGHLIGHT_TRANSLATION', unitIndex: segmentInfo.unitIndex });
+        highlightTranslation(segmentInfo.unitIndex);
 
         // Auto-scroll to highlighted element in translation text after state update
         // Clear previous timeout to prevent memory leak
@@ -537,10 +545,7 @@ const Translator = ({ isActive = true }) => {
             );
 
             // Set highlighting for both Chinese Text and Full Translation (from character-only click)
-            dispatchHighlighting({
-              type: 'HIGHLIGHT_FROM_CHARACTER_ONLY',
-              unitIndex: bestMatch.index,
-            });
+            highlightFromCharacterOnly(bestMatch.index);
 
             // Auto-scroll to highlighted elements
             // Clear previous timeout to prevent memory leak
@@ -576,10 +581,7 @@ const Translator = ({ isActive = true }) => {
             );
 
             // Set highlighting for both Chinese Text and Full Translation (from character-only click)
-            dispatchHighlighting({
-              type: 'HIGHLIGHT_FROM_CHARACTER_ONLY',
-              unitIndex: clampedIndex,
-            });
+            highlightFromCharacterOnly(clampedIndex);
 
             // Auto-scroll to highlighted elements
             // Clear previous timeout to prevent memory leak
@@ -643,7 +645,7 @@ const Translator = ({ isActive = true }) => {
           arrayLength: semanticArrays.original.length,
           source: 'Full Translation highlight',
         });
-        dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
+        setCharacterOnlyIndex(-1);
         return;
       }
       activeIndex = highlightedTranslationUnitIndex;
@@ -654,7 +656,7 @@ const Translator = ({ isActive = true }) => {
           arrayLength: semanticArrays.original.length,
           source: 'Original Text highlight',
         });
-        dispatchHighlighting({ type: 'SET_CHARACTER_ONLY_INDEX', unitIndex: -1 });
+        setCharacterOnlyIndex(-1);
         return;
       }
       activeIndex = highlightedUnitIndex;
@@ -665,10 +667,7 @@ const Translator = ({ isActive = true }) => {
         ? findCharacterOnlyMatch(activeIndex, semanticArrays, characterOnlySemanticArrays)
         : null;
 
-    dispatchHighlighting({
-      type: 'SET_CHARACTER_ONLY_INDEX',
-      unitIndex: matchIndices ?? -1,
-    });
+    setCharacterOnlyIndex(matchIndices ?? -1);
 
     return () => {
       if (highlightingComputationRef.current) {

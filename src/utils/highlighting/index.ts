@@ -33,3 +33,6 @@ export {
   convertWasmMatchToTokenMatch,
 } from './PositionMappingUtils';
 export { mapToPositions } from './TextPositionMapper';
+
+// --- Overflow guard constants (shared with TranslationEngine and Translator) ---
+export { MAX_SAFE_SEGMENTS, HIGHLIGHT_SCROLL_DELAY_MS } from './semanticArrayConstants';

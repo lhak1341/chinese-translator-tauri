@@ -75,6 +75,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Deleted symbols — do not recreate:**
 
+- `dispatchHighlighting` from `useHighlightingState` — replaced by `highlightOriginal`, `highlightTranslation`, `highlightBoth`, `highlightFromCharacterOnly`, `setCharacterOnlyIndex`; do NOT add `dispatchHighlighting` back
+- `MAX_SAFE_SEGMENTS`, `HIGHLIGHT_SCROLL_DELAY_MS` from `useHighlightingState` — moved to `src/utils/highlighting/semanticArrayConstants.ts`; import from there (or highlighting barrel)
 - `DictionaryTable.tsx` / `VirtualizedDictionaryTable.tsx` → use `EnhancedVirtualizedDictionaryTable`
 - `LegacySystemFlags.js` and all its exports — permanently removed
 - `createReadonlyTokens` from `ReadonlyOptimizationUtils.js` — only `scanTokens` exported

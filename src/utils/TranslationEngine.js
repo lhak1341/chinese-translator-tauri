@@ -150,6 +150,7 @@ import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
+import { MAX_SAFE_SEGMENTS } from './highlighting/semanticArrayConstants.js';
 import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
@@ -7051,9 +7052,6 @@ export class TranslationEngine {
     // Validate token count before processing to prevent integer overflow in position calculations
     // Position mappings multiply segment indices by character positions, which can exceed
     // Number.MAX_SAFE_INTEGER for extremely large documents
-    const MAX_POSITION_VALUE = Number.MAX_SAFE_INTEGER / 1000; // Conservative multiplier
-    const MAX_SAFE_SEGMENTS = Math.floor(MAX_POSITION_VALUE / 100); // ~90 trillion segments
-
     if (tokens.length > MAX_SAFE_SEGMENTS) {
       throw new Error(
         `Document too large: ${tokens.length.toLocaleString()} tokens exceeds safe limit of ${MAX_SAFE_SEGMENTS.toLocaleString()} tokens. ` +

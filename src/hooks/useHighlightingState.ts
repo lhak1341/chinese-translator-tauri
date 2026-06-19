@@ -5,15 +5,8 @@ import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
 } from '../reducers/highlightingReducer.js';
+import { MAX_SAFE_SEGMENTS } from '../utils/highlighting/semanticArrayConstants';
 import type { SemanticArrays } from '../types/SemanticTypes';
-
-// Conservative overflow guard: position arithmetic multiplies segment indices by character
-// positions; (MAX_SAFE_INTEGER / 1000) / 100 assumes ~100 chars per segment on average.
-const MAX_POSITION_VALUE = Number.MAX_SAFE_INTEGER / 1000;
-export const MAX_SAFE_SEGMENTS = Math.floor(MAX_POSITION_VALUE / 100);
-
-// Wait for React state update to complete before scrolling to the highlighted element.
-export const HIGHLIGHT_SCROLL_DELAY_MS = 10;
 
 export interface HighlightingState {
   unitIndex: number;
@@ -22,22 +15,13 @@ export interface HighlightingState {
   isCharacterOnlyClick: boolean;
 }
 
-type HighlightingActionType =
-  | 'HIGHLIGHT_ORIGINAL'
-  | 'HIGHLIGHT_TRANSLATION'
-  | 'HIGHLIGHT_FROM_CHARACTER_ONLY'
-  | 'HIGHLIGHT_BOTH'
-  | 'SET_CHARACTER_ONLY_INDEX'
-  | 'CLEAR_ALL';
-
-interface HighlightingAction {
-  type: HighlightingActionType;
-  unitIndex?: number | number[];
-}
-
 export interface UseHighlightingStateResult {
   highlighting: HighlightingState;
-  dispatchHighlighting: React.Dispatch<HighlightingAction>;
+  highlightOriginal: (unitIndex: number) => void;
+  highlightTranslation: (unitIndex: number) => void;
+  highlightBoth: (unitIndex: number) => void;
+  highlightFromCharacterOnly: (unitIndex: number) => void;
+  setCharacterOnlyIndex: (unitIndex: number | number[]) => void;
   clearHighlighting: () => void;
   validateSemanticArraySize: (arrays: SemanticArrays | null | undefined, context: string) => void;
 }
@@ -52,13 +36,36 @@ export interface UseHighlightingStateResult {
 export function useHighlightingState(
   semanticArrays: SemanticArrays | null
 ): UseHighlightingStateResult {
-  const [highlighting, dispatchHighlighting] = useReducer(
-    highlightingReducer,
-    INITIAL_HIGHLIGHTING_STATE
-  );
+  const [highlighting, dispatch] = useReducer(highlightingReducer, INITIAL_HIGHLIGHTING_STATE);
+
+  const highlightOriginal = useCallback((unitIndex: number) => {
+    dispatch({ type: 'HIGHLIGHT_ORIGINAL', unitIndex });
+  }, []);
+
+  const highlightTranslation = useCallback((unitIndex: number) => {
+    dispatch({ type: 'HIGHLIGHT_TRANSLATION', unitIndex });
+  }, []);
+
+  const highlightBoth = useCallback((unitIndex: number) => {
+    dispatch({ type: 'HIGHLIGHT_BOTH', unitIndex });
+  }, []);
+
+  const highlightFromCharacterOnly = useCallback((unitIndex: number) => {
+    dispatch({ type: 'HIGHLIGHT_FROM_CHARACTER_ONLY', unitIndex });
+  }, []);
+
+  // SET_CHARACTER_ONLY_INDEX accepts number[] at runtime for multi-word segments;
+  // reducer JSDoc simplifies unitIndex as number — cast required.
+  // -1 (or array of -1) is the conventional "clear" value.
+  const setCharacterOnlyIndex = useCallback((unitIndex: number | number[]) => {
+    (dispatch as React.Dispatch<{ type: string; unitIndex?: number | number[] }>)({
+      type: 'SET_CHARACTER_ONLY_INDEX',
+      unitIndex,
+    });
+  }, []);
 
   const clearHighlighting = useCallback(() => {
-    dispatchHighlighting({ type: 'CLEAR_ALL' });
+    dispatch({ type: 'CLEAR_ALL' });
   }, []);
 
   useEffect(() => {
@@ -87,9 +94,11 @@ export function useHighlightingState(
 
   return {
     highlighting,
-    // Cast needed: reducer JSDoc types unitIndex as number, but SET_CHARACTER_ONLY_INDEX
-    // accepts number[] at runtime for multi-word segments. The JSDoc is a simplification.
-    dispatchHighlighting: dispatchHighlighting as React.Dispatch<HighlightingAction>,
+    highlightOriginal,
+    highlightTranslation,
+    highlightBoth,
+    highlightFromCharacterOnly,
+    setCharacterOnlyIndex,
     clearHighlighting,
     validateSemanticArraySize,
   };

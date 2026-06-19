@@ -65,11 +65,11 @@ When engine init fails: `initializationError` is truthy AND `enginePhase === 'er
 
 ## `useHighlightingState` Hook — Highlighting State Not in Translator
 
-`highlighting` (useReducer), `clearHighlighting`, `validateSemanticArraySize`, `MAX_SAFE_SEGMENTS`, and `HIGHLIGHT_SCROLL_DELAY_MS` live in `src/hooks/useHighlightingState.ts`. Translator imports `useHighlightingState(semanticArrays)` and the two constants from that module. `highlightScrollTimeoutRef` is NOT in the hook — used in 10+ scroll-callback sites in Translator and stays there.
+`highlighting` (useReducer), `clearHighlighting`, `validateSemanticArraySize`, and 5 named action methods (`highlightOriginal`, `highlightTranslation`, `highlightBoth`, `highlightFromCharacterOnly`, `setCharacterOnlyIndex`) live in `src/hooks/useHighlightingState.ts`. Do NOT use raw `dispatch` — call the named methods. `highlightScrollTimeoutRef` is NOT in the hook — used in 10+ scroll-callback sites in Translator and stays there.
 
-## `highlightingReducer.js` — JSDoc `unitIndex` Simplification
+`MAX_SAFE_SEGMENTS` and `HIGHLIGHT_SCROLL_DELAY_MS` live in `src/utils/highlighting/semanticArrayConstants.ts` (also re-exported from the highlighting barrel). Both Translator.jsx and TranslationEngine.js import the constant from there directly — do NOT redefine or move back to the hook.
 
-`@typedef HighlightingAction` declares `unitIndex?: number`, but `SET_CHARACTER_ONLY_INDEX` accepts `number[]` at runtime (multi-word segment arrays). In TypeScript callers, define a local `HighlightingAction` with `unitIndex?: number | number[]` and cast: `dispatchHighlighting as React.Dispatch<HighlightingAction>`.
+`setCharacterOnlyIndex` accepts `number | number[]` — pass `-1` (or array of `-1`) to clear.
 
 ## `useCachePoisoningGuard` Hook — Cache Poisoning State Not in Translator
 

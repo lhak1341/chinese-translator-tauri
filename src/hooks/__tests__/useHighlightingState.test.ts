@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { useHighlightingState } from '../useHighlightingState';
 import {
-  useHighlightingState,
   MAX_SAFE_SEGMENTS,
   HIGHLIGHT_SCROLL_DELAY_MS,
-} from '../useHighlightingState';
+} from '../../utils/highlighting/semanticArrayConstants';
 
 vi.mock('../../utils/toast', () => ({ default: { error: vi.fn() } }));
 vi.mock('../../utils/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn() } }));
@@ -43,7 +43,7 @@ describe('useHighlightingState', () => {
     it('resets all indices after a dispatch', () => {
       const { result } = renderHook(() => useHighlightingState(null));
       act(() => {
-        result.current.dispatchHighlighting({ type: 'HIGHLIGHT_ORIGINAL', unitIndex: 3 });
+        result.current.highlightOriginal(3);
       });
       expect(result.current.highlighting.unitIndex).toBe(3);
 
@@ -62,7 +62,7 @@ describe('useHighlightingState', () => {
       });
 
       act(() => {
-        result.current.dispatchHighlighting({ type: 'HIGHLIGHT_ORIGINAL', unitIndex: 5 });
+        result.current.highlightOriginal(5);
       });
       expect(result.current.highlighting.unitIndex).toBe(5);
 
@@ -75,7 +75,7 @@ describe('useHighlightingState', () => {
         initialProps: { sa: null as any },
       });
       act(() => {
-        result.current.dispatchHighlighting({ type: 'HIGHLIGHT_ORIGINAL', unitIndex: 2 });
+        result.current.highlightOriginal(2);
       });
       rerender({ sa: null });
       expect(result.current.highlighting.unitIndex).toBe(2);
@@ -89,7 +89,7 @@ describe('useHighlightingState', () => {
       });
 
       act(() => {
-        result.current.dispatchHighlighting({ type: 'HIGHLIGHT_TRANSLATION', unitIndex: 4 });
+        result.current.highlightTranslation(4);
       });
       rerender({ sa: a2 });
       expect(result.current.highlighting.translationUnitIndex).toBe(-1);
