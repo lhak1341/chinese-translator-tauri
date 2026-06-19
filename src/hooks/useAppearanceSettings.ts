@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { AppearanceSettings } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
 import {
+  applyAppearanceToCssVars,
   applyFontChange,
   applyFollowFullTranslation,
   applyReset,
@@ -37,32 +38,6 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   theme: 'auto',
   characterOnlyFollowsFullTranslation: true,
 };
-
-function applyStylesToDocument(appearance: AppearanceSettings): void {
-  const root = document.documentElement;
-  root.style.setProperty('--chinese-text-font', appearance.chineseText.fontFamily);
-  root.style.setProperty('--chinese-text-size', appearance.chineseText.fontSize);
-  root.style.setProperty('--chinese-text-spacing', appearance.chineseText.letterSpacing);
-  root.style.setProperty(
-    '--chinese-text-paragraph-spacing',
-    appearance.chineseText.paragraphSpacing || '1rem'
-  );
-  root.style.setProperty('--full-translation-font', appearance.fullTranslation.fontFamily);
-  root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
-  root.style.setProperty('--full-translation-spacing', appearance.fullTranslation.letterSpacing);
-  root.style.setProperty(
-    '--full-translation-paragraph-spacing',
-    appearance.fullTranslation.paragraphSpacing || '1rem'
-  );
-  root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
-  root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
-  root.style.setProperty('--character-only-spacing', appearance.characterOnly.letterSpacing);
-  root.style.setProperty(
-    '--character-only-paragraph-spacing',
-    appearance.characterOnly.paragraphSpacing || '1rem'
-  );
-  root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
-}
 
 export function useAppearanceSettings() {
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
@@ -103,9 +78,8 @@ export function useAppearanceSettings() {
     load();
   }, []);
 
-  // Single source of truth for CSS application: fires whenever appearance changes.
   useEffect(() => {
-    applyStylesToDocument(appearance);
+    applyAppearanceToCssVars(appearance);
   }, [appearance]);
 
   const handleFontChange = useCallback(

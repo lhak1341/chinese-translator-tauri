@@ -40,7 +40,7 @@ Entry point: `src/utils/ui/HotkeyDispatchTable.ts`. Called exclusively from `use
 
 ## AppearanceSettings (hook)
 
-The settings persistence and CSS application layer for the Appearance tab. Owns: settings state, load from `window.electronAPI.loadAppearanceSettings()` on mount (merges with `DEFAULT_APPEARANCE` defaults), save via `window.electronAPI.saveAppearanceSettings()` on blur/reset/checkbox, and CSS custom property application to `document.documentElement` via a single `useEffect([appearance])`. The CSS effect is the only place styles are applied — no handler calls `applyStylesToDocument` directly.
+The settings persistence and CSS application layer for the Appearance tab. Owns: settings state, load from `window.electronAPI.loadAppearanceSettings()` on mount (merges with `DEFAULT_APPEARANCE` defaults), save via `window.electronAPI.saveAppearanceSettings()` on blur/reset/checkbox, and CSS custom property application to `document.documentElement` via `applyAppearanceToCssVars` (exported from `AppearanceReducer.ts`) called in `useEffect([appearance])`. Two call sites apply CSS vars: this hook (on every appearance state change) and `App.jsx` (startup bootstrap before `AppearanceManager` mounts, to prevent FOUC). `applyAppearanceToCssVars` is the single canonical list of all 13 CSS custom properties — adding a new property requires editing only that function.
 
 `characterOnlyFollowsFullTranslation` is stored inside `AppearanceSettings` only (no separate state). When the flag is set, `handleFontChange` automatically mirrors any Full Translation property change to Character Only in the same `setAppearance` call.
 

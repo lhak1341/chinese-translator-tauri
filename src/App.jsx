@@ -4,6 +4,8 @@ import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { systemPerformanceMonitor } from './utils/performance';
 import { logger } from './utils/logger';
+import { applyAppearanceToCssVars } from './utils/ui/AppearanceReducer';
+import { DEFAULT_APPEARANCE } from './hooks/useAppearanceSettings';
 // NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
 // Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
 // rustLookupIndexManager, wasmMemoryPoolManager, contentAwarePositionCache)
@@ -26,19 +28,17 @@ function App() {
         const result = await window.electronAPI.loadAppearanceSettings();
         if (!isMountedRef.current) return;
         if (result.success && result.data) {
-          const appearance = result.data;
-
-          // Apply appearance settings to CSS custom properties
-          const root = document.documentElement;
-          root.style.setProperty('--chinese-text-font', appearance.chineseText.fontFamily);
-          root.style.setProperty('--chinese-text-size', appearance.chineseText.fontSize);
-          root.style.setProperty('--full-translation-font', appearance.fullTranslation.fontFamily);
-          root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
-          root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
-          root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
-          if (appearance.uiFont?.fontFamily) {
-            root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
-          }
+          const raw = result.data;
+          applyAppearanceToCssVars({
+            chineseText: { ...DEFAULT_APPEARANCE.chineseText, ...raw.chineseText },
+            fullTranslation: { ...DEFAULT_APPEARANCE.fullTranslation, ...raw.fullTranslation },
+            characterOnly: { ...DEFAULT_APPEARANCE.characterOnly, ...raw.characterOnly },
+            uiFont: { ...DEFAULT_APPEARANCE.uiFont, ...(raw.uiFont || {}) },
+            theme: raw.theme || DEFAULT_APPEARANCE.theme,
+            characterOnlyFollowsFullTranslation:
+              raw.characterOnlyFollowsFullTranslation ??
+              DEFAULT_APPEARANCE.characterOnlyFollowsFullTranslation,
+          });
         }
       } catch (error) {
         if (!isMountedRef.current) return;
