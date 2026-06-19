@@ -192,7 +192,7 @@ Returns `number[] | null`: array of Character-Only unit indices to pass to `SET_
 
 Constants `MAX_MATCHES = 100` and `CONTEXT_WINDOW = 50` are exported for tests.
 
-Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called from the bridge `useEffect` in `Translator.jsx`; the effect handles React plumbing (guards, dispatch, cleanup ref) while this module owns all domain logic.
+Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called from `useCharacterOnlyBridge` hook (`src/hooks/useCharacterOnlyBridge.ts`), which owns the React plumbing (guards, bounds check, dispatch, 10ms scroll).
 
 ## DictionaryBackend
 

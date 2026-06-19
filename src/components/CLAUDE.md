@@ -65,7 +65,7 @@ When engine init fails: `initializationError` is truthy AND `enginePhase === 'er
 
 ## `useHighlightingState` Hook — Highlighting State Not in Translator
 
-`highlighting` (useReducer), `clearHighlighting`, `validateSemanticArraySize`, and 5 named action methods (`highlightOriginal`, `highlightTranslation`, `highlightBoth`, `highlightFromCharacterOnly`, `setCharacterOnlyIndex`) live in `src/hooks/useHighlightingState.ts`. Do NOT use raw `dispatch` — call the named methods. `highlightScrollTimeoutRef` is NOT in the hook — used in 10+ scroll-callback sites in Translator and stays there.
+`highlighting` (useReducer), `clearHighlighting`, `validateSemanticArraySize`, and 5 named action methods (`highlightOriginal`, `highlightTranslation`, `highlightBoth`, `highlightFromCharacterOnly`, `setCharacterOnlyIndex`) live in `src/hooks/useHighlightingState.ts`. Do NOT use raw `dispatch` — call the named methods. `highlightScrollTimeoutRef` is NOT in the hook — used in 10+ scroll-callback sites in Translator and stays there. `useCharacterOnlyBridge` owns the Character-Only bridge pipeline (guards, bounds check, `findCharacterOnlyMatch`, `setCharacterOnlyIndex` dispatch, 10ms scroll-to-element) — do NOT re-inline these effects into Translator.jsx.
 
 `MAX_SAFE_SEGMENTS` and `HIGHLIGHT_SCROLL_DELAY_MS` live in `src/utils/highlighting/semanticArrayConstants.ts` (also re-exported from the highlighting barrel). Both Translator.jsx and TranslationEngine.js import the constant from there directly — do NOT redefine or move back to the hook.
 

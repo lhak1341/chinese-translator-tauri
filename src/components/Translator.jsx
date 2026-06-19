@@ -19,7 +19,7 @@ import AppReadinessOverlay from './AppReadinessOverlay';
 import { parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
 import { systemPerformanceMonitor } from '../utils/performance';
-import { scrollToHighlightedElement, findCharacterOnlyMatch } from '../utils/highlighting';
+import { scrollToHighlightedElement } from '../utils/highlighting';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
@@ -27,6 +27,7 @@ import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
+import { useCharacterOnlyBridge } from '../hooks/useCharacterOnlyBridge';
 import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
 import { useTranslationResults } from '../hooks/useTranslationResults';
 import { useHighlightingState } from '../hooks/useHighlightingState';
@@ -228,9 +229,6 @@ const Translator = ({ isActive = true }) => {
 
   // CODE REVIEW FIX: Track component mount status to prevent state updates after unmount
   const isMountedRef = useRef(true);
-
-  // CODE REVIEW FIX (2026-02-01): Track highlighting computation state for proper cleanup
-  const highlightingComputationRef = useRef(null);
 
   /**
    * Cleanup effect - prevents memory leaks on component unmount
@@ -615,103 +613,16 @@ const Translator = ({ isActive = true }) => {
   const debouncedProgressHandler = useRef(new DebouncedProgressHandler(300));
   const smoothLoadingManager = useRef(new SmoothLoadingManager());
 
-  /**
-   * Character Only bridge effect — maps a Full Translation / Original highlight to the
-   * corresponding Character Only unit(s).
-   * Scoring algorithm: findCharacterOnlyMatch in CharacterOnlyBridge.ts.
-   */
-  useEffect(() => {
-    const computationState = { cancelled: false, targetSegment: null, allMatches: null };
-    highlightingComputationRef.current = computationState;
-
-    if (!semanticArrays || !characterOnlySemanticArrays) {
-      highlightingComputationRef.current = null;
-      return;
-    }
-
-    if (isCharacterOnlyClick) {
-      logger.log(
-        '🚫 Skipping Chinese Text → Character Only mapping (Character Only click in progress)'
-      );
-      return;
-    }
-
-    // Determine which index is highlighted (Full Translation takes priority over Original)
-    let activeIndex = -1;
-    if (highlightedTranslationUnitIndex !== -1 && semanticArrays?.original) {
-      if (highlightedTranslationUnitIndex >= semanticArrays.original.length) {
-        logger.error('❌ Index out of bounds in bridge useEffect:', {
-          index: highlightedTranslationUnitIndex,
-          arrayLength: semanticArrays.original.length,
-          source: 'Full Translation highlight',
-        });
-        setCharacterOnlyIndex(-1);
-        return;
-      }
-      activeIndex = highlightedTranslationUnitIndex;
-    } else if (highlightedUnitIndex !== -1 && semanticArrays?.original) {
-      if (highlightedUnitIndex >= semanticArrays.original.length) {
-        logger.error('❌ Index out of bounds in bridge useEffect:', {
-          index: highlightedUnitIndex,
-          arrayLength: semanticArrays.original.length,
-          source: 'Original Text highlight',
-        });
-        setCharacterOnlyIndex(-1);
-        return;
-      }
-      activeIndex = highlightedUnitIndex;
-    }
-
-    const matchIndices =
-      activeIndex !== -1
-        ? findCharacterOnlyMatch(activeIndex, semanticArrays, characterOnlySemanticArrays)
-        : null;
-
-    setCharacterOnlyIndex(matchIndices ?? -1);
-
-    return () => {
-      if (highlightingComputationRef.current) {
-        highlightingComputationRef.current.cancelled = true;
-        highlightingComputationRef.current.targetSegment = null;
-        highlightingComputationRef.current.allMatches = null;
-        highlightingComputationRef.current = null;
-      }
-    };
-  }, [
-    highlightedUnitIndex,
-    highlightedTranslationUnitIndex,
+  useCharacterOnlyBridge({
+    unitIndex: highlightedUnitIndex,
+    translationUnitIndex: highlightedTranslationUnitIndex,
+    characterOnlyUnitIndex: highlightedCharacterOnlyUnitIndex,
+    isCharacterOnlyClick,
     semanticArrays,
     characterOnlySemanticArrays,
-    isCharacterOnlyClick,
-  ]);
-
-  /**
-   * Auto-scroll effect for Character Only panel
-   *
-   * Lifecycle: Runs when Character Only highlighting index changes
-   * Dependencies: highlightedCharacterOnlyUnitIndex
-   *
-   * Scrolls Character Only panel to highlighted element when highlighting changes.
-   * Handles both single index and array of indices (for multi-character segments).
-   *
-   * Uses 10ms delay to ensure React state update completes before scrolling.
-   */
-  useEffect(() => {
-    if (highlightedCharacterOnlyUnitIndex && highlightedCharacterOnlyUnitIndex !== -1) {
-      const timeoutId = setTimeout(() => {
-        // Handle both single index and array of indices
-        const firstIndex = Array.isArray(highlightedCharacterOnlyUnitIndex)
-          ? highlightedCharacterOnlyUnitIndex[0]
-          : highlightedCharacterOnlyUnitIndex;
-
-        if (firstIndex >= 0) {
-          scrollToHighlightedElement(characterOnlyTextRef, firstIndex);
-        }
-      }, 10);
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [highlightedCharacterOnlyUnitIndex]);
+    setCharacterOnlyIndex,
+    characterOnlyTextRef,
+  });
 
   /**
    * Cache health monitoring effect - alerts user when cache performance degrades
