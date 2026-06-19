@@ -18,7 +18,6 @@ import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
-import { systemPerformanceMonitor } from '../utils/performance';
 import { scrollToHighlightedElement } from '../utils/highlighting';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
@@ -169,9 +168,6 @@ const Translator = ({ isActive = true }) => {
     characterOnlyUnitIndex: highlightedCharacterOnlyUnitIndex,
     isCharacterOnlyClick,
   } = highlighting;
-  const [_highlightedOriginalSegmentId, _setHighlightedOriginalSegmentId] = useState(-1);
-  const [_highlightedTranslatedSegmentId, _setHighlightedTranslatedSegmentId] = useState(-1);
-  const [_engineStats, setEngineStats] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const isTranslatingRef = useRef(false);
   const {
@@ -255,12 +251,6 @@ const Translator = ({ isActive = true }) => {
         clearTimeout(highlightScrollTimeoutRef.current);
         highlightScrollTimeoutRef.current = null;
       }
-
-      // Clean up system performance monitor timer
-      if (systemPerformanceMonitor && typeof systemPerformanceMonitor.destroy === 'function') {
-        systemPerformanceMonitor.destroy();
-        logger.log('🧹 System performance monitor timer cleaned up');
-      }
     };
   }, [cleanupScrollRestoration]);
 
@@ -269,7 +259,6 @@ const Translator = ({ isActive = true }) => {
       registerCacheInvalidator(null);
       return;
     }
-    setEngineStats(engineRef.current.getEngineStats());
     debouncedProgressHandler.current.setCallbacks({
       onProgressUpdate: setProgressInfo,
       onTranslationUpdate: setStreamingText,
@@ -969,11 +958,6 @@ const Translator = ({ isActive = true }) => {
             }),
           ]);
 
-          // Update stats periodically
-          if (engineRef.current.getEngineStats().totalTranslations % 10 === 0) {
-            setEngineStats(engineRef.current.getEngineStats());
-          }
-
           // Update performance stats
           const translationTimeMs = performance.now() - translationStartTime;
           recordTranslation(translationTimeMs);
@@ -1284,7 +1268,6 @@ const Translator = ({ isActive = true }) => {
       logger.log('📝 Showing reload status message');
       setStatusMessage(reloadMessage);
       clearHighlighting();
-      setEngineStats(null);
 
       // Steps 6+7: Reload config and reinitialize engine (config reload moved into reinitialize)
       logger.log('Steps 6+7: Reinitializing engine with fresh configuration and dictionaries...');

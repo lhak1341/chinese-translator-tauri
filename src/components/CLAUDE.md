@@ -90,3 +90,7 @@ Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of
 ## Appearance Style Memos — Static Constants
 
 `sharedTextStyle`, `inputTextStyle`, `outputTextStyle`, `characterOnlyTextStyle` in `Translator.jsx` use CSS variable string values (e.g. `'var(--chinese-text-font, ...)'`) with deps `[]` — static constants, not derived from `appearance` state. `useAppearanceSettings` is called only from `AppearanceManager.tsx`. Do not move these into the hook. See ADR-024.
+
+## Global Singleton Lifecycle — `systemPerformanceMonitor`
+
+`systemPerformanceMonitor.startMonitoring()` and `destroy()` are owned exclusively by `App.jsx`. Do NOT call `destroy()` in `Translator.jsx` or any child component — Translator unmounts before App, causing double-destroy on a live singleton. App's cleanup effect is the sole teardown site.
