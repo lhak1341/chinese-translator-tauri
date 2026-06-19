@@ -776,8 +776,8 @@
     "hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/Translator.jsx": {
-    "mtime": 1781878902.0904734,
-    "hash": "dbce6a3034b047e28c0f26453c6b620f"
+    "mtime": 1781881437.4917605,
+    "hash": "03f12308e173c5e7fd9922343636be1e"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/ErrorBoundary.tsx": {
     "mtime": 1772897608.4774516,
@@ -935,6 +935,10 @@
     "mtime": 1781878868.553801,
     "hash": "05f6fc0837211ccb26ae2ac38faa0d0b"
   },
+  "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useClipboardTranslation.ts": {
+    "mtime": 1781881392.0827966,
+    "hash": "44b3c48f260dd3a00dc0644050b04837"
+  },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/hooks/useContextMenu.ts": {
     "mtime": 1780721181.6880193,
     "hash": "20d4101c6109463c3b5da651eec3ccd7"
@@ -984,8 +988,8 @@
     "hash": "18e6e709fd292c0de84cd53c5095d802"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/README.md": {
-    "mtime": 1781879959.1908379,
-    "hash": "970349ceae39fdc9a670a0586f489cac"
+    "mtime": 1781881495.1455197,
+    "hash": "5c7570ba6f0677b017c964e82c23c909"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/test-pattern-parity.html": {
     "mtime": 1767449971.1813738,
@@ -996,8 +1000,8 @@
     "hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/CLAUDE.md": {
-    "mtime": 1781879959.1908379,
-    "hash": "970349ceae39fdc9a670a0586f489cac"
+    "mtime": 1781881495.1455197,
+    "hash": "5c7570ba6f0677b017c964e82c23c909"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/memory/MEMORY.md": {
     "mtime": 1775146363.9956443,
@@ -1324,16 +1328,16 @@
     "hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/utils/CLAUDE.md": {
-    "mtime": 1781709615.1169052,
-    "hash": "91c0d997ef20f3a8800eeea8f5e3a0fa"
+    "mtime": 1781881886.7781312,
+    "hash": "bf837f8b37d935a3b4ed689ce8f25141"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/styles/CLAUDE.md": {
     "mtime": 1772898356.734035,
     "hash": "68f3f5ce5b40676e1ac262623b7d0cea"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/CLAUDE.md": {
-    "mtime": 1781745303.9395394,
-    "hash": "eb17ee505adf3eb011ace0fc8537e18a"
+    "mtime": 1781881483.6738,
+    "hash": "f941b911ff4938039edba91c04f28d09"
   },
   "/Users/lhak/workspace/github.com/lhak1341/chinese-translator-tauri/src/components/dictionary/CLAUDE.md": {
     "mtime": 1781703418.3404472,

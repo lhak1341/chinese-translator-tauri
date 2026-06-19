@@ -31,13 +31,14 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
   }),
 }));
 
-// Mock memory pool
+// Mock memory pool — shape must match WasmBufferAllocator interface
 vi.mock('../wasm/WasmMemoryPoolManager.js', () => ({
   wasmMemoryPoolManager: {
-    getCurrentMemoryUsage: vi.fn(() => 0),
+    getBuffer: vi.fn(() => new ArrayBuffer(1024)),
+    returnBuffer: vi.fn(),
     getStats: vi.fn(() => ({ totalMemoryUsage: 0 })),
+    cleanup: vi.fn(),
   },
-  WasmDictionaryOperationHelper: vi.fn(),
 }));
 
 // Mock WasmTextAssembler to prevent module-bottom prewarm from firing async

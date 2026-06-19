@@ -27,6 +27,7 @@ import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
+import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
 import { useTranslationResults } from '../hooks/useTranslationResults';
 import {
   useHighlightingState,
@@ -180,7 +181,6 @@ const Translator = ({ isActive = true }) => {
   // (which would recreate the interval on every status change).
   const wasmStatusRef = useRef(null);
   wasmStatusRef.current = wasmStatus;
-  const [isClipboardTranslation, setIsClipboardTranslation] = useState(false);
   const [activeTranslations, setActiveTranslations] = useState(0);
   const {
     cachePoisoningDetected,
@@ -740,8 +740,13 @@ const Translator = ({ isActive = true }) => {
     cancelPreviousOnNew: true,
   });
 
-  // MEDIUM-1 FIX: Clipboard translation debouncing to prevent double-clicks
-  const isClipboardBusy = useRef(false);
+  const { isClipboardTranslationRef, resetClipboardFlag, handleTranslateFromClipboard } =
+    useClipboardTranslation({
+      setInputText,
+      isDictionaryReloading,
+      clearHighlighting,
+      originalTextRef,
+    });
 
   /**
    * Translates Chinese text using character-only mode (individual character dictionary lookups)
@@ -1179,7 +1184,7 @@ const Translator = ({ isActive = true }) => {
             setTimeout(() => translateCharacterOnly(inputText), 0);
 
             // Auto-scroll translated text to beginning if this was a clipboard translation (skip during dictionary reload)
-            if (isClipboardTranslation && !isDictionaryReloading) {
+            if (isClipboardTranslationRef.current && !isDictionaryReloading) {
               setTimeout(() => {
                 if (translationTextRef.current) {
                   translationTextRef.current.scrollTop = 0;
@@ -1187,8 +1192,8 @@ const Translator = ({ isActive = true }) => {
                 }
               }, 100); // Small delay to ensure translation content has rendered
             }
-            if (isClipboardTranslation) {
-              setIsClipboardTranslation(false); // Reset flag
+            if (isClipboardTranslationRef.current) {
+              resetClipboardFlag();
             }
           } finally {
             setIsTranslating(false);
@@ -1205,93 +1210,6 @@ const Translator = ({ isActive = true }) => {
 
     loadAndTranslate();
   }, [inputText, isLoading, isDictionaryReloading, translateCharacterOnly, translateText]); // Only retranslate when input changes or dictionaries finish initial loading
-  // NOTE: isClipboardTranslation is intentionally omitted from deps — the effect sets it to
-  // false after translation (line 1806), which would otherwise re-trigger a second translation.
-  // Both inputText and isClipboardTranslation are set together (React 18 batching), so the
-  // effect captures the correct isClipboardTranslation value when triggered by inputText.
-
-  /**
-   * Handles clipboard translation - reads clipboard and initiates translation
-   *
-   * User action: Click "Translate from Clipboard" button or press Cmd/Ctrl-V
-   *
-   * Workflow:
-   * 1. Prevents concurrent clipboard operations (debouncing via busy flag)
-   * 2. Blocks during dictionary reload (race condition prevention)
-   * 3. Reads clipboard via Tauri API (no browser permission prompt)
-   * 4. Preprocesses text (collapse 2+ line breaks to single break)
-   * 5. Sets input text and marks as clipboard translation
-   * 6. Auto-scrolls both original and translation panels to top
-   *
-   * Side effects:
-   * - Sets input text (triggers translation via useEffect)
-   * - Sets isClipboardTranslation flag (controls auto-scroll behavior)
-   * - Clears previous highlighting
-   * - Scrolls original text panel to beginning
-   * - Shows toast warnings for errors or blocked operations
-   *
-   * Error handling:
-   * - Graceful degradation on clipboard read failure
-   * - Debouncing prevents double-click issues (500ms busy window)
-   * - Blocks during dictionary reload to prevent race conditions
-   *
-   * @returns {Promise<void>} Promise that resolves when clipboard read and setup completes
-   *
-   * @example
-   * // Button click handler
-   * <Button onClick={handleTranslateFromClipboard}>Translate from Clipboard</Button>
-   *
-   * // Keyboard shortcut
-   * onTranslateFromClipboard={handleTranslateFromClipboard}
-   */
-  const handleTranslateFromClipboard = useCallback(async () => {
-    // MEDIUM-1 FIX: Prevent concurrent clipboard translations
-    if (isClipboardBusy.current) {
-      logger.log('Clipboard translation already in progress - ignoring duplicate call');
-      return;
-    }
-
-    // CODE REVIEW FIX: Prevent clipboard translation during dictionary reload (race condition)
-    if (isDictionaryReloading) {
-      toast.warning('Dictionary reload in progress. Please wait.', {
-        duration: 3000,
-      });
-      logger.warn('Clipboard translation rejected: dictionary reload in progress');
-      return;
-    }
-
-    isClipboardBusy.current = true;
-    try {
-      // Use Tauri clipboard API for direct access (no browser permission prompt)
-      const rawText = await window.electronAPI.readClipboard();
-
-      // Preprocess: collapse 2+ consecutive line breaks into single line break
-      const text = rawText.replace(/\n{2,}/g, '\n');
-
-      // Mark this as a clipboard translation for auto-scroll behavior
-      setIsClipboardTranslation(true);
-      // Only set input text - let the useEffect handle translation
-      setInputText(text);
-      // Clear highlighting when input changes
-      clearHighlighting();
-
-      // Auto-scroll original text area to the beginning immediately
-      setTimeout(() => {
-        if (originalTextRef.current) {
-          originalTextRef.current.scrollTop = 0;
-          originalTextRef.current.scrollLeft = 0;
-        }
-      }, 50); // Small delay to ensure content has been updated
-    } catch (error) {
-      // CODE REVIEW FIX: Proper error handling (not ignoring)
-      logger.error('Failed to read clipboard:', error);
-    } finally {
-      // Reset busy flag after short delay to allow translation to start
-      setTimeout(() => {
-        isClipboardBusy.current = false;
-      }, 500);
-    }
-  }, []); // No dependencies - only uses setters which are stable
 
   /**
    * Reloads all dictionaries from storage and reinitializes translation engine
