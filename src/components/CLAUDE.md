@@ -79,6 +79,10 @@ When engine init fails: `initializationError` is truthy AND `enginePhase === 'er
 
 `translatedText`, `characterOnlyText`, `semanticArrays`, `characterOnlySemanticArrays`, `prebuiltSegments` are owned by `src/hooks/useTranslationResults.js`. Do NOT set these directly in `Translator.jsx` — use named ops only. `setError`/`setStatusMessage` both clear all arrays atomically (fixes stale-highlight when error text replaces a real result). `clearFullResult` clears full-translation fields only, leaves charOnly intact. `setResultArrays(arrays, segs)` updates arrays without touching text (progressive path: `debouncedProgressHandler` sets text, segmenter sets arrays separately). Destructured as `setTranslationError` in `Translator.jsx` to avoid name collision with a local `setError`. In paths that call `translateText` directly (e.g. reload fallback), use `setStreamingText` for the result text — `translateText` already calls `setResultArrays` internally; `setFullResult(text, null)` wipes those arrays.
 
+## `useStreamingTranslation` Hook — Streaming State
+
+Progressive batch state in `src/hooks/useStreamingTranslation.js`. Use `throttledStreamingState` (100ms throttled) for UI — raw `streamingTranslation` was removed (session 70). Write ops: `updateStreaming(partial)`, `resetStreaming()`, `setProgressInfo(info|null)`, `setPartialSemanticArrays(arrays|null)`. `INITIAL_STATE`, `INITIAL_STREAMING`, `streamingReducer` are intentionally exported for pure reducer tests (ADR-022) — do not treat as leakage.
+
 ## Error Utilities
 
 Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of `error instanceof Error ? error.message : 'Unknown error'` — the inline form misses `string`, `{ message }`, and `null` inputs.
