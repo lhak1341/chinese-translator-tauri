@@ -26,6 +26,7 @@ import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
+import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
 import { useTranslationResults } from '../hooks/useTranslationResults';
 import {
   useHighlightingState,
@@ -211,22 +212,14 @@ const Translator = ({ isActive = true }) => {
     }
   );
 
-  // State for tracking dictionary reload (used throughout component)
-  // CODE REVIEW FIX: Consolidated from two separate reload state variables to prevent race conditions
-  const [isDictionaryReloading, setIsDictionaryReloading] = useState(false);
+  const { isDictionaryReloading, setDictionaryReloading, consumeReloadTransition } =
+    useDictionaryReloadGuard();
 
   // Track highlight scroll timeout for cleanup (CODE REVIEW FIX: prevent memory leak)
   const highlightScrollTimeoutRef = useRef(null);
 
   // CODE REVIEW FIX: Track component mount status to prevent state updates after unmount
   const isMountedRef = useRef(true);
-
-  // Track previous isDictionaryReloading value to detect reload completion (CRITICAL-1 FIX)
-  // CODE REVIEW NOTE (IMPORTANT-6): Ref pattern is safe here despite being "one-render delay"
-  // - Ref is updated synchronously within useEffect before any decisions are made
-  // - Rapid state changes are handled correctly because each useEffect run sees current state
-  // - Alternative (useEffect cleanup) would be more complex and less clear
-  const prevIsDictionaryReloadingRef = useRef(isDictionaryReloading);
 
   // CODE REVIEW FIX (2026-02-01): Track highlighting computation state for proper cleanup
   const highlightingComputationRef = useRef(null);
@@ -1142,22 +1135,14 @@ const Translator = ({ isActive = true }) => {
   useEffect(() => {
     const loadAndTranslate = async () => {
       try {
-        // CRITICAL-1 ADDITIONAL FIX: Skip if dictionary reload just completed
-        // Prevents duplicate translation when isDictionaryReloading changes from true to false
-        const wasReloading = prevIsDictionaryReloadingRef.current;
-        const isReloading = isDictionaryReloading;
-
-        // Update ref for next run
-        prevIsDictionaryReloadingRef.current = isReloading;
-
-        if (wasReloading && !isReloading) {
+        if (consumeReloadTransition()) {
           logger.log(
             '⏭️ Skipping translation - dictionary reload just completed (already retranslated)'
           );
           return;
         }
 
-        if (isReloading) {
+        if (isDictionaryReloading) {
           logger.log('⏭️ Skipping translation - dictionary reload in progress');
           return;
         }
@@ -1389,7 +1374,7 @@ const Translator = ({ isActive = true }) => {
 
     // Save current scroll positions before starting reload
     const savedPositions = saveScrollPositions();
-    setIsDictionaryReloading(true);
+    setDictionaryReloading(true);
     logger.log('📍 Saved scroll positions:', savedPositions);
 
     try {
@@ -1724,7 +1709,7 @@ const Translator = ({ isActive = true }) => {
         await restoreScrollPositions(savedPositions);
 
         // Reset reloading flag AFTER restoration definitely completes
-        setIsDictionaryReloading(false);
+        setDictionaryReloading(false);
         // Note: savedScrollPositions now managed internally by useScrollPositionManager hook
         logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
       }, 100); // POST_RELOAD_DELAY: Allow React state updates to flush

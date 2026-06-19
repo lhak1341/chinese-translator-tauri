@@ -634,7 +634,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 zIndex: 1,
               }}
             >
-              {selectedDictionary === 'patterns' ? (
+              {isPatternsDictionary ? (
                 <>
                   <div
                     style={{
@@ -714,7 +714,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     Y types
                   </div>
                 </>
-              ) : selectedDictionary === 'phrases' ? (
+              ) : isPhrasesDictionary ? (
                 <>
                   <div
                     style={{
@@ -769,7 +769,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     Semantic
                   </div>
                 </>
-              ) : selectedDictionary.startsWith('properNouns') ? (
+              ) : isProperNounsDictionary ? (
                 <>
                   <div
                     style={{

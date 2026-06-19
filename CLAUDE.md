@@ -103,6 +103,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `WasmDictionaryManager.syncFailureTracking`, `._recordSyncSuccess`, `._recordSyncFailure`, `.getSyncMetrics`, `.failureReasonsIndex`, `.syncHistoryIndex`, `loadDictionary._skipMetrics` param — deleted (zero callers on `getSyncMetrics`; see ADR-020 for restoration shape if perf dashboard is built); use `isDictionaryCategory(name, cat)` (imported into DM internally) and `getIndexedMatches(index, pos, cat)` (imported directly in `TranslationEngine.js`, no longer on DM's interface). `DictionaryManager.metadata.type` was never written — the `metadata.type === 'X'` branches in `isDictionaryType` were dead code; do not recreate them.
 - `TextChunker.translatePunctuation`, `.translatePunctuationNormally`, `.fixAngleQuotePositioning`, `.reconstructText`, `.reconstructTextWithSegments` — extracted to `ChunkPostProcessor` (`src/utils/text/ChunkPostProcessor.js`); `TranslationEngine` holds `this.chunkPostProcessor = new ChunkPostProcessor()` alongside `this.textChunker`. `TextChunker.testChunking` method and `testChunker` module export also deleted (dev-only, zero callers).
 - `TranslationEngine.initializeSmartMemoryManagement`, `.handleSmartCleanup`, `.performEmergencyCleanup`, `.performHighPriorityCleanup`, `.queueBackgroundCleanup`, `.cleanupOldPerformanceData`, `.optimizeMemoryStructures`, `.startMemoryProfiling`, `.completeMemoryProfiling`, `.getSmartMemoryStats`, `.shutdownSmartMemoryManagement` — all extracted to `SmartMemoryCoordinator` in `utils/memory/SmartMemoryCoordinator.ts`; engine accesses via `this.memoryCoordinator`
+- `prevIsDictionaryReloadingRef` in `Translator.jsx` — absorbed into `useDictionaryReloadGuard` (`src/hooks/useDictionaryReloadGuard.ts`); do not recreate the inline ref-update pattern in `loadAndTranslate`
 
 **Non-obvious contracts:**
 
@@ -113,6 +114,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `ThrottledStreamingState` canonical home: `src/types/UITypes.d.ts`
 - **`SemanticArrayBuilder` validation:** `validateArrays`/`validateAllPositions`/`hasValidPositions` are NOT on the builder — use `semanticArrayValidator.validateArrays(builder.getSnapshot())` from `utils/highlighting/SemanticArrayValidator.ts`. Builder's `validateArrays` is `private` (called only by `addUnit` internally).
 - **`this.memoryCoordinator`**: re-constructed each call to `translateWithProgressiveBatches` (not at engine init); shut down in `destroy()`; replaces the former `this.smartMemoryDetector`, `this.backgroundCleanup`, `this.memoryProfiler` trinity
+- **`useDictionaryReloadGuard`**: `consumeReloadTransition()` must be called ONCE at the TOP of `loadAndTranslate` before any early returns — reads prev reload state, updates internal ref, and returns `justFinishedReloading` atomically. Calling it after any early return skips the ref update and breaks reload-skip detection.
 
 **Dead-code cleanup with fallow:** Has multiple blind spots (dynamic imports, CSS `composes`, class vs singleton, test-only). See [Fallow Protocol](docs/guides/development.md#fallow-dead-code-analysis) before deleting anything.
 
