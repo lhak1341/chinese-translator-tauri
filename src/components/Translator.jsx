@@ -31,6 +31,7 @@ import { useCharacterOnlyBridge } from '../hooks/useCharacterOnlyBridge';
 import { useClipboardTranslation } from '../hooks/useClipboardTranslation';
 import { useTranslationResults } from '../hooks/useTranslationResults';
 import { useHighlightingState } from '../hooks/useHighlightingState';
+import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import {
   MAX_SAFE_SEGMENTS,
   HIGHLIGHT_SCROLL_DELAY_MS,
@@ -1021,105 +1022,22 @@ const Translator = ({ isActive = true }) => {
   const dictionaryCache = new Map();
   const MAX_DICTIONARY_CACHE_SIZE = 10; // Limit recent combinations
 
-  /**
-   * Main translation effect - orchestrates configuration loading and translation
-   *
-   * Lifecycle: Runs when input text changes or dictionaries load
-   * Dependencies: inputText, isLoading, isClipboardTranslation, isDictionaryReloading
-   *
-   * Workflow:
-   * 1. Skip if dictionary reload just completed (prevents duplicate translation)
-   * 2. Skip if dictionary reload in progress (race condition prevention)
-   * 3. Clear highlighting when input changes
-   * 4. Load latest configuration from disk
-   * 5. Translate input text if available
-   * 6. Trigger character-only translation after main completes
-   * 7. Auto-scroll if clipboard translation (skip during reload)
-   *
-   * Why this can't be extracted:
-   * - Coordinates translation timing with configuration loading
-   * - Manages multiple state setters (isTranslating, translatedText, semanticArrays)
-   * - Handles clipboard auto-scroll coordination
-   * - Prevents duplicate translations during reload
-   *
-   * Performance optimizations:
-   * - Uses progressive translation for immediate responsiveness
-   * - Character-only runs after main (non-blocking for better UX)
-   * - Shows success notification for large translations (>5000 chars)
-   */
-  useEffect(() => {
-    const loadAndTranslate = async () => {
-      try {
-        if (consumeReloadTransition()) {
-          logger.log(
-            '⏭️ Skipping translation - dictionary reload just completed (already retranslated)'
-          );
-          return;
-        }
-
-        if (isDictionaryReloading) {
-          logger.log('⏭️ Skipping translation - dictionary reload in progress');
-          return;
-        }
-
-        // Clear highlighting when input changes
-        clearHighlighting();
-
-        // Translate if we have input text and dictionaries are loaded
-        if (inputText && !isLoading) {
-          setIsTranslating(true);
-          isTranslatingRef.current = true;
-          // Clear previous highlighting when starting new translation
-          clearHighlighting();
-          setResultArrays(null, []);
-
-          // Character-only translation runs after main translation to avoid engine interference
-
-          try {
-            // PROGRESSIVE: Use progressive translation for immediate responsiveness
-            // Use sequential translation approach for reliability
-            const newTranslation = await translateText(inputText);
-            logger.log(`📝 Translation completed: ${newTranslation.length} chars`);
-            setStreamingText(newTranslation);
-
-            // Show success notification for large translations
-            if (inputText.length > UI_TIMEOUTS.LARGE_TRANSLATION_THRESHOLD) {
-              toast.success(`Translation completed: ${inputText.length} characters processed`, {
-                duration: TOAST_DURATIONS.SUCCESS,
-                id: TOAST_IDS.TRANSLATION_COMPLETED,
-              });
-            }
-
-            // Run character-only translation after main completes (non-blocking for better UX)
-            setTimeout(() => translateCharacterOnly(inputText), 0);
-
-            // Auto-scroll translated text to beginning if this was a clipboard translation (skip during dictionary reload)
-            if (isClipboardTranslationRef.current && !isDictionaryReloading) {
-              setTimeout(() => {
-                if (translationTextRef.current) {
-                  translationTextRef.current.scrollTop = 0;
-                  translationTextRef.current.scrollLeft = 0;
-                }
-              }, 100); // Small delay to ensure translation content has rendered
-            }
-            if (isClipboardTranslationRef.current) {
-              resetClipboardFlag();
-            }
-          } finally {
-            setIsTranslating(false);
-            isTranslatingRef.current = false;
-          }
-        }
-      } catch (error) {
-        logger.error('Translation effect failed unexpectedly:', error);
-        toast.error(`Translation error: ${extractErrorMessage(error)}`, {
-          duration: TOAST_DURATIONS.CRITICAL,
-        });
-      }
-    };
-
-    loadAndTranslate();
-  }, [inputText, isLoading, isDictionaryReloading, translateCharacterOnly, translateText]); // Only retranslate when input changes or dictionaries finish initial loading
+  useAutoTranslateTrigger({
+    inputText,
+    isLoading,
+    isDictionaryReloading,
+    translateText,
+    translateCharacterOnly,
+    consumeReloadTransition,
+    clearHighlighting,
+    setIsTranslating,
+    isTranslatingRef,
+    setResultArrays,
+    setStreamingText,
+    isClipboardTranslationRef,
+    resetClipboardFlag,
+    translationTextRef,
+  });
 
   /**
    * Reloads all dictionaries from storage and reinitializes translation engine

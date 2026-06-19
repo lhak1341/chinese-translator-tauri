@@ -86,3 +86,7 @@ Progressive batch state in `src/hooks/useStreamingTranslation.js`. Use `throttle
 ## Error Utilities
 
 Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of `error instanceof Error ? error.message : 'Unknown error'` — the inline form misses `string`, `{ message }`, and `null` inputs.
+
+## Appearance Style Memos — Static Constants
+
+`sharedTextStyle`, `inputTextStyle`, `outputTextStyle`, `characterOnlyTextStyle` in `Translator.jsx` use CSS variable string values (e.g. `'var(--chinese-text-font, ...)'`) with deps `[]` — static constants, not derived from `appearance` state. `useAppearanceSettings` is called only from `AppearanceManager.tsx`. Do not move these into the hook. See ADR-024.
