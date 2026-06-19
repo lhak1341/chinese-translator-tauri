@@ -94,10 +94,20 @@ export class DictionaryManager {
     };
 
     // WASM acceleration — provide wasmAdapter option to enable (omit for pure-JS / tests)
-    this.wasmLookup = options.wasmAdapter ? new DictionaryWasmLookup(options.wasmAdapter) : null;
+    this.wasmLookup = options.wasmAdapter
+      ? new DictionaryWasmLookup(options.wasmAdapter, {
+          getEntries: () => this._extractAllEntries(),
+          getPriorities: () => this._extractPriorityMap(),
+        })
+      : null;
     this._validationCallCount = 0;
     if (this.wasmLookup) {
-      this._initializeWasmBackground();
+      this.wasmLookup.startBackgroundInit({
+        maxMemoryMB: 15,
+        enableParallelLookups: this.enableParallelLookups,
+        maxParallelDictionaries: this.maxParallelDictionaries,
+        cacheSize: this.cache?.lookupCacheSize,
+      });
     }
   }
 
@@ -1087,26 +1097,6 @@ export class DictionaryManager {
   }
 
   // ─── WASM Acceleration ────────────────────────────────────────────────────
-
-  async _initializeWasmBackground() {
-    if (!this.wasmLookup) return;
-    const config = {
-      maxMemoryMB: 15,
-      enableParallelLookups: this.enableParallelLookups,
-      maxParallelDictionaries: this.maxParallelDictionaries,
-      cacheSize: this.cache?.lookupCacheSize,
-    };
-    const ok = await this.wasmLookup.initialize(config);
-    if (ok) {
-      await this.syncDictionariesToWasm();
-      this.log(1, '✅ WASM integration initialized successfully');
-    } else {
-      this.log(1, '⚠️ WASM initialization failed, using JavaScript fallback');
-      logger.warn(
-        '⚠️ [DictionaryManager] WASM initialization returned false, using JavaScript fallback'
-      );
-    }
-  }
 
   async syncDictionariesToWasm() {
     if (!this.wasmLookup?.isReady()) return;

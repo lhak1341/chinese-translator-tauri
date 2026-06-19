@@ -2,12 +2,14 @@ import { logger } from '../logger.js';
 import { validateWasmDictionaryMatch } from '../wasm/WasmBoundaryValidation.js';
 
 export class DictionaryWasmLookup {
-  constructor(wasmAdapter) {
+  constructor(wasmAdapter, { getEntries, getPriorities } = {}) {
     this._adapter = wasmAdapter;
     this._initialized = false;
     this._initPromise = null;
     this._priorityByName = new Map();
     this._stats = { wasmLookups: 0, wasmTotalTime: 0, wasmAverageTime: 0 };
+    this._getEntries = getEntries ?? null;
+    this._getPriorities = getPriorities ?? null;
   }
 
   async initialize(config) {
@@ -37,6 +39,16 @@ export class DictionaryWasmLookup {
 
   isReady() {
     return this._initialized && (this._adapter?.isReady() ?? false);
+  }
+
+  async startBackgroundInit(config) {
+    const ok = await this.initialize(config);
+    if (ok && this._getEntries) {
+      await this.sync(this._getEntries(), this._getPriorities?.());
+      logger.log('✅ [DictionaryWasmLookup] Background init complete — dictionaries synced');
+    } else if (!ok) {
+      logger.warn('⚠️ [DictionaryWasmLookup] Background init failed, using JavaScript fallback');
+    }
   }
 
   async sync(entriesByName, priorityByName) {

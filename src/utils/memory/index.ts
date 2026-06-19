@@ -16,6 +16,8 @@ export {
   type BackgroundCleanupStats,
 } from './BackgroundCleanupManager.js';
 
+export { SmartMemoryCoordinator } from './SmartMemoryCoordinator.js';
+
 export {
   ComponentMemoryProfiler,
   type MemorySnapshot,

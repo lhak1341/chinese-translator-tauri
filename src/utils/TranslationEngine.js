@@ -39,7 +39,7 @@
  *
  * 4. Smart Memory Management             (Lines 358-1168) [COUPLED]
  *    - initializeCoreEngine()            (Line 547)
- *    - initializeSmartMemoryManagement() (Line 634)
+ *    - SmartMemoryCoordinator            (constructed per translateWithProgressiveBatches call)
  *    - Critical: Cleanup must not interfere with translation
  *
  * 5. Engine Initialization               (Line 1169)      [COUPLED]
@@ -171,11 +171,7 @@ import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
 import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
-import {
-  SmartMemoryPressureDetector,
-  BackgroundCleanupManager,
-  ComponentMemoryProfiler,
-} from './memory/index.js';
+import { SmartMemoryCoordinator } from './memory/SmartMemoryCoordinator.js';
 import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
 import { systemPerformanceMonitor } from './performance/SystemPerformanceMonitor.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
@@ -599,146 +595,6 @@ export class TranslationEngine {
   // ============================================================================
 
   /**
-   * Initialize Smart Memory Management Refinements
-   * Enhances existing memory management without affecting core translation functionality
-   */
-  initializeSmartMemoryManagement() {
-    try {
-      // Smart memory pressure detector for more accurate cleanup triggers
-      this.smartMemoryDetector = new SmartMemoryPressureDetector({
-        lowPressure: 0.6, // 60% heap usage
-        mediumPressure: 0.75, // 75% heap usage
-        highPressure: 0.85, // 85% heap usage
-        criticalPressure: 0.95, // 95% heap usage
-        samplingInterval: 10000, // Sample every 10 seconds
-        growthThreshold: 15, // 15MB/minute growth rate threshold
-      });
-
-      // Background cleanup manager for non-urgent cleanup tasks
-      this.backgroundCleanup = new BackgroundCleanupManager();
-
-      // Component memory profiler for tracking memory usage by operation type
-      this.memoryProfiler = new ComponentMemoryProfiler();
-
-      // Set up smart cleanup callback
-      this.smartMemoryDetector.onMemoryEvent('cleanup', (cleanupEvent) => {
-        this.handleSmartCleanup(cleanupEvent);
-      });
-
-      // Set up monitoring callback for development insights
-      if (process.env.NODE_ENV === 'development') {
-        this.smartMemoryDetector.onMemoryEvent('monitoring', (data) => {
-          if (data.pressure.level === 'high' || data.pressure.level === 'critical') {
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🧠 Smart Memory: ${data.pressure.level} pressure (${(data.pressure.ratio * 100).toFixed(1)}%), growth: ${data.growthRate.toFixed(1)}MB/min`
-            );
-          }
-        });
-      }
-
-      this.log(DEBUG_LEVELS.DEBUG, '✅ Smart memory management refinements initialized');
-    } catch (error) {
-      this.log(
-        DEBUG_LEVELS.WARN,
-        '⚠️ Failed to initialize smart memory management:',
-        error.message
-      );
-      // Graceful degradation - continue with existing memory management
-      this.smartMemoryDetector = null;
-      this.backgroundCleanup = null;
-      this.memoryProfiler = null;
-    }
-  }
-
-  /**
-   * Handle smart cleanup events based on memory pressure and growth rate
-   */
-  handleSmartCleanup(cleanupEvent) {
-    const { urgency, pressure, growthRate } = cleanupEvent;
-
-    // Profile the cleanup operation
-    const profileId = this.memoryProfiler?.startProfiling(
-      'TranslationEngine',
-      `smart-cleanup-${urgency}`
-    );
-
-    try {
-      switch (urgency) {
-        case 'critical':
-          // Emergency cleanup - immediate action required
-          // Clear any pending background cleanups to prevent interference
-          if (this.backgroundCleanup) {
-            this.backgroundCleanup.clear();
-          }
-          this.performEmergencyCleanup();
-          this.log(
-            DEBUG_LEVELS.WARN,
-            `🚨 Emergency cleanup triggered: ${(pressure.ratio * 100).toFixed(1)}% memory usage`
-          );
-          break;
-
-        case 'high':
-          // High priority cleanup - process immediately
-          // Clear any pending background cleanups to prevent interference
-          if (this.backgroundCleanup) {
-            this.backgroundCleanup.clear();
-          }
-          this.performHighPriorityCleanup();
-          this.log(
-            DEBUG_LEVELS.INFO,
-            `🧹 High priority cleanup: ${(pressure.ratio * 100).toFixed(1)}% memory usage`
-          );
-          break;
-
-        case 'medium':
-          // Medium priority - queue for background processing
-          this.queueBackgroundCleanup('medium');
-          break;
-
-        case 'low':
-          // Low priority - queue for idle time processing
-          this.queueBackgroundCleanup('low');
-          break;
-      }
-    } catch (error) {
-      this.log(DEBUG_LEVELS.ERROR, '❌ Smart cleanup failed:', error.message);
-    } finally {
-      // Complete memory profiling
-      if (profileId) {
-        this.memoryProfiler?.completeProfiling(profileId, {
-          urgency,
-          pressureLevel: pressure.level,
-          memoryRatio: pressure.ratio,
-          growthRate,
-        });
-      }
-    }
-  }
-
-  /**
-   * Perform emergency cleanup - immediate and aggressive
-   */
-  performEmergencyCleanup() {
-    // Clear translation segments aggressively
-    if (this.translationSegments && this.translationSegments.length > 3) {
-      const oldCount = this.translationSegments.length;
-      this.translationSegments = this.translationSegments.slice(-3); // Keep only last 3
-      this.log(DEBUG_LEVELS.DEBUG, `🚨 Emergency: Cleared ${oldCount - 3} translation segments`);
-    }
-
-    // Force garbage collection if available
-    if (global.gc) {
-      global.gc();
-    }
-
-    // Clear semantic array builder cache if available
-    if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
-      this.semanticArrayBuilder.clearCache();
-    }
-  }
-
-  /**
    * Cleanup old translation segments to prevent memory leaks
    *
    * Removes oldest translation segments when exceeding device-specific threshold. This
@@ -796,174 +652,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Perform high priority cleanup - immediate but less aggressive
-   */
-  performHighPriorityCleanup() {
-    // Clear translation segments moderately
-    if (this.translationSegments && this.translationSegments.length > 5) {
-      const oldCount = this.translationSegments.length;
-      this.translationSegments = this.translationSegments.slice(-5); // Keep last 5
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🧹 High priority: Cleared ${oldCount - 5} translation segments`
-      );
-    }
-
-    // Clear performance history if it's getting large
-    if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 50) {
-      this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-20);
-    }
-  }
-
-  /**
-   * Queue cleanup tasks for background processing
-   */
-  queueBackgroundCleanup(priority) {
-    if (!this.backgroundCleanup) return;
-
-    // Queue cleanup tasks based on priority
-    const cleanupTasks = [
-      {
-        task: () => this.cleanupOldPerformanceData(),
-        priority: priority === 'low' ? 'low' : 'normal',
-      },
-      {
-        task: () => this.optimizeMemoryStructures(),
-        priority,
-      },
-    ];
-
-    cleanupTasks.forEach(({ task, priority }) => {
-      this.backgroundCleanup.queueCleanup(task, priority);
-    });
-  }
-
-  /**
-   * Clean up old performance data in background
-   */
-  cleanupOldPerformanceData() {
-    // Clean batch performance history
-    if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 100) {
-      this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-50);
-    }
-
-    // Clean memory tracker snapshots
-    if (this.memoryTracker && this.memoryTracker.snapshots) {
-      if (this.memoryTracker.snapshots.length > 25) {
-        this.memoryTracker.snapshots = this.memoryTracker.snapshots.slice(-15);
-      }
-    }
-
-    return true; // Indicate success
-  }
-
-  /**
-   * Optimize memory structures in background
-   */
-  optimizeMemoryStructures() {
-    // Trim translation segments to reasonable size
-    if (
-      this.translationSegments &&
-      this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-    ) {
-      this.translationSegments = this.translationSegments.slice(
-        -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-      );
-    }
-
-    // Optimize dictionary manager caches if available
-    if (this.dictionaryManager && typeof this.dictionaryManager.optimizeCaches === 'function') {
-      this.dictionaryManager.optimizeCaches();
-    }
-
-    return true; // Indicate success
-  }
-
-  /**
-   * Start memory profiling for a translation operation
-   */
-  startMemoryProfiling(operationName, operationId = 'default') {
-    if (!this.memoryProfiler) return null;
-    return this.memoryProfiler.startProfiling(operationName, operationId);
-  }
-
-  /**
-   * Complete memory profiling for a translation operation
-   */
-  completeMemoryProfiling(profileId, metadata = {}) {
-    if (!this.memoryProfiler || !profileId) return null;
-    return this.memoryProfiler.completeProfiling(profileId, metadata);
-  }
-
-  /**
-   * Get smart memory management statistics
-   */
-  getSmartMemoryStats() {
-    const stats = {
-      smartMemoryEnabled: !!this.smartMemoryDetector,
-      backgroundCleanupEnabled: !!this.backgroundCleanup,
-      memoryProfilingEnabled: !!this.memoryProfiler,
-    };
-
-    if (this.smartMemoryDetector) {
-      stats.memoryPressure = this.smartMemoryDetector.getStats();
-    }
-
-    if (this.backgroundCleanup) {
-      stats.backgroundCleanup = this.backgroundCleanup.getStats();
-    }
-
-    if (this.memoryProfiler) {
-      stats.memoryProfiling = this.memoryProfiler.getProfilerStats();
-      stats.topMemoryConsumers = this.memoryProfiler.getTopMemoryConsumers(5);
-    }
-
-    return stats;
-  }
-
-  /**
-   * Cleanup smart memory management systems on engine shutdown
-   *
-   * Stops all memory monitoring systems and clears their state. Called automatically
-   * by destroy() method. Use this directly if you need to stop memory monitoring
-   * without destroying the entire engine.
-   *
-   * Cleanup operations:
-   * - Stop smart memory pressure detector (clears intervals, event listeners)
-   * - Clear background cleanup manager (cancels pending cleanup tasks)
-   * - Disable memory profiler (stops tracking, clears profile data)
-   *
-   * @returns {void}
-   *
-   * @example
-   * // Shutdown memory monitoring only (rare - usually use destroy())
-   * engine.shutdownSmartMemoryManagement();
-   *
-   * @see destroy - Full engine cleanup (includes this method)
-   * @see initializeSmartMemoryManagement - Initializes memory systems
-   *
-   * @note
-   * After calling this, memory monitoring is disabled but engine remains functional.
-   * Memory systems will not be restarted - create a new engine instance if needed.
-   */
-  shutdownSmartMemoryManagement() {
-    if (this.smartMemoryDetector) {
-      this.smartMemoryDetector.stop();
-      this.smartMemoryDetector = null;
-    }
-
-    if (this.backgroundCleanup) {
-      this.backgroundCleanup.clear();
-      this.backgroundCleanup = null;
-    }
-
-    if (this.memoryProfiler) {
-      this.memoryProfiler.setEnabled(false);
-      this.memoryProfiler = null;
-    }
-  }
-
-  /**
    * Destroy the translation engine and cleanup all resources
    *
    * Performs comprehensive cleanup of all engine resources including memory management
@@ -1000,7 +688,8 @@ export class TranslationEngine {
    */
   destroy() {
     // Shutdown smart memory management (intervals, profilers)
-    this.shutdownSmartMemoryManagement();
+    this.memoryCoordinator?.shutdown();
+    this.memoryCoordinator = null;
 
     // Clear batch processing cache
     if (this.processedBatchCache) {
@@ -1322,7 +1011,10 @@ export class TranslationEngine {
     }
 
     // Start memory profiling for the translation operation
-    const memoryProfileId = this.startMemoryProfiling('TranslationEngine', 'main-translate');
+    const memoryProfileId = this.memoryCoordinator?.startProfiling(
+      'TranslationEngine',
+      'main-translate'
+    );
 
     try {
       // Pure JavaScript translation implementation (WASM removed for reliability)
@@ -1339,7 +1031,7 @@ export class TranslationEngine {
       return result;
     } catch (error) {
       // Complete memory profiling with error information
-      this.completeMemoryProfiling(memoryProfileId, {
+      this.memoryCoordinator?.completeProfiling(memoryProfileId, {
         error: error.message,
         textLength: text.length,
         useChunking: options.useChunking !== false,
@@ -1347,7 +1039,7 @@ export class TranslationEngine {
       throw error;
     } finally {
       // Complete memory profiling for successful translation
-      this.completeMemoryProfiling(memoryProfileId, {
+      this.memoryCoordinator?.completeProfiling(memoryProfileId, {
         textLength: text.length,
         useChunking: options.useChunking !== false,
         useRustEngine: false, // WASM Core Engine removed
@@ -4880,7 +4572,7 @@ export class TranslationEngine {
       tokenStats: Object.fromEntries(this.stats.tokenStats),
       dictionaryStats: this.dictionaryManager.getGlobalStats(),
       patternStats: this.semanticPatternProcessor.getDebugInfo(),
-      smartMemoryStats: this.getSmartMemoryStats(),
+      smartMemoryStats: this.memoryCoordinator?.getStats() ?? {},
     };
   }
 
@@ -5647,7 +5339,57 @@ export class TranslationEngine {
     };
 
     // Initialize smart memory management refinements
-    this.initializeSmartMemoryManagement();
+    this.memoryCoordinator = new SmartMemoryCoordinator({
+      pressureConfig: {
+        lowPressure: 0.6,
+        mediumPressure: 0.75,
+        highPressure: 0.85,
+        criticalPressure: 0.95,
+        samplingInterval: 10000,
+        growthThreshold: 15,
+      },
+      onEmergency: () => {
+        if (this.translationSegments && this.translationSegments.length > 3) {
+          this.translationSegments = this.translationSegments.slice(-3);
+        }
+        if (global.gc) global.gc();
+        if (
+          this.semanticArrayBuilder &&
+          typeof this.semanticArrayBuilder.clearCache === 'function'
+        ) {
+          this.semanticArrayBuilder.clearCache();
+        }
+      },
+      onHighPriority: () => {
+        if (this.translationSegments && this.translationSegments.length > 5) {
+          this.translationSegments = this.translationSegments.slice(-5);
+        }
+        if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 50) {
+          this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-20);
+        }
+      },
+      onBackground: () => {
+        if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 100) {
+          this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-50);
+        }
+        if (this.memoryTracker && this.memoryTracker.snapshots) {
+          if (this.memoryTracker.snapshots.length > 25) {
+            this.memoryTracker.snapshots = this.memoryTracker.snapshots.slice(-15);
+          }
+        }
+        if (
+          this.translationSegments &&
+          this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+        ) {
+          this.translationSegments = this.translationSegments.slice(
+            -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+          );
+        }
+        if (this.dictionaryManager && typeof this.dictionaryManager.optimizeCaches === 'function') {
+          this.dictionaryManager.optimizeCaches();
+        }
+      },
+    });
     let performanceBaseline = null;
 
     /**
