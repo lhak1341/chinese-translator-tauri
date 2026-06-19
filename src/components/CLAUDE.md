@@ -73,7 +73,7 @@ When engine init fails: `initializationError` is truthy AND `enginePhase === 'er
 
 ## `useCachePoisoningGuard` Hook — Cache Poisoning State Not in Translator
 
-`cachePoisoningDetected`, `cachePoisoningCount`, `cachePoisoningSeverity`, `cachePoisoningRecommendation`, and `dismissCachePoisoning` live in `src/hooks/useCachePoisoningGuard.ts`. `Translator.jsx` has no direct `@tauri-apps/api/event` import. Hook injects `listenFn = listen` as a default param for testability. `cachePoisoningRecommendation` comes from Rust payload (dynamic per event-count threshold) — the banner uses it instead of hardcoded text.
+Returns `{ poisoning: PoisoningEvent | null, dismiss }` from `src/hooks/useCachePoisoningGuard.ts`. `poisoning` is null when no event has fired (or after dismiss); non-null holds `{ count, recommendation }`. Hook fires `toast.error` internally on each Tauri event — do not fire toast in the caller. `Translator.jsx` has no direct `@tauri-apps/api/event` import. Hook injects `listenFn = listen` as a default param for testability.
 
 ## `useTranslationResults` Hook — Translation Output Fields
 

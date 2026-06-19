@@ -30,3 +30,11 @@ Nothing. The cluster stays in `Translator.jsx` as-is. The `HIGH-1` comment remai
 ## Consequence
 
 Future architecture reviews should not re-propose absorbing `wasmStatus`/`wasmStatusRef` into `useTranslatorEngine`. The blocker is `isTranslatingRef` coupling — revisit only if the borrow guard is removed (e.g., wasm-bindgen gains re-entrant `RefCell` support, or the polling strategy changes to a one-shot post-ready probe).
+
+---
+
+## Addendum — 2026-06-20: Standalone `useWasmStatus` hook also rejected
+
+A 2026-06-20 architecture review proposed extracting the cluster into a standalone `useWasmStatus(engineRef, enginePhase, isTranslatingRef)` hook rather than absorbing it into `useTranslatorEngine`.
+
+**Rejected for the same reason.** A standalone hook still requires `isTranslatingRef` as an injected parameter — the coupling is identical regardless of which hook receives it. The hook boundary does not eliminate the two-concern dependency; it just moves where the injection happens. The ADR-019 blocker (`isTranslatingRef` coupling + dev-only display) applies equally to any standalone extraction.

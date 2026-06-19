@@ -30,13 +30,10 @@ const basePayload = {
 describe('useCachePoisoningGuard', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('starts with no detection', () => {
+  it('starts with no poisoning', () => {
     const { listenFn } = makeListenFn();
     const { result } = renderHook(() => useCachePoisoningGuard(listenFn));
-    expect(result.current.cachePoisoningDetected).toBe(false);
-    expect(result.current.cachePoisoningCount).toBe(0);
-    expect(result.current.cachePoisoningSeverity).toBeNull();
-    expect(result.current.cachePoisoningRecommendation).toBeNull();
+    expect(result.current.poisoning).toBeNull();
   });
 
   it('subscribes to dictionary-cache-critical-error on mount', async () => {
@@ -46,7 +43,7 @@ describe('useCachePoisoningGuard', () => {
     expect(listenFn).toHaveBeenCalledWith('dictionary-cache-critical-error', expect.any(Function));
   });
 
-  it('sets detected + count + severity + recommendation on event', async () => {
+  it('sets poisoning event on event', async () => {
     const trigger = { fire: (_: unknown) => {} };
     const { listenFn } = makeListenFn(trigger);
     const { result } = renderHook(() => useCachePoisoningGuard(listenFn));
@@ -56,10 +53,7 @@ describe('useCachePoisoningGuard', () => {
       trigger.fire(basePayload);
     });
 
-    expect(result.current.cachePoisoningDetected).toBe(true);
-    expect(result.current.cachePoisoningCount).toBe(3);
-    expect(result.current.cachePoisoningSeverity).toBe('warning');
-    expect(result.current.cachePoisoningRecommendation).toBe('Save and restart.');
+    expect(result.current.poisoning).toEqual({ count: 3, recommendation: 'Save and restart.' });
   });
 
   it('fires toast with message + recommendation', async () => {
@@ -77,7 +71,7 @@ describe('useCachePoisoningGuard', () => {
     );
   });
 
-  it('updates count and recommendation on subsequent events', async () => {
+  it('updates poisoning on subsequent events', async () => {
     const trigger = { fire: (_: unknown) => {} };
     const { listenFn } = makeListenFn(trigger);
     const { result } = renderHook(() => useCachePoisoningGuard(listenFn));
@@ -95,14 +89,13 @@ describe('useCachePoisoningGuard', () => {
       });
     });
 
-    expect(result.current.cachePoisoningCount).toBe(101);
-    expect(result.current.cachePoisoningSeverity).toBe('critical');
-    expect(result.current.cachePoisoningRecommendation).toBe(
-      'Critical: Auto-restart in 30 seconds.'
-    );
+    expect(result.current.poisoning).toEqual({
+      count: 101,
+      recommendation: 'Critical: Auto-restart in 30 seconds.',
+    });
   });
 
-  it('dismissCachePoisoning resets detected to false', async () => {
+  it('dismiss resets poisoning to null', async () => {
     const trigger = { fire: (_: unknown) => {} };
     const { listenFn } = makeListenFn(trigger);
     const { result } = renderHook(() => useCachePoisoningGuard(listenFn));
@@ -110,12 +103,12 @@ describe('useCachePoisoningGuard', () => {
     await act(async () => {
       trigger.fire(basePayload);
     });
-    expect(result.current.cachePoisoningDetected).toBe(true);
+    expect(result.current.poisoning).not.toBeNull();
 
     act(() => {
-      result.current.dismissCachePoisoning();
+      result.current.dismiss();
     });
-    expect(result.current.cachePoisoningDetected).toBe(false);
+    expect(result.current.poisoning).toBeNull();
   });
 
   it('calls unsubscribe on unmount', async () => {
@@ -133,11 +126,10 @@ describe('useCachePoisoningGuard', () => {
     await act(async () => {});
     unmount();
 
-    // fire after unmount — isMounted guard should block state update
     act(() => {
       trigger.fire(basePayload);
     });
-    expect(result.current.cachePoisoningDetected).toBe(false);
+    expect(result.current.poisoning).toBeNull();
   });
 
   it('logs error when listen setup fails', async () => {
@@ -162,7 +154,7 @@ describe('useCachePoisoningGuard', () => {
     );
 
     const { unmount } = renderHook(() => useCachePoisoningGuard(listenFn));
-    unmount(); // unmount before listen resolves
+    unmount();
 
     await act(async () => {
       resolvePromise(unsub);

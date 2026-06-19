@@ -192,12 +192,7 @@ const Translator = ({ isActive = true }) => {
   const wasmStatusRef = useRef(null);
   wasmStatusRef.current = wasmStatus;
   const [activeTranslations, setActiveTranslations] = useState(0);
-  const {
-    cachePoisoningDetected,
-    cachePoisoningCount,
-    cachePoisoningRecommendation,
-    dismissCachePoisoning,
-  } = useCachePoisoningGuard();
+  const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
 
   // Refs for auto-scrolling to highlighted elements
   const originalTextRef = useRef(null);
@@ -1600,18 +1595,18 @@ const Translator = ({ isActive = true }) => {
         </div>
       )}
 
-      {cachePoisoningDetected && (
+      {poisoning !== null && (
         <div className={styles.criticalWarningBanner} role="alert">
           <div className={styles.errorHeader}>
             <strong className={styles.errorTitle}>🚨 Critical: Dictionary Cache Corruption</strong>
           </div>
           <div className={styles.errorMessage}>
-            Dictionary cache corruption has been detected ({cachePoisoningCount} event(s)). This may
+            Dictionary cache corruption has been detected ({poisoning.count} event(s)). This may
             cause incorrect translations or degraded performance.
           </div>
           <div className={styles.errorMessage}>
             <strong>Recommended action:</strong>{' '}
-            {cachePoisoningRecommendation ??
+            {poisoning.recommendation ||
               'Save your work and restart the application to ensure data integrity.'}
           </div>
           <div className={styles.errorActions}>

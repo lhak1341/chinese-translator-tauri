@@ -11,25 +11,20 @@ interface CachePoisoningPayload {
   recommendation: string;
 }
 
-export interface CachePoisoningState {
-  cachePoisoningDetected: boolean;
-  cachePoisoningCount: number;
-  cachePoisoningSeverity: 'warning' | 'critical' | null;
-  cachePoisoningRecommendation: string | null;
-  dismissCachePoisoning: () => void;
+export interface PoisoningEvent {
+  count: number;
+  recommendation: string;
+}
+
+export interface CachePoisoningGuard {
+  poisoning: PoisoningEvent | null;
+  dismiss: () => void;
 }
 
 type ListenFn = typeof listen;
 
-export function useCachePoisoningGuard(listenFn: ListenFn = listen): CachePoisoningState {
-  const [cachePoisoningDetected, setCachePoisoningDetected] = useState(false);
-  const [cachePoisoningCount, setCachePoisoningCount] = useState(0);
-  const [cachePoisoningSeverity, setCachePoisoningSeverity] = useState<
-    'warning' | 'critical' | null
-  >(null);
-  const [cachePoisoningRecommendation, setCachePoisoningRecommendation] = useState<string | null>(
-    null
-  );
+export function useCachePoisoningGuard(listenFn: ListenFn = listen): CachePoisoningGuard {
+  const [poisoning, setPoisoning] = useState<PoisoningEvent | null>(null);
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -44,12 +39,9 @@ export function useCachePoisoningGuard(listenFn: ListenFn = listen): CachePoison
 
             logger.error('🚨 Dictionary cache critical error detected:', event.payload);
 
-            const { event_count, severity, message, recommendation } = event.payload;
+            const { event_count, message, recommendation } = event.payload;
 
-            setCachePoisoningDetected(true);
-            setCachePoisoningCount(event_count || 0);
-            setCachePoisoningSeverity(severity || 'warning');
-            setCachePoisoningRecommendation(recommendation || null);
+            setPoisoning({ count: event_count || 0, recommendation: recommendation || '' });
 
             toast.error(`${message}\n\n${recommendation}`, {
               duration: TOAST_DURATIONS.ERROR,
@@ -79,11 +71,5 @@ export function useCachePoisoningGuard(listenFn: ListenFn = listen): CachePoison
     // listenFn captured at mount — stable by contract (module default or test mock)
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return {
-    cachePoisoningDetected,
-    cachePoisoningCount,
-    cachePoisoningSeverity,
-    cachePoisoningRecommendation,
-    dismissCachePoisoning: () => setCachePoisoningDetected(false),
-  };
+  return { poisoning, dismiss: () => setPoisoning(null) };
 }
