@@ -35,6 +35,7 @@ import {
   MAX_SAFE_SEGMENTS,
   HIGHLIGHT_SCROLL_DELAY_MS,
 } from '../utils/highlighting/semanticArrayConstants';
+import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 
 // ============================================================================
 // TRANSLATOR COMPONENT - MAIN UI COORDINATOR
@@ -265,16 +266,7 @@ const Translator = ({ isActive = true }) => {
     });
     registerCacheInvalidator((id) => engineRef.current?.invalidateDictionaryCaches(id));
     if (process.env.NODE_ENV === 'development') {
-      window.translationEngine = engineRef.current;
-      window.runPatternParityTests = async () => {
-        const processor = engineRef.current?.twoPhasePatternProcessor;
-        if (!processor) {
-          logger.error('❌ TwoPhasePatternProcessor not available');
-          return;
-        }
-        const { runAllParityTests } = await import('../utils/__benchmarks__/PatternParityTest.js');
-        return await runAllParityTests(processor);
-      };
+      installDevConsole(engineRef.current);
     }
   }, [enginePhase, registerCacheInvalidator]);
 
@@ -1001,12 +993,7 @@ const Translator = ({ isActive = true }) => {
   const dictionaryCache = new Map();
   const MAX_DICTIONARY_CACHE_SIZE = 10; // Limit recent combinations
 
-  useAutoTranslateTrigger({
-    inputText,
-    isLoading,
-    isDictionaryReloading,
-    translateText,
-    translateCharacterOnly,
+  const executionCtx = {
     consumeReloadTransition,
     clearHighlighting,
     setIsTranslating,
@@ -1016,6 +1003,15 @@ const Translator = ({ isActive = true }) => {
     isClipboardTranslationRef,
     resetClipboardFlag,
     translationTextRef,
+  };
+
+  useAutoTranslateTrigger({
+    inputText,
+    isLoading,
+    isDictionaryReloading,
+    translateText,
+    translateCharacterOnly,
+    ctx: executionCtx,
   });
 
   /**

@@ -7,6 +7,18 @@ import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import type { SemanticArrays } from '../utils/highlighting';
 
+export interface TranslationExecutionContext {
+  consumeReloadTransition: () => boolean;
+  clearHighlighting: () => void;
+  setIsTranslating: (v: boolean) => void;
+  isTranslatingRef: MutableRefObject<boolean>;
+  setResultArrays: (arrays: SemanticArrays | null, segs?: unknown[]) => void;
+  setStreamingText: (text: string) => void;
+  isClipboardTranslationRef: RefObject<boolean>;
+  resetClipboardFlag: () => void;
+  translationTextRef: RefObject<HTMLElement | null>;
+}
+
 interface UseAutoTranslateTriggerOptions {
   // Trigger signals — effect deps
   inputText: string;
@@ -14,18 +26,8 @@ interface UseAutoTranslateTriggerOptions {
   isDictionaryReloading: boolean;
   translateText: (text: string) => Promise<string>;
   translateCharacterOnly: (text: string) => void;
-  // Guard — stable ref-fn, safe to exclude from deps
-  consumeReloadTransition: () => boolean;
-  // Translation state — stable setters
-  clearHighlighting: () => void;
-  setIsTranslating: (v: boolean) => void;
-  isTranslatingRef: MutableRefObject<boolean>;
-  setResultArrays: (arrays: SemanticArrays | null, segs?: unknown[]) => void;
-  setStreamingText: (text: string) => void;
-  // Clipboard post-processing — stable refs
-  isClipboardTranslationRef: RefObject<boolean>;
-  resetClipboardFlag: () => void;
-  translationTextRef: RefObject<HTMLElement | null>;
+  // Stable execution context — assembled once by the caller, excluded from deps
+  ctx: TranslationExecutionContext;
 }
 
 /**
@@ -43,16 +45,19 @@ export function useAutoTranslateTrigger({
   isDictionaryReloading,
   translateText,
   translateCharacterOnly,
-  consumeReloadTransition,
-  clearHighlighting,
-  setIsTranslating,
-  isTranslatingRef,
-  setResultArrays,
-  setStreamingText,
-  isClipboardTranslationRef,
-  resetClipboardFlag,
-  translationTextRef,
+  ctx,
 }: UseAutoTranslateTriggerOptions): void {
+  const {
+    consumeReloadTransition,
+    clearHighlighting,
+    setIsTranslating,
+    isTranslatingRef,
+    setResultArrays,
+    setStreamingText,
+    isClipboardTranslationRef,
+    resetClipboardFlag,
+    translationTextRef,
+  } = ctx;
   useEffect(() => {
     const run = async () => {
       try {
@@ -116,10 +121,7 @@ export function useAutoTranslateTrigger({
     };
 
     run();
-    // Stable params (consumeReloadTransition, clearHighlighting, setIsTranslating,
-    // isTranslatingRef, setResultArrays, setStreamingText, isClipboardTranslationRef,
-    // resetClipboardFlag, translationTextRef) excluded — refs and callbacks are stable
-    // across renders and safe to read at call time.
+    // ctx holds stable refs/callbacks — excluded from deps; safe to read at call time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputText, isLoading, isDictionaryReloading, translateCharacterOnly, translateText]);
 }
