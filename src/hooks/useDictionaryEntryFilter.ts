@@ -22,15 +22,15 @@ export function useDictionaryEntryFilter(
   showFilterPanel: boolean;
   setShowFilterPanel: Dispatch<SetStateAction<boolean>>;
   filterVariable: 'all' | 'allowed' | 'not-allowed';
-  setFilterVariable: Dispatch<SetStateAction<'all' | 'allowed' | 'not-allowed'>>;
   filterSemanticTypes: Set<string>;
-  setFilterSemanticTypes: Dispatch<SetStateAction<Set<string>>>;
   filterPatternType: Set<string>;
-  setFilterPatternType: Dispatch<SetStateAction<Set<string>>>;
   filterAllowAsVariable: boolean;
-  setFilterAllowAsVariable: Dispatch<SetStateAction<boolean>>;
   filterLowPriority: boolean;
-  setFilterLowPriority: Dispatch<SetStateAction<boolean>>;
+  toggleSemanticType: (type: string) => void;
+  togglePatternType: (type: 'x-only' | 'x-y') => void;
+  toggleFlag: (flag: 'allowAsVariable' | 'lowPriority') => void;
+  setVariable: (v: 'all' | 'allowed' | 'not-allowed') => void;
+  clearFilters: () => void;
   resetFilters: (newSelectedDictionary: string) => void;
 } {
   const [searchTerm, setSearchTerm] = useState('');
@@ -181,6 +181,41 @@ export function useDictionaryEntryFilter(
     return indices;
   }, [filteredDuplicateRows, showDuplicatesMode]);
 
+  const toggleSemanticType = useCallback((type: string): void => {
+    setFilterSemanticTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }, []);
+
+  const togglePatternType = useCallback((type: 'x-only' | 'x-y'): void => {
+    setFilterPatternType((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }, []);
+
+  const toggleFlag = useCallback((flag: 'allowAsVariable' | 'lowPriority'): void => {
+    if (flag === 'allowAsVariable') setFilterAllowAsVariable((v) => !v);
+    else setFilterLowPriority((v) => !v);
+  }, []);
+
+  const setVariable = useCallback((v: 'all' | 'allowed' | 'not-allowed'): void => {
+    setFilterVariable(v);
+  }, []);
+
+  const clearFilters = useCallback((): void => {
+    setFilterVariable('all');
+    setFilterSemanticTypes(new Set());
+    setFilterPatternType(new Set());
+    setFilterAllowAsVariable(false);
+    setFilterLowPriority(false);
+  }, []);
+
   return {
     filteredEntries,
     filteredDuplicateRows,
@@ -192,15 +227,15 @@ export function useDictionaryEntryFilter(
     showFilterPanel,
     setShowFilterPanel,
     filterVariable,
-    setFilterVariable,
     filterSemanticTypes,
-    setFilterSemanticTypes,
     filterPatternType,
-    setFilterPatternType,
     filterAllowAsVariable,
-    setFilterAllowAsVariable,
     filterLowPriority,
-    setFilterLowPriority,
+    toggleSemanticType,
+    togglePatternType,
+    toggleFlag,
+    setVariable,
+    clearFilters,
     resetFilters,
   };
 }

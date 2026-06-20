@@ -12,17 +12,14 @@ const dictionaries: Record<string, DictionaryData> = {
   [DICT_ID]: { [SOURCE]: phraseEntry },
 };
 
-function makeScrollRef(scrollTop = 0) {
-  return { current: { scrollTop } } as unknown as React.RefObject<HTMLElement>;
-}
-
 function makeParams(overrides: Partial<Parameters<typeof useEntryEditAndMove>[0]> = {}) {
   return {
     dictionaries,
     selectedDictionary: DICT_ID,
     updateEntry: vi.fn().mockResolvedValue(undefined),
-    scrollRef: makeScrollRef(300),
-    setScrollTop: vi.fn(),
+    withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
+      await fn();
+    }),
     ...overrides,
   };
 }
@@ -116,7 +113,22 @@ describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
     expect(updateEntry).toHaveBeenCalledWith(DICT_ID, SOURCE, SOURCE, TRANSLATION, metadata);
   });
 
-  it('propagates updateEntry rejection (finally clears isUpdating)', async () => {
+  it('delegates to withScrollPreservation', async () => {
+    const withScrollPreservation = vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
+      await fn();
+    });
+    const { result } = renderHook(() =>
+      useEntryEditAndMove(makeParams({ withScrollPreservation }))
+    );
+
+    await act(async () => {
+      await result.current.updateEntryWithScrollPreservation(DICT_ID, SOURCE, SOURCE, TRANSLATION);
+    });
+
+    expect(withScrollPreservation).toHaveBeenCalledOnce();
+  });
+
+  it('propagates updateEntry rejection', async () => {
     const updateEntry = vi.fn().mockRejectedValue(new Error('save failed'));
     const { result } = renderHook(() => useEntryEditAndMove(makeParams({ updateEntry })));
 
@@ -132,29 +144,6 @@ describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
     ).rejects.toThrow('save failed');
 
     expect(updateEntry).toHaveBeenCalled();
-  });
-
-  it('restores scroll position via setScrollTop after update', async () => {
-    const rafCalls: FrameRequestCallback[] = [];
-    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
-      rafCalls.push(cb);
-      return 0;
-    });
-
-    const setScrollTop = vi.fn();
-    const scrollRef = makeScrollRef(400);
-    const { result } = renderHook(() =>
-      useEntryEditAndMove(makeParams({ scrollRef, setScrollTop }))
-    );
-
-    await act(async () => {
-      await result.current.updateEntryWithScrollPreservation(DICT_ID, SOURCE, SOURCE, TRANSLATION);
-    });
-
-    act(() => rafCalls.forEach((cb) => cb(0)));
-    expect(setScrollTop).toHaveBeenCalledWith(400);
-
-    vi.restoreAllMocks();
   });
 });
 

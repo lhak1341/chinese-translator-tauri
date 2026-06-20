@@ -23,20 +23,16 @@ const phrases: DictionaryData = {
 };
 const dicts: Record<string, DictionaryData> = { phrases };
 
-function makeScrollRef(scrollTop = 0) {
-  return {
-    current: { scrollTop } as HTMLDivElement,
-  };
-}
-
 function makeProps(overrides = {}) {
   return {
     selectedDictionary: 'phrases',
     filteredEntries: Object.entries(phrases) as [string, DictionaryEntryValue][],
     dictionaries: dicts,
     showDuplicatesMode: false,
-    scrollRef: makeScrollRef(),
-    setScrollTop: vi.fn(),
+    withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
+      await fn();
+    }),
+    getScrollTop: vi.fn().mockReturnValue(0),
     bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 2, errors: [] }),
     onRefreshDuplicates: undefined,
     onScrollSave: undefined,

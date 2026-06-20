@@ -69,15 +69,30 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 ## `useEntryEditAndMove` Hook — Edit/Move State Not in EVDT
 
-`editingEntry`, `moveEntry`, `isUpdating`, `preservedScrollTop`, `updateEntryWithScrollPreservation`, `onContextMenuEdit`, `onContextMenuMove` live in `src/hooks/useEntryEditAndMove.ts`. EVDT uses `reset: resetEditAndMove` in the dict-switch effect to clear all four state fields atomically. **Scroll-preservation invariant**: `preservedScrollTop` is captured BEFORE `isUpdating=true`; the RAF-based restore fires only when `isUpdating` transitions false with a non-null `preservedScrollTop`. The restore `useEffect` has an intentional eslint-disable — `scrollRef`/`setScrollTop` are excluded from deps to prevent the RAF from firing on every scroll event.
+`editingEntry`, `moveEntry`, `updateEntryWithScrollPreservation`, `onContextMenuEdit`, `onContextMenuMove` live in `src/hooks/useEntryEditAndMove.ts`. EVDT uses `reset: resetEditAndMove` in the dict-switch effect to clear both state fields atomically. Hook takes `withScrollPreservation` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` leak to callers. `updateEntryWithScrollPreservation` delegates directly to `withScrollPreservation(fn)`.
 
 ## `useEntrySelection` Hook — Selection State Not in EVDT
 
-`showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT.
+`showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT. Hook takes `withScrollPreservation` + `getScrollTop` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` in its interface. `getScrollTop()` used by the duplicate-mode bulk-delete to capture position before async refresh.
 
 ## `useDictionaryEntryFilter` Hook — Filter State Not in EVDT
 
-All filter state lives in `src/hooks/useDictionaryEntryFilter.ts`. Call as `useDictionaryEntryFilter(dicts, selectedDictionary, duplicateRows, showDuplicatesMode)` — the old `DictionaryEntryFilters` filters-object 4th param is **deleted**. Destructure: filter state + setters (`setFilterVariable`, `setFilterSemanticTypes`, `setFilterPatternType`, `setFilterAllowAsVariable`, `setFilterLowPriority`, `setShowFilterPanel`, `setSearchTerm`) + `debouncedSearchTerm` (used by EVDT's scroll-reset effect — must be destructured) + `hasActiveFilter` + `resetFilters(newSelectedDictionary)`. Setters are `Dispatch<SetStateAction<T>>` — functional updater form `(prev) => ...` works. `resetFilters` is called from the `selectedDictionary` coordinator effect alongside `resetEditAndMove`/`resetSelection`/`closeContextMenu`/`scroll.resetScroll`.
+All filter state lives in `src/hooks/useDictionaryEntryFilter.ts`. Call as `useDictionaryEntryFilter(dicts, selectedDictionary, duplicateRows, showDuplicatesMode)`.
+
+**Named operations (use these — no raw setters escape the hook):**
+
+- `toggleSemanticType(type: string)` — toggle one semantic type in/out of the active filter set
+- `togglePatternType(type: 'x-only' | 'x-y')` — toggle one pattern shape filter
+- `toggleFlag(flag: 'allowAsVariable' | 'lowPriority')` — toggle a boolean flag filter
+- `setVariable(v: 'all' | 'allowed' | 'not-allowed')` — set the variable filter to an explicit value
+- `clearFilters()` — reset all filter dimensions atomically (used by the "Clear filters" button)
+- `resetFilters(newSelectedDictionary)` — smart reset on dict switch: clears only filters inapplicable to the new dict type. Called from the `selectedDictionary` coordinator effect alongside `resetEditAndMove`/`resetSelection`/`closeContextMenu`/`scroll.resetScroll`.
+
+**Read-only state (for `.has()` / `isActive` checks in JSX):** `filterSemanticTypes`, `filterPatternType`, `filterAllowAsVariable`, `filterLowPriority`, `filterVariable`.
+
+**Raw setters that still escape (UI-only, no filter logic):** `setSearchTerm`, `setShowFilterPanel`.
+
+`debouncedSearchTerm` must be destructured — used by EVDT's scroll-reset effect. All named operation callbacks are stable (`useCallback(fn, [])` with functional updaters internally — no Set state in deps).
 
 ## Hook Tests — jsdom Gotchas
 

@@ -28,6 +28,8 @@ export interface UseVirtualScrollRangeResult {
   isScrolling: boolean;
   scrollVelocity: number;
   containerHeight: number;
+  withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
+  getScrollTop: () => number;
 }
 
 export function useVirtualScrollRange(
@@ -173,6 +175,22 @@ export function useVirtualScrollRange(
     lastScrollTop.current = 0;
   }, []);
 
+  const withScrollPreservation = useCallback(
+    async (asyncFn: () => Promise<void>): Promise<void> => {
+      const savedScroll = scrollRef.current?.scrollTop ?? 0;
+      await asyncFn();
+      requestAnimationFrame(() => {
+        if (scrollRef.current && scrollRef.current.scrollTop !== savedScroll) {
+          scrollRef.current.scrollTop = savedScroll;
+          setScrollTop(savedScroll);
+        }
+      });
+    },
+    []
+  );
+
+  const getScrollTop = useCallback((): number => scrollRef.current?.scrollTop ?? 0, []);
+
   // Restore scroll position from parent (survives unmount/remount).
   // RAF-retry waits for the virtualized list to finish rendering before restoring.
   useEffect(() => {
@@ -214,5 +232,7 @@ export function useVirtualScrollRange(
     isScrolling,
     scrollVelocity,
     containerHeight,
+    withScrollPreservation,
+    getScrollTop,
   };
 }

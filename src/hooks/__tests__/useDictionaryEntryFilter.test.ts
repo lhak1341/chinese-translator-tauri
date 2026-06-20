@@ -102,7 +102,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterVariable=allowed shows only allowAsPatternVariable=true', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterVariable('allowed');
+      result.current.setVariable('allowed');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).toContain('凤凰');
@@ -114,7 +114,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterVariable=not-allowed excludes allowAsPatternVariable=true', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterVariable('not-allowed');
+      result.current.setVariable('not-allowed');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).not.toContain('凤凰');
@@ -125,7 +125,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterPatternType=x-only shows X patterns without Y', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
     act(() => {
-      result.current.setFilterPatternType(new Set(['x-only']));
+      result.current.togglePatternType('x-only');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).toContain('X的弟子');
@@ -136,7 +136,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterPatternType=x-y shows patterns with both X and Y', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
     act(() => {
-      result.current.setFilterPatternType(new Set(['x-y']));
+      result.current.togglePatternType('x-y');
     });
     expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['X和Y']);
   });
@@ -144,7 +144,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterAllowAsVariable shows only allowAsPatternVariable=true', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterAllowAsVariable(true);
+      result.current.toggleFlag('allowAsVariable');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).toContain('凤凰');
@@ -155,7 +155,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterLowPriority shows only lowPriority=true', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterLowPriority(true);
+      result.current.toggleFlag('lowPriority');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).toContain('仙人');
@@ -167,7 +167,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterSemanticTypes filters by specific type', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterSemanticTypes(new Set(['character']));
+      result.current.toggleSemanticType('character');
     });
     expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['圣人']);
   });
@@ -175,7 +175,8 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterSemanticTypes with "none" includes untyped entries', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterSemanticTypes(new Set(['none', 'character']));
+      result.current.toggleSemanticType('none');
+      result.current.toggleSemanticType('character');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).toHaveLength(5);
@@ -184,7 +185,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
   it('filterSemanticTypes with only "none" excludes typed entries', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterSemanticTypes(new Set(['none']));
+      result.current.toggleSemanticType('none');
     });
     const sources = result.current.filteredEntries.map(([s]) => s);
     expect(sources).not.toContain('圣人');
@@ -195,7 +196,7 @@ describe('useDictionaryEntryFilter — filter state', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
       result.current.setSearchTerm('真');
-      result.current.setFilterLowPriority(true);
+      result.current.toggleFlag('lowPriority');
     });
     act(() => {
       vi.runAllTimers();
@@ -208,7 +209,7 @@ describe('useDictionaryEntryFilter — hasActiveFilter', () => {
   it('is true when filterVariable set', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterVariable('allowed');
+      result.current.setVariable('allowed');
     });
     expect(result.current.hasActiveFilter).toBe(true);
   });
@@ -216,7 +217,7 @@ describe('useDictionaryEntryFilter — hasActiveFilter', () => {
   it('is true when filterSemanticTypes non-empty', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterSemanticTypes(new Set(['character']));
+      result.current.toggleSemanticType('character');
     });
     expect(result.current.hasActiveFilter).toBe(true);
   });
@@ -224,7 +225,7 @@ describe('useDictionaryEntryFilter — hasActiveFilter', () => {
   it('is true when filterAllowAsVariable set', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterAllowAsVariable(true);
+      result.current.toggleFlag('allowAsVariable');
     });
     expect(result.current.hasActiveFilter).toBe(true);
   });
@@ -245,9 +246,9 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
   it('resets pattern-specific filters when leaving patterns', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
     act(() => {
-      result.current.setFilterPatternType(new Set(['x-only']));
-      result.current.setFilterAllowAsVariable(true);
-      result.current.setFilterLowPriority(true);
+      result.current.togglePatternType('x-only');
+      result.current.toggleFlag('allowAsVariable');
+      result.current.toggleFlag('lowPriority');
     });
     act(() => {
       result.current.resetFilters('phrases');
@@ -260,7 +261,7 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
   it('keeps pattern filters when staying on patterns', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
     act(() => {
-      result.current.setFilterPatternType(new Set(['x-only']));
+      result.current.togglePatternType('x-only');
     });
     act(() => {
       result.current.resetFilters('patterns');
@@ -271,7 +272,7 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
   it('resets filterVariable when leaving phrases', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterVariable('allowed');
+      result.current.setVariable('allowed');
     });
     act(() => {
       result.current.resetFilters('patterns');
@@ -282,7 +283,7 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
   it('keeps filterVariable when staying on phrases', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterVariable('allowed');
+      result.current.setVariable('allowed');
     });
     act(() => {
       result.current.resetFilters('phrases');
@@ -293,7 +294,7 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
   it('keeps filterSemanticTypes when switching to proper nouns', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterSemanticTypes(new Set(['character']));
+      result.current.toggleSemanticType('character');
     });
     act(() => {
       result.current.resetFilters('properNouns-test');
@@ -304,7 +305,7 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
   it('resets filterSemanticTypes when switching to characters dict', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
-      result.current.setFilterSemanticTypes(new Set(['character']));
+      result.current.toggleSemanticType('character');
     });
     act(() => {
       result.current.resetFilters('characters');

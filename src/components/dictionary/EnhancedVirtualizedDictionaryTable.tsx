@@ -93,15 +93,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     showFilterPanel,
     setShowFilterPanel,
     filterVariable,
-    setFilterVariable,
     filterSemanticTypes,
-    setFilterSemanticTypes,
     filterPatternType,
-    setFilterPatternType,
     filterAllowAsVariable,
-    setFilterAllowAsVariable,
     filterLowPriority,
-    setFilterLowPriority,
+    toggleSemanticType,
+    togglePatternType,
+    toggleFlag,
+    setVariable,
+    clearFilters,
     resetFilters,
   } = useDictionaryEntryFilter(dictionaries, selectedDictionary, duplicateRows, showDuplicatesMode);
 
@@ -126,8 +126,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     filteredEntries,
     dictionaries,
     showDuplicatesMode,
-    scrollRef: scroll.scrollRef,
-    setScrollTop: scroll.setScrollTop,
+    withScrollPreservation: scroll.withScrollPreservation,
+    getScrollTop: scroll.getScrollTop,
     bulkDeleteEntries,
     onRefreshDuplicates,
     onScrollSave,
@@ -168,8 +168,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     dictionaries,
     selectedDictionary,
     updateEntry,
-    scrollRef: scroll.scrollRef as React.RefObject<HTMLElement>,
-    setScrollTop: scroll.setScrollTop,
+    withScrollPreservation: scroll.withScrollPreservation,
   });
 
   const onContextMenuDelete = useCallback(
@@ -361,14 +360,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   return (
                     <button
                       key={key}
-                      onClick={() => {
-                        setFilterPatternType((prev) => {
-                          const next = new Set(prev);
-                          if (isActive) next.delete(key);
-                          else next.add(key);
-                          return next;
-                        });
-                      }}
+                      onClick={() => togglePatternType(key)}
                       style={{
                         padding: '0.2rem 0.5rem',
                         fontSize: '0.75rem',
@@ -391,18 +383,13 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </span>
                 {(
                   [
-                    [
-                      filterAllowAsVariable,
-                      setFilterAllowAsVariable,
-                      'Allow as Variable',
-                      '#059669',
-                    ],
-                    [filterLowPriority, setFilterLowPriority, 'Low Priority', '#dc2626'],
+                    [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
+                    [filterLowPriority, 'lowPriority', 'Low Priority', '#dc2626'],
                   ] as const
-                ).map(([isActive, setter, label, color]) => (
+                ).map(([isActive, flag, label, color]) => (
                   <button
                     key={label}
-                    onClick={() => setter((v: boolean) => !v)}
+                    onClick={() => toggleFlag(flag)}
                     style={{
                       padding: '0.2rem 0.5rem',
                       fontSize: '0.75rem',
@@ -428,7 +415,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
                 <button
                   key={opt}
-                  onClick={() => setFilterVariable(opt)}
+                  onClick={() => setVariable(opt)}
                   style={{
                     padding: '0.2rem 0.5rem',
                     fontSize: '0.75rem',
@@ -455,14 +442,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 return (
                   <button
                     key={type}
-                    onClick={() => {
-                      setFilterSemanticTypes((prev) => {
-                        const next = new Set(prev);
-                        if (isActive) next.delete(type);
-                        else next.add(type);
-                        return next;
-                      });
-                    }}
+                    onClick={() => toggleSemanticType(type)}
                     style={{
                       padding: '0.2rem 0.5rem',
                       fontSize: '0.75rem',
@@ -479,14 +459,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 );
               })}
               <button
-                onClick={() => {
-                  setFilterSemanticTypes((prev) => {
-                    const next = new Set(prev);
-                    if (next.has('none')) next.delete('none');
-                    else next.add('none');
-                    return next;
-                  });
-                }}
+                onClick={() => toggleSemanticType('none')}
                 style={{
                   padding: '0.2rem 0.5rem',
                   fontSize: '0.75rem',
@@ -505,13 +478,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           )}
           {hasActiveFilter && (
             <button
-              onClick={() => {
-                setFilterVariable('all');
-                setFilterSemanticTypes(new Set());
-                setFilterPatternType(new Set());
-                setFilterAllowAsVariable(false);
-                setFilterLowPriority(false);
-              }}
+              onClick={clearFilters}
               style={{
                 padding: '0.2rem 0.5rem',
                 fontSize: '0.75rem',

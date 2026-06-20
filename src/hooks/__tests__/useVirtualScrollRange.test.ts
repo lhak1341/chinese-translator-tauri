@@ -183,6 +183,89 @@ describe('scrollRestore', () => {
   });
 });
 
+// ─── withScrollPreservation ──────────────────────────────────────────────────
+
+describe('withScrollPreservation', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('calls asyncFn', async () => {
+    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
+    const fn = vi.fn().mockResolvedValue(undefined);
+    await act(async () => {
+      await result.current.withScrollPreservation(fn);
+    });
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it('restores scrollTop via RAF when DOM scrollTop drifted after async op', async () => {
+    const rafCalls: FrameRequestCallback[] = [];
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCalls.push(cb);
+      return 0;
+    });
+
+    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
+
+    // Simulate scrollRef pointing at a node with scrollTop=300
+    const fakeNode = { scrollTop: 300 } as HTMLDivElement;
+    (result.current.scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = fakeNode;
+
+    const fn = vi.fn().mockImplementation(async () => {
+      // Simulate React re-render jumping scroll to 0
+      fakeNode.scrollTop = 0;
+    });
+
+    await act(async () => {
+      await result.current.withScrollPreservation(fn);
+    });
+
+    // RAF fires — scroll drifted (300→0), so restore
+    act(() => rafCalls.forEach((cb) => cb(0)));
+    expect(fakeNode.scrollTop).toBe(300);
+  });
+
+  it('does not write scrollTop when DOM did not drift', async () => {
+    const rafCalls: FrameRequestCallback[] = [];
+    vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+      rafCalls.push(cb);
+      return 0;
+    });
+
+    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
+
+    const fakeNode = { scrollTop: 300 } as HTMLDivElement;
+    (result.current.scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = fakeNode;
+
+    const fn = vi.fn().mockResolvedValue(undefined); // scrollTop stays at 300
+
+    await act(async () => {
+      await result.current.withScrollPreservation(fn);
+    });
+
+    // Track whether setScrollTop was called by checking state update
+    const setScrollTopSpy = vi.spyOn(result.current, 'setScrollTop' as any);
+    act(() => rafCalls.forEach((cb) => cb(0)));
+    // No drift → setScrollTop not called
+    expect(setScrollTopSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ─── getScrollTop ─────────────────────────────────────────────────────────────
+
+describe('getScrollTop', () => {
+  it('returns 0 when scrollRef is not mounted', () => {
+    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
+    expect(result.current.getScrollTop()).toBe(0);
+  });
+
+  it('returns current DOM scrollTop when scrollRef is mounted', () => {
+    const { result } = renderHook(() => useVirtualScrollRange(50, makeOptions()));
+    const fakeNode = { scrollTop: 450 } as HTMLDivElement;
+    (result.current.scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = fakeNode;
+    expect(result.current.getScrollTop()).toBe(450);
+  });
+});
+
 // ─── adaptive buffer sizing ───────────────────────────────────────────────────
 
 describe('adaptive buffer sizing', () => {

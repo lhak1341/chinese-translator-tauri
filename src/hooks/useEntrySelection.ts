@@ -22,8 +22,8 @@ interface UseEntrySelectionDeps {
   filteredEntries: [string, DictionaryEntryValue][];
   dictionaries: Record<string, DictionaryData>;
   showDuplicatesMode: boolean;
-  scrollRef: React.RefObject<HTMLDivElement | null>;
-  setScrollTop: (top: number) => void;
+  withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
+  getScrollTop: () => number;
   bulkDeleteEntries: (dictId: string, sources: string[]) => Promise<BulkDeleteResult>;
   onRefreshDuplicates?: (reloadFromBackend?: boolean) => Promise<void>;
   onScrollSave?: (position: number | null) => void;
@@ -35,8 +35,8 @@ export function useEntrySelection({
   filteredEntries,
   dictionaries,
   showDuplicatesMode,
-  scrollRef,
-  setScrollTop,
+  withScrollPreservation,
+  getScrollTop,
   bulkDeleteEntries,
   onRefreshDuplicates,
   onScrollSave,
@@ -59,49 +59,33 @@ export function useEntrySelection({
 
   const handleSelectEntry = useCallback(
     (source: string, isSelected: boolean): void => {
-      // BUGFIX: Use scrollRef.current directly to avoid infinite loop
-      const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
-
-      setSelectedEntries((prev) => {
-        const newSet = new Set(prev);
-        if (isSelected) {
-          newSet.add(source);
-        } else {
-          newSet.delete(source);
-        }
-        return newSet;
-      });
-
-      requestAnimationFrame(() => {
-        if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-          scrollRef.current.scrollTop = currentScrollTop;
-          setScrollTop(currentScrollTop);
-        }
+      void withScrollPreservation(async () => {
+        setSelectedEntries((prev) => {
+          const newSet = new Set(prev);
+          if (isSelected) {
+            newSet.add(source);
+          } else {
+            newSet.delete(source);
+          }
+          return newSet;
+        });
       });
     },
-    [scrollRef, setScrollTop]
+    [withScrollPreservation]
   );
 
   const handleSelectAll = useCallback(
     (isSelected: boolean): void => {
-      // BUGFIX: Use scrollRef.current directly to avoid infinite loop
-      const currentScrollTop = scrollRef.current?.scrollTop ?? 0;
-
-      if (isSelected) {
-        const allSources = filteredEntries.map(([source]) => source);
-        setSelectedEntries(new Set(allSources));
-      } else {
-        setSelectedEntries(new Set());
-      }
-
-      requestAnimationFrame(() => {
-        if (scrollRef.current && scrollRef.current.scrollTop !== currentScrollTop) {
-          scrollRef.current.scrollTop = currentScrollTop;
-          setScrollTop(currentScrollTop);
+      void withScrollPreservation(async () => {
+        if (isSelected) {
+          const allSources = filteredEntries.map(([source]) => source);
+          setSelectedEntries(new Set(allSources));
+        } else {
+          setSelectedEntries(new Set());
         }
       });
     },
-    [filteredEntries, scrollRef, setScrollTop]
+    [filteredEntries, withScrollPreservation]
   );
 
   const handleBulkDelete = useCallback(async (): Promise<void> => {
@@ -195,7 +179,7 @@ export function useEntrySelection({
       }
 
       if (showDuplicatesMode && onRefreshDuplicates && onScrollSave) {
-        const currentScroll = scrollRef.current?.scrollTop ?? 0;
+        const currentScroll = getScrollTop();
         await onRefreshDuplicates();
         onScrollSave(currentScroll);
       }
@@ -212,7 +196,7 @@ export function useEntrySelection({
     showDuplicatesMode,
     onRefreshDuplicates,
     onScrollSave,
-    scrollRef,
+    getScrollTop,
   ]);
 
   const handleBulkMove = useCallback((): void => {
