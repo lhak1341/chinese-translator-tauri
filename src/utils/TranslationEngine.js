@@ -709,8 +709,8 @@ export class TranslationEngine {
     }
 
     // Clear dictionary manager caches
-    if (this.dictionaryManager && typeof this.dictionaryManager.clearCaches === 'function') {
-      this.dictionaryManager.clearCaches();
+    if (this.dictionaryManager && typeof this.dictionaryManager.clearCache === 'function') {
+      this.dictionaryManager.clearCache();
     }
 
     // Clear translation segments

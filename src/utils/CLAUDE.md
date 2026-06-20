@@ -2,6 +2,10 @@
 
 ## TranslationEngine Internals
 
+### `destroy()` Is Canonical Engine Teardown — Call Before Nulling `engineRef.current`
+
+Stops `memoryCoordinator` intervals, clears `processedBatchCache`, `semanticArrayBuilder`, `semanticPatternProcessor.variableCache`, and `dictionaryManager` caches. `useForceReload` is the sole production caller. Do not re-introduce manual cache clearing in reload paths — route through `destroy()` instead.
+
 ### `engine.initialize()` Requires `options.activeProperNouns` from Caller
 
 Does NOT read config from disk — uses `options.activeProperNouns || ['properNouns']`. If caller omits it, silently falls back to `['properNouns']` and `getFilteredDictionaries` drops all `properNouns-*` novel dicts — names go un-capitalized with no error. Both call sites are inside `useTranslatorEngine.js`: initial load passes `activeProperNounsFromConfig` state; force reload uses `reinitialize(forceConfigReload: true)` which reads fresh config internally.

@@ -59,16 +59,9 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
 
       if (ctx.engineRef.current) {
         try {
-          if (ctx.engineRef.current.dictionaryManager?.clearAllCaches) {
-            ctx.engineRef.current.dictionaryManager.clearAllCaches();
-            logger.log('✅ Dictionary manager caches cleared');
-          }
-          if (ctx.engineRef.current.semanticPatternProcessor?.variableCache) {
-            ctx.engineRef.current.semanticPatternProcessor.variableCache.clear();
-            logger.log('✅ Semantic pattern variable cache cleared');
-          }
+          ctx.engineRef.current.destroy();
           ctx.engineRef.current = null;
-          logger.log('✅ Engine cleared successfully');
+          logger.log('✅ Engine destroyed and cleared successfully');
         } catch (_engineError) {
           logger.error('❌ Error clearing engine:', _engineError);
         }
