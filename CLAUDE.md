@@ -24,7 +24,7 @@ pnpm type-check  # 0 errors expected
 
 1. **Pattern** — `translationSource`: `'pattern'`, `'hierarchical_pattern'`, `'hierarchical_patterns'`, `'hierarchical_patterns_composite'`
 2. **Proper Noun** — `translationSource` equals `match.dictionary` (e.g. `'properNouns-MyNovel'`)
-3. **Number** — `'number_conversion'` (WASM), `'number_plus_liang_fix'` (fixup)
+3. **Number** — `'number_conversion'` (JS), `'number_plus_liang_fix'` (fixup)
 4. **Phrase** — `'phrases'`
 5. **Character** — `'characters'`
 
@@ -62,6 +62,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 ## Development
 
 **Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
+
+**RTK filters `cargo test` failure output** — full assertion details (panicked at, left/right values) are in `~/Library/Application Support/rtk/tee/<latest>_cargo_test.log`; grep the test name there when a Rust test fails with no detail shown in terminal.
 
 **Large file edits:** Edit tool old_string fails for blocks >~100 lines. Use `python3 -c "with open(p) as f: lines=f.readlines(); open(p,'w').writelines(lines[:N]+lines[M:])"` to remove line range N–M (0-indexed).
 
@@ -112,6 +114,9 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `handleForceReload` inline `useCallback` in `Translator.jsx` — extracted to `useForceReload` (`src/hooks/useForceReload.js`); owns 5-step reload protocol (cancel→clear→load→reinit→retranslate→scroll restore). CRITICAL-3 invariant (`await cleanupComplete` before touching `engineRef.current`) is the primary documented invariant. Stable refs/callbacks (19) grouped into `forceReloadCtx` in Translator.jsx — excluded from dep array (same pattern as `TranslationExecutionContext`). Dep array: `[isDictionaryReloading, inputText, isLoading, dictionaries]`.
 - `HealthReport.cacheHitRate` — deleted (`TranslationSegmentCache` removed; field was always 0 in UI); `performanceHealth.getReport()` now takes no arguments
 - `MemoryLeakDetector`, `getPerformanceMetric`, `releasePerformanceMetric` from `performance/index.ts` barrel — removed (zero prod barrel callers); import directly from their files if needed
+- `WasmNumberProcessor.js` / `isWasmNumberProcessorAvailable` — deleted; Phase 3 is now pure JS (`NumberProcessor.js`); `this.numberProcessor.processTokens()` is the sole Phase 3 call site in `TranslationEngine.js`
+- `NumberProcessingAdapter.js` / `processNumbers` — deleted alongside `WasmNumberProcessor.js`
+- `WASM_NUMBER_THRESHOLDS` from `TranslationConstants.js` — deleted (was WASM/JS dispatch threshold)
 
 **Non-obvious contracts:**
 

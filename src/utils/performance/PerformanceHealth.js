@@ -19,7 +19,6 @@ import {
   isWasmPatternProcessorAvailable,
   hasWasmPatternProcessorFailed,
 } from '../wasm/WasmPatternProcessor';
-import { isWasmNumberProcessorAvailable } from '../wasm/WasmNumberProcessor';
 
 /** @typedef {'ok'|'degraded'|'critical'} HealthVerdict */
 
@@ -89,14 +88,13 @@ class PerformanceHealth {
 
     const patternAvailable = isWasmPatternProcessorAvailable();
     const patternFailed = hasWasmPatternProcessorFailed();
-    const numberAvailable = isWasmNumberProcessorAvailable();
 
     /** @type {WasmStatus} */
     const wasm = {
       pattern: { available: patternAvailable, failed: patternFailed },
-      number: { available: numberAvailable },
+      number: { available: true },
       anyFailed: patternFailed,
-      allAvailable: patternAvailable && numberAvailable,
+      allAvailable: patternAvailable,
     };
 
     return {

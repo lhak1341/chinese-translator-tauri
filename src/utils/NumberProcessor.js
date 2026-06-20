@@ -42,7 +42,7 @@ export class NumberProcessor {
       {
         name: 'thousands',
         regex:
-          /([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?/,
+          /([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|零[一二三四五六七八九]|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?/,
         converter: this.convertThousands.bind(this),
         description:
           'Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015). Handles implicit tens patterns.',
@@ -463,7 +463,7 @@ export class NumberProcessor {
   convertThousands(match, thousands, remainder) {
     const thousandsValue = this.NUMBER_MAP[thousands] * 1000;
     const remainderValue = remainder ? this.parseChineseNumber(remainder) : 0;
-    return (thousandsValue + remainderValue).toLocaleString();
+    return NumberProcessor.formatWithCommas(thousandsValue + remainderValue);
   }
 
   /**
@@ -472,7 +472,12 @@ export class NumberProcessor {
   convertThousandTenThousand(match, digit) {
     const thousands = this.NUMBER_MAP[digit] * 1000;
     const tenThousands = thousands * 10000; // 千万 = thousands × 10,000
-    return tenThousands.toLocaleString();
+    return NumberProcessor.formatWithCommas(tenThousands);
+  }
+
+  static formatWithCommas(n) {
+    const s = String(n);
+    return s.length > 3 ? s.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : s;
   }
 
   /**
@@ -585,6 +590,11 @@ export class NumberProcessor {
       if (chineseNumber === '十') {
         return 10;
       }
+    }
+
+    // Zero + single digit (e.g. 零六 = 6) — remainder after 千/百
+    if (chineseNumber.length === 2 && chineseNumber[0] === '零') {
+      return this.NUMBER_MAP[chineseNumber[1]] || 0;
     }
 
     // Handle single digit

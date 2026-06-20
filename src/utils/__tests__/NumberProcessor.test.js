@@ -129,6 +129,12 @@ describe('NumberProcessor', () => {
       expect(getTranslations(tokens)).toEqual(['3,020']);
     });
 
+    it('converts thousands with zero+unit: 一千零六 → 1,006', () => {
+      const tokens = createTokens('一千零六');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['1,006']);
+    });
+
     it('converts thousand ten-thousand: 五千万 → 50,000,000', () => {
       const tokens = createTokens('五千万');
       processor.processTokens(tokens, mockOptions);

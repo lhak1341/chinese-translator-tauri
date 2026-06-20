@@ -157,16 +157,12 @@ import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { getIndexedMatches } from './dictionary/LookupIndexUtils.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
-// WASM NumberProcessor added as focused feature (following migration guide advice)
-import { isWasmNumberProcessorAvailable } from './wasm/WasmNumberProcessor.js';
-import { processNumbers } from './wasm/NumberProcessingAdapter.js';
 // WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
 import {
   resolveGlobalConflictsWasm,
   resolveMatchConflictsWasm,
 } from './wasm/WasmConflictResolution.js';
 
-import { copyWasmTokens } from './wasm/WasmBoundaryValidation';
 import { batchLog, performanceLogger } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
@@ -188,10 +184,8 @@ import {
 } from './wasm/WasmPatternProcessor.js';
 import {
   PHRASE_PROCESSING,
-  NUMBER_PROCESSING,
   DICTIONARY_LOOKUP,
   MEMORY_MANAGEMENT,
-  WASM_NUMBER_THRESHOLDS,
   POSITION_TRACKING, // CODE REVIEW FIX (LOW-3)
   getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
   PHASE_TIMEOUTS, // LOW-2 FIX: Import phase timeouts from constants
@@ -7391,304 +7385,13 @@ export class TranslationEngine {
         }
         await withTimeout(
           this.phaseProfiler.profile('numbers', async () => {
-            // OPTIMIZATION: Pre-scan for number candidates to skip WASM serialization when unnecessary
-            // WASM only processes untranslated chinese_char tokens (from number_processor.rs:221-226)
-            // CODE REVIEW FIX (HIGH-6): Add performance monitoring
-            const numberPhaseStartTime = performance.now();
-            let numberCandidateCount = 0;
-            for (const token of tokens) {
-              if (token.type === 'chinese_char' && !token.translated && !token.translationSource) {
-                numberCandidateCount++;
-                // Early exit if many candidates (no point counting further)
-                if (numberCandidateCount > WASM_NUMBER_THRESHOLDS.MAX_CANDIDATE_COUNT_CHECK) break;
-              }
-            }
+            this.numberProcessor.processTokens(tokens, {
+              debugLevel: this.debugLevel,
+              semanticArrayBuilder: this.semanticArrayBuilder,
+              ...options,
+            });
 
-            // Skip WASM entirely if no number candidates
-            if (numberCandidateCount === 0) {
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                '⏭️  Skipping WASM number processing (no untranslated chinese_char tokens)'
-              );
-              return;
-            }
-
-            // Use JavaScript fallback for very small counts (serialization overhead > benefit)
-            if (numberCandidateCount < WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM) {
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `🔢 Using JavaScript number processing for ${numberCandidateCount} candidates (WASM overhead not worth it)`
-              );
-              this.numberProcessor.processTokens(tokens, {
-                debugLevel: this.debugLevel,
-                semanticArrayBuilder: this.semanticArrayBuilder,
-                ...options,
-              });
-              return;
-            }
-
-            // CRITICAL FIX: Check WASM availability before attempting to use it
-            // Prevents double-processing (WASM attempt → exception → JS fallback)
-            if (!isWasmNumberProcessorAvailable()) {
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `📦 WASM number processor unavailable, using JavaScript fallback for ${numberCandidateCount} candidates`
-              );
-              this.numberProcessor.processTokens(tokens, {
-                debugLevel: this.debugLevel,
-                semanticArrayBuilder: this.semanticArrayBuilder,
-                ...options,
-              });
-              return;
-            }
-
-            // Use WASM number processing (5-10x faster for Chinese number conversion)
-            // Only worthwhile for >=${WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM} candidates where WASM speedup > serialization overhead
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `🚀 Using WASM number processing for ${numberCandidateCount}+ candidates`
-            );
-            try {
-              // CODE REVIEW FIX (HIGH-3): Check abort signal before expensive WASM operation
-              if (options.abortSignal?.aborted) {
-                throw new DOMException(
-                  'Translation aborted before WASM number processing',
-                  'AbortError'
-                );
-              }
-
-              // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Track pre-WASM consumed tokens
-              // Ensure WASM doesn't overwrite tokens consumed by earlier phases (patterns, proper nouns).
-              // Store full snapshots (not just indices) so we can detect truthy→truthy source changes
-              // (e.g. WASM changing 'pattern' → 'number_conversion' would pass a simple falsiness check).
-              const preWasmTokenState = new Map();
-              for (let i = 0; i < tokens.length; i++) {
-                if (tokens[i].translationSource) {
-                  preWasmTokenState.set(i, {
-                    translationSource: tokens[i].translationSource,
-                    translated: tokens[i].translated,
-                  });
-                }
-              }
-
-              const processedTokens = await processNumbers(tokens, { debugLevel: this.debugLevel });
-
-              // CODE REVIEW FIX (CRITICAL-3): Detect concurrent modification during validation
-              const originalTokensLength = tokens.length;
-
-              // CRITICAL FIX: Validate BEFORE copying to prevent partial corruption
-              // Pre-validate array length invariance
-              if (processedTokens.length !== tokens.length) {
-                this.log(
-                  DEBUG_LEVELS.ERROR,
-                  `WASM number processor corrupted token array: expected ${tokens.length}, got ${processedTokens.length}`
-                );
-                throw new Error(
-                  `WASM number processor violated array length invariance: ${tokens.length} → ${processedTokens.length}`
-                );
-              }
-
-              // Pre-validate token structure BEFORE mutating original tokens array
-              for (let i = 0; i < processedTokens.length; i++) {
-                // Check token existence before accessing properties (handles sparse arrays)
-                if (!processedTokens[i] || typeof processedTokens[i] !== 'object') {
-                  throw new Error(`WASM validation failed: token ${i} is missing or not an object`);
-                }
-                // Check for undefined (should be null or string after WASM processing)
-                if (processedTokens[i].translated === undefined) {
-                  throw new Error(
-                    `WASM validation failed: token ${i} has undefined translated field (should be null or string)`
-                  );
-                }
-                // Validate translated field type
-                if (
-                  processedTokens[i].translated !== null &&
-                  typeof processedTokens[i].translated !== 'string'
-                ) {
-                  throw new Error(
-                    `WASM validation failed: token ${i} has invalid translated type: ${typeof processedTokens[i].translated}`
-                  );
-                }
-              }
-
-              // CODE REVIEW FIX (CRITICAL-3): Check for concurrent modification during validation
-              if (tokens.length !== originalTokensLength) {
-                throw new Error(
-                  `Token array modified during validation - concurrent modification detected (${originalTokensLength} → ${tokens.length})`
-                );
-              }
-
-              // CODE REVIEW FIX 2026-01-27 (MEDIUM-2): Validate WASM didn't overwrite consumed tokens.
-              // Compare full snapshots so we catch both:
-              //   - WASM clearing a source   ('pattern' → null/undefined)
-              //   - WASM replacing a source  ('pattern' → 'number_conversion') — previously undetected
-              for (const [idx, originalState] of preWasmTokenState) {
-                if (processedTokens[idx].translationSource !== originalState.translationSource) {
-                  logger.error(
-                    `🚨 WASM violated phase priority at index ${idx}: ` +
-                      `translationSource changed from "${originalState.translationSource}" ` +
-                      `to "${processedTokens[idx].translationSource ?? '(cleared)'}"`
-                  );
-
-                  // Restore original state to preserve phase priority
-                  processedTokens[idx].translationSource = originalState.translationSource;
-                  processedTokens[idx].translated = originalState.translated;
-                }
-              }
-
-              // Only copy AFTER validation passes (prevents partial corruption)
-              copyWasmTokens(tokens, processedTokens);
-
-              // Post-copy verification (lightweight sanity check)
-              if (tokens.some((t) => t.translated === undefined)) {
-                throw new Error('WASM copy failed: undefined values detected after copy');
-              }
-
-              // WASM only writes translated/translationSource — set groupLeader on consumed tokens
-              // so the postProcess orphan check doesn't misidentify them as orphaned.
-              {
-                let lastLeader = -1;
-                for (let i = 0; i < tokens.length; i++) {
-                  if (tokens[i].translationSource === 'number_conversion') {
-                    lastLeader = i;
-                  } else if (tokens[i].translationSource === 'number_conversion_consumed') {
-                    tokens[i].groupLeader = lastLeader;
-                  } else {
-                    lastLeader = -1;
-                  }
-                }
-              }
-
-              // Add number conversions to semantic array for clickable highlighting
-              // WASM doesn't have access to semanticArrayBuilder, so we add entries here
-              // CODE REVIEW FIX (HIGH-5): Validate span integrity BEFORE adding to semantic array
-              for (let i = 0; i < tokens.length; i++) {
-                const token = tokens[i];
-
-                // Find number conversion results (main token, not consumed tokens)
-                if (token.translationSource === 'number_conversion' && token.translated) {
-                  // Collect original text from this token and any consumed tokens following it
-                  let originalText = token.value;
-                  let endIndex = i;
-                  let isValidSpan = true;
-
-                  // Look ahead for consumed tokens that are part of this number
-                  // HIGH FIX: Add bounds check to prevent O(n) scan if all tokens marked consumed
-                  // LOW-10 FIX: Use constant instead of magic number
-                  const MAX_CONSUMED_SPAN = NUMBER_PROCESSING.MAX_CONSUMED_SPAN;
-
-                  // Validate span integrity BEFORE adding to semantic array
-                  for (let j = i + 1; j < tokens.length && j - i <= MAX_CONSUMED_SPAN; j++) {
-                    if (tokens[j].translationSource === 'number_conversion_consumed') {
-                      originalText += tokens[j].value;
-                      endIndex = j;
-                    } else if (tokens[j].translationSource) {
-                      // Non-consumed token with source in span = corruption
-                      this.log(
-                        DEBUG_LEVELS.ERROR,
-                        `🔴 Number span corruption at token ${j}: expected consumed but got ${tokens[j].translationSource}`
-                      );
-                      isValidSpan = false;
-                      break;
-                    } else {
-                      // Natural end of span (untranslated token)
-                      break;
-                    }
-                  }
-
-                  // Validate span didn't exceed maximum
-                  if (endIndex - i >= MAX_CONSUMED_SPAN) {
-                    this.log(
-                      DEBUG_LEVELS.WARN,
-                      `⚠️ Number span exceeded MAX_CONSUMED_SPAN=${MAX_CONSUMED_SPAN} at token ${i} (span: ${endIndex - i})`
-                    );
-                    isValidSpan = false;
-                  }
-
-                  // Validate contiguity: all tokens between i+1 and endIndex must be consumed
-                  if (isValidSpan && endIndex > i) {
-                    for (let k = i + 1; k <= endIndex; k++) {
-                      if (tokens[k].translationSource !== 'number_conversion_consumed') {
-                        this.log(
-                          DEBUG_LEVELS.ERROR,
-                          `🔴 Number span integrity violation: gap at token ${k} (expected consumed, got ${tokens[k].translationSource})`
-                        );
-                        isValidSpan = false;
-                        break;
-                      }
-                    }
-                  }
-
-                  // Only add to semantic array if span is valid
-                  if (isValidSpan) {
-                    // NOTE: We use only the first token's index (i) even for multi-token numbers
-                    // because the semantic array represents one logical unit (the entire number).
-                    // The originalText contains the combined text from all tokens (i to endIndex).
-                    // This is correct - position tracking works because postProcess only processes
-                    // the first token (others are skipped due to translationSource=consumed).
-                    const globalTokenIndex = i + (options.chunkOffset || 0);
-                    this.semanticArrayBuilder.addUnit(
-                      originalText,
-                      token.translated,
-                      'number_conversion',
-                      globalTokenIndex,
-                      'number_conversion',
-                      null
-                    );
-                  } else {
-                    this.log(
-                      DEBUG_LEVELS.WARN,
-                      `⚠️ Skipping corrupted number span at token ${i}: "${originalText}" → "${token.translated}"`
-                    );
-                  }
-                }
-              }
-            } catch (error) {
-              this.log(
-                DEBUG_LEVELS.WARN,
-                '⚠️ WASM number processing failed, falling back to JavaScript:',
-                error.message
-              );
-              // Fallback to JavaScript number processing
-              this.numberProcessor.processTokens(tokens, {
-                debugLevel: this.debugLevel,
-                semanticArrayBuilder: this.semanticArrayBuilder,
-                ...options,
-              });
-            }
-
-            // CODE REVIEW FIX (HIGH-6): Record performance metrics for WASM vs JS optimization
-            const numberPhaseDuration = performance.now() - numberPhaseStartTime;
-            const method =
-              numberCandidateCount === 0
-                ? 'skipped'
-                : numberCandidateCount < WASM_NUMBER_THRESHOLDS.MIN_CANDIDATES_FOR_WASM
-                  ? 'javascript'
-                  : 'wasm';
-
-            if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-              // Track metrics for threshold optimization
-              if (
-                window.performanceDashboard &&
-                typeof window.performanceDashboard.recordMetric === 'function'
-              ) {
-                window.performanceDashboard.recordMetric('number_processing', {
-                  method,
-                  candidateCount: numberCandidateCount,
-                  duration: numberPhaseDuration,
-                  tokensProcessed: tokens.length,
-                  timestamp: Date.now(),
-                });
-              }
-
-              // Log for manual analysis
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `⏱️  Number processing: ${method} method, ${numberCandidateCount} candidates, ${numberPhaseDuration.toFixed(2)}ms`
-              );
-            }
-
-            // Mark phase as completed (whether WASM succeeded or JS fallback was used)
+            // Mark phase as completed
             completedPhases.add('numbers');
           }),
           PHASE_TIMEOUTS.numbers,

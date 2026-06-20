@@ -41,7 +41,6 @@ struct ConversionPattern {
     converter: fn(&NumberProcessor, &[&str]) -> Option<String>,
 }
 
-#[wasm_bindgen]
 pub struct NumberProcessor {}
 
 // ============================================================================
@@ -140,7 +139,7 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
     // Thousands: 三千七百 → 3,700
     add_pattern!(
         "thousands",
-        r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$",
+        r"^([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|零十[一二三四五六七八九]|零十|零[一二三四五六七八九]|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百零[一二三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|十[一二三四五六七八九]|十|[一二三四五六七八九])?$",
         NumberProcessor::convert_thousands,
         "Thousands like 三千 (3000), 三千七百 (3700), 三千十五 (3,015). Handles implicit tens patterns."
     );
@@ -275,9 +274,7 @@ fn create_number_map() -> HashMap<char, u32> {
     m
 }
 
-#[wasm_bindgen]
 impl NumberProcessor {
-    #[wasm_bindgen(constructor)]
     pub fn new() -> NumberProcessor {
         console_error_panic_hook::set_once();
         // Pre-initialize ALL lazy_statics here (outside any &self borrow window) so that
@@ -325,7 +322,6 @@ impl NumberProcessor {
     /// Accepts a JSON string (`JSON.stringify(tokens)`) and returns a JSON string
     /// (`JSON.parse(result)`). No JS-FFI calls while the wasm-bindgen RcRef borrow
     /// is live — avoids the Rust 1.84 `hint::assert_unchecked` / OOB trap.
-    #[wasm_bindgen(js_name = processTokens)]
     pub fn process_tokens(&self, tokens_json: &str) -> Result<String, JsValue> {
         let mut tokens: Vec<Token> = serde_json::from_str(tokens_json)
             .map_err(|e| JsValue::from_str(&format!("Failed to parse tokens: {}", e)))?;
@@ -839,6 +835,18 @@ mod tests {
         assert!(m.is_some());
         let m = m.unwrap();
         assert_eq!(m.result, "3,700");
+    }
+
+    #[test]
+    fn test_find_longest_number_match_thousands_with_zero_unit() {
+        let p = NumberProcessor::new();
+        // 一千零六 → "1,006" (not "1,000" + separate 零/六)
+        let tokens = vec![tok("一"), tok("千"), tok("零"), tok("六")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        let m = m.unwrap();
+        assert_eq!(m.result, "1,006");
+        assert_eq!(m.end_index, 3); // inclusive last-token index: tokens[0..=3]
     }
 
     #[test]

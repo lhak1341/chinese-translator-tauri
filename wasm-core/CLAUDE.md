@@ -66,3 +66,7 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 - `tests/two_phase_test.rs` — two-phase + hierarchical composite tests
 - `tests/pattern_matching_test.rs` — `find_best_pattern_match` + `PatternMatcher` unit tests
 - `tests/pattern_semantic_type_test.rs` — semantic type propagation Phase A → Phase B
+
+## `number_processor.rs` Is Rust Spec Only — No WASM Export
+
+`#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (155 tests validate parity). Do NOT add `#[wasm_bindgen]` back.
