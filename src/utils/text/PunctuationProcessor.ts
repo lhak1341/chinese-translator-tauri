@@ -194,6 +194,13 @@ export class PunctuationProcessor {
 
       if (needsTrailingSpace) {
         result += ' ';
+      } else if (endsWithOpeningQuote && this.CLOSING_PUNCT.includes(result[0])) {
+        // Closing element + opening quote (e.g. »«) → space BETWEEN them, not after
+        let splitIdx = result.length;
+        while (splitIdx > 0 && QuoteProcessor.isOpeningQuote(result[splitIdx - 1])) {
+          splitIdx--;
+        }
+        result = result.slice(0, splitIdx) + ' ' + result.slice(splitIdx);
       }
     }
 
