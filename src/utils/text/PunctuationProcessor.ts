@@ -180,10 +180,14 @@ export class PunctuationProcessor {
         Array.from(punctuation).some((char) => QuoteProcessor.isOpeningQuote(char));
       const hasOpeningBracket = this.OPENING_BRACKET_PATTERN.test(punctuation);
       const isDivisionSlash = punctuation === '/'; // Don't add space after / (division operator)
+      // Multi-char sequences ending with an opening quote (e.g. "«, '«) must not get trailing
+      // space — the content that follows belongs inside the quote, not after a gap.
+      const endsWithOpeningQuote = QuoteProcessor.isOpeningQuote(result[result.length - 1]);
       const needsTrailingSpace =
         hasNextChunk &&
         !result.endsWith(' ') &&
         !isOnlyOpeningQuote &&
+        !endsWithOpeningQuote &&
         !isCommaOpeningQuoteCombo &&
         !hasOpeningBracket &&
         !isDivisionSlash;

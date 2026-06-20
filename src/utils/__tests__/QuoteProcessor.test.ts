@@ -233,16 +233,16 @@ describe('QuoteProcessor — normalizeQuotes', () => {
 });
 
 describe('QUOTE_CATEGORIES', () => {
-  test('OPENING contains 3 quote types', () => {
-    expect(QUOTE_CATEGORIES.OPENING).toHaveLength(3);
+  test('OPENING contains 5 quote types', () => {
+    expect(QUOTE_CATEGORIES.OPENING).toHaveLength(5);
   });
 
-  test('CLOSING contains 2 quote types', () => {
-    expect(QUOTE_CATEGORIES.CLOSING).toHaveLength(2);
+  test('CLOSING contains 4 quote types', () => {
+    expect(QUOTE_CATEGORIES.CLOSING).toHaveLength(4);
   });
 
-  test('ALL contains 6 quote types', () => {
-    expect(QUOTE_CATEGORIES.ALL).toHaveLength(6);
+  test('ALL contains 10 quote types', () => {
+    expect(QUOTE_CATEGORIES.ALL).toHaveLength(10);
   });
 
   test('OPENING and CLOSING are disjoint', () => {

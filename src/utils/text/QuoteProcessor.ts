@@ -14,6 +14,10 @@ export type QuoteTypeName =
   | 'curly_close_double'
   | 'curly_open_single'
   | 'curly_close_single'
+  | 'angle_open_double'
+  | 'angle_close_double'
+  | 'angle_open_single'
+  | 'angle_close_single'
   | 'not_quote';
 
 /**
@@ -57,6 +61,12 @@ export const QUOTE_TYPES = {
   CURLY_CLOSE_DOUBLE: '\u201d', // U+201D - Right double quotation mark "
   CURLY_OPEN_SINGLE: '\u2018', // U+2018 - Left single quotation mark '
   CURLY_CLOSE_SINGLE: '\u2019', // U+2019 - Right single quotation mark '
+
+  // Angle quotes \u2014 converted from \u300a\u300b\u3008\u3009 by the Punctuation dictionary
+  ANGLE_OPEN_DOUBLE: '\u00ab', // U+00AB - \u00ab Left-pointing double angle quotation mark
+  ANGLE_CLOSE_DOUBLE: '\u00bb', // U+00BB - \u00bb Right-pointing double angle quotation mark
+  ANGLE_OPEN_SINGLE: '<', // U+003C - < (from \u3008)
+  ANGLE_CLOSE_SINGLE: '>', // U+003E - > (from \u3009)
 } as const;
 
 /**
@@ -68,10 +78,17 @@ export const QUOTE_CATEGORIES = {
     QUOTE_TYPES.STRAIGHT_DOUBLE,
     QUOTE_TYPES.CURLY_OPEN_DOUBLE,
     QUOTE_TYPES.CURLY_OPEN_SINGLE,
+    QUOTE_TYPES.ANGLE_OPEN_DOUBLE,
+    QUOTE_TYPES.ANGLE_OPEN_SINGLE,
   ] as const,
 
   /** Closing quote characters */
-  CLOSING: [QUOTE_TYPES.CURLY_CLOSE_DOUBLE, QUOTE_TYPES.CURLY_CLOSE_SINGLE] as const,
+  CLOSING: [
+    QUOTE_TYPES.CURLY_CLOSE_DOUBLE,
+    QUOTE_TYPES.CURLY_CLOSE_SINGLE,
+    QUOTE_TYPES.ANGLE_CLOSE_DOUBLE,
+    QUOTE_TYPES.ANGLE_CLOSE_SINGLE,
+  ] as const,
 
   /** All quote characters */
   ALL: [
@@ -81,6 +98,10 @@ export const QUOTE_CATEGORIES = {
     QUOTE_TYPES.CURLY_CLOSE_DOUBLE,
     QUOTE_TYPES.CURLY_OPEN_SINGLE,
     QUOTE_TYPES.CURLY_CLOSE_SINGLE,
+    QUOTE_TYPES.ANGLE_OPEN_DOUBLE,
+    QUOTE_TYPES.ANGLE_CLOSE_DOUBLE,
+    QUOTE_TYPES.ANGLE_OPEN_SINGLE,
+    QUOTE_TYPES.ANGLE_CLOSE_SINGLE,
   ] as const,
 };
 
@@ -202,6 +223,14 @@ export class QuoteProcessor {
         return 'curly_open_single';
       case QUOTE_TYPES.CURLY_CLOSE_SINGLE:
         return 'curly_close_single';
+      case QUOTE_TYPES.ANGLE_OPEN_DOUBLE:
+        return 'angle_open_double';
+      case QUOTE_TYPES.ANGLE_CLOSE_DOUBLE:
+        return 'angle_close_double';
+      case QUOTE_TYPES.ANGLE_OPEN_SINGLE:
+        return 'angle_open_single';
+      case QUOTE_TYPES.ANGLE_CLOSE_SINGLE:
+        return 'angle_close_single';
       default:
         return 'not_quote';
     }

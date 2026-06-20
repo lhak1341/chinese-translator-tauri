@@ -83,7 +83,7 @@ export class ChunkPostProcessor {
         // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
         // BUT DO add space for opening quotes (they need space before them)
         const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-        const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
+        const startsWithClosingElement = /^[\])}】》）»>]/.test(remainingPunctuation);
 
         if (
           content &&
@@ -237,7 +237,7 @@ export class ChunkPostProcessor {
           // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
           // BUT DO add space for opening quotes (they need space before them)
           const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-          const startsWithClosingElement = /^[\])}】》）]/.test(remainingPunctuation);
+          const startsWithClosingElement = /^[\])}】》）»>]/.test(remainingPunctuation);
           const _containsOnlyOpeningQuotes =
             remainingPunctuation.length > 0 &&
             Array.from(remainingPunctuation).every((char) => QuoteProcessor.isOpeningQuote(char));
@@ -375,16 +375,20 @@ export class ChunkPostProcessor {
       // Check if chunk has opening quote (angle or curly) that should be moved to next chunk
       // BUT ONLY if the current chunk has no content (quote-only chunk)
       const isOpeningQuote =
-        chunk.punctuation === '《' || QuoteProcessor.isOpeningQuote(chunk.punctuation);
+        chunk.punctuation === '《' ||
+        chunk.punctuation === '〈' ||
+        QuoteProcessor.isOpeningQuote(chunk.punctuation);
       if (isOpeningQuote && nextChunk.content.trim() && !chunk.content.trim()) {
-        // Determine appropriate opening quote before clearing
+        // Determine appropriate opening quote before clearing.
+        // Prefer translatedPunctuation so the Punctuation dictionary (e.g. 《→«) is respected.
         let openingQuote;
         if (chunk.punctuation === '《') {
-          // Angle quote becomes curly quote
-          openingQuote = QUOTE_TYPES.CURLY_OPEN_DOUBLE;
+          openingQuote = chunk.translatedPunctuation || QUOTE_TYPES.CURLY_OPEN_DOUBLE;
+        } else if (chunk.punctuation === '〈') {
+          openingQuote = chunk.translatedPunctuation || '<';
         } else {
-          // Keep the original opening quote (already curly)
-          openingQuote = chunk.punctuation;
+          // Keep the original opening quote (already curly or angle)
+          openingQuote = chunk.translatedPunctuation || chunk.punctuation;
         }
 
         // Clear both original and translated punctuation from this chunk

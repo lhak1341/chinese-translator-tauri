@@ -85,7 +85,15 @@ WASM accumulates consecutive punctuation into one field — `道：「说` gives
 
 ### `「` (U+300C) Is Not an Opening Quote — `fixAngleQuotePositioning` Skips It
 
-`QuoteProcessor.isOpeningQuote('「')` returns false. `fixAngleQuotePositioning` only fires for `《` and curly quotes (`“`, `‘`, etc.). A JS-chunker empty chunk with `punctuation="「"` is silently skipped — colon context in its `startedBy` is NOT propagated to the content chunk by this function. The fallback block in `applySmartCapitalization` (checking `chunks[i-1].content.trim() === ""`) handles this instead.
+`QuoteProcessor.isOpeningQuote(‘「’)` returns false. `fixAngleQuotePositioning` fires for `《`, `〈`, and curly quotes (`”`, `’`, etc.); uses `chunk.translatedPunctuation || fallback` so Punctuation dict mappings (e.g. `《→«`, `〈→<`) survive. A JS-chunker empty chunk with `punctuation=”「”` is silently skipped — colon context in its `startedBy` is NOT propagated to the content chunk by this function. The fallback block in `applySmartCapitalization` (checking `chunks[i-1].content.trim() === “”`) handles this instead.
+
+### Extending Quote Types: Cascade Points
+
+Adding chars to `QUOTE_CATEGORIES.OPENING/CLOSING` auto-cascades to `PunctuationProcessor.OPENING_PUNCT/CLOSING_PUNCT`; manually update `TranslationEngine.js capitalizationRules` dict and both `ChunkPostProcessor.js startsWithClosingElement` regex occurrences.
+
+### `PunctuationProcessor.processSequence` `endsWithOpeningQuote` Guard
+
+WASM combines consecutive punctuation like `”《` into one field `’”«’`; `fixAngleQuotePositioning` skips it (not a bare single `《`). Without `!endsWithOpeningQuote` in `needsTrailingSpace`, `processSequence` appended trailing space after `«`, landing between quote and content.
 
 ### `checkSemanticArrayCorruption` Uses `corruptionToastShown`
 

@@ -8070,6 +8070,10 @@ export class TranslationEngine {
       '\u2018': false, // After curly opening apostrophe - NO capitalization (quotes mid-sentence)
       '\u2019': false, // After curly closing apostrophe - NO capitalization
       "'": false, // After straight apostrophe - NO capitalization
+      '«': false, // After « (from 《) - NO capitalization
+      '»': false, // After » (from 》) - NO capitalization
+      '<': false, // After < (from 〈) - NO capitalization
+      '>': false, // After > (from 〉) - NO capitalization
       '': false, // After no punctuation - NO capitalization
     };
 
