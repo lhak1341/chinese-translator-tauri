@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Database, Activity } from 'lucide-react';
+import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Activity } from 'lucide-react';
 import styles from '../../styles/TranslatorControls.module.css';
 
 /**
@@ -8,7 +8,6 @@ import styles from '../../styles/TranslatorControls.module.css';
 interface PerformanceStats {
   operations: number;
   avgTime: number;
-  cacheHitRate: number;
 }
 
 /**
@@ -145,17 +144,6 @@ export default function TranslatorControls({
         <span className={styles.statItem}>
           <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
           {Math.round(performanceStats.avgTime)}ms
-        </span>
-        <span className={styles.statItem}>
-          <Database
-            size={12}
-            style={{
-              color:
-                performanceStats.cacheHitRate > 50 ? 'var(--success-color)' : 'var(--text-muted)',
-            }}
-            aria-hidden="true"
-          />
-          {Math.round(performanceStats.cacheHitRate)}%
         </span>
         {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
           <span

@@ -16,9 +16,6 @@ export interface PerformanceMetrics {
   /** Average operation time in milliseconds */
   avgTime: number;
 
-  /** Cache hit rate (0-1 or 0-100) */
-  cacheHitRate: number;
-
   /** Total time across all operations */
   totalTime?: number;
 

@@ -19,15 +19,15 @@ import { performanceHealth } from '../utils/performance';
  * }}
  */
 export function usePerformanceMonitoring() {
-  const [report, setReport] = useState(() => performanceHealth.getReport(0));
+  const [report, setReport] = useState(() => performanceHealth.getReport());
 
   const recordTranslation = useCallback((operationTimeMs) => {
     performanceHealth.recordTranslation(operationTimeMs);
-    setReport(performanceHealth.getReport(0));
+    setReport(performanceHealth.getReport());
   }, []);
 
   const refreshCacheStats = useCallback(() => {
-    setReport(performanceHealth.getReport(0));
+    setReport(performanceHealth.getReport());
   }, []);
 
   return { report, recordTranslation, refreshCacheStats };

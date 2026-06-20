@@ -3,7 +3,7 @@
  * Unified gateway for performance monitoring concerns.
  *
  * Write: recordTranslation(ms) — records a completed translation into globalPerformanceMonitor.
- * Read:  getReport(cacheHitRate) — combines globalPerformanceMonitor (timing) and
+ * Read:  getReport() — combines globalPerformanceMonitor (timing) and
  *        systemPerformanceMonitor (baseline regression) into one HealthReport.
  *
  * Callers import only this module — no need to know which singleton owns which concern.
@@ -38,7 +38,6 @@ import { isWasmNumberProcessorAvailable } from '../wasm/WasmNumberProcessor';
  * @typedef {{
  *   operations: number,
  *   avgTime: number,
- *   cacheHitRate: number,
  *   status: string,
  *   criticalAlerts: number,
  *   warningAlerts: number,
@@ -68,10 +67,9 @@ class PerformanceHealth {
   /**
    * Build a unified health report from both monitoring singletons.
    *
-   * @param {number} [cacheHitRate=0] - Cache hit rate (0–100) for the health report.
    * @returns {HealthReport}
    */
-  getReport(cacheHitRate = 0) {
+  getReport() {
     const metrics = globalPerformanceMonitor.getMetrics();
 
     let status = 'healthy';
@@ -104,7 +102,6 @@ class PerformanceHealth {
     return {
       operations: metrics.totalOperations ?? 0,
       avgTime: metrics.avgTime ?? 0,
-      cacheHitRate,
       status,
       criticalAlerts,
       warningAlerts,

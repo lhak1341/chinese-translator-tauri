@@ -314,8 +314,6 @@ export interface PerformanceStats {
   operations: number;
   /** Average operation time in milliseconds */
   avgTime: number;
-  /** Cache hit rate (0.0 to 1.0) */
-  cacheHitRate: number;
   /** Peak memory usage in MB */
   peakMemory?: number;
   /** Total processing time in milliseconds */
