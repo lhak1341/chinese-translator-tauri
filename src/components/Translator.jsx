@@ -1015,25 +1015,111 @@ const Translator = ({ isActive = true }) => {
     ctx: executionCtx,
   });
 
+  /** @type {import('../hooks/useForceReload.js').ForceReloadContext} */
   const forceReloadCtx = {
-    engineRef,
-    isTranslatingRef,
-    cancelAllTranslations,
-    reinitialize,
-    translateText,
-    translateCharacterOnly,
-    setDualResults,
-    setStreamingText,
-    setStatusMessage,
-    setTranslationError,
-    refreshCacheStats,
-    validateSemanticArraySize,
+    cancelTranslations: async () => {
+      const { count, cleanupComplete } = cancelAllTranslations();
+      if (count > 0) {
+        logger.log(`🛑 Cancelled ${count} active translation(s)`);
+        await cleanupComplete;
+        logger.log('✅ All translation cleanup(s) completed');
+      }
+      isTranslatingRef.current = false;
+      setIsTranslating(false);
+      setProgressInfo(null);
+    },
+    destroyEngine: () => {
+      if (engineRef.current) {
+        try {
+          engineRef.current.destroy();
+          engineRef.current = null;
+          logger.log('✅ Engine destroyed and cleared successfully');
+        } catch (_engineError) {
+          logger.error('❌ Error clearing engine:', _engineError);
+        }
+      }
+    },
+    setStatus: setStatusMessage,
+    setReloadError: setTranslationError,
+    setReloading: setDictionaryReloading,
+    clearHighlighting,
+    reinitializeEngine: async (dicts, opts) => {
+      await reinitialize(dicts, opts);
+      if (!engineRef.current?.isReady()) return false;
+
+      // Fire-and-forget WASM validation — non-blocking, prevents UI freeze
+      if (
+        engineRef.current?.dictionaryManager?.wasmInitialized &&
+        typeof engineRef.current.dictionaryManager.validateWasmFallback === 'function'
+      ) {
+        setTimeout(() => {
+          try {
+            const syncStatus = engineRef.current?.dictionaryManager?.validateWasmFallback();
+            if (!syncStatus) {
+              logger.warn('⚠️ WASM validation skipped - engine no longer available');
+              return;
+            }
+            if (syncStatus.status === 'PASS') {
+              logger.log('✅ WASM dictionary sync validated successfully');
+            } else if (syncStatus.status === 'SKIPPED') {
+              logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
+            } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
+              logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
+              toast.error(
+                `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
+                { duration: TOAST_DURATIONS.CACHE_WARNING }
+              );
+            } else if (syncStatus.status === 'FAIL_ERRORS') {
+              logger.error('❌ WASM sync validation failed - errors:', syncStatus);
+              toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
+                duration: TOAST_DURATIONS.CACHE_WARNING,
+              });
+            }
+          } catch (validationError) {
+            logger.error('❌ WASM validation error:', validationError);
+          }
+        }, 100);
+      }
+      return true;
+    },
+    retranslate: async (text) => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (!engineRef.current?.isReady()) {
+        logger.log('⚠️ Engine not ready after initialization, waiting longer...');
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      if (engineRef.current?.translateDualModeOptimized) {
+        try {
+          const dualResults = await engineRef.current.translateDualModeOptimized(text);
+          try {
+            validateSemanticArraySize(dualResults.fullResult.semanticArrays, 'full translation');
+            validateSemanticArraySize(
+              dualResults.characterResult.semanticArrays,
+              'character-only translation'
+            );
+          } catch (_validationError) {
+            return; // validateSemanticArraySize already logged + toasted
+          }
+          setDualResults(dualResults.fullResult, dualResults.characterResult);
+          refreshCacheStats();
+        } catch (_optimizedError) {
+          logger.error(
+            '🔄 Optimized reload translation failed, falling back to sequential:',
+            _optimizedError
+          );
+          const newTranslation = await translateText(text);
+          setStreamingText(newTranslation);
+          setTimeout(() => translateCharacterOnly(text), 0);
+        }
+      } else {
+        const newTranslation = await translateText(text);
+        setStreamingText(newTranslation);
+        setTimeout(() => translateCharacterOnly(text), 0);
+      }
+      toast.success('Dictionary reloaded and text retranslated');
+    },
     saveScrollPositions,
     restoreScrollPositions,
-    clearHighlighting,
-    setIsTranslating,
-    setProgressInfo,
-    setDictionaryReloading,
   };
 
   const handleForceReload = useForceReload(

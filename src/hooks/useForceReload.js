@@ -2,19 +2,39 @@ import { useCallback } from 'react';
 import toast from '../utils/toast';
 import { logger } from '../utils/logger';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
-import { TOAST_DURATIONS } from '../constants/toastConfig';
 import { parallelDictionaryLoader } from '../utils/dictionary';
+
+/**
+ * @typedef {Object} ForceReloadContext
+ * @property {() => Promise<void>} cancelTranslations   - Step 1: cancel in-flight translations,
+ *   await cleanup, reset isTranslating + progressInfo.
+ *   CRITICAL-3: this must fully resolve before destroyEngine() is called.
+ * @property {() => void} destroyEngine                 - Step 2: destroy + null engineRef.
+ * @property {(msg: string) => void} setStatus          - Progress status messages throughout reload.
+ * @property {(msg: string) => void} setReloadError     - Error state (replaces setTranslationError).
+ * @property {(active: boolean) => void} setReloading   - isDictionaryReloading flag.
+ * @property {() => void} clearHighlighting             - Clear UI highlight state.
+ * @property {(dicts: Record<string,any>, opts: {forceConfigReload: boolean, debugLevel: string}) => Promise<boolean>} reinitializeEngine
+ *   - Steps 6-7: reinitialize engine, run async WASM validation, return true if engine is ready.
+ * @property {(inputText: string) => Promise<void>} retranslate
+ *   - Step 8: dual-mode optimized path with fallback to sequential; owns success toast.
+ *   - Resolves silently on validation failure (validateSemanticArraySize already toasts).
+ *   - Throws on engine errors (caller shows error toast).
+ * @property {() => unknown} saveScrollPositions        - Snapshot scroll state before reload.
+ * @property {(saved: unknown) => Promise<void>} restoreScrollPositions - Restore after reload.
+ */
 
 /**
  * Encapsulates the 5-step dictionary reload protocol.
  *
- * CRITICAL-3 invariant: ctx.cancelAllTranslations() + await cleanupComplete MUST
- * complete before ctx.engineRef.current is touched (nulled in Step 2). Never reorder
- * these two steps.
+ * CRITICAL-3 invariant: ctx.cancelTranslations() MUST fully resolve before
+ * ctx.destroyEngine() is called. Never reorder these two steps.
  *
- * @param {object} ctx - Stable refs and callbacks (all guaranteed stable across renders,
- *   so ctx is intentionally excluded from the useCallback dep array — same pattern as
- *   TranslationExecutionContext in useAutoTranslateTrigger).
+ * CRITICAL-1 invariant: ctx.setReloading(false) fires only inside the finally
+ * block, AFTER ctx.restoreScrollPositions(), so isDictionaryReloading stays true
+ * until scroll is fully restored.
+ *
+ * @param {ForceReloadContext} ctx - Stable capability methods (excluded from dep array).
  * @param {boolean} isDictionaryReloading
  * @param {string} inputText
  * @param {boolean} isLoading
@@ -29,48 +49,27 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
     }
     logger.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
 
-    // Save current scroll positions before starting reload
     const savedPositions = ctx.saveScrollPositions();
-    ctx.setDictionaryReloading(true);
+    ctx.setReloading(true);
     logger.log('📍 Saved scroll positions:', savedPositions);
 
     try {
       logger.log('🔄 Starting Reload Dictionary sequence...');
-      ctx.setStatusMessage(
-        '🔄 Starting dictionary reload...\n\nStep 1: Stopping active translations...'
-      );
+      ctx.setStatus('🔄 Starting dictionary reload...\n\nStep 1: Stopping active translations...');
 
-      // Step 1: Stop any ongoing translations and wait for them to finish
-      // CRITICAL-3: await cleanupComplete before touching engineRef.current
+      // Step 1 — CRITICAL-3: cancelTranslations() must fully resolve before destroyEngine()
       logger.log('Step 1: Stopping ongoing translations...');
-      const { count: cancelledCount, cleanupComplete } = ctx.cancelAllTranslations();
-      if (cancelledCount > 0) {
-        logger.log(`🛑 Cancelled ${cancelledCount} active translation(s)`);
-        await cleanupComplete;
-        logger.log('✅ All translation cleanup(s) completed');
-      }
-      ctx.setIsTranslating(false);
-      ctx.isTranslatingRef.current = false;
-      ctx.setProgressInfo(null);
+      await ctx.cancelTranslations();
 
       // Step 2: Clear engine and caches
       logger.log('Step 2: Clearing engine and translation caches...');
-      ctx.setStatusMessage('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
+      ctx.setStatus('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
+      ctx.destroyEngine();
 
-      if (ctx.engineRef.current) {
-        try {
-          ctx.engineRef.current.destroy();
-          ctx.engineRef.current = null;
-          logger.log('✅ Engine destroyed and cleared successfully');
-        } catch (_engineError) {
-          logger.error('❌ Error clearing engine:', _engineError);
-        }
-      }
-
-      // Step 4: Force reload all dictionaries from storage
+      // Steps 3-4: Force reload all dictionaries from storage (direct IPC — not on protocol)
       logger.log('Step 4: Force reloading all dictionaries from storage...');
       const allDictionaryIds = Object.keys(dictionaries || {});
-      ctx.setStatusMessage(
+      ctx.setStatus(
         `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
       );
 
@@ -153,28 +152,29 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
         );
       }
 
-      // Step 5: Clear UI state and show status
+      // Step 5: UI state
       logger.log('Step 5: Updating UI state...');
-      ctx.setStatusMessage(
+      ctx.setStatus(
         '🔄 Reload Dictionary in progress...\n\nCaches cleared, dictionaries reloaded from storage.\nReinitializing engine...'
       );
       ctx.clearHighlighting();
 
-      // Steps 6+7: Reinitialize engine with fresh config and dictionaries
+      // Steps 6-7: Reinitialize engine (protocol handles isReady check + async WASM validation)
       logger.log('Steps 6+7: Reinitializing engine with fresh configuration and dictionaries...');
-      ctx.setStatusMessage(
+      ctx.setStatus(
         '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
       );
       const dictionariesToUse =
         Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
 
       if (!isLoading && dictionariesToUse) {
-        await ctx.reinitialize(dictionariesToUse, {
+        const engineReady = await ctx.reinitializeEngine(dictionariesToUse, {
           forceConfigReload: true,
           debugLevel: DEBUG_LEVELS.ERROR,
         });
-        if (!ctx.engineRef.current?.isReady()) {
-          ctx.setTranslationError(
+
+        if (!engineReady) {
+          ctx.setReloadError(
             '❌ Reload Dictionary failed!\n\nError reinitializing engine. Check console for details.'
           );
           toast.error('Failed to reinitialize engine. Try reloading the app.');
@@ -182,107 +182,27 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
         }
         logger.log('✅ Engine reinitialized successfully');
 
-        // Run WASM validation asynchronously — non-blocking, prevents UI freeze
-        if (
-          ctx.engineRef.current?.dictionaryManager?.wasmInitialized &&
-          typeof ctx.engineRef.current.dictionaryManager.validateWasmFallback === 'function'
-        ) {
-          setTimeout(() => {
-            try {
-              const syncStatus = ctx.engineRef.current?.dictionaryManager?.validateWasmFallback();
-              if (!syncStatus) {
-                logger.warn('⚠️ WASM validation skipped - engine no longer available');
-                return;
-              }
-
-              if (syncStatus.status === 'PASS') {
-                logger.log('✅ WASM dictionary sync validated successfully');
-              } else if (syncStatus.status === 'SKIPPED') {
-                logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
-              } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
-                logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
-                toast.error(
-                  `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
-                  { duration: TOAST_DURATIONS.CACHE_WARNING }
-                );
-              } else if (syncStatus.status === 'FAIL_ERRORS') {
-                logger.error('❌ WASM sync validation failed - errors:', syncStatus);
-                toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
-                  duration: TOAST_DURATIONS.CACHE_WARNING,
-                });
-              }
-            } catch (validationError) {
-              logger.error('❌ WASM validation error:', validationError);
-            }
-          }, 100);
-        }
-
-        // Step 8: Retranslate if input exists
+        // Step 8: Retranslate if input exists (protocol owns dual/fallback logic + success toast)
         if (inputText.trim()) {
           logger.log('Step 8: Retranslating current text...');
-          ctx.setStatusMessage('🔄 Engine ready - retranslating text...');
-
-          await new Promise((resolve) => setTimeout(resolve, 100));
-
-          if (!ctx.engineRef.current?.isReady()) {
-            logger.log('⚠️ Engine not ready after initialization, waiting longer...');
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-
+          ctx.setStatus('🔄 Engine ready - retranslating text...');
           try {
-            if (ctx.engineRef.current?.translateDualModeOptimized) {
-              try {
-                const dualResults =
-                  await ctx.engineRef.current.translateDualModeOptimized(inputText);
-
-                try {
-                  ctx.validateSemanticArraySize(
-                    dualResults.fullResult.semanticArrays,
-                    'full translation'
-                  );
-                  ctx.validateSemanticArraySize(
-                    dualResults.characterResult.semanticArrays,
-                    'character-only translation'
-                  );
-                } catch (validationError) {
-                  return;
-                }
-
-                ctx.setDualResults(dualResults.fullResult, dualResults.characterResult);
-                ctx.refreshCacheStats();
-              } catch (_optimizedError) {
-                logger.error(
-                  '🔄 Optimized reload translation failed, falling back to sequential:',
-                  _optimizedError
-                );
-                const newTranslation = await ctx.translateText(inputText);
-                ctx.setStreamingText(newTranslation);
-                setTimeout(() => ctx.translateCharacterOnly(inputText), 0);
-              }
-            } else {
-              const newTranslation = await ctx.translateText(inputText);
-              ctx.setStreamingText(newTranslation);
-              setTimeout(() => ctx.translateCharacterOnly(inputText), 0);
-            }
-
+            await ctx.retranslate(inputText);
             logger.log('✅ Retranslation completed successfully');
-            toast.success('Dictionary reloaded and text retranslated');
           } catch (_retranslateError) {
             logger.error('❌ Retranslation failed:', _retranslateError);
-            ctx.setTranslationError(
-              '❌ Retranslation failed!\n\nError: ' + _retranslateError.message
-            );
+            ctx.setReloadError('❌ Retranslation failed!\n\nError: ' + _retranslateError.message);
             toast.error(`Retranslation failed: ${_retranslateError.message}`);
           }
         } else {
-          ctx.setStatusMessage(
+          ctx.setStatus(
             '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.'
           );
           toast.success('Dictionary reloaded successfully');
         }
       } else {
         logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
-        ctx.setStatusMessage(
+        ctx.setStatus(
           '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.'
         );
         toast.error('Dictionaries not ready - please try again');
@@ -291,15 +211,15 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
       logger.log('✅ Reload Dictionary sequence completed');
     } catch (error) {
       logger.error('❌ Reload Dictionary failed:', error);
-      ctx.setTranslationError('❌ Reload Dictionary failed!\n\nUnexpected error: ' + error.message);
+      ctx.setReloadError('❌ Reload Dictionary failed!\n\nUnexpected error: ' + error.message);
       toast.error(`Dictionary reload failed: ${error.message}`);
     } finally {
-      // CRITICAL-1: Keep isDictionaryReloading=true until AFTER scroll restoration to
-      // prevent auto-scroll from overriding saved positions during reload.
+      // CRITICAL-1: restore scroll BEFORE clearing isDictionaryReloading so auto-scroll
+      // cannot override saved positions during the reload window.
       setTimeout(async () => {
         logger.log('📍 Final scroll restoration attempt after reload complete');
         await ctx.restoreScrollPositions(savedPositions);
-        ctx.setDictionaryReloading(false);
+        ctx.setReloading(false);
         logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
       }, 100);
     }

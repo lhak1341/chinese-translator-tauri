@@ -45,7 +45,7 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 - `engineRef` — ref to current engine instance (or null).
 - `initError` — error string when `enginePhase === 'error'`, else null.
 - `activeProperNounsFromConfig` — loaded from disk once on mount; use directly in `Translator.jsx` (no sync hook needed).
-- `reinitialize(rawDicts, options)` — never throws; errors go to `enginePhase`/`initError`. Pass raw (unfiltered) dicts; the hook filters internally. Pass `forceConfigReload: true` to re-read config from disk — do NOT call `invalidateAppConfig`/`loadAppConfig` in the caller.
+- `reinitialize(rawDicts, options)` — never throws; errors go to `enginePhase`/`initError`. Pass raw (unfiltered) dicts; the hook filters internally. Pass `forceConfigReload: true` to re-read config from disk — do NOT call `invalidateAppConfig`/`loadAppConfig` in the caller. For non-React callers (adapters outside the component tree), check `engineRef.current?.isReady()` after `await reinitialize(...)` to determine success — `enginePhase` state is async and not directly readable from adapters.
 
 **Race condition**: `reinitialize` sets `isInitializingRef.current = true` synchronously on entry and the hook's init effect checks `enginePhase === 'loading' && !isInitializingRef.current`. `handleForceReload` must NOT set any separate lock — `reinitialize` handles it.
 
@@ -54,6 +54,8 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 **Priority scheme**: defined as `ENGINE_PRIORITIES` constant in `useTranslatorEngine.js` and exported. Pass to both `reinitialize()` and the hook's own init — any change to priorities must be made there only.
 
 **Post-ready setup** (engine stats, debounced callbacks, dev tools): done in a `useEffect([enginePhase])` in `Translator.jsx` — fires on every transition to `'ready'`, including after `reinitialize`.
+
+**`cancelAllTranslations` return shape** (from `useTranslationController`): returns `{ count: number, cleanupComplete: Promise<void> }` — NOT a direct Promise. Adapter pattern: `const { count, cleanupComplete } = cancelAllTranslations(); if (count > 0) await cleanupComplete;`. Never `await cancelAllTranslations()` directly — it returns a plain object, the await resolves immediately without waiting for cleanup.
 
 ## ConfigurationManager Settings Must Be Traced to the Engine
 

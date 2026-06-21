@@ -233,6 +233,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - Read-only DOM properties (`scrollHeight`, `clientHeight`, `scrollWidth`) can't be set via `Object.assign` or direct assignment — use `Object.defineProperty(node, 'scrollHeight', { get: () => 8000 })`.
 - `renderHook` + `useRef(null)`: effects that early-return on `!ref.current` never fire their body — no DOM node is attached at render time. Either move the guard inside the async callback, remove it from the top-level guard, or call the callback ref before the effect is expected to run.
 - `isDictionaryCategory` uses case-sensitive `String.includes()` — dict names with uppercase midpoints (e.g. `'twoPhasePatterns'`) silently fail `includes('pattern')` (capital P). Use kebab-case in tests: `'pattern-structural'`, `'phrases-extended'`.
+- **Async `await`-ordering tests** (CRITICAL-3 pattern): to prove `await foo()` precedes `bar()`, use `foo: vi.fn(() => Promise.resolve().then(() => sequence.push('foo-resolved')))` and assert `sequence.indexOf('foo-resolved') < sequence.indexOf('bar')` after full execution — if `await` is absent, `bar` fires before the microtask resolves, inverting the sequence. Run via `vi.useFakeTimers()` + `await act(async () => { vi.runAllTimersAsync(); })`.
 
 📖 [Full testing gotchas](docs/guides/development.md#testing-gotchas)
 
