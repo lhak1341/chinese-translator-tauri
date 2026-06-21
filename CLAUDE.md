@@ -117,6 +117,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `WasmNumberProcessor.js` / `isWasmNumberProcessorAvailable` — deleted; Phase 3 is now pure JS (`NumberProcessor.js`); `this.numberProcessor.processTokens()` is the sole Phase 3 call site in `TranslationEngine.js`
 - `NumberProcessingAdapter.js` / `processNumbers` — deleted alongside `WasmNumberProcessor.js`
 - `WASM_NUMBER_THRESHOLDS` from `TranslationConstants.js` — deleted (was WASM/JS dispatch threshold)
+- `INITIAL_STREAMING`, `INITIAL_STATE`, `streamingReducer` from `useStreamingTranslation` — module-private (intentionally unexported session 78); only `useStreamingTranslation` is exported
 
 **Non-obvious contracts:**
 

@@ -18,7 +18,7 @@ import { useThrottledValue } from './useThrottledValue';
  */
 
 /** @type {StreamingTranslationState} */
-export const INITIAL_STREAMING = {
+const INITIAL_STREAMING = {
   partialText: '',
   progress: 0,
   isStreaming: false,
@@ -28,7 +28,7 @@ export const INITIAL_STREAMING = {
   avgTimePerChunk: 0,
 };
 
-export const INITIAL_STATE = {
+const INITIAL_STATE = {
   progressInfo: /** @type {ProgressData | null} */ (null),
   streamingTranslation: INITIAL_STREAMING,
   partialSemanticArrays: /** @type {SemanticArrays | null} */ (null),
@@ -39,7 +39,7 @@ export const INITIAL_STATE = {
  * @param {{ type: string; payload?: any }} action
  * @returns {typeof INITIAL_STATE}
  */
-export function streamingReducer(state, action) {
+function streamingReducer(state, action) {
   switch (action.type) {
     case 'UPDATE_STREAMING':
       return {
