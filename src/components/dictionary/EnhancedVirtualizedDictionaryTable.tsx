@@ -157,9 +157,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
 
   const {
     editingEntry,
-    setEditingEntry,
     moveEntry,
-    setMoveEntry,
+    closeEdit,
+    closeMove,
     updateEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,
@@ -898,7 +898,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       {/* Entry editing modal */}
       {editingEntry && (
         <DictionaryEntry
-          onClose={() => setEditingEntry(null)}
+          onClose={closeEdit}
           entry={editingEntry}
           selectedDictionary={selectedDictionary}
         />
@@ -907,7 +907,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       {/* Move entry dialog */}
       {moveEntry && (
         <MoveEntryDialog
-          onClose={() => setMoveEntry(null)}
+          onClose={closeMove}
           entry={moveEntry}
           currentDictionary={selectedDictionary}
         />

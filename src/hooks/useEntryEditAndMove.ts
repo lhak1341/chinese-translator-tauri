@@ -16,9 +16,9 @@ interface UseEntryEditAndMoveParams {
 
 export interface UseEntryEditAndMoveResult {
   editingEntry: EditingEntryData | null;
-  setEditingEntry: React.Dispatch<React.SetStateAction<EditingEntryData | null>>;
   moveEntry: MoveEntryData | null;
-  setMoveEntry: React.Dispatch<React.SetStateAction<MoveEntryData | null>>;
+  closeEdit: () => void;
+  closeMove: () => void;
   updateEntryWithScrollPreservation: (
     dictionaryId: string,
     oldSource: string,
@@ -75,6 +75,14 @@ export function useEntryEditAndMove({
     setMoveEntry(entry);
   }, []);
 
+  const closeEdit = useCallback((): void => {
+    setEditingEntry(null);
+  }, []);
+
+  const closeMove = useCallback((): void => {
+    setMoveEntry(null);
+  }, []);
+
   const reset = useCallback((): void => {
     setEditingEntry(null);
     setMoveEntry(null);
@@ -82,9 +90,9 @@ export function useEntryEditAndMove({
 
   return {
     editingEntry,
-    setEditingEntry,
     moveEntry,
-    setMoveEntry,
+    closeEdit,
+    closeMove,
     updateEntryWithScrollPreservation,
     onContextMenuEdit,
     onContextMenuMove,

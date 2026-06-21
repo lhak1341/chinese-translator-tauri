@@ -71,6 +71,8 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 `editingEntry`, `moveEntry`, `updateEntryWithScrollPreservation`, `onContextMenuEdit`, `onContextMenuMove` live in `src/hooks/useEntryEditAndMove.ts`. EVDT uses `reset: resetEditAndMove` in the dict-switch effect to clear both state fields atomically. Hook takes `withScrollPreservation` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` leak to callers. `updateEntryWithScrollPreservation` delegates directly to `withScrollPreservation(fn)`.
 
+**No raw setters escape the hook.** Modal close handlers use `closeEdit()` / `closeMove()` (clear one state field each). `reset()` clears both atomically and is used on dict switch only. Do NOT destructure `setEditingEntry` or `setMoveEntry` — they are not in the return type.
+
 ## `useEntrySelection` Hook — Selection State Not in EVDT
 
 `showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT. Hook takes `withScrollPreservation` + `getScrollTop` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` in its interface. `getScrollTop()` used by the duplicate-mode bulk-delete to capture position before async refresh.

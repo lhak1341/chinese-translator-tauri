@@ -83,7 +83,7 @@ Returns `{ poisoning: PoisoningEvent | null, dismiss }` from `src/hooks/useCache
 
 ## `useStreamingTranslation` Hook — Streaming State
 
-Progressive batch state in `src/hooks/useStreamingTranslation.js`. Use `throttledStreamingState` (100ms throttled) for UI — raw `streamingTranslation` was removed (session 70). Write ops: `updateStreaming(partial)`, `resetStreaming()`, `setProgressInfo(info|null)`, `setPartialSemanticArrays(arrays|null)`. `INITIAL_STATE`, `INITIAL_STREAMING`, `streamingReducer` are intentionally exported for pure reducer tests (ADR-022) — do not treat as leakage.
+Progressive batch state in `src/hooks/useStreamingTranslation.js`. Use `throttledStreamingState` (100ms throttled) for UI — raw `streamingTranslation` was removed (session 70). Write ops: `updateStreaming(partial)`, `resetStreaming()`, `setProgressInfo(info|null)`, `setPartialSemanticArrays(arrays|null)`. `INITIAL_STATE`, `INITIAL_STREAMING`, `streamingReducer` are module-private (unexported since session 78). Pure reducer tests were removed at that time — behavior is covered by the hook integration tests.
 
 ## Error Utilities
 

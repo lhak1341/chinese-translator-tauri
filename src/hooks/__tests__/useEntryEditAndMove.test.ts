@@ -147,18 +147,26 @@ describe('useEntryEditAndMove — updateEntryWithScrollPreservation', () => {
   });
 });
 
-describe('useEntryEditAndMove — setEditingEntry / setMoveEntry direct', () => {
-  it('setEditingEntry(null) clears editingEntry', () => {
+describe('useEntryEditAndMove — closeEdit / closeMove', () => {
+  it('closeEdit() clears editingEntry without affecting moveEntry', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
-    act(() => result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION }));
-    act(() => result.current.setEditingEntry(null));
+    act(() => {
+      result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION });
+      result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION });
+    });
+    act(() => result.current.closeEdit());
     expect(result.current.editingEntry).toBeNull();
+    expect(result.current.moveEntry).not.toBeNull();
   });
 
-  it('setMoveEntry(null) clears moveEntry', () => {
+  it('closeMove() clears moveEntry without affecting editingEntry', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
-    act(() => result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION }));
-    act(() => result.current.setMoveEntry(null));
+    act(() => {
+      result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION });
+      result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION });
+    });
+    act(() => result.current.closeMove());
     expect(result.current.moveEntry).toBeNull();
+    expect(result.current.editingEntry).not.toBeNull();
   });
 });

@@ -1,7 +1,15 @@
 # ADR-022: Keep streamingReducer and Initial State Constants Exported
 
-**Status:** Decided  
+**Status:** Superseded by session 78 (2026-06-21)  
 **Date:** 2026-06-20
+
+## Supersession Note
+
+Session 78 reversed this decision. `INITIAL_STREAMING`, `INITIAL_STATE`, and `streamingReducer` were made module-private (the `export` keyword removed from each). The 9 pure reducer tests in `useStreamingTranslation.test.js` were deleted in session 79 when the stale imports caused test failures. The 3 hook integration tests remain.
+
+**Why the reversal held:** The "zero external callers" check during session 78 was correct for production code — the test file was the only importer. The ADR-022 reasoning about diagnostic value was valid but not load-bearing: the hook integration tests already cover `resetStreaming` atomicity, `updateStreaming` merge, and callback stability. The pure reducer tests were additive, not essential.
+
+The src/components/CLAUDE.md note about ADR-022 has been updated to reflect the current state.
 
 ## Context
 

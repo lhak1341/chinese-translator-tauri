@@ -61,7 +61,9 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 ## Development
 
-**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
+**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. RTK also replaces long matched identifiers (and import paths containing them) with `n` in search output — use Read for accurate caller-tracing, not bash rg. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
+
+**Single test file:** `pnpm exec vitest run src/path/to/test.ts` — `pnpm test -- --testPathPattern` does not reliably filter to one file.
 
 **RTK filters `cargo test` failure output** — full assertion details (panicked at, left/right values) are in `~/Library/Application Support/rtk/tee/<latest>_cargo_test.log`; grep the test name there when a Rust test fails with no detail shown in terminal.
 
