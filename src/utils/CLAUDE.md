@@ -75,6 +75,18 @@ and fallback paths.
 
 Always does 27-char dictionary-lookup punctuation translation first (calls `this.dictionaryManager.translate()`). Then branches: `options.useChunking !== false` → simple spacing fix + early return; `else` → also applies space-after-punctuation rules and colon-quote handling. The dictionary loop is the blocking constraint. Do not duplicate this logic elsewhere — it is the single authoritative post-assembly cleanup step in `postProcess()`.
 
+### `cleanupFormatting` 27-char List — `translate()` Is Prefix-Match, Not Exact
+
+`this.dictionaryManager.translate(key, ['punctuation'])` returns the longest prefix match, not an exact-key lookup. A multi-char entry like `'……'` that has no exact dict entry will match the 1-char prefix `'…'` and replace the 2-char string with the 1-char translation (silently dropping a char). Only add multi-char keys to the 27-char list if they exist as literal entries in the punctuation dict.
+
+### `processCharacterOnlyTokens` Punctuation Branch — Partial-Match Guard
+
+`findLongestMatchAtPosition` on a multi-char punctuation token (e.g. `'……'`) returns a shorter match than the token's full value. Guard before calling `applyMatchToTokens`: `match.word.length >= token.value.length`. Without this, `token.translated` gets the sub-translation and the remaining chars are lost.
+
+### char-only Space-After-Chinese-Char Uses Allowlist (Not Denylist)
+
+WASM tokenizer assigns type `unknown` to some chars (`…`, `》`). The space rule after `chinese_char` is allowlist-only: add space when next token is `chinese_char`, `latin_word`, `TokenType.NUMBER`, or opening-element punctuation. A denylist `!== 'punctuation' && !== 'whitespace'` treated `unknown`-typed tokens as content and added spurious spaces.
+
 ### `cleanupFormatting` Else-Branch `^` Capitalization Requires `!isParallelChunk` Guard
 
 When `isParallelChunk: true` (each parallel chunk runs with `useChunking: false`), the `^` rule capitalizes every chunk's first letter independently — overrides `applySmartCapitalization` context. Guard: `if (!options.isParallelChunk)` wraps the `^` replace. Do not remove this guard.

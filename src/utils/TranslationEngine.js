@@ -1227,9 +1227,21 @@ export class TranslationEngine {
         translatedText += translatedValue;
 
         // Add space after Chinese characters (except before punctuation or if next token is whitespace)
+        // Exception: opening elements (quotes, brackets) still get a space before them
+        // e.g. 着'27'这 → Trứ '27', 吐（s → Thổ (s
         if (token.type === 'chinese_char' && i < tokens.length - 1) {
           const nextToken = tokens[i + 1];
-          if (nextToken.type !== 'punctuation' && nextToken.type !== 'whitespace') {
+          const nextIsOpeningElement =
+            nextToken.type === 'punctuation' &&
+            this.chunkPostProcessor.punctuationProcessor.hasOpeningElements(nextToken.value || '');
+          // Allowlist: only add space before actual content or opening punctuation.
+          // Denylist (!== 'punctuation' && !== 'whitespace') was too broad — WASM tokenizer
+          // may give '…' type 'unknown', which would incorrectly add space before ellipsis.
+          const nextIsContent =
+            nextToken.type === 'chinese_char' ||
+            nextToken.type === 'latin_word' ||
+            nextToken.type === TokenType.NUMBER;
+          if (nextIsContent || nextIsOpeningElement) {
             translatedText += ' ';
           }
         }
@@ -1250,58 +1262,56 @@ export class TranslationEngine {
           }
         }
 
+        // Add space after closing quote punctuation before the next content token
+        // (e.g. '27' → ' '27' ' so the closing quote gets a trailing space before 这→giá)
+        // Also add space before any opening-element punctuation (e.g. 。"哼 → . "Hừ)
+        if (token.type === 'punctuation' && i < tokens.length - 1) {
+          const nextToken = tokens[i + 1];
+          const lastChar = (translatedValue || '').slice(-1);
+          if (
+            lastChar &&
+            QuoteProcessor.isClosingQuote(lastChar) &&
+            nextToken.type !== 'whitespace' &&
+            !translatedText.endsWith(' ')
+          ) {
+            translatedText += ' ';
+          } else if (
+            nextToken.type === 'punctuation' &&
+            this.chunkPostProcessor.punctuationProcessor.hasOpeningElements(
+              nextToken.value || ''
+            ) &&
+            !translatedText.endsWith(' ')
+          ) {
+            translatedText += ' ';
+          }
+        }
+
         // Debug what we're adding (semantic arrays already populated by processCharacterOnlyTokens)
         if (process.env.NODE_ENV === 'development' && tokens.indexOf(token) % 300 === 0) {
           logger.log(`📝 Character-only progress: ${translatedText.length} chars translated`);
         }
       }
 
-      // Apply punctuation translation like the full translation does
-      if (this.punctuationDict && Object.keys(this.punctuationDict).length > 0) {
-        const punctuationChars = [
-          '。',
-          '，',
-          '、',
-          '？',
-          '！',
-          '：',
-          '；',
-          '……',
-          '…',
-          '．',
-          '（',
-          '）',
-          '《',
-          '》',
-          '「',
-          '」',
-          '﹁',
-          '﹂',
-          '『',
-          '』',
-          '【',
-          '】',
-          '〖',
-          '〗',
-          '～',
-          '˙',
-          '——',
-        ];
-        for (const char of punctuationChars) {
-          const result_lookup = this.dictionaryManager.translate(char, ['punctuation']);
-          if (result_lookup && result_lookup.translation) {
-            const escapedChar = char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            translatedText = translatedText.replace(
-              new RegExp(escapedChar, 'g'),
-              result_lookup.translation
-            );
-          }
-        }
-      }
+      // Shared post-assembly cleanup — same pipeline as full translation.
+      // Handles: punctuation dict translation, comma-digit preservation (1,200 stays intact),
+      // colon-quote spacing (道：「→ 道： 「), space-after-punct, first-letter + colon/newline caps.
+      translatedText = this.cleanupFormatting(translatedText, { useChunking: false });
 
-      // Apply light formatting for character-only translation
-      // Capitalize first letter and after punctuation, but preserve exact spacing
-      translatedText = this.applyLightFormatting(translatedText);
+      // Supplements: rules in applyLightFormatting not covered by cleanupFormatting.
+      // Em dash spacing, Japanese character spacing, capitalize after sentence-ending punctuation.
+      translatedText = translatedText.replace(/——(?!\s)/g, '—— ');
+      translatedText = translatedText.replace(
+        /([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])([぀-ゟ゠-ヿ]+)/gi,
+        '$1 $2'
+      );
+      translatedText = translatedText.replace(
+        /([぀-ゟ゠-ヿ]+)([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])/gi,
+        '$1 $2'
+      );
+      translatedText = translatedText.replace(
+        /([.!?]\s+\P{L}*)(\p{L})/gu,
+        (match, pre, letter) => pre + letter.toUpperCase()
+      );
 
       if (process.env.NODE_ENV === 'development') {
         batchLog.hotInfo(
@@ -1497,16 +1507,19 @@ export class TranslationEngine {
           }
         }
       } else if (token.type === 'punctuation' && punctuationDictionary) {
-        // Try to translate punctuation for readability
+        // Try to translate punctuation for readability.
+        // Only apply if the match covers the FULL token value — multi-char punctuation tokens
+        // like '……' (two U+2026) would otherwise get a partial 1-char match and lose the
+        // second char (token.translated = '…' instead of '……').
         const match = this.findLongestMatchAtPosition(tokens, i, punctuationDictionary);
-        if (match) {
+        if (match && match.word.length >= token.value.length) {
           const matchWithDictName = {
             ...match,
             dictionary: 'punctuation',
           };
           this.applyMatchToTokens(tokens, i, matchWithDictName, options);
         } else {
-          // No punctuation translation, preserve as-is
+          // No full match — preserve as-is; cleanupFormatting translates char-by-char later.
           token.translated = token.value;
           token.translationSource = 'untranslated-punctuation';
         }
@@ -4365,7 +4378,6 @@ export class TranslationEngine {
       '！',
       '：',
       '；',
-      '……',
       '…',
       '．',
       '（',
@@ -4396,6 +4408,15 @@ export class TranslationEngine {
       }
     }
 
+    // Tilde/wave is a range operator — never gets surrounding spaces regardless of path.
+    // (Source of spaces is unclear from static analysis; this normalizes both paths.)
+    result = result.replace(/[ \t]*([~～])[ \t]*/g, '$1');
+
+    // Space after closing quotes before content (mirrors processSequence trailing-space logic).
+    // Dict translation has already run, so Chinese 》→» etc. are in their translated form.
+    // Collapse any resulting double-spaces via the [ \t]+ rule below.
+    result = result.replace(/([”’»>])(?!\s|$)/g, '$1 ');
+
     // Skip detailed spacing rules when called from chunking (chunks handle their own spacing)
     if (options.useChunking !== false) {
       // Fix spacing around punctuation - remove spaces before punctuation
@@ -4405,7 +4426,7 @@ export class TranslationEngine {
     } else {
       // Add space after punctuation (except at end of string or when followed by closing quotes)
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 Before punctuation spacing:', JSON.stringify(result));
-      result = result.replace(/([.!?:;，。！？：；])(?!\s|$|[“””])/g, '$1 ');
+      result = result.replace(/([.!?:;，。！？：；])(?!\s|$|[“”\])}】》）»>])/g, '$1 ');
       // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
       result = result.replace(/,(?!\s|$|[“””\d])/g, ', ');
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 After punctuation spacing:', JSON.stringify(result));
@@ -4429,9 +4450,8 @@ export class TranslationEngine {
       // When isParallelChunk=true, applySmartCapitalization handles this via startedBy='start'.
       // Applying it per-chunk would capitalize the first letter of every chunk, not just the first.
       if (!options.isParallelChunk) {
-        result = result.replace(
-          /^(\P{L}*)(\p{L})/u,
-          (m, pre, letter) => pre + letter.toUpperCase()
+        result = result.replace(/^(\P{L}*)(\p{L})/u, (m, pre, letter) =>
+          /\d/.test(pre) ? m : pre + letter.toUpperCase()
         );
       }
     }
@@ -8356,8 +8376,9 @@ export class TranslationEngine {
     // Add space between Vietnamese text and Arabic numerals (like "Thứ422giới" -> "Thứ 422 giới")
     // BUT preserve number formatting by excluding number-related characters (comma, period, dash, plus, percent)
     // ALSO exclude parentheses and slashes to prevent breaking "(23/30)" formatting
-    cleanedText = cleanedText.replace(/([^\s\d,.\-+%()\/])(\d)/g, '$1 $2');
-    cleanedText = cleanedText.replace(/(\d)([^\s\d,.\-+%()\/])/g, '$1 $2');
+    // ALSO exclude tilde (range/wave operator) to preserve "1992~1996" without spaces
+    cleanedText = cleanedText.replace(/([^\s\d,.\-+%()\/~～])(\d)/g, '$1 $2');
+    cleanedText = cleanedText.replace(/(\d)([^\s\d,.\-+%()\/~～])/g, '$1 $2');
 
     // Clean up multiple spaces (but not across line breaks)
     cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');
