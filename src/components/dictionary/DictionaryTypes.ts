@@ -42,7 +42,7 @@ const baseValidation = (source: string, translation: string): string | null => {
 const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
   patterns: {
     id: 'patterns',
-    label: 'Structural Patterns',
+    label: 'Pattern',
     description: 'Pattern-based structural translations',
     data: patternsDict as DictionaryData,
     validate: (source: string, translation: string): string | null => {
@@ -113,6 +113,11 @@ export const validateDictionaryEntry = (
     return baseValidation(source, translation);
   }
 
+  // Fiction structural pattern dicts reuse the global patterns validator
+  if (dictionaryId.startsWith('patterns-')) {
+    return DICTIONARY_TYPES['patterns'].validate(source, translation);
+  }
+
   // Otherwise, check against standard dictionary types
   const dictionaryType = DICTIONARY_TYPES[dictionaryId];
   if (!dictionaryType) {
@@ -124,12 +129,20 @@ export const validateDictionaryEntry = (
 // Function to generate dictionary types including all proper nouns dictionaries
 export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTypeDefinition>> => {
   try {
-    // Get list of all proper nouns dictionaries first
-    const listResult = await window.electronAPI.listProperNounsDictionaries();
+    // Run both list calls in parallel
+    const [listResult, patternsListResult] = await Promise.all([
+      window.electronAPI.listProperNounsDictionaries(),
+      window.electronAPI.listFictionPatternDictionaries(),
+    ]);
+
     // The runtime API returns string[] IDs; ElectronTypes.d.ts mistypes it as DictionaryInfo[]
     const allProperNouns: string[] = listResult.success
       ? (listResult.dictionaries as unknown as string[])
       : ['properNouns'];
+
+    const allFictionPatterns: string[] = patternsListResult.success
+      ? (patternsListResult.dictionaries as unknown as string[])
+      : [];
 
     // Create proper nouns dictionary types for all available dictionaries
     const properNounsTypes: Record<string, DictionaryTypeDefinition> = {};
@@ -146,9 +159,23 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
       };
     }
 
+    // Create fiction structural pattern dictionary types
+    const fictionPatternTypes: Record<string, DictionaryTypeDefinition> = {};
+    for (const patternsId of allFictionPatterns) {
+      const suffix = patternsId.slice('patterns-'.length); // e.g. "f_DuongThan"
+      fictionPatternTypes[patternsId] = {
+        id: patternsId,
+        label: `Pattern - ${suffix}`,
+        description: 'Fiction-specific structural pattern translations',
+        data: null,
+        validate: DICTIONARY_TYPES['patterns'].validate,
+      };
+    }
+
     // Return combined dictionary types
     return {
       ...properNounsTypes,
+      ...fictionPatternTypes,
       ...baseDictionaryTypes,
     };
   } catch (error) {

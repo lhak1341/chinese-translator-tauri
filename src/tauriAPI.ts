@@ -26,8 +26,11 @@ const CMD = {
   LOAD_DICTIONARIES_PARALLEL: 'load_dictionaries_parallel',
   OPEN_DICTIONARY_FOLDER: 'open_dictionary_folder',
   LIST_PROPER_NOUNS_DICTIONARIES: 'list_proper_nouns_dictionaries',
+  LIST_FICTION_PATTERN_DICTIONARIES: 'list_fiction_pattern_dictionaries',
   CREATE_PROPER_NOUNS_DICTIONARY: 'create_proper_nouns_dictionary',
+  CREATE_STRUCTURAL_PATTERNS_DICTIONARY: 'create_structural_patterns_dictionary',
   RENAME_PROPER_NOUNS_DICTIONARY: 'rename_proper_nouns_dictionary',
+  RENAME_STRUCTURAL_PATTERNS_DICTIONARY: 'rename_structural_patterns_dictionary',
   LOAD_CONFIGURATION: 'load_configuration',
   SAVE_CONFIGURATION: 'save_configuration',
   LOAD_APPEARANCE_SETTINGS: 'load_appearance_settings',
@@ -187,6 +190,15 @@ const tauriAPI = {
     }
   },
 
+  listFictionPatternDictionaries: async (): Promise<ProperNounsListResult> => {
+    try {
+      return await invoke<ProperNounsListResult>(CMD.LIST_FICTION_PATTERN_DICTIONARIES);
+    } catch (error) {
+      logger.error('Error in listFictionPatternDictionaries:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+
   createProperNounsDictionary: async (dictionaryId: string): Promise<SaveResult> => {
     if (!validateDictionaryId(dictionaryId)) {
       logger.error('Invalid dictionary ID format:', dictionaryId);
@@ -196,6 +208,19 @@ const tauriAPI = {
       return await invoke<SaveResult>(CMD.CREATE_PROPER_NOUNS_DICTIONARY, { dictionaryId });
     } catch (error) {
       logger.error('Error in createProperNounsDictionary:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+
+  createStructuralPatternsDictionary: async (dictionaryId: string): Promise<SaveResult> => {
+    if (!validateDictionaryId(dictionaryId)) {
+      logger.error('Invalid dictionary ID format:', dictionaryId);
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+    try {
+      return await invoke<SaveResult>(CMD.CREATE_STRUCTURAL_PATTERNS_DICTIONARY, { dictionaryId });
+    } catch (error) {
+      logger.error('Error in createStructuralPatternsDictionary:', error);
       return { success: false, error: String(error) };
     }
   },
@@ -215,6 +240,25 @@ const tauriAPI = {
       });
     } catch (error) {
       logger.error('Error in renameProperNounsDictionary:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+
+  renameStructuralPatternsDictionary: async (
+    oldDictionaryId: string,
+    newDictionaryId: string
+  ): Promise<DictionaryOperationResult> => {
+    if (!validateDictionaryId(oldDictionaryId) || !validateDictionaryId(newDictionaryId)) {
+      logger.error('Invalid dictionary ID format:', { oldDictionaryId, newDictionaryId });
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+    try {
+      return await invoke<DictionaryOperationResult>(CMD.RENAME_STRUCTURAL_PATTERNS_DICTIONARY, {
+        oldDictionaryId,
+        newDictionaryId,
+      });
+    } catch (error) {
+      logger.error('Error in renameStructuralPatternsDictionary:', error);
       return { success: false, error: String(error) };
     }
   },

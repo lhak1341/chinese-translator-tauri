@@ -61,7 +61,11 @@ Resolution edge cases: `$-ref` to non-existent variable (e.g. `"$Z"` in an X-onl
 
 ## Pattern Variable Contract
 
-X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally invalid. `validatePatternEntry(sourceText, translationText?)` enforces: source needs exactly one X; translation must contain X; if source has Y, translation must also have Y. Existing-entry suggestion (from other dictionaries) is suppressed for patterns — `handleTranslationFocus` guards on `activeDictionary === 'patterns'`.
+X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally invalid. `validatePatternEntry(sourceText, translationText?)` enforces: source needs exactly one X; translation must contain X; if source has Y, translation must also have Y. Existing-entry suggestion (from other dictionaries) is suppressed for patterns — `handleTranslationFocus` guards on `activeDictionary.startsWith('patterns')`.
+
+## Dictionary Type Classification
+
+Use `classifyDictionaryId(id)` from `DictionaryIdClassifier.ts` for all UI-layer type checks — never compare `=== 'patterns'` or `=== 'phrases'` directly. `isPatterns` is true for both `'patterns'` and `'patterns-f_*'`; raw equality misses fiction variants and silently breaks on every dict-type extension. Even when `isPatterns` is already computed in scope, call sites tend to fall back to raw string — grep `=== 'patterns'` after any dict-type addition.
 
 ## `DictionaryInfo` Name Collision
 

@@ -92,7 +92,7 @@ function prepareMutationEntry(
   let targetValue: string | DictionaryEntryValue = cleanTranslation;
   if (
     dictionaryId === 'phrases' ||
-    dictionaryId === 'patterns' ||
+    dictionaryId.startsWith('patterns') ||
     dictionaryId.startsWith('properNouns')
   ) {
     const entryValue: DictionaryEntryValue = {

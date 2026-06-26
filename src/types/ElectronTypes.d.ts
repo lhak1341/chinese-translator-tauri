@@ -172,10 +172,19 @@ export interface ElectronAPI {
   saveDictionary: (path: string, data: any) => Promise<SaveResult>;
   /** List all available proper nouns dictionaries */
   listProperNounsDictionaries: () => Promise<DictionaryListResult>;
+  /** List all fiction structural pattern dictionaries (patterns-f_*) */
+  listFictionPatternDictionaries: () => Promise<DictionaryListResult>;
   /** Create a new proper nouns dictionary */
   createProperNounsDictionary: (id: string) => Promise<SaveResult>;
-  /** Rename a proper nouns dictionary */
+  /** Create a new fiction structural patterns dictionary (patterns-f_*) */
+  createStructuralPatternsDictionary: (id: string) => Promise<SaveResult>;
+  /** Rename a proper nouns dictionary (cascades to paired patterns-f_* file) */
   renameProperNounsDictionary: (
+    oldDictionaryId: string,
+    newDictionaryId: string
+  ) => Promise<DictionaryOperationResult>;
+  /** Rename a structural patterns dictionary */
+  renameStructuralPatternsDictionary: (
     oldDictionaryId: string,
     newDictionaryId: string
   ) => Promise<DictionaryOperationResult>;

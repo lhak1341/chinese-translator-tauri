@@ -152,7 +152,8 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
       return;
     }
 
-    const supportsMetadata = selectedDictionary === 'phrases' || selectedDictionary === 'patterns';
+    const supportsMetadata =
+      selectedDictionary === 'phrases' || selectedDictionary.startsWith('patterns');
     if (!supportsMetadata) {
       const flags: string[] = [];
       if (allowAsPatternVariable) flags.push('allowAsPatternVariable');

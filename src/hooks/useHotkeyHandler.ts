@@ -20,6 +20,7 @@ export interface HotkeyHandlerOptions {
   onQuickAddProperNoun?: (text?: string) => void;
   onQuickAddPattern?: (text?: string) => void;
   onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
+  onQuickAddCustomStructuralPattern?: (text?: string) => Promise<void>;
   onReloadDictionary?: () => void;
   onFocusSearch?: () => void;
   onDictionaryTabHotkey?: (key: string) => Promise<void>;
@@ -55,6 +56,7 @@ export function useHotkeyHandler({
   onQuickAddProperNoun,
   onQuickAddPattern,
   onQuickAddCustomProperNoun,
+  onQuickAddCustomStructuralPattern,
   onReloadDictionary,
   onFocusSearch,
   onDictionaryTabHotkey,
@@ -92,6 +94,8 @@ export function useHotkeyHandler({
   onQuickAddPatternRef.current = onQuickAddPattern;
   const onQuickAddCustomProperNounRef = useRef(onQuickAddCustomProperNoun);
   onQuickAddCustomProperNounRef.current = onQuickAddCustomProperNoun;
+  const onQuickAddCustomStructuralPatternRef = useRef(onQuickAddCustomStructuralPattern);
+  onQuickAddCustomStructuralPatternRef.current = onQuickAddCustomStructuralPattern;
   const onReloadDictionaryRef = useRef(onReloadDictionary);
   onReloadDictionaryRef.current = onReloadDictionary;
   const onFocusSearchRef = useRef(onFocusSearch);
@@ -162,6 +166,13 @@ export function useHotkeyHandler({
             event,
             onQuickAddCustomProperNounRef.current,
             'Quick Add Custom Proper Noun'
+          );
+          break;
+        case 'quickAddCustomStructuralPattern':
+          await handleQuickAdd(
+            event,
+            onQuickAddCustomStructuralPatternRef.current,
+            'Quick Add Structural Pattern'
           );
           break;
         case 'focusSearch':

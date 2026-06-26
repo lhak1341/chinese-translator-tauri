@@ -41,6 +41,8 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
 }) => {
   if (!supportsSemanticTypes(activeDictionary)) return null;
 
+  const { isPatterns } = classifyDictionaryId(activeDictionary);
+
   const badgeBase: React.CSSProperties = {
     display: 'inline-block',
     padding: '2px 8px',
@@ -57,9 +59,9 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
       {/* Output semantic type badge picker */}
       <div className={styles.formGroup}>
         <label className={`${styles.label} ${styles.labelCentered}`}>
-          {activeDictionary === 'patterns' ? 'Output Semantic Type' : 'Semantic Type'}
+          {isPatterns ? 'Output Semantic Type' : 'Semantic Type'}
         </label>
-        {activeDictionary === 'patterns' && (
+        {isPatterns && (
           <p
             style={{
               fontSize: '0.7rem',
@@ -135,7 +137,7 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
           })}
 
           {/* $X / $Y variable-ref badges — patterns only */}
-          {activeDictionary === 'patterns' &&
+          {isPatterns &&
             PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => source.includes(r[1])).map((typeRef) => {
               const isSelected = semanticType === typeRef;
               const varName = typeRef[1];
@@ -171,7 +173,7 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
       </div>
 
       {/* Per-variable type constraints — patterns only */}
-      {activeDictionary === 'patterns' &&
+      {isPatterns &&
         (['X', 'Y'] as const)
           .filter((v) => source.includes(v))
           .map((varName) => (

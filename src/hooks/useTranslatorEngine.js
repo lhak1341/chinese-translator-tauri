@@ -22,6 +22,28 @@ function filterDictionariesForEngine(dictionaries, activeProperNouns) {
       filtered[name] = dict;
     }
   }
+
+  // Merge fiction structural pattern dicts into filtered.patterns (fiction wins on conflict)
+  const fictionPatternEntries = {};
+  for (const id of activeProperNouns) {
+    if (id.startsWith('properNouns-f_')) {
+      const suffix = id.slice('properNouns-'.length); // "f_DuongThan"
+      const patternsId = 'patterns-' + suffix; // "patterns-f_DuongThan"
+      const patternsDict = dictionaries[patternsId];
+      if (patternsDict && Object.keys(patternsDict).length > 0) {
+        Object.assign(fictionPatternEntries, patternsDict);
+      }
+    }
+  }
+  if (Object.keys(fictionPatternEntries).length > 0) {
+    // fiction first → fiction wins on same-template conflict
+    filtered.patterns = { ...fictionPatternEntries, ...(filtered.patterns || {}) };
+  }
+  // Strip raw patterns-f_X keys — engine receives only the merged 'patterns' key
+  for (const key of Object.keys(filtered)) {
+    if (key.startsWith('patterns-f_')) delete filtered[key];
+  }
+
   return filtered;
 }
 

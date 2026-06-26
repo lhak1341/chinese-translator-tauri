@@ -9,6 +9,7 @@ export type HotkeyAction =
   | { type: 'quickAddProperNoun' }
   | { type: 'quickAddPattern' }
   | { type: 'quickAddCustomProperNoun' }
+  | { type: 'quickAddCustomStructuralPattern' }
   | { type: 'dictionaryTabHotkey'; key: string }
   | { type: 'focusSearch' }
   | { type: 'undo' }
@@ -80,6 +81,10 @@ export function matchHotkey(
         return activeTab === 'dictionary'
           ? { type: 'dictionaryTabHotkey', key: '5' }
           : { type: 'quickAddCustomProperNoun' };
+      case '6':
+        return activeTab === 'dictionary'
+          ? { type: 'dictionaryTabHotkey', key: '6' }
+          : { type: 'quickAddCustomStructuralPattern' };
       case 'l':
         return activeTab === 'dictionary' ? { type: 'focusSearch' } : null;
       case 'z':

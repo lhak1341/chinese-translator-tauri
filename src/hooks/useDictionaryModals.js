@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import { loadAppConfig } from '../utils/appConfig';
+import toast from '../utils/toast';
 
 /**
  * Quick Add modal state and handlers.
@@ -75,6 +76,40 @@ export function useDictionaryModals() {
     setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
   }, []);
 
+  const openQuickAddCustomStructuralPattern = useCallback(async (text = '') => {
+    let selectedDictionary = null;
+
+    try {
+      const config = await loadAppConfig();
+      const defaultDict = config.ui.defaultQuickAddDictionary;
+      const activeNouns = config.engine.activeProperNouns;
+
+      if (defaultDict?.startsWith('properNouns-f_')) {
+        selectedDictionary = 'patterns-' + defaultDict.slice('properNouns-'.length);
+      } else {
+        const firstFiction = activeNouns.filter((id) => id.startsWith('properNouns-f_')).sort()[0];
+        if (firstFiction) {
+          selectedDictionary = 'patterns-' + firstFiction.slice('properNouns-'.length);
+        }
+      }
+
+      if (selectedDictionary) {
+        const listResult = await window.electronAPI.listFictionPatternDictionaries();
+        const exists = listResult.success && listResult.dictionaries.includes(selectedDictionary);
+        if (!exists) selectedDictionary = null;
+      }
+    } catch (error) {
+      logger.error('Error resolving Cmd-6 structural pattern dictionary:', error);
+      selectedDictionary = null;
+    }
+
+    if (!selectedDictionary) {
+      toast.error('No structural patterns dictionary for active fiction');
+      return;
+    }
+    setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
+  }, []);
+
   const closeQuickAdd = useCallback(() => {
     setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '' });
   }, []);
@@ -93,6 +128,7 @@ export function useDictionaryModals() {
     openQuickAddProperNoun,
     openQuickAddPattern,
     openQuickAddCustomProperNoun,
+    openQuickAddCustomStructuralPattern,
     closeQuickAdd,
     handleQuickAddDictionaryChange,
   };

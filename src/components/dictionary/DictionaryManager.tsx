@@ -310,30 +310,31 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       return dictionaryTypes;
     }
 
-    // Filter: show base dictionaries + active proper nouns only
+    // Filter: show base dictionaries + active proper nouns + active fiction patterns only
     const filtered: DictionaryTypesCollection = {};
     for (const [id, type] of Object.entries(dictionaryTypes)) {
-      // Always include base dictionaries (non-properNouns)
-      if (!id.startsWith('properNouns')) {
-        filtered[id] = type;
-      }
-      // Include proper nouns dictionaries that are active
-      else if (activeDictionaries.includes(id)) {
+      if (id.startsWith('properNouns')) {
+        // Include only active proper nouns dictionaries
+        if (activeDictionaries.includes(id)) {
+          filtered[id] = type;
+        }
+      } else if (id.startsWith('patterns-f_')) {
+        // Include fiction pattern dict only if its paired properNouns is active
+        const pairedProperNouns = 'properNouns-' + id.slice('patterns-'.length);
+        if (activeDictionaries.includes(pairedProperNouns)) {
+          filtered[id] = type;
+        }
+      } else {
+        // Always include base dictionaries (patterns, phrases, characters, etc.)
         filtered[id] = type;
       }
     }
     return filtered;
   }, [dictionaryTypes, showAllDictionaries, activeDictionaries]);
 
-  // Sort dictionary entries for dropdown: general 'properNouns' first, then alphabetical
+  // Sort dictionary entries for dropdown: A-Z by ID
   const sortedDictionaryEntries = React.useMemo(() => {
-    return Object.entries(filteredDictionaryTypes).sort(([idA], [idB]) => {
-      // Always put 'properNouns' first
-      if (idA === 'properNouns') return -1;
-      if (idB === 'properNouns') return 1;
-      // Sort other dictionaries alphabetically
-      return idA.localeCompare(idB);
-    });
+    return Object.entries(filteredDictionaryTypes).sort(([idA], [idB]) => idA.localeCompare(idB));
   }, [filteredDictionaryTypes]);
 
   useHotkeyHandler({

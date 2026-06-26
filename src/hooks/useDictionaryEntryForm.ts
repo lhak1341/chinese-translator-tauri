@@ -169,7 +169,11 @@ export function useDictionaryEntryForm(
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
         if (isMounted) {
           const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
-            if (!id.startsWith('properNouns') || activeProperNouns.includes(id)) {
+            if (id.startsWith('patterns-')) {
+              // Show fiction pattern dict only if its paired fiction proper-nouns is active
+              const pairedFiction = 'properNouns-' + id.slice('patterns-'.length);
+              if (activeProperNouns.includes(pairedFiction)) acc[id] = info;
+            } else if (!id.startsWith('properNouns') || activeProperNouns.includes(id)) {
               acc[id] = info;
             }
             return acc;
@@ -202,7 +206,8 @@ export function useDictionaryEntryForm(
 
   const validatePatternEntry = useCallback(
     (sourceText: string, translationText?: string): boolean => {
-      const valid = activeDictionary !== 'patterns' || isPatternValid(sourceText, translationText);
+      const valid =
+        !activeDictionary.startsWith('patterns') || isPatternValid(sourceText, translationText);
       setShowPatternValidation(!valid);
       return valid;
     },
@@ -374,7 +379,7 @@ export function useDictionaryEntryForm(
   };
 
   const handleTranslationFocus = (): void => {
-    if (activeDictionary === 'patterns') return;
+    if (activeDictionary.startsWith('patterns')) return;
     if (source.trim()) checkForExistingEntry(source);
   };
 
@@ -410,13 +415,13 @@ export function useDictionaryEntryForm(
 
       const metadata: DictionaryEntryMetadata =
         activeDictionary === 'phrases' ||
-        activeDictionary === 'patterns' ||
+        activeDictionary.startsWith('patterns') ||
         activeDictionary.startsWith('properNouns')
           ? {
               allowAsPatternVariable,
               lowPriority,
               ...(semanticType && { semanticType }),
-              ...(activeDictionary === 'patterns' &&
+              ...(activeDictionary.startsWith('patterns') &&
                 Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
             }
           : {};

@@ -58,7 +58,7 @@ export function validateDictionaryEntry(
     };
   }
 
-  if (dictionaryId === 'patterns' && !isPatternValid(source, translation)) {
+  if (dictionaryId.startsWith('patterns') && !isPatternValid(source, translation)) {
     return {
       valid: false,
       error:

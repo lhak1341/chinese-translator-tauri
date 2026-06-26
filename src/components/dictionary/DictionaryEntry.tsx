@@ -176,7 +176,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               </div>
             )}
 
-            {form.showPatternValidation && form.activeDictionary === 'patterns' && (
+            {form.showPatternValidation && form.activeDictionary.startsWith('patterns') && (
               <div className={`${styles.notification} ${styles.notificationError}`}>
                 <div className={`${styles.notificationContent} ${styles.notificationTextError}`}>
                   <span className={styles.notificationIcon}>❌</span>
@@ -228,11 +228,14 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             />
           </div>
 
-          {(form.activeDictionary === 'phrases' || form.activeDictionary === 'patterns') && (
+          {(form.activeDictionary === 'phrases' ||
+            form.activeDictionary.startsWith('patterns')) && (
             <div className={styles.formGroup}>
               <div
                 className={styles.checkboxContainer}
-                style={{ marginBottom: form.activeDictionary === 'patterns' ? '0.5rem' : '0' }}
+                style={{
+                  marginBottom: form.activeDictionary.startsWith('patterns') ? '0.5rem' : '0',
+                }}
               >
                 <input
                   type="checkbox"
@@ -247,7 +250,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 </label>
               </div>
 
-              {form.activeDictionary === 'patterns' && (
+              {form.activeDictionary.startsWith('patterns') && (
                 <div className={styles.checkboxContainer}>
                   <input
                     type="checkbox"

@@ -625,6 +625,102 @@ pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Res
 }
 
 #[tauri::command]
+pub async fn list_fiction_pattern_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+
+    let entries = fs::read_dir(&dictionary_path)
+        .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
+
+    let pattern_dicts: Vec<String> = entries
+        .filter_map(|entry| {
+            entry.ok().and_then(|e| {
+                let file_name = e.file_name();
+                let file_str = file_name.to_str()?;
+                if file_str.starts_with("patterns-") && file_str.ends_with(".json") && !file_str.ends_with(".trie.json") {
+                    let base_name = file_str.strip_suffix(".json")?;
+                    validate_dictionary_id(base_name).ok()?;
+                    Some(base_name.to_string())
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+
+    Ok(DictionaryResponse::ok_with_dicts(pattern_dicts))
+}
+
+#[tauri::command]
+pub async fn create_structural_patterns_dictionary(
+    app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
+    dictionary_id: String,
+) -> Result<DictionaryResponse, String> {
+    validate_dictionary_id(&dictionary_id)?;
+
+    if !dictionary_id.starts_with("patterns-") {
+        return Ok(DictionaryResponse::err("Dictionary ID must start with 'patterns-'"));
+    }
+
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+    let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
+
+    if file_path.exists() {
+        return Ok(DictionaryResponse::err("Dictionary already exists"));
+    }
+
+    let empty_dict = serde_json::json!({});
+    save_json_file(&file_path, &empty_dict)?;
+
+    cache.invalidate(Some(&dictionary_id));
+
+    Ok(DictionaryResponse::ok())
+}
+
+#[tauri::command]
+pub async fn rename_structural_patterns_dictionary(
+    app_handle: tauri::AppHandle,
+    cache: State<'_, DictionaryCache>,
+    old_dictionary_id: String,
+    new_dictionary_id: String,
+) -> Result<DictionaryResponse, String> {
+    validate_dictionary_id(&old_dictionary_id)?;
+    validate_dictionary_id(&new_dictionary_id)?;
+
+    if !old_dictionary_id.starts_with("patterns-") || !new_dictionary_id.starts_with("patterns-") {
+        return Ok(DictionaryResponse::err("Both dictionary IDs must start with 'patterns-'"));
+    }
+
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+    let old_file_path = dictionary_path.join(format!("{}.json", old_dictionary_id));
+    let new_file_path = dictionary_path.join(format!("{}.json", new_dictionary_id));
+
+    if !old_file_path.exists() {
+        return Ok(DictionaryResponse::ok_with_message(format!(
+            "Patterns dictionary '{}' not found — skipped (will be created on next app launch)",
+            old_dictionary_id
+        )));
+    }
+
+    if new_file_path.exists() {
+        return Ok(DictionaryResponse::err(format!(
+            "Patterns dictionary '{}' already exists",
+            new_dictionary_id
+        )));
+    }
+
+    fs::rename(&old_file_path, &new_file_path)
+        .map_err(|e| sanitize_io_error(e, "patterns dictionary file"))?;
+
+    cache.invalidate(Some(&old_dictionary_id));
+
+    Ok(DictionaryResponse::ok_with_message(format!(
+        "Renamed '{}' to '{}'",
+        old_dictionary_id, new_dictionary_id
+    )))
+}
+
+#[tauri::command]
 pub async fn create_proper_nouns_dictionary(
     app_handle: tauri::AppHandle,
     cache: State<'_, DictionaryCache>,
@@ -1462,6 +1558,49 @@ pub async fn rename_proper_nouns_dictionary(
             let _ = fs::rename(&new_file_path, &old_file_path);
             cache.invalidate(Some(&old_dictionary_id));
             return Err(save_err);
+        }
+    }
+
+    // Cascade to paired patterns dict if this is a fiction proper-nouns dict
+    if old_dictionary_id.starts_with("properNouns-f_") {
+        let old_suffix = old_dictionary_id.strip_prefix("properNouns-").unwrap_or("");
+        let new_suffix = new_dictionary_id.strip_prefix("properNouns-").unwrap_or("");
+        let old_patterns_id = format!("patterns-{}", old_suffix);
+        let new_patterns_id = format!("patterns-{}", new_suffix);
+        let old_patterns_path = dictionary_path.join(format!("{}.json", old_patterns_id));
+        let new_patterns_path = dictionary_path.join(format!("{}.json", new_patterns_id));
+        if old_patterns_path.exists() {
+            if let Err(_) = fs::rename(&old_patterns_path, &new_patterns_path) {
+                // Patterns rename failed — roll back properNouns rename and config
+                let _ = fs::rename(&new_file_path, &old_file_path);
+                cache.invalidate(Some(&old_dictionary_id));
+                // Reverse the config substitution: swap new_dictionary_id back to old
+                if config_path.exists() {
+                    if let Ok(contents) = fs::read_to_string(&config_path) {
+                        if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&contents) {
+                            if let Some(active) = cfg.get_mut("activeProperNouns") {
+                                if let Some(arr) = active.as_array_mut() {
+                                    for item in arr.iter_mut() {
+                                        if item.as_str() == Some(new_dictionary_id.as_str()) {
+                                            *item = serde_json::Value::String(old_dictionary_id.clone());
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(last) = cfg.get_mut("lastSelectedDictionary") {
+                                if last.as_str() == Some(new_dictionary_id.as_str()) {
+                                    *last = serde_json::Value::String(old_dictionary_id.clone());
+                                }
+                            }
+                            let _ = save_json_file(&config_path, &cfg);
+                        }
+                    }
+                }
+                return Ok(DictionaryResponse::err(
+                    "Rename failed: could not rename paired patterns dictionary. Both files restored.",
+                ));
+            }
+            cache.invalidate(Some(&old_patterns_id));
         }
     }
 

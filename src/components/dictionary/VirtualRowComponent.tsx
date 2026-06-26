@@ -280,7 +280,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       });
 
     // Patterns layout: checkbox | source (25%) | translation+badges (34%) | semantic (15%) | X types (13%) | Y types (13%)
-    if (selectedDictionary === 'patterns') {
+    if (isPatterns) {
       const hasX = source.includes('X');
       const hasY = source.includes('Y');
       return (

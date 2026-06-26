@@ -130,6 +130,7 @@ const Translator = ({ isActive = true }) => {
     openQuickAddProperNoun: handleQuickAddProperNoun,
     openQuickAddPattern: handleQuickAddPattern,
     openQuickAddCustomProperNoun: handleQuickAddCustomProperNoun,
+    openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
     closeQuickAdd,
     handleQuickAddDictionaryChange,
   } = useDictionaryModals();
@@ -1207,6 +1208,7 @@ const Translator = ({ isActive = true }) => {
         onQuickAddProperNoun={handleQuickAddProperNoun}
         onQuickAddPattern={handleQuickAddPattern}
         onQuickAddCustomProperNoun={handleQuickAddCustomProperNoun}
+        onQuickAddCustomStructuralPattern={handleQuickAddCustomStructuralPattern}
         onReloadDictionary={handleForceReload}
         activeTab={isActive ? 'translator' : null}
       />

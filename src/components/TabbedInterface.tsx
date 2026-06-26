@@ -40,7 +40,7 @@ const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
 const TabbedInterface: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('translator');
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
-  const { setSelectedDictionary } = useDictionary();
+  const { setSelectedDictionary, dictionaries } = useDictionary();
 
   const handleTabChange = (tab: TabId): void => {
     setActiveTab(tab);
@@ -74,8 +74,34 @@ const TabbedInterface: React.FC = () => {
           // no-op if config unavailable
         }
       }
+      if (key === '6') {
+        try {
+          const config = await loadAppConfig();
+          const defaultDict = config.ui.defaultQuickAddDictionary;
+          let target: string | undefined;
+          if (defaultDict?.startsWith('properNouns-f_')) {
+            target = 'patterns-' + defaultDict.slice('properNouns-'.length);
+          } else {
+            const firstFiction = config.engine.activeProperNouns
+              .filter((id) => id.startsWith('properNouns-f_'))
+              .sort()[0];
+            if (firstFiction) {
+              target = 'patterns-' + firstFiction.slice('properNouns-'.length);
+            }
+          }
+          if (target && dictionaries[target] !== undefined) {
+            setSelectedDictionary(target);
+          } else {
+            const { default: toast } = await import('../utils/toast');
+            toast.error('No structural patterns dictionary for active fiction');
+          }
+        } catch {
+          // no-op if config unavailable
+        }
+        return;
+      }
     },
-    [setSelectedDictionary]
+    [setSelectedDictionary, dictionaries]
   );
 
   useHotkeyHandler({

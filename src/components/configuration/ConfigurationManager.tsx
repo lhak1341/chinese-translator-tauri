@@ -86,6 +86,26 @@ const ConfigurationManager: React.FC = () => {
           const config = await loadAppConfig();
           setActiveDictionaries(config.engine.activeProperNouns);
           setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
+
+          // Migration: create missing patterns-f_* for pre-existing fiction proper-noun dicts
+          try {
+            const patternsListResult = await window.electronAPI.listFictionPatternDictionaries();
+            const existingPatterns = new Set<string>(
+              patternsListResult.success
+                ? (patternsListResult.dictionaries as unknown as string[])
+                : []
+            );
+            const fictionDicts = dictionaryIds.filter((id) => id.startsWith('properNouns-f_'));
+            for (const id of fictionDicts) {
+              const suffix = id.slice('properNouns-'.length);
+              const patternsDictId = 'patterns-' + suffix;
+              if (!existingPatterns.has(patternsDictId)) {
+                await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
+              }
+            }
+          } catch (migrationErr) {
+            console.warn('Fiction pattern dictionary migration failed (non-fatal):', migrationErr);
+          }
         } else {
           throw new Error(result.error || 'Failed to load dictionaries');
         }
@@ -123,6 +143,20 @@ const ConfigurationManager: React.FC = () => {
       const result = await window.electronAPI.createProperNounsDictionary(dictionaryId);
 
       if (result.success) {
+        // Eager creation: also create paired patterns dict for fiction dicts
+        if (dictionaryId.startsWith('properNouns-f_')) {
+          const suffix = dictionaryId.slice('properNouns-'.length);
+          const patternsDictId = 'patterns-' + suffix;
+          const patternsResult =
+            await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
+          if (!patternsResult.success) {
+            console.warn(
+              `Created ${dictionaryId} but failed to create paired ${patternsDictId}:`,
+              patternsResult.error
+            );
+          }
+        }
+
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
         setShowNewDictionaryModal(false);
         setNewDictionaryName('');
