@@ -1,4 +1,4 @@
-import { systemPerformanceMonitor } from '../performance';
+import { systemPerformanceMonitor } from '../performance/SystemPerformanceMonitor';
 import { logger } from '../logger';
 
 export function installDevConsole(engine) {

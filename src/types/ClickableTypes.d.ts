@@ -169,8 +169,6 @@ export interface ClickableTranslationSemanticProps {
   onSegmentClick?: FlexibleClickHandler;
   /** Currently highlighted unit index */
   highlightedTranslationUnitIndex?: number | number[];
-  /** Direction of click interaction */
-  direction?: ClickDirection;
 }
 
 // =============================================================================

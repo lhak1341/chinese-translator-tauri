@@ -133,7 +133,6 @@ export default function TranslatorDisplayPanels({
                       highlightedTranslationUnitIndex={
                         highlightedCharacterOnlyUnitIndex ?? undefined
                       }
-                      direction="character-only-to-original"
                     />
                   ) : (
                     <div className={styles.placeholder}>

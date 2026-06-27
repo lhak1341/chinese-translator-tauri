@@ -110,6 +110,17 @@ class PerformanceHealth {
   }
 
   /**
+   * @param {number} [intervalMs]
+   */
+  startMonitoring(intervalMs = 30000) {
+    systemPerformanceMonitor.startMonitoring(intervalMs);
+  }
+
+  destroy() {
+    systemPerformanceMonitor.destroy();
+  }
+
+  /**
    * @param {string} status
    * @returns {HealthVerdict}
    */

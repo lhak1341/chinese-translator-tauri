@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import type { ClickableTranslationSemanticProps } from '../../types/ClickableTypes';
-import { useSegmentComputation } from '../../hooks/useSegmentComputation';
+import { useCharacterOnlySegments } from '../../hooks/useCharacterOnlySegments';
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
 import { HighlightableSegment } from './HighlightableSegment';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
@@ -16,15 +16,18 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   semanticArrays,
   onSegmentClick,
   highlightedTranslationUnitIndex = -1,
-  direction = 'translation-to-original',
 }) => {
-  const segments = useSegmentComputation(direction, translatedText, semanticArrays);
+  const segments = useCharacterOnlySegments(translatedText, semanticArrays);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)
   // ISSUE-1 FIX: Use shared utility to eliminate code duplication
   const paragraphs = useMemo(() => groupSegmentsIntoParagraphs(segments), [segments]);
 
-  const handleUnitClick = useSegmentClickHandler(semanticArrays, onSegmentClick, direction);
+  const handleUnitClick = useSegmentClickHandler(
+    semanticArrays,
+    onSegmentClick,
+    'character-only-to-original'
+  );
 
   // Render a single segment with highlighting
   const renderSegment = (segment: any, index: number) => {

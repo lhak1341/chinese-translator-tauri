@@ -120,6 +120,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `NumberProcessingAdapter.js` / `processNumbers` — deleted alongside `WasmNumberProcessor.js`
 - `WASM_NUMBER_THRESHOLDS` from `TranslationConstants.js` — deleted (was WASM/JS dispatch threshold)
 - `INITIAL_STREAMING`, `INITIAL_STATE`, `streamingReducer` from `useStreamingTranslation` — module-private (intentionally unexported session 78); only `useStreamingTranslation` is exported
+- `useSegmentComputation` from `src/hooks/useSegmentComputation` — split into `useCharacterOnlySegments` (char-only sync, `segmentFromPositionMetadata`) and `useFullTranslationSegments` (async, `precomputeSegments` + cancellation guard)
 - `validateDictionaryEntry` from `src/components/dictionary/DictionaryTypes.ts` — extracted and renamed; use `validatePersistEntry` from `src/utils/dictionary/PersistTimeValidator` (or `utils/dictionary` barrel). Distinct from form-time `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (different signature: `(source, translation, dictionaryId) → ValidationResult`).
 - `useDictionaryCRUD` from `src/components/dictionary/` — moved to `src/hooks/useDictionaryCRUD.ts`; ADR-026 superseded 2026-06-27
 

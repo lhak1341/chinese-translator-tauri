@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
-import { systemPerformanceMonitor } from './utils/performance';
+import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
 import { applyAppearanceToCssVars } from './utils/ui/AppearanceReducer';
 import { DEFAULT_APPEARANCE } from './hooks/useAppearanceSettings';
@@ -48,14 +48,9 @@ function App() {
 
     const initializePerformanceMonitoring = () => {
       // Start system-wide performance regression detection
-      systemPerformanceMonitor.startMonitoring(30000); // 30-second intervals
-
-      // Log initial health status
-      const healthReport = systemPerformanceMonitor.getSystemHealthReport();
+      performanceHealth.startMonitoring(30000); // 30-second intervals
       logger.log('📊 Performance monitoring initialized:', {
-        status: healthReport.status,
-        integrations: systemPerformanceMonitor.integrations.size,
-        memoryPressure: (healthReport.systemMetrics.memory.pressure * 100).toFixed(1) + '%',
+        status: performanceHealth.getReport().status,
       });
 
       // Set up cleanup on unmount.
@@ -63,7 +58,7 @@ function App() {
       // WASM/cache singletons here — they outlive React component lifecycle and
       // calling their .cleanup() races with module-load auto-init under StrictMode.
       return () => {
-        systemPerformanceMonitor.destroy();
+        performanceHealth.destroy();
         logger.log('🔍 Performance monitoring destroyed');
       };
     };
