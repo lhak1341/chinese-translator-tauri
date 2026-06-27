@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import type { DictionaryData } from '../../types/DictionaryTypes';
-import type { MoveOpUpdates } from './useDictionaryCRUD';
+import type { MoveOpUpdates } from '../../hooks/useDictionaryCRUD';
 
 export type PersistDictionaryMutation = (
   dictionaryId: string,

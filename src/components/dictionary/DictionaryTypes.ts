@@ -8,8 +8,7 @@ import { logger } from '../../utils/logger.js';
 import toast from '../../utils/toast';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import type { DictionaryData } from '../../types/DictionaryTypes.js';
-
-const MAX_ENTRY_LENGTH = 10000;
+import { baseValidation, validatePatternEntry } from '../../utils/dictionary/PersistTimeValidator';
 
 interface DictionaryTypeDefinition {
   id: string;
@@ -19,25 +18,6 @@ interface DictionaryTypeDefinition {
   validate: (source: string, translation: string) => string | null;
 }
 
-// Basic validation for all dictionary entries
-const baseValidation = (source: string, translation: string): string | null => {
-  // SECURITY FIX: Prevent DoS via huge dictionary entries
-
-  if (!source.trim() || !translation.trim()) {
-    return 'Both source and translation are required';
-  }
-
-  if (source.length > MAX_ENTRY_LENGTH) {
-    return `Source too long (max ${MAX_ENTRY_LENGTH} characters)`;
-  }
-
-  if (translation.length > MAX_ENTRY_LENGTH) {
-    return `Translation too long (max ${MAX_ENTRY_LENGTH} characters)`;
-  }
-
-  return null;
-};
-
 // Base dictionary types without proper nouns
 const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
   patterns: {
@@ -45,32 +25,7 @@ const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
     label: 'Pattern',
     description: 'Pattern-based structural translations',
     data: patternsDict as DictionaryData,
-    validate: (source: string, translation: string): string | null => {
-      // LOW-2 FIX: Enhanced pattern validation to catch variable mismatches
-      // Extract all variables (X, Y, Z) from both source and translation
-      const sourceVars = new Set(source.match(/[XYZ]/g) || []);
-      const translationVars = new Set(translation.match(/[XYZ]/g) || []);
-
-      if (sourceVars.size === 0) {
-        return 'Pattern must contain at least one variable (X, Y, or Z)';
-      }
-
-      // Check all source variables are used in translation
-      for (const variable of sourceVars) {
-        if (!translationVars.has(variable)) {
-          return `Translation must use variable ${variable} from the pattern`;
-        }
-      }
-
-      // Check translation doesn't use variables not in source
-      for (const variable of translationVars) {
-        if (!sourceVars.has(variable)) {
-          return `Translation cannot use variable ${variable} not present in source pattern`;
-        }
-      }
-
-      return baseValidation(source, translation);
-    },
+    validate: validatePatternEntry,
   },
   phrases: {
     id: 'phrases',
@@ -100,30 +55,6 @@ const baseDictionaryTypes: Record<string, DictionaryTypeDefinition> = {
     data: conversionDict as DictionaryData,
     validate: baseValidation,
   },
-};
-
-// Helper functions
-export const validateDictionaryEntry = (
-  dictionaryId: string,
-  source: string,
-  translation: string
-): string | null => {
-  // If it's a proper nouns dictionary, just use base validation
-  if (dictionaryId.startsWith('properNouns')) {
-    return baseValidation(source, translation);
-  }
-
-  // Fiction structural pattern dicts reuse the global patterns validator
-  if (dictionaryId.startsWith('patterns-')) {
-    return DICTIONARY_TYPES['patterns'].validate(source, translation);
-  }
-
-  // Otherwise, check against standard dictionary types
-  const dictionaryType = DICTIONARY_TYPES[dictionaryId];
-  if (!dictionaryType) {
-    return 'Invalid dictionary type';
-  }
-  return dictionaryType.validate(source, translation);
 };
 
 // Function to generate dictionary types including all proper nouns dictionaries

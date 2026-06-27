@@ -1,6 +1,6 @@
 # ADR-026: Do Not Move useDictionaryCRUD to src/hooks/
 
-**Status:** Decided  
+**Status:** Superseded — move completed 2026-06-27  
 **Date:** 2026-06-21
 
 ## Context
@@ -24,3 +24,7 @@ Do not move `useDictionaryCRUD` to `src/hooks/`. Keep it co-located in `src/comp
 ## When to Revisit
 
 If `DictionaryTypes.ts` is refactored to extract the validation registry out of the components layer (decoupling it from `window.electronAPI`), and a clean `utils/dictionary/` home is established for it, moving the hook becomes straightforward — no backwards import. The trigger is that extraction, not a second caller appearing.
+
+## Supersession Note (2026-06-27)
+
+The blocker was resolved. `validateDictionaryEntry` (persist-time) was extracted from `DictionaryTypes.ts` into `src/utils/dictionary/PersistTimeValidator.ts` as `validatePersistEntry`. With no component-layer imports remaining, `useDictionaryCRUD.ts` was moved to `src/hooks/useDictionaryCRUD.ts`. Callers updated: `DictionaryContext.tsx` and `useDictionaryPersistence.ts`. See `PersistTimeValidator` entry in `CONTEXT.md`.

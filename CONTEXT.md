@@ -48,6 +48,22 @@ All returned handlers are stable (`useCallback([], [])`); async handlers read cu
 
 Entry point: `src/hooks/useAppearanceSettings.ts`. Used exclusively by `AppearanceManager` in `src/components/appearance/AppearanceManager.tsx`.
 
+## PersistTimeValidator
+
+The canonical home for dictionary entry validation at persist time — called by `useDictionaryCRUD`'s `prepareMutationEntry()` the moment an entry is committed to storage. Stricter than form-time validation: enforces the 10 000-char DoS limit (`MAX_ENTRY_LENGTH`) and the full X/Y/Z variable-symmetry rule (every variable in source must appear in translation and vice versa).
+
+Three exports:
+
+- `baseValidation(source, translation)` — empty check + length limit (SECURITY FIX; shared with `DictionaryEntryValidator.ts` via import of `MAX_ENTRY_LENGTH`)
+- `validatePatternEntry(source, translation)` — X/Y/Z variable-symmetry rule; used by `baseDictionaryTypes.patterns` in `DictionaryTypes.ts`
+- `validatePersistEntry(dictionaryId, source, translation) → string | null` — dispatches to the per-type validator by ID prefix (`properNouns*`, `patterns-*`) or registry lookup. Renamed from `validateDictionaryEntry` (DictionaryTypes.ts) to resolve the 3-way name collision with `DictionaryEntryValidator.ts` and `configValidation.ts`.
+
+**Form-time vs persist-time distinction:** `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (`(source, translation, dictionaryId) → ValidationResult`) is form-time — fires on each keystroke to drive UI feedback state (`showCharacterValidation`, `showPatternValidation`). `validatePersistEntry` (`(dictionaryId, source, translation) → string | null`) is persist-time — fires exactly once inside `prepareMutationEntry` before the entry is written. Different signatures, different return types, different strictness. Do NOT merge.
+
+`DictionaryTypes.ts` imports `baseValidation` and `validatePatternEntry` from here so the logic lives in one place. `DictionaryTypes.ts` no longer exports `validateDictionaryEntry` — callers that need persist-time dispatch use `validatePersistEntry` from `utils/dictionary/`.
+
+Entry point: `src/utils/dictionary/PersistTimeValidator.ts`, re-exported from `src/utils/dictionary/index.ts`.
+
 ## NumberProcessingAdapter
 
 The single adapter for Phase 3 number conversion. Provides one export: `processNumbers(tokens, options)` — always returns processed tokens. Internally tries WASM first (`WasmNumberProcessor`); if WASM is unavailable before the call or retires mid-call (panic → `lifecycle.reset()` clears `isReady`), falls back to the JS `NumberProcessor`. Callers receive a guarantee: numbers are always converted; WASM-vs-JS is invisible.

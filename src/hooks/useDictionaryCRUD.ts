@@ -1,18 +1,18 @@
 import { useCallback } from 'react';
 import type { RefObject } from 'react';
-import toast from '../../utils/toast';
-import { validateDictionaryEntry } from './DictionaryTypes';
-import { sanitizeDictionaryEntry } from '../../utils/text';
-import { logger } from '../../utils/logger';
-import { ValidationError, SaveError, isValidationError, isSaveError } from '../../utils/errors';
-import { extractErrorMessage } from '../../utils/errorHelpers';
-import { sortDictionaryEntries } from '../../utils/dictionary';
+import toast from '../utils/toast';
+import { validatePersistEntry } from '../utils/dictionary/PersistTimeValidator';
+import { sanitizeDictionaryEntry } from '../utils/text';
+import { logger } from '../utils/logger';
+import { ValidationError, SaveError, isValidationError, isSaveError } from '../utils/errors';
+import { extractErrorMessage } from '../utils/errorHelpers';
+import { sortDictionaryEntries } from '../utils/dictionary';
 import type {
   DictionaryData,
   DictionaryEntryValue,
   DictionaryEntryMetadata,
   HistoryOperation,
-} from '../../types/DictionaryTypes';
+} from '../types/DictionaryTypes';
 
 /** Persists sorted entries for a single dict: optimistic update → save → rollback on failure. */
 type PersistDictionaryMutation = (
@@ -82,7 +82,7 @@ function prepareMutationEntry(
   const cleanSource = sanitized.source;
   const cleanTranslation = sanitized.translation;
 
-  const validationError = validateDictionaryEntry(dictionaryId, cleanSource, cleanTranslation);
+  const validationError = validatePersistEntry(dictionaryId, cleanSource, cleanTranslation);
   if (validationError) {
     throw new ValidationError(validationError);
   }

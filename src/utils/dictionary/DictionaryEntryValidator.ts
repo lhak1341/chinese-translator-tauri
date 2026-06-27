@@ -1,3 +1,5 @@
+import { MAX_ENTRY_LENGTH } from './PersistTimeValidator';
+
 export interface ValidationResult {
   valid: boolean;
   error: string | null;
@@ -49,6 +51,14 @@ export function validateDictionaryEntry(
 ): ValidationResult {
   if (!source.trim() || !translation.trim()) {
     return { valid: false, error: 'Both source text and translation are required' };
+  }
+
+  if (source.length > MAX_ENTRY_LENGTH) {
+    return { valid: false, error: `Source too long (max ${MAX_ENTRY_LENGTH} characters)` };
+  }
+
+  if (translation.length > MAX_ENTRY_LENGTH) {
+    return { valid: false, error: `Translation too long (max ${MAX_ENTRY_LENGTH} characters)` };
   }
 
   if (dictionaryId === 'characters' && !isCharacterSourceValid(source)) {

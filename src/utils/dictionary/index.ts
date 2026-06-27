@@ -57,6 +57,7 @@ export {
   isPatternValid,
   validateDictionaryEntry,
 } from './DictionaryEntryValidator';
+export { validatePersistEntry } from './PersistTimeValidator';
 
 // --- Backend IO ---
 export type { BatchLoadResult } from './DictionaryBackend';

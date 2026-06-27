@@ -23,7 +23,7 @@ import { extractErrorMessage } from '../../utils/errorHelpers';
 import { loadAppConfig } from '../../utils/appConfig';
 import type { DictionaryData, DictionaryContextInterface } from '../../types/DictionaryTypes';
 import { useDictionaryHistory } from './useDictionaryHistory';
-import { useDictionaryCRUD } from './useDictionaryCRUD';
+import { useDictionaryCRUD } from '../../hooks/useDictionaryCRUD';
 import { useDictionaryPersistence } from './useDictionaryPersistence';
 import { loadAllDictionaries } from '../../utils/dictionary/DictionaryBackend';
 import { classifyLoadResult } from '../../utils/dictionary/DictionaryLoadClassifier';
