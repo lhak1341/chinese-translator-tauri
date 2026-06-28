@@ -107,7 +107,7 @@ const Translator = ({ isActive = true }) => {
   } = useDictionary();
 
   // Performance monitoring hook (extracted)
-  const { report, recordTranslation, refreshCacheStats } = usePerformanceMonitoring();
+  const { report, recordTranslation, refreshReport } = usePerformanceMonitoring();
 
   // Streaming translation hook (extracted)
   const {
@@ -1102,7 +1102,7 @@ const Translator = ({ isActive = true }) => {
             return; // validateSemanticArraySize already logged + toasted
           }
           setDualResults(dualResults.fullResult, dualResults.characterResult);
-          refreshCacheStats();
+          refreshReport();
         } catch (_optimizedError) {
           logger.error(
             '🔄 Optimized reload translation failed, falling back to sequential:',

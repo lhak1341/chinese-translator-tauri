@@ -15,7 +15,7 @@ import { performanceHealth } from '../utils/performance';
  * @returns {{
  *   report: PerformanceMetrics & RegressionHealth,
  *   recordTranslation: (operationTimeMs: number) => void,
- *   refreshCacheStats: () => void
+ *   refreshReport: () => void
  * }}
  */
 export function usePerformanceMonitoring() {
@@ -26,9 +26,9 @@ export function usePerformanceMonitoring() {
     setReport(performanceHealth.getReport());
   }, []);
 
-  const refreshCacheStats = useCallback(() => {
+  const refreshReport = useCallback(() => {
     setReport(performanceHealth.getReport());
   }, []);
 
-  return { report, recordTranslation, refreshCacheStats };
+  return { report, recordTranslation, refreshReport };
 }

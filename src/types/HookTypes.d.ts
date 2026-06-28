@@ -28,8 +28,8 @@ export interface UsePerformanceMonitoringReturn {
   regressionHealth: RegressionHealth;
   /** Record a completed translation — timing only */
   recordTranslation: (operationTimeMs: number) => void;
-  /** Refresh regression health after a cache-driven event (e.g. dictionary reload) */
-  refreshCacheStats: () => void;
+  /** Re-snapshot the current health report into React state */
+  refreshReport: () => void;
 }
 
 /**
