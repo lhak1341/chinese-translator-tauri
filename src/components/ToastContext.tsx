@@ -338,21 +338,46 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
  */
 let globalToastFn: ToastContextType | null = null;
 
+// Calls made before setGlobalToast wires the real implementation are queued here
+// instead of silently no-op'ing, and replayed in order once wiring happens.
+let pendingToastCalls: Array<() => void> = [];
+
 export const setGlobalToast = (toastFn: ToastContextType) => {
   globalToastFn = toastFn;
+  if (pendingToastCalls.length > 0) {
+    const queued = pendingToastCalls;
+    pendingToastCalls = [];
+    queued.forEach((call) => call());
+  }
 };
 
 export const toast = {
   success: (message: string, duration?: number, customId?: string) => {
-    if (globalToastFn) globalToastFn.success(message, duration, customId);
+    if (globalToastFn) {
+      globalToastFn.success(message, duration, customId);
+    } else {
+      pendingToastCalls.push(() => globalToastFn!.success(message, duration, customId));
+    }
   },
   error: (message: string, duration?: number, customId?: string) => {
-    if (globalToastFn) globalToastFn.error(message, duration, customId);
+    if (globalToastFn) {
+      globalToastFn.error(message, duration, customId);
+    } else {
+      pendingToastCalls.push(() => globalToastFn!.error(message, duration, customId));
+    }
   },
   warning: (message: string, duration?: number, customId?: string) => {
-    if (globalToastFn) globalToastFn.warning(message, duration, customId);
+    if (globalToastFn) {
+      globalToastFn.warning(message, duration, customId);
+    } else {
+      pendingToastCalls.push(() => globalToastFn!.warning(message, duration, customId));
+    }
   },
   show: (message: string, type?: ToastType, duration?: number, customId?: string) => {
-    if (globalToastFn) globalToastFn.showToast(message, type, duration, customId);
+    if (globalToastFn) {
+      globalToastFn.showToast(message, type, duration, customId);
+    } else {
+      pendingToastCalls.push(() => globalToastFn!.showToast(message, type, duration, customId));
+    }
   },
 };

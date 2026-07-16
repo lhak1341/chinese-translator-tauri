@@ -420,31 +420,6 @@ impl DictionaryEngine {
 // EnhancedDictionaryManager and PatternManager removed - depended on deleted modules
 // (cache.rs, dictionary.rs, pattern_*.rs, etc.)
 
-// Rust-side pattern matching profiling functions
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn enable_matcher_profiling() {
-    pattern_processor::matcher::enable_matcher_profiling();
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn disable_matcher_profiling() {
-    pattern_processor::matcher::disable_matcher_profiling();
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn reset_matcher_profiling() {
-    pattern_processor::matcher::reset_matcher_profiling();
-}
-
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn print_matcher_profiling_report() {
-    pattern_processor::matcher::print_matcher_profiling_report();
-}
-
 /**
  * WASM Batch Text Normalization
  *

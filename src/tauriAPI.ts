@@ -29,6 +29,7 @@ const CMD = {
   LIST_FICTION_PATTERN_DICTIONARIES: 'list_fiction_pattern_dictionaries',
   CREATE_PROPER_NOUNS_DICTIONARY: 'create_proper_nouns_dictionary',
   CREATE_STRUCTURAL_PATTERNS_DICTIONARY: 'create_structural_patterns_dictionary',
+  CREATE_FICTION_DICTIONARY_PAIR: 'create_fiction_dictionary_pair',
   RENAME_PROPER_NOUNS_DICTIONARY: 'rename_proper_nouns_dictionary',
   RENAME_STRUCTURAL_PATTERNS_DICTIONARY: 'rename_structural_patterns_dictionary',
   LOAD_CONFIGURATION: 'load_configuration',
@@ -221,6 +222,19 @@ const tauriAPI = {
       return await invoke<SaveResult>(CMD.CREATE_STRUCTURAL_PATTERNS_DICTIONARY, { dictionaryId });
     } catch (error) {
       logger.error('Error in createStructuralPatternsDictionary:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+
+  createFictionDictionaryPair: async (properNounId: string): Promise<SaveResult> => {
+    if (!validateDictionaryId(properNounId)) {
+      logger.error('Invalid dictionary ID format:', properNounId);
+      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+    }
+    try {
+      return await invoke<SaveResult>(CMD.CREATE_FICTION_DICTIONARY_PAIR, { properNounId });
+    } catch (error) {
+      logger.error('Error in createFictionDictionaryPair:', error);
       return { success: false, error: String(error) };
     }
   },

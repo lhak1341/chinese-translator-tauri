@@ -140,22 +140,14 @@ const ConfigurationManager: React.FC = () => {
 
     try {
       const dictionaryId = `properNouns-${newDictionaryName.trim().replace(/\s+/g, '')}`;
-      const result = await window.electronAPI.createProperNounsDictionary(dictionaryId);
+
+      // Fiction dicts create their paired patterns-f_* dictionary atomically (ADR-027) —
+      // either both files exist afterward, or neither does.
+      const result = dictionaryId.startsWith('properNouns-f_')
+        ? await window.electronAPI.createFictionDictionaryPair(dictionaryId)
+        : await window.electronAPI.createProperNounsDictionary(dictionaryId);
 
       if (result.success) {
-        // Eager creation: also create paired patterns dict for fiction dicts
-        if (dictionaryId.startsWith('properNouns-f_')) {
-          const patternsDictId = toPatternsId(dictionaryId);
-          const patternsResult =
-            await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
-          if (!patternsResult.success) {
-            console.warn(
-              `Created ${dictionaryId} but failed to create paired ${patternsDictId}:`,
-              patternsResult.error
-            );
-          }
-        }
-
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
         setShowNewDictionaryModal(false);
         setNewDictionaryName('');

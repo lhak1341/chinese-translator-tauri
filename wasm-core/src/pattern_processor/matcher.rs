@@ -8,16 +8,6 @@
 use super::pattern::{SemanticPattern, TokenType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
-use lazy_static::lazy_static;
-
-// Global profiling state
-lazy_static! {
-    static ref PROFILING_DATA: Mutex<MatcherProfilingData> = Mutex::new(MatcherProfilingData::default());
-}
-// AtomicBool avoids mutex overhead on the hot-path read
-static PROFILING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// Semantic token representation (from JavaScript side)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -247,37 +237,6 @@ impl PatternMatchResult {
     }
 }
 
-/// Rust-side profiling data for pattern matching operations
-#[derive(Debug, Default)]
-pub struct MatcherProfilingData {
-    /// Total time in test_pattern_match
-    pub total_time: f64,
-    /// Time spent in early rejection checks
-    pub early_rejection_time: f64,
-    /// Time spent matching literal tokens
-    pub literal_matching_time: f64,
-    /// Time spent resolving variables
-    pub variable_resolution_time: f64,
-    /// Time spent building result templates
-    pub template_building_time: f64,
-    /// Number of calls
-    pub call_count: u32,
-
-    // ===== DETAILED VARIABLE RESOLUTION PROFILING =====
-    /// Time spent building string buffers (buffer.clear() + buffer.push_str())
-    pub var_string_building_time: f64,
-    /// Time spent on HashMap lookups (variable_cache.get())
-    pub var_cache_lookup_time: f64,
-    /// Time spent on lookahead verification
-    pub var_lookahead_time: f64,
-    /// Number of variable resolution attempts
-    pub var_resolution_attempts: u32,
-    /// Number of cache hits
-    pub var_cache_hits: u32,
-    /// Number of cache misses
-    pub var_cache_misses: u32,
-}
-
 /// Default maximum token span for variable resolution.
 /// Based on dictionary analysis: longest static variable in patterns.json is 5 chars.
 /// Phase B overrides this when Phase A results (which can be longer) are in the cache.
@@ -319,60 +278,14 @@ impl<'a> PatternMatcher<'a> {
         semantic_tokens: &[SemanticToken],
         position: usize,
     ) -> PatternMatchResult {
-        // Check global profiling state
-        let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
-
-        // Get performance object if profiling is enabled
-        #[cfg(target_arch = "wasm32")]
-        let perf = if profiling_enabled {
-            let window = web_sys::window();
-            if window.is_none() {
-                web_sys::console::log_1(&"🔍 DEBUG: window() returned None".into());
-            }
-            let perf_obj = window.and_then(|w| w.performance());
-            if perf_obj.is_none() {
-                web_sys::console::log_1(&"🔍 DEBUG: performance() returned None".into());
-            }
-            perf_obj
-        } else {
-            None
-        };
-        #[cfg(not(target_arch = "wasm32"))]
-        let perf: Option<web_sys::Performance> = None;
-
-        let start_total = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-        #[cfg(target_arch = "wasm32")]
-        if profiling_enabled && start_total == 0.0 {
-            web_sys::console::log_1(&"🔍 DEBUG: start_total is 0.0".into());
-        }
-
-        // Macro to accumulate profiling data before returning
-        macro_rules! update_profiling {
-            ($early:expr, $literal:expr, $variable:expr, $template:expr) => {
-                if profiling_enabled {
-                    let end_total = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                    let mut data = PROFILING_DATA.lock().unwrap();
-                    data.call_count += 1;
-                    data.total_time += end_total - start_total;
-                    data.early_rejection_time += $early;
-                    data.literal_matching_time += $literal;
-                    data.variable_resolution_time += $variable;
-                    data.template_building_time += $template;
-                }
-            };
-        }
-
         let mut variables: HashMap<String, String> = HashMap::new();
         let mut variable_types: HashMap<String, Option<String>> = HashMap::new();
         let match_start = position;
         let mut current_position = position;
 
-
         // Early Pattern Rejection: Fast-path check for first token
         // If the first pattern token is a literal and doesn't match the first semantic token,
         // we can reject immediately without building strings
-        let start_early = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-
         if !pattern.tokens.is_empty() && position < semantic_tokens.len() {
             if let Some(first_pattern_token) = pattern.tokens.first() {
                 if first_pattern_token.token_type == TokenType::Literal {
@@ -383,8 +296,6 @@ impl<'a> PatternMatcher<'a> {
                             if let Some(first_semantic_char) = semantic_tokens[position].value.chars().next() {
                                 // Quick rejection: if first chars don't match, pattern can't match
                                 if first_pattern_char != first_semantic_char {
-                                    let end_early = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                    update_profiling!(end_early - start_early, 0.0, 0.0, 0.0);
                                     return PatternMatchResult::failure(Some(
                                         "Early rejection: first token mismatch".to_string()
                                     ));
@@ -396,12 +307,6 @@ impl<'a> PatternMatcher<'a> {
             }
         }
 
-        let end_early = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-
-        // Accumulate literal and variable matching time
-        let mut literal_time = 0.0;
-        let mut variable_time = 0.0;
-
         // Test each pattern token against semantic tokens.
         // Uses `while` (not `for`) so the Literal branch can skip ahead in `i`
         // when consecutive literal pattern tokens combine to match one multi-char
@@ -412,14 +317,11 @@ impl<'a> PatternMatcher<'a> {
 
             // Check if we have a semantic token at the current position
             if current_position >= semantic_tokens.len() {
-                update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                 return PatternMatchResult::failure(Some("Not enough tokens".to_string()));
             }
 
             match &pattern_token.token_type {
                 TokenType::Literal => {
-                    let start_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-
                     // Literal match - handle multi-character pattern tokens by collecting semantic tokens
                     // Parser invariant: Literal tokens always have value: Some(...). The unwrap is
                     // safe as long as the parser upholds this invariant; debug_assert catches violations.
@@ -438,9 +340,6 @@ impl<'a> PatternMatcher<'a> {
 
                     // Check if we have enough semantic tokens remaining
                     if current_position + literal_char_count > semantic_tokens.len() {
-                        let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                        literal_time += end_literal - start_literal;
-                        update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                         return PatternMatchResult::failure(Some(format!(
                             "Not enough tokens for literal '{}' ({} chars needed, {} available)",
                             literal_value, literal_char_count, semantic_tokens.len() - current_position
@@ -498,22 +397,14 @@ impl<'a> PatternMatcher<'a> {
                             // The `i += 1` at loop bottom brings us to pattern_lookahead.
                             i = pattern_lookahead - 1;
                         } else {
-                            let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                            literal_time += end_literal - start_literal;
-                            update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                             return PatternMatchResult::failure(Some(format!(
                                 "Literal mismatch: expected '{}', got '{}'",
                                 literal_value, semantic_sequence
                             )));
                         }
                     }
-
-                    let end_literal = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                    literal_time += end_literal - start_literal;
                 }
                 TokenType::Variable => {
-                    let start_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-
                     // Variable match using cache - try longest match first WITH backtracking support
                     // Parser invariant: Variable tokens always have name: Some(...).
                     debug_assert!(
@@ -530,9 +421,6 @@ impl<'a> PatternMatcher<'a> {
                     if current_position < semantic_tokens.len()
                         && semantic_tokens[current_position].has_preceding_boundary
                     {
-                        let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                        variable_time += end_variable - start_variable;
-                        update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                         return PatternMatchResult::failure(Some(format!(
                             "Variable {} blocked by preceding punctuation boundary",
                             var_name
@@ -562,9 +450,6 @@ impl<'a> PatternMatcher<'a> {
                             {
                                 let effective_type = var_type.as_deref().unwrap_or("unknown");
                                 if !allowed_types.iter().any(|t| t == effective_type) {
-                                    let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                    variable_time += end_variable - start_variable;
-                                    update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                                     return PatternMatchResult::failure(Some(format!(
                                         "Variable type '{}' not allowed for {} in pattern '{}'. Allowed: {:?}",
                                         effective_type, var_name, pattern.original_pattern, allowed_types
@@ -577,18 +462,12 @@ impl<'a> PatternMatcher<'a> {
                             current_position += token_span;
                         }
                         None => {
-                            let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                            variable_time += end_variable - start_variable;
-                            update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                             return PatternMatchResult::failure(Some(format!(
                                 "Variable resolution failed for {}",
                                 var_name
                             )));
                         }
                     }
-
-                    let end_variable = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                    variable_time += end_variable - start_variable;
                 }
             }
             i += 1;
@@ -607,7 +486,6 @@ impl<'a> PatternMatcher<'a> {
             let max_phase_a_length = self.get_max_phase_a_length(&matched_tokens);
 
             if current_matched_text.chars().count() <= max_phase_a_length {
-                update_profiling!(end_early - start_early, literal_time, variable_time, 0.0);
                 return PatternMatchResult::failure(Some(
                     "Phase A match is longer or equal length".to_string(),
                 ));
@@ -615,16 +493,11 @@ impl<'a> PatternMatcher<'a> {
         }
 
         // Build result using template
-        let start_template = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
         let result = build_result(&pattern.template, &variables);
-        let end_template = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
 
         // Map semantic token indices back to original token indices
         let start_index = semantic_tokens[match_start].original_index;
         let end_index = semantic_tokens[current_position - 1].original_index;
-
-        // Update profiling data if enabled
-        update_profiling!(end_early - start_early, literal_time, variable_time, end_template - start_template);
 
         // Resolve variable-derived semantic type ($X/$Y references)
         let resolved_semantic_type = match pattern.semantic_type.as_deref() {
@@ -665,17 +538,6 @@ impl<'a> PatternMatcher<'a> {
         pattern: &SemanticPattern,
         pattern_index: usize,
     ) -> Option<(String, usize, String, Option<String>)> {
-        // Check profiling state
-        let profiling_enabled = PROFILING_ENABLED.load(Ordering::Relaxed);
-        #[cfg(target_arch = "wasm32")]
-        let perf = if profiling_enabled {
-            web_sys::window().and_then(|w| w.performance())
-        } else {
-            None
-        };
-        #[cfg(not(target_arch = "wasm32"))]
-        let perf: Option<web_sys::Performance> = None;
-
         // self.max_var_span is DEFAULT_MAX_VARIABLE_SPAN (6) for Phase A, but Phase B
         // overrides it to cover Phase A composite results injected into the enhanced cache
         // (e.g. "菲利克斯的猜测" = 7 tokens would be missed by the 6-token cap).
@@ -686,14 +548,7 @@ impl<'a> PatternMatcher<'a> {
         // a reallocation on every call with 2+ Chinese tokens.
         let mut buffer = String::with_capacity(max_span * 3);
 
-        // Profiling accumulators (local — flushed once at function exit)
-        let mut total_string_building_time = 0.0;
-        let mut total_cache_lookup_time = 0.0;
-        let mut total_lookahead_time = 0.0;
-        let mut local_cache_hits: u32 = 0;
-        let mut local_cache_misses: u32 = 0;
-
-        // Result accumulator — avoids early returns that would each need a profiling flush.
+        // Result accumulator — avoids early returns.
         // 4th element is var_type cloned from the cache entry so the caller avoids
         // a second HashMap lookup for allowedVariableTypes validation.
         let mut result: Option<(String, usize, String, Option<String>)> = None;
@@ -701,20 +556,13 @@ impl<'a> PatternMatcher<'a> {
         // Try spans from longest to shortest (greedy matching)
         for span in (1..=max_span).rev() {
             // Build multi-token value by appending to buffer
-            let start_string_build = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
             buffer.clear();
             for i in 0..span {
                 buffer.push_str(&semantic_tokens[current_position + i].value);
             }
-            let end_string_build = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-            total_string_building_time += end_string_build - start_string_build;
-
 
             // Check cache - only proceed if there's a match
-            let start_cache_lookup = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
             let cache_result = self.variable_cache.get(&buffer);
-            let end_cache_lookup = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-            total_cache_lookup_time += end_cache_lookup - start_cache_lookup;
 
             if let Some(cache_entry) = cache_result {
                 let translation = cache_entry.translation.clone();
@@ -727,15 +575,10 @@ impl<'a> PatternMatcher<'a> {
                 let has_more_pattern_tokens = pattern_index + 1 < pattern.tokens.len();
 
                 if has_more_pattern_tokens {
-                    // Lookahead verification
-                    let start_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-
                     let next_pattern_token = &pattern.tokens[pattern_index + 1];
                     let next_position = current_position + span;
 
                     if next_position >= semantic_tokens.len() {
-                        let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                        total_lookahead_time += end_lookahead - start_lookahead;
                         continue;
                     }
 
@@ -745,11 +588,7 @@ impl<'a> PatternMatcher<'a> {
                         // Parser invariant: Literal tokens always have value: Some(...).
                         let next_literal = match next_pattern_token.value.as_ref() {
                             Some(v) => v,
-                            None => {
-                                let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                                total_lookahead_time += end_lookahead - start_lookahead;
-                                continue;
-                            }
+                            None => continue,
                         };
 
                         let lookahead_matched = if next_literal.chars().count() == 1 {
@@ -767,11 +606,7 @@ impl<'a> PatternMatcher<'a> {
                             }
                         };
 
-                        let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                        total_lookahead_time += end_lookahead - start_lookahead;
-
                         if lookahead_matched {
-                            local_cache_hits += 1;
                             result = Some((translation, span, text, var_type));
                             break;
                         }
@@ -785,33 +620,15 @@ impl<'a> PatternMatcher<'a> {
                         // The span loop runs max_span → 1, so continuing lets later
                         // iterations overwrite result with progressively shorter spans;
                         // the loop's final update will be the shortest cache-hit span.
-                        let end_lookahead = perf.as_ref().map(|p| p.now()).unwrap_or(0.0);
-                        total_lookahead_time += end_lookahead - start_lookahead;
-
-                        local_cache_hits += 1;
                         result = Some((translation, span, text, var_type));
                         // intentionally no break — keep iterating for a shorter span
                     }
                 } else {
                     // No more pattern tokens — use longest available span
-                    local_cache_hits += 1;
                     result = Some((translation, span, text, var_type));
                     break;
                 }
-            } else {
-                local_cache_misses += 1;
             }
-        }
-
-        // Single profiling flush — one mutex acquisition regardless of exit path
-        if profiling_enabled {
-            let mut data = PROFILING_DATA.lock().unwrap();
-            data.var_resolution_attempts += 1;
-            data.var_cache_hits += local_cache_hits;
-            data.var_cache_misses += local_cache_misses;
-            data.var_string_building_time += total_string_building_time;
-            data.var_cache_lookup_time += total_cache_lookup_time;
-            data.var_lookahead_time += total_lookahead_time;
         }
 
         result
@@ -986,115 +803,6 @@ pub fn find_best_pattern_match(
     }
 
     best_match
-}
-
-/// Enable Rust-side pattern matching profiling
-pub fn enable_matcher_profiling() {
-    PROFILING_ENABLED.store(true, Ordering::Relaxed);
-}
-
-/// Disable Rust-side pattern matching profiling
-pub fn disable_matcher_profiling() {
-    PROFILING_ENABLED.store(false, Ordering::Relaxed);
-}
-
-/// Reset pattern matching profiling data
-pub fn reset_matcher_profiling() {
-    *PROFILING_DATA.lock().unwrap() = MatcherProfilingData::default();
-}
-
-/// Print pattern matching profiling report to console
-#[cfg(target_arch = "wasm32")]
-pub fn print_matcher_profiling_report() {
-    use web_sys::console;
-
-    let data = PROFILING_DATA.lock().unwrap();
-
-    // Debug: Show raw profiling data
-    console::log_1(&"🔍 DEBUG: Raw profiling data:".into());
-    console::log_1(&format!("  call_count: {}", data.call_count).into());
-    console::log_1(&format!("  total_time: {}", data.total_time).into());
-    console::log_1(&format!("  early_rejection_time: {}", data.early_rejection_time).into());
-    console::log_1(&format!("  literal_matching_time: {}", data.literal_matching_time).into());
-    console::log_1(&format!("  variable_resolution_time: {}", data.variable_resolution_time).into());
-    console::log_1(&format!("  template_building_time: {}", data.template_building_time).into());
-
-    if data.call_count == 0 {
-        console::log_1(&"🦀 No profiling data collected (call_count = 0)".into());
-        return;
-    }
-
-    let avg_total = data.total_time / data.call_count as f64;
-    let avg_early = data.early_rejection_time / data.call_count as f64;
-    let avg_literal = data.literal_matching_time / data.call_count as f64;
-    let avg_variable = data.variable_resolution_time / data.call_count as f64;
-    let avg_template = data.template_building_time / data.call_count as f64;
-
-    // Calculate unmeasured time (loop overhead, Phase A checks, token cloning, etc.)
-    let avg_measured = avg_early + avg_literal + avg_variable + avg_template;
-    let avg_unmeasured = avg_total - avg_measured;
-
-    console::log_1(&"".into());
-    console::log_1(&"================================================================================".into());
-    console::log_1(&"🦀 RUST-SIDE PATTERN MATCHING PROFILING REPORT".into());
-    console::log_1(&"================================================================================".into());
-    console::log_1(&format!("Total Calls: {}", data.call_count).into());
-    console::log_1(&format!("Total Time: {:.2}ms", data.total_time).into());
-    console::log_1(&format!("Average Time per Call: {:.4}ms", avg_total).into());
-    console::log_1(&"".into());
-    console::log_1(&"Operation Breakdown (Average per Call):".into());
-    console::log_1(&"--------------------------------------------------------------------------------".into());
-    console::log_1(&format!("Early Rejection:      {:.4}ms ({:.1}%)", avg_early, (avg_early / avg_total) * 100.0).into());
-    console::log_1(&format!("Literal Matching:     {:.4}ms ({:.1}%)", avg_literal, (avg_literal / avg_total) * 100.0).into());
-    console::log_1(&format!("Variable Resolution:  {:.4}ms ({:.1}%)", avg_variable, (avg_variable / avg_total) * 100.0).into());
-    console::log_1(&format!("Template Building:    {:.4}ms ({:.1}%)", avg_template, (avg_template / avg_total) * 100.0).into());
-    console::log_1(&format!("⚠️  Other/Unmeasured:   {:.4}ms ({:.1}%)", avg_unmeasured, (avg_unmeasured / avg_total) * 100.0).into());
-    console::log_1(&"".into());
-
-    // Detailed Variable Resolution Breakdown
-    if data.var_resolution_attempts > 0 {
-        console::log_1(&"Variable Resolution Detailed Breakdown:".into());
-        console::log_1(&"--------------------------------------------------------------------------------".into());
-
-        let cache_hit_rate = (data.var_cache_hits as f64 / data.var_resolution_attempts as f64) * 100.0;
-        let cache_miss_total = data.var_cache_misses;
-
-        console::log_1(&format!("Resolution Attempts:  {}", data.var_resolution_attempts).into());
-        console::log_1(&format!("Cache Hits:           {} ({:.1}% hit rate)", data.var_cache_hits, cache_hit_rate).into());
-        console::log_1(&format!("Cache Misses:         {} (per span iteration)", cache_miss_total).into());
-        console::log_1(&"".into());
-
-        // Average times within variable resolution
-        let avg_var_string_build = data.var_string_building_time / data.var_resolution_attempts as f64;
-        let avg_var_cache_lookup = data.var_cache_lookup_time / data.var_resolution_attempts as f64;
-        let avg_var_lookahead = data.var_lookahead_time / data.var_resolution_attempts as f64;
-
-        // Percentages relative to total variable resolution time
-        let var_total = data.var_string_building_time + data.var_cache_lookup_time + data.var_lookahead_time;
-        let pct_string = if var_total > 0.0 { (data.var_string_building_time / var_total) * 100.0 } else { 0.0 };
-        let pct_lookup = if var_total > 0.0 { (data.var_cache_lookup_time / var_total) * 100.0 } else { 0.0 };
-        let pct_lookahead = if var_total > 0.0 { (data.var_lookahead_time / var_total) * 100.0 } else { 0.0 };
-
-        console::log_1(&format!("  String Building:    {:.4}ms ({:.1}% of var resolution)", avg_var_string_build, pct_string).into());
-        console::log_1(&format!("  Cache Lookups:      {:.4}ms ({:.1}% of var resolution)", avg_var_cache_lookup, pct_lookup).into());
-        console::log_1(&format!("  Lookahead Verify:   {:.4}ms ({:.1}% of var resolution)", avg_var_lookahead, pct_lookahead).into());
-        console::log_1(&"".into());
-
-        console::log_1(&format!("Total Measured in Var Resolution: {:.2}ms", var_total).into());
-        console::log_1(&format!("Variable Resolution Time (outer): {:.2}ms", data.variable_resolution_time).into());
-
-        if data.variable_resolution_time > var_total {
-            let var_unmeasured = data.variable_resolution_time - var_total;
-            let pct_var_unmeasured = (var_unmeasured / data.variable_resolution_time) * 100.0;
-            console::log_1(&format!("⚠️  Unmeasured in Var Res: {:.2}ms ({:.1}%)", var_unmeasured, pct_var_unmeasured).into());
-        }
-        console::log_1(&"".into());
-    }
-
-    console::log_1(&"Note: 'Other/Unmeasured' includes loop overhead, Phase A protection checks,".into());
-    console::log_1(&"      token cloning, and other operations not explicitly measured.".into());
-    console::log_1(&"================================================================================".into());
-    console::log_1(&"".into());
 }
 
 #[cfg(test)]

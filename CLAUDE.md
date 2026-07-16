@@ -79,6 +79,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Testing:** `src/test/setup.ts` must stay — referenced by `vitest.config.ts:10`.
 
+**Report-generating skills** (e.g. `/improve-codebase-architecture`): save output to this repo's `temp/` folder, not the OS temp default — established convention across many sessions.
+
 **Deleted symbols — do not recreate:**
 
 - `dispatchHighlighting` from `useHighlightingState` — replaced by `highlightOriginal`, `highlightTranslation`, `highlightBoth`, `highlightFromCharacterOnly`, `setCharacterOnlyIndex`; do NOT add `dispatchHighlighting` back
@@ -131,6 +133,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `filterDictionariesForEngine` — moved from `useTranslatorEngine.js` to `src/utils/dictionary/FictionDictionaryFilter.ts` (barrel-exported). The hook now calls the imported version.
 - `onAddEntry` from `HotkeyHandlerOptions` (`useHotkeyHandler.ts`) — removed, was dead (no `HotkeyAction` variant ever dispatched to it). `DictionaryManager.tsx`'s "+" button already calls `setShowAddEntry(true)` directly.
 - `useHotkeyHandler(options)` now takes one options object (not destructured) mirrored into a single `optionsRef` — do not reintroduce per-prop `useRef` pairs; add new callbacks to `HotkeyHandlerOptions` and read via `optionsRef.current.X`.
+- `enable_matcher_profiling`/`disable_matcher_profiling`/`reset_matcher_profiling`/`print_matcher_profiling_report` (wasm-core `matcher.rs` + `lib.rs` wasm_bindgen wrappers) + `MatcherProfilingData`/`PROFILING_DATA`/`PROFILING_ENABLED` — deleted 2026-07-17; grepped zero JS callers (dev-console-only, never wired into production). Do not recreate without a concrete profiling need — see git history for the removed implementation if one arises.
 
 **Non-obvious contracts:**
 

@@ -39,6 +39,7 @@ pub fn run() {
             dictionary_commands::list_fiction_pattern_dictionaries,
             dictionary_commands::create_proper_nouns_dictionary,
             dictionary_commands::create_structural_patterns_dictionary,
+            dictionary_commands::create_fiction_dictionary_pair,
             dictionary_commands::rename_proper_nouns_dictionary,
             dictionary_commands::rename_structural_patterns_dictionary,
             dictionary_commands::save_dictionary,

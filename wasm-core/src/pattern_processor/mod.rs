@@ -27,13 +27,11 @@ pub mod wasm_wrapper;
 // Re-exports for convenience
 pub use index::{PatternIndex, VARIABLE_KEY};
 pub use matcher::{
-    build_result, enable_matcher_profiling, disable_matcher_profiling,
+    build_result,
     find_best_pattern_match, PatternMatchResult, PatternMatcher, PhaseAPattern,
-    PhaseAResult, reset_matcher_profiling,
+    PhaseAResult,
     SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
 };
-#[cfg(target_arch = "wasm32")]
-pub use matcher::print_matcher_profiling_report;
 pub use parser::{parse_pattern, parse_patterns_dict};
 pub use pattern::{
     PatternMetadata, PatternToken, PatternUsage, SemanticPattern, TokenType,

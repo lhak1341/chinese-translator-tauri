@@ -178,6 +178,8 @@ export interface ElectronAPI {
   createProperNounsDictionary: (id: string) => Promise<SaveResult>;
   /** Create a new fiction structural patterns dictionary (patterns-f_*) */
   createStructuralPatternsDictionary: (id: string) => Promise<SaveResult>;
+  /** Atomically create a fiction proper nouns dictionary together with its paired patterns-f_* dictionary (ADR-027) */
+  createFictionDictionaryPair: (properNounId: string) => Promise<SaveResult>;
   /** Rename a proper nouns dictionary (cascades to paired patterns-f_* file) */
   renameProperNounsDictionary: (
     oldDictionaryId: string,
