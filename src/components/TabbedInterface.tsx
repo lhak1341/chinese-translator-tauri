@@ -7,6 +7,10 @@ import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { loadAppConfig } from '../utils/appConfig';
+import {
+  resolveDefaultProperNounTarget,
+  resolveStructuralPatternQuickAddTarget,
+} from '../utils/dictionary';
 import ErrorBoundary from './ErrorBoundary';
 import styles from '../styles/TabbedInterface.module.css';
 
@@ -61,14 +65,10 @@ const TabbedInterface: React.FC = () => {
       if (key === '5') {
         try {
           const config = await loadAppConfig();
-          const activeNouns = config.engine.activeProperNouns;
-          const defaultDict = config.ui.defaultQuickAddDictionary;
-          let target: string | undefined;
-          if (defaultDict && activeNouns.includes(defaultDict)) {
-            target = defaultDict;
-          } else {
-            target = activeNouns.filter((id) => id.startsWith('properNouns-')).sort()[0];
-          }
+          const target = resolveDefaultProperNounTarget(
+            config.ui.defaultQuickAddDictionary,
+            config.engine.activeProperNouns
+          );
           if (target) setSelectedDictionary(target);
         } catch {
           // no-op if config unavailable
@@ -77,18 +77,10 @@ const TabbedInterface: React.FC = () => {
       if (key === '6') {
         try {
           const config = await loadAppConfig();
-          const defaultDict = config.ui.defaultQuickAddDictionary;
-          let target: string | undefined;
-          if (defaultDict?.startsWith('properNouns-f_')) {
-            target = 'patterns-' + defaultDict.slice('properNouns-'.length);
-          } else {
-            const firstFiction = config.engine.activeProperNouns
-              .filter((id) => id.startsWith('properNouns-f_'))
-              .sort()[0];
-            if (firstFiction) {
-              target = 'patterns-' + firstFiction.slice('properNouns-'.length);
-            }
-          }
+          const target = resolveStructuralPatternQuickAddTarget(
+            config.ui.defaultQuickAddDictionary,
+            config.engine.activeProperNouns
+          );
           if (target && dictionaries[target] !== undefined) {
             setSelectedDictionary(target);
           } else {

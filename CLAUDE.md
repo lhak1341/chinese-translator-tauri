@@ -126,6 +126,11 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `validateDictionaryEntry` from `src/components/dictionary/DictionaryTypes.ts` — extracted and renamed; use `validatePersistEntry` from `src/utils/dictionary/PersistTimeValidator` (or `utils/dictionary` barrel). Distinct from form-time `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (different signature: `(source, translation, dictionaryId) → ValidationResult`).
 - `useDictionaryCRUD` from `src/components/dictionary/` — moved to `src/hooks/useDictionaryCRUD.ts`; ADR-026 superseded 2026-06-27
 - `RustLookupIndexManager.extractEntriesFromTrie` — deleted; DFS-walked a `DictionaryTrie` back into flat entries on every translate call. Replaced by `DictionaryManager.flatEntries` (built once at load time via `flattenDictionaryEntries` in `src/utils/dictionary/DictionaryEntryFlattener.ts`, directly from raw dictionary JSON, never from a trie). `RustLookupIndexManager.buildLookupIndex`'s 2nd param is now "Map of dictionary name → flat entries," not "→ trie" — callers pass `dictionaryManager.flatEntries`, not `dictionaryManager.dictionaries`.
+- `toPatternsId`/`toProperNounsId` (`src/utils/dictionary/DictionaryIdClassifier.ts`) — canonical ADR-027 fiction dict-ID pairing derivation. Do NOT hand-roll `'patterns-' + id.slice('properNouns-'.length)` again; grep for `slice('properNouns-'.length)` before adding a new fiction-pairing call site.
+- `resolveDefaultProperNounTarget`/`resolveStructuralPatternQuickAddTarget` (`src/utils/dictionary/QuickAddTargetResolver.ts`) — Cmd-5/Cmd-6 quick-add target resolution, shared by `TabbedInterface.tsx` and `useDictionaryModals.js`.
+- `filterDictionariesForEngine` — moved from `useTranslatorEngine.js` to `src/utils/dictionary/FictionDictionaryFilter.ts` (barrel-exported). The hook now calls the imported version.
+- `onAddEntry` from `HotkeyHandlerOptions` (`useHotkeyHandler.ts`) — removed, was dead (no `HotkeyAction` variant ever dispatched to it). `DictionaryManager.tsx`'s "+" button already calls `setShowAddEntry(true)` directly.
+- `useHotkeyHandler(options)` now takes one options object (not destructured) mirrored into a single `optionsRef` — do not reintroduce per-prop `useRef` pairs; add new callbacks to `HotkeyHandlerOptions` and read via `optionsRef.current.X`.
 
 **Non-obvious contracts:**
 

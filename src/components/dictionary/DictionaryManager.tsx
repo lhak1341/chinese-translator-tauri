@@ -21,7 +21,7 @@ import { useHotkeyHandler } from '../../hooks/useHotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
-import { findConflictingEntries, type DuplicateRow } from '../../utils/dictionary';
+import { findConflictingEntries, toProperNounsId, type DuplicateRow } from '../../utils/dictionary';
 import { toast } from '../ToastContext';
 
 /**
@@ -320,7 +320,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         }
       } else if (id.startsWith('patterns-f_')) {
         // Include fiction pattern dict only if its paired properNouns is active
-        const pairedProperNouns = 'properNouns-' + id.slice('patterns-'.length);
+        const pairedProperNouns = toProperNounsId(id);
         if (activeDictionaries.includes(pairedProperNouns)) {
           filtered[id] = type;
         }
@@ -340,7 +340,6 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   useHotkeyHandler({
     onUndo: handleUndo,
     onRedo: handleRedo,
-    onAddEntry: () => setShowAddEntry(true),
     canUndo,
     canRedo,
     activeTab: 'dictionary',

@@ -69,4 +69,13 @@ export { isDictionaryCategory, getIndexedMatches } from './LookupIndexUtils';
 
 // --- UI-layer dictionary ID classification ---
 export type { DictionaryTypeFlags } from './DictionaryIdClassifier';
-export { classifyDictionaryId } from './DictionaryIdClassifier';
+export { classifyDictionaryId, toPatternsId, toProperNounsId } from './DictionaryIdClassifier';
+
+// --- Quick Add target resolution (Cmd-5 / Cmd-6) ---
+export {
+  resolveDefaultProperNounTarget,
+  resolveStructuralPatternQuickAddTarget,
+} from './QuickAddTargetResolver';
+
+// --- Engine-facing dictionary filtering ---
+export { filterDictionariesForEngine } from './FictionDictionaryFilter';

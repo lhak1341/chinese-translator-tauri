@@ -67,6 +67,12 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 Use `classifyDictionaryId(id)` from `DictionaryIdClassifier.ts` for all UI-layer type checks — never compare `=== 'patterns'` or `=== 'phrases'` directly. `isPatterns` is true for both `'patterns'` and `'patterns-f_*'`; raw equality misses fiction variants and silently breaks on every dict-type extension. Even when `isPatterns` is already computed in scope, call sites tend to fall back to raw string — grep `=== 'patterns'` after any dict-type addition.
 
+Use `toPatternsId(properNounsId)`/`toProperNounsId(patternsId)` (same file) for the ADR-027 fiction pairing derivation — never hand-roll `'patterns-' + id.slice('properNouns-'.length)`.
+
+## Fiction Pattern Merge Order Is Load-Bearing
+
+`FictionDictionaryFilter.ts`'s conflict merge must spread global `patterns` FIRST, fiction entries LAST (`{ ...global, ...fiction }`) so fiction wins on a same-template conflict (ADR-027). The reverse order was a live bug until 2026-07-16 — silently let global patterns override fiction-specific ones with no error. Verify with a same-key conflict test before touching this line again.
+
 ## `DictionaryInfo` Name Collision
 
 `DictionaryTypes.ts` has a LOCAL `interface DictionaryInfo { label, description }` — display-only type for dictionary type metadata. NOT the same as `ComponentTypes.d.ts::DictionaryInfo { id, name, path, isActive, ... }` which is the API/IPC type used by `ElectronTypes.d.ts`. Do not re-export the local one, do not merge the two. Import `DictionaryInfo` from `../../types/ComponentTypes` for the API type.

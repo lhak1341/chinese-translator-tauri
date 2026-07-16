@@ -10,7 +10,6 @@ export interface HotkeyHandlerOptions {
   onTranslateFromClipboard?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
-  onAddEntry?: () => void;
   onQuickAdd?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
@@ -42,66 +41,12 @@ export interface HotkeyHandlerOptions {
  *
  * Dispatch logic lives in HotkeyDispatchTable.matchHotkey — testable as a pure function.
  */
-export function useHotkeyHandler({
-  onTranslateFromClipboard,
-  onUndo,
-  onRedo,
-  onAddEntry,
-  onQuickAdd,
-  canUndo,
-  canRedo,
-  onTabSwitch,
-  onQuickAddCharacter,
-  onQuickAddPhrase,
-  onQuickAddProperNoun,
-  onQuickAddPattern,
-  onQuickAddCustomProperNoun,
-  onQuickAddCustomStructuralPattern,
-  onReloadDictionary,
-  onFocusSearch,
-  onDictionaryTabHotkey,
-  activeTab,
-}: HotkeyHandlerOptions): void {
-  // Use refs so frequently-updating props don't force the keydown listener to be
-  // torn down and re-registered on every change (stale-dep anti-pattern).
-  // Each value is read at key-press time, so capturing via ref at render time is sufficient.
-  const canUndoRef = useRef(canUndo);
-  canUndoRef.current = canUndo;
-  const canRedoRef = useRef(canRedo);
-  canRedoRef.current = canRedo;
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
-
-  const onTranslateFromClipboardRef = useRef(onTranslateFromClipboard);
-  onTranslateFromClipboardRef.current = onTranslateFromClipboard;
-  const onUndoRef = useRef(onUndo);
-  onUndoRef.current = onUndo;
-  const onRedoRef = useRef(onRedo);
-  onRedoRef.current = onRedo;
-  const onAddEntryRef = useRef(onAddEntry);
-  onAddEntryRef.current = onAddEntry;
-  const onQuickAddRef = useRef(onQuickAdd);
-  onQuickAddRef.current = onQuickAdd;
-  const onTabSwitchRef = useRef(onTabSwitch);
-  onTabSwitchRef.current = onTabSwitch;
-  const onQuickAddCharacterRef = useRef(onQuickAddCharacter);
-  onQuickAddCharacterRef.current = onQuickAddCharacter;
-  const onQuickAddPhraseRef = useRef(onQuickAddPhrase);
-  onQuickAddPhraseRef.current = onQuickAddPhrase;
-  const onQuickAddProperNounRef = useRef(onQuickAddProperNoun);
-  onQuickAddProperNounRef.current = onQuickAddProperNoun;
-  const onQuickAddPatternRef = useRef(onQuickAddPattern);
-  onQuickAddPatternRef.current = onQuickAddPattern;
-  const onQuickAddCustomProperNounRef = useRef(onQuickAddCustomProperNoun);
-  onQuickAddCustomProperNounRef.current = onQuickAddCustomProperNoun;
-  const onQuickAddCustomStructuralPatternRef = useRef(onQuickAddCustomStructuralPattern);
-  onQuickAddCustomStructuralPatternRef.current = onQuickAddCustomStructuralPattern;
-  const onReloadDictionaryRef = useRef(onReloadDictionary);
-  onReloadDictionaryRef.current = onReloadDictionary;
-  const onFocusSearchRef = useRef(onFocusSearch);
-  onFocusSearchRef.current = onFocusSearch;
-  const onDictionaryTabHotkeyRef = useRef(onDictionaryTabHotkey);
-  onDictionaryTabHotkeyRef.current = onDictionaryTabHotkey;
+export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
+  // Mirror the whole options object into a ref so frequently-updating props don't force
+  // the keydown listener to be torn down and re-registered on every change (stale-dep
+  // anti-pattern). Read at key-press time, so capturing via ref at render time suffices.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     const copySelectedText = async (): Promise<boolean> => {
@@ -122,7 +67,7 @@ export function useHotkeyHandler({
       callback: ((text?: string) => void | Promise<void>) | undefined,
       label: string
     ): Promise<void> => {
-      if (activeTabRef.current !== 'translator') return;
+      if (optionsRef.current.activeTab !== 'translator') return;
       event.preventDefault();
       try {
         const copied = await copySelectedText();
@@ -136,56 +81,57 @@ export function useHotkeyHandler({
     };
 
     const dispatch = async (action: HotkeyAction, event: KeyboardEvent): Promise<void> => {
+      const opts = optionsRef.current;
       switch (action.type) {
         case 'tabSwitch':
-          onTabSwitchRef.current?.(action.tab);
+          opts.onTabSwitch?.(action.tab);
           break;
         case 'quickAdd':
-          onQuickAddRef.current?.();
+          opts.onQuickAdd?.();
           break;
         case 'translateFromClipboard':
-          onTranslateFromClipboardRef.current?.();
+          opts.onTranslateFromClipboard?.();
           break;
         case 'dictionaryTabHotkey':
-          await onDictionaryTabHotkeyRef.current?.(action.key);
+          await opts.onDictionaryTabHotkey?.(action.key);
           break;
         case 'quickAddCharacter':
-          await handleQuickAdd(event, onQuickAddCharacterRef.current, 'Quick Add Character');
+          await handleQuickAdd(event, opts.onQuickAddCharacter, 'Quick Add Character');
           break;
         case 'quickAddPhrase':
-          await handleQuickAdd(event, onQuickAddPhraseRef.current, 'Quick Add Phrase');
+          await handleQuickAdd(event, opts.onQuickAddPhrase, 'Quick Add Phrase');
           break;
         case 'quickAddProperNoun':
-          await handleQuickAdd(event, onQuickAddProperNounRef.current, 'Quick Add Proper Noun');
+          await handleQuickAdd(event, opts.onQuickAddProperNoun, 'Quick Add Proper Noun');
           break;
         case 'quickAddPattern':
-          await handleQuickAdd(event, onQuickAddPatternRef.current, 'Quick Add Pattern');
+          await handleQuickAdd(event, opts.onQuickAddPattern, 'Quick Add Pattern');
           break;
         case 'quickAddCustomProperNoun':
           await handleQuickAdd(
             event,
-            onQuickAddCustomProperNounRef.current,
+            opts.onQuickAddCustomProperNoun,
             'Quick Add Custom Proper Noun'
           );
           break;
         case 'quickAddCustomStructuralPattern':
           await handleQuickAdd(
             event,
-            onQuickAddCustomStructuralPatternRef.current,
+            opts.onQuickAddCustomStructuralPattern,
             'Quick Add Structural Pattern'
           );
           break;
         case 'focusSearch':
-          onFocusSearchRef.current?.();
+          opts.onFocusSearch?.();
           break;
         case 'undo':
-          onUndoRef.current?.();
+          opts.onUndo?.();
           break;
         case 'redo':
-          onRedoRef.current?.();
+          opts.onRedo?.();
           break;
         case 'reloadDictionary':
-          onReloadDictionaryRef.current?.();
+          opts.onReloadDictionary?.();
           break;
       }
     };
@@ -203,9 +149,9 @@ export function useHotkeyHandler({
           target.isContentEditable;
 
         const action = matchHotkey(event, {
-          activeTab: activeTabRef.current,
-          canUndo: canUndoRef.current,
-          canRedo: canRedoRef.current,
+          activeTab: optionsRef.current.activeTab,
+          canUndo: optionsRef.current.canUndo,
+          canRedo: optionsRef.current.canRedo,
           isInputFocused,
         });
         if (!action) return;
@@ -218,5 +164,5 @@ export function useHotkeyHandler({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []); // All props read via refs — no deps needed, listener is registered once
+  }, []); // options read via optionsRef — no deps needed, listener is registered once
 }

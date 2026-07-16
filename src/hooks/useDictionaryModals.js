@@ -1,6 +1,10 @@
 import { useState, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import { loadAppConfig } from '../utils/appConfig';
+import {
+  resolveDefaultProperNounTarget,
+  resolveStructuralPatternQuickAddTarget,
+} from '../utils/dictionary';
 import toast from '../utils/toast';
 
 /**
@@ -58,17 +62,11 @@ export function useDictionaryModals() {
 
     try {
       const config = await loadAppConfig();
-      const activeProperNouns = config.engine.activeProperNouns;
-      const defaultQuickAddDictionary = config.ui.defaultQuickAddDictionary;
-
-      if (defaultQuickAddDictionary && activeProperNouns.includes(defaultQuickAddDictionary)) {
-        selectedDictionary = defaultQuickAddDictionary;
-      } else {
-        const customProperNouns = activeProperNouns
-          .filter((dict) => dict.startsWith('properNouns-'))
-          .sort();
-        if (customProperNouns.length > 0) selectedDictionary = customProperNouns[0];
-      }
+      const resolved = resolveDefaultProperNounTarget(
+        config.ui.defaultQuickAddDictionary,
+        config.engine.activeProperNouns
+      );
+      if (resolved) selectedDictionary = resolved;
     } catch (error) {
       logger.error('Error loading default Cmd-5 dictionary:', error);
     }
@@ -81,17 +79,10 @@ export function useDictionaryModals() {
 
     try {
       const config = await loadAppConfig();
-      const defaultDict = config.ui.defaultQuickAddDictionary;
-      const activeNouns = config.engine.activeProperNouns;
-
-      if (defaultDict?.startsWith('properNouns-f_')) {
-        selectedDictionary = 'patterns-' + defaultDict.slice('properNouns-'.length);
-      } else {
-        const firstFiction = activeNouns.filter((id) => id.startsWith('properNouns-f_')).sort()[0];
-        if (firstFiction) {
-          selectedDictionary = 'patterns-' + firstFiction.slice('properNouns-'.length);
-        }
-      }
+      selectedDictionary = resolveStructuralPatternQuickAddTarget(
+        config.ui.defaultQuickAddDictionary,
+        config.engine.activeProperNouns
+      );
 
       if (selectedDictionary) {
         const listResult = await window.electronAPI.listFictionPatternDictionaries();

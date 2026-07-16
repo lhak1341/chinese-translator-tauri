@@ -7,11 +7,13 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 Known instances:
 
 - `wasmStatus` interval (`Translator.jsx`) — dep array is `[enginePhase]`, ref used inside callback for status comparison
-- All 13 callback props in keydown listener (`useHotkeyHandler.ts`) — dep array is `[]`
+- Keydown listener in `useHotkeyHandler.ts` — dep array is `[]`; all props mirrored into one `optionsRef` (not per-prop refs, collapsed 2026-07-16), read as `optionsRef.current.X` inside the listener
 
 **Also applies to `useCallback` with a mutable state dep**: a `Set` in state creates a new reference on every `setState` → the callback recreates on every update. Use a ref mirror; dep array → `[]`.
 
 **State SET inside a `useEffect` must not be in its deps**: if a flag is reset inside the effect body and that same flag is in the dep array, the reset re-triggers the effect. `isClipboardTranslation` was the canonical example — now extracted to `useClipboardTranslation` as a ref (`isClipboardTranslationRef`), so this invariant no longer applies there.
+
+**Testing `useHotkeyHandler.ts`'s clipboard quick-add path**: it calls `navigator.clipboard`/`window.getSelection` directly — NOT `window.electronAPI.readClipboard` (that's `useClipboardTranslation`'s path). jsdom has neither by default; stub both with `Object.defineProperty`/`vi.spyOn` before testing the quick-add dispatch cases.
 
 ## `ClickableTranslationOptimized` Paragraph Logic
 

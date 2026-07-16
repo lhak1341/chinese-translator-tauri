@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
+import { toPatternsId } from '../../utils/dictionary';
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
 
@@ -97,8 +98,7 @@ const ConfigurationManager: React.FC = () => {
             );
             const fictionDicts = dictionaryIds.filter((id) => id.startsWith('properNouns-f_'));
             for (const id of fictionDicts) {
-              const suffix = id.slice('properNouns-'.length);
-              const patternsDictId = 'patterns-' + suffix;
+              const patternsDictId = toPatternsId(id);
               if (!existingPatterns.has(patternsDictId)) {
                 await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
               }
@@ -145,8 +145,7 @@ const ConfigurationManager: React.FC = () => {
       if (result.success) {
         // Eager creation: also create paired patterns dict for fiction dicts
         if (dictionaryId.startsWith('properNouns-f_')) {
-          const suffix = dictionaryId.slice('properNouns-'.length);
-          const patternsDictId = 'patterns-' + suffix;
+          const patternsDictId = toPatternsId(dictionaryId);
           const patternsResult =
             await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
           if (!patternsResult.success) {

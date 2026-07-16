@@ -24,10 +24,8 @@ import {
 
 /**
  * @typedef {{ available: boolean, failed: boolean }} WasmProcessorStatus
- * @typedef {{ available: boolean }} WasmNumberStatus
  * @typedef {{
  *   pattern: WasmProcessorStatus,
- *   number: WasmNumberStatus,
  *   anyFailed: boolean,
  *   allAvailable: boolean
  * }} WasmStatus
@@ -92,7 +90,6 @@ class PerformanceHealth {
     /** @type {WasmStatus} */
     const wasm = {
       pattern: { available: patternAvailable, failed: patternFailed },
-      number: { available: true },
       anyFailed: patternFailed,
       allAvailable: patternAvailable,
     };

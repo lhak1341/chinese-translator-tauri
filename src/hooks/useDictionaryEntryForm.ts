@@ -17,6 +17,7 @@ import {
   isCharacterSourceValid,
   isPatternValid,
   validateDictionaryEntry,
+  toProperNounsId,
 } from '../utils/dictionary';
 
 export interface DictionaryEntryFormDeps {
@@ -171,7 +172,7 @@ export function useDictionaryEntryForm(
           const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
             if (id.startsWith('patterns-')) {
               // Show fiction pattern dict only if its paired fiction proper-nouns is active
-              const pairedFiction = 'properNouns-' + id.slice('patterns-'.length);
+              const pairedFiction = toProperNounsId(id);
               if (activeProperNouns.includes(pairedFiction)) acc[id] = info;
             } else if (!id.startsWith('properNouns') || activeProperNouns.includes(id)) {
               acc[id] = info;

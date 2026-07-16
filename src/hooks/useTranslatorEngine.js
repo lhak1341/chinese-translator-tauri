@@ -4,6 +4,7 @@ import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
+import { filterDictionariesForEngine } from '../utils/dictionary';
 
 // Engine initialization priorities — shared between initial load and reinitialize
 const ENGINE_PRIORITIES = {
@@ -14,38 +15,6 @@ const ENGINE_PRIORITIES = {
   punctuation: 5,
   conversion: 6,
 };
-
-function filterDictionariesForEngine(dictionaries, activeProperNouns) {
-  const filtered = {};
-  for (const [name, dict] of Object.entries(dictionaries)) {
-    if (!name.startsWith('properNouns') || activeProperNouns.includes(name)) {
-      filtered[name] = dict;
-    }
-  }
-
-  // Merge fiction structural pattern dicts into filtered.patterns (fiction wins on conflict)
-  const fictionPatternEntries = {};
-  for (const id of activeProperNouns) {
-    if (id.startsWith('properNouns-f_')) {
-      const suffix = id.slice('properNouns-'.length); // "f_DuongThan"
-      const patternsId = 'patterns-' + suffix; // "patterns-f_DuongThan"
-      const patternsDict = dictionaries[patternsId];
-      if (patternsDict && Object.keys(patternsDict).length > 0) {
-        Object.assign(fictionPatternEntries, patternsDict);
-      }
-    }
-  }
-  if (Object.keys(fictionPatternEntries).length > 0) {
-    // fiction first → fiction wins on same-template conflict
-    filtered.patterns = { ...fictionPatternEntries, ...(filtered.patterns || {}) };
-  }
-  // Strip raw patterns-f_X keys — engine receives only the merged 'patterns' key
-  for (const key of Object.keys(filtered)) {
-    if (key.startsWith('patterns-f_')) delete filtered[key];
-  }
-
-  return filtered;
-}
 
 /**
  * Manages the translation engine lifecycle: config load → dict wait → init → ready.
@@ -70,6 +39,33 @@ export function useTranslatorEngine() {
   const engineRef = useRef(null);
   const isInitializingRef = useRef(false);
 
+  /**
+   * Shared init sequence: construct engine → filter dictionaries → initialize →
+   * set phase/error. Used by both the mount effect and reinitialize(); callers
+   * own their own pre-guards (re-entrancy check, forcing 'loading', config reload).
+   */
+  async function runEngineInit(dictionaries, activeProperNouns, options = {}) {
+    const { priorities = ENGINE_PRIORITIES, debugLevel = DEBUG_LEVELS.ERROR } = options;
+    isInitializingRef.current = true;
+    try {
+      const filtered = filterDictionariesForEngine(dictionaries, activeProperNouns);
+      engineRef.current = createTranslationEngine();
+      await engineRef.current.initialize(filtered, {
+        priorities,
+        activeProperNouns,
+        debugLevel,
+      });
+      setInitError(null);
+      setEnginePhase('ready');
+    } catch (error) {
+      logger.error('Failed to initialize engine:', error);
+      setInitError(extractErrorMessage(error));
+      setEnginePhase('error');
+    } finally {
+      isInitializingRef.current = false;
+    }
+  }
+
   // Load config once on mount — replaces loadInitialConfig effect in Translator.jsx
   useEffect(() => {
     loadAppConfig()
@@ -90,27 +86,7 @@ export function useTranslatorEngine() {
       enginePhase === 'loading' &&
       !isInitializingRef.current
     ) {
-      isInitializingRef.current = true;
-
-      (async () => {
-        try {
-          engineRef.current = createTranslationEngine();
-          const filtered = filterDictionariesForEngine(dictionaries, activeProperNounsFromConfig);
-          await engineRef.current.initialize(filtered, {
-            priorities: ENGINE_PRIORITIES,
-            activeProperNouns: activeProperNounsFromConfig,
-            debugLevel: DEBUG_LEVELS.ERROR,
-          });
-          setInitError(null);
-          setEnginePhase('ready');
-        } catch (error) {
-          logger.error('Failed to initialize engine:', error);
-          setInitError(extractErrorMessage(error));
-          setEnginePhase('error');
-        } finally {
-          isInitializingRef.current = false;
-        }
-      })();
+      runEngineInit(dictionaries, activeProperNounsFromConfig);
     }
   }, [isLoading, loadError, activeProperNounsFromConfig, dictionaries, enginePhase]);
 
@@ -138,11 +114,10 @@ export function useTranslatorEngine() {
         activeProperNouns = freshConfig.engine.activeProperNouns;
         setActiveProperNounsFromConfig(activeProperNouns);
       }
-      const filtered = filterDictionariesForEngine(rawDictionaries, activeProperNouns);
-      engineRef.current = createTranslationEngine();
-      await engineRef.current.initialize(filtered, { priorities, activeProperNouns, debugLevel });
-      setInitError(null);
-      setEnginePhase('ready');
+      // runEngineInit owns its own isInitializingRef/try-catch for the init step itself;
+      // this try/catch only needs to cover the config-reload step above, so a
+      // forceConfigReload failure still lands in initError/enginePhase, never throws.
+      await runEngineInit(rawDictionaries, activeProperNouns, { priorities, debugLevel });
     } catch (error) {
       logger.error('Failed to reinitialize engine:', error);
       setInitError(extractErrorMessage(error));
