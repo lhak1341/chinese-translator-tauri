@@ -39,6 +39,8 @@ import { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader.j
 import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
 import { DictionaryTrie } from './DictionaryTrie.js';
 import { isDictionaryCategory } from './LookupIndexUtils.js';
+import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
+import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
 
 // Debug logging levels
 const DEBUG_LEVELS = {
@@ -51,6 +53,7 @@ const DEBUG_LEVELS = {
 export class DictionaryManager {
   constructor(options = {}) {
     this.dictionaries = new Map(); // Map of dictionary name to DictionaryTrie
+    this.flatEntries = new Map(); // Map of dictionary name to flat {chinese,vietnamese,metadata}[] — for RustLookupIndexManager, computed once at load instead of walked from the trie per translate call
     this.metadata = new Map(); // Dictionary metadata
     this.pendingDictionaries = null; // Phase 4: Dictionaries awaiting lazy loading
     this.loadTime = 0;
@@ -162,6 +165,7 @@ export class DictionaryManager {
 
     // Clear existing dictionaries
     this.dictionaries.clear();
+    this.flatEntries.clear();
     this.metadata.clear();
 
     const priorities = options.priorities || {
@@ -281,6 +285,7 @@ export class DictionaryManager {
       } // End fallback trie building
 
       this.dictionaries.set(dictionaryName, trie);
+      this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
 
       // Use the same priority logic for metadata (prefix rules always win)
       let metadataPriority;
@@ -529,13 +534,7 @@ export class DictionaryManager {
         .filter((result) => result.success)
         .flatMap((result) => result.matches);
 
-      // Sort by length first (longer match = more specific), priority as tiebreak at equal length
-      const sortedMatches = allMatches.sort((a, b) => {
-        if (a.word.length !== b.word.length) {
-          return b.word.length - a.word.length;
-        }
-        return a.priority - b.priority;
-      });
+      const sortedMatches = allMatches.sort(compareMatchesBySpecificityThenPriority);
 
       const lookupTime = performance.now() - startTime;
 
@@ -603,13 +602,7 @@ export class DictionaryManager {
         (this.parallelLookupStats.averageSequentialTime + lookupTime) / 2;
     }
 
-    // Sort by length first (longer match = more specific), priority as tiebreak at equal length
-    return allMatches.sort((a, b) => {
-      if (a.word.length !== b.word.length) {
-        return b.word.length - a.word.length;
-      }
-      return a.priority - b.priority;
-    });
+    return allMatches.sort(compareMatchesBySpecificityThenPriority);
   }
 
   /**
@@ -806,6 +799,7 @@ export class DictionaryManager {
    */
   clear() {
     this.dictionaries.clear();
+    this.flatEntries.clear();
     this.metadata.clear();
     this.ready = false;
     this.loadTime = 0;
@@ -843,6 +837,9 @@ export class DictionaryManager {
     // Clear and nullify all references for GC
     this.dictionaries.clear();
     this.dictionaries = null;
+
+    this.flatEntries.clear();
+    this.flatEntries = null;
 
     this.metadata.clear();
     this.metadata = null;
@@ -1030,6 +1027,7 @@ export class DictionaryManager {
 
     // Store dictionary and metadata
     this.dictionaries.set(dictionaryName, trie);
+    this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
     this.metadata.set(dictionaryName, {
       name: dictionaryName,
       entryCount,

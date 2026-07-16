@@ -26,7 +26,17 @@ Bug history encoded in the implementation: CRITICAL-1 (skip empty units), MEDIUM
 
 Replaces two near-identical private methods (`buildOriginalMapping`, `buildTranslatedMapping`) that previously lived in `SemanticArrayBuilder`. `SemanticArrayBuilder.buildPositionMappings` now delegates both passes to this function.
 
+Also owns the single Chinese-text-order comparator: `resolveTokenIndex(tokenIndex)` (missing/negative sorts last, `Number.MAX_SAFE_INTEGER`) and `compareByTokenIndex(a, b)`. Was independently reimplemented with disagreeing missing-tokenIndex fallbacks (`?? 0` vs `?? Number.MAX_SAFE_INTEGER`) at 2 sort sites in `SegmentPrecomputer.ts` and as part of a two-key sort in `TranslationEngine.js`'s word-level builder before being unified. `CharacterOnlyBridge.ts`'s occurrence-counting scan is a different shape (linear scan, not a sort) and does not use this comparator.
+
 Entry point: `src/utils/highlighting/TextPositionMapper.ts`, re-exported from `src/utils/highlighting/index.ts`.
+
+## PhraseConsumptionMarker
+
+The shared "mark phrase followers as consumed" operation: sets `isGrouped`, `groupLeader`, `translated: null`, `translationSource: 'phrases_consumed'` on each follower token and records the follower indices on the leader's `groupedWith` list. Was hand-written 3x in `TranslationEngine.js` (`createPhraseGroups`, `processRemainingPhrasesSequential`, `processRemainingPhrasesParallel`) before being unified — one site (`processRemainingPhrasesParallel`) had silently drifted to skip `groupedWith`.
+
+Interface: `markPhraseFollowersConsumed(tokens, leaderIndex, tokenSpan): void`. Pure mutation of the passed `tokens` array; no `this`, no engine state — testable standalone.
+
+Entry point: `src/utils/pattern/PhraseConsumptionMarker.ts`. Not barrel-exported — all 3 callers live inside `TranslationEngine.js`, which imports it directly (matching how it already imports sibling `pattern/` modules).
 
 ## HotkeyDispatchTable
 
@@ -63,6 +73,14 @@ Three exports:
 `DictionaryTypes.ts` imports `baseValidation` and `validatePatternEntry` from here so the logic lives in one place. `DictionaryTypes.ts` no longer exports `validateDictionaryEntry` — callers that need persist-time dispatch use `validatePersistEntry` from `utils/dictionary/`.
 
 Entry point: `src/utils/dictionary/PersistTimeValidator.ts`, re-exported from `src/utils/dictionary/index.ts`.
+
+## MatchComparator
+
+The single dictionary match ordering rule (ADR-010: specificity over provenance). Longer match wins; equal-length matches tie-break on lower priority number. Was independently reimplemented at 4 sites (JS sequential, JS parallel, WASM lookup, lookup-index post-fetch sort) before being unified — one of the 4 sites carried a `?? 0` undefined-priority guard the other 3 didn't need.
+
+Interface: `compareMatchesBySpecificityThenPriority(a, b): number`, taking `{ word: string; priority: number }`. Priority is a required field — the sole caller with a possibly-missing priority (`LookupIndexUtils.getIndexedMatches`) defaults it to `0` before calling, keeping the comparator's own contract simple.
+
+Entry point: `src/utils/dictionary/MatchComparator.ts`. Not barrel-exported — all 4 callers live inside `src/utils/dictionary/`. Called from `DictionaryManager.findAllMatchesParallel`/`findAllMatchesSequential`, `DictionaryWasmLookup.findAllMatches`, and `LookupIndexUtils.sortMatchesByPrecedence`.
 
 ## NumberProcessingAdapter
 
@@ -177,6 +195,18 @@ Owns its own structural health: `validateIntegrity()` detects circular reference
 `TrieNode` is exported from the same file so `DictionaryTrieLoader` can reconstruct cached tries without passing constructor references at the call site.
 
 Entry point: `src/utils/dictionary/DictionaryTrie.js`. Consumed by `DictionaryManager` (one `DictionaryTrie` per loaded dictionary) and `DictionaryTrieLoader` (cache hit/miss reconstruction).
+
+## DictionaryEntryFlattener
+
+Converts raw dictionary JSON directly into the flat `{chinese, vietnamese, metadata}[]` shape `RustLookupIndexManager` sends to the Rust lookup-index builder (`build_lookup_index` in `src-tauri/src/dictionary_commands.rs`, which builds its own `lookup_index_engine::TrieNode` from the flat entries — a third, distinct trie type from both `DictionaryTrie` and `wasm-core::trie::TrieNode`).
+
+Replaces a former trie-walk: `RustLookupIndexManager.extractEntriesFromTrie` used to reverse-engineer this same flat shape by DFS-walking an already-built `DictionaryTrie`, carrying a `MAX_DEPTH` recursion guard and a dev-only cycle detector — defensive machinery that existed only because a live trie was being treated as untrusted structure to walk. `DictionaryManager` now builds flat entries directly from the same raw JSON it reads to build the trie, once at dictionary-load time, and retains them in `this.flatEntries` — no walk, no cycle risk, nothing to guard against.
+
+Per-entry `metadata` intentionally omits the derived `priority`/`frequency`/`dictionary` fields `DictionaryManager`'s trie-insert loop computes for `DictionaryTrie` nodes — every reader of trie-node metadata was grepped and none read those fields; Rust treats `metadata` as an opaque passthrough string. Only whatever the source dictionary JSON itself provides (e.g. `allowAsPatternVariable`, `semanticType`) is carried through.
+
+Interface: `flattenDictionaryEntries(dictionaryData): FlatDictionaryEntry[]`. Pure function of the raw JSON object — no trie, no DictionaryManager instance required.
+
+Entry point: `src/utils/dictionary/DictionaryEntryFlattener.ts`. Called from `DictionaryManager`'s two dictionary-registration sites (main load loop, `lazyLoadDictionary`) alongside `this.dictionaries.set(...)`.
 
 ## VocabularyWarmup
 

@@ -119,6 +119,31 @@ describe('DictionaryManager API Contract', () => {
       await result; // Should resolve without error
     });
   });
+
+  describe('flatEntries (for RustLookupIndexManager)', () => {
+    test('populates flatEntries alongside dictionaries at load time', () => {
+      expect(manager.flatEntries.has('test_dict')).toBe(true);
+      const entries = manager.flatEntries.get('test_dict');
+      expect(entries).toEqual(
+        expect.arrayContaining([
+          { chinese: '在', vietnamese: 'ở', metadata: null },
+          { chinese: '那', vietnamese: 'đó', metadata: null },
+          { chinese: '里', vietnamese: 'trong', metadata: null },
+        ])
+      );
+      expect(entries).toHaveLength(3);
+    });
+
+    test('clear() empties flatEntries alongside dictionaries', () => {
+      manager.clear();
+      expect(manager.flatEntries.size).toBe(0);
+    });
+
+    test('dispose() nullifies flatEntries alongside dictionaries', () => {
+      manager.dispose();
+      expect(manager.flatEntries).toBeNull();
+    });
+  });
 });
 
 describe('DictionaryManager (WASM adapter) API Contract', () => {

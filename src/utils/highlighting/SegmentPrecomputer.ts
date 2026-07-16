@@ -15,6 +15,7 @@ import {
   normalizeVietnameseText,
   normalizeVietnameseTexts,
 } from '../text/TextNormalizationHelpers';
+import { compareByTokenIndex } from './TextPositionMapper';
 
 /**
  * Semantic arrays from translation engine
@@ -146,11 +147,9 @@ export function precomputeSegments(text: string, semanticArrays: SemanticArrays)
 
   // Sort units by their tokenIndex to ensure text-order processing for duplicates
   // HIGH-3 FIX: Use optional chaining to prevent crash if metadata is null/undefined
-  const filteredUnits = allUnits.sort((a, b) => {
-    const aIndex = a.metadata?.tokenIndex ?? 0;
-    const bIndex = b.metadata?.tokenIndex ?? 0;
-    return aIndex - bIndex;
-  });
+  const filteredUnits = allUnits.sort((a, b) =>
+    compareByTokenIndex(a.metadata?.tokenIndex, b.metadata?.tokenIndex)
+  );
 
   // Build first-character index for O(1) candidate lookup instead of scanning all units.
   // Keyed on lowercased first char to match the case-insensitive comparison in findUnitMatch.
@@ -452,11 +451,7 @@ export function precomputeOriginalSegments(
   // wrong unitIndices to duplicate characters (e.g. unitIndex for 1st 是 gets
   // assigned to 4th 是 because three other 是 entries had lower array indices).
   for (const indices of firstCharIndex.values()) {
-    indices.sort(
-      (a, b) =>
-        (metadata[a]?.tokenIndex ?? Number.MAX_SAFE_INTEGER) -
-        (metadata[b]?.tokenIndex ?? Number.MAX_SAFE_INTEGER)
-    );
+    indices.sort((a, b) => compareByTokenIndex(metadata[a]?.tokenIndex, metadata[b]?.tokenIndex));
   }
 
   while (currentPosition < text.length) {

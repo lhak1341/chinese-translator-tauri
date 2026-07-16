@@ -33,15 +33,16 @@ Signature: `addUnit(originalText, translatedText, source, tokenIndex, phase, dic
 - **`processChunksInParallel` merge loop** (~line 7023): correctly passes all 6 args from `isolatedArrays.metadata?.[j]`. After adding a new field to `addUnit`, propagate it through this merge loop too.
 - The `phase` arg (5th) is a **string label** (`'pattern'`, `'phrases'`, etc.), not a number — passing a number silently records wrong provenance with no error.
 
-### Duplicate-Word Highlighting Requires `tokenIndex` Ordering in Three Places
+### Duplicate-Word Highlighting Requires `tokenIndex` Ordering
 
-All three stem from the same root cause — `processChunksInParallel` assigns semantic array indices by chunk completion order, not text order:
+Root cause — `processChunksInParallel` assigns semantic array indices by chunk completion order, not text order. `compareByTokenIndex(a, b)` / `resolveTokenIndex(tokenIndex)` in `src/utils/highlighting/TextPositionMapper.ts` (barrel-exported) are the single ordering rule: missing/negative tokenIndex sorts last. Three sort/tiebreak sites use it:
 
-1. **Full Translation word-level builder** (`TranslationEngine.js` ~line 6644): sort `candidateWords` by `tokenIndex` ascending for same-length ties.
-2. **Full Translation → Char-only bridge** (`CharacterOnlyBridge.ts`): count `occurrenceInSource` using `metadata[i].tokenIndex < clickedTokenIndex`, not `i < activeIndex`.
-3. **Original Chinese panel** (`SegmentPrecomputer.ts`, inside `precomputeOriginalSegments`): sort `firstCharIndex` candidate lists by `tokenIndex` ascending after building them.
+1. **Full Translation word-level builder** (`TranslationEngine.js`, `candidateWords.sort`): tiebreak by `compareByTokenIndex` for same-length candidates.
+2. **Original Chinese panel** (`SegmentPrecomputer.ts`, `precomputeOriginalSegments`): sorts `firstCharIndex` candidate lists via `compareByTokenIndex`; also used for the word-level `filteredUnits` sort earlier in the same file.
 
-Any new greedy scan or occurrence counter over the semantic array must use `tokenIndex` order.
+**`CharacterOnlyBridge.ts`'s `occurrenceInSource` count is NOT a sort** — it's a linear scan with its own dual-sided fallback (`i < sourceIndex` when tokenIndex is missing on either side). Different shape, does not use `compareByTokenIndex`; do not try to force it through the shared comparator.
+
+Any new sort over the semantic array by text position should use `compareByTokenIndex`, not a hand-rolled comparator — a prior hand-rolled version already caused an intransitive-comparator bug (see the CRITICAL FIX comment above `candidateWords.sort` in `TranslationEngine.js`), and a second hand-rolled copy in `SegmentPrecomputer.ts` disagreed with it on the missing-tokenIndex fallback (`?? 0` vs `?? Number.MAX_SAFE_INTEGER`) until unified.
 
 ### `getSemanticTokens` Requires `TextToken[]`, Not a String
 
@@ -144,13 +145,13 @@ Use `isWasmPatternProcessorReady()` from `wasm/WasmPatternProcessor.js` — comb
 
 `src/utils/pattern/PatternFailureTracker.js` owns `_count`, `_lastSuccessTime`, and retry `_warningShown`. Do NOT add `patternFailureCount` / `lastPatternSuccessTime` back to the engine. Engine's `_wasmInitWarningShown` is separate — it guards the WASM init-failure toast, not retry warnings.
 
-### `DictionaryWasmLookup.findAllMatches` Has Independent Sort
-
-WASM parallel path, now in `DictionaryWasmLookup`. Maintains its own sort (length desc then priority), separate from the JS `findAllMatchesParallel` path. Any change to match-ordering in `findAllMatchesParallel` or `findAllMatchesSequential` must be mirrored in `DictionaryWasmLookup.findAllMatches`.
-
 ### `.trie.json` Files Are JS Map Cache, Not WASM
 
 `*.trie.json` in the dictionaries folder are written by `PrecomputedTrieCache.js` — they cache the JS Map-based trie, not anything WASM-related. Do not delete them; they speed up cold starts.
+
+### `DictionaryManager` Trie-Node Metadata Is Not Uniform Across Load Paths
+
+3 separate code paths build tries with 3 different per-entry `metadata` shapes: the main load loop's fallback (`DictionaryManager.js`, enriches with `priority`/`frequency`/`dictionary`), `DictionaryTrieLoader`'s internal cache-miss build (raw JSON `target` only, no enrichment), and `lazyLoadDictionary` (no metadata at all). Harmless today — grepped every reader, nothing reads per-entry `priority`/`frequency`, and Rust treats trie-node `metadata` as an opaque passthrough string — but do not assume trie-node metadata is uniform or complete across dictionaries.
 
 ### `applyHierarchicalResults` Has No Overlap Check — Do Not Add One
 
@@ -166,7 +167,7 @@ When Phase 2+ overwrites a Phase 1 leader token, the orphan-release code in `app
 
 ### `postProcess` Orphan Safety Net Must Not Be Collapsed to `continue`
 
-The `else if (token.translationSource)` branch contains an orphan-recovery path: consumed Chinese tokens whose `groupLeader === null` (released by orphan-release) or whose leader has `translated === null` are recovered via char dict fallback instead of skipped. Do NOT replace with `continue`. **Every phase must set `groupLeader = startIndex` on consumed tokens at the mark site** — `=== undefined` (never set) also triggers char-fallback, silently corrupting every multi-token match from that phase. `applyMatchToTokens` (Phase 2/4), `applyHierarchicalResults` (Phase 1), and `NumberProcessor.applyConversionResult` (Phase 3 JS) all set it. `copyWasmTokens` does NOT copy `groupLeader` — WASM-path phases need a post-`copyWasmTokens` sweep.
+The `else if (token.translationSource)` branch contains an orphan-recovery path: consumed Chinese tokens whose `groupLeader === null` (released by orphan-release) or whose leader has `translated === null` are recovered via char dict fallback instead of skipped. Do NOT replace with `continue`. **Every phase must set `groupLeader = startIndex` on consumed tokens at the mark site** — `=== undefined` (never set) also triggers char-fallback, silently corrupting every multi-token match from that phase. `applyMatchToTokens` (Phase 2/4), `applyHierarchicalResults` (Phase 1), and `NumberProcessor.applyConversionResult` (Phase 3 JS) all set it. Phrase grouping (`createPhraseGroups`, `processRemainingPhrasesSequential`, `processRemainingPhrasesParallel`) sets it via the shared `markPhraseFollowersConsumed` (`src/utils/pattern/PhraseConsumptionMarker.ts`) — do not hand-roll the mark-as-consumed loop at a new phrase call site, call this instead. `copyWasmTokens` does NOT copy `groupLeader` — WASM-path phases need a post-`copyWasmTokens` sweep.
 
 ### WASM Wrapper Retire-After-Panic
 

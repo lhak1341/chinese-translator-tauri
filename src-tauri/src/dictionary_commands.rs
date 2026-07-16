@@ -790,24 +790,11 @@ pub async fn save_dictionary(
     // SECURITY: Validate dictionary ID to prevent path traversal
     validate_dictionary_id(&dictionary_id)?;
 
-    // SECURITY: Require a JSON object — arrays and other types bypass entry-count validation
-    let obj = data.as_object().ok_or_else(|| "Dictionary data must be a JSON object".to_string())?;
-    if obj.len() > MAX_DICTIONARY_ENTRIES {
-        return Err(format!(
-            "Dictionary too large: {} entries (max: {})",
-            obj.len(),
-            MAX_DICTIONARY_ENTRIES
-        ));
-    }
+    validate_dictionary_payload(&data)?;
 
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
-
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
-    // Save the data
-    // SECURITY: Depth guard mirrors save_json_file — prevents deeply-nested values
-    // from causing recursive stack growth in the Rust drop path.
-    check_json_depth(&data, 50)?;
     let json_string = serde_json::to_string_pretty(&data)
         .map_err(|_| "Failed to serialize dictionary data".to_string())?;
 
@@ -820,22 +807,29 @@ pub async fn save_dictionary(
         ));
     }
 
-    // M1: Invalidate cache before the write so a concurrent load between
-    // write completion and post-write invalidation cannot return stale data.
-    cache.invalidate(Some(&dictionary_id));
-
-    // C2: Atomic write — write to a sibling temp file, then rename. fs::rename
-    // is atomic on the same filesystem, so a crash mid-write leaves the
-    // original file intact. fs::write alone truncates+writes in place and can
-    // leave a partial/corrupt file on crash or concurrent saves.
-    write_atomic(&file_path, json_string.as_bytes())?;
-
-    // Defensive second invalidation — closes the very narrow window where a
-    // load between the pre-write invalidate and rename completion could
-    // re-cache the previous file's contents.
-    cache.invalidate(Some(&dictionary_id));
+    write_dictionary_bytes(&file_path, json_string.as_bytes(), &cache, &dictionary_id)?;
 
     Ok(DictionaryResponse::ok_with_data(data))
+}
+
+/// SECURITY: The shared guard sequence for dictionary JSON from an untrusted source —
+/// reject non-objects, enforce the entry-count cap, enforce nesting depth. Shared by
+/// every site that accepts dictionary data: direct save, ZIP import, and file load.
+fn validate_dictionary_payload(data: &serde_json::Value) -> Result<(), String> {
+    // SECURITY: Require a JSON object — arrays and other types bypass entry-count validation
+    let obj = data
+        .as_object()
+        .ok_or_else(|| "Dictionary data must be a JSON object".to_string())?;
+    if obj.len() > MAX_DICTIONARY_ENTRIES {
+        return Err(format!(
+            "Dictionary too large: {} entries (max: {})",
+            obj.len(),
+            MAX_DICTIONARY_ENTRIES
+        ));
+    }
+    // SECURITY: Depth guard mirrors save_json_file — prevents deeply-nested values
+    // from causing recursive stack growth in the Rust drop path.
+    check_json_depth(data, 50)
 }
 
 /// C2: Write `bytes` to `path` atomically by writing to `path.tmp.<pid>` and
@@ -858,6 +852,34 @@ fn write_atomic(path: &PathBuf, bytes: &[u8]) -> Result<(), String> {
         let _ = fs::remove_file(&tmp_path);
         return Err(sanitize_io_error(e, "dictionary file"));
     }
+
+    Ok(())
+}
+
+/// The shared write half of the protocol: invalidate-before → atomic write →
+/// invalidate-after. Takes already-serialized bytes so callers control their own byte
+/// representation — save_dictionary re-serializes via serde_json; import_dictionaries
+/// writes the imported file's bytes verbatim, preserving its on-disk format.
+fn write_dictionary_bytes(
+    path: &PathBuf,
+    bytes: &[u8],
+    cache: &DictionaryCache,
+    dictionary_id: &str,
+) -> Result<(), String> {
+    // M1: Invalidate cache before the write so a concurrent load between
+    // write completion and post-write invalidation cannot return stale data.
+    cache.invalidate(Some(dictionary_id));
+
+    // C2: Atomic write — write to a sibling temp file, then rename. fs::rename
+    // is atomic on the same filesystem, so a crash mid-write leaves the
+    // original file intact. fs::write alone truncates+writes in place and can
+    // leave a partial/corrupt file on crash or concurrent saves.
+    write_atomic(path, bytes)?;
+
+    // Defensive second invalidation — closes the very narrow window where a
+    // load between the pre-write invalidate and rename completion could
+    // re-cache the previous file's contents.
+    cache.invalidate(Some(dictionary_id));
 
     Ok(())
 }
@@ -890,35 +912,12 @@ pub async fn load_dictionary(
             let data: serde_json::Value = serde_json::from_str(&contents)
                 .map_err(|_| format!("Invalid JSON in dictionary '{}'", dictionary_id))?;
 
-            // SECURITY: Enforce entry-count cap on load, not just on save.
-            // A file written externally or imported from a ZIP could contain more
-            // entries than MAX_DICTIONARY_ENTRIES without hitting save_dictionary's
-            // guard, causing unbounded trie memory growth.
-            // Reject non-object JSON (arrays, scalars) — they bypass the entry-count
-            // guard via the old `if let Some(obj)` pattern and cause type errors downstream.
-            // Matches import_dictionaries which uses `match` + explicit error for non-objects.
-            let obj = match data.as_object() {
-                Some(o) => o,
-                None => {
-                    return Err(format!(
-                        "Dictionary '{}' has invalid format: expected a JSON object",
-                        dictionary_id
-                    ));
-                }
-            };
-            if obj.len() > MAX_DICTIONARY_ENTRIES {
-                return Err(format!(
-                    "Dictionary '{}' has too many entries ({}, max: {})",
-                    dictionary_id,
-                    obj.len(),
-                    MAX_DICTIONARY_ENTRIES
-                ));
-            }
-
-            // SECURITY: Depth guard — mirrors import_dictionaries and save_dictionary.
-            // A file written externally with pathological nesting bypasses the import
-            // path guard, so both load paths must enforce it before caching.
-            check_json_depth(&data, 50)?;
+            // SECURITY: Re-run the same guard sequence as save_dictionary/import_dictionaries
+            // on load, not just on write. A file written externally or imported from a ZIP
+            // could bypass those guards, causing unbounded trie memory growth or stack
+            // pressure from pathological nesting.
+            validate_dictionary_payload(&data)
+                .map_err(|e| format!("Dictionary '{}': {}", dictionary_id, e))?;
 
             // Cache the result
             cache.set(cache_key, data.clone());
@@ -1214,38 +1213,22 @@ pub async fn import_dictionaries(
 
         match serde_json::from_str::<serde_json::Value>(&contents) {
             Ok(data) => {
-                // SECURITY: Enforce entry-count cap to prevent oversized dictionaries from
-                // being written to disk and later causing unbounded trie memory growth.
-                // Explicitly reject non-objects (arrays, scalars) — `if let Some(obj)`
-                // would silently allow them through and skip the entry-count guard.
-                let obj = match data.as_object() {
-                    Some(o) => o,
-                    None => {
-                        errors.push(format!(
-                            "{}: dictionary must be a JSON object, not array or other type",
-                            filename
-                        ));
-                        continue;
-                    }
-                };
-                if obj.len() > MAX_DICTIONARY_ENTRIES {
-                    errors.push(format!(
-                        "{}: dictionary exceeds maximum entry count ({} max, got {})",
-                        filename, MAX_DICTIONARY_ENTRIES, obj.len()
-                    ));
-                    continue;
-                }
-                // SECURITY: Enforce nesting depth cap — mirrors save_dictionary and save_json_file.
-                // serde_json limits deserialization to 128 levels, but deep Values cause
-                // unbounded recursion in the Rust drop path; cap at 50 as defense-in-depth.
-                if let Err(e) = check_json_depth(&data, 50) {
+                // SECURITY: Same guard sequence as save_dictionary and load_dictionary —
+                // entry-count cap + nesting depth. serde_json limits deserialization to
+                // 128 levels, but deep Values cause unbounded recursion in the Rust drop
+                // path; cap at 50 as defense-in-depth.
+                if let Err(e) = validate_dictionary_payload(&data) {
                     errors.push(format!("{}: {}", filename, e));
                     continue;
                 }
                 // Use validated base_name (not raw filename from ZIP header) to build the
                 // output path, eliminating the distance between validation and use.
+                // Writes contents verbatim (not re-serialized) — preserves the imported
+                // file's on-disk format exactly.
                 let output_path = dictionary_path.join(format!("{}.json", base_name));
-                if let Err(e) = write_atomic(&output_path, contents.as_bytes()) {
+                if let Err(e) =
+                    write_dictionary_bytes(&output_path, contents.as_bytes(), &cache, base_name)
+                {
                     errors.push(format!("{}: write error: {}", filename, e));
                     continue;
                 }
@@ -1258,9 +1241,6 @@ pub async fn import_dictionaries(
             }
         }
     }
-
-    // Clear cache since dictionaries changed
-    cache.invalidate(None);
 
     let message = if errors.is_empty() {
         format!("Imported {} dictionaries successfully", file_count)
@@ -2067,5 +2047,63 @@ mod tests {
         assert_eq!(r.error.as_deref(), Some("Dictionary not found"));
         assert!(r.data.is_none());
         assert!(r.message.is_none());
+    }
+
+    // ── validate_dictionary_payload ──────────────────────────────────────────
+
+    #[test]
+    fn test_validate_dictionary_payload_accepts_small_flat_object() {
+        let data = serde_json::json!({"你好": "xin chào"});
+        assert!(validate_dictionary_payload(&data).is_ok());
+    }
+
+    #[test]
+    fn test_validate_dictionary_payload_rejects_non_object() {
+        let data = serde_json::json!(["not", "an", "object"]);
+        let err = validate_dictionary_payload(&data).unwrap_err();
+        assert!(err.contains("must be a JSON object"));
+    }
+
+    #[test]
+    fn test_validate_dictionary_payload_rejects_too_many_entries() {
+        let mut obj = serde_json::Map::new();
+        for i in 0..(MAX_DICTIONARY_ENTRIES + 1) {
+            obj.insert(format!("key{}", i), serde_json::json!("v"));
+        }
+        let data = serde_json::Value::Object(obj);
+        let err = validate_dictionary_payload(&data).unwrap_err();
+        assert!(err.contains("too large"));
+    }
+
+    #[test]
+    fn test_validate_dictionary_payload_rejects_excessive_nesting() {
+        let mut value = serde_json::json!("leaf");
+        for _ in 0..60 {
+            value = serde_json::json!({ "n": value });
+        }
+        let data = serde_json::json!({ "entry": value });
+        let err = validate_dictionary_payload(&data).unwrap_err();
+        assert!(err.contains("nesting too deep"));
+    }
+
+    // ── write_dictionary_bytes ───────────────────────────────────────────────
+
+    #[test]
+    fn test_write_dictionary_bytes_writes_file_and_invalidates_cache() {
+        let cache = make_cache();
+        cache.set("test-dict".to_string(), serde_json::json!({"stale": true}));
+
+        let path = std::env::temp_dir()
+            .join(format!("write_dictionary_bytes_test_{}.json", std::process::id()));
+        let bytes = b"{\"a\":\"b\"}";
+
+        let result = write_dictionary_bytes(&path, bytes, &cache, "test-dict");
+        assert!(result.is_ok());
+
+        let on_disk = std::fs::read(&path).expect("file should exist after write");
+        assert_eq!(on_disk, bytes);
+        assert!(cache.get("test-dict").is_none(), "write must invalidate any pre-existing cache entry");
+
+        let _ = std::fs::remove_file(&path);
     }
 }

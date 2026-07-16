@@ -11,6 +11,8 @@
  * `getIndexedMatches` normalises both.
  */
 
+import { compareMatchesBySpecificityThenPriority } from './MatchComparator';
+
 export type DictionaryCategory = 'patterns' | 'properNouns' | 'phrases' | 'characters' | 'numbers';
 
 type IndexedMatch = { word: string; priority?: number; [key: string]: unknown };
@@ -27,11 +29,15 @@ const RUST_KEY: Record<DictionaryCategory, string> = {
 // Rust stores matches in dictionary-iteration (priority) order, not length order.
 // JS-built index entries are already sorted by findAllMatchesSequential, but a
 // re-sort is harmless (TimSort on pre-sorted input is O(n)).
+// Only site where priority can be missing — default to 0 before the shared comparator,
+// which requires priority: number.
 function sortMatchesByPrecedence(matches: IndexedMatch[]): IndexedMatch[] {
-  return [...matches].sort((a, b) => {
-    if (a.word.length !== b.word.length) return b.word.length - a.word.length;
-    return (a.priority ?? 0) - (b.priority ?? 0);
-  });
+  return [...matches].sort((a, b) =>
+    compareMatchesBySpecificityThenPriority(
+      { word: a.word, priority: a.priority ?? 0 },
+      { word: b.word, priority: b.priority ?? 0 }
+    )
+  );
 }
 
 /**

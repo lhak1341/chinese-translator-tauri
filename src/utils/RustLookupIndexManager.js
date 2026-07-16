@@ -11,7 +11,6 @@
  */
 
 import tauriAPI from '../tauriAPI.js';
-import toast from './toast';
 import { logger } from './logger';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { FallbackManager } from './FallbackManager'; // REFACTOR (2026-01-28): Centralized failure handling
@@ -31,9 +30,6 @@ class RustLookupIndexManager {
       toastDuration: TOAST_DURATIONS.LOAD_FAILURE,
     });
 
-    // CODE REVIEW FIX (HIGH-3): Track if corruption warning shown
-    this.showedCorruptionWarning = false;
-
     // Performance tracking
     this.stats = {
       totalBuilds: 0,
@@ -49,12 +45,12 @@ class RustLookupIndexManager {
    * Build comprehensive lookup index using Rust
    *
    * @param {string} text - The input text to index
-   * @param {Object} dictionariesMap - Map of dictionary name -> trie
+   * @param {Object} flatEntriesMap - Map of dictionary name -> flat {chinese,vietnamese,metadata}[] (DictionaryManager.flatEntries)
    * @param {string[]} dictionaryOrder - Order to search dictionaries
    * @param {{ minTextLength?: number, enableIndexing?: boolean, useParallel?: boolean }} [options] - Build options
    * @returns {Promise<{success: boolean, index: Object, buildTimeMs: number, positionsIndexed: number, indexSize: number, error?: string}>}
    */
-  async buildLookupIndex(text, dictionariesMap, dictionaryOrder, options = {}) {
+  async buildLookupIndex(text, flatEntriesMap, dictionaryOrder, options = {}) {
     // Use options.minTextLength if provided, otherwise use default
     const minTextLength = options.minTextLength ?? this.minTextLength;
     const enableIndexing = options.enableIndexing ?? true;
@@ -72,8 +68,8 @@ class RustLookupIndexManager {
     }
 
     try {
-      // Convert dictionary tries to the format expected by Rust
-      const dictionaries = this.convertDictionariesToRustFormat(dictionariesMap, dictionaryOrder);
+      // Convert flat entries to the format expected by Rust
+      const dictionaries = this.convertDictionariesToRustFormat(flatEntriesMap, dictionaryOrder);
 
       // Debug: Log what dictionaries are being indexed
       if (process.env.NODE_ENV === 'development') {
@@ -122,31 +118,28 @@ class RustLookupIndexManager {
   }
 
   /**
-   * Convert JavaScript trie dictionaries to Rust format
+   * Convert DictionaryManager's flat entries map to Rust format.
    *
-   * @param {Object} dictionariesMap - Map of dictionary name -> trie
+   * @param {Object} flatEntriesMap - Map of dictionary name -> flat {chinese,vietnamese,metadata}[]
    * @param {string[]} dictionaryOrder - Order to search dictionaries
    * @returns {Array<{name: string, entries: Array<*>, priority: number}>}
    */
-  convertDictionariesToRustFormat(dictionariesMap, dictionaryOrder) {
+  convertDictionariesToRustFormat(flatEntriesMap, dictionaryOrder) {
     const dictionaries = [];
 
-    // Handle both Map and plain object for dictionariesMap
-    const dictMap =
-      dictionariesMap instanceof Map ? Object.fromEntries(dictionariesMap) : dictionariesMap;
+    // Handle both Map and plain object for flatEntriesMap
+    const entriesMap =
+      flatEntriesMap instanceof Map ? Object.fromEntries(flatEntriesMap) : flatEntriesMap;
 
     // Handle missing or invalid dictionaryOrder
     if (!dictionaryOrder || !Array.isArray(dictionaryOrder)) {
       // If no order provided, use all dictionaries from the map
-      dictionaryOrder = Object.keys(dictMap);
+      dictionaryOrder = Object.keys(entriesMap);
     }
 
     for (const [idx, dictName] of dictionaryOrder.entries()) {
-      const trie = dictMap[dictName];
-      if (!trie) continue;
-
-      // Extract all entries from the trie
-      const entries = this.extractEntriesFromTrie(trie);
+      const entries = entriesMap[dictName];
+      if (!entries) continue;
 
       dictionaries.push({
         name: dictName,
@@ -156,93 +149,6 @@ class RustLookupIndexManager {
     }
 
     return dictionaries;
-  }
-
-  /**
-   * Extract all entries from a JavaScript trie
-   * CODE REVIEW FIX (MEDIUM-8): Made circular detection conditional for performance
-   *
-   * @param {{ root?: any, children?: any, [key: string]: any }} trie - The trie to extract from
-   * @returns {Array<{chinese: string, vietnamese: string, metadata: string|null}>}
-   */
-  extractEntriesFromTrie(trie) {
-    const entries =
-      /** @type {Array<{chinese: string, vietnamese: string, metadata: string|null}>} */ ([]);
-    // SAFETY FIX: Maximum depth to prevent infinite recursion from corrupted tries
-    const MAX_DEPTH = 100;
-
-    // PERFORMANCE: Only enable circular detection in development
-    // 99.9% of dictionaries have no cycles, so skip WeakSet overhead in production
-    // WeakSet operations add ~0.1-1ms per node lookup (10-100ms for 10K entries)
-    const visitedNodes = process.env.NODE_ENV === 'development' ? new WeakSet() : null;
-
-    // Traverse the trie using DFS
-    const traverse = (/** @type {any} */ node, /** @type {string} */ currentWord, depth = 0) => {
-      // CRITICAL: Detect circular references in development
-      // Corrupted tries with cycles will be caught immediately in dev mode
-      if (visitedNodes && visitedNodes.has(node)) {
-        logger.error(
-          `🔴 Circular reference detected in trie at word: "${currentWord}" (dictionary corruption)`
-        );
-        return;
-      }
-      if (visitedNodes) {
-        visitedNodes.add(node);
-      }
-
-      // Prevent infinite recursion from corrupted data
-      // Primary protection in production, secondary in development
-      if (depth > MAX_DEPTH) {
-        logger.error(
-          `⚠️ Trie traversal depth exceeded ${MAX_DEPTH}, possible cycle or corrupted trie at word: "${currentWord}"`
-        );
-
-        // CODE REVIEW FIX (HIGH-3): Notify user in production (one-time warning)
-        if (!this.showedCorruptionWarning) {
-          toast.error(
-            'Dictionary corruption detected. Some translations may be incomplete. Try reloading dictionaries.',
-            {
-              duration: TOAST_DURATIONS.LOAD_FAILURE,
-              id: TOAST_IDS.DICT_CORRUPTION,
-            }
-          );
-          this.showedCorruptionWarning = true;
-        }
-
-        return;
-      }
-
-      // If this is an end-of-word node, add it
-      if (node.isEndOfWord && node.translation) {
-        entries.push({
-          chinese: currentWord,
-          vietnamese: node.translation,
-          metadata: node.metadata ? JSON.stringify(node.metadata) : null,
-        });
-      }
-
-      // Recursively traverse children
-      // Handle both Map (DictionaryManager) and plain object (test code)
-      if (node.children) {
-        if (node.children instanceof Map) {
-          // Use Map.entries() for Map objects
-          for (const [char, childNode] of node.children.entries()) {
-            traverse(childNode, currentWord + char, depth + 1);
-          }
-        } else {
-          // Use Object.entries() for plain objects
-          for (const [char, childNode] of Object.entries(node.children)) {
-            traverse(childNode, currentWord + char, depth + 1);
-          }
-        }
-      }
-    };
-
-    // Start traversal from root (handle both DictionaryTrie with .root and direct trie nodes)
-    const rootNode = trie.root || trie;
-    traverse(rootNode, '', 0);
-
-    return entries;
   }
 
   /**

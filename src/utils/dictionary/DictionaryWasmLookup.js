@@ -1,5 +1,6 @@
 import { logger } from '../logger.js';
 import { validateWasmDictionaryMatch } from '../wasm/WasmBoundaryValidation.js';
+import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
 
 export class DictionaryWasmLookup {
   constructor(wasmAdapter, { getEntries, getPriorities } = {}) {
@@ -132,10 +133,7 @@ export class DictionaryWasmLookup {
         allMatches.push({ ...match, priority, dictionary: dictionaryName });
       }
     }
-    return allMatches.sort((a, b) => {
-      if (a.word.length !== b.word.length) return b.word.length - a.word.length;
-      return a.priority - b.priority;
-    });
+    return allMatches.sort(compareMatchesBySpecificityThenPriority);
   }
 
   _recordLookup(elapsed) {

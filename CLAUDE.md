@@ -65,6 +65,8 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Single test file:** `pnpm exec vitest run src/path/to/test.ts` — `pnpm test -- --testPathPattern` does not reliably filter to one file.
 
+**Test file placement in `src/utils/`:** goes flat in `src/utils/__tests__/`, even for modules living in a subdirectory (`dictionary/`, `pattern/`, `highlighting/`, etc.) — NOT in a nested `src/utils/<subdir>/__tests__/`. `src/utils/ui/__tests__/` is the one pre-existing exception. Check `ls src/utils/__tests__/ | grep <ModuleName>` before creating a new test file.
+
 **RTK filters `cargo test` failure output** — full assertion details (panicked at, left/right values) are in `~/Library/Application Support/rtk/tee/<latest>_cargo_test.log`; grep the test name there when a Rust test fails with no detail shown in terminal.
 
 **Large file edits:** Edit tool old_string fails for blocks >~100 lines. Use `python3 -c "with open(p) as f: lines=f.readlines(); open(p,'w').writelines(lines[:N]+lines[M:])"` to remove line range N–M (0-indexed).
@@ -123,6 +125,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `useSegmentComputation` from `src/hooks/useSegmentComputation` — split into `useCharacterOnlySegments` (char-only sync, `segmentFromPositionMetadata`) and `useFullTranslationSegments` (async, `precomputeSegments` + cancellation guard)
 - `validateDictionaryEntry` from `src/components/dictionary/DictionaryTypes.ts` — extracted and renamed; use `validatePersistEntry` from `src/utils/dictionary/PersistTimeValidator` (or `utils/dictionary` barrel). Distinct from form-time `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (different signature: `(source, translation, dictionaryId) → ValidationResult`).
 - `useDictionaryCRUD` from `src/components/dictionary/` — moved to `src/hooks/useDictionaryCRUD.ts`; ADR-026 superseded 2026-06-27
+- `RustLookupIndexManager.extractEntriesFromTrie` — deleted; DFS-walked a `DictionaryTrie` back into flat entries on every translate call. Replaced by `DictionaryManager.flatEntries` (built once at load time via `flattenDictionaryEntries` in `src/utils/dictionary/DictionaryEntryFlattener.ts`, directly from raw dictionary JSON, never from a trie). `RustLookupIndexManager.buildLookupIndex`'s 2nd param is now "Map of dictionary name → flat entries," not "→ trie" — callers pass `dictionaryManager.flatEntries`, not `dictionaryManager.dictionaries`.
 
 **Non-obvious contracts:**
 

@@ -1,41 +1,8 @@
-# Dependencies
-node_modules
+# graphify >=0.9.15 unions .gitignore automatically — only list
+# graphify-specific exclusions here (tracked files git wouldn't ignore).
 
-# Build output
-dist
-dist-ssr
-
-# Rust / WASM build artifacts
-src-tauri/target
-wasm-core/target
-wasm-core/pkg
+# Rust / WASM build output not covered by .gitignore
 src/wasm/
-src/wasm-core/
-
-# Tauri generated
-src-tauri/gen
-
-# Environment & logs
-logs
-*.log
-.env
-.env.local
-.env.*.local
-*.local
-
-# macOS
-.DS_Store
-
-# AI / tool state
-.claude/
-.gemini/
-.codex/
-.fallow/
-temp/
-
-# Test output
-coverage
-*.trie.json
 
 # Test files (mock edges mislead dependency queries)
 **/__tests__/

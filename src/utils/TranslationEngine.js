@@ -151,9 +151,11 @@ import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { MAX_SAFE_SEGMENTS } from './highlighting/semanticArrayConstants.js';
+import { compareByTokenIndex } from './highlighting/TextPositionMapper.js';
 import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
+import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
 import { getIndexedMatches } from './dictionary/LookupIndexUtils.js';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
@@ -1146,7 +1148,7 @@ export class TranslationEngine {
           // Build lookup index using Rust + Rayon
           const indexResult = await rustLookupIndexManager.buildLookupIndex(
             text,
-            this.dictionaryManager.dictionaries, // Map of dictionary name -> trie
+            this.dictionaryManager.flatEntries, // Map of dictionary name -> flat entries (computed once at load)
             dictionaryOrder, // Dictionary search order
             {
               minTextLength: 50,
@@ -1902,16 +1904,7 @@ export class TranslationEngine {
         tokens[startIndex].phraseMatch = match; // Store match for later translation
 
         // Mark grouped tokens as consumed
-        for (let j = 1; j < tokenSpan; j++) {
-          if (startIndex + j < tokens.length) {
-            tokens[startIndex].groupedWith = tokens[startIndex].groupedWith || [];
-            tokens[startIndex].groupedWith.push(startIndex + j);
-            tokens[startIndex + j].isGrouped = true;
-            tokens[startIndex + j].groupLeader = startIndex;
-            tokens[startIndex + j].translated = null; // Mark as consumed
-            tokens[startIndex + j].translationSource = 'phrases_consumed'; // Prevent re-translation
-          }
-        }
+        markPhraseFollowersConsumed(tokens, startIndex, tokenSpan);
 
         this.log(
           DEBUG_LEVELS.DEBUG,
@@ -2685,16 +2678,7 @@ export class TranslationEngine {
         );
 
         // Mark grouped tokens
-        for (let j = 1; j < tokenSpan; j++) {
-          if (startIndex + j < tokens.length) {
-            tokens[startIndex].groupedWith = tokens[startIndex].groupedWith || [];
-            tokens[startIndex].groupedWith.push(startIndex + j);
-            tokens[startIndex + j].isGrouped = true;
-            tokens[startIndex + j].groupLeader = startIndex;
-            tokens[startIndex + j].translated = null;
-            tokens[startIndex + j].translationSource = 'phrases_consumed';
-          }
-        }
+        markPhraseFollowersConsumed(tokens, startIndex, tokenSpan);
 
         this.log(
           DEBUG_LEVELS.DEBUG,
@@ -2870,17 +2854,9 @@ export class TranslationEngine {
         match.match.dictionary
       );
 
-      // Mark additional tokens as grouped if this is a multi-token phrase
-      for (let j = 1; j < tokenSpan; j++) {
-        if (tokenIndex + j < tokens.length) {
-          tokens[tokenIndex + j].isGrouped = true;
-          tokens[tokenIndex + j].groupLeader = tokenIndex;
-          // CRITICAL FIX: Use null (not empty string) to comply with consumed token contract
-          // postProcess() checks token.translated !== null to identify consumed tokens
-          tokens[tokenIndex + j].translated = null; // Must be null - postProcess checks !== null
-          tokens[tokenIndex + j].translationSource = 'phrases_consumed';
-        }
-      }
+      // Mark additional tokens as grouped if this is a multi-token phrase.
+      // postProcess() checks token.translated !== null to identify consumed tokens.
+      markPhraseFollowersConsumed(tokens, tokenIndex, tokenSpan);
 
       this.log(
         DEBUG_LEVELS.DEBUG,
@@ -6139,7 +6115,8 @@ export class TranslationEngine {
       // when two different Chinese characters translate to the same Vietnamese word (e.g., "没"
       // and "不" both → "không"), the one that appears EARLIER in the Chinese text claims
       // the EARLIER Vietnamese position — regardless of which translation phase produced it.
-      // Fallback to insertion order (return 0) when tokenIndex is unavailable.
+      // Missing/unavailable tokenIndex sorts last (compareByTokenIndex), not first —
+      // shared with SegmentPrecomputer's tokenIndex sorts.
       candidateWords.sort((a, b) => {
         const lengthDiff = b.translated.length - a.translated.length;
         if (lengthDiff !== 0) return lengthDiff;
@@ -6156,9 +6133,7 @@ export class TranslationEngine {
         // different translated values find different positions and never conflict regardless
         // of sort order; candidates with same translated value must be sorted by tokenIndex
         // to correctly assign earlier-Chinese-text entries to earlier Vietnamese positions.
-        const aTokenIndex = a.tokenIndex >= 0 ? a.tokenIndex : Number.MAX_SAFE_INTEGER;
-        const bTokenIndex = b.tokenIndex >= 0 ? b.tokenIndex : Number.MAX_SAFE_INTEGER;
-        return aTokenIndex - bTokenIndex;
+        return compareByTokenIndex(a.tokenIndex, b.tokenIndex);
       });
 
       // Find each candidate word in the output text and record its position
@@ -6830,7 +6805,7 @@ export class TranslationEngine {
             // Build lookup index using Rust + Rayon
             const indexResult = await rustLookupIndexManager.buildLookupIndex(
               text,
-              this.dictionaryManager.dictionaries, // Map of dictionary name -> trie
+              this.dictionaryManager.flatEntries, // Map of dictionary name -> flat entries (computed once at load)
               dictionaryOrder, // Dictionary search order
               {
                 minTextLength: 50,
