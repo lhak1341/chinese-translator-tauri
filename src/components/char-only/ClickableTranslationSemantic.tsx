@@ -8,6 +8,7 @@ import { useCharacterOnlySegments } from '../../hooks/useCharacterOnlySegments';
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
 import { HighlightableSegment } from './HighlightableSegment';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
+import { isUnitHighlighted } from '../../utils/highlighting';
 import styles from '../../styles/ClickableTranslationSemantic.module.css';
 import { sanitizeString } from '../../utils/configValidation';
 
@@ -33,12 +34,7 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
   const renderSegment = (segment: any, index: number) => {
     if (segment.isClickable) {
       // SAFETY: Guard against null/undefined (default param is -1, but explicit null bypasses it)
-      const isHighlighted =
-        highlightedTranslationUnitIndex !== null &&
-        highlightedTranslationUnitIndex !== undefined &&
-        (Array.isArray(highlightedTranslationUnitIndex)
-          ? highlightedTranslationUnitIndex.includes(segment.unitIndex)
-          : highlightedTranslationUnitIndex === segment.unitIndex);
+      const isHighlighted = isUnitHighlighted(segment.unitIndex, highlightedTranslationUnitIndex);
 
       return (
         <HighlightableSegment

@@ -15,7 +15,7 @@ import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { batchLog } from '../utils/BatchLogger.js';
-import { scrollToHighlightedElement } from '../utils/highlighting';
+import { scrollToHighlightedElement, findCharacterOnlyMatch } from '../utils/highlighting';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
@@ -29,10 +29,9 @@ import { useTranslationResults } from '../hooks/useTranslationResults';
 import { useHighlightingState } from '../hooks/useHighlightingState';
 import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
-import {
-  MAX_SAFE_SEGMENTS,
-  HIGHLIGHT_SCROLL_DELAY_MS,
-} from '../utils/highlighting/semanticArrayConstants';
+import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
+import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
+import { HIGHLIGHT_SCROLL_DELAY_MS } from '../utils/highlighting/semanticArrayConstants';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 
 // ============================================================================
@@ -464,62 +463,24 @@ const Translator = ({ isActive = true }) => {
           }, HIGHLIGHT_SCROLL_DELAY_MS);
         }
       } else if (segmentInfo.direction === 'character-only-to-original') {
-        // Clicked character-only text, highlight original text and full translation
-        // DEBUG: Character-only click logging removed for performance
-
-        // Find the corresponding segment in Chinese Text (original)
-        if (semanticArrays && semanticArrays.original) {
-          const targetCharacter = segmentInfo.originalText;
-
-          // Find all segments that contain this character (exact match or within phrase)
-          const allMatches = [];
-          semanticArrays.original.forEach((segment, index) => {
-            if (segment === targetCharacter || segment.includes(targetCharacter)) {
-              allMatches.push({ index, segment });
-            }
-          });
-
-          logger.log(
-            `🔍 Found ${allMatches.length} matches for "${targetCharacter}" in Chinese Text:`,
-            allMatches
+        // Clicked character-only text, highlight original text and full translation.
+        // Reverse direction of the Full Translation/Original → Character Only bridge
+        // (useCharacterOnlyBridge.ts) — findCharacterOnlyMatch is already symmetric in
+        // its (sourceIndex, sourceArrays, targetArrays) params, so the same scored
+        // occurrence-matching algorithm (with its MAX_MATCHES cap) applies here with
+        // source/target simply swapped.
+        if (semanticArrays && semanticArrays.original && characterOnlySemanticArrays) {
+          const matchIndices = findCharacterOnlyMatch(
+            segmentInfo.unitIndex,
+            characterOnlySemanticArrays,
+            semanticArrays
           );
 
-          if (allMatches.length > 0) {
-            // CODE REVIEW FIX (IMPORTANT-4): Validate array sizes to prevent integer overflow
-            if (
-              characterOnlySemanticArrays.original.length > MAX_SAFE_SEGMENTS ||
-              semanticArrays.original.length > MAX_SAFE_SEGMENTS
-            ) {
-              logger.warn(
-                `⚠️ Document too large for precise position mapping (${characterOnlySemanticArrays.original.length} / ${semanticArrays.original.length} segments), using approximation`
-              );
-            }
-
-            // Use position-based mapping to select the best match
-            const relativePosition =
-              segmentInfo.unitIndex / characterOnlySemanticArrays.original.length;
-
-            // Find the match that's closest to the relative position
-            let bestMatch = allMatches[0];
-            let bestDistance = Math.abs(
-              bestMatch.index / semanticArrays.original.length - relativePosition
-            );
-
-            for (const match of allMatches) {
-              const matchRelativePosition = match.index / semanticArrays.original.length;
-              const distance = Math.abs(matchRelativePosition - relativePosition);
-              if (distance < bestDistance) {
-                bestDistance = distance;
-                bestMatch = match;
-              }
-            }
-
-            logger.log(
-              `📍 Position mapping: Character Only index ${segmentInfo.unitIndex} (relative ${relativePosition.toFixed(2)}) → Chinese Text index ${bestMatch.index} "${bestMatch.segment}"`
-            );
+          if (matchIndices) {
+            const targetIndex = matchIndices[0];
 
             // Set highlighting for both Chinese Text and Full Translation (from character-only click)
-            highlightFromCharacterOnly(bestMatch.index);
+            highlightFromCharacterOnly(targetIndex);
 
             // Auto-scroll to highlighted elements
             // Clear previous timeout to prevent memory leak
@@ -530,48 +491,17 @@ const Translator = ({ isActive = true }) => {
             if (isMountedRef.current) {
               highlightScrollTimeoutRef.current = setTimeout(() => {
                 if (isMountedRef.current) {
-                  scrollToHighlightedElement(originalTextRef, bestMatch.index);
-                  scrollToHighlightedElement(translationTextRef, bestMatch.index);
+                  scrollToHighlightedElement(originalTextRef, targetIndex);
+                  scrollToHighlightedElement(translationTextRef, targetIndex);
                   highlightScrollTimeoutRef.current = null;
                 }
               }, HIGHLIGHT_SCROLL_DELAY_MS);
             }
           } else {
             logger.warn(
-              `⚠️ No matches found for "${targetCharacter}" in Chinese Text - using position fallback`
+              `⚠️ No match found for character-only unit ${segmentInfo.unitIndex} in Chinese Text — clearing highlight`
             );
-
-            // Fallback: Use pure position-based mapping
-            const relativePosition =
-              segmentInfo.unitIndex / characterOnlySemanticArrays.original.length;
-            const targetIndex = Math.round(relativePosition * (semanticArrays.original.length - 1));
-            const clampedIndex = Math.max(
-              0,
-              Math.min(targetIndex, semanticArrays.original.length - 1)
-            );
-
-            logger.log(
-              `📍 Fallback position mapping: Character Only index ${segmentInfo.unitIndex} → relative ${relativePosition.toFixed(2)} → Chinese Text index ${clampedIndex}`
-            );
-
-            // Set highlighting for both Chinese Text and Full Translation (from character-only click)
-            highlightFromCharacterOnly(clampedIndex);
-
-            // Auto-scroll to highlighted elements
-            // Clear previous timeout to prevent memory leak
-            if (highlightScrollTimeoutRef.current) {
-              clearTimeout(highlightScrollTimeoutRef.current);
-            }
-            // CODE REVIEW FIX: Only set timeout if component is still mounted
-            if (isMountedRef.current) {
-              highlightScrollTimeoutRef.current = setTimeout(() => {
-                if (isMountedRef.current) {
-                  scrollToHighlightedElement(originalTextRef, clampedIndex);
-                  scrollToHighlightedElement(translationTextRef, clampedIndex);
-                  highlightScrollTimeoutRef.current = null;
-                }
-              }, HIGHLIGHT_SCROLL_DELAY_MS);
-            }
+            highlightFromCharacterOnly(-1);
           }
         }
       }
@@ -987,11 +917,6 @@ const Translator = ({ isActive = true }) => {
     [isLoading, isDictionaryReloading]
   );
 
-  // CRITICAL FIX: Cache for merged dictionaries with LRU eviction
-  // Prevents unbounded memory growth from dictionary switching
-  const dictionaryCache = new Map();
-  const MAX_DICTIONARY_CACHE_SIZE = 10; // Limit recent combinations
-
   const executionCtx = {
     consumeReloadTransition,
     clearHighlighting,
@@ -1011,6 +936,17 @@ const Translator = ({ isActive = true }) => {
     translateText,
     translateCharacterOnly,
     ctx: executionCtx,
+  });
+
+  const reinitializeEngine = useEngineReinitializer(reinitialize, engineRef);
+  const retranslate = useReloadRetranslate({
+    engineRef,
+    validateSemanticArraySize,
+    setDualResults,
+    refreshReport,
+    translateText,
+    translateCharacterOnly,
+    setStreamingText,
   });
 
   /** @type {import('../hooks/useForceReload.js').ForceReloadContext} */
@@ -1041,81 +977,8 @@ const Translator = ({ isActive = true }) => {
     setReloadError: setTranslationError,
     setReloading: setDictionaryReloading,
     clearHighlighting,
-    reinitializeEngine: async (dicts, opts) => {
-      await reinitialize(dicts, opts);
-      if (!engineRef.current?.isReady()) return false;
-
-      // Fire-and-forget WASM validation — non-blocking, prevents UI freeze
-      if (
-        engineRef.current?.dictionaryManager?.wasmInitialized &&
-        typeof engineRef.current.dictionaryManager.validateWasmFallback === 'function'
-      ) {
-        setTimeout(() => {
-          try {
-            const syncStatus = engineRef.current?.dictionaryManager?.validateWasmFallback();
-            if (!syncStatus) {
-              logger.warn('⚠️ WASM validation skipped - engine no longer available');
-              return;
-            }
-            if (syncStatus.status === 'PASS') {
-              logger.log('✅ WASM dictionary sync validated successfully');
-            } else if (syncStatus.status === 'SKIPPED') {
-              logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
-            } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
-              logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
-              toast.error(
-                `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
-                { duration: TOAST_DURATIONS.CACHE_WARNING }
-              );
-            } else if (syncStatus.status === 'FAIL_ERRORS') {
-              logger.error('❌ WASM sync validation failed - errors:', syncStatus);
-              toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
-                duration: TOAST_DURATIONS.CACHE_WARNING,
-              });
-            }
-          } catch (validationError) {
-            logger.error('❌ WASM validation error:', validationError);
-          }
-        }, 100);
-      }
-      return true;
-    },
-    retranslate: async (text) => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      if (!engineRef.current?.isReady()) {
-        logger.log('⚠️ Engine not ready after initialization, waiting longer...');
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
-      if (engineRef.current?.translateDualModeOptimized) {
-        try {
-          const dualResults = await engineRef.current.translateDualModeOptimized(text);
-          try {
-            validateSemanticArraySize(dualResults.fullResult.semanticArrays, 'full translation');
-            validateSemanticArraySize(
-              dualResults.characterResult.semanticArrays,
-              'character-only translation'
-            );
-          } catch (_validationError) {
-            return; // validateSemanticArraySize already logged + toasted
-          }
-          setDualResults(dualResults.fullResult, dualResults.characterResult);
-          refreshReport();
-        } catch (_optimizedError) {
-          logger.error(
-            '🔄 Optimized reload translation failed, falling back to sequential:',
-            _optimizedError
-          );
-          const newTranslation = await translateText(text);
-          setStreamingText(newTranslation);
-          setTimeout(() => translateCharacterOnly(text), 0);
-        }
-      } else {
-        const newTranslation = await translateText(text);
-        setStreamingText(newTranslation);
-        setTimeout(() => translateCharacterOnly(text), 0);
-      }
-      toast.success('Dictionary reloaded and text retranslated');
-    },
+    reinitializeEngine,
+    retranslate,
     saveScrollPositions,
     restoreScrollPositions,
   };

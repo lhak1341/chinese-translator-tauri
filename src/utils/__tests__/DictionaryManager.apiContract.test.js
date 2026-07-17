@@ -95,16 +95,12 @@ describe('DictionaryManager API Contract', () => {
       expect(result).not.toBeInstanceOf(Promise);
     });
 
-    test('findAllMatchesParallel() may return Promise (async is acceptable)', async () => {
-      const result = manager.findAllMatchesParallel('在那里', 0, ['test_dict']);
+    test('findAllMatchesAsync() must return a Promise', async () => {
+      const result = manager.findAllMatchesAsync('在那里', 0, ['test_dict']);
 
-      // Can be either array or Promise - both are acceptable
-      if (result instanceof Promise) {
-        const resolved = await result;
-        expect(Array.isArray(resolved)).toBe(true);
-      } else {
-        expect(Array.isArray(result)).toBe(true);
-      }
+      expect(result).toBeInstanceOf(Promise);
+      const resolved = await result;
+      expect(Array.isArray(resolved)).toBe(true);
     });
   });
 

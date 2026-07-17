@@ -33,7 +33,7 @@ pub enum TokenType {
 /**
  * Token structure matching JavaScript Token class
  */
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Token {
     /// Token type
     #[serde(rename = "type")]
@@ -99,23 +99,21 @@ fn is_digit(ch: char) -> bool {
 }
 
 /**
- * Check if character is punctuation
- */
-#[inline]
-fn is_punctuation(ch: char) -> bool {
-    // Common punctuation characters
-    matches!(ch,
-        '!' | '"' | '#' | '$' | '%' | '&' | '\'' | '(' | ')' | '*' | '+' | ',' | '-' | '.' | '/' |
-        ':' | ';' | '<' | '=' | '>' | '?' | '@' | '[' | '\\' | ']' | '^' | '_' | '`' | '{' | '|' | '}' | '~' |
-        '，' | '。' | '！' | '？' | '；' | '：' | '、' | '（' | '）' | '《' | '》' | '【' | '】' | '\u{201C}' | '\u{201D}' | '\u{2018}' | '\u{2019}'
-    )
-}
-
-/**
  * Tokenize text into meaningful segments
  */
 #[wasm_bindgen(js_name = tokenizeText)]
 pub fn tokenize_text(text: &str) -> Result<JsValue, JsValue> {
+    let tokens = tokenize_text_core(text);
+
+    serde_wasm_bindgen::to_value(&tokens)
+        .map_err(|e| JsValue::from_str(&format!("Failed to serialize tokens: {}", e)))
+}
+
+/**
+ * Core tokenization algorithm, independent of the wasm_bindgen/JsValue boundary
+ * so it's directly unit-testable with plain Rust.
+ */
+pub(crate) fn tokenize_text_core(text: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
@@ -161,8 +159,15 @@ pub fn tokenize_text(text: &str) -> Result<JsValue, JsValue> {
             let end = get_byte_position(text, &chars, i);
             let whitespace: String = chars[ws_start..i].iter().collect();
             tokens.push(Token::new(TokenType::Whitespace, whitespace, start, end));
-        } else if is_punctuation(ch) {
-            // Single punctuation character
+        } else {
+            // Catch-all: anything that isn't a CJK ideograph, Latin letter, digit, or
+            // whitespace is punctuation — mirrors JS's regex classification
+            // ([^\w\s一-鿿]+), which types every such character as punctuation
+            // rather than enumerating a finite char list. A prior enumerated list here
+            // (missing e.g. '…', '「', '」', single angle brackets, fullwidth forms) typed
+            // those chars 'unknown' in WASM vs 'punctuation' in the JS fallback — see
+            // wasm-core/CLAUDE.md and TranslationEngine.js's needsSpace-adjacent spacing
+            // rules, which had already worked around one symptom of this divergence.
             let end = get_byte_position(text, &chars, i + 1);
             tokens.push(Token::new(
                 TokenType::Punctuation,
@@ -171,16 +176,10 @@ pub fn tokenize_text(text: &str) -> Result<JsValue, JsValue> {
                 end,
             ));
             i += 1;
-        } else {
-            // Unknown character
-            let end = get_byte_position(text, &chars, i + 1);
-            tokens.push(Token::new(TokenType::Unknown, ch.to_string(), start, end));
-            i += 1;
         }
     }
 
-    serde_wasm_bindgen::to_value(&tokens)
-        .map_err(|e| JsValue::from_str(&format!("Failed to serialize tokens: {}", e)))
+    tokens
 }
 
 /**
@@ -206,4 +205,157 @@ pub fn get_tokenizer_stats() -> Result<JsValue, JsValue> {
 
     serde_wasm_bindgen::to_value(&stats)
         .map_err(|e| JsValue::from_str(&format!("Failed to serialize stats: {}", e)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn token_types(text: &str) -> Vec<String> {
+        tokenize_text_core(text).into_iter().map(|t| t.token_type).collect()
+    }
+
+    fn token_values(text: &str) -> Vec<String> {
+        tokenize_text_core(text).into_iter().map(|t| t.value).collect()
+    }
+
+    #[test]
+    fn empty_text_produces_no_tokens() {
+        assert!(tokenize_text_core("").is_empty());
+    }
+
+    #[test]
+    fn classifies_chinese_chars_individually() {
+        let tokens = tokenize_text_core("你好");
+        assert_eq!(token_values("你好"), vec!["你", "好"]);
+        assert_eq!(token_types("你好"), vec!["chinese_char", "chinese_char"]);
+        assert_eq!(tokens[0].start, 0);
+        assert_eq!(tokens[0].end, 1);
+        assert_eq!(tokens[1].start, 1);
+        assert_eq!(tokens[1].end, 2);
+    }
+
+    #[test]
+    fn cjk_extension_a_and_compatibility_ideographs_classify_as_chinese_char() {
+        // KNOWN DIVERGENCE from JS (see TextTokenizer.test.ts): is_chinese_char covers
+        // 3 ranges (CJK Unified, Ext A U+3400-4DBF, Compatibility U+F900-FAFF), but JS's
+        // regex chinese group only checks 一-鿿 (CJK Unified only). Rust types
+        // U+3400/U+F900 as chinese_char; JS's regex catch-all types them punctuation
+        // instead (not chinese/latin/digit/whitespace by JS's own group definitions).
+        // Not unified — mirror-image of the punctuation-classification fix, on rare chars.
+        assert_eq!(token_types("\u{3400}"), vec!["chinese_char"]);
+        assert_eq!(token_types("\u{F900}"), vec!["chinese_char"]);
+    }
+
+    #[test]
+    fn underscore_classifies_as_punctuation_diverging_from_js_unknown() {
+        // KNOWN DIVERGENCE from JS (see TextTokenizer.test.ts): JS's \w excludes '_'
+        // from every regex capture group (chinese/latin/digit/whitespace all reject it,
+        // and the punct catch-all [^\w\s...] also rejects it since \w matches '_') —
+        // so '_' matches no group at all and falls into tokenizeJS's gap-fill path,
+        // which types it UNKNOWN. Rust's catch-all has no \w-shaped exclusion, so '_'
+        // (not chinese/latin/digit/whitespace) becomes punctuation. Left unreconciled —
+        // out of scope for the 2026-07-17c punctuation-classification fix.
+        assert_eq!(token_types("_"), vec!["punctuation"]);
+    }
+
+    #[test]
+    fn bom_classifies_as_punctuation_diverging_from_js_whitespace() {
+        // KNOWN DIVERGENCE from JS (see TextTokenizer.test.ts): ECMAScript's \s regex
+        // class matches ZERO WIDTH NO-BREAK SPACE (U+FEFF, the UTF-8 BOM) per spec, but
+        // Rust's char::is_whitespace() does not (U+FEFF isn't in Unicode's White_Space
+        // property — it's a format character). JS types it whitespace; Rust's catch-all
+        // (not chinese/latin/digit/whitespace) types it punctuation.
+        assert_eq!(token_types("\u{FEFF}"), vec!["punctuation"]);
+    }
+
+    #[test]
+    fn consumes_entire_latin_word_as_one_token() {
+        assert_eq!(token_values("hello"), vec!["hello"]);
+        assert_eq!(token_types("hello"), vec!["latin_word"]);
+    }
+
+    #[test]
+    fn consumes_entire_number_as_one_token() {
+        assert_eq!(token_values("12345"), vec!["12345"]);
+        assert_eq!(token_types("12345"), vec!["number"]);
+    }
+
+    #[test]
+    fn decimal_point_splits_number_into_two_tokens() {
+        // '.' is not a digit, so "100.99" is number/punct/number — matches JS's \d+
+        // regex group, which also can't span the decimal point.
+        assert_eq!(token_values("100.99"), vec!["100", ".", "99"]);
+        assert_eq!(token_types("100.99"), vec!["number", "punctuation", "number"]);
+    }
+
+    #[test]
+    fn consumes_whitespace_run_as_one_token() {
+        assert_eq!(token_values("a   b"), vec!["a", "   ", "b"]);
+        assert_eq!(token_types("a   b"), vec!["latin_word", "whitespace", "latin_word"]);
+    }
+
+    #[test]
+    fn ascii_punctuation_classifies_as_punctuation() {
+        for ch in ['!', '"', '#', '$', '%', '&', '(', ')', '*', '+', ',', '-', '/', ':', ';',
+                   '<', '=', '>', '?', '@', '[', ']', '^', '_', '`', '{', '|', '}', '~'] {
+            let s = ch.to_string();
+            assert_eq!(token_types(&s), vec!["punctuation"], "char {:?} should be punctuation", ch);
+        }
+    }
+
+    /// Every character actually present in the production punctuation.json dictionary
+    /// (as of 2026-07-17) must classify as 'punctuation' under the catch-all — this is
+    /// the regression test for the fixed enumerated-allowlist gap (20 of 41 dict chars
+    /// were previously falling through to 'unknown': …, single angle 〈〉, corner
+    /// brackets 「」『』, wave dash 〜～, fullwidth ％－．［］￥, ★※々〆〇・﹁﹂).
+    #[test]
+    fn all_production_punctuation_dictionary_chars_classify_as_punctuation() {
+        let dict_chars = [
+            '˙', '…', '※', '★', '、', '。', '々', '〆', '〇', '〈', '〉', '《', '》', '「', '」',
+            '『', '』', '【', '】', '〔', '〕', '〖', '〗', '〜', '・', '﹁', '﹂', '！', '％',
+            '（', '）', '，', '－', '．', '：', '；', '？', '［', '］', '～', '￥',
+        ];
+        for ch in dict_chars {
+            let s = ch.to_string();
+            assert_eq!(
+                token_types(&s),
+                vec!["punctuation"],
+                "dictionary char {:?} (U+{:04X}) should classify as punctuation",
+                ch,
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn punctuation_run_produces_one_token_per_character() {
+        // Known, accepted divergence from JS's tokenizeJS (which groups runs into one
+        // token) — dictionary lookups are single-char keyed, so per-char is safer
+        // against truncation. Grouping is out of scope for the classification fix;
+        // this test characterizes current behavior so a future change is deliberate.
+        assert_eq!(token_values("……"), vec!["…", "…"]);
+        assert_eq!(token_types("……"), vec!["punctuation", "punctuation"]);
+    }
+
+    #[test]
+    fn mixed_text_produces_expected_token_sequence() {
+        let tokens = tokenize_text_core("他说：\u{201C}Hello123\u{201D}");
+        let summary: Vec<(String, String)> = tokens
+            .into_iter()
+            .map(|t| (t.token_type, t.value))
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                ("chinese_char".to_string(), "他".to_string()),
+                ("chinese_char".to_string(), "说".to_string()),
+                ("punctuation".to_string(), "：".to_string()),
+                ("punctuation".to_string(), "\u{201C}".to_string()),
+                ("latin_word".to_string(), "Hello".to_string()),
+                ("number".to_string(), "123".to_string()),
+                ("punctuation".to_string(), "\u{201D}".to_string()),
+            ]
+        );
+    }
 }

@@ -923,12 +923,12 @@ export interface DictionaryManagerInterface {
   ): Promise<void>;
   estimateFrequency(source: string, dictionaryName: string): number;
   translate(word: string, dictionaryOrder?: DictionarySearchOrder | null): TranslationResult | null;
-  findMatchesThreadSafe(
-    dictionary: DictionaryTrieInterface,
+  findAllMatches(
     text: string,
-    startPos?: number
-  ): TrieMatch[];
-  findAllMatchesParallel(
+    startPos?: number,
+    dictionaryOrder?: DictionarySearchOrder | null
+  ): DictionaryMatchResult[];
+  findAllMatchesAsync(
     text: string,
     startPos?: number,
     dictionaryOrder?: DictionarySearchOrder | null

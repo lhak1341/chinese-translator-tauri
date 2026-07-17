@@ -11,6 +11,7 @@ import type {
 } from '../../types/ClickableTypes';
 import styles from '../../styles/ClickableTranslationOptimized.module.css';
 import { sanitizeString } from '../../utils/configValidation';
+import { isUnitHighlighted } from '../../utils/highlighting';
 
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
@@ -102,13 +103,7 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
       // Prevents silent failures if state corruption occurs
       // CODE REVIEW FIX: Support both single index and array of indices for highlighting
       // Matches ClickableTranslationSemantic behavior for consistency across dual-path architecture
-      isHighlighted:
-        highlightedTranslationUnitIndex !== null &&
-        highlightedTranslationUnitIndex !== undefined &&
-        highlightedTranslationUnitIndex !== -1 &&
-        (Array.isArray(highlightedTranslationUnitIndex)
-          ? highlightedTranslationUnitIndex.includes(segment.unitIndex)
-          : highlightedTranslationUnitIndex === segment.unitIndex),
+      isHighlighted: isUnitHighlighted(segment.unitIndex, highlightedTranslationUnitIndex),
     }));
   }, [precomputedSegments, highlightedTranslationUnitIndex]);
 

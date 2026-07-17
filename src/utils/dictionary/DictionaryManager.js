@@ -39,7 +39,7 @@ import { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader.j
 import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
 import { DictionaryTrie } from './DictionaryTrie.js';
 import { isDictionaryCategory } from './LookupIndexUtils.js';
-import { compareMatchesBySpecificityThenPriority } from './MatchComparator.js';
+import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
 
 // Debug logging levels
@@ -78,15 +78,6 @@ export class DictionaryManager {
     this.enablePrecomputedCache = options.enablePrecomputedCache !== false;
     this.tauriAPI = options.tauriAPI || null; // Required for cache file operations
 
-    // Performance monitoring for parallel operations
-    this.parallelLookupStats = {
-      parallelCalls: 0,
-      sequentialCalls: 0,
-      averageParallelTime: 0,
-      averageSequentialTime: 0,
-      fallbackCount: 0,
-    };
-
     // Performance monitoring for lookup indexing optimization
     this.lookupIndexStats = {
       buildCalls: 0,
@@ -112,6 +103,26 @@ export class DictionaryManager {
         cacheSize: this.cache?.lookupCacheSize,
       });
     }
+
+    this.matchLookup = new DictionaryMatchLookup({
+      dictionaries: this.dictionaries,
+      metadata: this.metadata,
+      wasmLookup: this.wasmLookup,
+      enableParallelLookups: this.enableParallelLookups,
+      dictionaryParallelThreshold: this.dictionaryParallelThreshold,
+      getDefaultSearchOrder: () => this.getDefaultSearchOrder(),
+      isReady: () => this.ready,
+    });
+  }
+
+  /**
+   * Performance stats for the parallel/sequential JS lookup dispatch.
+   * Owned by DictionaryMatchLookup — re-exposed here so existing callers
+   * (e.g. TranslationEngine) don't need to know the internal is separate.
+   * @returns {ParallelLookupStats}
+   */
+  get parallelLookupStats() {
+    return this.matchLookup.stats;
   }
 
   /**
@@ -435,239 +446,28 @@ export class DictionaryManager {
   }
 
   /**
-   * Thread-safe findMatches implementation that doesn't use shared arrays
-   * @param {DictionaryTrie} dictionary - Dictionary trie to search
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @returns {Array} Matches from this dictionary
-   */
-  findMatchesThreadSafe(dictionary, text, startPos = 0) {
-    const matches = [];
-    let current = dictionary.root;
-
-    for (let i = startPos; i < text.length; i++) {
-      const char = text[i];
-
-      if (!current.children.has(char)) {
-        break;
-      }
-
-      current = current.children.get(char);
-
-      if (current.isEndOfWord) {
-        matches.push({
-          word: text.slice(startPos, i + 1),
-          translation: current.translation,
-          endPos: i + 1,
-          metadata: current.metadata,
-        });
-      }
-    }
-
-    return matches;
-  }
-
-  /**
-   * Find all matches using parallel dictionary lookups with thread safety
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {Array} dictionaryOrder - Dictionary search order
-   * @returns {Promise<Array>} All matches sorted by priority and length
-   */
-  async findAllMatchesParallel(text, startPos = 0, dictionaryOrder = null) {
-    if (!this.ready) return [];
-
-    if (this.wasmLookup?.isReady()) {
-      try {
-        return await this.wasmLookup.findAllMatches(
-          text,
-          startPos,
-          dictionaryOrder || this.getDefaultSearchOrder()
-        );
-      } catch (error) {
-        this.log(1, '⚠️ WASM parallel lookup failed, using JavaScript:', error);
-      }
-    }
-
-    const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-    const startTime = performance.now();
-
-    try {
-      // Create parallel lookup promises with thread-safe operations
-      const lookupPromises = searchOrder.map(async (dictionaryName) => {
-        const dictionary = this.dictionaries.get(dictionaryName);
-        if (!dictionary) return { dictionaryName, matches: [], success: true };
-
-        try {
-          // Use thread-safe findMatches implementation
-          const matches = this.findMatchesThreadSafe(dictionary, text, startPos);
-          const priority = this.metadata.get(dictionaryName)?.priority || 10;
-
-          // Add metadata to matches
-          const enrichedMatches = matches.map((match) => ({
-            ...match,
-            dictionary: dictionaryName,
-            priority,
-          }));
-
-          return { dictionaryName, matches: enrichedMatches, success: true };
-        } catch (error) {
-          // Log error but don't fail entire lookup
-          logger.error(`Dictionary lookup failed for ${dictionaryName}:`, error);
-          return { dictionaryName, matches: [], success: false, error };
-        }
-      });
-
-      // Wait for all parallel lookups to complete
-      const lookupResults = await Promise.all(lookupPromises);
-
-      // Check for any failures
-      const failures = lookupResults.filter((result) => !result.success);
-      if (failures.length > 0) {
-        logger.warn(
-          `${failures.length} dictionary lookups failed, proceeding with available results`
-        );
-      }
-
-      // Combine successful results
-      const allMatches = lookupResults
-        .filter((result) => result.success)
-        .flatMap((result) => result.matches);
-
-      const sortedMatches = allMatches.sort(compareMatchesBySpecificityThenPriority);
-
-      const lookupTime = performance.now() - startTime;
-
-      // Record performance metrics
-      if (this.parallelLookupStats) {
-        this.parallelLookupStats.parallelCalls++;
-        this.parallelLookupStats.averageParallelTime =
-          (this.parallelLookupStats.averageParallelTime + lookupTime) / 2;
-      }
-
-      return sortedMatches;
-    } catch (error) {
-      logger.error('Parallel dictionary lookup failed, falling back to sequential:', error);
-
-      // Record fallback
-      if (this.parallelLookupStats) {
-        this.parallelLookupStats.fallbackCount = (this.parallelLookupStats.fallbackCount || 0) + 1;
-      }
-
-      return this.findAllMatchesSequential(text, startPos, dictionaryOrder);
-    }
-  }
-
-  /**
-   * Sequential fallback method (renamed from original findAllMatches)
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {Array} dictionaryOrder - Dictionary search order
-   * @returns {Array} All matches sorted by priority and length
-   */
-  findAllMatchesSequential(text, startPos = 0, dictionaryOrder = null) {
-    if (!this.ready) return [];
-
-    const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-    const allMatches = [];
-    const startTime = performance.now();
-
-    for (const dictionaryName of searchOrder) {
-      const dictionary = this.dictionaries.get(dictionaryName);
-      if (!dictionary) continue;
-
-      try {
-        // Use thread-safe method instead of potentially unsafe shared array method
-        const matches = this.findMatchesThreadSafe(dictionary, text, startPos);
-
-        // Add dictionary info to each match
-        matches.forEach((match) => {
-          match.dictionary = dictionaryName;
-          match.priority = this.metadata.get(dictionaryName)?.priority || 10;
-        });
-
-        allMatches.push(...matches);
-      } catch (error) {
-        logger.error(`Dictionary ${dictionaryName} lookup failed:`, error);
-        // Continue with other dictionaries
-      }
-    }
-
-    const lookupTime = performance.now() - startTime;
-
-    // Record performance metrics
-    if (this.parallelLookupStats) {
-      this.parallelLookupStats.sequentialCalls++;
-      this.parallelLookupStats.averageSequentialTime =
-        (this.parallelLookupStats.averageSequentialTime + lookupTime) / 2;
-    }
-
-    return allMatches.sort(compareMatchesBySpecificityThenPriority);
-  }
-
-  /**
-   * Find all possible matches for text at a position across all dictionaries
-   * This is the main synchronous method for backward compatibility
+   * Find all possible matches for text at a position across all dictionaries.
+   * Always sequential — the synchronous entry point. Delegates to
+   * DictionaryMatchLookup, which owns the trie walk and dispatch internals.
    * @param {string} text - Input text
    * @param {number} startPos - Starting position
    * @param {Array} dictionaryOrder - Dictionary search order
    * @returns {Array} All possible matches sorted by priority and length
    */
   findAllMatches(text, startPos = 0, dictionaryOrder = null) {
-    // Always use sequential processing for backward compatibility
-    // Parallel processing is opt-in via findAllMatchesAsync
-    return this.findAllMatchesSequential(text, startPos, dictionaryOrder);
+    return this.matchLookup.findAllMatches(text, startPos, dictionaryOrder);
   }
 
   /**
    * Find all possible matches with automatic parallel/sequential selection
-   * This is the async method that chooses the best processing approach
+   * (WASM-first, JS fallback). Delegates to DictionaryMatchLookup.
    * @param {string} text - Input text
    * @param {number} startPos - Starting position
    * @param {Array} dictionaryOrder - Dictionary search order
    * @returns {Promise<Array>} All possible matches sorted by priority and length
    */
   async findAllMatchesAsync(text, startPos = 0, dictionaryOrder = null) {
-    if (!this.ready) return [];
-
-    const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-
-    // Decide whether to use parallel processing
-    const shouldUseParallel =
-      this.enableParallelLookups && searchOrder.length >= this.dictionaryParallelThreshold;
-
-    let results;
-    if (shouldUseParallel) {
-      results = await this.findAllMatchesParallel(text, startPos, dictionaryOrder);
-    } else {
-      results = await this.findAllMatchesSequential(text, startPos, dictionaryOrder);
-    }
-
-    return results;
-  }
-
-  /**
-   * Find the best translation for text at a position
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {Array} dictionaryOrder - Dictionary search order
-   * @returns {Object|null} Best match
-   */
-  findBestMatch(text, startPos = 0, dictionaryOrder = null) {
-    const matches = this.findAllMatches(text, startPos, dictionaryOrder);
-    return matches.length > 0 ? matches[0] : null;
-  }
-
-  /**
-   * Find the best translation for text at a position (async version with parallel processing)
-   * @param {string} text - Input text
-   * @param {number} startPos - Starting position
-   * @param {Array} dictionaryOrder - Dictionary search order
-   * @returns {Promise<Object|null>} Best match
-   */
-  async findBestMatchAsync(text, startPos = 0, dictionaryOrder = null) {
-    const matches = await this.findAllMatchesAsync(text, startPos, dictionaryOrder);
-    return matches.length > 0 ? matches[0] : null;
+    return this.matchLookup.findAllMatchesAsync(text, startPos, dictionaryOrder);
   }
 
   /**
@@ -699,7 +499,7 @@ export class DictionaryManager {
       // Build index for each text position
       for (let pos = 0; pos < totalPositions; pos++) {
         // Find all matches starting at this position
-        const allMatches = await this.findAllMatchesSequential(text, pos, searchOrder);
+        const allMatches = this.matchLookup.findAllMatchesSequential(text, pos, searchOrder);
 
         if (allMatches.length > 0) {
           // Categorize matches by dictionary type for different phases
@@ -753,15 +553,6 @@ export class DictionaryManager {
     return Array.from(this.metadata.entries())
       .sort(([, a], [, b]) => a.priority - b.priority)
       .map(([name]) => name);
-  }
-
-  /**
-   * Get specific dictionary trie
-   * @param {string} name - Dictionary name
-   * @returns {DictionaryTrie|null} Dictionary trie
-   */
-  getDictionary(name) {
-    return this.dictionaries.get(name) || null;
   }
 
   /**

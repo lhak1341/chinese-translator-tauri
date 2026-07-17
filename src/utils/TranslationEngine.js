@@ -1238,7 +1238,12 @@ export class TranslationEngine {
             this.chunkPostProcessor.punctuationProcessor.hasOpeningElements(nextToken.value || '');
           // Allowlist: only add space before actual content or opening punctuation.
           // Denylist (!== 'punctuation' && !== 'whitespace') was too broad — WASM tokenizer
-          // may give '…' type 'unknown', which would incorrectly add space before ellipsis.
+          // used to give '…' type 'unknown' (finite allowlist in text_tokenizer.rs's
+          // is_punctuation() was missing it and ~19 other dictionary chars), which would
+          // incorrectly add space before ellipsis. Root cause fixed 2026-07-17c (Rust now
+          // uses a catch-all classifier matching JS's regex) — allowlist kept regardless,
+          // since "explicit content list" remains the safer contract than "everything not
+          // punctuation/whitespace" even with the classifier fixed.
           const nextIsContent =
             nextToken.type === 'chinese_char' ||
             nextToken.type === 'latin_word' ||

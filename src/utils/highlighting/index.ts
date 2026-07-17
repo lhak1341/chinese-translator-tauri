@@ -23,6 +23,9 @@ export {
 // --- Character-Only bridge scoring ---
 export { findCharacterOnlyMatch, MAX_MATCHES, CONTEXT_WINDOW } from './CharacterOnlyBridge';
 
+// --- Shared Clickable* highlight predicate ---
+export { isUnitHighlighted } from './UnitHighlightPredicate';
+
 // --- Scroll ---
 export { scrollToHighlightedElement } from './ScrollHelpers';
 

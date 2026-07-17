@@ -38,6 +38,14 @@ Interface: `markPhraseFollowersConsumed(tokens, leaderIndex, tokenSpan): void`. 
 
 Entry point: `src/utils/pattern/PhraseConsumptionMarker.ts`. Not barrel-exported — all 3 callers live inside `TranslationEngine.js`, which imports it directly (matching how it already imports sibling `pattern/` modules).
 
+## UnitHighlightPredicate
+
+The shared "is this unit highlighted" check for the 3 Clickable* components (`ClickableOriginalSemantic`, `ClickableTranslationSemantic`, `ClickableTranslationOptimized`). Before unification (2026-07-17c) each component independently reimplemented this — and the three were **not** identical duplicates: `ClickableOriginalSemantic` takes two scalar index props OR'd together (`highlightedUnitIndex`, `highlightedTranslationUnitIndex` — no array support, matches its actual declared prop types), `ClickableTranslationSemantic` takes one prop that's genuinely array-capable (fed by `characterOnlyUnitIndex` state, which really can be `number[]` from `findCharacterOnlyMatch`'s multi-char results), and `ClickableTranslationOptimized` takes one scalar prop but its old inline code defensively checked `Array.isArray(...)` anyway — a branch provably unreachable given its own declared prop type (`number`, never `number[]`) and its sole real caller (`TranslatorDisplayPanels.tsx`, also typed `number | null`); test-covered via an explicit `as any` cast, so deliberate future-proofing rather than an accident, not a bug to fix.
+
+Interface: `isUnitHighlighted(unitIndex, ...highlightValues)` — variadic so it covers all three shapes (1 arg for the two single-prop components, 2 args for `ClickableOriginalSemantic`'s OR). Each `highlightValue` can be `number | number[] | null | undefined`. `-1` is treated as the codebase-wide "cleared" sentinel (see `useHighlightingState.ts`) and never matches, even in the pathological case where `unitIndex` itself were `-1`.
+
+Entry point: `src/utils/highlighting/UnitHighlightPredicate.ts`, barrel-exported from `src/utils/highlighting/index.ts`.
+
 ## HotkeyDispatchTable
 
 The pure dispatch table that maps (key + modifiers + app context) → `HotkeyAction | null`. No side effects, no React, no DOM. Input: a `KeyboardEvent`-shaped object (`key`, `metaKey`, `ctrlKey`, `shiftKey`) plus `MatchHotkeyContext` (`activeTab`, `canUndo`, `canRedo`, `isInputFocused`). Output: a discriminated union action tag, or `null` if no shortcut matches.
@@ -238,7 +246,9 @@ Returns `number[] | null`: array of Character-Only unit indices to pass to `SET_
 
 Constants `MAX_MATCHES = 100` and `CONTEXT_WINDOW = 50` are exported for tests.
 
-Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called from `useCharacterOnlyBridge` hook (`src/hooks/useCharacterOnlyBridge.ts`), which owns the React plumbing (guards, bounds check, dispatch, 10ms scroll).
+`findCharacterOnlyMatch(sourceIndex, sourceArrays, targetArrays)` is direction-generic — the params don't hardcode which side is "Character-Only." Two call sites use it in opposite directions: `useCharacterOnlyBridge` (`sourceArrays=semanticArrays, targetArrays=characterOnlySemanticArrays` — Full Translation/Original → Character-Only) and `Translator.jsx`'s `handleSemanticSegmentClick` `character-only-to-original` branch (`sourceArrays=characterOnlySemanticArrays, targetArrays=semanticArrays` — reverse). Unified 2026-07-17c: the reverse direction previously hand-rolled a separate, uncapped, less-accurate (position-ratio-only, no context scoring) copy of this same algorithm — deleted in favor of calling this function directly. On a total miss (`null`), the reverse-direction caller clears the highlight (`highlightFromCharacterOnly(-1)`) rather than falling back to a position-ratio guess, matching `useCharacterOnlyBridge`'s own null-handling convention.
+
+Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called from `useCharacterOnlyBridge` hook (`src/hooks/useCharacterOnlyBridge.ts`), which owns the React plumbing (guards, bounds check, dispatch, 10ms scroll), and directly from `Translator.jsx`'s `handleSemanticSegmentClick` for the reverse direction.
 
 ## DictionaryBackend
 
@@ -263,6 +273,41 @@ Entry point: `src/utils/dictionary/DictionaryOperationReverter.ts`. Called exclu
 The two write-to-disk protocols used by dictionary CRUD. `persistDictionaryMutation` — single-dict: optimistic `setDictionaries` → `saveDictionary` → rollback on failure. `commitMoveOp` — two-dict: optimistic `setDictionaries` → parallel save → partial revert (if one save succeeds and the other fails, the successful write is reverted to disk). Both returned callbacks are stable (no deps beyond `setDictionaries`).
 
 Entry point: `src/components/dictionary/useDictionaryPersistence.ts`. Injected into `useDictionaryCRUD` by `DictionaryProvider` via `const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries)`.
+
+## DictionaryMatchLookup
+
+The JS match-lookup dispatch behind `DictionaryManager`'s two public lookup methods. Owns: `findMatchesThreadSafe` (single-dictionary trie walk, no shared-array state), `findAllMatchesSequential` (scans search order in order), `findAllMatchesParallel` (WASM-first via injected `wasmLookup`, catches failure and falls back to JS `Promise.all` fan-out across dictionaries, catches further failure and falls back to sequential), and `stats` (parallelCalls/sequentialCalls/averageParallelTime/averageSequentialTime/fallbackCount).
+
+Two public methods only: `findAllMatches` (sync, always sequential — required by `PatternVariableCache`'s per-position hot loop, which cannot await) and `findAllMatchesAsync` (auto parallel/sequential, chosen by `enableParallelLookups && searchOrder.length >= dictionaryParallelThreshold`). `DictionaryManager.findAllMatches`/`.findAllMatchesAsync` are thin delegations to `this.matchLookup`; `DictionaryManager.parallelLookupStats` is a getter re-exposing `this.matchLookup.stats` so existing external readers (e.g. `TranslationEngine.js`) don't need to know the internal split exists.
+
+Replaces 7 previously-flat methods on `DictionaryManager` (`findMatchesThreadSafe`, `findAllMatchesParallel`, `findAllMatchesSequential`, `findAllMatches`, `findAllMatchesAsync`, plus dead `findBestMatch`/`findBestMatchAsync` — deleted, zero callers). Collapsing them surfaced a shadowed dead `getDictionary` (defined twice — `|| null` version unreachable behind a later `?? null` redefinition) that had gone unnoticed while the class carried 7 near-duplicate lookup entry points.
+
+Constructor takes injected dependencies (live `dictionaries`/`metadata` Maps, `wasmLookup`, `enableParallelLookups`, `dictionaryParallelThreshold`, `getDefaultSearchOrder` callback, `isReady` callback) — testable standalone with a stub trie and no full `DictionaryManager` construction.
+
+Entry point: `src/utils/dictionary/DictionaryMatchLookup.js`. Constructed once in `DictionaryManager`'s constructor as `this.matchLookup`.
+
+## TextTokenizer
+
+The Phase-0 tokenization seam: splits raw input text into `Token[]` (type, value, start, end) before the 5-phase pipeline runs. Two adapters behind one interface (`tokenize(text): Token[]`): `WasmTextTokenizer` (Rust `tokenize_text_core`, direct character classification, 3-8x faster) tried first; JS regex-based `tokenizeJS` (private method) as fallback, used whenever WASM hasn't finished its async init or a WASM call returns `null`.
+
+Both adapters classify characters into the same 7 `TokenType`s, but with one deliberate, tested divergence: **token count for runs of consecutive punctuation/unknown characters**. JS's regex catch-all (`[^\w\s一-鿿]+`) groups a run into one token (`"……"` → 1 token); Rust's classifier processes one character at a time for anything outside `is_chinese_char`/`is_latin_letter`/`is_digit`/whitespace (`"……"` → 2 tokens). Kept as one-token-per-char on the Rust side deliberately — the punctuation dictionary is single-char-keyed only, so per-char tokens avoid the dictionary-translate prefix-match truncation risk (`cleanupFormatting`'s 27-char list note). Both sides are directly tested (`text_tokenizer.rs`'s `mod tests`, `TextTokenizer.test.ts`) documenting the accepted difference, matching this codebase's existing `needsSpace()`/`needsSpace()` JS/Rust parity-by-tests-not-shared-runtime convention.
+
+Prior to 2026-07-17c, Rust's punctuation classifier was a finite enumerated char list that was missing 20 of the 41 characters in the real `punctuation.json` dictionary (including `…` and dialogue corner brackets `「」『』`) — those chars fell through to `unknown` in WASM while JS correctly typed them `punctuation`, a type mismatch (not just a count mismatch) that had already caused one confirmed production bug (a `TranslationEngine.js` spacing rule needed an allowlist workaround specifically because of it). Fixed by replacing the enumerated list with a catch-all classifier — see `wasm-core/CLAUDE.md`.
+
+**Residual, deliberately-uncharacterized-not-unified divergences** (JS regex/`\w` semantics vs Rust char-predicate ranges are two independent classifiers, not one shared source of truth — the catch-all fix closed the specific gap that was biting production, not every possible Unicode disagreement): (1) CJK Extension A (U+3400–4DBF) / Compatibility Ideographs (U+F900–FAFF) — Rust's `is_chinese_char` covers 3 ranges, JS's regex chinese group only checks `一-鿿` (CJK Unified), so these classify `chinese_char` in Rust vs `punctuation` in JS; (2) underscore `_` — JS's `\w` excludes it from every capture group including the punct catch-all, so it hits `tokenizeJS`'s gap-fill path and becomes `unknown`, while Rust's catch-all has no `\w`-shaped exclusion and types it `punctuation`; (3) BOM U+FEFF — ECMAScript's `\s` matches it per spec, Rust's `char::is_whitespace()` doesn't (not in Unicode `White_Space` property), so JS types it `whitespace` vs Rust's `punctuation`. All three are low-practical-risk (none appear in normal Chinese-novel text) and are characterized in tests on both sides (`text_tokenizer.rs`'s `mod tests`, `TextTokenizer.test.ts`) rather than fixed.
+
+Entry points: `src/utils/text/TextTokenizer.ts` (JS-facing class, owns the WASM-first/JS-fallback dispatch), `src/utils/wasm/WasmTextTokenizer.js` (thin WASM wrapper), `wasm-core/src/text_tokenizer.rs` (`tokenize_text_core` — plain-Rust core, `tokenize_text` — thin `#[wasm_bindgen]` wrapper around it).
+
+## useEngineReinitializer / useReloadRetranslate
+
+The two capability functions `Translator.jsx` supplies as `forceReloadCtx.reinitializeEngine`/`.retranslate` for `useForceReload` (see ADR-027-era `ForceReloadContext`). Extracted 2026-07-17c: this logic previously lived inline in `Translator.jsx`'s `forceReloadCtx` object literal and had zero direct test coverage — `useForceReload.test.js` mocks both fields wholesale as bare `vi.fn()`, so the real branching (WASM validation statuses, dual-mode-optimized-to-sequential fallback) was never exercised anywhere.
+
+**Not** absorbed into `useForceReload.js` itself — doing so would have replaced 2 composed capability functions with ~8 raw primitives (`engineRef`, `reinitialize`, `validateSemanticArraySize`, `setDualResults`, `refreshReport`, `translateText`, `translateCharacterOnly`, `setStreamingText`) as `ForceReloadContext` fields, widening that interface from 10 fields to ~16 — the opposite of deepening. Instead, two small hooks construct the same 2 composed functions `Translator.jsx` already supplied, keeping `ForceReloadContext`'s shape unchanged while moving the logic + its tests out of the 1300+-line component.
+
+- **`useEngineReinitializer(reinitialize, engineRef)`** — `src/hooks/useEngineReinitializer.js`. Calls the real `reinitialize` (from `useTranslatorEngine`), then a fire-and-forget WASM dictionary-sync validation (`setTimeout` 100ms, non-blocking — returns `true` before validation runs). 4-branch status handling (`PASS`/`SKIPPED`/`FAIL_DIFFERENCES`/`FAIL_ERRORS`) with toasts on the failure branches.
+- **`useReloadRetranslate({ engineRef, validateSemanticArraySize, setDualResults, refreshReport, translateText, translateCharacterOnly, setStreamingText })`** — `src/hooks/useReloadRetranslate.js`. Waits for engine readiness (100ms, +500ms retry if still not ready), prefers `engineRef.current.translateDualModeOptimized` (validates both semantic arrays, resolves silently if validation throws — already toasted upstream), falls back to sequential `translateText` + `translateCharacterOnly` on optimized-path failure or absence. Owns the success toast.
+
+Both are directly unit-tested (`useEngineReinitializer.test.js`, `useReloadRetranslate.test.js`) with fake timers and mocked `engineRef`/dependencies — no `Translator.jsx` mounting required.
 
 ## DictionaryEntryForm
 

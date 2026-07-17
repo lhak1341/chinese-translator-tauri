@@ -4,7 +4,7 @@
  */
 import React, { useMemo } from 'react';
 import type { ClickableOriginalSemanticProps } from '../../types/ClickableTypes';
-import { precomputeOriginalSegments } from '../../utils/highlighting';
+import { precomputeOriginalSegments, isUnitHighlighted } from '../../utils/highlighting';
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
 import { HighlightableSegment } from './HighlightableSegment';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
@@ -39,13 +39,11 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
   const renderSegment = (segment: any, index: number) => {
     if (segment.isClickable) {
       // CRITICAL-3: Guard against null/undefined to prevent highlight bugs
-      const isHighlighted =
-        (highlightedUnitIndex !== null &&
-          highlightedUnitIndex !== undefined &&
-          highlightedUnitIndex === segment.unitIndex) ||
-        (highlightedTranslationUnitIndex !== null &&
-          highlightedTranslationUnitIndex !== undefined &&
-          highlightedTranslationUnitIndex === segment.unitIndex);
+      const isHighlighted = isUnitHighlighted(
+        segment.unitIndex,
+        highlightedUnitIndex,
+        highlightedTranslationUnitIndex
+      );
 
       return (
         <HighlightableSegment

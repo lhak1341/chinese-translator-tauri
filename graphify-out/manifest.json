@@ -109,11 +109,6 @@
     "ast_hash": "9e2c05031434c2111e92c589cb0bb361",
     "semantic_hash": ""
   },
-  "wasm-core/src/segment_matcher.rs": {
-    "mtime": 1780132681.0636022,
-    "ast_hash": "c37cc73e746864a3f7abe8df4d532fc9",
-    "semantic_hash": ""
-  },
   "wasm-core/src/text_tokenizer.rs": {
     "mtime": 1769660830.8310206,
     "ast_hash": "4058e3d7a63f7a65326f8d2eac981b9a",
