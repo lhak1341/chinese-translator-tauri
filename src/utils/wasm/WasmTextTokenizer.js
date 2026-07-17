@@ -149,12 +149,3 @@ export class WasmTextTokenizer {
     return wasmInitialized && this.initialized;
   }
 }
-
-/**
- * Check if WASM text tokenizer is supported
- *
- * @returns {Promise<boolean>} True if WASM is available
- */
-export async function isWasmTextTokenizerSupported() {
-  return await initializeWasm();
-}

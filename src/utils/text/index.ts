@@ -2,7 +2,7 @@
  * Text processing public API.
  *
  * Primary entry points:
- *   - createTokenizer() — character-level tokenization
+ *   - new TextTokenizer() — character-level tokenization
  *   - createChunker()   — punctuation-based text segmentation
  *   - sanitizeDictionaryEntry() — user input sanitization
  */
@@ -16,13 +16,7 @@ export type {
   ProcessingStrategy,
   TextAnalysis,
 } from './TextTokenizer';
-export {
-  TokenType,
-  Token,
-  TextTokenizer,
-  createTokenizer,
-  tokenTypeToString,
-} from './TextTokenizer';
+export { TokenType, Token, TextTokenizer } from './TextTokenizer';
 
 // --- Chunking ---
 export { TextChunk, TextChunker, createChunker } from './TextChunker';

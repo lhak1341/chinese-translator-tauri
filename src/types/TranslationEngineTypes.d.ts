@@ -19,10 +19,7 @@ import { TextPositionMapping } from './ViewportTypes';
 
 /** Phase 1 leader source strings (JS adapter + WASM paths) */
 export type TranslationPhase1Source =
-  | 'pattern'
-  | 'hierarchical_pattern'
-  | 'hierarchical_patterns'
-  | 'hierarchical_patterns_composite';
+  'pattern' | 'hierarchical_pattern' | 'hierarchical_patterns' | 'hierarchical_patterns_composite';
 
 /** Phase 3 number conversion source strings */
 export type TranslationPhase3Source = 'number_conversion' | 'number_plus_liang_fix';
@@ -437,22 +434,6 @@ export interface TranslationStats {
 // ============================================================================
 
 /**
- * WASM engine status
- */
-export interface WasmStatus {
-  /** WASM engine initialized successfully */
-  initialized: boolean;
-  /** Running in fallback mode (JavaScript) */
-  fallbackMode: boolean;
-  /** Total dictionary entries loaded in WASM */
-  totalEntries: number;
-  /** WASM memory usage in bytes */
-  memoryUsage?: number;
-  /** WASM version string */
-  wasmVersion?: string;
-}
-
-/**
  * WASM acceleration configuration
  */
 export interface WasmAccelerationConfig {
@@ -749,9 +730,6 @@ export interface TranslationEngine {
   debugLevel: DebugLevel;
   settings: PatternProcessingSettings;
   activeProperNouns: string[];
-
-  // WASM Integration (number processing only)
-  wasmManager: any;
 
   // Internal State
   translationSegments: TranslationSegment[];

@@ -41,6 +41,7 @@ import { DictionaryTrie } from './DictionaryTrie.js';
 import { isDictionaryCategory } from './LookupIndexUtils.js';
 import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
+import { resolveDictionaryPriority, buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
 
 // Debug logging levels
 const DEBUG_LEVELS = {
@@ -239,80 +240,31 @@ export class DictionaryManager {
       }
 
       // Fallback: build trie from dictionary if cache didn't work
+      const priority = resolveDictionaryPriority(dictionaryName, priorities);
       if (!trie) {
-        trie = new DictionaryTrie();
-
-        // Insert all entries into the trie
-        for (const [source, target] of Object.entries(dictionary)) {
-          if (typeof source === 'string') {
-            let translation,
-              allowAsPatternVariable = undefined,
-              semanticType = undefined,
-              allowedVariableTypes = undefined;
-
-            if (typeof target === 'string') {
-              // Pure lookup-table dicts (characters, conversion, punctuation) use string values.
-              translation = target;
-            } else if (typeof target === 'object' && target !== null && target.translation) {
-              // Preserve undefined (absent field) vs explicit true/false so that callers
-              // using `!== false` treat missing-field entries as "not excluded".
-              translation = target.translation;
-              allowAsPatternVariable =
-                'allowAsPatternVariable' in target ? target.allowAsPatternVariable : undefined;
-              semanticType = target.semanticType || undefined;
-              allowedVariableTypes = target.allowedVariableTypes || undefined;
-            } else {
-              this.log(
-                DEBUG_LEVELS.ERROR,
-                `Invalid entry format for "${source}" in dictionary "${dictionaryName}"`
-              );
-              continue;
-            }
-
-            // Assign priority: prefix rules always win over caller-supplied priorities map
-            let priority;
-            if (dictionaryName.startsWith('properNouns-f_')) {
-              priority = 1; // fiction-specific (highest)
-            } else if (dictionaryName.startsWith('properNouns-_')) {
-              priority = 2; // generic
-            } else {
-              priority =
-                priorities[dictionaryName] || (dictionaryName.startsWith('properNouns') ? 3 : 10);
-            }
-
-            const metadata = {
-              dictionary: dictionaryName,
-              priority: priority,
-              frequency: this.estimateFrequency(source, dictionaryName),
-              allowAsPatternVariable: allowAsPatternVariable,
-              ...(semanticType && { semanticType }),
-              ...(allowedVariableTypes && { allowedVariableTypes }),
-            };
-
-            trie.insert(source, translation, metadata);
-            entryCount++;
-          }
+        const built = buildTrieFromDictionary(
+          dictionary,
+          dictionaryName,
+          priority,
+          this.estimateFrequency
+        );
+        trie = built.trie;
+        entryCount = built.entryCount;
+        for (const invalidSource of built.invalidSources) {
+          this.log(
+            DEBUG_LEVELS.ERROR,
+            `Invalid entry format for "${invalidSource}" in dictionary "${dictionaryName}"`
+          );
         }
-      } // End fallback trie building
+      }
 
       this.dictionaries.set(dictionaryName, trie);
       this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
 
-      // Use the same priority logic for metadata (prefix rules always win)
-      let metadataPriority;
-      if (dictionaryName.startsWith('properNouns-f_')) {
-        metadataPriority = 1; // fiction-specific (highest)
-      } else if (dictionaryName.startsWith('properNouns-_')) {
-        metadataPriority = 2; // generic
-      } else {
-        metadataPriority =
-          priorities[dictionaryName] || (dictionaryName.startsWith('properNouns') ? 3 : 10);
-      }
-
       this.metadata.set(dictionaryName, {
         name: dictionaryName,
         entryCount,
-        priority: metadataPriority,
+        priority,
         stats: trie.getStats(),
       });
 
@@ -938,7 +890,6 @@ export class DictionaryManager {
       results: { tested: 0, passed: 0, failed: 0, wasmErrors: 0, jsErrors: 0 },
       differences: [],
       errors: [],
-      performance: { wasmTotalTime: 0, jsTotalTime: 0, speedupRatio: 1.0 },
     };
 
     if (!validation.wasmAvailable) {
@@ -985,11 +936,6 @@ export class DictionaryManager {
 
     validation.status =
       validation.results.failed === 0 && validation.results.wasmErrors === 0 ? 'PASSED' : 'FAILED';
-    validation.performance = this.wasmLookup?.getStatus().performanceComparison ?? {
-      wasmTotalTime: 0,
-      jsTotalTime: 0,
-      speedupRatio: 1.0,
-    };
     return validation;
   }
 
@@ -1045,41 +991,8 @@ export class DictionaryManager {
         initialized: false,
         ready: false,
         hasAdapter: false,
-        performanceComparison: {
-          wasmLookups: 0,
-          jsLookups: 0,
-          wasmTotalTime: 0,
-          jsTotalTime: 0,
-          wasmAverageTime: 0,
-          jsAverageTime: 0,
-          speedupRatio: 1.0,
-        },
       }
     );
-  }
-
-  getEnhancedPerformanceReport() {
-    return (
-      this.wasmLookup?.getPerformanceReport() ?? {
-        wasmEnabled: false,
-        wasmReady: false,
-        performanceComparison: {
-          wasmLookups: 0,
-          jsLookups: 0,
-          wasmTotalTime: 0,
-          jsTotalTime: 0,
-          wasmAverageTime: 0,
-          jsAverageTime: 0,
-          speedupRatio: 1.0,
-        },
-        wasmAdapterStats: null,
-        isWasmBeneficial: false,
-      }
-    );
-  }
-
-  isWasmBeneficial() {
-    return this.wasmLookup?.isBeneficial() ?? false;
   }
 
   getMemoryUsage() {

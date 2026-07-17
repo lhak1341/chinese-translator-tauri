@@ -230,9 +230,7 @@ export interface PatternEntry extends DictionaryEntry {
  * Direction for clickable segment highlighting
  */
 export type ClickDirection =
-  | 'original-to-translation'
-  | 'translation-to-original'
-  | 'character-only-to-original';
+  'original-to-translation' | 'translation-to-original' | 'character-only-to-original';
 
 /**
  * Props for clickable text segments
@@ -318,22 +316,6 @@ export interface PerformanceStats {
   peakMemory?: number;
   /** Total processing time in milliseconds */
   totalTime?: number;
-}
-
-/**
- * WASM engine status information
- */
-export interface WasmStatus {
-  /** Whether WASM is initialized */
-  initialized: boolean;
-  /** Whether currently in fallback mode */
-  fallbackMode: boolean;
-  /** Total entries loaded in WASM */
-  totalEntries: number;
-  /** Memory usage in bytes */
-  memoryUsage?: number;
-  /** WASM version string */
-  version?: string;
 }
 
 // =============================================================================

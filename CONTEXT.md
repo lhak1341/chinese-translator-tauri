@@ -316,3 +316,15 @@ All form logic for creating and editing a dictionary entry: field state, clipboa
 Receives `{ updateEntry, addEntry, dictionaries }` injected from the caller's `useDictionary()` call — not called internally — so tests use plain mocks without DictionaryContext. DOM refs (`sourceInputRef`, `translationInputRef`) are created inside the hook and returned; the component binds them to `<input ref={...}>` elements. The `DictionaryEntry` component retains `useDictionary()`, `onClose`, and JSX rendering only (~300 LOC).
 
 Entry point: `src/hooks/useDictionaryEntryForm.ts`. Called from `src/components/dictionary/DictionaryEntry.tsx`.
+
+## DictionaryTrieBuilder
+
+The pure trie-construction fallback `DictionaryManager.loadDictionaries` calls when the precomputed-cache path (`DictionaryTrieLoader.loadDictionaryWithCache`) misses or is disabled. No `this`, no I/O, no logging — `DictionaryManager` still owns disposal, cache lookup, Map storage, and logging invalid entries; this module owns only the entry-by-entry trie insert and the priority-assignment rule.
+
+Two exports: `resolveDictionaryPriority(dictionaryName, priorities)` — fiction (`properNouns-f_*` → 1) and generic (`properNouns-_*` → 2) prefixes always win over the caller-supplied `priorities` map; falls back to `priorities[dictionaryName] ?? (properNouns-prefixed ? 3 : 10)`. `buildTrieFromDictionary(dictionary, dictionaryName, priority, estimateFrequency)` — builds a `DictionaryTrie` from raw dictionary JSON, returns `{trie, entryCount, invalidSources}`; invalid entries (no string value, no `.translation` field) are collected rather than logged internally, so the caller decides how to surface them.
+
+Extracted 2026-07-17d from `loadDictionaries`' 204-line body: the priority-assignment rule was previously duplicated verbatim twice per dictionary (once inside the per-entry trie-insert loop as `priority`, again after the loop as `metadataPriority` for the dictionary-level metadata Map entry) despite depending only on `dictionaryName` — the first copy was being wastefully recomputed on every single entry. `resolveDictionaryPriority` is now called once per dictionary and the same value feeds both the trie-node metadata and the dictionary metadata.
+
+Distinct from `lazyLoadDictionary`'s separate trie-build path (no per-entry metadata at all) and its own `getDefaultPriority` scheme (different rule set, different numbering) — that divergence is pre-existing and already documented in `src/utils/CLAUDE.md`'s "DictionaryManager Trie-Node Metadata Is Not Uniform Across Load Paths" section; this extraction does not touch or unify it.
+
+Entry point: `src/utils/dictionary/DictionaryTrieBuilder.ts`. Not barrel-exported — sole caller is `DictionaryManager.js` in the same directory (matches `MatchComparator.ts`/`PhraseConsumptionMarker.ts` convention).

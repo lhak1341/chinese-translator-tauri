@@ -24,7 +24,7 @@ function makeEngineRef(overrides = {}) {
       isReady: () => true,
       dictionaryManager: {
         wasmInitialized: true,
-        validateWasmFallback: vi.fn().mockReturnValue({ status: 'PASS' }),
+        validateWasmFallback: vi.fn().mockReturnValue({ status: 'PASSED' }),
       },
       ...overrides,
     },
@@ -110,12 +110,12 @@ describe('useEngineReinitializer', () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  test('FAIL_DIFFERENCES status toasts a mismatch-count error with CACHE_WARNING duration', async () => {
+  test('FAILED status with differences toasts a mismatch-count error with CACHE_WARNING duration', async () => {
     const reinitialize = vi.fn().mockResolvedValue(undefined);
     const engineRef = makeEngineRef();
     engineRef.current.dictionaryManager.validateWasmFallback.mockReturnValue({
-      status: 'FAIL_DIFFERENCES',
-      results: { different: 3 },
+      status: 'FAILED',
+      results: { failed: 3, wasmErrors: 0, jsErrors: 0 },
     });
     const { result } = renderHook(() => useEngineReinitializer(reinitialize, engineRef));
 
@@ -130,11 +130,12 @@ describe('useEngineReinitializer', () => {
     );
   });
 
-  test('FAIL_ERRORS status toasts a generic error with CACHE_WARNING duration', async () => {
+  test('FAILED status with wasmErrors toasts a generic error with CACHE_WARNING duration', async () => {
     const reinitialize = vi.fn().mockResolvedValue(undefined);
     const engineRef = makeEngineRef();
     engineRef.current.dictionaryManager.validateWasmFallback.mockReturnValue({
-      status: 'FAIL_ERRORS',
+      status: 'FAILED',
+      results: { failed: 0, wasmErrors: 2, jsErrors: 0 },
     });
     const { result } = renderHook(() => useEngineReinitializer(reinitialize, engineRef));
 
@@ -149,7 +150,7 @@ describe('useEngineReinitializer', () => {
     );
   });
 
-  test('PASS and SKIPPED statuses do not toast', async () => {
+  test('PASSED and SKIPPED statuses do not toast', async () => {
     const reinitialize = vi.fn().mockResolvedValue(undefined);
     const engineRef = makeEngineRef();
     engineRef.current.dictionaryManager.validateWasmFallback.mockReturnValue({

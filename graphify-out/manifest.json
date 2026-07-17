@@ -554,11 +554,6 @@
     "ast_hash": "684fae2a608392d7114c47939abf3a2f",
     "semantic_hash": ""
   },
-  "src/utils/wasm/wasmErrorHandler.js": {
-    "mtime": 1779516425.9634454,
-    "ast_hash": "9b77492f15d209d396c9d6d4e3704e59",
-    "semantic_hash": ""
-  },
   "src/utils/wasm/wasmOperationTimeout.js": {
     "mtime": 1772897608.5481784,
     "ast_hash": "2716ad2244291d8b53857abd246e63b6",
@@ -1192,11 +1187,6 @@
   "src/hooks/useHotkeyHandler.ts": {
     "mtime": 1782494541.2115207,
     "ast_hash": "c682267451a236cc641768803da2a49f",
-    "semantic_hash": ""
-  },
-  "src/hooks/useFullTranslationSegments.ts": {
-    "mtime": 1782573231.9270973,
-    "ast_hash": "1c1dfad74523d3528fa6563bd1d67c50",
     "semantic_hash": ""
   },
   "src/hooks/useForceReload.js": {

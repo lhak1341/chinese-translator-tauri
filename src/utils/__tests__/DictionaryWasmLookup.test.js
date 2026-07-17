@@ -162,19 +162,6 @@ describe('DictionaryWasmLookup', () => {
       lookup.translate('好', ['characters']);
       expect(adapter.findMatches).not.toHaveBeenCalled();
     });
-
-    it('records WASM lookup stats', async () => {
-      const adapter = makeAdapter({
-        findMatches: vi.fn(() => [{ word: '好', translation: 'tốt', metadata: null }]),
-      });
-      const lookup = new DictionaryWasmLookup(adapter);
-      await lookup.initialize({});
-      lookup.translate('好', ['characters']);
-      lookup.translate('大', ['characters']);
-      const stats = lookup.getStatus().performanceComparison;
-      expect(stats.wasmLookups).toBe(2);
-      expect(stats.wasmTotalTime).toBeGreaterThanOrEqual(0);
-    });
   });
 
   describe('findAllMatches', () => {
@@ -227,36 +214,14 @@ describe('DictionaryWasmLookup', () => {
     });
   });
 
-  describe('getStatus / getPerformanceReport / isBeneficial', () => {
-    it('getStatus reflects initialized and ready state', async () => {
+  describe('getStatus', () => {
+    it('reflects initialized and ready state', async () => {
       const lookup = new DictionaryWasmLookup(makeAdapter());
       await lookup.initialize({});
       const status = lookup.getStatus();
       expect(status.initialized).toBe(true);
       expect(status.ready).toBe(true);
       expect(status.hasAdapter).toBe(true);
-      expect(status.performanceComparison).toMatchObject({ wasmLookups: 0, speedupRatio: 1.0 });
-    });
-
-    it('getPerformanceReport includes wasmAdapterStats and isBeneficial', async () => {
-      const lookup = new DictionaryWasmLookup(makeAdapter());
-      await lookup.initialize({});
-      const report = lookup.getPerformanceReport();
-      expect(report.wasmEnabled).toBe(true);
-      expect(report.wasmReady).toBe(true);
-      expect(report.wasmAdapterStats).toEqual({ totalTime: 0 });
-    });
-
-    it('isBeneficial returns false until 10+ lookups', async () => {
-      const adapter = makeAdapter({
-        findMatches: vi.fn(() => [{ word: '好', translation: 'tốt', metadata: null }]),
-      });
-      const lookup = new DictionaryWasmLookup(adapter);
-      await lookup.initialize({});
-      for (let i = 0; i < 10; i++) lookup.translate('好', ['characters']);
-      expect(lookup.isBeneficial()).toBe(false);
-      lookup.translate('好', ['characters']);
-      expect(lookup.isBeneficial()).toBe(true);
     });
   });
 

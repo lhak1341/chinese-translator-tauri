@@ -94,10 +94,6 @@
   gap: 0.25rem;
 }
 
-.wasmStatus {
-  font-family: var(--font-mono);
-}
-
 /* Active Badge */
 .activeBadge {
   display: flex;

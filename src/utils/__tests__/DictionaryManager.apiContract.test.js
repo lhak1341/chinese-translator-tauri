@@ -205,13 +205,6 @@ describe('DictionaryManager (WASM adapter) API Contract', () => {
         hasAdapter: expect.any(Boolean),
       });
     });
-
-    test('isWasmBeneficial() must return boolean (not Promise)', () => {
-      const result = manager.isWasmBeneficial();
-
-      expect(result).not.toBeInstanceOf(Promise);
-      expect(typeof result).toBe('boolean');
-    });
   });
 });
 

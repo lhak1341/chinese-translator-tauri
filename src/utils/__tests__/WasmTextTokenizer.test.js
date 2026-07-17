@@ -111,12 +111,4 @@ describe('WasmTextTokenizer', () => {
       expect(tokenizer.getStats()).toBeNull();
     });
   });
-
-  describe('isWasmTextTokenizerSupported', () => {
-    test('reflects whether the WASM module initializes', async () => {
-      const { isWasmTextTokenizerSupported } = await importFresh();
-
-      expect(await isWasmTextTokenizerSupported()).toBe(true);
-    });
-  });
 });

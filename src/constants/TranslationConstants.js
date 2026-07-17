@@ -276,9 +276,6 @@ export const UI_TIMEOUTS = {
   /** Idle callback timeout for background cleanup (ms) */
   IDLE_CALLBACK_TIMEOUT: 2000, // 2 seconds
 
-  /** WASM status check interval (ms) */
-  WASM_STATUS_CHECK_INTERVAL: 1000, // 1 second
-
   /** Cache health check interval (ms) */
   CACHE_HEALTH_CHECK_INTERVAL: 5 * 60 * 1000, // 5 minutes
 

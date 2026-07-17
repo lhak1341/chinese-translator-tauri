@@ -65,8 +65,7 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
  *   ProgressInfo,
  *   PerformanceStats,
  *   RegressionHealthStatus,
- *   AdvancedPerformanceStats,
- *   WasmStatus
+ *   AdvancedPerformanceStats
  * } from '../types/TranslationEngineTypes'
  */
 
@@ -176,16 +175,6 @@ const Translator = ({ isActive = true }) => {
     activeProperNounsFromConfig,
     reinitialize,
   } = useTranslatorEngine();
-  const [wasmStatus, setWasmStatus] = useState({
-    initialized: false,
-    fallbackMode: true,
-    totalEntries: 0,
-  });
-  // CODE REVIEW FIX (HIGH-1): Ref so the WASM status interval callback can compare
-  // the latest status without requiring wasmStatus in the useEffect dep array
-  // (which would recreate the interval on every status change).
-  const wasmStatusRef = useRef(null);
-  wasmStatusRef.current = wasmStatus;
   const [activeTranslations, setActiveTranslations] = useState(0);
   const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
 
@@ -277,75 +266,6 @@ const Translator = ({ isActive = true }) => {
       }
     );
   }, [enginePhase, initializationError]);
-
-  /**
-   * WASM status monitoring effect - tracks WASM initialization and fallback mode
-   *
-   * Lifecycle: Runs when engine becomes ready and WASM status changes
-   * Dependencies: enginePhase, wasmStatus
-   *
-   * Monitors WASM dictionary engine status:
-   * - initialized: Whether WASM module loaded successfully
-   * - fallbackMode: Whether using JavaScript fallback (WASM failed)
-   * - totalEntries: Number of entries loaded into WASM trie
-   *
-   * Updates status every 5 seconds to detect initialization completion or failures.
-   * Only updates state if status actually changed (prevents unnecessary re-renders).
-   */
-  useEffect(() => {
-    if (enginePhase === 'ready' && engineRef.current?.wasmManager) {
-      let interval = null;
-
-      const checkWasmStatus = () => {
-        // Check if wasmManager is still available
-        if (!engineRef.current?.wasmManager) {
-          // Self-cleanup if wasmManager disappears
-          if (interval) {
-            clearInterval(interval);
-            interval = null;
-          }
-          return;
-        }
-
-        const wasmManager = engineRef.current.wasmManager;
-        // Skip during translation — getTotalEntries() borrows DictionaryEngine, which
-        // is already borrowed inside translateSinglePass. wasm-bindgen's RcRefCell
-        // panics on recursive borrow ("unsafe aliasing in rust").
-        if (isTranslatingRef.current) return;
-        const newStatus = {
-          initialized: wasmManager.isInitialized(),
-          fallbackMode: wasmManager.isInFallbackMode(),
-          totalEntries: wasmManager.getTotalEntries(),
-        };
-
-        // Only update if status actually changed (read via ref — no stale closure)
-        const current = wasmStatusRef.current;
-        if (
-          newStatus.initialized !== current.initialized ||
-          newStatus.fallbackMode !== current.fallbackMode ||
-          newStatus.totalEntries !== current.totalEntries
-        ) {
-          setWasmStatus(newStatus);
-        }
-      };
-
-      // Check immediately
-      checkWasmStatus();
-
-      // Set up periodic monitoring
-      interval = setInterval(checkWasmStatus, UI_TIMEOUTS.WASM_STATUS_CHECK_INTERVAL);
-
-      return () => {
-        if (interval) {
-          clearInterval(interval);
-        }
-      };
-    }
-    // CODE REVIEW FIX (HIGH-1): wasmStatus intentionally omitted from deps.
-    // Status comparison is done via wasmStatusRef to avoid tearing down and
-    // recreating the interval on every status update during WASM initialization.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enginePhase]);
 
   // Regression health monitoring now handled by usePerformanceMonitoring hook
 
@@ -1154,7 +1074,6 @@ const Translator = ({ isActive = true }) => {
         progressInfo={progressInfo}
         activeTranslations={activeTranslations}
         performanceStats={report}
-        wasmStatus={wasmStatus}
         regressionHealth={report}
         throttledStreamingState={throttledStreamingState}
       />

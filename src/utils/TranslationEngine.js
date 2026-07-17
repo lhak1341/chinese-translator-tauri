@@ -211,7 +211,6 @@ import {
  *   MemorySnapshot,
  *   BatchPerformanceMetrics,
  *   TranslationSegment,
- *   WasmStatus,
  *   DEBUG_LEVELS,
  *   DebugLevel
  * } from '../types/TranslationEngineTypes'
@@ -9200,20 +9199,6 @@ export class TranslationEngine {
     } else {
       return 1.0; // Standard batch sizes for average complexity
     }
-  }
-
-  /**
-   * Get WASM manager for performance monitoring
-   */
-  get wasmManager() {
-    return this.dictionaryManager.wasmManager;
-  }
-
-  /**
-   * Get WASM performance metrics
-   */
-  getWasmPerformanceReport() {
-    return this.dictionaryManager.getPerformanceReport();
   }
 
   /**

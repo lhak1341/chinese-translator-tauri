@@ -713,28 +713,17 @@ export interface WasmValidationError {
 }
 
 /**
- * WASM validation performance metrics
- */
-export interface WasmValidationPerformance {
-  /** Total WASM time (ms) */
-  wasmTotalTime: number;
-
-  /** Total JavaScript time (ms) */
-  jsTotalTime: number;
-
-  /** Speedup ratio */
-  speedupRatio: number;
-}
-
-/**
  * WASM validation results
  */
 export interface WasmValidationResults {
-  /** Number of identical results */
-  identical: number;
+  /** Number of words tested */
+  tested: number;
 
-  /** Number of different results */
-  different: number;
+  /** Number of matching results */
+  passed: number;
+
+  /** Number of mismatching results */
+  failed: number;
 
   /** Number of WASM errors */
   wasmErrors: number;
@@ -757,7 +746,7 @@ export interface WasmValidationResult {
   testWordsCount: number;
 
   /** Validation status */
-  status?: 'PASS' | 'FAIL_DIFFERENCES' | 'FAIL_ERRORS' | 'SKIPPED';
+  status?: 'PENDING' | 'SKIPPED' | 'PASSED' | 'FAILED';
 
   /** Reason for skip */
   reason?: string;
@@ -770,9 +759,6 @@ export interface WasmValidationResult {
 
   /** Errors encountered */
   errors: WasmValidationError[];
-
-  /** Performance comparison */
-  performance: WasmValidationPerformance;
 }
 
 /**

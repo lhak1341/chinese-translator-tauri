@@ -11,15 +11,6 @@ interface PerformanceStats {
 }
 
 /**
- * WASM engine status information
- */
-interface WasmStatus {
-  initialized: boolean;
-  fallbackMode: boolean;
-  totalEntries: number;
-}
-
-/**
  * Performance regression health status
  */
 interface RegressionHealth {
@@ -52,7 +43,6 @@ interface TranslatorControlsProps {
   progressInfo: ProgressInfo | null;
   activeTranslations: number;
   performanceStats: PerformanceStats;
-  wasmStatus: WasmStatus;
   regressionHealth: RegressionHealth;
 }
 
@@ -71,7 +61,6 @@ export default function TranslatorControls({
   progressInfo,
   activeTranslations,
   performanceStats,
-  wasmStatus,
   regressionHealth,
 }: TranslatorControlsProps): React.ReactElement {
   const healthColor =
@@ -145,21 +134,6 @@ export default function TranslatorControls({
           <Zap size={12} style={{ color: 'var(--warning-color)' }} aria-hidden="true" />
           {Math.round(performanceStats.avgTime)}ms
         </span>
-        {process.env.NODE_ENV === 'development' && wasmStatus.initialized && (
-          <span
-            className={styles.wasmStatus}
-            style={{
-              color: wasmStatus.fallbackMode ? 'var(--warning-color)' : 'var(--primary-color)',
-            }}
-            aria-label={
-              wasmStatus.fallbackMode
-                ? 'Using JavaScript fallback'
-                : 'Using WebAssembly acceleration'
-            }
-          >
-            {wasmStatus.fallbackMode ? 'JS' : 'WASM'}
-          </span>
-        )}
         <span className={styles.statItem} style={{ color: healthColor }}>
           <Activity size={12} aria-hidden="true" />
         </span>

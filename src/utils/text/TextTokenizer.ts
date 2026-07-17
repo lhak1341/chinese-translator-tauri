@@ -115,9 +115,7 @@ export type TextComplexity = 'simple' | 'chinese_heavy' | 'mixed' | 'latin_heavy
  * Processing strategy
  */
 export type ProcessingStrategy =
-  | 'prioritize_phrase_matching'
-  | 'balanced_processing'
-  | 'minimal_processing';
+  'prioritize_phrase_matching' | 'balanced_processing' | 'minimal_processing';
 
 /**
  * Text analysis result
@@ -419,34 +417,3 @@ export class TextTokenizer {
     return analysis;
   }
 }
-
-// Utility functions
-
-/**
- * Create a new tokenizer instance
- *
- * @returns New TextTokenizer instance
- */
-export const createTokenizer = (): TextTokenizer => new TextTokenizer();
-
-/**
- * Convert token type to human-readable string
- *
- * @param type - Token type
- * @returns Human-readable type name
- *
- * @example
- * tokenTypeToString(TokenType.CHINESE_CHAR); // "Chinese Character"
- */
-export const tokenTypeToString = (type: string): string => {
-  const typeNames: Record<string, string> = {
-    [TokenType.CHINESE_CHAR]: 'Chinese Character',
-    [TokenType.CHINESE_WORD]: 'Chinese Word',
-    [TokenType.LATIN_WORD]: 'Latin Word',
-    [TokenType.NUMBER]: 'Number',
-    [TokenType.PUNCTUATION]: 'Punctuation',
-    [TokenType.WHITESPACE]: 'Whitespace',
-    [TokenType.UNKNOWN]: 'Unknown',
-  };
-  return typeNames[type] || 'Unknown';
-};

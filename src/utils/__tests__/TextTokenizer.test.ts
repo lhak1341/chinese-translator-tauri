@@ -1,5 +1,5 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { TextTokenizer, Token, TokenType, tokenTypeToString } from '../text/TextTokenizer';
+import { TextTokenizer, Token, TokenType } from '../text/TextTokenizer';
 
 const mockInitialize = vi.fn();
 const mockTokenize = vi.fn();
@@ -231,17 +231,6 @@ describe('TextTokenizer', () => {
 
       expect(analysis.complexity).toBe('latin_heavy');
       expect(analysis.strategy).toBe('minimal_processing');
-    });
-  });
-
-  describe('tokenTypeToString', () => {
-    test('maps known types to human-readable labels', () => {
-      expect(tokenTypeToString(TokenType.CHINESE_CHAR)).toBe('Chinese Character');
-      expect(tokenTypeToString(TokenType.PUNCTUATION)).toBe('Punctuation');
-    });
-
-    test('falls back to Unknown for an unrecognized type string', () => {
-      expect(tokenTypeToString('not_a_real_type')).toBe('Unknown');
     });
   });
 });

@@ -38,3 +38,11 @@ Future architecture reviews should not re-propose absorbing `wasmStatus`/`wasmSt
 A 2026-06-20 architecture review proposed extracting the cluster into a standalone `useWasmStatus(engineRef, enginePhase, isTranslatingRef)` hook rather than absorbing it into `useTranslatorEngine`.
 
 **Rejected for the same reason.** A standalone hook still requires `isTranslatingRef` as an injected parameter — the coupling is identical regardless of which hook receives it. The hook boundary does not eliminate the two-concern dependency; it just moves where the injection happens. The ADR-019 blocker (`isTranslatingRef` coupling + dev-only display) applies equally to any standalone extraction.
+
+## Addendum — 2026-07-17d: Cluster deleted, not fixed
+
+`TranslationEngine.wasmManager` (the getter this effect polled) silently stopped pointing at a real property on 2026-06-03, when `DictionaryManager` moved WASM state behind `wasmLookup` during the `WasmDictionaryAdapter` composition change — and again in 61b4807's `DictionaryMatchLookup`/`DictionaryWasmLookup` split. The getter was never updated to follow either move, so `engineRef.current?.wasmManager` was `undefined` from 2026-06-03 onward: the polling effect's outer guard never passed, `checkWasmStatus`/`setInterval`/`setWasmStatus` never ran, and `wasmStatus` stayed frozen at its `useState` init value (`{ initialized: false, ... }`) for the effect's entire life. Because `TranslatorControls`' dev badge is gated on `wasmStatus.initialized`, it never rendered even once in that window.
+
+Given this ADR's own finding that the cluster was dev-only display with zero production impact, repairing it wasn't worth it — doing so would mean widening `WasmDictionaryAdapter`, a seam its own doc comment describes as deliberately narrow ("exposes only the 5 operations `DictionaryManager` needs"). The cluster was deleted instead: the `wasmManager` getter, the polling effect, `wasmStatus`/`wasmStatusRef` state, the `TranslatorControls` prop and badge JSX, the `.wasmStatus` CSS class, three duplicate `WasmStatus` ambient type declarations (`ComponentTypes.d.ts`, `TranslationEngineTypes.d.ts` ×2), and the now-unused `WASM_STATUS_CHECK_INTERVAL` constant.
+
+Future architecture reviews: this cluster no longer exists. Do not recreate it without a concrete need — see `CLAUDE.md`'s deleted-symbols list.

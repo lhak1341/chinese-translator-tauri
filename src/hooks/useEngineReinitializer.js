@@ -30,21 +30,23 @@ export function useEngineReinitializer(reinitialize, engineRef) {
               logger.warn('⚠️ WASM validation skipped - engine no longer available');
               return;
             }
-            if (syncStatus.status === 'PASS') {
+            if (syncStatus.status === 'PASSED') {
               logger.log('✅ WASM dictionary sync validated successfully');
             } else if (syncStatus.status === 'SKIPPED') {
               logger.log('⚠️ WASM validation skipped:', syncStatus.reason);
-            } else if (syncStatus.status === 'FAIL_DIFFERENCES') {
-              logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
-              toast.error(
-                `WASM sync failed: ${syncStatus.results.different} mismatches. Using JavaScript fallback.`,
-                { duration: TOAST_DURATIONS.CACHE_WARNING }
-              );
-            } else if (syncStatus.status === 'FAIL_ERRORS') {
-              logger.error('❌ WASM sync validation failed - errors:', syncStatus);
-              toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
-                duration: TOAST_DURATIONS.CACHE_WARNING,
-              });
+            } else if (syncStatus.status === 'FAILED') {
+              if (syncStatus.results.wasmErrors > 0 || syncStatus.results.jsErrors > 0) {
+                logger.error('❌ WASM sync validation failed - errors:', syncStatus);
+                toast.error(`WASM sync errors detected. Using JavaScript fallback.`, {
+                  duration: TOAST_DURATIONS.CACHE_WARNING,
+                });
+              } else {
+                logger.error('❌ WASM sync validation failed - differences detected:', syncStatus);
+                toast.error(
+                  `WASM sync failed: ${syncStatus.results.failed} mismatches. Using JavaScript fallback.`,
+                  { duration: TOAST_DURATIONS.CACHE_WARNING }
+                );
+              }
             }
           } catch (validationError) {
             logger.error('❌ WASM validation error:', validationError);

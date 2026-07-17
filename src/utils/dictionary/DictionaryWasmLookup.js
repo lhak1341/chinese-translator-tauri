@@ -8,7 +8,6 @@ export class DictionaryWasmLookup {
     this._initialized = false;
     this._initPromise = null;
     this._priorityByName = new Map();
-    this._stats = { wasmLookups: 0, wasmTotalTime: 0, wasmAverageTime: 0 };
     this._getEntries = getEntries ?? null;
     this._getPriorities = getPriorities ?? null;
   }
@@ -104,12 +103,10 @@ export class DictionaryWasmLookup {
   }
 
   translate(word, dictionaryOrder) {
-    const startTime = performance.now();
     for (const dictionaryName of dictionaryOrder) {
       if (!this._adapter.hasDictionary(dictionaryName)) continue;
       const matches = this._adapter.findMatches(dictionaryName, word, 0);
       if (matches && matches.length > 0) {
-        this._recordLookup(performance.now() - startTime);
         const best = matches[0];
         return {
           word,
@@ -119,7 +116,6 @@ export class DictionaryWasmLookup {
         };
       }
     }
-    this._recordLookup(performance.now() - startTime);
     return null;
   }
 
@@ -136,44 +132,12 @@ export class DictionaryWasmLookup {
     return allMatches.sort(compareMatchesBySpecificityThenPriority);
   }
 
-  _recordLookup(elapsed) {
-    this._stats.wasmLookups++;
-    this._stats.wasmTotalTime += elapsed;
-    this._stats.wasmAverageTime = this._stats.wasmTotalTime / this._stats.wasmLookups;
-  }
-
   getStatus() {
     return {
       initialized: this._initialized,
       ready: this._adapter?.isReady() ?? false,
       hasAdapter: true,
-      performanceComparison: this._getPerformanceComparison(),
     };
-  }
-
-  getPerformanceReport() {
-    return {
-      wasmEnabled: true,
-      wasmReady: this._adapter?.isReady() ?? false,
-      performanceComparison: this._getPerformanceComparison(),
-      wasmAdapterStats: this._adapter?.getTimingStats() ?? null,
-      isWasmBeneficial: this.isBeneficial(),
-    };
-  }
-
-  _getPerformanceComparison() {
-    return {
-      ...this._stats,
-      jsLookups: 0,
-      jsTotalTime: 0,
-      jsAverageTime: 0,
-      speedupRatio: 1.0,
-    };
-  }
-
-  isBeneficial() {
-    // jsAverageTime is never populated so speedupRatio stays 1.0; only check lookup count
-    return (this._adapter?.isReady() ?? false) && this._stats.wasmLookups > 10;
   }
 
   dispose() {
