@@ -227,6 +227,8 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 
 ## Testing Import Gotchas
 
+- **`vi.useFakeTimers()` does not fake `performance.now()` by default** — pass `{ toFake: ['setTimeout','clearTimeout','setInterval','clearInterval','Date','performance'] }` explicitly when testing code with `performance.now()`-based thresholds or growth-rate math.
+- **Testing a strict `elapsed > N` (not `>=`) time-window guard**: a fake-timer interval tick fires exactly at its scheduled boundary, not at "total time advanced" — offset the interval by 1ms (or advance one tick past N) so the check actually crosses the boundary, not just reaches it.
 - `AppConfiguration`: import from `src/types/ComponentTypes`, NOT `configValidation`
 - `getDictionaryLabel`/`compareDictionaryOrder`: import from `dictionaryHelpers` directly (re-export through `DuplicateAnalyzer` removed)
 - `vi.doMock` for `translation_wasm_core.js`: path resolves from the _source_ file's directory, not the test file's

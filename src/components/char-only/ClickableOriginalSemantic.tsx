@@ -25,10 +25,15 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
 
   // Use SegmentPrecomputer to create reliable segments
   const segments = useMemo(() => {
-    if (!semanticArrays || !semanticArrays.original || semanticArrays.original.length === 0) {
+    if (
+      !originalText ||
+      !semanticArrays ||
+      !semanticArrays.original ||
+      semanticArrays.original.length === 0
+    ) {
       return [];
     }
-    return precomputeOriginalSegments(originalText!, semanticArrays);
+    return precomputeOriginalSegments(originalText, semanticArrays);
   }, [originalText, semanticArrays]);
 
   // Group segments into paragraphs (separated by \n\n or lines starting with indentation)

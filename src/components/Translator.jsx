@@ -15,7 +15,7 @@ import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { batchLog } from '../utils/BatchLogger.js';
-import { scrollToHighlightedElement, findCharacterOnlyMatch } from '../utils/highlighting';
+import { scheduleHighlightScroll, findCharacterOnlyMatch } from '../utils/highlighting';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
@@ -351,37 +351,25 @@ const Translator = ({ isActive = true }) => {
         highlightBoth(segmentInfo.unitIndex);
 
         // Auto-scroll to highlighted element in original text after state update
-        // Clear previous timeout to prevent memory leak
-        if (highlightScrollTimeoutRef.current) {
-          clearTimeout(highlightScrollTimeoutRef.current);
-        }
-        // CODE REVIEW FIX: Only set timeout if component is still mounted
-        if (isMountedRef.current) {
-          highlightScrollTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              scrollToHighlightedElement(originalTextRef, segmentInfo.unitIndex);
-              highlightScrollTimeoutRef.current = null;
-            }
-          }, HIGHLIGHT_SCROLL_DELAY_MS);
-        }
+        scheduleHighlightScroll(
+          highlightScrollTimeoutRef,
+          isMountedRef,
+          [originalTextRef],
+          segmentInfo.unitIndex,
+          HIGHLIGHT_SCROLL_DELAY_MS
+        );
       } else if (segmentInfo.direction === 'original-to-translation') {
         // Clicked original text, highlight translation text
         highlightTranslation(segmentInfo.unitIndex);
 
         // Auto-scroll to highlighted element in translation text after state update
-        // Clear previous timeout to prevent memory leak
-        if (highlightScrollTimeoutRef.current) {
-          clearTimeout(highlightScrollTimeoutRef.current);
-        }
-        // CODE REVIEW FIX: Only set timeout if component is still mounted
-        if (isMountedRef.current) {
-          highlightScrollTimeoutRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              scrollToHighlightedElement(translationTextRef, segmentInfo.unitIndex);
-              highlightScrollTimeoutRef.current = null;
-            }
-          }, HIGHLIGHT_SCROLL_DELAY_MS);
-        }
+        scheduleHighlightScroll(
+          highlightScrollTimeoutRef,
+          isMountedRef,
+          [translationTextRef],
+          segmentInfo.unitIndex,
+          HIGHLIGHT_SCROLL_DELAY_MS
+        );
       } else if (segmentInfo.direction === 'character-only-to-original') {
         // Clicked character-only text, highlight original text and full translation.
         // Reverse direction of the Full Translation/Original → Character Only bridge
@@ -403,20 +391,13 @@ const Translator = ({ isActive = true }) => {
             highlightFromCharacterOnly(targetIndex);
 
             // Auto-scroll to highlighted elements
-            // Clear previous timeout to prevent memory leak
-            if (highlightScrollTimeoutRef.current) {
-              clearTimeout(highlightScrollTimeoutRef.current);
-            }
-            // CODE REVIEW FIX: Only set timeout if component is still mounted
-            if (isMountedRef.current) {
-              highlightScrollTimeoutRef.current = setTimeout(() => {
-                if (isMountedRef.current) {
-                  scrollToHighlightedElement(originalTextRef, targetIndex);
-                  scrollToHighlightedElement(translationTextRef, targetIndex);
-                  highlightScrollTimeoutRef.current = null;
-                }
-              }, HIGHLIGHT_SCROLL_DELAY_MS);
-            }
+            scheduleHighlightScroll(
+              highlightScrollTimeoutRef,
+              isMountedRef,
+              [originalTextRef, translationTextRef],
+              targetIndex,
+              HIGHLIGHT_SCROLL_DELAY_MS
+            );
           } else {
             logger.warn(
               `⚠️ No match found for character-only unit ${segmentInfo.unitIndex} in Chinese Text — clearing highlight`

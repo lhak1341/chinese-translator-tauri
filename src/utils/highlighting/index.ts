@@ -27,7 +27,7 @@ export { findCharacterOnlyMatch, MAX_MATCHES, CONTEXT_WINDOW } from './Character
 export { isUnitHighlighted } from './UnitHighlightPredicate';
 
 // --- Scroll ---
-export { scrollToHighlightedElement } from './ScrollHelpers';
+export { scrollToHighlightedElement, scheduleHighlightScroll } from './ScrollHelpers';
 
 // --- Position utilities ---
 export {

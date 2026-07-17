@@ -21,10 +21,6 @@ Uses "break on every `\n`" (inline `useMemo`). Do NOT replace with `groupSegment
 
 Empty paragraphs (from consecutive `\n` in source text) are intentionally preserved so blank lines from the original Chinese render in the Vietnamese output. The `.paragraph` CSS rule sets `min-height: 1lh` to give empty `<div>`s visible height. Do NOT add an `if (currentParagraph.length > 0)` guard around the flush — that drops blank lines and causes the linebreak-fidelity regression versus the char-only path.
 
-## `ClickableOriginalSemantic` Crashes if `semanticArrays` Is Populated but `originalText` Is Missing
-
-`precomputeOriginalSegments(originalText!, semanticArrays)` runs unconditionally in a `useMemo` gated only on `!semanticArrays.original.length` — not on `!originalText`. Passing a non-empty `semanticArrays` with `originalText` undefined throws inside `buildSegmentsFromPositions` (`Math.min(meta.originalEnd, text.length)` on `text === undefined`). Found while writing `ClickableOriginalSemantic.test.tsx` (2026-07-17c) — never hit in production because the two are always populated together from `Translator.jsx`. Out of scope for that session; fix (add `!originalText` to the early-return guard) if this combination ever becomes reachable.
-
 ## Canonical Type Homes
 
 Do not redeclare these locally:

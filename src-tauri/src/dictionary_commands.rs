@@ -656,13 +656,24 @@ pub async fn create_structural_patterns_dictionary(
     cache: State<'_, DictionaryCache>,
     dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
-    validate_dictionary_id(&dictionary_id)?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+    create_structural_patterns_dictionary_impl(&dictionary_path, &cache, &dictionary_id)
+}
+
+/// Creates an empty `patterns-*` structural patterns dictionary file at
+/// `dictionary_path/{dictionary_id}.json`. Pure filesystem function — no `AppHandle` —
+/// directly unit-testable against a temp directory.
+fn create_structural_patterns_dictionary_impl(
+    dictionary_path: &PathBuf,
+    cache: &DictionaryCache,
+    dictionary_id: &str,
+) -> Result<DictionaryResponse, String> {
+    validate_dictionary_id(dictionary_id)?;
 
     if !dictionary_id.starts_with("patterns-") {
         return Ok(DictionaryResponse::err("Dictionary ID must start with 'patterns-'"));
     }
 
-    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
     let file_path = dictionary_path.join(format!("{}.json", dictionary_id));
 
     if file_path.exists() {
@@ -672,7 +683,7 @@ pub async fn create_structural_patterns_dictionary(
     let empty_dict = serde_json::json!({});
     save_json_file(&file_path, &empty_dict)?;
 
-    cache.invalidate(Some(&dictionary_id));
+    cache.invalidate(Some(dictionary_id));
 
     Ok(DictionaryResponse::ok())
 }
@@ -684,14 +695,30 @@ pub async fn rename_structural_patterns_dictionary(
     old_dictionary_id: String,
     new_dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
-    validate_dictionary_id(&old_dictionary_id)?;
-    validate_dictionary_id(&new_dictionary_id)?;
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+    rename_structural_patterns_dictionary_impl(
+        &dictionary_path,
+        &cache,
+        &old_dictionary_id,
+        &new_dictionary_id,
+    )
+}
+
+/// Renames a `patterns-*` structural patterns dictionary file. Pure filesystem function —
+/// no `AppHandle` — directly unit-testable against a temp directory.
+fn rename_structural_patterns_dictionary_impl(
+    dictionary_path: &PathBuf,
+    cache: &DictionaryCache,
+    old_dictionary_id: &str,
+    new_dictionary_id: &str,
+) -> Result<DictionaryResponse, String> {
+    validate_dictionary_id(old_dictionary_id)?;
+    validate_dictionary_id(new_dictionary_id)?;
 
     if !old_dictionary_id.starts_with("patterns-") || !new_dictionary_id.starts_with("patterns-") {
         return Ok(DictionaryResponse::err("Both dictionary IDs must start with 'patterns-'"));
     }
 
-    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
     let old_file_path = dictionary_path.join(format!("{}.json", old_dictionary_id));
     let new_file_path = dictionary_path.join(format!("{}.json", new_dictionary_id));
 
@@ -712,7 +739,7 @@ pub async fn rename_structural_patterns_dictionary(
     fs::rename(&old_file_path, &new_file_path)
         .map_err(|e| sanitize_io_error(e, "patterns dictionary file"))?;
 
-    cache.invalidate(Some(&old_dictionary_id));
+    cache.invalidate(Some(old_dictionary_id));
 
     Ok(DictionaryResponse::ok_with_message(format!(
         "Renamed '{}' to '{}'",
@@ -2372,6 +2399,184 @@ mod tests {
         deactivate_proper_noun_file(&config_path, "properNouns-f_Test"); // must not panic
 
         assert!(!config_path.exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ── create_structural_patterns_dictionary_impl / rename_structural_patterns_dictionary_impl ──
+    // Pure filesystem functions (no AppHandle) backing the two structural-patterns commands —
+    // architecture review 2026-07-18, candidate 3.
+
+    #[test]
+    fn test_create_structural_patterns_creates_empty_file_and_invalidates_cache() {
+        let dir = temp_test_dir("create_patterns_happy_path");
+        let cache = make_cache();
+        cache.set("patterns-f_Test".to_string(), serde_json::json!({"stale": true}));
+
+        let response =
+            create_structural_patterns_dictionary_impl(&dir, &cache, "patterns-f_Test").unwrap();
+
+        assert!(response.success);
+        assert!(dir.join("patterns-f_Test.json").exists());
+        let contents = fs::read_to_string(dir.join("patterns-f_Test.json")).unwrap();
+        assert_eq!(contents.trim(), "{}");
+        assert!(cache.get("patterns-f_Test").is_none(), "create must invalidate stale cache entry");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_create_structural_patterns_rejects_wrong_prefix() {
+        let dir = temp_test_dir("create_patterns_wrong_prefix");
+        let cache = make_cache();
+
+        let response =
+            create_structural_patterns_dictionary_impl(&dir, &cache, "properNouns-f_Test").unwrap();
+
+        assert!(!response.success);
+        assert_eq!(response.error.as_deref(), Some("Dictionary ID must start with 'patterns-'"));
+        assert!(!dir.join("properNouns-f_Test.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_create_structural_patterns_rejects_path_traversal_id() {
+        let dir = temp_test_dir("create_patterns_traversal");
+        let cache = make_cache();
+
+        let result = create_structural_patterns_dictionary_impl(&dir, &cache, "patterns-../evil");
+
+        match result {
+            Err(e) => assert_eq!(e, "Invalid dictionary ID: path separators not allowed"),
+            Ok(_) => panic!("expected Err for a path-traversal dictionary ID"),
+        }
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_create_structural_patterns_rejects_when_file_already_exists() {
+        let dir = temp_test_dir("create_patterns_already_exists");
+        let cache = make_cache();
+        fs::write(dir.join("patterns-f_Test.json"), "{}").unwrap();
+
+        let response =
+            create_structural_patterns_dictionary_impl(&dir, &cache, "patterns-f_Test").unwrap();
+
+        assert!(!response.success);
+        assert_eq!(response.error.as_deref(), Some("Dictionary already exists"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_structural_patterns_renames_file_and_invalidates_old_cache() {
+        let dir = temp_test_dir("rename_patterns_happy_path");
+        let cache = make_cache();
+        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
+        cache.set("patterns-f_Old".to_string(), serde_json::json!({"stale": true}));
+
+        let response = rename_structural_patterns_dictionary_impl(
+            &dir,
+            &cache,
+            "patterns-f_Old",
+            "patterns-f_New",
+        )
+        .unwrap();
+
+        assert!(response.success);
+        assert!(!dir.join("patterns-f_Old.json").exists());
+        assert!(dir.join("patterns-f_New.json").exists());
+        assert!(cache.get("patterns-f_Old").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_structural_patterns_rejects_wrong_prefix_on_either_id() {
+        let dir = temp_test_dir("rename_patterns_wrong_prefix");
+        let cache = make_cache();
+        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
+
+        let response = rename_structural_patterns_dictionary_impl(
+            &dir,
+            &cache,
+            "patterns-f_Old",
+            "properNouns-f_New",
+        )
+        .unwrap();
+
+        assert!(!response.success);
+        assert_eq!(
+            response.error.as_deref(),
+            Some("Both dictionary IDs must start with 'patterns-'")
+        );
+        assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_structural_patterns_skips_when_old_file_missing() {
+        let dir = temp_test_dir("rename_patterns_old_missing");
+        let cache = make_cache();
+
+        let response = rename_structural_patterns_dictionary_impl(
+            &dir,
+            &cache,
+            "patterns-f_Old",
+            "patterns-f_New",
+        )
+        .unwrap();
+
+        assert!(response.success, "missing old file is a skip, not an error");
+        assert!(response.message.as_deref().unwrap().contains("not found"));
+        assert!(!dir.join("patterns-f_New.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_structural_patterns_rejects_when_new_file_already_exists() {
+        let dir = temp_test_dir("rename_patterns_new_exists");
+        let cache = make_cache();
+        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-f_New.json"), "{}").unwrap();
+
+        let response = rename_structural_patterns_dictionary_impl(
+            &dir,
+            &cache,
+            "patterns-f_Old",
+            "patterns-f_New",
+        )
+        .unwrap();
+
+        assert!(!response.success);
+        assert!(response.error.as_deref().unwrap().contains("already exists"));
+        assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_structural_patterns_rejects_invalid_new_id() {
+        let dir = temp_test_dir("rename_patterns_invalid_new_id");
+        let cache = make_cache();
+        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
+
+        let result = rename_structural_patterns_dictionary_impl(
+            &dir,
+            &cache,
+            "patterns-f_Old",
+            "patterns-../evil",
+        );
+
+        match result {
+            Err(e) => assert_eq!(e, "Invalid dictionary ID: path separators not allowed"),
+            Ok(_) => panic!("expected Err for a path-traversal dictionary ID"),
+        }
+        assert!(dir.join("patterns-f_Old.json").exists(), "no rename should occur");
 
         let _ = fs::remove_dir_all(&dir);
     }

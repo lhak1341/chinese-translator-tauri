@@ -129,6 +129,8 @@ Row-level handlers with no test id (e.g. `onContextMenu` on a row wrapper div): 
 
 Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefCallback` from `useVirtualScrollRange`): capture the node via the callback itself (`scrollRefCallback: (node) => { captured = node }`) and call `fireEvent` on it directly — do not hunt for it with a `querySelector('div[style*=...]')` CSS-string match against inline styles; brittle against style-string formatting and unrelated markup changes.
 
+**Patterns-dict source text is not a single text node** — `VirtualRowComponent` renders it through `highlightPatternVariables(source)`, which splits it into styled spans per X/Y variable. `screen.getByText(sourceString)` will fail to match; assert on the (plain-text) translation string instead.
+
 ## `DuplicateDictionaryTableView` — Duplicate Rendering Not in EVDT
 
 4-column duplicate layout lives in `DuplicateDictionaryTableView.tsx`. Pure view, no hooks. EVDT passes scroll state as props (`scrollRefCallback`, `onScroll`, `totalHeight`, `offsetY`) — `useVirtualScrollRange` stays in EVDT. When adding duplicate-mode UI, edit `DuplicateDictionaryTableView`, not EVDT.

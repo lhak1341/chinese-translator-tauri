@@ -141,4 +141,26 @@ describe('ClickableOriginalSemantic', () => {
     expect(container.textContent).toBe('你好世界');
     expect(container.querySelectorAll('[data-unit-index]')).toHaveLength(0);
   });
+
+  test('does not throw when semanticArrays is populated but originalText is undefined (architecture review 2026-07-18, candidate 6)', () => {
+    // Previously the segments useMemo guard only checked semanticArrays.original.length,
+    // not originalText — precomputeOriginalSegments(originalText!, ...) would throw inside
+    // buildSegmentsFromPositions on the undefined text. Type-permitted (originalText? is
+    // optional) but unreachable via the real caller (TranslatorDisplayPanels.tsx always
+    // passes inputText, a guaranteed string) — this test exercises the gap directly.
+    expect(() =>
+      render(
+        <ClickableOriginalSemantic semanticArrays={makeSemanticArrays()} onSegmentClick={vi.fn()} />
+      )
+    ).not.toThrow();
+  });
+
+  test('renders the placeholder when originalText is undefined even with populated semanticArrays', () => {
+    const { container } = render(
+      <ClickableOriginalSemantic semanticArrays={makeSemanticArrays()} onSegmentClick={vi.fn()} />
+    );
+
+    expect(container.textContent).toBe('Chinese text');
+    expect(container.querySelectorAll('[data-unit-index]')).toHaveLength(0);
+  });
 });
