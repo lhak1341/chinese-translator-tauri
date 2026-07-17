@@ -2827,7 +2827,7 @@ export class TranslationEngine {
     });
 
     // Apply the optimal matches (same logic as sequential version)
-    const optimalMatches = this.resolvePhrasePriorityConflicts(allPotentialMatches);
+    const optimalMatches = this.resolveGlobalConflicts(allPotentialMatches, []);
 
     for (const match of optimalMatches) {
       const { startIndex: tokenIndex, tokenSpan } = match;
@@ -2863,16 +2863,6 @@ export class TranslationEngine {
         `🎯 Remaining phrase: "${match.match.word}" -> "${match.match.translation}"`
       );
     }
-  }
-
-  /**
-   * Resolve phrase priority conflicts using global conflict resolution
-   * @param {Array} potentialMatches - All potential phrase matches
-   * @returns {Array} Non-overlapping optimal matches
-   */
-  resolvePhrasePriorityConflicts(potentialMatches) {
-    // Use the existing global conflict resolution method
-    return this.resolveGlobalConflicts(potentialMatches, []);
   }
 
   /**

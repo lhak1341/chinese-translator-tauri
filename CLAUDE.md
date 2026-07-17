@@ -153,7 +153,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Dead-code cleanup with fallow:** Has multiple blind spots (dynamic imports, CSS `composes`, class vs singleton, test-only). See [Fallow Protocol](docs/guides/development.md#fallow-dead-code-analysis) before deleting anything.
 
-**Explore subagent verification:** Explore subagents fabricate specific technical details (method names, usage counts, file paths). Always verify any specific claim with a direct `Grep` or `Read` before acting on it — especially before deleting or refactoring based on "unused" or "nonexistent" reports.
+**Explore subagent verification:** Explore subagents fabricate specific technical details (method names, usage counts, file paths). Always verify any specific claim with a direct `Grep` or `Read` before acting on it — especially before deleting or refactoring based on "unused" or "nonexistent" reports. This includes claims baked into a saved architecture-review HTML report from a prior run, not just live subagent replies — a report card naming the wrong file or citing a nonexistent test still needs re-verification before you build on it.
 
 📖 [Architecture](docs/guides/architecture.md) · [Development](docs/guides/development.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Hotkeys](docs/HOTKEYS.md) · [ADRs](docs/adr/)
 
