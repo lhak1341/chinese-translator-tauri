@@ -127,6 +127,8 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 Row-level handlers with no test id (e.g. `onContextMenu` on a row wrapper div): `fireEvent.contextMenu(someDescendantText)` still bubbles up to trigger it — avoids brittle `.closest()`/`.parentElement` DOM traversal to find the row wrapper.
 
+Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefCallback` from `useVirtualScrollRange`): capture the node via the callback itself (`scrollRefCallback: (node) => { captured = node }`) and call `fireEvent` on it directly — do not hunt for it with a `querySelector('div[style*=...]')` CSS-string match against inline styles; brittle against style-string formatting and unrelated markup changes.
+
 ## `DuplicateDictionaryTableView` — Duplicate Rendering Not in EVDT
 
 4-column duplicate layout lives in `DuplicateDictionaryTableView.tsx`. Pure view, no hooks. EVDT passes scroll state as props (`scrollRefCallback`, `onScroll`, `totalHeight`, `offsetY`) — `useVirtualScrollRange` stays in EVDT. When adding duplicate-mode UI, edit `DuplicateDictionaryTableView`, not EVDT.

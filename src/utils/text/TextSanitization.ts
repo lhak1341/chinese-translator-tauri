@@ -32,17 +32,23 @@ function sanitizeForJson(text: string): string {
     return '';
   }
 
-  // Single pass: removes null bytes, unpaired surrogates, and control characters
-  // (except \n=0A, \r=0D, \t=09) in one regex scan
-  return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\uD800-\uDFFF]/g, '');
+  // Single pass: removes null bytes, control characters (except \n=0A, \r=0D, \t=09),
+  // and UNPAIRED surrogates only. A lone \uD800-\uDBFF/\uDC00-\uDFFF character class match
+  // (no pairing check) would also strip valid surrogate pairs — e.g. emoji and other
+  // astral-plane chars (U+10000+) are two code units in a JS string, and stripping both
+  // unconditionally silently deletes them. The lookahead/lookbehind below only match a
+  // high surrogate NOT followed by a low one, or a low surrogate NOT preceded by a high one.
+  return text.replace(
+    /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    ''
+  );
 }
 
 /**
  * Sanitize dictionary entry (source and translation pair)
  *
- * Applies JSON sanitization and additional cleanup:
- * - Trims leading/trailing whitespace
- * - Normalizes internal whitespace (preserves single spaces/newlines)
+ * Applies JSON sanitization and trims leading/trailing whitespace.
+ * Does not touch internal whitespace — internal spaces/newlines pass through unchanged.
  *
  * @param source - Dictionary source text
  * @param translation - Dictionary translation text

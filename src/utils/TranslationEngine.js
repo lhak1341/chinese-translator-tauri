@@ -8753,7 +8753,6 @@ export class TranslationEngine {
    * await engine.invalidateAllCaches(); // Ensure next translation uses new entry
    *
    * @see DictionaryManager.clearCaches - Clears dictionary lookup caches
-   * @see RustLookupIndexManager.invalidateCache - Clears Rust index cache
    * @see destroy - Alternative for complete cleanup (also destroys engine)
    *
    * @performance
@@ -8797,40 +8796,17 @@ export class TranslationEngine {
         this.semanticPatternProcessor.variableCache.clear();
       }
 
-      // 4. Rust Lookup Index Manager (dynamically loaded)
-      try {
-        const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
-        if (
-          rustLookupIndexManager &&
-          typeof rustLookupIndexManager.invalidateCache === 'function'
-        ) {
-          rustLookupIndexManager.invalidateCache();
-          this.log(DEBUG_LEVELS.DEBUG, '✅ Rust lookup index cache invalidated');
-        }
-      } catch (error) {
-        // Distinguish between "not available" (expected) and "failed to load" (unexpected)
-        if (error.code === 'MODULE_NOT_FOUND') {
-          this.log(DEBUG_LEVELS.DEBUG, 'Rust lookup index not available (expected if not used)');
-        } else {
-          this.log(
-            DEBUG_LEVELS.WARN,
-            `⚠️ Failed to invalidate Rust lookup index cache: ${error.message}`
-          );
-          logger.warn('Cache invalidation incomplete - Rust index failed to load:', error);
-        }
-      }
-
-      // 5. Translation Segments (for highlighting)
+      // 4. Translation Segments (for highlighting)
       if (this.translationSegments) {
         this.translationSegments = [];
       }
 
-      // 6. Proper Noun Translation Cache (bounded collection)
+      // 5. Proper Noun Translation Cache (bounded collection)
       if (this.properNounTranslations) {
         this.properNounTranslations.clear();
       }
 
-      // 7. WASM Dictionary Trie (Phase 5 character lookups)
+      // 6. WASM Dictionary Trie (Phase 5 character lookups)
       if (this.wasmCharacterTrie) {
         try {
           this.wasmCharacterTrie.clear();

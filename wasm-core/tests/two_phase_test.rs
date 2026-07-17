@@ -1039,3 +1039,96 @@ fn test_longer_pattern_beats_shorter_phase_a() {
     assert_eq!(results[0].original_text, "他的手腕上", "Expected longer pattern to win");
     assert_eq!(results[0].translation, "trên cổ tay hắn");
 }
+
+/// Regression test: `select_non_overlapping_phase_a`'s composite-coverage bonus must let a
+/// SHORTER Phase A candidate beat a longer one when the shorter one lets Phase B form a
+/// longer overall composite. Own-char-count alone would pick the wrong candidate here.
+///
+/// Mirrors the worked example in two_phase.rs's `select_non_overlapping_phase_a` doc comment.
+///
+/// Input: 这(0) 只(1) 刍(2) 吾(3) 的(4) 速(5) 度(6)
+///   - "刍吾的速度" (tokens 2-6, 5 chars, own) — literal Phase A phrase, type "concept".
+///     No Phase B pattern accepts a "concept"-typed X here → bonus 0 → score 5.
+///   - "这只刍吾" (tokens 0-3, 4 chars, own) — Phase A "这只X", X="刍吾" resolves to
+///     "character" via variable_cache. Phase B "X的速度" accepts "character"-typed X and its
+///     trailing literal "的速度" (3 chars) immediately follows → bonus 3 → score 7.
+/// 7 > 5: "这只刍吾" must win the overlap, letting Phase B compose the full 7-char result.
+#[test]
+fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
+    let mut literal_type = HashMap::new();
+    literal_type.insert("X".to_string(), vec!["character".to_string()]);
+
+    // Literal Phase A phrase — no variable — type "concept". Only eligible as a candidate
+    // in its own right; contributes nothing to any pattern's composite bonus (no "X" token).
+    let pattern_literal = parse_pattern(
+        "刍吾的速度".to_string(),
+        "tốc độ của sinh vật".to_string(),
+        None,
+        true, // allowAsPatternVariable
+        false,
+        Some("concept".to_string()),
+    );
+
+    // Phase A wrapper — X restricted to "character" so it never contends with the
+    // literal "concept"-typed candidate above.
+    let pattern_wrapper = parse_pattern(
+        "这只X".to_string(),
+        "con X này".to_string(),
+        Some(literal_type.clone()),
+        true, // allowAsPatternVariable
+        false,
+        Some("$X".to_string()),
+    );
+
+    // Phase B-only pattern — the composite bonus source. X restricted to "character" so
+    // the "concept"-typed literal candidate is type-gated out of its bonus.
+    let pattern_phase_b = parse_pattern(
+        "X的速度".to_string(),
+        "tốc độ của X".to_string(),
+        Some(literal_type),
+        false, // NOT allowAsPatternVariable — Phase B only
+        false,
+        None,
+    );
+
+    let mut tokens = vec![
+        create_token("这", 0),
+        create_token("只", 1),
+        create_token("刍", 2),
+        create_token("吾", 3),
+        create_token("的", 4),
+        create_token("速", 5),
+        create_token("度", 6),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "刍吾".to_string(),
+        VariableCacheEntry {
+            translation: "sinh vật".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+
+    let processor = TwoPhasePatternProcessor::new(vec![pattern_literal, pattern_wrapper, pattern_phase_b]);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Expected 1 hierarchical composite. Got {} result(s): {:?}",
+        results.len(),
+        results.iter().map(|r| format!("[{}-{}] {} \"{}\"", r.start_index, r.end_index, r.source, r.translation)).collect::<Vec<_>>()
+    );
+
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 6);
+
+    // The decisive assertion: the composite bonus must have picked "这只刍吾" (own 4 + bonus 3
+    // = 7) over "刍吾的速度" (own 5 + bonus 0 = 5). Own-char-count alone would pick the latter.
+    let phase_a_component = results[0].phase_a.as_ref().unwrap();
+    assert_eq!(phase_a_component.original_text, "这只刍吾");
+    assert_eq!(phase_a_component.translation, "con sinh vật này");
+}

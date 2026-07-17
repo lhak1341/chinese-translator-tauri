@@ -41,6 +41,11 @@ Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or d
 **Debugging:** if Phase A picks the wrong candidate, check whether the losing candidate's semantic type
 passes `allowedVariableTypes` of the intended wrapping Phase B pattern — that's what the bonus check gates on.
 
+**Test coverage:** `test_phase_a_composite_bonus_wins_over_larger_own_span` (`tests/two_phase_test.rs`) covers the
+trailing-bonus path (`estimate_trailing_bonus`) — literal chars after the candidate. The mirror-image leading-bonus
+path (`estimate_leading_bonus` — literal chars before the candidate) has zero test coverage, direct or indirect.
+Verify it by hand before trusting a leading-bonus-dependent fix.
+
 ## Phase B Protection Blocks Shorter-or-Equal Matches
 
 `matcher.rs:603-615`: a Phase B match spanning Phase A protected tokens is rejected if
