@@ -602,14 +602,7 @@ export class PerformanceBaselineTracker {
 
     // Show quick recommendations
     logger.log(`💡 Likely causes:`);
-    if (operationType === 'semantic_translation_cache') {
-      logger.log(`   • Cache entries growing beyond 1000 limit`);
-      logger.log(`   • Similarity cache not being cleaned properly`);
-      logger.log(`   • Memory per entry has increased`);
-    } else if (operationType === 'position_cache') {
-      logger.log(`   • Position mappings accumulating`);
-      logger.log(`   • Large text processing increasing cache size`);
-    } else if (operationType === 'translation_engine') {
+    if (operationType === 'translation_engine') {
       logger.log(`   • Translation segment array not being cleaned`);
       logger.log(`   • Token arrays growing unbounded`);
     }

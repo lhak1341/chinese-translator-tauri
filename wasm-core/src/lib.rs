@@ -35,8 +35,6 @@ pub mod position_mapper;
 pub mod string_processor;
 pub mod regex_utils;
 pub mod text_assembly;
-pub mod wasm_boundary;
-pub mod memory_management;
 pub mod text_chunker;
 pub mod conflict_resolution;
 
@@ -51,7 +49,6 @@ pub use position_mapper::PositionMapper;
 pub use string_processor::StringProcessor;
 pub use regex_utils::RegexUtils;
 pub use text_assembly::TextAssembler;
-pub use wasm_boundary::BoundaryOptimizer;
 pub use text_chunker::TextChunker;
 
 use wasm_bindgen::prelude::*;

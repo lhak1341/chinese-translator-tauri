@@ -43,64 +43,11 @@ export function installDevConsole(engine) {
     checkCachePerformance: () => {
       try {
         const healthReport = systemPerformanceMonitor.getSystemHealthReport();
-        const positionCache = healthReport.systemMetrics?.integrations?.positionCache;
-        const semanticCache = healthReport.systemMetrics?.integrations?.semanticTranslationCache;
         const wasmMemoryPool = healthReport.systemMetrics?.integrations?.wasmMemoryPool;
 
-        const positionCacheBaseline = healthReport.baselines?.find(
-          (b) => b.operationType === 'position_cache'
-        );
-        const semanticCacheBaseline = healthReport.baselines?.find(
-          (b) => b.operationType === 'semantic_translation_cache'
-        );
         const wasmMemoryPoolBaseline = healthReport.baselines?.find(
           (b) => b.operationType === 'wasm_memory_pool'
         );
-
-        if (positionCache) {
-          logger.log('📊 Position Cache Performance:');
-          logger.log(`   Hit Rate: ${positionCache.hitRate}%`);
-          logger.log(`   Total Hits: ${positionCache.totalHits || 0}`);
-          logger.log(`   Estimated Time Saved: ${positionCache.estimatedTimeSaved || 0}ms`);
-
-          if (positionCache.hitRate < 70) {
-            logger.log('\n💡 Position Cache Suggestions:');
-            logger.log('   - Lower similarity threshold from 85% to 80%');
-            logger.log('   - Increase cache size from 500 to 750 entries');
-            logger.log('   - Check if content varies significantly between translations');
-          }
-        }
-
-        if (semanticCache || semanticCacheBaseline) {
-          logger.log('\n🔍 Semantic Translation Cache Performance:');
-
-          if (semanticCache) {
-            logger.log(`   Hit Rate: ${semanticCache.hitRate}%`);
-            logger.log(`   Exact Hits: ${semanticCache.exactHits || 0}`);
-            logger.log(`   Semantic Hits: ${semanticCache.semanticHits || 0}`);
-            logger.log(`   Cache Size: ${semanticCache.cacheSize || 0} entries`);
-            logger.log(`   Estimated Time Saved: ${semanticCache.estimatedTimeSaved || 0}ms`);
-          } else if (semanticCacheBaseline) {
-            logger.log(
-              `   Baseline Hit Rate: ${(semanticCacheBaseline.avgCacheHitRate * 100).toFixed(1)}%`
-            );
-            logger.log(`   Sample Count: ${semanticCacheBaseline.sampleCount}`);
-            logger.log(
-              `   Last Update: ${new Date(semanticCacheBaseline.lastUpdate).toLocaleTimeString()}`
-            );
-          }
-
-          const hitRate =
-            semanticCache?.hitRate || semanticCacheBaseline?.avgCacheHitRate * 100 || 0;
-          if (hitRate < 60) {
-            logger.log('\n💡 Semantic Cache Suggestions:');
-            logger.log('   - Lower similarity threshold from 80% to 75%');
-            logger.log('   - Increase cache size from 1000 to 1500 entries');
-            logger.log('   - Check semantic matching effectiveness in debug logs');
-          } else if (hitRate > 0) {
-            logger.log('\n✅ Semantic cache performing well!');
-          }
-        }
 
         if (wasmMemoryPool || wasmMemoryPoolBaseline) {
           logger.log('\n🧠 WASM Memory Pool Performance:');
@@ -151,7 +98,7 @@ export function installDevConsole(engine) {
           }
         }
 
-        if (!positionCache && !semanticCache && !wasmMemoryPool) {
+        if (!wasmMemoryPool) {
           logger.log('⚠️ Cache and memory pool metrics not available');
         }
       } catch (error) {

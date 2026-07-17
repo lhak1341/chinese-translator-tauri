@@ -8,7 +8,7 @@ import { applyAppearanceToCssVars } from './utils/ui/AppearanceReducer';
 import { DEFAULT_APPEARANCE } from './hooks/useAppearanceSettings';
 // NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
 // Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
-// rustLookupIndexManager, wasmMemoryPoolManager, contentAwarePositionCache)
+// rustLookupIndexManager, wasmMemoryPoolManager)
 // live for the app lifetime. Calling their cleanup() on App unmount races
 // with module-load IIFE auto-init under React 18 StrictMode dev double-mount,
 // and provides no benefit (App is the root component and never unmounts in

@@ -20,7 +20,6 @@ regex = "1.11"             # For pattern processing
 unicode-normalization = "0.1" # For NFC text normalization
 unicode-properties = "0.1"    # For Unicode General Category detection
 lazy_static = "1.5"        # For static regex compilation
-bincode = "1.3"            # Binary serialization for WASM boundary
 web-time = "1.1"           # For WASM-compatible time measurements
 
 [dependencies.web-sys]

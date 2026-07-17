@@ -3,17 +3,10 @@
  *
  * Primary entry points:
  *   - LRUCache                    — generic least-recently-used cache
- *   - ContentAwarePositionCache   — position cache keyed by content hash
  *   - PrecomputedTrieCache        — disk-backed trie serialization helpers
  */
 
 export { LRUCache } from './LRUCache';
-
-export type {
-  ContentAwarePositionCacheOptions,
-  ContentSignature,
-} from './ContentAwarePositionCache';
-export { ContentAwarePositionCache, contentAwarePositionCache } from './ContentAwarePositionCache';
 
 export {
   deserializeTrie,

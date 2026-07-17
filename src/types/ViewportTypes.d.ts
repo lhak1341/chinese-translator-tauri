@@ -4,7 +4,6 @@
  * Type definitions for viewport optimization and position mapping systems:
  * - ViewportSegmentComputer: Basic viewport-based segment computation (50ms vs 6800ms)
  * - ViewportSegmentComputerEnhanced: Web Worker acceleration (~20ms with workers)
- * - ContentAwarePositionCache: Content-aware caching for position mappings
  *
  * Performance Impact: 98.5% faster initial rendering through viewport optimization
  *
@@ -338,18 +337,6 @@ export interface AccelerationConfiguration {
   strictValidation: boolean;
 }
 
-/**
- * ContentAwarePositionCache options
- */
-export interface ContentAwarePositionCacheOptions {
-  /** Maximum cache size */
-  maxCacheSize?: number;
-  /** Maximum cache entry age (ms) */
-  maxCacheAge?: number;
-  /** Similarity threshold for matching (0-1) */
-  similarityThreshold?: number;
-}
-
 // =============================================================================
 // Strategy Selection Types
 // =============================================================================
@@ -607,39 +594,6 @@ export interface AcceleratedPositionMapperInterface {
     textLength: number,
     viewportSize: number
   ): Promise<void>;
-}
-
-/**
- * ContentAwarePositionCache class interface
- */
-export interface ContentAwarePositionCacheInterface {
-  /** Cache version */
-  cacheVersion: number;
-  /** Maximum cache size */
-  maxCacheSize: number;
-  /** Maximum cache age (ms) */
-  maxCacheAge: number;
-  /** Similarity threshold */
-  similarityThreshold: number;
-  /** Cache statistics */
-  stats: ContentAwareCacheStats;
-
-  /** Get cached position mapping */
-  get(text: string): TextPositionMapping | null;
-  /** Store position mapping in cache */
-  set(text: string, positionMapping: TextPositionMapping, computeTime: number): void;
-  /** Check if cache entry is valid */
-  isValidCacheEntry(entry: PositionMappingCacheEntry): boolean;
-  /** Generate content hash */
-  generateContentHash(text: string): string;
-  /** Generate content signature */
-  generateContentSignature(text: string): ContentSignature;
-  /** Calculate similarity between signatures */
-  calculateSimilarity(sig1: ContentSignature, sig2: ContentSignature): number;
-  /** Get cache statistics */
-  getStats(): ContentAwareCacheStats;
-  /** Clear all caches */
-  clear(): void;
 }
 
 // Export empty object to make this a module

@@ -70,3 +70,11 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 ## `number_processor.rs` Is Rust Spec Only — No WASM Export
 
 `#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (155 tests validate parity). Do NOT add `#[wasm_bindgen]` back.
+
+## Checking Module Liveness Before a Deep Call-Site Grep
+
+`lib.rs`'s header comment (`// ✅ ACTIVE SYSTEMS`) lists only the modules considered live (NumberProcessor, DictionaryEngine, PositionMapper as of 2026-07). A `pub mod` not listed there, with no `wasm-core/CLAUDE.md` note explaining deliberate retention (like `number_processor.rs`'s "spec only" note above), is a strong signal of abandoned work — check this before a full grep sweep for callers. Confirmed true both times in the 2026-07-17b review: `memory_management.rs` and `wasm_boundary.rs` were absent from the list and both were dead.
+
+## Deleting a Module — Check Cargo.toml Too
+
+Before finishing a `pub mod` deletion, grep the crate for any dependency only that module used (e.g. `bincode` was `wasm_boundary.rs`'s sole consumer, removed alongside it) and drop it from `Cargo.toml` — an unused compiled dependency is the same shallow-surface problem as the dead code itself.

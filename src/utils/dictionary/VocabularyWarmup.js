@@ -89,8 +89,8 @@ export async function warmNovelSpecificVocabulary(
   let properNounsWarmed = 0;
   let phrasesWarmed = 0;
 
-  const maxCharacters = limits.maxCharacters || 50;
-  const maxPhrases = limits.maxPhrases || 30;
+  const maxCharacters = limits.maxCharacters ?? 50;
+  const maxPhrases = limits.maxPhrases ?? 30;
 
   for (const dictionaryName of activeProperNouns) {
     try {

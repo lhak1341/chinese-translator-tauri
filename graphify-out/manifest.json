@@ -79,19 +79,9 @@
     "ast_hash": "ce963de23cc1410b4ca7328ce84d7889",
     "semantic_hash": ""
   },
-  "wasm-core/src/wasm_boundary.rs": {
-    "mtime": 1774109179.6467972,
-    "ast_hash": "471f150429c47e97328d1995ec4d5d39",
-    "semantic_hash": ""
-  },
   "wasm-core/src/lib.rs": {
     "mtime": 1780132654.8583674,
     "ast_hash": "49734ab845b2ca50966ba51e2211bf50",
-    "semantic_hash": ""
-  },
-  "wasm-core/src/memory_management.rs": {
-    "mtime": 1774109249.1327596,
-    "ast_hash": "2ca250c299cb93493496ed39a1c59991",
     "semantic_hash": ""
   },
   "wasm-core/src/position_mapper.rs": {
@@ -937,11 +927,6 @@
   "src/utils/caching/PrecomputedTrieCache.js": {
     "mtime": 1779847601.5358047,
     "ast_hash": "47e98c118731396ed8b2e8b532a0ddc2",
-    "semantic_hash": ""
-  },
-  "src/utils/caching/ContentAwarePositionCache.ts": {
-    "mtime": 1777745322.728703,
-    "ast_hash": "2013f1bea5407c14944521a58bb792fa",
     "semantic_hash": ""
   },
   "src/utils/caching/index.ts": {

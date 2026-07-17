@@ -1,6 +1,5 @@
 import { logger } from '../logger';
 import { globalPerformanceMonitor } from './PerformanceMonitor.js';
-import { contentAwarePositionCache } from '../caching/ContentAwarePositionCache.js';
 import { adaptiveBufferCalculator } from '../ui/AdaptiveVirtualScrolling.js';
 import { wasmMemoryPoolManager } from '../wasm/WasmMemoryPoolManager.js';
 import { PerformanceBaselineTracker } from './PerformanceBaselineTracker.js';
@@ -31,16 +30,7 @@ export class SystemPerformanceMonitor {
       });
     }
 
-    // Integration 2: Content-Aware Position Cache
-    if (contentAwarePositionCache) {
-      this.integrations.set('positionCache', {
-        name: 'Position Mapping Cache',
-        collectMetrics: () => contentAwarePositionCache.getStats(),
-        isActive: true,
-      });
-    }
-
-    // Integration 3: Adaptive Virtual Scrolling
+    // Integration 2: Adaptive Virtual Scrolling
     if (adaptiveBufferCalculator) {
       this.integrations.set('virtualScrolling', {
         name: 'Virtual Scrolling Buffer',
@@ -49,7 +39,7 @@ export class SystemPerformanceMonitor {
       });
     }
 
-    // Integration 4: WASM Memory Pool Manager
+    // Integration 3: WASM Memory Pool Manager
     if (wasmMemoryPoolManager) {
       this.integrations.set('wasmMemoryPool', {
         name: 'WASM Memory Pool',
@@ -106,18 +96,6 @@ export class SystemPerformanceMonitor {
       });
     }
 
-    // Record cache performance metrics
-    if (systemMetrics.integrations.positionCache) {
-      const cache = systemMetrics.integrations.positionCache;
-      this.baselineTracker.recordPerformance('position_cache', {
-        duration: 0, // Cache lookups are very fast
-        cacheHitRate: cache.hitRate / 100, // Convert percentage to decimal
-        memoryUsed: systemMetrics.memory.used,
-        totalHits: cache.totalHits || 0,
-        estimatedTimeSaved: cache.estimatedTimeSaved || 0,
-      });
-    }
-
     // Record virtual scrolling performance metrics
     if (systemMetrics.integrations.virtualScrolling) {
       const vs = systemMetrics.integrations.virtualScrolling;
@@ -129,19 +107,6 @@ export class SystemPerformanceMonitor {
           averageScrollVelocity: vs.averageScrollVelocity || 0,
         });
       }
-    }
-
-    // Record semantic translation cache performance metrics
-    if (systemMetrics.integrations.semanticTranslationCache) {
-      const stc = systemMetrics.integrations.semanticTranslationCache;
-      this.baselineTracker.recordPerformance('semantic_translation_cache', {
-        duration: 0, // Cache lookups are very fast
-        cacheHitRate: stc.hitRate / 100, // Convert percentage to decimal
-        memoryUsed: systemMetrics.memory.used,
-        exactHits: stc.exactHits || 0,
-        semanticHits: stc.semanticHits || 0,
-        estimatedTimeSaved: stc.estimatedTimeSaved || 0,
-      });
     }
 
     // Record WASM memory pool performance metrics
@@ -327,20 +292,6 @@ export class SystemPerformanceMonitor {
       });
     }
 
-    // Cache optimization recommendations
-    const positionCacheBaseline = health.baselines.find(
-      (b) => b.operationType === 'position_cache'
-    );
-    if (positionCacheBaseline && positionCacheBaseline.avgCacheHitRate < 0.7) {
-      recommendations.push({
-        level: 'info',
-        type: 'optimization',
-        message:
-          'Position cache hit rate could be improved. Consider adjusting cache size or similarity thresholds.',
-        action: 'optimize_cache',
-      });
-    }
-
     return recommendations;
   }
 
@@ -378,24 +329,6 @@ export class SystemPerformanceMonitor {
               }
             }
           });
-        }
-
-        // Add specific cache size information
-        if (operationType === 'semantic_translation_cache') {
-          logger.log(`🧠 Semantic Cache Details:`);
-          if (currentMetrics.cacheSize)
-            logger.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
-          if (currentMetrics.similarityCacheSize)
-            logger.log(`   Similarity Cache: ${currentMetrics.similarityCacheSize} entries`);
-          if (currentMetrics.hitRate) logger.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
-        }
-
-        if (operationType === 'position_cache') {
-          logger.log(`📍 Position Cache Details:`);
-          if (currentMetrics.totalHits) logger.log(`   Total Hits: ${currentMetrics.totalHits}`);
-          if (currentMetrics.hitRate) logger.log(`   Hit Rate: ${currentMetrics.hitRate}%`);
-          if (currentMetrics.cacheSize)
-            logger.log(`   Cache Size: ${currentMetrics.cacheSize} entries`);
         }
       }
 
