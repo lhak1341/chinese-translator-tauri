@@ -114,11 +114,6 @@
     "ast_hash": "4058e3d7a63f7a65326f8d2eac981b9a",
     "semantic_hash": ""
   },
-  "wasm-core/src/regex_utils.rs": {
-    "mtime": 1771118539.1691248,
-    "ast_hash": "3974930f4472b5c5e527b4b34ef71b93",
-    "semantic_hash": ""
-  },
   "wasm-core/src/number_processor.rs": {
     "mtime": 1781948433.7785428,
     "ast_hash": "a4ceaad31ada27d3f9cc23f51cb2152a",
@@ -627,11 +622,6 @@
   "src/utils/wasm/WasmConflictResolution.js": {
     "mtime": 1780109311.8700888,
     "ast_hash": "713183717c12eebe0897bfae79caeba9",
-    "semantic_hash": ""
-  },
-  "src/utils/wasm/WasmRegexUtils.js": {
-    "mtime": 1777802763.1605656,
-    "ast_hash": "2e415148b6dc69a33b6c154316b0a164",
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmBoundaryValidation.ts": {

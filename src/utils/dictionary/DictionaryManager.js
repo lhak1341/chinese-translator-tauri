@@ -35,7 +35,7 @@
 
 import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
-import { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader.js';
+import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
 import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
 import { DictionaryTrie } from './DictionaryTrie.js';
 import { isDictionaryCategory } from './LookupIndexUtils.js';
@@ -666,14 +666,6 @@ export class DictionaryManager {
    */
   clearCache() {
     this.cache.clear();
-  }
-
-  /**
-   * Get precomputed trie cache statistics
-   * @returns {Object} Precomputed cache performance statistics
-   */
-  getPrecomputedCacheStats() {
-    return getCacheStats();
   }
 
   /**

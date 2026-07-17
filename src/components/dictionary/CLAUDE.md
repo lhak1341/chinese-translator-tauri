@@ -83,6 +83,10 @@ Use `toPatternsId(properNounsId)`/`toProperNounsId(patternsId)` (same file) for 
 
 **No raw setters escape the hook.** Modal close handlers use `closeEdit()` / `closeMove()` (clear one state field each). `reset()` clears both atomically and is used on dict switch only. Do NOT destructure `setEditingEntry` or `setMoveEntry` — they are not in the return type.
 
+## `useMoveTargetDictionaries` Hook — Move-Target List Not Duplicated
+
+`availableDictionaries`/`sourceLabel` for `BulkMoveDialog.tsx` and `MoveEntryDialog.tsx` live in `src/hooks/useMoveTargetDictionaries.ts`. Do NOT hand-roll dictionary-list-loading or dropdown-label logic in a new move/bulk-move-style dialog — call the hook, pass your own `setError` as the `onError` callback. `sourceLabel` is a sync derived value (`getDictionaryDropdownLabel(currentDictionaryId)`), not tied to the async list-load — stays correct even if the load fails.
+
 ## `useEntrySelection` Hook — Selection State Not in EVDT
 
 `showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT. Hook takes `withScrollPreservation` + `getScrollTop` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` in its interface. `getScrollTop()` used by the duplicate-mode bulk-delete to capture position before async refresh.

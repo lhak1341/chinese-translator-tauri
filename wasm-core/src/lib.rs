@@ -32,7 +32,6 @@ pub mod pattern_processor;
 pub mod text_tokenizer;
 pub mod position_mapper;
 pub mod string_processor;
-pub mod regex_utils;
 pub mod text_assembly;
 pub mod text_chunker;
 pub mod conflict_resolution;
@@ -45,7 +44,6 @@ pub use pattern_processor::wasm_wrapper::WasmPatternProcessor;
 pub use text_tokenizer::{tokenize_text, get_tokenizer_stats};
 pub use position_mapper::PositionMapper;
 pub use string_processor::StringProcessor;
-pub use regex_utils::RegexUtils;
 pub use text_assembly::TextAssembler;
 pub use text_chunker::TextChunker;
 

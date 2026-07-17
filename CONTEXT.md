@@ -132,6 +132,14 @@ Single caller: `TranslationEngine` (`this.profiler = new TranslationProfiler()`)
 
 Entry point: `src/utils/performance/TranslationProfiler.js`.
 
+## Pattern Profiling (TwoPhasePatternProcessor)
+
+Per-operation profiler internal to `TwoPhasePatternProcessor` — tracks wall-clock time/call-count for `extractSemanticTokens`, `buildVariableCache`, `processTokensWasm` (the 3 sub-steps of `processTokens()`). Interface: `enableInternalProfiling()`, `disableInternalProfiling()`, `resetInternalProfiling()`, `getInternalProfilingReport()`, `printInternalProfilingReport()`. Dev/debug tool — used to identify which sub-step of pattern matching dominates cost. Disabled by default (`enabled = false`), zero overhead when off.
+
+Accessed via `TranslationEngine` delegators: `enablePatternProfiling()`, `disablePatternProfiling()`, `resetPatternProfiling()`, `getPatternProfilingReport()`, `printPatternProfilingReport()`. Not a production monitoring path. See ADR-021 addendum (2026-07-18) — same protected-dev-tool reasoning as `TranslationProfiler`, decided kept.
+
+Entry point: `src/utils/pattern/TwoPhasePatternProcessor.js`.
+
 ## PerformanceHealth
 
 Unified gateway for performance monitoring concerns — the single import callers need for both writing timing data and reading health status.

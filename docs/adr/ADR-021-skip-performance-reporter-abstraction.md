@@ -40,3 +40,11 @@ The wide method count is not friction; it is the correct shape for an inspection
 ## If App Callers Are Added
 
 If a performance dashboard component is built that calls multiple TE perf methods, revisit. The extraction becomes justified when there are ≥2 app callers that share the same multi-method call pattern — at that point a `PerformanceReporter` removes duplication rather than adding indirection.
+
+## Addendum — 2026-07-18: Extends to `TwoPhasePatternProcessor`'s pattern-profiling cluster
+
+A 2026-07-18 architecture review surfaced a structurally identical, previously-undocumented cluster: `TwoPhasePatternProcessor`'s `enableInternalProfiling()` / `disableInternalProfiling()` / `resetInternalProfiling()` / `getInternalProfilingReport()` / `printInternalProfilingReport()`, plus `TranslationEngine`'s 5 matching delegators (`enablePatternProfiling()`, `disablePatternProfiling()`, `resetPatternProfiling()`, `getPatternProfilingReport()`, `printPatternProfilingReport()`).
+
+This ADR's original method list did not name this cluster — it is textually distinct from `TranslationProfiler`'s generic `enableProfiling`/`disableProfiling`/`resetProfiling`/`getProfilingReport`. But the same reasoning applies without modification: zero app callers anywhere, reachable only via `window.translationEngine.*` in devtools (gated `NODE_ENV === 'development'` same as every other dev tool this ADR covers), disabled by default with zero overhead when off. The deletion test gives the same answer — zero complexity concentrates anywhere if removed, because nothing calls it.
+
+**Correction, not just extension:** the review also found this cluster had zero test coverage anywhere (not even its own test file), contradicting an initial claim that `TwoPhasePatternProcessor.test.js` covered it. Rather than leave an untested-but-kept surface, dedicated tests were added: `TwoPhasePatternProcessor.internalProfiling.test.js` and `TranslationEngine.patternProfiling.test.js`. Future reviews: this cluster is decided-kept per this ADR; a missing test file is not grounds to re-flag it as dead.

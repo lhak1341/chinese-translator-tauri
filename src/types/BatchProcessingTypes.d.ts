@@ -187,27 +187,6 @@ export interface PerformanceTrend {
 }
 
 /**
- * Adaptation statistics
- * Tracks adaptation performance over time
- */
-export interface AdaptationStats {
-  /** Total adaptations made */
-  totalAdaptations: number;
-
-  /** Performance improvement gains */
-  improvementGains: number;
-
-  /** Times degradation was prevented */
-  degradationPrevented: number;
-
-  /** Average chunk size over time */
-  averageChunkSize?: number;
-
-  /** Success rate of adaptations */
-  adaptationSuccessRate?: number;
-}
-
-/**
  * Adaptive chunker interface
  * Dynamically adjusts chunk sizes based on performance
  */
@@ -217,12 +196,6 @@ export interface AdaptiveChunker {
 
   /** Performance history */
   performanceHistory: PerformanceDataPoint[];
-
-  /** Current optimal size */
-  currentOptimalSize: number;
-
-  /** Adaptation statistics */
-  adaptationStats: AdaptationStats;
 
   /**
    * Analyze content characteristics
@@ -603,9 +576,6 @@ export interface BatchProcessingStats {
 
   /** Memory usage (MB) */
   memoryUsage?: number;
-
-  /** Adaptation statistics */
-  adaptationStats?: AdaptationStats;
 }
 
 /**

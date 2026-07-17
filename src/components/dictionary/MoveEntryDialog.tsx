@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDictionary } from './DictionaryContext';
-import { getDictionaryTypes } from './DictionaryTypes';
 import { X, AlertTriangle, Info } from 'lucide-react';
 import styles from '../../styles/MoveEntryDialog.module.css';
 import { logger } from '../../utils/logger';
-import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
+import { useMoveTargetDictionaries } from '../../hooks/useMoveTargetDictionaries';
 import type { MoveEntryData, DictionaryEntryMetadata } from '../../types/DictionaryTypes';
 import { SEMANTIC_TYPE_LABELS } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
@@ -16,14 +15,6 @@ interface FullEntryData {
   source: string;
   translation: string;
   metadata?: DictionaryEntryMetadata;
-}
-
-/**
- * Available dictionary option
- */
-interface AvailableDictionary {
-  id: string;
-  label: string;
 }
 
 /**
@@ -41,11 +32,13 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [availableDictionaries, setAvailableDictionaries] = useState<AvailableDictionary[]>([]);
   const [fullEntry, setFullEntry] = useState<FullEntryData | null>(null);
-  const [sourceDictionaryLabel, setSourceDictionaryLabel] = useState<string>('');
 
   const { moveEntry, dictionaries } = useDictionary();
+  const { availableDictionaries, sourceLabel: sourceDictionaryLabel } = useMoveTargetDictionaries(
+    currentDictionary,
+    setError
+  );
 
   // Extract full entry data with ALL metadata from current dictionary
   useEffect(() => {
@@ -81,29 +74,6 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
 
     extractFullEntry();
   }, [entry, currentDictionary, dictionaries]);
-
-  // Load available dictionaries and resolve readable names
-  useEffect(() => {
-    const loadDictionaries = async (): Promise<void> => {
-      try {
-        const types = await getDictionaryTypes();
-
-        setSourceDictionaryLabel(getDictionaryDropdownLabel(currentDictionary));
-
-        const dictionaryList: AvailableDictionary[] = Object.keys(types)
-          .filter((id) => id !== currentDictionary)
-          .map((id) => ({ id, label: getDictionaryDropdownLabel(id) }))
-          .sort(compareDictionaryOrder);
-
-        setAvailableDictionaries(dictionaryList);
-      } catch (err) {
-        logger.error('Failed to load dictionaries:', err);
-        setError('Failed to load available dictionaries');
-      }
-    };
-
-    loadDictionaries();
-  }, [currentDictionary]);
 
   // Check for existing entry in selected target dictionary
   useEffect(() => {

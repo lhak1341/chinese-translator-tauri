@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Loader, X } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
-import { getDictionaryTypes } from './DictionaryTypes';
 import { logger } from '../../utils/logger';
-import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../../utils/dictionaryHelpers';
+import { useMoveTargetDictionaries } from '../../hooks/useMoveTargetDictionaries';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
 export interface BulkMoveDialogProps {
@@ -28,28 +27,10 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
   const [isMoving, setIsMoving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [overwriteWarning, setOverwriteWarning] = useState<string | null>(null);
-  const [availableDictionaries, setAvailableDictionaries] = useState<
-    Array<{ id: string; label: string }>
-  >([]);
-
-  // Load fresh dictionary list with full labels on mount
-  useEffect(() => {
-    const loadDictionaries = async (): Promise<void> => {
-      try {
-        const types = await getDictionaryTypes();
-        const dictionaryList = Object.keys(types)
-          .filter((id) => id !== selectedDictionary)
-          .map((id) => ({ id, label: getDictionaryDropdownLabel(id) }))
-          .sort(compareDictionaryOrder);
-        setAvailableDictionaries(dictionaryList);
-      } catch (err) {
-        logger.error('Failed to load dictionaries:', err);
-        setError('Failed to load available dictionaries');
-      }
-    };
-
-    loadDictionaries();
-  }, [selectedDictionary]);
+  const { availableDictionaries, sourceLabel } = useMoveTargetDictionaries(
+    selectedDictionary,
+    setError
+  );
 
   // Check for entries that would be overwritten in the selected target
   useEffect(() => {
@@ -71,13 +52,6 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
 
   const getTargetLabel = (): string =>
     availableDictionaries.find((d) => d.id === selectedTargetDict)?.label ?? selectedTargetDict;
-
-  const getSourceDictLabel = (): string => {
-    if (selectedDictionary === 'properNouns') return 'Proper Nouns (Base)';
-    if (selectedDictionary.startsWith('properNouns-'))
-      return `Proper Nouns - ${selectedDictionary.replace('properNouns-', '')}`;
-    return selectedDictionary.charAt(0).toUpperCase() + selectedDictionary.slice(1);
-  };
 
   const handleBulkMoveExecute = async (): Promise<void> => {
     if (!selectedTargetDict) {
@@ -153,7 +127,7 @@ const BulkMoveDialog: React.FC<BulkMoveDialogProps> = ({
           {/* Source Dictionary */}
           <div className={styles.bulkMoveFormGroup}>
             <label className={styles.bulkMoveLabel}>From:</label>
-            <div className={styles.bulkMoveReadOnlyField}>{getSourceDictLabel()}</div>
+            <div className={styles.bulkMoveReadOnlyField}>{sourceLabel}</div>
           </div>
 
           {/* Destination Dictionary */}

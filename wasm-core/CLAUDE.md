@@ -80,6 +80,8 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 
 `lib.rs`'s header comment (`// ✅ ACTIVE SYSTEMS`) lists only the modules considered live (NumberProcessor, DictionaryEngine, PositionMapper as of 2026-07). A `pub mod` not listed there, with no `wasm-core/CLAUDE.md` note explaining deliberate retention (like `number_processor.rs`'s "spec only" note above), is a strong signal of abandoned work — check this before a full grep sweep for callers. Confirmed true both times in the 2026-07-17b review: `memory_management.rs` and `wasm_boundary.rs` were absent from the list and both were dead.
 
+**Caveat (2026-07-18):** absence from the list is necessary but not sufficient — confirmed-live modules (`text_assembly`, `text_chunker`, `conflict_resolution`, `pattern_processor`, `string_processor`) are ALSO absent from the literal enumerated bullets (only NumberProcessor/DictionaryEngine/PositionMapper are named there by design). Always pair the absence-check with a real caller-grep before concluding a module is dead — that's what actually settled all confirmed-dead cases so far, not the list absence alone.
+
 ## Deleting a Module — Check Cargo.toml Too
 
 Before finishing a `pub mod` deletion, grep the crate for any dependency only that module used (e.g. `bincode` was `wasm_boundary.rs`'s sole consumer, removed alongside it) and drop it from `Cargo.toml` — an unused compiled dependency is the same shallow-surface problem as the dead code itself.

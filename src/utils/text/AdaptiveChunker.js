@@ -18,8 +18,7 @@
  *   OptimizationRecommendations,
  *   DeviceInfo,
  *   PerformanceDataPoint,
- *   PerformanceTrend,
- *   AdaptationStats
+ *   PerformanceTrend
  * } from '../types/BatchProcessingTypes'
  */
 
@@ -43,12 +42,6 @@ class AdaptiveChunker {
 
     // Performance tracking for adaptive sizing
     this.performanceHistory = [];
-    this.currentOptimalSize = this.options.maxChunkSize;
-    this.adaptationStats = {
-      totalAdaptations: 0,
-      improvementGains: 0,
-      degradationPrevented: 0,
-    };
   }
 
   /**
@@ -265,10 +258,8 @@ class AdaptiveChunker {
       const performanceTrend = this.analyzePerformanceTrend();
       if (performanceTrend.direction === 'degrading' && performanceTrend.confidence > 0.7) {
         baseSize = Math.max(this.options.minChunkSize, baseSize - 1);
-        this.adaptationStats.degradationPrevented++;
       } else if (performanceTrend.direction === 'improving' && performanceTrend.confidence > 0.8) {
         baseSize = Math.min(this.options.maxChunkSize, baseSize + 1);
-        this.adaptationStats.improvementGains++;
       }
     }
 
@@ -407,39 +398,6 @@ class AdaptiveChunker {
     }
 
     return recommendations;
-  }
-
-  /**
-   * Get current adaptation statistics
-   * @returns {Object} Adaptation statistics
-   */
-  getAdaptationStats() {
-    return {
-      ...this.adaptationStats,
-      currentOptimalSize: this.currentOptimalSize,
-      performanceHistoryLength: this.performanceHistory.length,
-      averageEfficiency:
-        this.performanceHistory.length > 0
-          ? this.performanceHistory.reduce((sum, record) => sum + record.efficiency, 0) /
-            this.performanceHistory.length
-          : 0,
-      recentTrend: this.performanceHistory.length >= 3 ? this.analyzePerformanceTrend() : null,
-    };
-  }
-
-  /**
-   * Reset adaptation statistics and performance history
-   */
-  reset() {
-    this.performanceHistory = [];
-    this.currentOptimalSize = this.options.maxChunkSize;
-    this.adaptationStats = {
-      totalAdaptations: 0,
-      improvementGains: 0,
-      degradationPrevented: 0,
-    };
-
-    batchLog.info('adaptive-chunker-reset', 'Adaptive chunker statistics reset');
   }
 }
 
