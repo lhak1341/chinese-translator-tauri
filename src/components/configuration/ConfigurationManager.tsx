@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { toPatternsId } from '../../utils/dictionary';
+import { useDictionary } from '../dictionary/DictionaryContext';
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
 import styles from '../../styles/ConfigurationManager.module.css';
 
@@ -16,6 +17,7 @@ import styles from '../../styles/ConfigurationManager.module.css';
  * @returns Configuration management interface
  */
 const ConfigurationManager: React.FC = () => {
+  const { loadDictionary, removeDictionaryKey } = useDictionary();
   const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -101,6 +103,7 @@ const ConfigurationManager: React.FC = () => {
               const patternsDictId = toPatternsId(id);
               if (!existingPatterns.has(patternsDictId)) {
                 await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
+                await loadDictionary(patternsDictId);
               }
             }
           } catch (migrationErr) {
@@ -117,7 +120,7 @@ const ConfigurationManager: React.FC = () => {
     };
 
     loadDictionaries();
-  }, []);
+  }, [loadDictionary]);
 
   // Handle dictionary activation toggle
   const handleToggleDictionary = async (dictionaryId: string): Promise<void> => {
@@ -151,6 +154,11 @@ const ConfigurationManager: React.FC = () => {
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
         setShowNewDictionaryModal(false);
         setNewDictionaryName('');
+
+        await loadDictionary(dictionaryId);
+        if (dictionaryId.startsWith('properNouns-f_')) {
+          await loadDictionary(toPatternsId(dictionaryId));
+        }
       } else {
         throw new Error(result.error);
       }
@@ -192,6 +200,16 @@ const ConfigurationManager: React.FC = () => {
       );
 
       if (result.success) {
+        // Refresh DictionaryContext: load each new ID before dropping its old one, so
+        // `dictionaries` state never briefly has neither. The backend cascades this rename
+        // to the paired patterns-f_* dict too (ADR-027) — mirror that here.
+        await loadDictionary(newDictionaryId);
+        removeDictionaryKey(renamingDictionaryId);
+        if (renamingDictionaryId.startsWith('properNouns-f_')) {
+          await loadDictionary(toPatternsId(newDictionaryId));
+          removeDictionaryKey(toPatternsId(renamingDictionaryId));
+        }
+
         // Update the available dictionaries list and re-sort
         setAvailableDictionaries((prev) =>
           sortDictionaries(prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id)))

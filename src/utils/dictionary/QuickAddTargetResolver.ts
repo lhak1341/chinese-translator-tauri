@@ -1,4 +1,5 @@
 import { toPatternsId } from './DictionaryIdClassifier';
+import type { DictionaryData } from '../../types/DictionaryTypes';
 
 /**
  * Resolves the Cmd-5 Quick Add target: the default proper-nouns dict if still active,
@@ -19,8 +20,8 @@ export function resolveDefaultProperNounTarget(
  * proper-nouns dict (ADR-027) if it's a fiction dict, else paired with the first active
  * fiction dict (sorted). Returns undefined if no active fiction dict exists.
  *
- * Does not check whether the resolved dict actually exists on disk — callers verify
- * existence themselves (in-memory state vs an IPC call, depending on caller).
+ * Does not check whether the resolved dict actually exists in memory — use
+ * resolveAndVerifyStructuralPatternTarget for the resolve+verify call in one step.
  */
 export function resolveStructuralPatternQuickAddTarget(
   defaultQuickAddDictionary: string | undefined | null,
@@ -31,4 +32,22 @@ export function resolveStructuralPatternQuickAddTarget(
   }
   const firstFiction = activeProperNouns.filter((id) => id.startsWith('properNouns-f_')).sort()[0];
   return firstFiction ? toPatternsId(firstFiction) : undefined;
+}
+
+/**
+ * Resolves AND verifies the Cmd-6 Quick Add target in one call: returns the structural-pattern
+ * dict ID only if it resolves (see resolveStructuralPatternQuickAddTarget) AND is present in
+ * `dictionaries` (in-memory DictionaryContext state). Returns undefined otherwise, so callers
+ * don't need a separate existence check.
+ */
+export function resolveAndVerifyStructuralPatternTarget(
+  defaultQuickAddDictionary: string | undefined | null,
+  activeProperNouns: string[],
+  dictionaries: { [key: string]: DictionaryData }
+): string | undefined {
+  const target = resolveStructuralPatternQuickAddTarget(
+    defaultQuickAddDictionary,
+    activeProperNouns
+  );
+  return target && dictionaries[target] !== undefined ? target : undefined;
 }

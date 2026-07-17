@@ -241,6 +241,18 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
     }
   }, []);
 
+  // Removes one key from in-memory state without touching disk. Used after an external rename
+  // (ConfigurationManager) once the new ID has already been loaded via loadDictionary, so the old
+  // ID doesn't linger as a stale duplicate entry.
+  const removeDictionaryKey = useCallback((dictionaryId: string): void => {
+    setDictionaries((prev) => {
+      if (!(dictionaryId in prev)) return prev;
+      const next = { ...prev };
+      delete next[dictionaryId];
+      return next;
+    });
+  }, []);
+
   // getSortingStats and resetSortingStats are stable module-level helpers from dictionaryHelpers —
   // no useCallback wrapper needed; pass them directly in the value object below.
 
@@ -262,6 +274,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       canUndo,
       canRedo,
       loadDictionary,
+      removeDictionaryKey,
       selectedDictionary,
       setSelectedDictionary,
       getSortingStats,
@@ -283,6 +296,7 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
       canUndo,
       canRedo,
       loadDictionary,
+      removeDictionaryKey,
       selectedDictionary,
       registerCacheInvalidator,
     ]

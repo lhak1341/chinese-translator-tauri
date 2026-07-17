@@ -1148,14 +1148,25 @@ pub async fn export_dictionaries(
         None => return Ok(DictionaryResponse::err("Export cancelled")),
     };
 
+    export_dictionaries_impl(&dictionary_path, &file_path)
+}
+
+/// Reads every `*.json` dictionary file in `dictionary_path` and writes it into a ZIP archive
+/// at `output_zip_path`. Pure filesystem function — no `AppHandle`/dialog — the command
+/// wrapper resolves the dialog-picked save location before calling this, so it is directly
+/// unit-testable against a temp directory.
+fn export_dictionaries_impl(
+    dictionary_path: &PathBuf,
+    output_zip_path: &PathBuf,
+) -> Result<DictionaryResponse, String> {
     // Create ZIP file
-    let zip_file = fs::File::create(&file_path).map_err(|e| sanitize_io_error(e, "export file"))?;
+    let zip_file = fs::File::create(output_zip_path).map_err(|e| sanitize_io_error(e, "export file"))?;
     let mut zip = ZipWriter::new(zip_file);
     let options = SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
     // Read all dictionary files in parallel first
-    let entries: Vec<_> = fs::read_dir(&dictionary_path)
+    let entries: Vec<_> = fs::read_dir(dictionary_path)
         .map_err(|e| sanitize_io_error(e, "dictionary directory"))?
         .filter_map(|e| e.ok())
         .collect();
@@ -1226,8 +1237,20 @@ pub async fn import_dictionaries(
         None => return Ok(DictionaryResponse::err("Import cancelled")),
     };
 
+    import_dictionaries_impl(&dictionary_path, &file_path, &cache)
+}
+
+/// Extracts every valid `*.json` entry from the ZIP archive at `zip_file_path` into
+/// `dictionary_path`. Pure filesystem function — no `AppHandle`/dialog — the command wrapper
+/// resolves the dialog-picked source archive before calling this, so it is directly
+/// unit-testable against a temp directory and an in-memory-built ZIP.
+fn import_dictionaries_impl(
+    dictionary_path: &PathBuf,
+    zip_file_path: &PathBuf,
+    cache: &DictionaryCache,
+) -> Result<DictionaryResponse, String> {
     // Open ZIP file
-    let zip_file = fs::File::open(&file_path).map_err(|e| sanitize_io_error(e, "import file"))?;
+    let zip_file = fs::File::open(zip_file_path).map_err(|e| sanitize_io_error(e, "import file"))?;
     let mut archive = ZipArchive::new(zip_file)
         .map_err(|_| "Failed to read ZIP archive: invalid or corrupted format".to_string())?;
 
@@ -1362,6 +1385,16 @@ pub async fn reset_dictionaries(
         .and_then(|v| v.as_bool())
         .unwrap_or(true);
 
+    reset_dictionaries_impl(&dictionary_path, create_backup, &cache)
+}
+
+/// Backs up (optionally) and then wipes+recreates `dictionary_path`. Pure filesystem
+/// function — no `AppHandle` — directly unit-testable against a temp directory.
+fn reset_dictionaries_impl(
+    dictionary_path: &PathBuf,
+    create_backup: bool,
+    cache: &DictionaryCache,
+) -> Result<DictionaryResponse, String> {
     // Create backup if requested
     if create_backup {
         let backup_dir = dictionary_path.parent()
@@ -1455,6 +1488,17 @@ pub async fn load_dictionaries_parallel(
 
     let dictionary_path = get_dictionary_path(&app_handle)?;
 
+    Ok(load_dictionaries_parallel_impl(&dictionary_path, &cache, &dictionary_ids))
+}
+
+/// Loads every dictionary in `dictionary_ids` from `dictionary_path` in parallel across all
+/// CPU cores, consulting `cache` first. Pure filesystem function — no `AppHandle` — directly
+/// unit-testable against a temp directory.
+fn load_dictionaries_parallel_impl(
+    dictionary_path: &PathBuf,
+    cache: &DictionaryCache,
+    dictionary_ids: &[String],
+) -> BatchDictionaryResponse {
     // Use Rayon to load dictionaries in parallel across all CPU cores
     let results: Vec<BatchDictionaryResult> = dictionary_ids
         .par_iter()
@@ -1532,12 +1576,12 @@ pub async fn load_dictionaries_parallel(
     let successful = results.iter().filter(|r| r.success).count();
     let failed = results.len() - successful;
 
-    Ok(BatchDictionaryResponse {
+    BatchDictionaryResponse {
         total: results.len(),
         successful,
         failed,
         results,
-    })
+    }
 }
 
 /// Swaps `old` to `new` wherever it appears in `activeProperNouns` (array) or
@@ -1570,11 +1614,32 @@ pub async fn rename_proper_nouns_dictionary(
     old_dictionary_id: String,
     new_dictionary_id: String,
 ) -> Result<DictionaryResponse, String> {
-    // SECURITY: Validate both dictionary IDs to prevent path traversal
-    validate_dictionary_id(&old_dictionary_id)?;
-    validate_dictionary_id(&new_dictionary_id)?;
-
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
+
+    rename_proper_nouns_dictionary_impl(
+        &dictionary_path,
+        &config_path,
+        &cache,
+        &old_dictionary_id,
+        &new_dictionary_id,
+    )
+}
+
+/// Renames a `properNouns-*` dictionary file, updating `config.json` references
+/// (`activeProperNouns`, `lastSelectedDictionary`) and cascading to a paired fiction
+/// `patterns-f_*` file if applicable, with rollback on any downstream failure. Pure
+/// filesystem function — no `AppHandle` — directly unit-testable against a temp directory.
+fn rename_proper_nouns_dictionary_impl(
+    dictionary_path: &PathBuf,
+    config_path: &PathBuf,
+    cache: &DictionaryCache,
+    old_dictionary_id: &str,
+    new_dictionary_id: &str,
+) -> Result<DictionaryResponse, String> {
+    // SECURITY: Validate both dictionary IDs to prevent path traversal
+    validate_dictionary_id(old_dictionary_id)?;
+    validate_dictionary_id(new_dictionary_id)?;
 
     // Validate dictionary IDs
     if old_dictionary_id == "properNouns" {
@@ -1603,12 +1668,11 @@ pub async fn rename_proper_nouns_dictionary(
     // so the file name and config stay in sync. Previously the file was renamed
     // before the config was even read, so any failure between left the on-disk
     // config referencing a non-existent old_dictionary_id.
-    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
     let prepared_config: Option<serde_json::Value> = if config_path.exists() {
-        match fs::read_to_string(&config_path) {
+        match fs::read_to_string(config_path) {
             Ok(contents) => match serde_json::from_str::<serde_json::Value>(&contents) {
                 Ok(mut config) => {
-                    substitute_dictionary_reference(&mut config, &old_dictionary_id, &new_dictionary_id);
+                    substitute_dictionary_reference(&mut config, old_dictionary_id, new_dictionary_id);
                     Some(config)
                 }
                 Err(_) => None,
@@ -1623,16 +1687,16 @@ pub async fn rename_proper_nouns_dictionary(
     fs::rename(&old_file_path, &new_file_path).map_err(|e| sanitize_io_error(e, "dictionary file"))?;
 
     // Invalidate cache for old dictionary
-    cache.invalidate(Some(&old_dictionary_id));
+    cache.invalidate(Some(old_dictionary_id));
 
     // Save the prepared config; on failure, roll back the file rename so the
     // dictionary file and config remain consistent.
     if let Some(config) = prepared_config {
-        if let Err(save_err) = save_json_file(&config_path, &config) {
+        if let Err(save_err) = save_json_file(config_path, &config) {
             // Best-effort rollback. If this also fails the user is in a degraded
             // state, but they keep their original on-disk file.
             let _ = fs::rename(&new_file_path, &old_file_path);
-            cache.invalidate(Some(&old_dictionary_id));
+            cache.invalidate(Some(old_dictionary_id));
             return Err(save_err);
         }
     }
@@ -1649,13 +1713,13 @@ pub async fn rename_proper_nouns_dictionary(
             if let Err(_) = fs::rename(&old_patterns_path, &new_patterns_path) {
                 // Patterns rename failed — roll back properNouns rename and config
                 let _ = fs::rename(&new_file_path, &old_file_path);
-                cache.invalidate(Some(&old_dictionary_id));
+                cache.invalidate(Some(old_dictionary_id));
                 // Reverse the config substitution: swap new_dictionary_id back to old
                 if config_path.exists() {
-                    if let Ok(contents) = fs::read_to_string(&config_path) {
+                    if let Ok(contents) = fs::read_to_string(config_path) {
                         if let Ok(mut cfg) = serde_json::from_str::<serde_json::Value>(&contents) {
-                            substitute_dictionary_reference(&mut cfg, &new_dictionary_id, &old_dictionary_id);
-                            let _ = save_json_file(&config_path, &cfg);
+                            substitute_dictionary_reference(&mut cfg, new_dictionary_id, old_dictionary_id);
+                            let _ = save_json_file(config_path, &cfg);
                         }
                     }
                 }
@@ -2396,5 +2460,622 @@ mod tests {
 
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_Old"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-f_Old"));
+    }
+
+    // ── Test helpers for the command-handler bodies below ────────────────────
+
+    fn build_test_zip(path: &PathBuf, entries: &[(&str, &str)]) {
+        let file = fs::File::create(path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default();
+        for (name, content) in entries {
+            zip.start_file(*name, options).unwrap();
+            zip.write_all(content.as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    fn read_zip_entries(path: &PathBuf) -> Vec<(String, String)> {
+        let file = fs::File::open(path).unwrap();
+        let mut archive = ZipArchive::new(file).unwrap();
+        let mut out = Vec::new();
+        for i in 0..archive.len() {
+            let mut f = archive.by_index(i).unwrap();
+            let name = f.name().to_string();
+            let mut content = String::new();
+            f.read_to_string(&mut content).unwrap();
+            out.push((name, content));
+        }
+        out
+    }
+
+    fn deeply_nested_json(depth: usize) -> serde_json::Value {
+        let mut v = serde_json::json!(null);
+        for _ in 0..depth {
+            v = serde_json::json!({ "n": v });
+        }
+        v
+    }
+
+    // ── reset_dictionaries_impl ───────────────────────────────────────────────
+    // Previously untested command body (architecture review 2026-07-17, candidate 5) —
+    // extracted from reset_dictionaries so it's testable without a real AppHandle.
+
+    #[test]
+    fn test_reset_with_backup_copies_files_then_wipes_and_recreates() {
+        let dir = temp_test_dir("reset_with_backup");
+        fs::write(dir.join("phrases.json"), "{}").unwrap();
+        let cache = make_cache();
+        cache.set("phrases".to_string(), serde_json::json!({"stale": true}));
+
+        let result = reset_dictionaries_impl(&dir, true, &cache);
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.success);
+        assert!(response.message.as_ref().unwrap().contains("Backup saved"));
+
+        let backup_dir = dir.parent().unwrap().join("dictionaries_backup");
+        assert!(
+            backup_dir.join("phrases.json").exists(),
+            "backup should contain the original file"
+        );
+        assert!(!dir.join("phrases.json").exists(), "dictionary dir should be wiped");
+        assert!(dir.exists(), "dictionary dir should be recreated (empty)");
+        assert!(cache.get("phrases").is_none(), "cache should be cleared");
+
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&backup_dir);
+    }
+
+    #[test]
+    fn test_reset_without_backup_skips_backup_dir() {
+        let dir = temp_test_dir("reset_without_backup");
+        fs::write(dir.join("phrases.json"), "{}").unwrap();
+        let cache = make_cache();
+
+        let result = reset_dictionaries_impl(&dir, false, &cache);
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.message.as_ref().unwrap().contains("No backup created"));
+
+        let backup_dir = dir.parent().unwrap().join("dictionaries_backup");
+        assert!(!backup_dir.exists(), "backup dir should not be created when create_backup=false");
+        assert!(dir.exists());
+        assert!(!dir.join("phrases.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_reset_recreates_dir_when_it_did_not_exist_yet() {
+        let dir = temp_test_dir("reset_missing_dir");
+        fs::remove_dir_all(&dir).unwrap(); // simulate a dictionary dir that was never created
+        let cache = make_cache();
+
+        let result = reset_dictionaries_impl(&dir, true, &cache);
+
+        assert!(result.is_ok(), "should succeed even when the dictionary dir did not exist");
+        assert!(dir.exists());
+
+        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(dir.parent().unwrap().join("dictionaries_backup"));
+    }
+
+    // ── load_dictionaries_parallel_impl ───────────────────────────────────────
+
+    #[test]
+    fn test_load_parallel_reads_and_caches_valid_dictionaries() {
+        let dir = temp_test_dir("load_parallel_valid");
+        fs::write(dir.join("phrases.json"), r#"{"你好":"xin chào"}"#).unwrap();
+        fs::write(dir.join("characters.json"), r#"{"你":"ban"}"#).unwrap();
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(
+            &dir,
+            &cache,
+            &["phrases".to_string(), "characters".to_string()],
+        );
+
+        assert_eq!(response.total, 2);
+        assert_eq!(response.successful, 2);
+        assert_eq!(response.failed, 0);
+        assert!(cache.get("phrases").is_some(), "successful loads should populate the cache");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_second_call_hits_cache_without_touching_disk() {
+        let dir = temp_test_dir("load_parallel_cache_hit");
+        fs::write(dir.join("phrases.json"), r#"{"a":"b"}"#).unwrap();
+        let cache = make_cache();
+
+        load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+        fs::remove_file(dir.join("phrases.json")).unwrap(); // prove the 2nd call doesn't hit disk
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+
+        assert_eq!(response.successful, 1, "cache hit should succeed even though the file is gone");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_rejects_path_traversal_id() {
+        let dir = temp_test_dir("load_parallel_traversal");
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["../evil".to_string()]);
+
+        assert_eq!(response.failed, 1);
+        assert!(!response.results[0].success);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_reports_missing_file() {
+        // Note: validate_file_size's own fs::metadata() NotFound check fires before the
+        // fs::read_to_string call, so the literal "File not found" string at the
+        // ErrorKind::NotFound match arm below is actually a TOCTOU-only path (file deleted
+        // between the size check and the read) — this test hits validate_file_size's
+        // sanitize_io_error("file") message instead, which is what a real caller observes.
+        let dir = temp_test_dir("load_parallel_missing");
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+
+        assert_eq!(response.failed, 1);
+        assert_eq!(response.results[0].error.as_deref(), Some("file not found"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_reports_invalid_json() {
+        let dir = temp_test_dir("load_parallel_bad_json");
+        fs::write(dir.join("phrases.json"), "{not valid json").unwrap();
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+
+        assert_eq!(response.failed, 1);
+        assert!(response.results[0].error.as_ref().unwrap().contains("Invalid JSON"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_reports_non_object_payload() {
+        let dir = temp_test_dir("load_parallel_non_object");
+        fs::write(dir.join("phrases.json"), "[1,2,3]").unwrap();
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+
+        assert_eq!(response.failed, 1);
+        assert!(response.results[0].error.as_ref().unwrap().contains("expected a JSON object"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_totals_reflect_mixed_success_and_failure() {
+        let dir = temp_test_dir("load_parallel_mixed");
+        fs::write(dir.join("phrases.json"), r#"{"a":"b"}"#).unwrap();
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(
+            &dir,
+            &cache,
+            &["phrases".to_string(), "missing".to_string()],
+        );
+
+        assert_eq!(response.total, 2);
+        assert_eq!(response.successful, 1);
+        assert_eq!(response.failed, 1);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ── export_dictionaries_impl ───────────────────────────────────────────────
+
+    #[test]
+    fn test_export_writes_all_json_files_into_zip() {
+        let dir = temp_test_dir("export_valid");
+        fs::write(dir.join("phrases.json"), r#"{"a":"b"}"#).unwrap();
+        fs::write(dir.join("characters.json"), r#"{"c":"d"}"#).unwrap();
+        let zip_path = dir.join("out.zip");
+
+        let result = export_dictionaries_impl(&dir, &zip_path);
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.success);
+        assert!(response.message.as_ref().unwrap().contains("Exported 2 dictionaries"));
+
+        let mut entries = read_zip_entries(&zip_path);
+        entries.sort();
+        assert_eq!(
+            entries,
+            vec![
+                ("characters.json".to_string(), r#"{"c":"d"}"#.to_string()),
+                ("phrases.json".to_string(), r#"{"a":"b"}"#.to_string()),
+            ]
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_export_skips_non_json_files() {
+        let dir = temp_test_dir("export_skips_non_json");
+        fs::write(dir.join("phrases.json"), "{}").unwrap();
+        fs::write(dir.join("readme.txt"), "not a dictionary").unwrap();
+        let zip_path = dir.join("out.zip");
+
+        let result = export_dictionaries_impl(&dir, &zip_path);
+
+        assert!(result.unwrap().message.unwrap().contains("Exported 1 dictionaries"));
+        let entries = read_zip_entries(&zip_path);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "phrases.json");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_export_empty_directory_produces_empty_zip() {
+        let dir = temp_test_dir("export_empty");
+        let zip_path = dir.join("out.zip");
+
+        let result = export_dictionaries_impl(&dir, &zip_path);
+
+        assert!(result.unwrap().message.unwrap().contains("Exported 0 dictionaries"));
+        assert_eq!(read_zip_entries(&zip_path).len(), 0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_export_errors_when_dictionary_dir_missing() {
+        let dir = temp_test_dir("export_missing_dir");
+        fs::remove_dir_all(&dir).unwrap();
+        let zip_path = std::env::temp_dir().join(format!("export_missing_dir_out_{}.zip", std::process::id()));
+
+        let result = export_dictionaries_impl(&dir, &zip_path);
+
+        assert!(result.is_err());
+
+        let _ = fs::remove_file(&zip_path);
+    }
+
+    // ── import_dictionaries_impl ───────────────────────────────────────────────
+
+    #[test]
+    fn test_import_extracts_valid_entries_and_writes_files() {
+        let dir = temp_test_dir("import_valid");
+        let zip_path = dir.join("in.zip");
+        build_test_zip(&zip_path, &[("phrases.json", r#"{"a":"b"}"#)]);
+        let cache = make_cache();
+        cache.set("phrases".to_string(), serde_json::json!({"stale": true}));
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.success);
+        assert!(response.message.as_ref().unwrap().contains("Imported 1 dictionaries successfully"));
+        assert_eq!(fs::read_to_string(dir.join("phrases.json")).unwrap(), r#"{"a":"b"}"#);
+        assert!(cache.get("phrases").is_none(), "import must invalidate any pre-existing cache entry");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_import_skips_trie_json_cache_files() {
+        let dir = temp_test_dir("import_skips_trie");
+        let zip_path = dir.join("in.zip");
+        build_test_zip(&zip_path, &[("phrases.trie.json", "{}")]);
+        let cache = make_cache();
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        assert!(!result.unwrap().success, "an all-skipped import has file_count=0 -> success=false");
+        assert!(!dir.join("phrases.trie.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_import_rejects_path_traversal_entry_name() {
+        let dir = temp_test_dir("import_traversal");
+        let zip_path = dir.join("in.zip");
+        build_test_zip(&zip_path, &[("../evil.json", "{}")]);
+        let cache = make_cache();
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(!dir.parent().unwrap().join("evil.json").exists(), "must not escape dictionary_path");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_import_accumulates_error_for_invalid_json_entry() {
+        let dir = temp_test_dir("import_bad_json");
+        let zip_path = dir.join("in.zip");
+        build_test_zip(&zip_path, &[("phrases.json", "{not valid")]);
+        let cache = make_cache();
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("invalid JSON format"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_import_accumulates_error_for_non_object_payload() {
+        let dir = temp_test_dir("import_non_object");
+        let zip_path = dir.join("in.zip");
+        build_test_zip(&zip_path, &[("phrases.json", "[1,2,3]")]);
+        let cache = make_cache();
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(!dir.join("phrases.json").exists(), "invalid payload must not be written to disk");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_import_mixed_batch_reports_partial_success() {
+        let dir = temp_test_dir("import_mixed");
+        let zip_path = dir.join("in.zip");
+        build_test_zip(
+            &zip_path,
+            &[("phrases.json", r#"{"a":"b"}"#), ("characters.json", "{not valid")],
+        );
+        let cache = make_cache();
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        let response = result.unwrap();
+        assert!(response.success, "success=true whenever at least one entry imports");
+        assert!(response.message.as_ref().unwrap().contains("1 dictionaries, 1 errors"));
+        assert!(dir.join("phrases.json").exists());
+        assert!(!dir.join("characters.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_import_corrupted_zip_returns_error() {
+        let dir = temp_test_dir("import_corrupt_zip");
+        let zip_path = dir.join("in.zip");
+        fs::write(&zip_path, b"this is not a zip file").unwrap();
+        let cache = make_cache();
+
+        let result = import_dictionaries_impl(&dir, &zip_path, &cache);
+
+        assert!(result.is_err());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ── rename_proper_nouns_dictionary_impl ─────────────────────────────────────
+
+    #[test]
+    fn test_rename_happy_path_moves_file_and_updates_config() {
+        let dir = temp_test_dir("rename_happy_path");
+        fs::write(dir.join("properNouns-Old.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(
+            &config_path,
+            r#"{"activeProperNouns": ["properNouns-Old"], "lastSelectedDictionary": "properNouns-Old"}"#,
+        )
+        .unwrap();
+        let cache = make_cache();
+        cache.set("properNouns-Old".to_string(), serde_json::json!({"stale": true}));
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-Old",
+            "properNouns-New",
+        );
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert!(response.success);
+        assert!(!dir.join("properNouns-Old.json").exists());
+        assert!(dir.join("properNouns-New.json").exists());
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-New"]));
+        assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-New"));
+        assert!(cache.get("properNouns-Old").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_cascades_to_paired_fiction_patterns_dict() {
+        let dir = temp_test_dir("rename_fiction_cascade");
+        fs::write(dir.join("properNouns-f_Old.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-f_Old"]}"#).unwrap();
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-f_Old",
+            "properNouns-f_New",
+        );
+
+        assert!(result.unwrap().success);
+        assert!(dir.join("properNouns-f_New.json").exists());
+        assert!(dir.join("patterns-f_New.json").exists(), "paired patterns dict must cascade");
+        assert!(!dir.join("patterns-f_Old.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_rejects_default_proper_nouns_dictionary() {
+        let dir = temp_test_dir("rename_rejects_default");
+        let config_path = dir.join("config.json");
+        let cache = make_cache();
+
+        let result =
+            rename_proper_nouns_dictionary_impl(&dir, &config_path, &cache, "properNouns", "properNouns-New");
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("Cannot rename the default"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_rejects_ids_not_starting_with_proper_nouns_dash() {
+        let dir = temp_test_dir("rename_rejects_prefix");
+        let config_path = dir.join("config.json");
+        let cache = make_cache();
+
+        let result =
+            rename_proper_nouns_dictionary_impl(&dir, &config_path, &cache, "properNouns-Old", "phrases");
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("must start with 'properNouns-'"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_errors_when_old_file_not_found() {
+        let dir = temp_test_dir("rename_old_missing");
+        let config_path = dir.join("config.json");
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-Old",
+            "properNouns-New",
+        );
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("not found"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_errors_when_new_file_already_exists() {
+        let dir = temp_test_dir("rename_new_exists");
+        fs::write(dir.join("properNouns-Old.json"), "{}").unwrap();
+        fs::write(dir.join("properNouns-New.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-Old",
+            "properNouns-New",
+        );
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("already exists"));
+        assert!(dir.join("properNouns-Old.json").exists(), "old file must be untouched");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_rolls_back_file_when_config_save_fails() {
+        let dir = temp_test_dir("rename_rollback_config_failure");
+        fs::write(dir.join("properNouns-Old.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        // >50 levels deep — fails save_json_file's check_json_depth guard, forcing the
+        // rollback branch (H3: file rename reversed, config never written).
+        fs::write(&config_path, serde_json::to_string(&deeply_nested_json(60)).unwrap()).unwrap();
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-Old",
+            "properNouns-New",
+        );
+
+        assert!(result.is_err(), "config save failure propagates as Err, not a DictionaryResponse::err");
+        assert!(
+            dir.join("properNouns-Old.json").exists(),
+            "file rename must be rolled back when config save fails"
+        );
+        assert!(!dir.join("properNouns-New.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_rolls_back_everything_when_patterns_cascade_fails() {
+        let dir = temp_test_dir("rename_rollback_cascade_failure");
+        fs::write(dir.join("properNouns-f_Old.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
+        // Pre-create the cascade's rename TARGET as a directory so fs::rename(file, dir) fails —
+        // simulates a real filesystem failure on just the second (patterns) rename, without
+        // affecting the first (properNouns) rename which still has a clear destination.
+        fs::create_dir(dir.join("patterns-f_New.json")).unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-f_Old"]}"#).unwrap();
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-f_Old",
+            "properNouns-f_New",
+        );
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("could not rename paired patterns dictionary"));
+        assert!(
+            dir.join("properNouns-f_Old.json").exists(),
+            "properNouns rename must be rolled back when the patterns cascade fails"
+        );
+        assert!(!dir.join("properNouns-f_New.json").exists());
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(
+            config["activeProperNouns"],
+            serde_json::json!(["properNouns-f_Old"]),
+            "config substitution must be reversed too"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

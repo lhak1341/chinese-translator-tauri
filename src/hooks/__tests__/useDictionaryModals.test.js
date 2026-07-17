@@ -32,9 +32,6 @@ function makeConfig({ activeProperNouns = [], defaultQuickAddDictionary = null }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  global.window.electronAPI = {
-    listFictionPatternDictionaries: vi.fn().mockResolvedValue({ success: true, dictionaries: [] }),
-  };
 });
 
 // ── Trivial openQuickAdd* wrappers ──────────────────────────────────────────────
@@ -140,6 +137,11 @@ describe('useDictionaryModals — openQuickAddCustomProperNoun', () => {
 });
 
 // ── openQuickAddCustomStructuralPattern (Cmd-6) ─────────────────────────────────
+//
+// dictionaries (DictionaryContext state) is injected directly — the hook no longer fires a
+// live listFictionPatternDictionaries IPC call to verify existence (root-caused: ConfigurationManager
+// now refreshes DictionaryContext on every dictionary create/rename, so this in-memory check is
+// never stale). See TabbedInterface.tsx's Cmd-6 path for the sibling call using the same check.
 
 describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
   test('derives patterns-<suffix> from a fiction defaultQuickAddDictionary and opens when it exists', async () => {
@@ -149,11 +151,8 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
         defaultQuickAddDictionary: 'properNouns-f_Novel',
       })
     );
-    global.window.electronAPI.listFictionPatternDictionaries.mockResolvedValue({
-      success: true,
-      dictionaries: ['patterns-f_Novel'],
-    });
-    const { result } = renderHook(() => useDictionaryModals());
+    const dictionaries = { 'patterns-f_Novel': {} };
+    const { result } = renderHook(() => useDictionaryModals(dictionaries));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -169,11 +168,8 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
         defaultQuickAddDictionary: 'properNouns-NotFiction',
       })
     );
-    global.window.electronAPI.listFictionPatternDictionaries.mockResolvedValue({
-      success: true,
-      dictionaries: ['patterns-f_Amy'],
-    });
-    const { result } = renderHook(() => useDictionaryModals());
+    const dictionaries = { 'patterns-f_Amy': {} };
+    const { result } = renderHook(() => useDictionaryModals(dictionaries));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -182,7 +178,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
 
   test('toasts and does not open the modal when no fiction proper-noun dictionary is active', async () => {
     loadAppConfig.mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -192,18 +188,15 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     );
   });
 
-  test('toasts and does not open the modal when the derived pattern dictionary does not exist on disk', async () => {
+  test('toasts and does not open the modal when the derived pattern dictionary is not in dictionaries state', async () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({
         activeProperNouns: ['properNouns-f_Novel'],
         defaultQuickAddDictionary: 'properNouns-f_Novel',
       })
     );
-    global.window.electronAPI.listFictionPatternDictionaries.mockResolvedValue({
-      success: true,
-      dictionaries: [], // f_Novel's pattern dict was never created
-    });
-    const { result } = renderHook(() => useDictionaryModals());
+    // f_Novel's pattern dict was never created (or context hasn't been refreshed yet)
+    const { result } = renderHook(() => useDictionaryModals({}));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
@@ -211,28 +204,35 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     expect(toast.error).toHaveBeenCalled();
   });
 
-  test('toasts and does not open the modal when listFictionPatternDictionaries reports failure', async () => {
+  test('re-resolves against the latest dictionaries value on re-render (no stale closure)', async () => {
     loadAppConfig.mockResolvedValue(
       makeConfig({
         activeProperNouns: ['properNouns-f_Novel'],
         defaultQuickAddDictionary: 'properNouns-f_Novel',
       })
     );
-    global.window.electronAPI.listFictionPatternDictionaries.mockResolvedValue({
-      success: false,
-      dictionaries: [],
-    });
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result, rerender } = renderHook(
+      ({ dictionaries }) => useDictionaryModals(dictionaries),
+      {
+        initialProps: { dictionaries: {} },
+      }
+    );
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
     expect(result.current.showQuickAdd).toBe(false);
-    expect(toast.error).toHaveBeenCalled();
+
+    rerender({ dictionaries: { 'patterns-f_Novel': {} } });
+    await act(async () => {
+      await result.current.openQuickAddCustomStructuralPattern('clip');
+    });
+    expect(result.current.quickAddDictionary).toBe('patterns-f_Novel');
+    expect(result.current.showQuickAdd).toBe(true);
   });
 
   test('config load failure resets selection to null, toasts, and does not open the modal', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
-    const { result } = renderHook(() => useDictionaryModals());
+    const { result } = renderHook(() => useDictionaryModals({}));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });

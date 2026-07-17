@@ -408,37 +408,6 @@ impl Default for TextAssembler {
 }
 
 // ============================================================================
-// Standalone Assembly Functions (No WASM binding overhead)
-// ============================================================================
-
-/// Assemble translation segments into final text (pure Rust, no WASM overhead)
-///
-/// This is the core assembly function used internally and by other Rust modules.
-///
-/// # Arguments
-/// * `segments` - Slice of translation segments
-///
-/// # Returns
-/// * Assembled translated text
-pub fn assemble_translated_text(segments: &[TranslationSegment]) -> String {
-    if segments.is_empty() {
-        return String::new();
-    }
-
-    let total_len: usize = segments.iter()
-        .map(|s| s.translated.len())
-        .sum();
-
-    let mut result = String::with_capacity(total_len);
-
-    for segment in segments {
-        result.push_str(&segment.translated);
-    }
-
-    result
-}
-
-// ============================================================================
 // Spacing Rule Helpers
 // ============================================================================
 
@@ -515,25 +484,6 @@ pub fn needs_space(
         return true;
     }
     false
-}
-
-/// Assemble original text from segments
-pub fn assemble_original_text(segments: &[TranslationSegment]) -> String {
-    if segments.is_empty() {
-        return String::new();
-    }
-
-    let total_len: usize = segments.iter()
-        .map(|s| s.original.len())
-        .sum();
-
-    let mut result = String::with_capacity(total_len);
-
-    for segment in segments {
-        result.push_str(&segment.original);
-    }
-
-    result
 }
 
 #[cfg(test)]

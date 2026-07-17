@@ -123,6 +123,10 @@ vi.restoreAllMocks();
 
 Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
 
+`useVirtualScrollRange`'s `containerHeight` state defaults to `600` (not `0`) — small test datasets (EVDT and siblings) render fully with no ResizeObserver-firing needed; still stub `ResizeObserver` as a class (per above) so `new ResizeObserver()` doesn't throw "not defined" in jsdom.
+
+Row-level handlers with no test id (e.g. `onContextMenu` on a row wrapper div): `fireEvent.contextMenu(someDescendantText)` still bubbles up to trigger it — avoids brittle `.closest()`/`.parentElement` DOM traversal to find the row wrapper.
+
 ## `DuplicateDictionaryTableView` — Duplicate Rendering Not in EVDT
 
 4-column duplicate layout lives in `DuplicateDictionaryTableView.tsx`. Pure view, no hooks. EVDT passes scroll state as props (`scrollRefCallback`, `onScroll`, `totalHeight`, `offsetY`) — `useVirtualScrollRange` stays in EVDT. When adding duplicate-mode UI, edit `DuplicateDictionaryTableView`, not EVDT.

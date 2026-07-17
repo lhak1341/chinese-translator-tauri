@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 import { loadAppConfig } from '../utils/appConfig';
 import {
   resolveDefaultProperNounTarget,
-  resolveStructuralPatternQuickAddTarget,
+  resolveAndVerifyStructuralPatternTarget,
 } from '../utils/dictionary';
 import toast from '../utils/toast';
 
@@ -12,9 +12,12 @@ import toast from '../utils/toast';
  *
  * Pure UI concern — owns modal open/close state only.
  * activeProperNouns is NOT stored here; use activeProperNounsFromConfig
- * from useTranslatorEngine directly in callers.
+ * from useTranslatorEngine directly in callers. `dictionaries` (DictionaryContext state) is
+ * likewise injected, not stored — passed in by the caller for the Cmd-6 existence check.
+ *
+ * @param {{ [key: string]: unknown }} dictionaries - current DictionaryContext.dictionaries state
  */
-export function useDictionaryModals() {
+export function useDictionaryModals(dictionaries) {
   const [modalState, setModalState] = useState({
     isOpen: false,
     dictionaryId: 'properNouns',
@@ -74,32 +77,30 @@ export function useDictionaryModals() {
     setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
   }, []);
 
-  const openQuickAddCustomStructuralPattern = useCallback(async (text = '') => {
-    let selectedDictionary = null;
+  const openQuickAddCustomStructuralPattern = useCallback(
+    async (text = '') => {
+      let selectedDictionary = null;
 
-    try {
-      const config = await loadAppConfig();
-      selectedDictionary = resolveStructuralPatternQuickAddTarget(
-        config.ui.defaultQuickAddDictionary,
-        config.engine.activeProperNouns
-      );
-
-      if (selectedDictionary) {
-        const listResult = await window.electronAPI.listFictionPatternDictionaries();
-        const exists = listResult.success && listResult.dictionaries.includes(selectedDictionary);
-        if (!exists) selectedDictionary = null;
+      try {
+        const config = await loadAppConfig();
+        selectedDictionary = resolveAndVerifyStructuralPatternTarget(
+          config.ui.defaultQuickAddDictionary,
+          config.engine.activeProperNouns,
+          dictionaries
+        );
+      } catch (error) {
+        logger.error('Error resolving Cmd-6 structural pattern dictionary:', error);
+        selectedDictionary = null;
       }
-    } catch (error) {
-      logger.error('Error resolving Cmd-6 structural pattern dictionary:', error);
-      selectedDictionary = null;
-    }
 
-    if (!selectedDictionary) {
-      toast.error('No structural patterns dictionary for active fiction');
-      return;
-    }
-    setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
-  }, []);
+      if (!selectedDictionary) {
+        toast.error('No structural patterns dictionary for active fiction');
+        return;
+      }
+      setModalState({ isOpen: true, dictionaryId: selectedDictionary, text });
+    },
+    [dictionaries]
+  );
 
   const closeQuickAdd = useCallback(() => {
     setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '' });

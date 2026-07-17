@@ -6,17 +6,14 @@ import { useScrollPositionManager } from '../hooks/useScrollPositionManager';
 import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
-import { extractErrorMessage } from '../utils/errorHelpers';
 import { useDictionary } from './dictionary/DictionaryContext';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
 import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
-import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
-import { parallelDictionaryLoader } from '../utils/dictionary';
 import { batchLog } from '../utils/BatchLogger.js';
 import { scrollToHighlightedElement } from '../utils/highlighting';
 import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
@@ -133,7 +130,7 @@ const Translator = ({ isActive = true }) => {
     openQuickAddCustomStructuralPattern: handleQuickAddCustomStructuralPattern,
     closeQuickAdd,
     handleQuickAddDictionaryChange,
-  } = useDictionaryModals();
+  } = useDictionaryModals(dictionaries);
 
   const [inputText, setInputText] = useState('');
   const {

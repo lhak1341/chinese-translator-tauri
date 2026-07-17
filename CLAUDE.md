@@ -63,6 +63,10 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. RTK also replaces long matched identifiers (and import paths containing them) with `n` in search output — use Read for accurate caller-tracing, not bash rg. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
 
+**Existence checks are unreliable via `find`/bash `grep`** in this environment — confirmed false negatives on git-tracked files that were actively being Read the same session (RTK proxy interference). For "does file/test X already exist," use `git ls-files | grep -i <name>` instead — never trust an empty `find`/`grep` result on its own.
+
+**`vi.mock('../X')` resolves relative to the TEST FILE's own path**, not the module under test's — when stubbing a child that the component-under-test imports from elsewhere, match the component's import depth, not the test file's. Wrong relative depth silently renders the REAL child instead of the stub (no error, just confusing downstream test failures).
+
 **Single test file:** `pnpm exec vitest run src/path/to/test.ts` — `pnpm test -- --testPathPattern` does not reliably filter to one file.
 
 **Test file placement in `src/utils/`:** goes flat in `src/utils/__tests__/`, even for modules living in a subdirectory (`dictionary/`, `pattern/`, `highlighting/`, etc.) — NOT in a nested `src/utils/<subdir>/__tests__/`. `src/utils/ui/__tests__/` is the one pre-existing exception. Check `ls src/utils/__tests__/ | grep <ModuleName>` before creating a new test file.

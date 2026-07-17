@@ -75,6 +75,7 @@ export { classifyDictionaryId, toPatternsId, toProperNounsId } from './Dictionar
 export {
   resolveDefaultProperNounTarget,
   resolveStructuralPatternQuickAddTarget,
+  resolveAndVerifyStructuralPatternTarget,
 } from './QuickAddTargetResolver';
 
 // --- Engine-facing dictionary filtering ---

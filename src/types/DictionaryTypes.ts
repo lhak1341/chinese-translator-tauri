@@ -39,12 +39,7 @@ export interface DictionaryData {
  * History operation type for undo/redo
  */
 export type HistoryOperationType =
-  | 'add'
-  | 'update'
-  | 'delete'
-  | 'bulk_delete'
-  | 'move'
-  | 'bulk_move';
+  'add' | 'update' | 'delete' | 'bulk_delete' | 'move' | 'bulk_move';
 
 /**
  * Entry data structure for editing or creating dictionary entries
@@ -174,6 +169,8 @@ export interface DictionaryContextInterface {
   canRedo: boolean;
   /** Load a specific dictionary */
   loadDictionary: (dictionaryId: string) => Promise<void>;
+  /** Remove one dictionary key from in-memory state without touching disk (e.g. after an external rename) */
+  removeDictionaryKey: (dictionaryId: string) => void;
   /** Currently selected dictionary */
   selectedDictionary: string;
   /** Get sorting statistics */

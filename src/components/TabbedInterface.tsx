@@ -9,7 +9,7 @@ import { useDictionary } from './dictionary/DictionaryContext';
 import { loadAppConfig } from '../utils/appConfig';
 import {
   resolveDefaultProperNounTarget,
-  resolveStructuralPatternQuickAddTarget,
+  resolveAndVerifyStructuralPatternTarget,
 } from '../utils/dictionary';
 import ErrorBoundary from './ErrorBoundary';
 import styles from '../styles/TabbedInterface.module.css';
@@ -77,11 +77,12 @@ const TabbedInterface: React.FC = () => {
       if (key === '6') {
         try {
           const config = await loadAppConfig();
-          const target = resolveStructuralPatternQuickAddTarget(
+          const target = resolveAndVerifyStructuralPatternTarget(
             config.ui.defaultQuickAddDictionary,
-            config.engine.activeProperNouns
+            config.engine.activeProperNouns,
+            dictionaries
           );
-          if (target && dictionaries[target] !== undefined) {
+          if (target) {
             setSelectedDictionary(target);
           } else {
             const { default: toast } = await import('../utils/toast');

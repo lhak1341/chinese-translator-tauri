@@ -30,28 +30,11 @@ export interface WasmMemoryPoolOptions {
   /** Initial pool size (default: 4) */
   initialPoolSize?: number;
 
-  /** Maximum pool size (default: 32) */
-  maxPoolSize?: number;
-
-  /** Buffer size in bytes (default: 64KB) */
-  bufferSizeBytes?: number;
-
-  /** Growth factor when expanding pool (default: 1.5) */
-  growthFactor?: number;
-
   /** Shrink threshold - utilization below this triggers shrinking (default: 0.3) */
   shrinkThreshold?: number;
 
   /** Enable memory pressure detection (default: true) */
   enablePressureDetection?: boolean;
-
-  /** Memory pressure thresholds */
-  pressureThresholds?: {
-    low: number;
-    medium: number;
-    high: number;
-    critical: number;
-  };
 
   /** Enable performance tracking (default: true) */
   enablePerformanceTracking?: boolean;
@@ -212,22 +195,13 @@ export class WasmMemoryPool {
   constructor(options: WasmMemoryPoolOptions = {}) {
     this.options = {
       // Pool sizing
-      initialPoolSize: options.initialPoolSize || 4, // Start with 4 buffers (reduced to prevent memory growth)
-      maxPoolSize: options.maxPoolSize || 32, // Maximum 32 buffers
-      bufferSizeBytes: options.bufferSizeBytes || 64 * 1024, // 64KB per buffer
+      initialPoolSize: options.initialPoolSize ?? 4, // Start with 4 buffers (reduced to prevent memory growth)
 
-      // Growth strategy
-      growthFactor: options.growthFactor || 1.5, // Grow by 50% when needed
-      shrinkThreshold: options.shrinkThreshold || 0.3, // Shrink when <30% utilization
+      // Shrink threshold
+      shrinkThreshold: options.shrinkThreshold ?? 0.3, // Shrink when <30% utilization
 
       // Memory pressure integration
       enablePressureDetection: options.enablePressureDetection !== false,
-      pressureThresholds: options.pressureThresholds || {
-        low: 0.6, // 60% - normal operation
-        medium: 0.75, // 75% - reduce pool size
-        high: 0.85, // 85% - aggressive recycling
-        critical: 0.95, // 95% - emergency cleanup
-      },
 
       // Performance tracking
       enablePerformanceTracking: options.enablePerformanceTracking !== false,
