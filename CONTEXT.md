@@ -336,3 +336,17 @@ Extracted 2026-07-17d from `loadDictionaries`' 204-line body: the priority-assig
 Distinct from `lazyLoadDictionary`'s separate trie-build path (no per-entry metadata at all) and its own `getDefaultPriority` scheme (different rule set, different numbering) — that divergence is pre-existing and already documented in `src/utils/CLAUDE.md`'s "DictionaryManager Trie-Node Metadata Is Not Uniform Across Load Paths" section; this extraction does not touch or unify it.
 
 Entry point: `src/utils/dictionary/DictionaryTrieBuilder.ts`. Not barrel-exported — sole caller is `DictionaryManager.js` in the same directory (matches `MatchComparator.ts`/`PhraseConsumptionMarker.ts` convention).
+
+## AppearanceConfig
+
+The validation adapter for appearance-settings IPC reads/writes — the `AppConfig` discipline (`validateApiResult` + per-field `fromRaw` typecheck) applied to the previously-unvalidated appearance seam. Before this module, `useAppearanceSettings.ts` and `App.jsx`'s startup FOUC-prevention bootstrap each independently spread-merged raw IPC data into state with no per-leaf type check — a wrong-typed field (e.g. `fontSize: 123`) would reach `applyAppearanceToCssVars` unchecked. Same failure class as two prior confirmed bugs (`WasmValidationResult` status-string drift, `VocabularyWarmup`'s `??` vs `||` bug).
+
+`fromRaw(raw)` validates per-leaf, not per-section: a bad `chineseText.fontSize` falls back to `DEFAULT_APPEARANCE.chineseText.fontSize` alone — sibling leaves in the same `FontSettings` section (a valid `fontFamily`) survive. Enum fields (`letterSpacing: 'normal'|'tight'|'wide'`, `theme: 'light'|'dark'|'auto'`) are checked by union membership, not `typeof === 'string'` — a wrong-but-string-typed value (`letterSpacing: 'super-wide'`) is rejected, not just a wrong-typed one. `customColors` (declared on `AppearanceSettings`, zero read sites anywhere) is intentionally omitted from `fromRaw`'s output, matching pre-existing behavior.
+
+Unlike `AppConfig`, this module holds **no module-level cache** — `useAppearanceSettings`' React state is the sole cache (one caller, unlike `AppConfig`'s many non-React readers), so a second cache would just be a second source of truth to drift from. No `toRaw` either — `AppearanceSettings`' internal shape already matches the IPC wire shape (unlike `AppConfig`'s engine/ui/session regrouping).
+
+`loadAppearanceConfig()` always returns a fully defaults-filled `AppearanceSettings` (never partial, never throws on a `success:false` envelope — only on a malformed envelope shape) — same contract as `loadAppConfig()`. `saveAppearanceConfig(settings)` throws on `success:false`.
+
+`DEFAULT_APPEARANCE` moved here from `useAppearanceSettings.ts` (still re-exported from there for `App.jsx` and existing test imports) to avoid a circular import between the hook and this module.
+
+Entry point: `src/utils/appearanceConfig.ts`. Called from `useAppearanceSettings.ts` (all 4 IPC call sites) and `App.jsx`'s startup bootstrap — both previously called `window.electronAPI.loadAppearanceSettings`/`saveAppearanceSettings` directly.

@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { AppearanceSettings } from '../types/ComponentTypes';
 import { logger } from '../utils/logger';
 import {
+  DEFAULT_APPEARANCE,
+  loadAppearanceConfig,
+  saveAppearanceConfig,
+} from '../utils/appearanceConfig';
+import {
   applyAppearanceToCssVars,
   applyFontChange,
   applyFollowFullTranslation,
@@ -11,33 +16,7 @@ import {
 } from '../utils/ui/AppearanceReducer';
 
 export type { AppearanceSection, FontProperty } from '../utils/ui/AppearanceReducer';
-
-export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  chineseText: {
-    fontFamily:
-      '"Noto Sans CJK SC", SimSun, "Microsoft YaHei", Inter, system-ui, Arial, sans-serif',
-    fontSize: '1.25rem',
-    letterSpacing: 'normal',
-    paragraphSpacing: '1rem',
-  },
-  fullTranslation: {
-    fontFamily: 'Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif',
-    fontSize: '1.25rem',
-    letterSpacing: 'normal',
-    paragraphSpacing: '1rem',
-  },
-  characterOnly: {
-    fontFamily: 'Bookerly, Amstelvar, "Noto Sans CJK SC", Arial, sans-serif',
-    fontSize: '1.25rem',
-    letterSpacing: 'normal',
-    paragraphSpacing: '1rem',
-  },
-  uiFont: {
-    fontFamily: 'Inter, system-ui, Arial, sans-serif',
-  },
-  theme: 'auto',
-  characterOnlyFollowsFullTranslation: true,
-};
+export { DEFAULT_APPEARANCE } from '../utils/appearanceConfig';
 
 export function useAppearanceSettings() {
   const [appearance, setAppearance] = useState<AppearanceSettings>(DEFAULT_APPEARANCE);
@@ -52,21 +31,7 @@ export function useAppearanceSettings() {
     async function load() {
       try {
         setIsLoading(true);
-        const result = await window.electronAPI.loadAppearanceSettings();
-        if (result.success && result.data) {
-          setAppearance({
-            chineseText: { ...DEFAULT_APPEARANCE.chineseText, ...result.data.chineseText },
-            fullTranslation: {
-              ...DEFAULT_APPEARANCE.fullTranslation,
-              ...result.data.fullTranslation,
-            },
-            characterOnly: { ...DEFAULT_APPEARANCE.characterOnly, ...result.data.characterOnly },
-            uiFont: { ...DEFAULT_APPEARANCE.uiFont, ...result.data.uiFont },
-            theme: result.data.theme || 'auto',
-            characterOnlyFollowsFullTranslation:
-              result.data.characterOnlyFollowsFullTranslation ?? true,
-          });
-        }
+        setAppearance(await loadAppearanceConfig());
         setError(null);
       } catch (err) {
         logger.error('Failed to load appearance settings:', err);
@@ -91,12 +56,8 @@ export function useAppearanceSettings() {
 
   const handleAutoSave = useCallback(async (): Promise<void> => {
     try {
-      const result = await window.electronAPI.saveAppearanceSettings(appearanceRef.current);
-      if (result.success) {
-        setError(null);
-      } else {
-        throw new Error('Failed to save appearance settings');
-      }
+      await saveAppearanceConfig(appearanceRef.current);
+      setError(null);
     } catch (err) {
       logger.error('Failed to auto-save appearance settings:', err);
       setError('Failed to save appearance settings');
@@ -108,8 +69,8 @@ export function useAppearanceSettings() {
       const next = applyFollowFullTranslation(appearanceRef.current, e.target.checked);
       setAppearance(next);
       try {
-        const result = await window.electronAPI.saveAppearanceSettings(next);
-        if (result.success) setError(null);
+        await saveAppearanceConfig(next);
+        setError(null);
       } catch (err) {
         logger.error('Failed to save after checkbox change:', err);
         setError('Failed to save appearance settings');
@@ -123,8 +84,8 @@ export function useAppearanceSettings() {
       const next = applyReset(appearanceRef.current, DEFAULT_APPEARANCE, section, property);
       setAppearance(next);
       try {
-        const result = await window.electronAPI.saveAppearanceSettings(next);
-        if (result.success) setError(null);
+        await saveAppearanceConfig(next);
+        setError(null);
       } catch (err) {
         logger.error('Failed to save after reset:', err);
         setError('Failed to save appearance settings');

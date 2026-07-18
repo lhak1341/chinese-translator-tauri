@@ -5,7 +5,7 @@ import { ToastProvider, useToast, setGlobalToast } from './components/ToastConte
 import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
 import { applyAppearanceToCssVars } from './utils/ui/AppearanceReducer';
-import { DEFAULT_APPEARANCE } from './hooks/useAppearanceSettings';
+import { loadAppearanceConfig } from './utils/appearanceConfig';
 // NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
 // Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
 // rustLookupIndexManager, wasmMemoryPoolManager)
@@ -25,21 +25,9 @@ function App() {
 
     const loadAppearanceSettings = async () => {
       try {
-        const result = await window.electronAPI.loadAppearanceSettings();
+        const appearance = await loadAppearanceConfig();
         if (!isMountedRef.current) return;
-        if (result.success && result.data) {
-          const raw = result.data;
-          applyAppearanceToCssVars({
-            chineseText: { ...DEFAULT_APPEARANCE.chineseText, ...raw.chineseText },
-            fullTranslation: { ...DEFAULT_APPEARANCE.fullTranslation, ...raw.fullTranslation },
-            characterOnly: { ...DEFAULT_APPEARANCE.characterOnly, ...raw.characterOnly },
-            uiFont: { ...DEFAULT_APPEARANCE.uiFont, ...(raw.uiFont || {}) },
-            theme: raw.theme || DEFAULT_APPEARANCE.theme,
-            characterOnlyFollowsFullTranslation:
-              raw.characterOnlyFollowsFullTranslation ??
-              DEFAULT_APPEARANCE.characterOnlyFollowsFullTranslation,
-          });
-        }
+        applyAppearanceToCssVars(appearance);
       } catch (error) {
         if (!isMountedRef.current) return;
         logger.error('Failed to load appearance settings:', error);
