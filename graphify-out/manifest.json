@@ -229,29 +229,9 @@
     "ast_hash": "4505692a429229049b0b0efbdf046263",
     "semantic_hash": ""
   },
-  "src/types/CacheTypes.d.ts": {
-    "mtime": 1780693061.0966868,
-    "ast_hash": "4b0157f4b3d6ee1169590a28b08360fe",
-    "semantic_hash": ""
-  },
   "src/types/UITypes.d.ts": {
     "mtime": 1771041832.0112278,
     "ast_hash": "d90fd8a4e3f68369872b97beee971dd5",
-    "semantic_hash": ""
-  },
-  "src/types/PerformanceMonitoringTypes.d.ts": {
-    "mtime": 1780693580.8229322,
-    "ast_hash": "c1f0d2e900d3de3d23b950a548c4aa16",
-    "semantic_hash": ""
-  },
-  "src/types/EventTypes.d.ts": {
-    "mtime": 1764427110.1524322,
-    "ast_hash": "830a934ec610531f0cc57cc746f14d2b",
-    "semantic_hash": ""
-  },
-  "src/types/UtilityTypes.d.ts": {
-    "mtime": 1767781864.287911,
-    "ast_hash": "cf85ca6f13d81d62b39318ff73cf5fbc",
     "semantic_hash": ""
   },
   "src/types/ReadonlyOptimizationTypes.d.ts": {
@@ -262,16 +242,6 @@
   "src/types/ElectronTypes.d.ts": {
     "mtime": 1782494451.6567326,
     "ast_hash": "d54daf2cc3f16f27ce3a4870695aa33c",
-    "semantic_hash": ""
-  },
-  "src/types/V8OptimizationTypes.d.ts": {
-    "mtime": 1769832257.95469,
-    "ast_hash": "237755faf3d93761c0544b989fcd0664",
-    "semantic_hash": ""
-  },
-  "src/types/DictionaryTypes.d.ts": {
-    "mtime": 1771314271.261751,
-    "ast_hash": "413f6feebced66637faf12b445da73aa",
     "semantic_hash": ""
   },
   "src/types/PatternProcessingTypes.d.ts": {
@@ -287,16 +257,6 @@
   "src/types/TranslationEngineTypes.d.ts": {
     "mtime": 1780322047.818668,
     "ast_hash": "a5a921bf1a454aadd3dfec61ddfafba3",
-    "semantic_hash": ""
-  },
-  "src/types/HookTypes.d.ts": {
-    "mtime": 1780692971.3893209,
-    "ast_hash": "b2dd8dd8bc2bc6cf4503566e80419a0e",
-    "semantic_hash": ""
-  },
-  "src/types/BatchProcessingTypes.d.ts": {
-    "mtime": 1767781864.0218208,
-    "ast_hash": "1deba7240b69e67b83e5fff9a8b549ba",
     "semantic_hash": ""
   },
   "src/types/DictionaryManagerTypes.d.ts": {
