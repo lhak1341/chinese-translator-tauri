@@ -125,16 +125,6 @@ export interface DictionaryManagerConfig {
   wasmMemoryLimit?: number;
 }
 
-/**
- * Filter configuration for active dictionaries
- */
-export interface DictionaryFilter {
-  /** Names of active proper noun dictionaries (e.g., "properNouns-TuChanTheGioi") */
-  activeProperNouns: string[];
-  /** Include base dictionaries (characters, phrases, patterns, etc.) */
-  includeBaseDictionaries?: boolean;
-}
-
 // ============================================================================
 // Memory Management Configuration
 // ============================================================================
@@ -198,18 +188,6 @@ export interface MemorySnapshot {
     processedChunks?: number;
     [key: string]: any;
   };
-}
-
-/**
- * Memory leak detector configuration
- */
-export interface MemoryLeakDetectorConfig {
-  /** Enable automatic memory leak detection */
-  enabled?: boolean;
-  /** Snapshots to retain for analysis */
-  maxSnapshots?: number;
-  /** Growth rate threshold for leak detection (MB/minute) */
-  leakThreshold?: number;
 }
 
 // ============================================================================
@@ -376,6 +354,30 @@ export interface TranslationSegment {
 }
 
 /**
+ * Translation statistics and metrics
+ */
+export interface TranslationStats {
+  /** Total processing time in milliseconds */
+  totalTime: number;
+  /** Time per phase in milliseconds */
+  phaseTimings?: {
+    patterns?: number;
+    properNouns?: number;
+    numbers?: number;
+    phrases?: number;
+    characters?: number;
+  };
+  /** Number of tokens processed */
+  tokenCount: number;
+  /** Cache hit rate (0-1) */
+  cacheHitRate?: number;
+  /** WASM acceleration used */
+  usedWasm?: boolean;
+  /** Memory usage in MB */
+  memoryUsed?: number;
+}
+
+/**
  * Enhanced translation result with segments
  */
 export interface TranslationResult {
@@ -403,50 +405,6 @@ export interface CharacterOnlyResult {
   semanticArrays: SemanticArrays;
   /** Pre-built segments (usually empty for character-only) */
   prebuiltSegments: TranslationSegment[];
-}
-
-/**
- * Translation statistics and metrics
- */
-export interface TranslationStats {
-  /** Total processing time in milliseconds */
-  totalTime: number;
-  /** Time per phase in milliseconds */
-  phaseTimings?: {
-    patterns?: number;
-    properNouns?: number;
-    numbers?: number;
-    phrases?: number;
-    characters?: number;
-  };
-  /** Number of tokens processed */
-  tokenCount: number;
-  /** Cache hit rate (0-1) */
-  cacheHitRate?: number;
-  /** WASM acceleration used */
-  usedWasm?: boolean;
-  /** Memory usage in MB */
-  memoryUsed?: number;
-}
-
-// ============================================================================
-// WASM Integration
-// ============================================================================
-
-/**
- * WASM acceleration configuration
- */
-export interface WasmAccelerationConfig {
-  /** Enable WASM for dictionary lookups */
-  enableDictionaryLookups?: boolean;
-  /** Enable WASM for number processing (Phase 3) */
-  enableNumberProcessing?: boolean;
-  /** Enable WASM for pattern matching */
-  enablePatternMatching?: boolean;
-  /** WASM memory pool size in MB */
-  memoryPoolSize?: number;
-  /** Enable memory pool recycling */
-  enableMemoryPooling?: boolean;
 }
 
 // ============================================================================
@@ -542,34 +500,6 @@ export interface PerformanceStats {
   wasmEnabled: boolean;
   /** Worker parallelization enabled */
   workersEnabled: boolean;
-}
-
-/**
- * Advanced performance statistics (detailed)
- */
-export interface AdvancedPerformanceStats {
-  // Cache details
-  cacheHits: number;
-  cacheMisses: number;
-  cacheSize: number;
-
-  // Memory pool details
-  poolEnabled: boolean;
-  poolReuseRate: number;
-  poolSavedTime: number;
-  poolWastedMemory: number;
-
-  // Semantic array details
-  semanticEnabled: boolean;
-  semanticEfficiency: number;
-  semanticUnits: number;
-  semanticRegexHitRate: number;
-
-  // Performance details
-  totalTime: number;
-  opsPerSec: number;
-  minTime: number;
-  maxTime: number;
 }
 
 // ============================================================================
@@ -737,82 +667,4 @@ export interface TranslationEngine {
 
   // Logging
   log(level: DebugLevel, ...args: any[]): void;
-}
-
-// ============================================================================
-// Configuration File Types
-// ============================================================================
-
-/**
- * Saved configuration structure
- */
-export interface TranslatorConfiguration {
-  /** Active proper noun dictionaries */
-  activeProperNouns: string[];
-  /** Last used translation mode */
-  lastTranslationMode?: TranslationMode;
-  /** UI preferences */
-  uiPreferences?: {
-    textSize?: TextSizeCategory;
-    showAdvancedStats?: boolean;
-  };
-  /** Performance preferences */
-  performancePreferences?: {
-    enableWasm?: boolean;
-    enableWorkers?: boolean;
-    maxParallelChunks?: number;
-  };
-}
-
-/**
- * Configuration load result
- */
-export interface ConfigurationLoadResult {
-  success: boolean;
-  data?: TranslatorConfiguration;
-  error?: string;
-}
-
-// ============================================================================
-// Utility Types
-// ============================================================================
-
-/**
- * Token span result for text matching
- */
-export interface TokenSpanResult {
-  /** Number of tokens consumed */
-  consumed: number;
-  /** Matched text */
-  matchedText?: string;
-  /** Match confidence (0-1) */
-  confidence?: number;
-}
-
-/**
- * Dictionary match result
- */
-export interface DictionaryMatch {
-  /** Matched word/phrase */
-  word: string;
-  /** Translation */
-  translation: string;
-  /** Dictionary name */
-  dictionary?: string;
-  /** Match length in characters */
-  length: number;
-  /** Match confidence (0-1) */
-  confidence?: number;
-}
-
-/**
- * Position mapping builder result
- */
-export interface PositionMappingBuilderResult {
-  /** Position mapping for viewport optimization */
-  mapping: TextPositionMapping;
-  /** Build time in milliseconds */
-  buildTime: number;
-  /** Whether the mapping was cached */
-  cached: boolean;
 }

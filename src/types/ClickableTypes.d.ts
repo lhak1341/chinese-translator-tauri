@@ -12,7 +12,7 @@
  * These types enable JSDoc integration for full IDE support without migrating performance-critical code.
  */
 
-import type { SemanticArrays, SemanticUnit, SemanticMetadata } from './SemanticTypes';
+import type { SemanticArrays, SemanticMetadata } from './SemanticTypes';
 
 // =============================================================================
 // Core Direction Types
@@ -65,21 +65,6 @@ export interface ClickableSegment extends BaseSegment {
   /** Full semantic metadata */
   metadata?: SemanticMetadata;
 }
-
-/**
- * Non-clickable text segment (punctuation, spaces, untranslated text)
- */
-export interface NonClickableSegment extends BaseSegment {
-  /** Whether this segment is clickable (always false) */
-  isClickable: false;
-  /** Unit index not applicable */
-  unitIndex?: -1;
-}
-
-/**
- * Union type for all segment types
- */
-export type Segment = ClickableSegment | NonClickableSegment;
 
 /**
  * Prebuilt segment with additional rendering metadata
@@ -176,27 +161,6 @@ export interface ClickableTranslationSemanticProps {
 // =============================================================================
 
 /**
- * Props for ClickableOriginalOptimized component
- *
- * Performance-optimized original text rendering with:
- * - Memoized segment components
- * - Pre-computed render segments
- * - Minimal re-renders on highlight changes
- */
-export interface ClickableOriginalOptimizedProps {
-  /** Original Chinese text to render */
-  originalText?: string;
-  /** Semantic arrays with translation metadata */
-  semanticArrays?: SemanticArrays;
-  /** Click handler for segment interactions */
-  onSegmentClick?: FlexibleClickHandler;
-  /** Currently highlighted unit index (from clicking original) */
-  highlightedUnitIndex?: number;
-  /** Currently highlighted unit index (from clicking translation) */
-  highlightedTranslationUnitIndex?: number;
-}
-
-/**
  * Props for ClickableTranslationOptimized component
  *
  * Performance-optimized translation rendering with:
@@ -218,120 +182,6 @@ export interface ClickableTranslationOptimizedProps {
 }
 
 // =============================================================================
-// Component Props - Virtualized Components
-// =============================================================================
-
-/**
- * Props for VirtualizedClickableTranslation component
- *
- * Virtual scrolling for large translations (>400 segments):
- * - Only renders visible segments
- * - Memory efficient for thousands of segments
- * - Automatic threshold detection
- * - Uses prebuilt segments for performance
- */
-export interface VirtualizedClickableTranslationProps {
-  /** Semantic arrays with translation metadata */
-  semanticArrays?: SemanticArrays;
-  /** Prebuilt segments for instant rendering */
-  prebuiltSegments?: PrebuiltSegment[];
-  /** Click handler for segment interactions */
-  onSegmentClick?: FlexibleClickHandler;
-  /** Currently highlighted unit index */
-  highlightedTranslationUnitIndex?: number;
-  /** Force virtualization even for smaller texts */
-  forceVirtualization?: boolean;
-}
-
-/**
- * Props for VirtualizedClickableTranslationViewport component
- *
- * Viewport-based optimization for very large texts (>10000 chars):
- * - Eliminates 6.8s segment computation bottleneck
- * - 98.5% faster initial rendering (50ms vs 6800ms)
- * - Uses accelerated position mapping (WASM + Web Workers)
- * - Pre-warms cache for smooth scrolling
- * - Automatic fallback to JavaScript if WASM unavailable
- */
-export interface VirtualizedClickableTranslationViewportProps {
-  /** Translated Vietnamese text to render (required) */
-  translatedText: string;
-  /** Semantic arrays with translation metadata (required) */
-  semanticArrays: SemanticArrays;
-  /** Click handler for segment interactions (required) */
-  onSegmentClick: FlexibleClickHandler;
-  /** Currently highlighted unit index */
-  highlightedTranslationUnitIndex?: number;
-  /** Force viewport optimization even for smaller texts */
-  forceVirtualization?: boolean;
-}
-
-// =============================================================================
-// Virtualization Configuration Types
-// =============================================================================
-
-/**
- * Virtualization threshold constants
- */
-export interface VirtualizationThresholds {
-  /** Start virtualizing when segment count exceeds this */
-  VIRTUALIZATION_THRESHOLD: number; // 400 segments
-  /** Force viewport optimization for texts exceeding this */
-  LONG_TEXT_THRESHOLD: number; // 10000 chars
-  /** Average height per text line in pixels */
-  ITEM_HEIGHT: number; // 25px
-  /** Extra items to render outside visible area */
-  BUFFER_SIZE: number; // 20 items
-  /** Fixed height for virtual container */
-  CONTAINER_HEIGHT: number; // 400-600px
-  /** Characters to compute per viewport */
-  VIEWPORT_SIZE: number; // 2000 chars
-}
-
-/**
- * Viewport bounds for virtualized rendering
- */
-export interface ViewportBounds {
-  /** First visible item index */
-  startIndex: number;
-  /** Last visible item index */
-  endIndex: number;
-  /** Scroll position in pixels */
-  scrollTop: number;
-  /** Viewport height in pixels */
-  viewportHeight: number;
-}
-
-/**
- * Position mapping for accelerated segment lookup
- */
-export interface PositionMapping {
-  /** Full translated text */
-  fullText: string;
-  /** Semantic ranges for position lookup */
-  semanticRanges: SemanticRange[];
-  /** Acceleration strategy used */
-  accelerationInfo?: {
-    strategy: 'wasm' | 'worker' | 'javascript';
-    duration: number;
-  };
-}
-
-/**
- * Semantic range for position mapping
- */
-export interface SemanticRange {
-  /** Start position in translated text */
-  start: number;
-  /** End position in translated text */
-  end: number;
-  /** Unit index in semantic arrays */
-  unitIndex: number;
-  /** Cached segment data */
-  segment?: ClickableSegment;
-}
-
-// =============================================================================
 // Internal Component Props (for memoized sub-components)
 // =============================================================================
 
@@ -345,124 +195,6 @@ export interface SegmentComponentProps {
   onClick: FlexibleClickHandler;
   /** Whether this segment is currently highlighted */
   isHighlighted: boolean;
-}
-
-/**
- * Props for SegmentRenderer (used in virtualized components)
- */
-export interface SegmentRendererProps {
-  /** Segment data to render */
-  segment: ClickableSegment;
-  /** Segment index in array */
-  index: number;
-  /** Whether this segment is currently highlighted */
-  isHighlighted: boolean;
-  /** Click handler */
-  onSegmentClick: (segment: ClickableSegment, index: number) => void;
-}
-
-/**
- * Props for OptimizedStaticRenderer (non-virtualized fallback)
- */
-export interface OptimizedStaticRendererProps {
-  /** All segments to render */
-  segments: PrebuiltSegment[];
-  /** Click handler */
-  onSegmentClick: (segment: ClickableSegment, index: number) => void;
-  /** Currently highlighted unit index */
-  highlightedTranslationUnitIndex: number;
-}
-
-/**
- * Props for VirtualScrollRenderer (virtualized renderer)
- */
-export interface VirtualScrollRendererProps {
-  /** All segments (only visible ones rendered) */
-  segments: PrebuiltSegment[];
-  /** Click handler */
-  onSegmentClick: (segment: ClickableSegment, index: number) => void;
-  /** Currently highlighted unit index */
-  highlightedTranslationUnitIndex: number;
-  /** Container height in pixels */
-  containerHeight: number;
-  /** Item height in pixels */
-  itemHeight: number;
-  /** Buffer size for overscanning */
-  bufferSize: number;
-}
-
-/**
- * Props for ViewportOptimizedRenderer (viewport-based renderer)
- */
-export interface ViewportOptimizedRendererProps {
-  /** Translated text */
-  translatedText: string;
-  /** Semantic arrays */
-  semanticArrays: SemanticArrays;
-  /** Position mapping */
-  positionMapping: PositionMapping;
-  /** Click handler */
-  onSegmentClick: FlexibleClickHandler;
-  /** Currently highlighted unit index */
-  highlightedTranslationUnitIndex?: number;
-  /** Container height in pixels */
-  containerHeight: number;
-  /** Item height in pixels */
-  itemHeight: number;
-  /** Buffer size for overscanning */
-  bufferSize: number;
-}
-
-/**
- * Props for SimpleTextRenderer (fallback for position mapping)
- */
-export interface SimpleTextRendererProps {
-  /** Translated text */
-  translatedText: string;
-  /** Semantic arrays */
-  semanticArrays: SemanticArrays;
-  /** Position mapping */
-  positionMapping: PositionMapping;
-  /** Click handler */
-  onSegmentClick: FlexibleClickHandler;
-  /** Currently highlighted unit index */
-  highlightedTranslationUnitIndex?: number;
-}
-
-// =============================================================================
-// Loading and Performance Types
-// =============================================================================
-
-/**
- * Loading state for viewport initialization
- */
-export interface LoadingState {
-  /** Loading operation identifier */
-  operation: string;
-  /** Loading message */
-  message: string;
-  /** Progress percentage (0-100) */
-  progress?: number;
-  /** Whether loading is complete */
-  isComplete: boolean;
-}
-
-/**
- * Performance metrics for clickable rendering
- */
-export interface ClickablePerformanceMetrics {
-  /** Segment computation time (ms) */
-  segmentComputationTime?: number;
-  /** Position mapping time (ms) */
-  positionMappingTime?: number;
-  /** Rendering time (ms) */
-  renderingTime?: number;
-  /** Total segments */
-  totalSegments?: number;
-  /** Visible segments */
-  visibleSegments?: number;
-  /** Acceleration strategy used */
-  accelerationStrategy?: 'none' | 'prebuilt' | 'virtualized' | 'viewport' | 'wasm';
 }
 
 // Export empty object to make this a module
