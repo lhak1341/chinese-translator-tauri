@@ -131,6 +131,8 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 Row-level handlers with no test id (e.g. `onContextMenu` on a row wrapper div): `fireEvent.contextMenu(someDescendantText)` still bubbles up to trigger it — avoids brittle `.closest()`/`.parentElement` DOM traversal to find the row wrapper.
 
+**Testing a closure passed as a hook argument** (e.g. `useInlineFieldEdit(value, onCommit)` where `onCommit` builds a component-local metadata object): mock the hook, capture the argument in the mock factory, invoke it directly in the test. Skips simulating the hook's own edit/blur state machine (already covered by that hook's own test file) and isolates the assertion to the component's own logic. See `VirtualRowComponent.test.tsx`.
+
 Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefCallback` from `useVirtualScrollRange`): capture the node via the callback itself (`scrollRefCallback: (node) => { captured = node }`) and call `fireEvent` on it directly — do not hunt for it with a `querySelector('div[style*=...]')` CSS-string match against inline styles; brittle against style-string formatting and unrelated markup changes.
 
 **Patterns-dict source text is not a single text node** — `VirtualRowComponent` renders it through `highlightPatternVariables(source)`, which splits it into styled spans per X/Y variable. `screen.getByText(sourceString)` will fail to match; assert on the (plain-text) translation string instead.

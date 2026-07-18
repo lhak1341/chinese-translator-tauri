@@ -608,6 +608,12 @@ Fallow reports are a starting point, not a deletion list. Four blind spots:
 
 5. **Partial-dead ≠ file-dead.** A file with some dead exports is NOT a dead file. Verify every export has zero callers before deleting the file.
 
+6. **JSDoc `@import {...} from '...'` and inline `@type {import('...').X}` are invisible to `analyze`/`trace_export`.** This codebase types many `.js` files via JSDoc, not real ES imports — a `.d.ts` file consumed only this way shows `file_reachable: false` even when genuinely alive. Grep for `@import\s*{` and `import\(['"].*['"]\)\.` referencing a file before trusting fallow's verdict on it.
+
+7. **`analyze` with a `file:` filter suppresses `unused_files`** (dependency-level checks are disabled in file-scoped mode — the tool's own docs say so, easy to miss). Re-run without `file:` for a real answer.
+
+8. **`fix_apply`/`fix_preview` have no file/name scoping and only cover `unused-exports`, not `unused-types`.** Confirmed false positives: wanted to strip exports from a barrel that real code imports, and delete npm deps wired through Rust, not JS. Not usable for a scoped cleanup — verify every proposed fix manually, or don't use it for `.d.ts`/type pruning at all.
+
 **Protocol per file:**
 
 - Grep each export (not just fallow-listed ones): `grep -r "ExportName" src/` — confirm zero results outside the definition.
