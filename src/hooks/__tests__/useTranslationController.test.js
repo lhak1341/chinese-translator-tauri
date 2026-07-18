@@ -13,7 +13,7 @@ describe('useTranslationController', () => {
   });
 
   describe('createController', () => {
-    test('returns controller, timeoutId, and translationId', () => {
+    test('returns controller and timeoutId', () => {
       const { result } = renderHook(() => useTranslationController());
 
       let bundle;
@@ -23,7 +23,6 @@ describe('useTranslationController', () => {
 
       expect(bundle).toHaveProperty('controller');
       expect(bundle).toHaveProperty('timeoutId');
-      expect(bundle).toHaveProperty('translationId');
       expect(bundle.controller.signal).toBeDefined();
       expect(bundle.controller).toBeInstanceOf(AbortController);
       expect(bundle.timeoutId).toBeDefined();
@@ -76,7 +75,7 @@ describe('useTranslationController', () => {
       expect(result.current.getActiveCount()).toBe(1);
 
       act(() => {
-        result.current.cleanup(bundle.translationId, bundle.timeoutId);
+        result.current.cleanup(bundle.timeoutId);
       });
 
       expect(result.current.getActiveCount()).toBe(0);
@@ -93,7 +92,7 @@ describe('useTranslationController', () => {
       const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
 
       act(() => {
-        result.current.cleanup(bundle.translationId, bundle.timeoutId);
+        result.current.cleanup(bundle.timeoutId);
       });
 
       expect(clearTimeoutSpy).toHaveBeenCalledWith(bundle.timeoutId);
@@ -104,7 +103,7 @@ describe('useTranslationController', () => {
 
       expect(() => {
         act(() => {
-          result.current.cleanup('unused', 99999);
+          result.current.cleanup(99999);
         });
       }).not.toThrow();
     });
@@ -206,7 +205,7 @@ describe('useTranslationController', () => {
       });
 
       act(() => {
-        result.current.cleanup(bundle.translationId, bundle.timeoutId);
+        result.current.cleanup(bundle.timeoutId);
       });
 
       act(() => {

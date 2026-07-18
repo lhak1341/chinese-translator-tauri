@@ -46,15 +46,14 @@ export function useTranslationController(options = {}) {
     }, timeout);
 
     activeController.current = { controller, timeoutId };
-    return { controller, timeoutId, translationId: 'single' };
+    return { controller, timeoutId };
   }, [timeout, cancelPreviousOnNew]);
 
   /**
-   * @param {string} _translationId - Ignored (single-at-a-time semantics)
    * @param {number} timeoutId - Timeout ID to clear
    * @param {Promise} [promise] - Optional async cleanup work (CRITICAL-3)
    */
-  const cleanup = useCallback((_translationId, timeoutId, promise = null) => {
+  const cleanup = useCallback((timeoutId, promise = null) => {
     clearTimeout(timeoutId);
     activeController.current = null;
 

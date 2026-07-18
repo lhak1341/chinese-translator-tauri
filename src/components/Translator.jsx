@@ -590,11 +590,8 @@ const Translator = ({ isActive = true }) => {
 
       // Create translation controller with automatic cancellation and timeout
       // Hook automatically cancels previous translations (cancelPreviousOnNew: true)
-      const {
-        controller: abortController,
-        translationId,
-        timeoutId: controllerTimeoutId,
-      } = createTranslationController();
+      const { controller: abortController, timeoutId: controllerTimeoutId } =
+        createTranslationController();
 
       const translationStartTime = performance.now();
 
@@ -763,7 +760,7 @@ const Translator = ({ isActive = true }) => {
                   // CRITICAL FIX: Check atomic flag to prevent race condition
                   // Must check both abort state AND timeout flag to avoid double execution
                   if (timeoutShouldFire && !abortController.signal.aborted) {
-                    logger.error(`⏰ Optimized engine timeout for translation ${translationId}`);
+                    logger.error('⏰ Optimized engine timeout');
                     setProgressInfo(null);
                     reject(new Error('Optimized engine timeout'));
                   }
@@ -787,7 +784,7 @@ const Translator = ({ isActive = true }) => {
           return result;
         } else {
           // Engine not ready - return original text with message
-          logger.error(`❌ Translation ${translationId} failed: Engine not ready`);
+          logger.error('❌ Translation failed: Engine not ready');
           return 'Engine not ready. Please wait for engine initialization.';
         }
       } finally {
@@ -803,7 +800,7 @@ const Translator = ({ isActive = true }) => {
 
           setActiveTranslations((prev) => {
             const newCount = prev - 1;
-            logger.log(`🏁 Translation ${translationId} finished - Active: ${newCount}`);
+            logger.log(`🏁 Translation finished - Active: ${newCount}`);
             return newCount;
           });
 
@@ -812,7 +809,7 @@ const Translator = ({ isActive = true }) => {
         })();
 
         // Clean up translation controller and pass cleanup promise for tracking
-        cleanupTranslationController(translationId, controllerTimeoutId, cleanupWork);
+        cleanupTranslationController(controllerTimeoutId, cleanupWork);
       }
     },
     [isLoading, isDictionaryReloading]
