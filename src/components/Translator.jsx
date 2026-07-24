@@ -628,20 +628,6 @@ const Translator = ({ isActive = true }) => {
           return text;
         }
 
-        // HIGH-2 FIX: Verify segment cleanup is firing before starting new translation
-        if (engineRef.current?.translationSegments?.length > 100) {
-          logger.error(
-            `🚨 Segment cleanup failed: ${engineRef.current.translationSegments.length} segments accumulated (expected ≤35)`
-          );
-          // Force immediate cleanup
-          const oldCount = engineRef.current.translationSegments.length;
-          engineRef.current.translationSegments = engineRef.current.translationSegments.slice(-35);
-          logger.log(
-            `✅ Forced segment cleanup: ${oldCount} → ${engineRef.current.translationSegments.length}`
-          );
-          toast.warning('Performance optimization applied (segment cleanup)', { duration: 3000 });
-        }
-
         // Use optimized engine with progressive translation
         if (engineRef.current && engineRef.current.isReady()) {
           // Scroll to beginning immediately when translation starts (skip during dictionary reload)

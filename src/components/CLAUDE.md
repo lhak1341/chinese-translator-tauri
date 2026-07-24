@@ -53,6 +53,8 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 
 **Config load**: `useTranslatorEngine` calls `loadAppConfig()` once on mount (cached). For `handleForceReload`, pass `forceConfigReload: true` to `reinitialize` — do NOT call `invalidateAppConfig`/`loadAppConfig` directly in `Translator.jsx`.
 
+**Never reach into `engineRef.current.translationSegments`** (or other engine-private arrays) from `Translator.jsx` — the engine enforces its own memory invariants (see `src/utils/CLAUDE.md`'s segment-cleanup entry). A caller-side watchdog for this was deleted 2026-07-24.
+
 **Priority scheme**: defined as `ENGINE_PRIORITIES` constant in `useTranslatorEngine.js` and exported. Pass to both `reinitialize()` and the hook's own init — any change to priorities must be made there only.
 
 **Post-ready setup** (engine stats, debounced callbacks, dev tools): done in a `useEffect([enginePhase])` in `Translator.jsx` — fires on every transition to `'ready'`, including after `reinitialize`.

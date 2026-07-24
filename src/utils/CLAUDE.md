@@ -6,6 +6,10 @@
 
 Stops `memoryCoordinator` intervals, clears `processedBatchCache`, `semanticArrayBuilder`, `semanticPatternProcessor.variableCache`, and `dictionaryManager` caches. `useForceReload` is the sole production caller. Do not re-introduce manual cache clearing in reload paths — route through `destroy()` instead.
 
+### Segment Cleanup Has a Synchronous Hard Ceiling — Do Not Re-Add a Caller-Side Watchdog
+
+`MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER` (75) cleanup is idle-deferred (`requestIdleCallback`/`setTimeout`) and `SmartMemoryCoordinator`'s backstop is pressure-reactive (10s sampling) — neither deterministically bounds `translationSegments.length`. `SEGMENT_CLEANUP_HARD_CEILING` (100) closes the gap: the push site trims synchronously once crossed, no idle wait. `Translator.jsx` had a caller-side watchdog reaching into `engineRef.current.translationSegments` with hardcoded 100/35 to cover this exact gap — deleted 2026-07-24 now that the engine enforces its own invariant. Do not re-add it; if segments are ever observed exceeding 100, the bug is in the engine's own cleanup, not something to patch from Translator.jsx.
+
 ### `engine.initialize()` Requires `options.activeProperNouns` from Caller
 
 Does NOT read config from disk — uses `options.activeProperNouns || ['properNouns']`. If caller omits it, silently falls back to `['properNouns']` and `getFilteredDictionaries` drops all `properNouns-*` novel dicts — names go un-capitalized with no error. Both call sites are inside `useTranslatorEngine.js`: initial load passes `activeProperNounsFromConfig` state; force reload uses `reinitialize(forceConfigReload: true)` which reads fresh config internally.
@@ -230,6 +234,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 - **`vi.useFakeTimers()` does not fake `performance.now()` by default** — pass `{ toFake: ['setTimeout','clearTimeout','setInterval','clearInterval','Date','performance'] }` explicitly when testing code with `performance.now()`-based thresholds or growth-rate math.
 - **Testing a strict `elapsed > N` (not `>=`) time-window guard**: a fake-timer interval tick fires exactly at its scheduled boundary, not at "total time advanced" — offset the interval by 1ms (or advance one tick past N) so the check actually crosses the boundary, not just reaches it.
 - `AppConfiguration`: import from `src/types/ComponentTypes`, NOT `configValidation`
+- Testing anything that calls `loadAppConfig()`: mock `../../utils/appConfig` directly (`vi.mock(..., () => ({ loadAppConfig: vi.fn() }))`), not raw `window.electronAPI.loadConfiguration` — the module-level `cache` in `appConfig.ts` isn't reset between tests in the same file (no `resetModules` config), so mocking only the IPC call risks leaking a stale cached value into later tests.
 - `getDictionaryLabel`/`compareDictionaryOrder`: import from `dictionaryHelpers` directly (re-export through `DuplicateAnalyzer` removed)
 - `vi.doMock` for `translation_wasm_core.js`: path resolves from the _source_ file's directory, not the test file's
 - Pipeline phases testable in jsdom: **2** (proper nouns), **3** (numbers), **4** (phrases), **5** (chars) — pure JS. Phase **1** (WASM patterns) requires the binary — covered in wasm-core Rust tests.

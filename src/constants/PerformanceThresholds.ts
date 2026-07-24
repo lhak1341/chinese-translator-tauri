@@ -16,6 +16,8 @@ interface MemoryThresholds {
   readonly SEGMENT_CLEANUP_TRIGGER: number;
   /** Keep this many segments after cleanup */
   readonly SEGMENT_CLEANUP_KEEP: number;
+  /** Above this, trim synchronously instead of waiting for idle time */
+  readonly SEGMENT_CLEANUP_HARD_CEILING: number;
   /** Emergency cleanup threshold (rarely hit) */
   readonly EMERGENCY_CLEANUP_THRESHOLD: number;
   /** Critical memory cleanup threshold */
@@ -58,6 +60,14 @@ export const MEMORY_THRESHOLDS: MemoryThresholds = {
    * Balances memory usage with clickable highlighting coverage
    */
   SEGMENT_CLEANUP_KEEP: 35,
+
+  /**
+   * Above this, the push site trims synchronously instead of deferring to
+   * requestIdleCallback/setTimeout — closes the gap where a synchronous burst
+   * of pushes (or idle time getting starved under load) lets the count run
+   * away before the deferred cleanup ever gets to run.
+   */
+  SEGMENT_CLEANUP_HARD_CEILING: 100,
 
   /**
    * Emergency cleanup threshold (rarely hit)

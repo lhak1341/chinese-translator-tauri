@@ -4220,7 +4220,17 @@ export class TranslationEngine {
     // At 75 segments: ~5-10ms position lookup overhead per highlight interaction.
     // At 35 segments: ~1-2ms overhead (negligible for real-time UI).
     // OPTIMIZATION: Defer cleanup to idle time to avoid blocking translation
-    if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
+    if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING) {
+      // Idle-deferred cleanup below never got a chance to run (starved idle time,
+      // or a synchronous burst of pushes outran it) — trim now instead of waiting.
+      const segmentsBefore = this.translationSegments.length;
+      this.translationSegments = this.translationSegments.slice(
+        -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+      );
+      logger.warn(
+        `🧹 Segment cleanup fell behind (idle callback starved): synchronous trim ${segmentsBefore} → ${this.translationSegments.length}`
+      );
+    } else if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
       // Log once when crossing the threshold, not on every subsequent push
       if (this.translationSegments.length === MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER + 1) {
         logger.debug(

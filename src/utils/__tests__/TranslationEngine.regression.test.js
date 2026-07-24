@@ -24,7 +24,12 @@ class MockTranslationEngine {
   trackTranslationSegmentWithAsyncCleanup() {
     this.translationSegments.push({ data: 'segment' });
 
-    if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
+    if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING) {
+      // Idle-deferred cleanup never got a chance to run — trim synchronously.
+      this.translationSegments = this.translationSegments.slice(
+        -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
+      );
+    } else if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER) {
       const segmentsToKeep = MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP;
 
       const cleanupFn = () => {
@@ -146,6 +151,41 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
+  describe('Bug Fix: Segment Cleanup Hard Ceiling', () => {
+    let engine;
+
+    beforeEach(() => {
+      engine = new MockTranslationEngine();
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
+
+    it('trims synchronously, without running any timers, once the hard ceiling is crossed', () => {
+      // A synchronous burst outruns the idle-deferred cleanup entirely —
+      // no vi.runAllTimersAsync() here, the trim must already have happened.
+      for (let i = 0; i < MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING + 1; i++) {
+        engine.trackTranslationSegmentWithAsyncCleanup();
+      }
+
+      expect(engine.translationSegments.length).toBe(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP);
+    });
+
+    it('does not trim synchronously while still under the hard ceiling', () => {
+      for (let i = 0; i < MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING; i++) {
+        engine.trackTranslationSegmentWithAsyncCleanup();
+      }
+
+      // Still queued for idle cleanup, not yet trimmed
+      expect(engine.translationSegments.length).toBe(
+        MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING
+      );
+    });
+  });
+
   describe('Bug Fix: Inconsistent Cleanup Thresholds', () => {
     let engine;
 
@@ -238,6 +278,9 @@ describe('TranslationEngine Regression Tests', () => {
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP).toBeLessThan(
         MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER
       );
+      expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER).toBeLessThan(
+        MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING
+      );
     });
 
     it('should use documented threshold values', () => {
@@ -246,6 +289,7 @@ describe('TranslationEngine Regression Tests', () => {
       // to preserve meaningful clickable highlighting after pressure cleanups.
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER).toBe(75);
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP).toBe(35);
+      expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING).toBe(100);
       expect(MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD).toBe(10);
       expect(MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD).toBe(20);
     });

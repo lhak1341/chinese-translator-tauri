@@ -109,6 +109,19 @@ const StreamingProgressBar = memo<StreamingProgressBarProps>(({ streamingState }
 
 StreamingProgressBar.displayName = 'StreamingProgressBar';
 
+/**
+ * Whether a scroll container is close enough to its bottom edge that
+ * auto-scroll-to-bottom should keep following new content.
+ */
+export function isNearBottom(
+  scrollTop: number,
+  clientHeight: number,
+  scrollHeight: number,
+  threshold = 50
+): boolean {
+  return scrollTop + clientHeight >= scrollHeight - threshold;
+}
+
 // Typing cursor component - OPTIMIZED: Uses CSS class instead of inline styles
 const TypingCursor = memo<TypingCursorProps>(({ visible }) => {
   if (!visible) return null;
@@ -141,8 +154,11 @@ const StreamingTextRenderer = memo<StreamingTextRendererProps>(
     useEffect(() => {
       if (isStreaming && containerRef.current) {
         const container = containerRef.current;
-        const shouldScroll =
-          container.scrollTop + container.clientHeight >= container.scrollHeight - 50;
+        const shouldScroll = isNearBottom(
+          container.scrollTop,
+          container.clientHeight,
+          container.scrollHeight
+        );
 
         if (shouldScroll) {
           requestAnimationFrame(() => {

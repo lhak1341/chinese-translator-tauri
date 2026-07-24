@@ -15,6 +15,11 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import React from 'react';
 import DictionaryManager from '../DictionaryManager';
+import { loadAppConfig } from '../../../utils/appConfig';
+
+vi.mock('../../../utils/appConfig', () => ({
+  loadAppConfig: vi.fn(),
+}));
 
 const {
   dictionariesRef,
@@ -146,12 +151,11 @@ beforeEach(() => {
     return 0;
   });
 
-  (window as any).electronAPI = {
-    loadConfiguration: vi.fn().mockResolvedValue({
-      success: true,
-      data: { activeProperNouns: ['properNouns-Test', 'properNouns-Other'] },
-    }),
-  };
+  vi.mocked(loadAppConfig).mockResolvedValue({
+    engine: { activeProperNouns: ['properNouns-Test', 'properNouns-Other'] },
+    ui: { defaultQuickAddDictionary: null },
+    session: { lastSelectedDictionary: null },
+  });
 });
 
 describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition', () => {

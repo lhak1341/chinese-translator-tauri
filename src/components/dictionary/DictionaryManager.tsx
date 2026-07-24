@@ -23,6 +23,7 @@ import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
 import { findConflictingEntries, toProperNounsId, type DuplicateRow } from '../../utils/dictionary';
 import { toast } from '../ToastContext';
+import { loadAppConfig } from '../../utils/appConfig';
 
 /**
  * Selection state for bulk operations in Enhanced table
@@ -117,10 +118,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         setDictionaryTypes(types);
 
         // Load active dictionaries from config
-        const configResult = await window.electronAPI.loadConfiguration();
-        if (configResult.success && configResult.data) {
-          setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
-        }
+        const config = await loadAppConfig();
+        setActiveDictionaries(config.engine.activeProperNouns);
 
         // If the currently selected dictionary is no longer available,
         // switch to the first available dictionary
@@ -144,21 +143,9 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // Reload configuration and dictionary types when tab becomes active (to pick up changes from Configuration tab)
   useEffect(() => {
     if (isActive) {
-      // Trigger full reload of dictionary types and configuration
+      // Trigger full reload of dictionary types and configuration —
+      // the refreshTimestamp bump re-runs the effect above, which reloads config too
       setRefreshTimestamp(Date.now());
-
-      // Also reload active dictionaries from configuration
-      const reloadConfig = async (): Promise<void> => {
-        try {
-          const configResult = await window.electronAPI.loadConfiguration();
-          if (configResult.success && configResult.data) {
-            setActiveDictionaries(configResult.data.activeProperNouns || ['properNouns']);
-          }
-        } catch (error) {
-          logger.error('Failed to reload configuration:', error);
-        }
-      };
-      reloadConfig();
     }
   }, [isActive]);
 
