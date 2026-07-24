@@ -6,7 +6,6 @@ import styles from '../../styles/TranslatorControls.module.css';
  * Performance statistics for translation operations
  */
 interface PerformanceStats {
-  operations: number;
   avgTime: number;
 }
 
@@ -15,9 +14,6 @@ interface PerformanceStats {
  */
 interface RegressionHealth {
   status: 'healthy' | 'warning' | 'critical';
-  criticalAlerts: number;
-  warningAlerts: number;
-  baselines: number;
 }
 
 /**

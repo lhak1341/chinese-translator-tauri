@@ -19,7 +19,6 @@ describe('PerformanceBaselineTracker', () => {
     tracker.recordPerformance(type, {
       duration: 100,
       memoryUsed: 1000,
-      cacheHitRate: 0.9,
       ...overrides,
     });
 
@@ -62,7 +61,6 @@ describe('PerformanceBaselineTracker', () => {
       const baseline = tracker.baselines.get('op');
       expect(baseline.avgDuration).toBe(100);
       expect(baseline.sampleCount).toBe(10);
-      expect(baseline.avgCacheHitRate).toBeCloseTo(0.9, 5);
     });
 
     it('does not auto-update the baseline before baselineWindowMs elapses (default 24h)', () => {
@@ -149,29 +147,6 @@ describe('PerformanceBaselineTracker', () => {
       record('op', { duration: 105 });
 
       expect(tracker.alerts.find((a) => a.type === 'duration_regression')).toBeUndefined();
-    });
-
-    it('raises a warning alert when cache hit rate drops below the warning threshold', () => {
-      for (let i = 0; i < 10; i++) record('op', { cacheHitRate: 0.9 });
-      record('op', { cacheHitRate: 0.7 }); // below 0.9*0.8=0.72, above 0.9*0.6=0.54
-
-      const alert = tracker.alerts.find((a) => a.type === 'cache_degradation');
-      expect(alert.level).toBe('warning');
-    });
-
-    it('raises a critical alert when cache hit rate drops below the critical threshold', () => {
-      for (let i = 0; i < 10; i++) record('op', { cacheHitRate: 0.9 });
-      record('op', { cacheHitRate: 0.5 }); // below 0.9*0.6=0.54
-
-      const alert = tracker.alerts.find((a) => a.type === 'cache_degradation');
-      expect(alert.level).toBe('critical');
-    });
-
-    it('never raises a memory-regression alert (permanently disabled branch)', () => {
-      for (let i = 0; i < 10; i++) record('op', { memoryUsed: 1000 });
-      record('op', { memoryUsed: 1000000 });
-
-      expect(tracker.alerts.find((a) => a.type === 'memory_regression')).toBeUndefined();
     });
 
     it('enforces MAX_ALERTS with oldest-first eviction', () => {
@@ -290,6 +265,52 @@ describe('PerformanceBaselineTracker', () => {
     });
   });
 
+  describe('getStatusSummary', () => {
+    it('reports healthy status with no alerts', () => {
+      for (let i = 0; i < 10; i++) record('op');
+      expect(tracker.getStatusSummary()).toEqual({ status: 'healthy' });
+    });
+
+    it('reports warning status when only warning alerts are recent', () => {
+      for (let i = 0; i < 10; i++) record('op', { duration: 100 });
+      record('op', { duration: 130 });
+      expect(tracker.getStatusSummary().status).toBe('warning');
+    });
+
+    it('reports critical status when any critical alert is recent', () => {
+      for (let i = 0; i < 10; i++) record('op', { duration: 100 });
+      record('op', { duration: 200 });
+      expect(tracker.getStatusSummary().status).toBe('critical');
+    });
+
+    it('excludes alerts older than one hour', () => {
+      for (let i = 0; i < 10; i++) record('op', { duration: 100 });
+      record('op', { duration: 200 });
+      tracker.alerts[tracker.alerts.length - 1].timestamp = Date.now() - 2 * 60 * 60 * 1000;
+
+      expect(tracker.getStatusSummary().status).toBe('healthy');
+    });
+  });
+
+  describe('getBaseline', () => {
+    it('returns the baseline for an established operation type', () => {
+      for (let i = 0; i < 10; i++) record('op', { duration: 100 });
+      expect(tracker.getBaseline('op')).toEqual(tracker.baselines.get('op'));
+    });
+
+    it('returns undefined for an operation type with no baseline', () => {
+      expect(tracker.getBaseline('missing')).toBeUndefined();
+    });
+
+    it('moves the accessed baseline to the end of Map iteration order (LRU)', () => {
+      for (let i = 0; i < 10; i++) record('a');
+      for (let i = 0; i < 10; i++) record('b');
+
+      tracker.getBaseline('a');
+      expect([...tracker.baselines.keys()]).toEqual(['b', 'a']);
+    });
+  });
+
   describe('getOperationHistory', () => {
     it('filters by operationType and applies a limit', () => {
       for (let i = 0; i < 5; i++) record('a', { duration: i });
@@ -359,30 +380,6 @@ describe('PerformanceBaselineTracker', () => {
           { x: 0, y: 5 },
         ])
       ).toBe(0);
-    });
-  });
-
-  describe('generateMemoryInvestigationSuggestions', () => {
-    it('returns only the generic debug commands below the info threshold', () => {
-      expect(tracker.generateMemoryInvestigationSuggestions(1.1)).toHaveLength(3);
-    });
-
-    it('adds an info-level suggestion between 1.3 and 1.5', () => {
-      const suggestions = tracker.generateMemoryInvestigationSuggestions(1.3);
-      expect(suggestions).toHaveLength(5);
-      expect(suggestions[0]).toContain('INFO');
-    });
-
-    it('adds a warning-level suggestion between 1.5 and 2.0', () => {
-      const suggestions = tracker.generateMemoryInvestigationSuggestions(1.5);
-      expect(suggestions).toHaveLength(6);
-      expect(suggestions[0]).toContain('WARNING');
-    });
-
-    it('adds a critical-level suggestion at or above 2.0', () => {
-      const suggestions = tracker.generateMemoryInvestigationSuggestions(2.0);
-      expect(suggestions).toHaveLength(6);
-      expect(suggestions[0]).toContain('CRITICAL');
     });
   });
 

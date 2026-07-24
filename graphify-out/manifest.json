@@ -249,11 +249,6 @@
     "ast_hash": "e2492464863d6870aa09f891cb9384a6",
     "semantic_hash": ""
   },
-  "src/types/PerformanceTypes.d.ts": {
-    "mtime": 1781930826.8396828,
-    "ast_hash": "da21e7ed12cbb6a157ea9c66981268ae",
-    "semantic_hash": ""
-  },
   "src/types/TranslationEngineTypes.d.ts": {
     "mtime": 1780322047.818668,
     "ast_hash": "a5a921bf1a454aadd3dfec61ddfafba3",
@@ -657,11 +652,6 @@
   "src/utils/dictionary/IncrementalDictionarySorter.js": {
     "mtime": 1777743718.8389902,
     "ast_hash": "d7e960bd056841e1d81fcccb2e349da7",
-    "semantic_hash": ""
-  },
-  "src/utils/dictionary/DictionaryHealthMonitor.js": {
-    "mtime": 1780661054.6877255,
-    "ast_hash": "547144353edff0b031ab1ca0e5fc2917",
     "semantic_hash": ""
   },
   "src/utils/dictionary/PersistTimeValidator.ts": {

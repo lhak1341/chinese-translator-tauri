@@ -236,6 +236,14 @@ export class SystemPerformanceMonitor {
   }
 
   /**
+   * Cheap status-only read — skips the baselines array build in getSystemHealthReport().
+   * For callers that only need status (e.g. PerformanceHealth.getReport()'s hot path).
+   */
+  getStatus() {
+    return this.baselineTracker.getStatusSummary();
+  }
+
+  /**
    * MEMORY LEAK FIX: Complete cleanup of all resources
    * Call this when the monitor is no longer needed
    */
@@ -296,6 +304,15 @@ export class SystemPerformanceMonitor {
   }
 
   /**
+   * Maps a raw metric key to the baseline field that tracks it. memoryUsed is
+   * the only metric key ever produced by an integration's collectMetrics()
+   * that also has a tracked baseline.
+   */
+  static BASELINE_FIELD_FOR_METRIC = {
+    memoryUsed: 'avgMemoryUsed',
+  };
+
+  /**
    * Log detailed memory breakdown for critical alerts
    */
   logDetailedMemoryDebug(operationType, alert) {
@@ -306,7 +323,7 @@ export class SystemPerformanceMonitor {
       const integration = this.integrations.get(operationType);
       if (integration && integration.collectMetrics) {
         const currentMetrics = integration.collectMetrics();
-        const baseline = this.baselineTracker.baselines.get(operationType);
+        const baseline = this.baselineTracker.getBaseline(operationType);
 
         logger.log(`📊 Current Memory Usage:`, currentMetrics);
         logger.log(`📋 Baseline:`, baseline);
@@ -315,17 +332,14 @@ export class SystemPerformanceMonitor {
         if (currentMetrics && baseline) {
           logger.log(`🔺 Memory Growth Analysis:`);
           Object.keys(currentMetrics).forEach((key) => {
-            if (key.includes('memory') || key.includes('cache') || key.includes('size')) {
-              const current = currentMetrics[key] || 0;
-              const baselineVal =
-                baseline[`avg${key.charAt(0).toUpperCase()}${key.slice(1)}`] || baseline[key] || 0;
-              if (baselineVal > 0) {
-                const ratio = current / baselineVal;
-                if (ratio > 1.2) {
-                  logger.log(
-                    `   ${key}: ${current} (${ratio.toFixed(1)}x baseline: ${baselineVal})`
-                  );
-                }
+            const baselineKey = SystemPerformanceMonitor.BASELINE_FIELD_FOR_METRIC[key];
+            if (!baselineKey) return;
+            const current = currentMetrics[key] || 0;
+            const baselineVal = baseline[baselineKey] || 0;
+            if (baselineVal > 0) {
+              const ratio = current / baselineVal;
+              if (ratio > 1.2) {
+                logger.log(`   ${key}: ${current} (${ratio.toFixed(1)}x baseline: ${baselineVal})`);
               }
             }
           });

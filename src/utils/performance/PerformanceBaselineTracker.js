@@ -34,8 +34,6 @@ export class PerformanceBaselineTracker {
         criticalDegradation: options.criticalDegradation || 1.5, // 50% slower
         memoryWarning: options.memoryWarning || 1.3, // 30% more memory
         memoryCritical: options.memoryCritical || 1.5, // 50% more memory
-        cacheHitRateWarning: options.cacheHitRateWarning || 0.8, // <80%
-        cacheHitRateCritical: options.cacheHitRateCritical || 0.6, // <60%
         ...options.alertThresholds,
       },
       maxHistorySize: options.maxHistorySize || 1000,
@@ -76,6 +74,14 @@ export class PerformanceBaselineTracker {
       this.baselines.set(operationType, baseline);
     }
     return baseline;
+  }
+
+  /**
+   * Public accessor for a single baseline — replaces reaching directly into
+   * `.baselines` (a Map) from outside this class.
+   */
+  getBaseline(operationType) {
+    return this._getBaselineLRU(operationType);
   }
 
   /**
@@ -152,7 +158,6 @@ export class PerformanceBaselineTracker {
     // Calculate baseline statistics
     const durations = history.map((h) => h.duration || 0).filter((d) => d > 0);
     const memoryUsages = history.map((h) => h.memoryUsed || 0).filter((m) => m > 0);
-    const cacheHitRates = history.map((h) => h.cacheHitRate || 0).filter((c) => c > 0);
 
     const baseline = {
       operationType,
@@ -168,10 +173,6 @@ export class PerformanceBaselineTracker {
       // Memory statistics
       avgMemoryUsed: this.calculateMean(memoryUsages),
       medianMemoryUsed: this.calculateMedian(memoryUsages),
-
-      // Cache performance
-      avgCacheHitRate: this.calculateMean(cacheHitRates),
-      medianCacheHitRate: this.calculateMedian(cacheHitRates),
 
       // Quality metrics
       operationsPerSecond: durations.length > 0 ? 1000 / this.calculateMean(durations) : 0,
@@ -193,9 +194,6 @@ export class PerformanceBaselineTracker {
       avgMemory: baseline.avgMemoryUsed
         ? (baseline.avgMemoryUsed / 1024 / 1024).toFixed(1) + 'MB'
         : 'N/A',
-      avgCacheHitRate: baseline.avgCacheHitRate
-        ? (baseline.avgCacheHitRate * 100).toFixed(1) + '%'
-        : 'N/A',
     });
   }
 
@@ -214,7 +212,6 @@ export class PerformanceBaselineTracker {
 
     const recentDurations = recentHistory.map((h) => h.duration || 0).filter((d) => d > 0);
     const recentMemoryUsages = recentHistory.map((h) => h.memoryUsed || 0).filter((m) => m > 0);
-    const recentCacheHitRates = recentHistory.map((h) => h.cacheHitRate || 0).filter((c) => c > 0);
 
     // Update baseline with exponential moving average
     if (recentDurations.length > 0) {
@@ -225,12 +222,6 @@ export class PerformanceBaselineTracker {
     if (recentMemoryUsages.length > 0) {
       const newAvgMemory = this.calculateMean(recentMemoryUsages);
       baseline.avgMemoryUsed = baseline.avgMemoryUsed * (1 - alpha) + newAvgMemory * alpha;
-    }
-
-    if (recentCacheHitRates.length > 0) {
-      const newAvgCacheHitRate = this.calculateMean(recentCacheHitRates);
-      baseline.avgCacheHitRate =
-        baseline.avgCacheHitRate * (1 - alpha) + newAvgCacheHitRate * alpha;
     }
 
     baseline.lastUpdate = Date.now();
@@ -266,64 +257,6 @@ export class PerformanceBaselineTracker {
           ratio: durationRatio,
           current: dataPoint.duration,
           baseline: baseline.avgDuration,
-        });
-      }
-    }
-
-    // Memory regression check
-    // DISABLED: False positives due to startup vs runtime memory baseline differences
-    // Real memory monitoring shows healthy 12% usage (270MB/2144MB), baseline comparison is unreliable
-    if (false && dataPoint.memoryUsed && baseline.avgMemoryUsed > 0) {
-      const memoryRatio = dataPoint.memoryUsed / baseline.avgMemoryUsed;
-      // Increased thresholds to prevent false positives
-      if (memoryRatio >= 3.0) {
-        // Was 2.0, now 3.0
-        alerts.push({
-          level: 'critical',
-          type: 'memory_regression',
-          message: `${operationType} memory usage ${memoryRatio.toFixed(1)}x higher than baseline`,
-          ratio: memoryRatio,
-          current: dataPoint.memoryUsed,
-          baseline: baseline.avgMemoryUsed,
-          investigation: this.generateMemoryInvestigationSuggestions(memoryRatio),
-        });
-      } else if (memoryRatio >= 2.5) {
-        // Was 1.5, now 2.5
-        alerts.push({
-          level: 'warning',
-          type: 'memory_regression',
-          message: `${operationType} memory usage ${memoryRatio.toFixed(1)}x higher than baseline`,
-          ratio: memoryRatio,
-          current: dataPoint.memoryUsed,
-          baseline: baseline.avgMemoryUsed,
-          investigation: this.generateMemoryInvestigationSuggestions(memoryRatio),
-        });
-      }
-    }
-
-    // Cache hit rate degradation check
-    if (dataPoint.cacheHitRate !== undefined && baseline.avgCacheHitRate > 0) {
-      if (
-        dataPoint.cacheHitRate <
-        baseline.avgCacheHitRate * this.options.alertThresholds.cacheHitRateCritical
-      ) {
-        alerts.push({
-          level: 'critical',
-          type: 'cache_degradation',
-          message: `${operationType} cache hit rate critically low: ${(dataPoint.cacheHitRate * 100).toFixed(1)}% vs baseline ${(baseline.avgCacheHitRate * 100).toFixed(1)}%`,
-          current: dataPoint.cacheHitRate,
-          baseline: baseline.avgCacheHitRate,
-        });
-      } else if (
-        dataPoint.cacheHitRate <
-        baseline.avgCacheHitRate * this.options.alertThresholds.cacheHitRateWarning
-      ) {
-        alerts.push({
-          level: 'warning',
-          type: 'cache_degradation',
-          message: `${operationType} cache hit rate below baseline`,
-          current: dataPoint.cacheHitRate,
-          baseline: baseline.avgCacheHitRate,
         });
       }
     }
@@ -430,10 +363,25 @@ export class PerformanceBaselineTracker {
         operationType: type,
         avgDuration: baseline.avgDuration,
         avgMemoryUsed: baseline.avgMemoryUsed,
-        avgCacheHitRate: baseline.avgCacheHitRate,
         sampleCount: baseline.sampleCount,
         lastUpdate: baseline.lastUpdate,
       })),
+    };
+  }
+
+  /**
+   * Cheap status-only read — no baselines array build, no sample counting.
+   * For callers that only need the health status (e.g. the per-translation hot path).
+   */
+  getStatusSummary() {
+    const now = Date.now();
+    const recentAlerts = this.alerts.filter((a) => now - a.timestamp < 60 * 60 * 1000); // Last hour
+    const criticalAlerts = recentAlerts.filter((a) => a.level === 'critical');
+    const warningAlerts = recentAlerts.filter((a) => a.level === 'warning');
+
+    return {
+      status:
+        criticalAlerts.length > 0 ? 'critical' : warningAlerts.length > 0 ? 'warning' : 'healthy',
     };
   }
 
@@ -549,37 +497,6 @@ export class PerformanceBaselineTracker {
     this.alerts = [];
     this.trends.clear();
     this.monitoringStartTime = Date.now();
-  }
-
-  /**
-   * Generate memory investigation suggestions based on memory ratio
-   */
-  generateMemoryInvestigationSuggestions(memoryRatio) {
-    const suggestions = [];
-
-    if (memoryRatio >= 2.0) {
-      suggestions.push(
-        '🔴 CRITICAL: Memory usage doubled. Check for memory leaks in translation segments or cache growth.'
-      );
-      suggestions.push('💡 Try: Clear translation cache with "Reload Dictionary" button');
-      suggestions.push('🔍 Investigate: Large text translations accumulating segments');
-    } else if (memoryRatio >= 1.5) {
-      suggestions.push('🟡 WARNING: Memory usage 50% above baseline');
-      suggestions.push(
-        '💡 Monitor: Check if translation segment cleanup is working (threshold: 150 segments)'
-      );
-      suggestions.push('🔍 Check: Position cache size and WASM memory allocation');
-    } else if (memoryRatio >= 1.3) {
-      suggestions.push('📊 INFO: Memory usage 30% above baseline');
-      suggestions.push('💡 Normal: May occur during large translations, should stabilize');
-    }
-
-    // Add specific investigation commands
-    suggestions.push('🛠️ Debug commands:');
-    suggestions.push('  window.performanceDashboard.getHealthReport()');
-    suggestions.push('  window.performanceDashboard.exportData()');
-
-    return suggestions;
   }
 
   /**

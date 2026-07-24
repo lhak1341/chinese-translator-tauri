@@ -9,6 +9,7 @@ vi.mock('../performance/PerformanceMonitor', () => ({
 
 vi.mock('../performance/SystemPerformanceMonitor', () => ({
   systemPerformanceMonitor: {
+    getStatus: vi.fn(),
     getSystemHealthReport: vi.fn(),
     startMonitoring: vi.fn(),
     destroy: vi.fn(),
@@ -35,6 +36,42 @@ describe('PerformanceHealth.getReport', () => {
       totalOperations: 5,
       avgTime: 12,
     });
+  });
+
+  test('carries status and avgTime', () => {
+    vi.mocked(systemPerformanceMonitor.getStatus).mockReturnValue({ status: 'healthy' });
+    vi.mocked(globalPerformanceMonitor.getMetrics).mockReturnValue({
+      totalOperations: 42,
+      avgTime: 7.5,
+    });
+
+    const report = performanceHealth.getReport();
+
+    expect(report).toEqual({ status: 'healthy', avgTime: 7.5 });
+  });
+
+  test('defaults to healthy/0 when systemPerformanceMonitor.getStatus throws', () => {
+    vi.mocked(systemPerformanceMonitor.getStatus).mockImplementation(() => {
+      throw new Error('not initialized');
+    });
+    vi.mocked(globalPerformanceMonitor.getMetrics).mockReturnValue({
+      totalOperations: 0,
+      avgTime: 0,
+    });
+
+    const report = performanceHealth.getReport();
+
+    expect(report).toEqual({ status: 'healthy', avgTime: 0 });
+  });
+});
+
+describe('PerformanceHealth.getDebugReport', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(globalPerformanceMonitor.getMetrics).mockReturnValue({
+      totalOperations: 5,
+      avgTime: 12,
+    });
     vi.mocked(isWasmPatternProcessorAvailable).mockReturnValue(true);
     vi.mocked(hasWasmPatternProcessorFailed).mockReturnValue(false);
   });
@@ -47,7 +84,7 @@ describe('PerformanceHealth.getReport', () => {
         warningAlerts: 0,
         totalBaselines: 1,
       });
-      expect(performanceHealth.getReport().verdict).toBe('ok');
+      expect(performanceHealth.getDebugReport().verdict).toBe('ok');
     });
 
     test('maps status "warning" to verdict "degraded"', () => {
@@ -57,7 +94,7 @@ describe('PerformanceHealth.getReport', () => {
         warningAlerts: 2,
         totalBaselines: 1,
       });
-      expect(performanceHealth.getReport().verdict).toBe('degraded');
+      expect(performanceHealth.getDebugReport().verdict).toBe('degraded');
     });
 
     test('maps status "critical" to verdict "critical"', () => {
@@ -67,7 +104,7 @@ describe('PerformanceHealth.getReport', () => {
         warningAlerts: 1,
         totalBaselines: 1,
       });
-      expect(performanceHealth.getReport().verdict).toBe('critical');
+      expect(performanceHealth.getDebugReport().verdict).toBe('critical');
     });
   });
 
@@ -77,7 +114,7 @@ describe('PerformanceHealth.getReport', () => {
         throw new Error('not initialized');
       });
 
-      const report = performanceHealth.getReport();
+      const report = performanceHealth.getDebugReport();
 
       expect(report.status).toBe('healthy');
       expect(report.criticalAlerts).toBe(0);
@@ -101,7 +138,7 @@ describe('PerformanceHealth.getReport', () => {
       vi.mocked(isWasmPatternProcessorAvailable).mockReturnValue(true);
       vi.mocked(hasWasmPatternProcessorFailed).mockReturnValue(false);
 
-      const { wasm } = performanceHealth.getReport();
+      const { wasm } = performanceHealth.getDebugReport();
 
       expect(wasm).toEqual({
         pattern: { available: true, failed: false },
@@ -114,7 +151,7 @@ describe('PerformanceHealth.getReport', () => {
       vi.mocked(isWasmPatternProcessorAvailable).mockReturnValue(false);
       vi.mocked(hasWasmPatternProcessorFailed).mockReturnValue(true);
 
-      const { wasm } = performanceHealth.getReport();
+      const { wasm } = performanceHealth.getDebugReport();
 
       expect(wasm).toEqual({
         pattern: { available: false, failed: true },
@@ -125,7 +162,7 @@ describe('PerformanceHealth.getReport', () => {
   });
 
   describe('metrics passthrough', () => {
-    test('carries operations and avgTime from globalPerformanceMonitor', () => {
+    test('carries operations from globalPerformanceMonitor', () => {
       vi.mocked(systemPerformanceMonitor.getSystemHealthReport).mockReturnValue({
         status: 'healthy',
         criticalAlerts: 0,
@@ -137,10 +174,9 @@ describe('PerformanceHealth.getReport', () => {
         avgTime: 7.5,
       });
 
-      const report = performanceHealth.getReport();
+      const report = performanceHealth.getDebugReport();
 
       expect(report.operations).toBe(42);
-      expect(report.avgTime).toBe(7.5);
     });
   });
 });

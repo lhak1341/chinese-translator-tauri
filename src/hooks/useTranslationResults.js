@@ -49,20 +49,20 @@ export function useTranslationResults() {
     setCharacterOnlySemanticArrays(arrays);
   }, []);
 
-  const setStatusMessage = useCallback((msg) => {
-    setTranslatedText(msg);
+  const clearArraysAndSetText = (text) => {
+    setTranslatedText(text);
     setSemanticArrays(null);
     setCharacterOnlySemanticArrays(null);
     setCharacterOnlyText('');
     setPrebuiltSegments([]);
+  };
+
+  const setStatusMessage = useCallback((msg) => {
+    clearArraysAndSetText(msg);
   }, []);
 
   const setError = useCallback((msg) => {
-    setTranslatedText(msg);
-    setSemanticArrays(null);
-    setCharacterOnlySemanticArrays(null);
-    setCharacterOnlyText('');
-    setPrebuiltSegments([]);
+    clearArraysAndSetText(msg);
   }, []);
 
   const clearFullResult = useCallback(() => {

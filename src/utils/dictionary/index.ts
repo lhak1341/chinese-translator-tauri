@@ -13,7 +13,6 @@ import type { DictionaryData, SortingStats } from '../../types/DictionaryTypes';
 export { DictionaryTrie } from './DictionaryTrie';
 export { DictionaryManager } from './DictionaryManager';
 export { DictionaryWasmLookup } from './DictionaryWasmLookup';
-export { DictionaryHealthMonitor } from './DictionaryHealthMonitor';
 
 // --- Loading ---
 export { loadDictionaryWithCache, getCacheStats } from './DictionaryTrieLoader';

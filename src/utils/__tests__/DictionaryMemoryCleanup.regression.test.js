@@ -490,17 +490,5 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       expect(manager.cache).toBeNull();
       expect(manager.pendingDictionaries).toBeNull();
     });
-
-    it('should clear dictionary health monitors if present', () => {
-      const manager = new DictionaryManager();
-
-      // Simulate health monitoring
-      manager.dictionaryHealthMonitors = new Map();
-      manager.dictionaryHealthMonitors.set('test', { healthScore: 100 });
-
-      manager.dispose();
-
-      expect(manager.dictionaryHealthMonitors).toBeNull();
-    });
   });
 });

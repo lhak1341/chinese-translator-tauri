@@ -611,12 +611,6 @@ export class DictionaryManager {
       this.cache = null;
     }
 
-    // Clear health monitors if they exist
-    if (this.dictionaryHealthMonitors) {
-      this.dictionaryHealthMonitors.clear();
-      this.dictionaryHealthMonitors = null;
-    }
-
     // Cleanup WASM lookup
     this.wasmLookup?.dispose();
     this.wasmLookup = null;

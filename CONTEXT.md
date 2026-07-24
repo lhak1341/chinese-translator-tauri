@@ -146,7 +146,9 @@ Unified gateway for performance monitoring concerns — the single import caller
 
 **Write:** `recordTranslation(operationTimeMs)` — records a completed translation into `globalPerformanceMonitor`. Callers don't construct synthetic timers or import `globalPerformanceMonitor` directly.
 
-**Read:** `getReport(cacheHitRate)` — combines `globalPerformanceMonitor` (timing metrics) and `systemPerformanceMonitor` (baseline regression tracking) into one `HealthReport`: `{ operations, avgTime, cacheHitRate, status, criticalAlerts, warningAlerts, baselines, verdict, wasm }`. `verdict` synthesizes `status` into `'ok'` (healthy), `'degraded'` (warning), `'critical'`. `wasm` aggregates WASM processor availability: `{ pattern: { available, failed }, number: { available }, anyFailed, allAvailable }` — the single place to ask "is WASM the cause of degraded performance?" without importing from individual processor modules.
+**Read (hot path):** `getReport()` — no args. Cheap status + timing read, called on every translation: `{ status, avgTime }`. Must not build the baselines array or touch anything not read by a real caller (`TranslatorControls.tsx`, `App.jsx`).
+
+**Read (debug):** `getDebugReport()` — the wide report, for `DevConsole.js`/`window.performanceDashboard.getDebugReport()` only, not the translation hot path: `{ operations, status, criticalAlerts, warningAlerts, baselines, verdict, wasm }`. `verdict` synthesizes `status` into `'ok'` (healthy), `'degraded'` (warning), `'critical'`. `wasm` aggregates WASM processor availability: `{ pattern: { available, failed }, anyFailed, allAvailable }` — the single place to ask "is WASM the cause of degraded performance?" without importing from individual processor modules.
 
 Health is assessed at action time — after translate or after reload — not on a polling interval.
 
@@ -154,13 +156,13 @@ Entry point: `src/utils/performance/PerformanceHealth.js`, re-exported from `src
 
 ## SystemPerformanceMonitor
 
-The background regression detector that owns the periodic integration of all subsystem metrics into `PerformanceBaselineTracker`. Owns: four integration adapters (global performance monitor, position cache, virtual scrolling, WASM memory pool), metric collection loop, memory inspection, and `getSystemHealthReport()`. Delegates baseline storage to `PerformanceBaselineTracker` — callers use `systemPerformanceMonitor.recordPerformance(operationType, metrics)` rather than reaching through `.baselineTracker`.
+The background regression detector that owns the periodic integration of all subsystem metrics into `PerformanceBaselineTracker`. Owns: three integration adapters (global performance monitor, virtual scrolling, WASM memory pool — position cache integration removed with `ContentAwarePositionCache`, 2026-07-17), metric collection loop, memory inspection, `getSystemHealthReport()` (full, builds baselines array — debug use), and `getStatus()` (cheap status-only read, delegates to `baselineTracker.getStatusSummary()` — hot-path use). Delegates baseline storage to `PerformanceBaselineTracker` — callers use `systemPerformanceMonitor.recordPerformance(operationType, metrics)`/`.getBaseline(operationType)` rather than reaching through `.baselineTracker`. `logDetailedMemoryDebug(operationType, alert)` fires automatically in dev mode on every critical alert (from `checkImmediateAlerts`), not just from manual devtool use.
 
 Entry point: `src/utils/performance/SystemPerformanceMonitor.js`.
 
 ## PerformanceBaselineTracker
 
-Owns the statistical baseline and trend state for all operation types. Manages: `performanceHistory[]`, `baselines` Map (LRU, cap 100), `trends` Map (LRU, cap 200), `alerts[]` (cap 50). Public API: `recordPerformance(operationType, metrics)`, `getHealthSummary()`, `exportData()`, `destroy()`, `reset()`. Has no dependency on any other monitoring module — only imports `logger`.
+Owns the statistical baseline and trend state for all operation types. Manages: `performanceHistory[]`, `baselines` Map (LRU, cap 100), `trends` Map (LRU, cap 200), `alerts[]` (cap 50). Public API: `recordPerformance(operationType, metrics)`, `getBaseline(operationType)` (public LRU-touching accessor — replaces reaching into `.baselines` directly), `getHealthSummary()` (full, builds baselines array), `getStatusSummary()` (cheap, status only — no array build), `exportData()`, `destroy()`, `reset()`. Has no dependency on any other monitoring module — only imports `logger`. No `cacheHitRate` tracking (deleted 2026-07-24, ADR-032 — was permanently unfed, zero producers ever called `recordPerformance` with a `cacheHitRate` field).
 
 Entry point: `src/utils/performance/PerformanceBaselineTracker.js`.
 
@@ -193,14 +195,6 @@ All 6 dictionary mutation operations: `addEntry`, `updateEntry`, `deleteEntry`, 
 Injected dependencies: `dictionariesRef` (reads snapshot before mutation — never closes over `dictionaries` state), `persistDictionaryMutation` (single-dict: optimistic update → save → rollback), `commitMoveOp` (two-dict: optimistic update → parallel save → partial revert), `addToHistory`, `invalidateEngine`. All 6 returned callbacks are stable — their dep arrays contain only stable injected functions.
 
 Entry point: `src/components/dictionary/useDictionaryCRUD.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
-
-## DictionaryHealthMonitor
-
-Diagnostic tool for trie structural health. Wraps the `validateIntegrity()`, `getHealthScore()`, and `repair()` methods of every loaded `DictionaryTrie` into four aggregate operations: `validateAllDictionaries()`, `repairAllDictionaries()`, `getDictionaryHealthReport()`, and `monitorDictionaryHealth(name, frequency)`. Never called in production — dev/diagnostic import only.
-
-Injected dependencies: `getDictionary(name) → DictionaryTrie|null`, `getDictionaryNames() → IterableIterator<string>`. Both are satisfied by the two same-named accessors on `DictionaryManager`.
-
-Entry point: `src/utils/dictionary/DictionaryHealthMonitor.js`. Not wired into any production dependency graph — import directly when diagnosing trie corruption.
 
 ## DictionaryTrie
 

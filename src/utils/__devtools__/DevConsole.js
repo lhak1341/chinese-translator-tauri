@@ -1,4 +1,5 @@
 import { systemPerformanceMonitor } from '../performance/SystemPerformanceMonitor';
+import { performanceHealth } from '../performance';
 import { logger } from '../logger';
 
 export function installDevConsole(engine) {
@@ -15,31 +16,13 @@ export function installDevConsole(engine) {
 
   window.performanceDashboard = {
     getHealthReport: () => systemPerformanceMonitor.getSystemHealthReport(),
+    getDebugReport: () => performanceHealth.getDebugReport(),
     getBaselines: () => systemPerformanceMonitor.baselineTracker.baselines,
     getAlerts: () => systemPerformanceMonitor.baselineTracker.alerts,
     getTrends: () => systemPerformanceMonitor.baselineTracker.trends,
     exportData: () => systemPerformanceMonitor.baselineTracker.exportData(),
     resetData: () => systemPerformanceMonitor.baselineTracker.reset(),
     // getWasmSyncMetrics: see ADR-020 for restoration shape (DictionaryWasmLookup.getSyncMetrics)
-    investigateMemoryAlerts: () => {
-      const alerts = systemPerformanceMonitor.baselineTracker.alerts;
-      const memoryAlerts = alerts.filter(
-        (a) => a.type === 'memory_regression' && Date.now() - a.timestamp < 3600000
-      ); // Last hour
-
-      if (memoryAlerts.length === 0) {
-        logger.log('🟢 No recent memory alerts found');
-        return;
-      }
-
-      logger.log(`🔍 Found ${memoryAlerts.length} memory alerts in the last hour:`);
-      memoryAlerts.forEach((alert, index) => {
-        logger.log(`\n${index + 1}. ${alert.level.toUpperCase()}: ${alert.message}`);
-        if (alert.investigation) {
-          alert.investigation.forEach((suggestion) => logger.log(`   ${suggestion}`));
-        }
-      });
-    },
     checkCachePerformance: () => {
       try {
         const healthReport = systemPerformanceMonitor.getSystemHealthReport();
@@ -109,9 +92,9 @@ export function installDevConsole(engine) {
       logger.log(`
 📊 Performance Dashboard Commands:
 - performanceDashboard.getHealthReport() - Current system health
+- performanceDashboard.getDebugReport() - Full report incl. WASM status and verdict
 - performanceDashboard.getBaselines() - Performance baselines
 - performanceDashboard.getAlerts() - Recent performance alerts
-- performanceDashboard.investigateMemoryAlerts() - Show memory investigation suggestions
 - performanceDashboard.checkCachePerformance() - Analyze cache performance
 - performanceDashboard.getTrends() - Performance trend analysis
 - performanceDashboard.exportData() - Export all monitoring data

@@ -3,8 +3,11 @@
  * Unified gateway for performance monitoring concerns.
  *
  * Write: recordTranslation(ms) — records a completed translation into globalPerformanceMonitor.
- * Read:  getReport() — combines globalPerformanceMonitor (timing) and
- *        systemPerformanceMonitor (baseline regression) into one HealthReport.
+ * Read:  getReport() — the hot-path status read, called on every translation. Returns only
+ *        {status, avgTime} — the fields TranslatorControls/App.jsx actually consume.
+ *        getDebugReport() — the wider report (alerts, baselines, WASM status, verdict) for
+ *        DevConsole/debug use. Not called on the hot path — computing it builds a baselines
+ *        array every call.
  *
  * Callers import only this module — no need to know which singleton owns which concern.
  * Designed to be called at action time (after translate / after reload).
@@ -33,15 +36,21 @@ import {
 
 /**
  * @typedef {{
+ *   status: string,
+ *   avgTime: number
+ * }} HealthReport
+ */
+
+/**
+ * @typedef {{
  *   operations: number,
- *   avgTime: number,
  *   status: string,
  *   criticalAlerts: number,
  *   warningAlerts: number,
  *   baselines: number,
  *   verdict: HealthVerdict,
  *   wasm: WasmStatus
- * }} HealthReport
+ * }} DebugHealthReport
  */
 
 class PerformanceHealth {
@@ -62,11 +71,34 @@ class PerformanceHealth {
   }
 
   /**
-   * Build a unified health report from both monitoring singletons.
+   * Cheap status + timing read. Called on every translation — must not build
+   * the baselines array or touch anything not read by a real caller.
    *
    * @returns {HealthReport}
    */
   getReport() {
+    const metrics = globalPerformanceMonitor.getMetrics();
+
+    let status = 'healthy';
+    try {
+      status = systemPerformanceMonitor.getStatus().status ?? 'healthy';
+    } catch {
+      // systemPerformanceMonitor may not be initialized in test environments
+    }
+
+    return {
+      status,
+      avgTime: metrics.avgTime ?? 0,
+    };
+  }
+
+  /**
+   * Full health report — alerts, baselines, WASM status, verdict. For
+   * DevConsole/debug use only; not called on the translation hot path.
+   *
+   * @returns {DebugHealthReport}
+   */
+  getDebugReport() {
     const metrics = globalPerformanceMonitor.getMetrics();
 
     let status = 'healthy';
@@ -80,7 +112,7 @@ class PerformanceHealth {
       criticalAlerts = health.criticalAlerts ?? 0;
       warningAlerts = health.warningAlerts ?? 0;
       baselines = health.totalBaselines ?? 0;
-    } catch (_) {
+    } catch {
       // systemPerformanceMonitor may not be initialized in test environments
     }
 
@@ -96,7 +128,6 @@ class PerformanceHealth {
 
     return {
       operations: metrics.totalOperations ?? 0,
-      avgTime: metrics.avgTime ?? 0,
       status,
       criticalAlerts,
       warningAlerts,
