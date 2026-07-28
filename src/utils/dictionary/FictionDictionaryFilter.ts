@@ -1,4 +1,8 @@
-import { toPatternsId } from './DictionaryIdClassifier';
+import {
+  toPatternsId,
+  isFictionProperNounsId,
+  isFictionPatternsId,
+} from './DictionaryIdClassifier';
 
 /**
  * Filters the raw dictionaries object down to what the engine should receive:
@@ -20,7 +24,7 @@ export function filterDictionariesForEngine(
   // Merge fiction structural pattern dicts into filtered.patterns (fiction wins on conflict)
   const fictionPatternEntries: Record<string, unknown> = {};
   for (const id of activeProperNouns) {
-    if (id.startsWith('properNouns-f_')) {
+    if (isFictionProperNounsId(id)) {
       const patternsId = toPatternsId(id);
       const patternsDict = dictionaries[patternsId] as Record<string, unknown> | undefined;
       if (patternsDict && Object.keys(patternsDict).length > 0) {
@@ -37,7 +41,7 @@ export function filterDictionariesForEngine(
   }
   // Strip raw patterns-f_X keys — engine receives only the merged 'patterns' key
   for (const key of Object.keys(filtered)) {
-    if (key.startsWith('patterns-f_')) delete filtered[key];
+    if (isFictionPatternsId(key)) delete filtered[key];
   }
 
   return filtered;

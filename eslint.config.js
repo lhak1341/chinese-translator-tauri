@@ -33,8 +33,12 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
 
-      // Warn on unused variables
-      'no-unused-vars': 'warn',
+      // Base rule is not TS-aware and misfires on unused-looking parameter names in
+      // interface/type function signatures (e.g. `onChange: (e: Event) => void`) — no
+      // options can fix that (no argsIgnorePattern support). unused-imports/no-unused-vars
+      // below is TS-aware, correctly skips type-only signatures, and covers real unused
+      // vars/args with its own ignore patterns — so it's the sole rule for this.
+      'no-unused-vars': 'off',
 
       // Detect and warn on unused imports
       'unused-imports/no-unused-imports': 'warn',

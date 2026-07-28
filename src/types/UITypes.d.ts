@@ -10,11 +10,10 @@
 // =============================================================================
 
 /**
- * Throttled streaming state for UI updates.
- * Shared between TranslatorControls and TranslatorDisplayPanels.
- * All fields from the full streaming state are included so both components
- * can use a single interface (TypeScript structural typing means unused fields
- * are safe).
+ * Throttled streaming state for UI updates. Used by TranslatorDisplayPanels.
+ * All fields from the full streaming state (useStreamingTranslation.js) are
+ * included so consumers can use a single interface (TypeScript structural
+ * typing means unused fields are safe).
  */
 export interface ThrottledStreamingState {
   isStreaming: boolean;
@@ -22,6 +21,8 @@ export interface ThrottledStreamingState {
   partialText: string;
   completedChunks: number;
   totalChunks: number;
+  batchNumber: number;
+  avgTimePerChunk: number;
 }
 
 // =============================================================================

@@ -9,6 +9,7 @@
  */
 
 import { DictionaryTrie } from './DictionaryTrie.js';
+import { isFictionProperNounsId } from './DictionaryIdClassifier';
 
 export interface TrieBuildResult {
   trie: DictionaryTrie;
@@ -25,7 +26,7 @@ export function resolveDictionaryPriority(
   dictionaryName: string,
   priorities: Record<string, number>
 ): number {
-  if (dictionaryName.startsWith('properNouns-f_')) return 1; // fiction-specific (highest)
+  if (isFictionProperNounsId(dictionaryName)) return 1; // fiction-specific (highest)
   if (dictionaryName.startsWith('properNouns-_')) return 2; // generic
   return priorities[dictionaryName] ?? (dictionaryName.startsWith('properNouns') ? 3 : 10);
 }

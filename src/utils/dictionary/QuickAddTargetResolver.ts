@@ -1,4 +1,4 @@
-import { toPatternsId } from './DictionaryIdClassifier';
+import { toPatternsId, isFictionProperNounsId } from './DictionaryIdClassifier';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 
 /**
@@ -27,10 +27,10 @@ export function resolveStructuralPatternQuickAddTarget(
   defaultQuickAddDictionary: string | undefined | null,
   activeProperNouns: string[]
 ): string | undefined {
-  if (defaultQuickAddDictionary?.startsWith('properNouns-f_')) {
+  if (defaultQuickAddDictionary && isFictionProperNounsId(defaultQuickAddDictionary)) {
     return toPatternsId(defaultQuickAddDictionary);
   }
-  const firstFiction = activeProperNouns.filter((id) => id.startsWith('properNouns-f_')).sort()[0];
+  const firstFiction = activeProperNouns.filter(isFictionProperNounsId).sort()[0];
   return firstFiction ? toPatternsId(firstFiction) : undefined;
 }
 

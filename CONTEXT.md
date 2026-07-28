@@ -344,3 +344,19 @@ Unlike `AppConfig`, this module holds **no module-level cache** — `useAppearan
 `DEFAULT_APPEARANCE` moved here from `useAppearanceSettings.ts` (still re-exported from there for `App.jsx` and existing test imports) to avoid a circular import between the hook and this module.
 
 Entry point: `src/utils/appearanceConfig.ts`. Called from `useAppearanceSettings.ts` (all 4 IPC call sites) and `App.jsx`'s startup bootstrap — both previously called `window.electronAPI.loadAppearanceSettings`/`saveAppearanceSettings` directly.
+
+## DictionaryConfigManagement
+
+The state, mount-time load/migration effect, and CRUD/rename/quick-add handlers for the Configuration screen's proper-noun dictionary list — extracted so `ConfigurationManager.tsx` stays render-only, matching the hook-extraction pattern already applied throughout `src/components/dictionary/`.
+
+Owns: available/active dictionary lists, loading/error state, new-dictionary-modal and rename-mode state, default-quick-add-dictionary state, the mount effect (loads dictionaries, then migrates — creates any missing `patterns-f_*` dict for a pre-existing fiction proper-noun dict; migration failure is a silent `console.warn`, non-fatal by design, not surfaced to the user), and 6 handlers (`handleToggleDictionary`, `handleCreateDictionary`, `handleStartRename`, `handleCancelRename`, `handleConfirmRename`, `handleSetDefaultQuickAdd`).
+
+Calls `useDictionary()` internally rather than taking it as an injected param — single call site, unlike the `DictionaryProvider`-composed hooks in `src/components/dictionary/` (`useDictionaryCRUD`, `useDictionaryHistory`, etc.) which need injection to share state across composition. Raw `useState` setters are exposed directly for the 3 pure-UI-state fields (`showNewDictionaryModal`, `newDictionaryName`, `renameValue`) — no invariant to protect, so no action-wrapper ceremony.
+
+Entry point: `src/components/configuration/useDictionaryConfigManagement.ts`. Sole caller: `ConfigurationManager.tsx`.
+
+## DictionaryListOrganizer
+
+Pure sort + 3-way category split (Base / Generic / Fiction) for the Configuration screen's dictionary-id list. `sortDictionaries(ids)` puts `'properNouns'` first, then alphabetical. `categorizeDictionaries(ids)` buckets by the naming convention: `properNouns-f_*` → fiction, `properNouns-_*` → generic, everything else (including bare `'properNouns'`) → base.
+
+Entry point: `src/utils/dictionary/DictionaryListOrganizer.ts`. Not barrel-exported — sole caller is `useDictionaryConfigManagement.ts`, matching `MatchComparator.ts`/`PhraseConsumptionMarker.ts`'s single-caller convention.

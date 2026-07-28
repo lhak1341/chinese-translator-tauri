@@ -1,0 +1,219 @@
+import { useState, useEffect, useMemo } from 'react';
+import { formatErrorMessage } from '../../utils/errorHelpers';
+import { logger } from '../../utils/logger';
+import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
+import { toPatternsId, isFictionProperNounsId } from '../../utils/dictionary';
+import {
+  sortDictionaries,
+  categorizeDictionaries,
+} from '../../utils/dictionary/DictionaryListOrganizer';
+import { useDictionary } from '../dictionary/DictionaryContext';
+
+/**
+ * All state, load/migration effect, and CRUD/rename/quick-add handlers for the
+ * Configuration screen's proper-noun dictionary list. ConfigurationManager.tsx
+ * keeps rendering only.
+ */
+export function useDictionaryConfigManagement() {
+  const { loadDictionary, removeDictionaryKey } = useDictionary();
+  const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
+  const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showNewDictionaryModal, setShowNewDictionaryModal] = useState<boolean>(false);
+  const [newDictionaryName, setNewDictionaryName] = useState<string>('');
+
+  const [renamingDictionaryId, setRenamingDictionaryId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>('');
+
+  const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
+
+  const categorizedDictionaries = useMemo(
+    () => categorizeDictionaries(availableDictionaries),
+    [availableDictionaries]
+  );
+
+  // Load available dictionaries on mount
+  useEffect(() => {
+    const loadDictionaries = async (): Promise<void> => {
+      try {
+        const result = await window.electronAPI.listProperNounsDictionaries();
+        if (result.success && result.dictionaries) {
+          const dictionaryIds = result.dictionaries.map((d) => (typeof d === 'string' ? d : d.id));
+          setAvailableDictionaries(sortDictionaries(dictionaryIds));
+
+          // Load active dictionaries from saved configuration
+          const config = await loadAppConfig();
+          setActiveDictionaries(config.engine.activeProperNouns);
+          setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
+
+          // Migration: create missing patterns-f_* for pre-existing fiction proper-noun dicts
+          try {
+            const patternsListResult = await window.electronAPI.listFictionPatternDictionaries();
+            const existingPatterns = new Set<string>(
+              patternsListResult.success
+                ? (patternsListResult.dictionaries as unknown as string[])
+                : []
+            );
+            const fictionDicts = dictionaryIds.filter(isFictionProperNounsId);
+            for (const id of fictionDicts) {
+              const patternsDictId = toPatternsId(id);
+              if (!existingPatterns.has(patternsDictId)) {
+                await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
+                await loadDictionary(patternsDictId);
+              }
+            }
+          } catch (migrationErr) {
+            logger.warn('Fiction pattern dictionary migration failed (non-fatal):', migrationErr);
+          }
+        } else {
+          throw new Error(result.error ?? 'Failed to load dictionaries');
+        }
+      } catch (err) {
+        setError(formatErrorMessage('Dictionary loading', err));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadDictionaries();
+  }, [loadDictionary]);
+
+  const handleToggleDictionary = async (dictionaryId: string): Promise<void> => {
+    try {
+      const newActiveDictionaries = activeDictionaries.includes(dictionaryId)
+        ? activeDictionaries.filter((id) => id !== dictionaryId)
+        : [...activeDictionaries, dictionaryId];
+
+      await saveAppConfig({ engine: { activeProperNouns: newActiveDictionaries } });
+      setActiveDictionaries(newActiveDictionaries);
+    } catch (err) {
+      setError(formatErrorMessage('Configuration update', err));
+    }
+  };
+
+  const handleCreateDictionary = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    if (!newDictionaryName.trim()) return;
+
+    try {
+      const dictionaryId = `properNouns-${newDictionaryName.trim().replace(/\s+/g, '')}`;
+
+      // Fiction dicts create their paired patterns-f_* dictionary atomically (ADR-027) —
+      // either both files exist afterward, or neither does.
+      const result = isFictionProperNounsId(dictionaryId)
+        ? await window.electronAPI.createFictionDictionaryPair(dictionaryId)
+        : await window.electronAPI.createProperNounsDictionary(dictionaryId);
+
+      if (result.success) {
+        setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
+        setShowNewDictionaryModal(false);
+        setNewDictionaryName('');
+
+        await loadDictionary(dictionaryId);
+        if (isFictionProperNounsId(dictionaryId)) {
+          await loadDictionary(toPatternsId(dictionaryId));
+        }
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err) {
+      setError(formatErrorMessage('Dictionary creation', err));
+    }
+  };
+
+  const handleStartRename = (dictionaryId: string): void => {
+    if (dictionaryId === 'properNouns') return; // Cannot rename default
+
+    const name = dictionaryId.replace('properNouns-', '');
+    setRenamingDictionaryId(dictionaryId);
+    setRenameValue(name);
+  };
+
+  const handleCancelRename = (): void => {
+    setRenamingDictionaryId(null);
+    setRenameValue('');
+  };
+
+  const handleConfirmRename = async (): Promise<void> => {
+    if (!renamingDictionaryId || !renameValue.trim()) return;
+
+    try {
+      const newDictionaryId = `properNouns-${renameValue.trim().replace(/\s+/g, '')}`;
+
+      if (newDictionaryId === renamingDictionaryId) {
+        handleCancelRename();
+        return;
+      }
+
+      const result = await window.electronAPI.renameProperNounsDictionary(
+        renamingDictionaryId,
+        newDictionaryId
+      );
+
+      if (result.success) {
+        // Refresh DictionaryContext: load each new ID before dropping its old one, so
+        // `dictionaries` state never briefly has neither. The backend cascades this rename
+        // to the paired patterns-f_* dict too (ADR-027) — mirror that here.
+        await loadDictionary(newDictionaryId);
+        removeDictionaryKey(renamingDictionaryId);
+        if (isFictionProperNounsId(renamingDictionaryId)) {
+          await loadDictionary(toPatternsId(newDictionaryId));
+          removeDictionaryKey(toPatternsId(renamingDictionaryId));
+        }
+
+        setAvailableDictionaries((prev) =>
+          sortDictionaries(prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id)))
+        );
+
+        setActiveDictionaries((prev) =>
+          prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id))
+        );
+
+        if (defaultQuickAddDictionary === renamingDictionaryId) {
+          setDefaultQuickAddDictionary(newDictionaryId);
+        }
+
+        handleCancelRename();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err) {
+      setError(formatErrorMessage('Dictionary rename', err));
+    }
+  };
+
+  const handleSetDefaultQuickAdd = async (dictionaryId: string): Promise<void> => {
+    try {
+      // If clicking the same dictionary, unset it (toggle off)
+      const newDefault = defaultQuickAddDictionary === dictionaryId ? null : dictionaryId;
+
+      await saveAppConfig({ ui: { defaultQuickAddDictionary: newDefault } });
+      setDefaultQuickAddDictionary(newDefault);
+    } catch (err) {
+      setError(formatErrorMessage('Default dictionary configuration', err));
+    }
+  };
+
+  return {
+    availableDictionaries,
+    activeDictionaries,
+    isLoading,
+    error,
+    showNewDictionaryModal,
+    setShowNewDictionaryModal,
+    newDictionaryName,
+    setNewDictionaryName,
+    renamingDictionaryId,
+    renameValue,
+    setRenameValue,
+    defaultQuickAddDictionary,
+    categorizedDictionaries,
+    handleToggleDictionary,
+    handleCreateDictionary,
+    handleStartRename,
+    handleCancelRename,
+    handleConfirmRename,
+    handleSetDefaultQuickAdd,
+  };
+}

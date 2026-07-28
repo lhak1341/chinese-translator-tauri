@@ -70,8 +70,6 @@ interface StreamingTranslationDisplayProps {
   streamingState: StreamingState;
   finalText?: string;
   isComplete: boolean;
-  semanticArrays?: any;
-  _semanticArrays?: any;
   partialSemanticArrays?: any;
   className?: string;
   style?: React.CSSProperties;
@@ -202,7 +200,6 @@ const StreamingTranslationDisplay = memo<StreamingTranslationDisplayProps>(
     streamingState,
     finalText = '',
     isComplete,
-    _semanticArrays,
     partialSemanticArrays,
     className = '',
     style = {},

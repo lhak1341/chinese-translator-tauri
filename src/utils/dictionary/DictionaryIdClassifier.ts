@@ -13,6 +13,16 @@ export function classifyDictionaryId(id: string): DictionaryTypeFlags {
   };
 }
 
+/** True for a fiction proper-nouns dict ID, e.g. "properNouns-f_X". */
+export function isFictionProperNounsId(id: string): boolean {
+  return id.startsWith('properNouns-f_');
+}
+
+/** True for a fiction structural-pattern dict ID, e.g. "patterns-f_X". */
+export function isFictionPatternsId(id: string): boolean {
+  return id.startsWith('patterns-f_');
+}
+
 /**
  * Derives the paired fiction structural-pattern dict ID from a fiction proper-nouns ID
  * (ADR-027 naming-convention coupling), e.g. "properNouns-f_X" -> "patterns-f_X".

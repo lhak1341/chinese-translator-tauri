@@ -67,6 +67,10 @@ X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally 
 
 Use `classifyDictionaryId(id)` from `DictionaryIdClassifier.ts` for all UI-layer type checks — never compare `=== 'patterns'` or `=== 'phrases'` directly. `isPatterns` is true for both `'patterns'` and `'patterns-f_*'`; raw equality misses fiction variants and silently breaks on every dict-type extension. Even when `isPatterns` is already computed in scope, call sites tend to fall back to raw string — grep `=== 'patterns'` after any dict-type addition.
 
+Same risk for fiction-prefix checks: use `isFictionProperNounsId(id)`/`isFictionPatternsId(id)` (same file) — never hand-roll `id.startsWith('properNouns-f_')`/`'patterns-f_'` again (found duplicated at 10 call sites across 5 files, 2026-07-28).
+
+`onRefreshDuplicates`'s `reloadFromBackend?: boolean` param is dead in every signature in the chain (`DictionaryManager.tsx` → `EnhancedVirtualizedDictionaryTable.tsx:40` → `useEntrySelection.ts:28`) — confirmed zero callers pass it anywhere. Safe to drop from the remaining 2 signatures in one pass if touching this chain again.
+
 Use `toPatternsId(properNounsId)`/`toProperNounsId(patternsId)` (same file) for the ADR-027 fiction pairing derivation — never hand-roll `'patterns-' + id.slice('properNouns-'.length)`.
 
 ## Fiction Pattern Merge Order Is Load-Bearing

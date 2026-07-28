@@ -21,7 +21,12 @@ import { useHotkeyHandler } from '../../hooks/useHotkeyHandler';
 import type { DictionaryTypesCollection } from '../../types/ComponentTypes';
 import styles from '../../styles/DictionaryManager.module.css';
 import { logger } from '../../utils/logger';
-import { findConflictingEntries, toProperNounsId, type DuplicateRow } from '../../utils/dictionary';
+import {
+  findConflictingEntries,
+  toProperNounsId,
+  isFictionPatternsId,
+  type DuplicateRow,
+} from '../../utils/dictionary';
 import { toast } from '../ToastContext';
 import { loadAppConfig } from '../../utils/appConfig';
 
@@ -248,40 +253,37 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   // Handle finding duplicate entries across all dictionaries
   // CRITICAL: Wrapped in useCallback to prevent infinite loop when passed as prop
   // CRITICAL: Uses dictionariesRef.current to always access latest data (fixes stale closure)
-  const handleFindDuplicates = useCallback(
-    async (reloadFromBackend = false): Promise<void> => {
-      setIsLoadingDictionary(true);
-      setError(null);
-      try {
-        // CRITICAL FIX: Load ALL available dictionaries before analyzing
-        // This ensures deletion works for entries from any dictionary
-        // CODE REVIEW FIX 2026-02-09 (CRITICAL): Load dictionaries in parallel for better performance
-        const allTypes = await getDictionaryTypes();
-        const allDictionaryIds = Object.keys(allTypes);
+  const handleFindDuplicates = useCallback(async (): Promise<void> => {
+    setIsLoadingDictionary(true);
+    setError(null);
+    try {
+      // CRITICAL FIX: Load ALL available dictionaries before analyzing
+      // This ensures deletion works for entries from any dictionary
+      // CODE REVIEW FIX 2026-02-09 (CRITICAL): Load dictionaries in parallel for better performance
+      const allTypes = await getDictionaryTypes();
+      const allDictionaryIds = Object.keys(allTypes);
 
-        // Load all dictionaries in parallel (much faster than sequential)
-        await Promise.all(allDictionaryIds.map((dictId) => loadDictionary(dictId)));
+      // Load all dictionaries in parallel (much faster than sequential)
+      await Promise.all(allDictionaryIds.map((dictId) => loadDictionary(dictId)));
 
-        // Re-read from ref after loading all dictionaries
-        const dictionariesToAnalyze = dictionariesRef.current;
+      // Re-read from ref after loading all dictionaries
+      const dictionariesToAnalyze = dictionariesRef.current;
 
-        const duplicates = findConflictingEntries(dictionariesToAnalyze);
+      const duplicates = findConflictingEntries(dictionariesToAnalyze);
 
-        setDuplicateRows(duplicates);
-        setShowDuplicatesMode(true);
+      setDuplicateRows(duplicates);
+      setShowDuplicatesMode(true);
 
-        if (duplicates.length === 0) {
-          toast.success('No duplicate entries found! All entries are unique across dictionaries.');
-        }
-      } catch (error) {
-        setError(`Failed to analyze duplicates: ${(error as Error).message}`);
-        logger.error('Error finding duplicates:', error);
-      } finally {
-        setIsLoadingDictionary(false);
+      if (duplicates.length === 0) {
+        toast.success('No duplicate entries found! All entries are unique across dictionaries.');
       }
-    },
-    [duplicateRows.length, loadDictionary]
-  ); // Removed _dictionaries - using dictionariesRef.current instead
+    } catch (error) {
+      setError(`Failed to analyze duplicates: ${(error as Error).message}`);
+      logger.error('Error finding duplicates:', error);
+    } finally {
+      setIsLoadingDictionary(false);
+    }
+  }, [loadDictionary]); // Removed _dictionaries - using dictionariesRef.current instead
 
   // Handle exiting duplicate mode
   const handleExitDuplicateMode = (): void => {
@@ -305,7 +307,7 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         if (activeDictionaries.includes(id)) {
           filtered[id] = type;
         }
-      } else if (id.startsWith('patterns-f_')) {
+      } else if (isFictionPatternsId(id)) {
         // Include fiction pattern dict only if its paired properNouns is active
         const pairedProperNouns = toProperNounsId(id);
         if (activeDictionaries.includes(pairedProperNouns)) {
@@ -532,25 +534,26 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       )}
 
       <div className={styles.tableContainer}>
-        {React.createElement(EnhancedVirtualizedDictionaryTable as any, {
-          key: showDuplicatesMode ? `duplicates-${duplicateRows.length}` : 'dictionary-table',
-          selectedDictionary,
-          searchRef,
-          onSelectionChange: setSelectionState,
-          isActive,
-          showDuplicatesMode,
-          duplicateRows,
-          onRefreshDuplicates: handleFindDuplicates,
-          scrollRestore: duplicateScrollRestore,
-          onScrollSave: setDuplicateScrollRestore,
-        })}
+        <EnhancedVirtualizedDictionaryTable
+          key={showDuplicatesMode ? `duplicates-${duplicateRows.length}` : 'dictionary-table'}
+          selectedDictionary={selectedDictionary}
+          searchRef={searchRef}
+          onSelectionChange={setSelectionState}
+          isActive={isActive}
+          showDuplicatesMode={showDuplicatesMode}
+          duplicateRows={duplicateRows}
+          onRefreshDuplicates={handleFindDuplicates}
+          scrollRestore={duplicateScrollRestore}
+          onScrollSave={setDuplicateScrollRestore}
+        />
       </div>
 
-      {showAddEntry &&
-        React.createElement(DictionaryEntry as any, {
-          onClose: () => setShowAddEntry(false),
-          selectedDictionary,
-        })}
+      {showAddEntry && (
+        <DictionaryEntry
+          onClose={() => setShowAddEntry(false)}
+          selectedDictionary={selectedDictionary}
+        />
+      )}
     </div>
   );
 };

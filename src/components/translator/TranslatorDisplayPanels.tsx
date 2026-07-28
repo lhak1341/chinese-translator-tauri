@@ -157,15 +157,15 @@ export default function TranslatorDisplayPanels({
             <div
               className={`${styles.streamingOverlay} ${throttledStreamingState.isStreaming ? styles.streamingOverlayVisible : styles.streamingOverlayHidden}`}
             >
-              {throttledStreamingState.isStreaming &&
-                React.createElement(StreamingTranslationDisplay as any, {
-                  streamingState: throttledStreamingState,
-                  finalText: translatedText,
-                  isComplete: false,
-                  semanticArrays: semanticArrays,
-                  partialSemanticArrays: partialSemanticArrays,
-                  style: { height: '100%', padding: '1rem' },
-                })}
+              {throttledStreamingState.isStreaming && (
+                <StreamingTranslationDisplay
+                  streamingState={throttledStreamingState}
+                  finalText={translatedText}
+                  isComplete={false}
+                  partialSemanticArrays={partialSemanticArrays}
+                  style={{ height: '100%', padding: '1rem' }}
+                />
+              )}
             </div>
 
             {/* Translation Content */}

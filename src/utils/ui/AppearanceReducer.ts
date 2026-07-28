@@ -45,21 +45,21 @@ export function applyAppearanceToCssVars(appearance: AppearanceSettings): void {
   root.style.setProperty('--chinese-text-spacing', appearance.chineseText.letterSpacing);
   root.style.setProperty(
     '--chinese-text-paragraph-spacing',
-    appearance.chineseText.paragraphSpacing || '1rem'
+    appearance.chineseText.paragraphSpacing ?? '1rem'
   );
   root.style.setProperty('--full-translation-font', appearance.fullTranslation.fontFamily);
   root.style.setProperty('--full-translation-size', appearance.fullTranslation.fontSize);
   root.style.setProperty('--full-translation-spacing', appearance.fullTranslation.letterSpacing);
   root.style.setProperty(
     '--full-translation-paragraph-spacing',
-    appearance.fullTranslation.paragraphSpacing || '1rem'
+    appearance.fullTranslation.paragraphSpacing ?? '1rem'
   );
   root.style.setProperty('--character-only-font', appearance.characterOnly.fontFamily);
   root.style.setProperty('--character-only-size', appearance.characterOnly.fontSize);
   root.style.setProperty('--character-only-spacing', appearance.characterOnly.letterSpacing);
   root.style.setProperty(
     '--character-only-paragraph-spacing',
-    appearance.characterOnly.paragraphSpacing || '1rem'
+    appearance.characterOnly.paragraphSpacing ?? '1rem'
   );
   root.style.setProperty('--ui-font', appearance.uiFont.fontFamily);
 }
