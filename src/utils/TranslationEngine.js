@@ -157,6 +157,7 @@ import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
 import { getIndexedMatches } from './dictionary/LookupIndexUtils.js';
+import { buildLookupIndexOrFallback } from './dictionary/LookupIndexBuilder';
 import { parallelConfig } from './ParallelConfig.js';
 // WasmTranslationAccelerator removed - using pure JavaScript translation
 // WASM conflict resolution — flat Uint32Array boundary, near-zero overhead
@@ -186,7 +187,6 @@ import {
 } from './wasm/WasmPatternProcessor.js';
 import {
   PHRASE_PROCESSING,
-  DICTIONARY_LOOKUP,
   MEMORY_MANAGEMENT,
   POSITION_TRACKING, // CODE REVIEW FIX (LOW-3)
   getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
@@ -779,7 +779,6 @@ export class TranslationEngine {
    * @param {Object} [dictionaries['properNouns-*.json']] - Novel-specific proper noun dictionaries
    * @param {Object} [options={}] - Initialization options
    * @param {string[]} [options.activeProperNouns] - Override active proper noun dictionaries
-   * @param {string[]} [options.dictionaryOrder] - Override dictionary search order
    * @param {boolean} [options.lazyLoad=true] - Enable lazy loading for inactive proper nouns
    *
    * @returns {Promise<void>} Resolves when initialization is complete
@@ -800,12 +799,6 @@ export class TranslationEngine {
    * // With active proper nouns
    * await engine.initialize(dictionaries, {
    *   activeProperNouns: ['properNouns-Novel1.json', 'properNouns-Novel2.json']
-   * });
-   *
-   * @example
-   * // With custom dictionary order
-   * await engine.initialize(dictionaries, {
-   *   dictionaryOrder: ['properNouns-Novel1.json', 'phrase', 'character']
    * });
    *
    * @see constructor - Creates engine instance
@@ -956,7 +949,6 @@ export class TranslationEngine {
    * @param {boolean} [options.parallel=true] - Enable parallel chunk processing
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order
    *
    * @returns {Promise<string>} Translated Vietnamese text
    *
@@ -1129,52 +1121,11 @@ export class TranslationEngine {
 
     // OPTIMIZATION: Build Rust-powered lookup index for character-only translations (HUGE speedup)
     // Character-only mode benefits even more from pre-computed lookups!
-    if (
-      !options.lookupIndex &&
-      text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX &&
-      options.useSharedLookupIndex !== false
-    ) {
-      try {
-        const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
-
-        if (rustLookupIndexManager.isAvailable()) {
-          const indexStartTime = performance.now();
-
-          // Get dictionary search order (fallback to default if not available)
-          const dictionaryOrder =
-            this.dictionaryOrder || this.dictionaryManager.getDefaultSearchOrder() || [];
-
-          // Build lookup index using Rust + Rayon
-          const indexResult = await rustLookupIndexManager.buildLookupIndex(
-            text,
-            this.dictionaryManager.flatEntries, // Map of dictionary name -> flat entries (computed once at load)
-            dictionaryOrder, // Dictionary search order
-            {
-              minTextLength: 50,
-              enableIndexing: true,
-              useParallel: true,
-            }
-          );
-
-          if (indexResult.success && indexResult.index) {
-            // Convert to Map for faster lookups
-            // IMPORTANT: Convert string keys from JSON back to numbers
-            options.lookupIndex = new Map(
-              Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
-            );
-            options.useSharedLookupIndex = true;
-
-            const indexTime = performance.now() - indexStartTime;
-            logger.log(
-              `🦀 Rust lookup index built for character-only: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`
-            );
-          }
-        }
-      } catch (error) {
-        logger.warn('⚠️ Rust lookup index build failed, using traditional lookup:', error.message);
-        // Continue without lookup index (traditional dictionary lookup will be used)
-      }
-    }
+    await buildLookupIndexOrFallback(text, options, {
+      dictionaryManager: this.dictionaryManager,
+      logDebug: (msg) => this.log(DEBUG_LEVELS.DEBUG, msg),
+      logWarn: (msg) => this.log(DEBUG_LEVELS.WARN, msg),
+    });
 
     // Create isolated semantic array builder to prevent conflicts with concurrent main translations
     const characterOnlySemanticBuilder = new SemanticArrayBuilder(
@@ -1563,7 +1514,6 @@ export class TranslationEngine {
    * @param {boolean} [options.parallel=true] - Enable parallel chunk processing
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order
    *
    * @returns {Promise<Object>} Translation result with segments
    * @returns {string} result.translatedText - Translated Vietnamese text
@@ -1593,8 +1543,7 @@ export class TranslationEngine {
    * @example
    * // With proper noun dictionaries
    * const result = await engine.translateWithSegments(text, {
-   *   activeProperNouns: ['properNouns-Novel1.json'],
-   *   dictionaryOrder: ['properNouns-Novel1.json', 'phrase', 'character']
+   *   activeProperNouns: ['properNouns-Novel1.json']
    * });
    *
    * @see translateWithProgressiveBatches - Progressive batch translation implementation
@@ -2056,7 +2005,6 @@ export class TranslationEngine {
    * @param {string|null} tokens[].translated - Translated text (null = not yet translated)
    * @param {string|null} tokens[].translationSource - Source of translation
    * @param {Object} [options={}] - Translation options
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order
    * @param {boolean} [options.parallel=false] - Enable parallel phrase processing
    *
    * @returns {Promise<void>} Modifies tokens in-place
@@ -6454,7 +6402,6 @@ export class TranslationEngine {
    * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index (shared across chunks)
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order
    *
    * @returns {Promise<string>} Translated text with original punctuation preserved
    *
@@ -6716,7 +6663,6 @@ export class TranslationEngine {
    * @param {boolean} [options.useSharedLookupIndex=true] - Enable Rust lookup index for texts >500 chars
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order
    *
    * @returns {Promise<string>} Translated Vietnamese text
    *
@@ -6791,77 +6737,11 @@ export class TranslationEngine {
 
       // OPTIMIZATION: Build Rust-powered lookup index for large texts (6-50x faster)
       // Only build if not already provided and text is large enough
-      if (
-        !options.lookupIndex &&
-        text.length >= DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX &&
-        options.useSharedLookupIndex !== false
-      ) {
-        try {
-          const { rustLookupIndexManager } = await import('./RustLookupIndexManager.js');
-
-          if (rustLookupIndexManager.isAvailable()) {
-            const indexStartTime = performance.now();
-
-            // Get dictionary search order (fallback to default if not available)
-            const dictionaryOrder =
-              this.dictionaryOrder || this.dictionaryManager.getDefaultSearchOrder() || [];
-
-            // Build lookup index using Rust + Rayon
-            const indexResult = await rustLookupIndexManager.buildLookupIndex(
-              text,
-              this.dictionaryManager.flatEntries, // Map of dictionary name -> flat entries (computed once at load)
-              dictionaryOrder, // Dictionary search order
-              {
-                minTextLength: 50,
-                enableIndexing: true,
-                useParallel: true,
-              }
-            );
-
-            if (indexResult.success && indexResult.index) {
-              // Convert to Map for faster lookups
-              // IMPORTANT: Convert string keys from JSON back to numbers
-              options.lookupIndex = new Map(
-                Object.entries(indexResult.index).map(([k, v]) => [Number(k), v])
-              );
-              options.useSharedLookupIndex = true;
-
-              const indexTime = performance.now() - indexStartTime;
-              this.log(
-                DEBUG_LEVELS.DEBUG,
-                `🦀 Rust lookup index built: ${indexResult.positionsIndexed} positions, ${indexResult.indexSize} matches in ${indexTime.toFixed(1)}ms (Rust: ${indexResult.buildTimeMs}ms)`
-              );
-            }
-          }
-        } catch (error) {
-          this.log(
-            DEBUG_LEVELS.WARN,
-            '⚠️ Rust lookup index build failed, falling back to JavaScript indexing:',
-            error.message
-          );
-          // OPTIMIZATION: Fallback to JavaScript-based comprehensive lookup index
-          // This ensures lookup index is ALWAYS built for texts >50 chars (10-20% speedup)
-          try {
-            const jsIndexStartTime = performance.now();
-            options.lookupIndex = await this.dictionaryManager.buildComprehensiveLookupIndex(text, {
-              enableLookupIndexing: true,
-            });
-            options.useSharedLookupIndex = true;
-            const jsIndexTime = performance.now() - jsIndexStartTime;
-            this.log(
-              DEBUG_LEVELS.DEBUG,
-              `📋 JavaScript lookup index built: ${options.lookupIndex.size} positions in ${jsIndexTime.toFixed(1)}ms`
-            );
-          } catch (jsError) {
-            this.log(
-              DEBUG_LEVELS.WARN,
-              '⚠️ JavaScript lookup index build failed, using traditional lookup:',
-              jsError.message
-            );
-            // Final fallback: continue without lookup index
-          }
-        }
-      }
+      await buildLookupIndexOrFallback(text, options, {
+        dictionaryManager: this.dictionaryManager,
+        logDebug: (msg) => this.log(DEBUG_LEVELS.DEBUG, msg),
+        logWarn: (msg) => this.log(DEBUG_LEVELS.WARN, msg),
+      });
 
       // Phase 1: Tokenization with memory-based processing limits
       const tokens = this.tokenizer.tokenize(text);
@@ -6986,7 +6866,6 @@ export class TranslationEngine {
    * @param {Object} [options={}] - Translation options
    * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index for Phase 5
    * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries for Phase 2
-   * @param {string[]} [options.dictionaryOrder] - Dictionary search order
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
    *
    * @returns {Promise<Array<Object>>} Translated tokens

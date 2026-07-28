@@ -9,12 +9,14 @@
 
 The codebase is written in a mix of JavaScript and TypeScript. We need to decide: Should we fully migrate to TypeScript, keep everything in JavaScript, or maintain a hybrid approach?
 
-**Current State**:
+**Current State** (as of 2026-01-28; see 2026-07-28 note below):
 
 - **TypeScript**: 15 core utilities, 19 `.d.ts` type definition files (11,000+ lines)
 - **JavaScript**: Core engine (`TranslationEngine.js` 7,507 lines), UI coordination (`Translator.jsx` 2,352 lines), processors
 - **Type Coverage**: WASM boundaries, API contracts, utilities
 - **Engine location**: `src/utils/TranslationEngine.js`
+
+**Note (2026-07-28):** these counts are long stale — dozens more TypeScript utilities exist now (e.g. `LookupIndexBuilder.ts`, `DictionaryOperationReverter.ts`, `PersistTimeValidator.ts`, `MatchComparator.ts`, `PhraseConsumptionMarker.ts`, `DictionaryTrieBuilder.ts`, and more), and `Translator.jsx` has shrunk to ~1069 lines via hook extraction (see ADR-011's supersession note). The qualitative decision — utilities migrate to TS, `TranslationEngine.js`/`Translator.jsx`/`SemanticPatternProcessor.js` stay JS — is unchanged and actively enforced (see CLAUDE.md's "Intentionally JavaScript" list). Don't cite the specific counts above as current.
 
 **Key Question**: What should our TypeScript migration strategy be?
 

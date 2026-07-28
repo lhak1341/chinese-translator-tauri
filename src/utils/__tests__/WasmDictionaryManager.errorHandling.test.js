@@ -19,6 +19,7 @@ vi.mock('../toast', () => ({
 // Mock WASM module
 const mockDictionaryEngine = {
   load_dictionary: vi.fn(),
+  load_dictionaries_batch: vi.fn(),
   find_matches: vi.fn(),
   find_longest_match: vi.fn(),
   get_total_entries: vi.fn(),
@@ -83,7 +84,8 @@ describe('WasmDictionaryManager Error Handling', () => {
 
     // Default successful responses
     mockDictionaryEngine.load_dictionary.mockReturnValue(true);
-    mockDictionaryEngine.find_matches.mockReturnValue([]);
+    mockDictionaryEngine.load_dictionaries_batch.mockReturnValue(true);
+    mockDictionaryEngine.find_matches.mockReturnValue('[]');
     mockDictionaryEngine.find_longest_match.mockReturnValue(null);
     mockDictionaryEngine.get_total_entries.mockReturnValue(0);
   });
@@ -326,6 +328,69 @@ describe('WasmDictionaryManager Error Handling', () => {
 
       expect(mockFallbackManager.findLongestMatch).toHaveBeenCalled();
       expect(manager.fallbackHandler.getFailureCount()).toBe(1);
+    });
+  });
+
+  describe('loadDictionariesBatch failure handling', () => {
+    it('records failure and releases the buffer when the WASM batch call throws', async () => {
+      const { wasmMemoryPoolManager } = await import('../wasm/WasmMemoryPoolManager.js');
+
+      await manager.initialize({});
+      manager.initialized = true;
+      manager.engine = mockDictionaryEngine;
+
+      mockDictionaryEngine.load_dictionaries_batch.mockImplementation(() => {
+        throw new Error('Batch load failed');
+      });
+
+      const result = await manager.loadDictionariesBatch([
+        { name: 'characters', entries: [{ chinese: '测试', vietnamese: 'test' }] },
+      ]);
+
+      expect(result).toBe(false);
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
+      // Buffer must be returned via the finally block even though the try body threw.
+      expect(wasmMemoryPoolManager.returnBuffer).toHaveBeenCalled();
+    });
+  });
+
+  describe('Validation failures (malformed WASM results)', () => {
+    it('findMatches drops an entry missing translation but keeps other valid matches', async () => {
+      await manager.initialize({});
+      manager.initialized = true;
+      manager.engine = mockDictionaryEngine;
+
+      mockDictionaryEngine.find_matches.mockReturnValue(
+        JSON.stringify([
+          { word: 'good', translation: 'tot', start_pos: 0, end_pos: 4 },
+          { word: 'bad', start_pos: 4, end_pos: 6 }, // translation omitted → undefined after parse
+        ])
+      );
+
+      const results = manager.findMatches('characters', '测试', 0);
+
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
+      expect(results).toEqual([expect.objectContaining({ word: 'good', translation: 'tot' })]);
+    });
+
+    it('findLongestMatch substitutes the fallback manager result on a malformed match', async () => {
+      const mockFallbackManager = {
+        findLongestMatch: vi.fn(() => ({ word: 'fallback', translation: 'du phong' })),
+      };
+
+      await manager.initialize(mockFallbackManager);
+      manager.initialized = true;
+      manager.engine = mockDictionaryEngine;
+
+      mockDictionaryEngine.find_longest_match.mockReturnValue(
+        JSON.stringify({ word: 'bad', start_pos: 0, end_pos: 2 }) // translation omitted
+      );
+
+      const result = manager.findLongestMatch('characters', '测试', 0);
+
+      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
+      expect(mockFallbackManager.findLongestMatch).toHaveBeenCalledWith('characters', '测试', 0);
+      expect(result).toEqual({ word: 'fallback', translation: 'du phong' });
     });
   });
 });

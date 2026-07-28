@@ -16,6 +16,8 @@ Both were written in `recordTranslation` (both updated together), but only `regr
 
 Replace the two split states with a single `report` state holding the full `getReport()` return value. Both callbacks now call `setReport(performanceHealth.getReport(0))` — identical code, identical scope.
 
+**Update (2026-07-28):** `getReport()` takes no arguments today — confirmed in `usePerformanceMonitoring.js` (`performanceHealth.getReport()`, no `0` arg) and `PerformanceHealth.js`. The `cacheHitRate` field this ADR describes the unified report as containing was deleted entirely (`TranslationSegmentCache` removed; the field was permanently 0 — see CLAUDE.md's deleted-symbols log). The single-`report`-state decision is unaffected by either change.
+
 ## Reasoning
 
 **One source, one state.** `getReport()` is a single read path producing a single object. Decomposing it into two React states added no leverage — callers had to know which state held which fields, and the update granularity was inconsistently applied.

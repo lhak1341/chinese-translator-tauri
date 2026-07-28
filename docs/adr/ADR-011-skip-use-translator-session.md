@@ -5,6 +5,10 @@
 **Decision Makers**: Development Team
 **Affected Components**: `src/components/Translator.jsx`, `src/hooks/`
 
+## Update (2026-07-28)
+
+`Translator.jsx` is now ~1069 lines — less than half the 2.4K LOC cited below — via many small, targeted hook extractions (`useClipboardTranslation`, `useCharacterOnlyBridge`, `useAutoTranslateTrigger`, `useForceReload`, `useEngineReinitializer`, `useReloadRetranslate`, and others documented in CLAUDE.md's deleted-symbols log) rather than the one big `useTranslatorSession` coordinator this ADR rejected. This is the _opposite_ of the ADR's own "When to Revisit" trigger ("component grows significantly beyond 2.4K LOC") — it shrank instead, arguably validating the rejection: incremental small-hook extraction outperformed the proposed single wide coordinator. Decision unchanged; the LOC snapshot below is just stale.
+
 ## Context and Problem Statement
 
 `Translator.jsx` (2.4K LOC) wires 13 hooks. The coordination contract between them — engine lifecycle, translation controller, streaming state, modal state — lives implicitly in the component body. A `useTranslatorSession` hook was proposed to extract this coordination, making `Translator.jsx` a pure rendering layer and the coordination testable via `renderHook()`.

@@ -326,22 +326,54 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
     });
 
     it('should clear WASM dictionaries on reload if available', async () => {
-      const manager = new DictionaryManager();
-
-      // Mock WASM adapter
+      // Drive this through the real DictionaryWasmLookup seam (this.wasmLookup) — a
+      // manager constructed with no wasmAdapter option has wasmLookup === null, so the
+      // adapter must be injected via the real constructor path, not poked onto the
+      // instance directly.
       const clearAllSpy = vi.fn();
-      manager._wasmInitialized = true;
-      manager._wasmAdapter = {
-        clearAll: clearAllSpy,
-        isReady: vi.fn(() => false),
+      const mockWasmAdapter = {
+        initialize: vi.fn(async () => true),
+        isReady: vi.fn(() => true),
         loadDictionary: vi.fn(async () => true),
+        findMatches: vi.fn(() => []),
+        hasDictionary: vi.fn(() => false),
+        clearAll: clearAllSpy,
+        getTimingStats: vi.fn(() => ({ memoryUsage: 0 })),
+        cleanup: vi.fn(),
       };
+
+      const manager = new DictionaryManager({ wasmAdapter: mockWasmAdapter });
+      await manager.wasmLookup.initialize({});
 
       await manager.reloadDictionaries({
         characters: { 的: 'của' },
       });
 
       expect(clearAllSpy).toHaveBeenCalled();
+    });
+
+    it('should report WASM memory usage from the real wasmLookup seam', async () => {
+      const mockWasmAdapter = {
+        initialize: vi.fn(async () => true),
+        isReady: vi.fn(() => true),
+        loadDictionary: vi.fn(async () => true),
+        findMatches: vi.fn(() => []),
+        hasDictionary: vi.fn(() => false),
+        clearAll: vi.fn(),
+        getTimingStats: vi.fn(() => ({ memoryUsage: 42 })),
+        cleanup: vi.fn(),
+      };
+
+      const manager = new DictionaryManager({ wasmAdapter: mockWasmAdapter });
+      await manager.wasmLookup.initialize({});
+
+      expect(manager.getMemoryUsage().wasmMemory).toBe(42);
+    });
+
+    it('should report null WASM memory usage when no WASM adapter is configured', () => {
+      const manager = new DictionaryManager();
+
+      expect(manager.getMemoryUsage().wasmMemory).toBeNull();
     });
   });
 

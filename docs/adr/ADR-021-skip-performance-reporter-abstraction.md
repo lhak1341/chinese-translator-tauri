@@ -28,6 +28,8 @@ Do not extract a `PerformanceReporter`. Keep the wide flat interface on `Transla
 
 **Only `getEngineStats()` has live app callers.** Translator.jsx calls it at 3 sites (L277, L1069, L1070) to update the engine stats display. Every other method is a dev-console diagnostic tool accessed via `window.translationEngine.*` during debugging.
 
+**Update (2026-07-28):** `getEngineStats()` now has zero external callers — confirmed no occurrences in `Translator.jsx`; its only remaining reference is an internal debug-level log call inside `TranslationEngine.js` itself. The distinction this ADR draws (`getEngineStats` is a real seam, the other 9 aren't) no longer holds factually — all 10 methods are now dev-console-only. This doesn't change the conclusion; if anything it strengthens it (uniform treatment across all 10 is simpler than a carved-out exception for one). But don't cite "getEngineStats has real app callers" as a current fact — verify against `Translator.jsx` again before relying on it.
+
 The deletion test reveals two different situations in the same method list:
 
 - `getEngineStats()` — real seam, concentrates complexity at callers if removed. Keep as-is.

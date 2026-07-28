@@ -1,9 +1,15 @@
 # ADR-013: Skip PrecomputedTokenStrings Extraction, Keep It Inline
 
-**Status**: Accepted
+**Status**: Superseded (2026-07-28) — extraction happened, correctly
 **Date**: 2026-06-03
 **Decision Makers**: Development Team
 **Affected Components**: `src/utils/pattern/SemanticPatternProcessor.js`
+
+## Supersession Note (2026-07-28)
+
+This ADR's own "Consequences" section named the exact condition that would justify reopening it: "a second caller emerges." One did. `PrecomputedTokenStrings` now lives in its own file, `src/utils/pattern/PrecomputedTokenStrings.js`, exported as a class and imported by two real callers: `SemanticPatternProcessor.js` (the original site) and `src/utils/wasm/StringProcessingAdapter.js` (the JS fallback path when the WASM string processor is unavailable or fails). The extraction was correct once the second caller existed — this is the "two adapters = real seam" principle from this same ADR's own reasoning, now satisfied.
+
+No action needed on the code — it's already in the right shape. This note exists so a future review doesn't find the class in its own file, assume the extraction contradicts this ADR, and waste time reconciling a non-conflict.
 
 ## Context and Problem Statement
 

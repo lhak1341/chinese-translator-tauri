@@ -5,6 +5,10 @@
 **Decision Makers**: Development Team
 **Affected Components**: `src/hooks/useHotkeyHandler.ts`, `src/components/TabbedInterface.tsx`, `src/components/Translator.jsx`
 
+## Update (2026-07-28)
+
+`useHotkeyHandler.ts` is now 168 lines (was 264), and the "13 ref mirrors" pattern was collapsed into a single `optionsRef` mirroring one options object (2026-07-16) — per CLAUDE.md: "`useHotkeyHandler(options)` now takes one options object (not destructured)... do not reintroduce per-prop `useRef` pairs." The key-dispatch table was also extracted to `src/utils/ui/HotkeyDispatchTable.ts`. The decision itself is unaffected — still exactly 2 call sites (`TabbedInterface.tsx`, `Translator.jsx` via `<HotkeyHandler>`), confirmed unchanged. Only the internal implementation details below (line count, ref pattern) are stale.
+
 ## Context and Problem Statement
 
 `useHotkeyHandler` (264 lines) serves two call sites with 13 callbacks and 13 ref mirrors. A `HotkeyRegistry` pattern was proposed — a hook accepting `{ when, handler }` registrations so each feature owns its hotkeys without touching a central file.

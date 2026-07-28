@@ -5,6 +5,10 @@
 **Decision Makers**: Development Team
 **Affected Components**: `WasmPatternProcessor.js`, `WasmNumberProcessor.js`, `WasmDictionaryManager.js`, `WasmProcessorLifecycle.js`
 
+## Update (2026-07-28)
+
+The "three processors" premise is stale. `WasmNumberProcessor.js` was deleted entirely — Phase 3 is now pure JS (`NumberProcessor.js`), per CLAUDE.md's deleted-symbols log. Two processors not mentioned anywhere in this ADR have since converged on `WasmProcessorLifecycle` instead: `WasmStringProcessor.js` and `WasmTextChunker.js`. Confirmed current real consumer set (`new WasmProcessorLifecycle(` call sites): `WasmDictionaryManager.js`, `WasmPatternProcessor.js`, `WasmStringProcessor.js`, `WasmTextChunker.js` — four processors, a different set than "Pattern, Number, Dictionary." The decision itself is validated more strongly by this, not weakened — more processors converged on the shared lifecycle than originally scoped, exactly the "adding a fourth WASM processor requires only `new WasmProcessorLifecycle({...})`" consequence this ADR predicted.
+
 ## Context and Problem Statement
 
 Three WASM processors (Pattern, Number, Dictionary) each initialize a WASM instance before use.

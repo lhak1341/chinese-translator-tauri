@@ -985,14 +985,14 @@ export class DictionaryManager {
     return {
       dictionaries: this.dictionaries?.size ?? 0,
       cacheEnabled: !!this.cache,
-      wasmMemory: this._wasmAdapter?.getTimingStats()?.memoryUsage ?? null,
+      wasmMemory: this.wasmLookup?.getTimingStats()?.memoryUsage ?? null,
     };
   }
 
   async reloadDictionaries(dictionaryData, options = {}) {
-    if (this._wasmInitialized && this._wasmAdapter) {
+    if (this.wasmLookup?.isReady()) {
       try {
-        this._wasmAdapter.clearAll();
+        this.wasmLookup.clearAll();
         this.log(2, '🔄 Cleared WASM dictionaries for reload');
       } catch (error) {
         this.log(1, '⚠️ WASM clear failed:', error);

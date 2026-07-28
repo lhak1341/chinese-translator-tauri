@@ -4,15 +4,6 @@ import { logger } from '../logger';
 
 export function installDevConsole(engine) {
   window.translationEngine = engine;
-  window.runPatternParityTests = async () => {
-    const processor = engine?.twoPhasePatternProcessor;
-    if (!processor) {
-      logger.error('❌ TwoPhasePatternProcessor not available');
-      return;
-    }
-    const { runAllParityTests } = await import('../__benchmarks__/PatternParityTest.js');
-    return await runAllParityTests(processor);
-  };
 
   window.performanceDashboard = {
     getHealthReport: () => systemPerformanceMonitor.getSystemHealthReport(),

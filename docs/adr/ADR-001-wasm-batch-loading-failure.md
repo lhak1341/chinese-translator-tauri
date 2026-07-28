@@ -111,11 +111,11 @@ raised).
 
 ## References
 
-- Batch caller: `src/utils/dictionary/EnhancedDictionaryManager.js:119-173` (`syncDictionariesToWasm`)
-- Batch implementation: `src/utils/wasm/WasmDictionaryManager.js:129-237` (`loadDictionariesBatch`)
-- Rust implementation: `wasm-core/src/lib.rs:270` (`load_dictionaries_batch`)
-- Memory asymmetry: `lib.rs:215` (per-dict check) vs `lib.rs:309` (cumulative check)
-- Sequential path: `EnhancedDictionaryManager.js:176` (`syncDictionariesToWasmSequential`)
+**Note (2026-07-28):** `EnhancedDictionaryManager.js` no longer exists — deleted in commit `2e6e863` ("replace EnhancedDictionaryManager inheritance with WasmDictionaryAdapter composition"). The decision below still holds (confirmed: `loadDictionariesBatch` has zero callers anywhere in production code today), but the file references below are dead. The real chain is now `DictionaryManager` → `this.wasmLookup` (`DictionaryWasmLookup`) → `this._adapter` (`WasmDictionaryAdapter`) → `this._inner` (`WasmDictionaryManager`). `DictionaryWasmLookup.sync()` loops calling `loadDictionary()` (singular) per dictionary — the sequential path this ADR chose, just relocated through two more layers of composition since this ADR was written.
+
+- Batch implementation (still exists, still uncalled): `src/utils/wasm/WasmDictionaryManager.js` (`loadDictionariesBatch`)
+- Rust implementation: `wasm-core/src/lib.rs` (`load_dictionaries_batch`)
+- Sequential path today: `src/utils/dictionary/DictionaryWasmLookup.js::sync()` (loops `this._adapter.loadDictionary(...)`)
 
 ## Related ADRs
 

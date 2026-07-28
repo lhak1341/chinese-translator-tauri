@@ -594,11 +594,6 @@
     "ast_hash": "11d5dccf36592ee96011520bcb574b0f",
     "semantic_hash": ""
   },
-  "src/utils/__benchmarks__/PatternParityTest.js": {
-    "mtime": 1773509530.078531,
-    "ast_hash": "305121334354a5d3eda49f89fbda5e2e",
-    "semantic_hash": ""
-  },
   "src/utils/dictionary/DuplicateAnalyzer.ts": {
     "mtime": 1778911157.3412018,
     "ast_hash": "6ef431c24668ee10436d03990f54a7d6",
@@ -1174,11 +1169,6 @@
     "ast_hash": "3fb5a82c37557dfd03383d83c65812dd",
     "semantic_hash": ""
   },
-  "test-pattern-parity.html": {
-    "mtime": 1767449971.1813738,
-    "ast_hash": "c625c6d338634169c0a1138b211df451",
-    "semantic_hash": ""
-  },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
     "mtime": 1769818738.1407192,
     "ast_hash": "50a29eeadd84997e72cdea20bb565cad",
@@ -1197,11 +1187,6 @@
   "tests/README.md": {
     "mtime": 1764739368.9918208,
     "ast_hash": "070c37ebb43842d29d32b02708eb138e",
-    "semantic_hash": ""
-  },
-  "docs/PATTERN_MATCHING_RUST_MIGRATION_COMPLETE.md": {
-    "mtime": 1767451339.8096917,
-    "ast_hash": "de11ff6eb87a62dd39aa874d7248a230",
     "semantic_hash": ""
   },
   "docs/TEST_COVERAGE_IMPROVEMENTS.md": {

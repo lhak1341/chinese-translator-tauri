@@ -140,6 +140,14 @@ export class DictionaryWasmLookup {
     };
   }
 
+  clearAll() {
+    this._adapter.clearAll();
+  }
+
+  getTimingStats() {
+    return this._adapter.getTimingStats();
+  }
+
   dispose() {
     try {
       this._adapter.cleanup();

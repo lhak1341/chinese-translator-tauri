@@ -248,4 +248,24 @@ describe('DictionaryWasmLookup', () => {
       expect(() => lookup.dispose()).not.toThrow();
     });
   });
+
+  describe('clearAll', () => {
+    it('delegates to adapter.clearAll', async () => {
+      const clearAllSpy = vi.fn();
+      const adapter = makeAdapter({ clearAll: clearAllSpy });
+      const lookup = new DictionaryWasmLookup(adapter);
+      await lookup.initialize({});
+      lookup.clearAll();
+      expect(clearAllSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('getTimingStats', () => {
+    it('delegates to adapter.getTimingStats', async () => {
+      const adapter = makeAdapter({ getTimingStats: vi.fn(() => ({ memoryUsage: 42 })) });
+      const lookup = new DictionaryWasmLookup(adapter);
+      await lookup.initialize({});
+      expect(lookup.getTimingStats()).toEqual({ memoryUsage: 42 });
+    });
+  });
 });

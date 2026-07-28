@@ -102,6 +102,8 @@ const segments = UnifiedSegmentComputer.compute(semanticArray, text, {
 // Data: Computes on-demand from semantic arrays
 ```
 
+**Update (2026-07-28):** Path 1's computation chain gained a layer since this ADR was written — `src/utils/highlighting/PositionMetadataSegmenter.ts` was added, consumed by `useCharacterOnlySegments.ts` (the hook `ClickableTranslationSemantic.tsx` actually calls), which in turn uses `SegmentPrecomputer.ts`'s named exports. The two-path _separation_ this ADR decided still holds exactly as written; only Path 1's internal architecture deepened beyond what's described here.
+
 **Path 2 - Full Translation mode**:
 
 ```javascript

@@ -684,18 +684,6 @@ const Translator = ({ isActive = true }) => {
                     }
                   });
                 },
-                dictionaryOrder: [
-                  'phrases',
-                  'patterns',
-                  'properNouns-DaiDuongSongLong',
-                  'properNouns-DuongThan',
-                  'properNouns-LongXaDienNghia',
-                  'properNouns-TapDo',
-                  'properNouns',
-                  'characters',
-                  'punctuation',
-                  'conversion',
-                ],
               });
 
               // CRITICAL FIX: Set atomic flag BEFORE clearing timeout to prevent race

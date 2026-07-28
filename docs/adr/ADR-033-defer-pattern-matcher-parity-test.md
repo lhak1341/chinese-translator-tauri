@@ -1,0 +1,35 @@
+# ADR-033: Delete Broken Pattern-Matcher Parity Tooling; Defer Building Real Parity Coverage
+
+**Status:** Decided
+**Date:** 2026-07-28
+
+## Context
+
+A 2026-07-27 architecture review flagged the lack of a parity test between the two production implementations of pattern matching: `SemanticPatternProcessor.testPatternMatch()` (JS) and `wasm-core/src/pattern_processor/matcher.rs` (Rust). Per ADR-007, these are real production adapters — `applyPatterns()` switches from the WASM adapter to `SemanticPatternProcessor` after 3 consecutive WASM failures within 5 minutes — so divergence between them is a real, production-reachable risk, not hypothetical. This codebase has already shipped one confirmed production bug from exactly this failure class (`TextTokenizer`'s Rust punctuation classifier silently missing 20 of 41 characters JS classified correctly — see CLAUDE.md).
+
+Investigation found parity tooling already existed — `src/utils/__benchmarks__/PatternParityTest.js`, `window.runPatternParityTests` (wired into `DevConsole.js`), and a standalone `test-pattern-parity.html` — all from the original Rust migration commit (`e49f655`, 2026-01-03). It had been broken since the moment it was created, in two independent ways:
+
+1. That same commit removed `TwoPhasePatternProcessor`'s 283-line internal JS fallback ("JavaScript fallback removed after parity verification"), but the parity tool's mechanism depended on toggling `processor.options.enableWasm = false` to get "JS results" from the same class. `processTokens()` has thrown `WASM Pattern Processor not available` on that path ever since — the tool never worked post-creation.
+2. Independently, `DevConsole.js`'s wiring read `engine.twoPhasePatternProcessor`, a property `TranslationEngine` never had at any point in its history. The guard (`if (!processor) return`) made the command a silent no-op regardless of bug (1).
+
+The tool was also comparing the wrong things even in principle: `TwoPhasePatternProcessor` toggled to fake-JS-mode versus itself, not the two real adapters (`SemanticPatternProcessor` vs `TwoPhasePatternProcessor`) `applyPatterns()` actually switches between.
+
+Before building a replacement, we checked whether either side has fixture-based tests asserting concrete matched output (translation string, indices, winning pattern) for the core matching decision — the ground truth a real parity test would compare against. Neither does. `SemanticPatternProcessor.test.js`'s `processTokens()` tests only assert array shape (`Array.isArray(result)`, `toHaveLength(0)`); none assert a specific match's translation or position. `matcher.rs`'s own `mod tests` only covers `build_result` (template substitution), not `test_pattern_match`/`find_best_pattern_match` — the actual matching-decision functions.
+
+## Decision
+
+Delete the broken tooling: `PatternParityTest.js`, its `DevConsole.js` wiring, and `test-pattern-parity.html`. Do not build a replacement parity test in this pass.
+
+## Reasoning
+
+**A parity test needs a trusted oracle on at least one side.** This codebase's established parity-test pattern (`wasm-core/tests/conflict_resolution_parity_test.rs`) validates an independent Rust re-implementation against documented JS test vectors. That pattern presupposes the JS side already has well-tested, concrete expected outputs to mirror. For `testPatternMatch`, that oracle doesn't exist — building "parity" now would mean inventing expected behavior for hierarchical composition, priority/`lowPriority` resolution, and variable-type validation on both languages simultaneously, with no independent reference to check against. That isn't verifying parity; it's guessing twice and calling agreement verification.
+
+**The broken tooling is worse than no tooling.** A dev-console command or HTML page that appears to test parity but has silently no-op'd or thrown for 7 months is a false-confidence hazard — the same locality-gap shape found elsewhere in this review round (`WasmDictionaryManager.errorHandling.test.js` testing `handleFailure()` directly instead of the real catch-block wiring). Deleting it is unambiguously correct regardless of what happens with real parity coverage.
+
+**The risk is real, so this is a deferral, not a dismissal.** Unlike `DictionaryManager.validateIntegrity()` (ADR-034 candidate, rejected outright — no evidence anyone needed it, zero callers anywhere in the trie-level health-check subsystem), the JS/WASM pattern-matcher pair is a demonstrated risk class in this exact codebase. The gap here is groundwork, not need.
+
+## Consequence
+
+Before a future review re-proposes a `pattern_matcher_parity_test.rs`, the JS side needs real fixture-based tests for `testPatternMatch()` first — concrete input/token fixtures asserting exact `translation`/`startIndex`/`endIndex`/winning-pattern output, covering at minimum: a simple single-variable match, an overlapping-pattern priority resolution, and a hierarchical-composition case (Phase A result absorbed into a Phase B pattern). Once that oracle exists, `matcher.rs::find_best_pattern_match`/`test_pattern_match` are plain `pub fn` reachable directly from `wasm-core/tests/*.rs` (no `wasm_bindgen` boundary, unlike `conflict_resolution.rs`'s flat-array production API) — the Rust test can call the real production function directly against the same fixtures rather than hand-porting a shadow implementation.
+
+The archived migration docs (`docs/archive/pattern-matching-migration/`) remain as historical record of the original one-time verification effort; `docs/PATTERN_MATCHING_RUST_MIGRATION_COMPLETE.md` was moved there alongside its sibling guide as part of this cleanup.

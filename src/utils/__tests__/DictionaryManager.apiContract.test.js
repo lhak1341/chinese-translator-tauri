@@ -233,19 +233,13 @@ describe('API Regression Detection', () => {
   test('verify all critical synchronous methods stay synchronous', () => {
     const manager = new DictionaryManager();
 
-    const criticalSyncMethods = [
-      'translate',
-      'findAllMatches',
-      'getDefaultSearchOrder',
-      'validateIntegrity',
-    ];
+    const criticalSyncMethods = ['translate', 'findAllMatches', 'getDefaultSearchOrder'];
 
     for (const methodName of criticalSyncMethods) {
       const method = manager[methodName];
-      if (method) {
-        const isAsync = method.constructor.name === 'AsyncFunction';
-        expect(isAsync).toBe(false);
-      }
+      expect(typeof method).toBe('function');
+      const isAsync = method.constructor.name === 'AsyncFunction';
+      expect(isAsync).toBe(false);
     }
   });
 });

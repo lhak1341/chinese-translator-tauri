@@ -330,6 +330,10 @@ export class WasmDictionaryManager {
               dictionaryName,
               match,
             });
+            // Drop-only, no fallback substitution: this is one entry in a multi-match
+            // array — the other matches from this same call are still valid and must
+            // survive. Contrast with findLongestMatch below, which substitutes the
+            // fallback's whole result because it has nothing else to return.
             this.handleFailure(); // Enter fallback mode after undefined values
             return null; // Filter out invalid matches
           }
@@ -375,6 +379,9 @@ export class WasmDictionaryManager {
           dictionaryName,
           match,
         });
+        // Fallback substitution, not drop-only: this call returns a single result,
+        // so a corrupt one must be replaced wholesale — there's no sibling match to
+        // fall back on the way findMatches's array-filter branch has.
         this.handleFailure(); // Enter fallback mode
         return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
       }

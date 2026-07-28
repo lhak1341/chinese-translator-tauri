@@ -560,8 +560,6 @@ Swapping imports between production code and tests will silently reverse the cop
 
 **`PatternMatchResult::success()` sets `pattern: None`**: The struct stores `pattern_id` (the `original_pattern` string) instead of cloning the full pattern. Tests must use `result.pattern_id.as_deref().unwrap()`, not `result.pattern.as_ref().unwrap()`.
 
-**`PatternParityTest.js` is dev-only — must stay as dynamic import**: `Translator.jsx` loads it via `await import(...)` inside the `window.runPatternParityTests` function body. Do NOT reintroduce as a static top-level import — it adds ~300 lines to the production bundle.
-
 **Removing `export` from a named export also requires cleaning its test describe blocks**: Vitest does not statically analyze — importing a non-exported named export throws `TypeError: ... is not a function` at runtime. When you un-export a function, find any `describe('functionName', ...)` blocks in the corresponding test file and remove them too.
 
 ### CSS / UI Components

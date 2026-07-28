@@ -1,9 +1,17 @@
 # ADR-008: Dictionary Cache Invalidation — Locality in handleForceReload, Not DictionaryContext
 
-**Status**: Accepted
+**Status**: Accepted (mechanism superseded — see note below)
 **Date**: 2026-05-16
 **Decision Makers**: Development Team
 **Affected Components**: `Translator.jsx`, `DictionaryContext.tsx`, `utils/caching/`
+
+## Supersession Note (2026-07-28)
+
+The 3-step manual cache-clear sequence this ADR documents no longer exists. `handleForceReload` itself was extracted from `Translator.jsx` into `useForceReload.js` (a hook) — Step 2 is now a single `ctx.destroyEngine()` call, not three sequential clears. `translationSegmentCache` (one of the three caches this ADR's invariants section requires) was deleted entirely — the cache was removed from the engine, its hit rate was permanently 0, see CLAUDE.md's deleted-symbols log. Verified `TranslationEngine.destroy()` (`src/utils/TranslationEngine.js:685`) — the "canonical engine teardown" per `src/utils/CLAUDE.md` — now clears `semanticPatternProcessor.variableCache` and calls `dictionaryManager.clearCache()` (not `clearAllCaches()`, the method name this ADR originally cited) as part of a wider teardown that also stops `memoryCoordinator`, clears `processedBatchCache`, and clears `semanticArrayBuilder`'s cache.
+
+**What still holds:** the _locality_ decision — cache invalidation on reload stays co-located with the reload flow itself, not routed through `DictionaryContext`. That reasoning (`DictionaryContext` has no access to `engineRef`, no change-notification mechanism worth adding) is undated by the mechanism change.
+
+**What's stale:** the "Critical Invariants" section below describes a 3-cache sequential-clear protocol that a developer today cannot find anywhere in the codebase. Do not use it as a checklist. If cache invalidation on reload needs auditing, start from `useForceReload.js`'s `destroyEngine()` call and `TranslationEngine.destroy()`, not from this ADR's original mechanism.
 
 ## Context and Problem Statement
 

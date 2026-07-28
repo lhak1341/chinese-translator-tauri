@@ -1,7 +1,15 @@
 # ADR-028: Eager Creation of Structural Pattern Dictionary on Fiction Creation
 
-**Status:** Decided  
+**Status:** Decided (creation mechanism superseded — see note below)
 **Date:** 2026-06-26
+
+## Supersession Note (2026-07-28)
+
+The "Consequences" section below describes creation as two separate Tauri calls (`create_proper_nouns_dictionary` then `create_pattern_dictionary`) with a "log and continue, migration repairs it later" fallback for partial failure. This is no longer how creation works. Per **ADR-027's own 2026-07-16 addendum**: this exact two-call approach was found to only `console.warn` on a failed pairing, leaving a `properNouns` dict active with no patterns companion and no rollback. It was replaced by `create_fiction_dictionary_pair` (`dictionary_commands.rs`) — one atomic Tauri command that rolls back the `properNouns` file (and its `activeProperNouns` config entry) if the `patterns` file fails to create. Confirmed still present in `dictionary_commands.rs` with rollback-path tests.
+
+**What still holds:** the _eager_ decision itself — every fiction gets both files, no lazy "add structural pattern" opt-in. That reasoning (empty files are free, lazy adds existence-check branches everywhere) is unaffected by the creation-mechanism fix.
+
+**What's stale:** the specific mechanics in "Consequences" (two calls, log-and-continue, mount-time migration as the repair path for partial failure). Read ADR-027's addendum for the current creation mechanism instead of this ADR's original text.
 
 ## Context
 
