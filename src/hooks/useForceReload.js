@@ -5,6 +5,43 @@ import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { parallelDictionaryLoader } from '../utils/dictionary';
 
 /**
+ * @typedef {Object} NormalizedLoadResultItem
+ * @property {string} id - Dictionary id/name.
+ * @property {boolean} success
+ * @property {Object} [data] - Raw dictionary data (present when success).
+ * @property {number} [entryCount] - Present when success.
+ * @property {unknown} [error] - Present when !success.
+ */
+
+/**
+ * Shared accumulate-and-log step for both dictionary-load branches in handleForceReload
+ * (parallelDictionaryLoader primary path and the manual Promise.all fallback). The two
+ * branches source their results differently and normalize into this common item shape
+ * before calling here — this function only owns turning that normalized list into
+ * {freshDictionaries, successCount} plus the per-item ✅/❌ log line. Each branch keeps its
+ * own final summary log (duration vs "(fallback)" differ genuinely, not worth unifying).
+ *
+ * @param {NormalizedLoadResultItem[]} items
+ * @returns {{freshDictionaries: Record<string, any>, successCount: number}}
+ */
+function accumulateLoadResults(items) {
+  const freshDictionaries = {};
+  let successCount = 0;
+
+  for (const item of items) {
+    if (item.success) {
+      freshDictionaries[item.id] = item.data;
+      successCount++;
+      logger.log(`✅ Loaded ${item.id}: ${item.entryCount} entries`);
+    } else {
+      logger.error(`Failed to load dictionary ${item.id}:`, item.error);
+    }
+  }
+
+  return { freshDictionaries, successCount };
+}
+
+/**
  * @typedef {Object} ForceReloadContext
  * @property {() => Promise<void>} cancelTranslations   - Step 1: cancel in-flight translations,
  *   await cleanup, reset isTranslating + progressInfo.
@@ -73,7 +110,7 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
         `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
       );
 
-      const freshDictionaries = {};
+      let freshDictionaries = {};
       let successCount = 0;
 
       try {
@@ -99,15 +136,14 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
           loadFunction
         );
 
-        loadResult.results.forEach(({ name, success, result, error }) => {
-          if (success && result) {
-            freshDictionaries[name] = result.data;
-            successCount++;
-            logger.log(`✅ Loaded ${name}: ${result.entryCount} entries`);
-          } else {
-            logger.error(`Failed to load dictionary ${name}:`, error);
-          }
-        });
+        const normalizedItems = loadResult.results.map(({ name, success, result, error }) => ({
+          id: name,
+          success: success && !!result,
+          data: result?.data,
+          entryCount: result?.entryCount,
+          error,
+        }));
+        ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
 
         logger.log(
           `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (${loadResult.duration.toFixed(0)}ms)`
@@ -118,6 +154,8 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
           loaderError
         );
 
+        // Per-item failure logging happens once, in accumulateLoadResults below — do not
+        // log here too (this branch used to double-log before that was unified).
         const loadPromises = allDictionaryIds.map(async (dictId) => {
           try {
             logger.log(`Force loading dictionary from storage: ${dictId}`);
@@ -130,22 +168,21 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
                 entryCount: Object.keys(result.data || {}).length,
               };
             }
-            logger.error(`Failed to load dictionary ${dictId}:`, result.error);
             return { dictId, error: result.error, success: false };
           } catch (error) {
-            logger.error(`Failed to reload dictionary ${dictId}:`, error);
             return { dictId, error: error.message, success: false };
           }
         });
 
         const results = await Promise.all(loadPromises);
-        results.forEach(({ dictId, data, success, entryCount }) => {
-          if (success) {
-            freshDictionaries[dictId] = data;
-            successCount++;
-            logger.log(`✅ Loaded ${dictId}: ${entryCount} entries`);
-          }
-        });
+        const normalizedItems = results.map(({ dictId, data, success, entryCount, error }) => ({
+          id: dictId,
+          success,
+          data,
+          entryCount,
+          error,
+        }));
+        ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
 
         logger.log(
           `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (fallback)`

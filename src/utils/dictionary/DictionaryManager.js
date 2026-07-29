@@ -188,6 +188,7 @@ export class DictionaryManager {
       punctuation: 5,
       conversion: 6,
     };
+    this.priorities = priorities;
 
     // Phase 4 Optimization: Filter dictionaries for lazy loading
     const filteredDictionaries = this.filterActiveDictionaries(dictionaryData, options);
@@ -359,41 +360,54 @@ export class DictionaryManager {
 
     // MEDIUM-9 FIX: Remove per-dictionary cache checks to eliminate duplicate lookups
     // Multi-dictionary cache check above is sufficient
+    const translationResult = this._findInDictionaries(word, searchOrder);
+
+    if (translationResult) {
+      // Cache based on word length for future lookups
+      if (word.length === 1) {
+        // Cache single character lookups aggressively
+        this.cache.setCharacter(word, translationResult.dictionary, translationResult);
+      } else {
+        // Cache phrase lookups
+        this.cache.setPhrase(word, translationResult.dictionary, translationResult);
+      }
+
+      // Also cache in multi-dictionary lookup cache
+      this.cache.setLookup(word, searchOrder, translationResult);
+
+      return translationResult;
+    }
+
+    // Cache negative result to avoid repeated failed lookups
+    this.cache.setLookup(word, searchOrder, null);
+    return null;
+  }
+
+  /**
+   * Pure search-order trie walk — no cache reads/writes, no WASM dispatch. Shared by
+   * translate()'s JS-fallback path (which layers caching on top of the result) and
+   * _translateJSDirect (used by validateWasmFallback, which needs an independent,
+   * cache-free JS computation to actually compare against a fresh WASM call — a cache
+   * hit here would mask a live WASM/JS divergence instead of surfacing it).
+   * @param {string} word
+   * @param {Array<string>} searchOrder - Already-resolved dictionary search order.
+   * @returns {Object|null} {word, translation, dictionary, metadata} or null
+   */
+  _findInDictionaries(word, searchOrder) {
     for (const dictionaryName of searchOrder) {
       const dictionary = this.dictionaries.get(dictionaryName);
       if (!dictionary) continue;
 
-      // Direct dictionary lookup (no per-dictionary cache check)
       const result = dictionary.getWithMetadata(word);
-
       if (result) {
-        // Build translation result
-        const translationResult = {
+        return {
           word,
           translation: result.translation,
           dictionary: dictionaryName,
           metadata: result.metadata,
         };
-
-        // Cache based on word length for future lookups
-        if (word.length === 1) {
-          // Cache single character lookups aggressively
-          this.cache.setCharacter(word, dictionaryName, translationResult);
-        } else {
-          // Cache phrase lookups
-          this.cache.setPhrase(word, dictionaryName, translationResult);
-        }
-
-        // Also cache in multi-dictionary lookup cache
-        this.cache.setLookup(word, searchOrder, translationResult);
-
-        // Return the found result
-        return translationResult;
       }
     }
-
-    // Cache negative result to avoid repeated failed lookups
-    this.cache.setLookup(word, searchOrder, null);
     return null;
   }
 
@@ -760,7 +774,7 @@ export class DictionaryManager {
     this.metadata.set(dictionaryName, {
       name: dictionaryName,
       entryCount,
-      priority: this.getDefaultPriority(dictionaryName),
+      priority: resolveDictionaryPriority(dictionaryName, this.priorities),
       stats: trie.getStats(),
     });
 
@@ -769,21 +783,6 @@ export class DictionaryManager {
 
     this.log(DEBUG_LEVELS.INFO, `✅ Lazy loaded ${dictionaryName}: ${entryCount} entries`);
     return true;
-  }
-
-  /**
-   * Get default priority for a dictionary name
-   * @param {string} dictionaryName - Dictionary name
-   * @returns {number} Priority value
-   */
-  getDefaultPriority(dictionaryName) {
-    if (dictionaryName.startsWith('properNouns')) return 1;
-    if (dictionaryName === 'patterns') return 2;
-    if (dictionaryName === 'phrases') return 3;
-    if (dictionaryName === 'characters') return 4;
-    if (dictionaryName === 'punctuation') return 5;
-    if (dictionaryName === 'conversion') return 6;
-    return 7; // Unknown dictionaries get lowest priority
   }
 
   /**
@@ -798,8 +797,8 @@ export class DictionaryManager {
       return dictMetadata.priority;
     }
 
-    // Fall back to default priority
-    return this.getDefaultPriority(dictionaryName);
+    // Fall back to the same rule loadDictionaries/lazyLoadDictionary use
+    return resolveDictionaryPriority(dictionaryName, this.priorities || {});
   }
 
   /**
@@ -953,22 +952,12 @@ export class DictionaryManager {
     return words;
   }
 
+  /**
+   * The pure/direct JS path used by validateWasmFallback — deliberately bypasses
+   * translate()'s cache and WASM dispatch (see _findInDictionaries's doc comment).
+   */
   _translateJSDirect(word, dictionaryOrder = null) {
-    const searchOrder = dictionaryOrder || this.getDefaultSearchOrder();
-    for (const dictionaryName of searchOrder) {
-      const dictionary = this.dictionaries.get(dictionaryName);
-      if (!dictionary) continue;
-      const result = dictionary.getWithMetadata(word);
-      if (result) {
-        return {
-          word,
-          translation: result.translation,
-          dictionary: dictionaryName,
-          metadata: result.metadata,
-        };
-      }
-    }
-    return null;
+    return this._findInDictionaries(word, dictionaryOrder || this.getDefaultSearchOrder());
   }
 
   getWasmStatus() {

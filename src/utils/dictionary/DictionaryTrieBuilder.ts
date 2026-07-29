@@ -1,7 +1,10 @@
 /**
- * Pure trie-construction fallback used by DictionaryManager.loadDictionaries when the
+ * Trie-construction fallback used by DictionaryManager.loadDictionaries when the
  * precomputed-cache path (DictionaryTrieLoader.loadDictionaryWithCache) misses or is
- * disabled. Builds a DictionaryTrie directly from raw dictionary JSON.
+ * disabled, plus the single priority-assignment rule shared by all three places
+ * DictionaryManager needs a dictionary's priority: eager load (loadDictionaries),
+ * lazy load (lazyLoadDictionary), and the not-yet-loaded fallback in
+ * getPriorityForDictionary.
  *
  * No `this`, no I/O, no logging — DictionaryManager owns disposal, cache lookup, Map
  * storage, and logging invalid entries; this module owns only the entry-by-entry trie

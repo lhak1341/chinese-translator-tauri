@@ -9,6 +9,8 @@
  * - Provides significant performance improvement for large dictionaries
  */
 
+import { logger } from '../logger.js';
+
 export class IncrementalDictionarySorter {
   constructor() {
     // Cache of sorted entries for each dictionary
@@ -40,14 +42,28 @@ export class IncrementalDictionarySorter {
     if (changedKey && this.sortedCache.has(dictionaryId)) {
       const result = this.incrementalSort(dictionary, dictionaryId, changedKey, oldKey);
       if (result) {
-        const endTime = performance.now();
-        const duration = endTime - startTime;
-        this.stats.incrementalSorts++;
-        this.stats.averageIncrementalSortTime =
-          (this.stats.averageIncrementalSortTime * (this.stats.incrementalSorts - 1) + duration) /
-          this.stats.incrementalSorts;
+        // Guard: incrementalSort only repositions `changedKey` — if the caller passed a
+        // non-null changedKey during a bulk op (multiple keys actually changed), the
+        // result silently drops every other changed key. Detect via entry-count mismatch
+        // and self-heal with a full sort instead of returning the truncated dictionary.
+        const resultCount = Object.keys(result).length;
+        const dictionaryCount = Object.keys(dictionary).length;
+        if (resultCount !== dictionaryCount) {
+          logger.warn(
+            `⚠️ [IncrementalDictionarySorter] Dropped-entry mismatch for "${dictionaryId}" ` +
+              `(expected ${dictionaryCount} entries, incremental result had ${resultCount}). ` +
+              `changedKey was passed on what looks like a bulk op — falling back to full sort.`
+          );
+        } else {
+          const endTime = performance.now();
+          const duration = endTime - startTime;
+          this.stats.incrementalSorts++;
+          this.stats.averageIncrementalSortTime =
+            (this.stats.averageIncrementalSortTime * (this.stats.incrementalSorts - 1) + duration) /
+            this.stats.incrementalSorts;
 
-        return result;
+          return result;
+        }
       }
     }
 

@@ -14,6 +14,7 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useForceReload } from '../useForceReload.js';
+import { parallelDictionaryLoader } from '../../utils/dictionary';
 
 vi.mock('../../utils/toast', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -370,5 +371,67 @@ describe('useForceReload — isLoading guard', () => {
     await done;
 
     expect(ctx.reinitializeEngine).not.toHaveBeenCalled();
+  });
+});
+
+// ── Fallback dictionary-load path (accumulateLoadResults parity) ───────────────
+
+describe('useForceReload — parallelDictionaryLoader fallback path', () => {
+  test('when loadDictionariesParallel rejects, the manual Promise.all fallback still builds freshDictionaries/successCount correctly', async () => {
+    parallelDictionaryLoader.loadDictionariesParallel.mockRejectedValueOnce(
+      new Error('loader unavailable')
+    );
+
+    global.window.electronAPI.loadDictionary = vi.fn((dictId) => {
+      if (dictId === 'dictB') {
+        return Promise.resolve({ success: false, error: 'boom' });
+      }
+      return Promise.resolve({ success: true, data: { 你好: 'xin chào' } });
+    });
+
+    const ctx = makeCtx();
+    vi.useFakeTimers();
+    const { result } = renderHook(() =>
+      useForceReload(ctx, false, '', false, { dictA: {}, dictB: {}, dictC: {} })
+    );
+    const done = act(async () => {
+      result.current();
+    });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    await done;
+
+    expect(ctx.reinitializeEngine).toHaveBeenCalledWith(
+      { dictA: { 你好: 'xin chào' }, dictC: { 你好: 'xin chào' } },
+      expect.objectContaining({ forceConfigReload: true })
+    );
+  });
+
+  test('fallback path does not double-log a per-item failure (accumulateLoadResults is the sole logger)', async () => {
+    const { logger } = await import('../../utils/logger');
+    parallelDictionaryLoader.loadDictionariesParallel.mockRejectedValueOnce(
+      new Error('loader unavailable')
+    );
+    global.window.electronAPI.loadDictionary = vi.fn().mockResolvedValue({
+      success: false,
+      error: 'boom',
+    });
+
+    const ctx = makeCtx();
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useForceReload(ctx, false, '', false, { dictA: {} }));
+    const done = act(async () => {
+      result.current();
+    });
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    await done;
+
+    const failureLogs = logger.error.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('dictA')
+    );
+    expect(failureLogs).toHaveLength(1);
   });
 });

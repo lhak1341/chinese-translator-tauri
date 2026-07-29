@@ -19,7 +19,7 @@
  * - Return types match expected structure
  */
 
-import { describe, test, expect, beforeEach } from 'vitest';
+import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { DictionaryManager } from '../dictionary/DictionaryManager.js';
 
 describe('DictionaryManager API Contract', () => {
@@ -271,5 +271,101 @@ describe('DictionaryManager match sort order', () => {
     const matches = manager.findAllMatches('王者归来', 0);
     expect(matches[0].word).toBe('王者');
     expect(matches[0].translation).toBe('Vương Giả (f)');
+  });
+});
+
+describe('DictionaryManager eager vs lazy priority parity (ADR-010)', () => {
+  test('lazyLoadDictionary assigns the same priority ladder as eager loadDictionaries', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    // Only 'properNouns' is active — the f_* and _* dicts stay pending for lazy load.
+    await manager.loadDictionaries(
+      {
+        properNouns: { 王: 'Vương' },
+        'properNouns-f_test': { 李: 'Lý' },
+        'properNouns-_generic': { 张: 'Trương' },
+      },
+      { activeProperNouns: ['properNouns'] }
+    );
+
+    expect(manager.metadata.get('properNouns').priority).toBe(3);
+    expect(manager.pendingDictionaries['properNouns-f_test']).toBeDefined();
+    expect(manager.pendingDictionaries['properNouns-_generic']).toBeDefined();
+
+    await manager.lazyLoadDictionary('properNouns-f_test');
+    await manager.lazyLoadDictionary('properNouns-_generic');
+
+    expect(manager.metadata.get('properNouns-f_test').priority).toBe(1);
+    expect(manager.metadata.get('properNouns-_generic').priority).toBe(2);
+  });
+});
+
+describe('DictionaryManager translate()/_findInDictionaries cache split (candidate #5 refactor)', () => {
+  test('translate() caches a single-character hit via setCharacter and setLookup', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+
+    const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
+    const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
+    const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
+
+    const result = manager.translate('在');
+
+    expect(result).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
+    expect(setCharacterSpy).toHaveBeenCalledWith('在', 'chars', result);
+    expect(setPhraseSpy).not.toHaveBeenCalled();
+    expect(setLookupSpy).toHaveBeenCalledWith('在', manager.getDefaultSearchOrder(), result);
+  });
+
+  test('translate() caches a multi-character hit via setPhrase, not setCharacter', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ phrases: { 你好: 'xin chào' } });
+
+    const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
+    const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
+
+    const result = manager.translate('你好');
+
+    expect(result).toMatchObject({ word: '你好', translation: 'xin chào', dictionary: 'phrases' });
+    expect(setPhraseSpy).toHaveBeenCalledWith('你好', 'phrases', result);
+    expect(setCharacterSpy).not.toHaveBeenCalled();
+  });
+
+  test('translate() caches a negative result via setLookup(word, searchOrder, null)', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+
+    const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
+    const result = manager.translate('不存在');
+
+    expect(result).toBeNull();
+    expect(setLookupSpy).toHaveBeenCalledWith('不存在', manager.getDefaultSearchOrder(), null);
+  });
+
+  test('_translateJSDirect never reads or writes the cache (independence required by validateWasmFallback)', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+
+    const getLookupSpy = vi.spyOn(manager.cache, 'getLookup');
+    const setLookupSpy = vi.spyOn(manager.cache, 'setLookup');
+    const setCharacterSpy = vi.spyOn(manager.cache, 'setCharacter');
+    const setPhraseSpy = vi.spyOn(manager.cache, 'setPhrase');
+
+    const result = manager._translateJSDirect('在');
+
+    expect(result).toMatchObject({ word: '在', translation: 'ở', dictionary: 'chars' });
+    expect(getLookupSpy).not.toHaveBeenCalled();
+    expect(setLookupSpy).not.toHaveBeenCalled();
+    expect(setCharacterSpy).not.toHaveBeenCalled();
+    expect(setPhraseSpy).not.toHaveBeenCalled();
+  });
+
+  test('_translateJSDirect and translate() agree on a cache-cold lookup', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries({ chars: { 在: 'ở' } });
+
+    const direct = manager._translateJSDirect('在');
+    const viaTranslate = manager.translate('在');
+
+    expect(direct).toEqual(viaTranslate);
   });
 });

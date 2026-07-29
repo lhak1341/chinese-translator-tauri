@@ -6,7 +6,7 @@ import React, { useMemo } from 'react';
 import type { ClickableTranslationSemanticProps } from '../../types/ClickableTypes';
 import { useCharacterOnlySegments } from '../../hooks/useCharacterOnlySegments';
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
-import { HighlightableSegment } from './HighlightableSegment';
+import { renderSegmentedContent } from './SegmentedParagraphs';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
 import { isUnitHighlighted } from '../../utils/highlighting';
 import styles from '../../styles/ClickableTranslationSemantic.module.css';
@@ -30,60 +30,22 @@ const ClickableTranslationSemantic: React.FC<ClickableTranslationSemanticProps> 
     'character-only-to-original'
   );
 
-  // Render a single segment with highlighting
-  const renderSegment = (segment: any, index: number) => {
-    if (segment.isClickable) {
-      // SAFETY: Guard against null/undefined (default param is -1, but explicit null bypasses it)
-      const isHighlighted = isUnitHighlighted(segment.unitIndex, highlightedTranslationUnitIndex);
-
-      return (
-        <HighlightableSegment
-          key={`segment-${segment.unitIndex}-${segment.start}-${index}`}
-          text={segment.text}
-          unitIndex={segment.unitIndex}
-          isHighlighted={isHighlighted}
-          title={`Click to highlight "${sanitizeString(segment.originalText || '', 100)}" (${segment.source})`}
-          onClick={() => handleUnitClick(segment.unitIndex)}
-        />
-      );
-    } else {
-      return (
-        <span
-          key={`text-${index}-${segment.start}`}
-          className={segment.type === 'space' ? '' : styles.nonClickableText}
-        >
-          {segment.text}
-        </span>
-      );
-    }
-  };
-
-  // Render segments grouped into paragraphs
-  const renderSegments = () => {
-    if (segments.length === 0) {
-      return <span>{translatedText}</span>;
-    }
-
-    // Render each paragraph with custom spacing
-    return paragraphs.map((paragraphSegments, paragraphIndex) => (
-      <div
-        key={`paragraph-${paragraphIndex}`}
-        className={styles.paragraph}
-        style={{
-          marginBottom:
-            paragraphIndex < paragraphs.length - 1
-              ? 'var(--character-only-paragraph-spacing, 1rem)'
-              : '0',
-        }}
-      >
-        {paragraphSegments.map((segment: any, segmentIndex: number) =>
-          renderSegment(segment, segmentIndex)
-        )}
-      </div>
-    ));
-  };
-
-  return <div className={styles.container}>{renderSegments()}</div>;
+  // SAFETY: Guard against null/undefined (default param is -1, but explicit null bypasses it)
+  return renderSegmentedContent({
+    segments,
+    paragraphs,
+    getTitle: (segment: any) =>
+      `Click to highlight "${sanitizeString(segment.originalText || '', 100)}" (${segment.source})`,
+    isHighlighted: (segment: any) =>
+      isUnitHighlighted(segment.unitIndex, highlightedTranslationUnitIndex),
+    onUnitClick: handleUnitClick,
+    getNonClickableClassName: (segment: any) =>
+      segment.type === 'space' ? '' : styles.nonClickableText,
+    renderFallback: () => <span>{translatedText}</span>,
+    containerClassName: styles.container,
+    paragraphClassName: styles.paragraph,
+    paragraphSpacingVar: '--character-only-paragraph-spacing',
+  });
 };
 
 export default React.memo(ClickableTranslationSemantic);

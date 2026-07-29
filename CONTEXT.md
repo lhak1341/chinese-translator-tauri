@@ -360,3 +360,31 @@ Entry point: `src/components/configuration/useDictionaryConfigManagement.ts`. So
 Pure sort + 3-way category split (Base / Generic / Fiction) for the Configuration screen's dictionary-id list. `sortDictionaries(ids)` puts `'properNouns'` first, then alphabetical. `categorizeDictionaries(ids)` buckets by the naming convention: `properNouns-f_*` → fiction, `properNouns-_*` → generic, everything else (including bare `'properNouns'`) → base.
 
 Entry point: `src/utils/dictionary/DictionaryListOrganizer.ts`. Not barrel-exported — sole caller is `useDictionaryConfigManagement.ts`, matching `MatchComparator.ts`/`PhraseConsumptionMarker.ts`'s single-caller convention.
+
+## SegmentedParagraphs
+
+The shared paragraph-grouped segment renderer for the two char-only Clickable*Semantic components (`ClickableOriginalSemantic.tsx`, `ClickableTranslationSemantic.tsx`). Extracted 2026-07-29 — both had independently re-implemented an identical paragraph-wrapping loop (map paragraphs → div with conditional `marginBottom` on all but the last → inner map building a clickable/non-clickable segment) despite genuinely different title formats, highlight arity (`isUnitHighlighted` called with 1 vs 2 highlight args — see `UnitHighlightPredicate`), click directions, non-clickable className logic, and fallback/empty-state branch counts (Original has 2 branches — missing text vs empty semantic array; Translation has 1).
+
+Interface: `renderSegmentedContent({ segments, paragraphs, getTitle, isHighlighted, onUnitClick, getNonClickableClassName, renderFallback, containerClassName, paragraphClassName, paragraphSpacingVar })`. The function owns the loop, the fallback dispatch (`segments.length === 0`), and the `<HighlightableSegment>` construction. Every piece that actually differs between the two callers is an injected callback — `renderFallback` in particular stays caller-owned specifically because the two components' empty-state branch _counts_ differ, not just their content.
+
+Plain function, not a component — matches the pre-extraction style (both callers used plain arrow functions) and avoids introducing a new reconciliation boundary between the callers and `HighlightableSegment`'s own memoization.
+
+Entry point: `src/components/char-only/SegmentedParagraphs.tsx`. Not barrel-exported (no `char-only/index.ts` exists) — imported directly by both callers, matching how `HighlightableSegment.tsx` is already imported.
+
+## accumulateLoadResults
+
+The shared accumulate-and-log step for `useForceReload.js`'s two dictionary-load branches (`parallelDictionaryLoader` primary path, manual `Promise.all` catch-fallback). Extracted 2026-07-29 — both branches independently built `freshDictionaries`/`successCount` and logged per-item ✅/❌, and the fallback branch's per-item failure logging (inline inside its `loadPromises` map) was removed in the same pass since `accumulateLoadResults` is now the sole logger for failures — the fallback branch used to double-log before this.
+
+The two branches source result items in different shapes (`{name, success, result:{data,entryCount}, error}` vs `{dictId, data, success, entryCount, error}`) — each branch normalizes its own shape into `{id, success, data, entryCount, error}` via an inline `.map()` before calling here. The final one-line summary log (`📥 Loaded X/Y...`) stays branch-local — the two messages genuinely differ (duration vs a `(fallback)` label) and weren't worth forcing into one shape.
+
+Interface: `accumulateLoadResults(items: NormalizedLoadResultItem[]) → {freshDictionaries, successCount}`.
+
+Entry point: `src/hooks/useForceReload.js`, module-level, not exported — both callers live inside the same file's `handleForceReload`.
+
+## _findInDictionaries
+
+`DictionaryManager`'s pure search-order trie walk — no cache reads/writes, no WASM dispatch. Extracted 2026-07-29 from the true overlap between `translate()`'s JS-fallback loop and `_translateJSDirect` (previously two independent copies of the same "walk searchOrder, `dictionary.getWithMetadata(word)`, build `{word, translation, dictionary, metadata}`" loop). `translate()` calls it then layers its own caching (character/phrase split, multi-dict lookup cache, negative-cache-on-miss) on top of the result; `_translateJSDirect` is now a one-line delegation (`_findInDictionaries(word, dictionaryOrder || this.getDefaultSearchOrder())`).
+
+The cache/WASM logic was deliberately **not** pulled into the shared piece — `_translateJSDirect` is called from `validateWasmFallback` (WASM/JS parity check), whose entire purpose requires an independent, cache-free JS computation to compare against a fresh WASM call. Calling `translate()` instead would either return a stale cached value (masking a live divergence) or, since `translate()` itself tries WASM first, could silently return a WASM result instead of a JS one — defeating the comparison either way. This independence is asserted directly in `DictionaryManager.apiContract.test.js` (`_translateJSDirect` spied against all 4 `TranslationCache` methods, asserted zero calls).
+
+Entry point: `src/utils/dictionary/DictionaryManager.js`, private method — callers are `translate()` and `_translateJSDirect`, both in the same file.
