@@ -77,6 +77,9 @@ export const TOAST_IDS = {
   /** Cache invalidation failure (repeated across operations) */
   CACHE_INVALIDATION_FAILED: 'cache-invalidation-failed',
 
+  /** Cache invalidation skipped — engine not ready (reinit window) */
+  CACHE_INVALIDATION_SKIPPED: 'cache-invalidation-skipped',
+
   /** WASM number processor fallback */
   WASM_NUMBER_FALLBACK: 'wasm-number-fallback',
 

@@ -42,23 +42,11 @@ function accumulateLoadResults(items) {
 }
 
 /**
- * @typedef {Object} ForceReloadContext
- * @property {() => Promise<void>} cancelTranslations   - Step 1: cancel in-flight translations,
- *   await cleanup, reset isTranslating + progressInfo.
- *   CRITICAL-3: this must fully resolve before destroyEngine() is called.
- * @property {() => void} destroyEngine                 - Step 2: destroy + null engineRef.
- * @property {(msg: string) => void} setStatus          - Progress status messages throughout reload.
- * @property {(msg: string) => void} setReloadError     - Error state (replaces setTranslationError).
- * @property {(active: boolean) => void} setReloading   - isDictionaryReloading flag.
- * @property {() => void} clearHighlighting             - Clear UI highlight state.
- * @property {(dicts: Record<string,any>, opts: {forceConfigReload: boolean, debugLevel: string}) => Promise<boolean>} reinitializeEngine
- *   - Steps 6-7: reinitialize engine, run async WASM validation, return true if engine is ready.
- * @property {(inputText: string) => Promise<void>} retranslate
- *   - Step 8: dual-mode optimized path with fallback to sequential; owns success toast.
- *   - Resolves silently on validation failure (validateSemanticArraySize already toasts).
- *   - Throws on engine errors (caller shows error toast).
- * @property {() => unknown} saveScrollPositions        - Snapshot scroll state before reload.
- * @property {(saved: unknown) => Promise<void>} restoreScrollPositions - Restore after reload.
+ * @typedef {import('./useForceReloadContext.js').ForceReloadContext} ForceReloadContext
+ *
+ * CRITICAL-3: ctx.cancelTranslations() must fully resolve before ctx.destroyEngine() runs.
+ * See useForceReloadContext.ts for the full field-by-field contract and the dev-only
+ * input-shape guard that enforces it's actually built with this shape.
  */
 
 /**

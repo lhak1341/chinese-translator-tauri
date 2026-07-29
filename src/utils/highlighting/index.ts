@@ -39,3 +39,7 @@ export { mapToPositions, compareByTokenIndex, resolveTokenIndex } from './TextPo
 
 // --- Overflow guard constants (shared with TranslationEngine and Translator) ---
 export { MAX_SAFE_SEGMENTS, HIGHLIGHT_SCROLL_DELAY_MS } from './semanticArrayConstants';
+
+// --- Word-position matching (progressive translation) ---
+export type { WordSegment, WordSegmentSemanticArrays } from './WordSegmentMatcher';
+export { matchWordSegments } from './WordSegmentMatcher';

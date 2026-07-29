@@ -52,12 +52,30 @@ const DictionaryContext = createContext<DictionaryContextValue | undefined>(unde
  * Clears the in-memory translation engine caches after a dictionary mutation so
  * subsequent translations use the updated entries rather than stale cached results.
  * Calls the invalidator registered by Translator.jsx; no-op until the engine is ready.
+ *
+ * `hasRegisteredOnceRef` distinguishes two cases where `invalidatorRef.current` is null:
+ * before the engine's first `'ready'` (nothing was ever cached, safe to stay silent) vs.
+ * a reinit window after the engine was previously ready (a stale cache genuinely exists,
+ * and dropping the invalidation here silently would leave it stale with no signal).
  */
 async function invokeEngineInvalidator(
   invalidatorRef: React.RefObject<((dictionaryId: string) => Promise<void>) | null>,
+  hasRegisteredOnceRef: React.RefObject<boolean>,
   dictionaryId: string
 ): Promise<void> {
-  if (!invalidatorRef.current) return;
+  if (!invalidatorRef.current) {
+    if (hasRegisteredOnceRef.current) {
+      toast.warning(
+        'Dictionary saved, but the engine is still starting — translations may use stale results until it finishes.',
+        {
+          duration: TOAST_DURATIONS.CACHE_WARNING,
+          id: TOAST_IDS.CACHE_INVALIDATION_SKIPPED,
+        }
+      );
+      logger.warn('Cache invalidation skipped: engine not ready (reinit window)');
+    }
+    return;
+  }
   try {
     await invalidatorRef.current(dictionaryId);
     logger.log('✅ Dictionary caches cleared');
@@ -91,9 +109,13 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
   const [loadError, setLoadError] = useState<string | null>(null);
   // Registered by Translator.jsx when engine is ready; cleared on engine teardown
   const engineInvalidatorRef = useRef<((dictionaryId: string) => Promise<void>) | null>(null);
+  // True from the first non-null registration onward — distinguishes "never ready yet"
+  // (silent, nothing cached) from "was ready, now mid-reinit" (real stale cache, warn).
+  const hasRegisteredOnceRef = useRef<boolean>(false);
   const registerCacheInvalidator = useCallback(
     (fn: ((dictionaryId: string) => Promise<void>) | null) => {
       engineInvalidatorRef.current = fn;
+      if (fn) hasRegisteredOnceRef.current = true;
     },
     []
   );
@@ -126,8 +148,9 @@ export function DictionaryProvider({ children }: DictionaryProviderProps): React
 
   // Stable wrapper so useDictionaryHistory doesn't import invokeEngineInvalidator directly
   const invalidateEngine = useCallback(
-    (dictionaryId: string) => invokeEngineInvalidator(engineInvalidatorRef, dictionaryId),
-    [] // stable — reads engineInvalidatorRef.current
+    (dictionaryId: string) =>
+      invokeEngineInvalidator(engineInvalidatorRef, hasRegisteredOnceRef, dictionaryId),
+    [] // stable — reads engineInvalidatorRef.current / hasRegisteredOnceRef.current
   );
 
   const { addToHistory, undo, redo, canUndo, canRedo } = useDictionaryHistory(

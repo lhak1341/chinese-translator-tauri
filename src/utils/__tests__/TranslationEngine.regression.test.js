@@ -3,8 +3,15 @@
  *
  * Tests prevent regressions for:
  * - Async memory cleanup race condition
- * - Inconsistent cleanup thresholds
- * - Multiple async cleanup interference
+ * - The canonical translationSegments hard ceiling (trackTranslationSegment)
+ *
+ * A prior "Inconsistent Cleanup Thresholds" / "Multiple Async Cleanup Interference"
+ * section here tested MockTranslationEngine methods (handleSmartCleanup,
+ * performEmergencyCleanup, performHighPriorityCleanup, optimizeMemoryStructures) that
+ * no longer exist on the real engine — extracted into SmartMemoryCoordinator long
+ * before this file was last touched (see CLAUDE.md's deleted-symbols list). Removed
+ * 2026-07-29 alongside the translateWithProgressiveBatches decomposition (architecture
+ * review candidate #1) — see BatchMemoryCleanup.test.ts for the real replacement's tests.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -14,10 +21,6 @@ import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 class MockTranslationEngine {
   constructor() {
     this.translationSegments = [];
-    this.backgroundCleanup = {
-      clear: vi.fn(),
-      queueCleanup: vi.fn(),
-    };
   }
 
   // Simulates the fixed async cleanup logic
@@ -45,47 +48,6 @@ class MockTranslationEngine {
       } else {
         setTimeout(cleanupFn, 0);
       }
-    }
-  }
-
-  // Simulates fixed smart cleanup with background cleanup clearing
-  handleSmartCleanup(urgency) {
-    if (urgency === 'critical' || urgency === 'high') {
-      // Bug fix: Clear pending background cleanups before immediate cleanup
-      if (this.backgroundCleanup) {
-        this.backgroundCleanup.clear();
-      }
-
-      if (urgency === 'critical') {
-        this.performEmergencyCleanup();
-      } else {
-        this.performHighPriorityCleanup();
-      }
-    }
-  }
-
-  performEmergencyCleanup() {
-    if (this.translationSegments.length > MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD) {
-      this.translationSegments = this.translationSegments.slice(
-        -MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD
-      );
-    }
-  }
-
-  performHighPriorityCleanup() {
-    if (this.translationSegments.length > MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD) {
-      this.translationSegments = this.translationSegments.slice(
-        -MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD
-      );
-    }
-  }
-
-  optimizeMemoryStructures() {
-    // Bug fix: Use MEMORY_THRESHOLDS constants instead of hardcoded values
-    if (this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP) {
-      this.translationSegments = this.translationSegments.slice(
-        -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-      );
     }
   }
 }
@@ -186,95 +148,9 @@ describe('TranslationEngine Regression Tests', () => {
     });
   });
 
-  describe('Bug Fix: Inconsistent Cleanup Thresholds', () => {
-    let engine;
-
-    beforeEach(() => {
-      engine = new MockTranslationEngine();
-    });
-
-    it('should use MEMORY_THRESHOLDS constant in optimizeMemoryStructures', () => {
-      // Add segments beyond threshold
-      for (let i = 0; i < MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP + 10; i++) {
-        engine.translationSegments.push({ data: `segment-${i}` });
-      }
-
-      expect(engine.translationSegments.length).toBe(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP + 10);
-
-      engine.optimizeMemoryStructures();
-
-      // Should cleanup to exactly SEGMENT_CLEANUP_KEEP (35), not hardcoded 35
-      expect(engine.translationSegments.length).toBe(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP);
-    });
-
-    it('should not cleanup if below threshold', () => {
-      // Add fewer segments than threshold
-      for (let i = 0; i < MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP - 10; i++) {
-        engine.translationSegments.push({ data: `segment-${i}` });
-      }
-
-      const initialLength = engine.translationSegments.length;
-      engine.optimizeMemoryStructures();
-
-      // Should not cleanup because below threshold
-      expect(engine.translationSegments.length).toBe(initialLength);
-    });
-  });
-
-  describe('Bug Fix: Multiple Async Cleanup Interference', () => {
-    let engine;
-
-    beforeEach(() => {
-      engine = new MockTranslationEngine();
-    });
-
-    it('should clear pending background cleanups before emergency cleanup', () => {
-      // Add many segments
-      for (let i = 0; i < 100; i++) {
-        engine.translationSegments.push({ data: `segment-${i}` });
-      }
-
-      engine.handleSmartCleanup('critical');
-
-      // Verify background cleanup was cleared
-      expect(engine.backgroundCleanup.clear).toHaveBeenCalled();
-
-      // Verify emergency cleanup executed
-      expect(engine.translationSegments.length).toBe(MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD);
-    });
-
-    it('should clear pending background cleanups before high priority cleanup', () => {
-      // Add many segments
-      for (let i = 0; i < 100; i++) {
-        engine.translationSegments.push({ data: `segment-${i}` });
-      }
-
-      engine.handleSmartCleanup('high');
-
-      // Verify background cleanup was cleared
-      expect(engine.backgroundCleanup.clear).toHaveBeenCalled();
-
-      // Verify high priority cleanup executed
-      expect(engine.translationSegments.length).toBe(MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD);
-    });
-
-    it('should not interfere with medium/low priority cleanups', () => {
-      engine.handleSmartCleanup('medium');
-
-      // Should not clear background cleanups for medium priority
-      expect(engine.backgroundCleanup.clear).not.toHaveBeenCalled();
-    });
-  });
-
   describe('Threshold Constants Integration', () => {
     it('should have consistent threshold values', () => {
       // Verify threshold hierarchy makes sense
-      expect(MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD).toBeLessThan(
-        MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD
-      );
-      expect(MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD).toBeLessThan(
-        MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-      );
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP).toBeLessThan(
         MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER
       );
@@ -285,13 +161,9 @@ describe('TranslationEngine Regression Tests', () => {
 
     it('should use documented threshold values', () => {
       // Verify actual values match documentation.
-      // CODE REVIEW FIX (HIGH-4): EMERGENCY raised 3→10, CRITICAL raised 5→20
-      // to preserve meaningful clickable highlighting after pressure cleanups.
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_TRIGGER).toBe(75);
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP).toBe(35);
       expect(MEMORY_THRESHOLDS.SEGMENT_CLEANUP_HARD_CEILING).toBe(100);
-      expect(MEMORY_THRESHOLDS.EMERGENCY_CLEANUP_THRESHOLD).toBe(10);
-      expect(MEMORY_THRESHOLDS.CRITICAL_CLEANUP_THRESHOLD).toBe(20);
     });
   });
 });

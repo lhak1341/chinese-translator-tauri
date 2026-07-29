@@ -19,6 +19,13 @@ export {
 export { SmartMemoryCoordinator } from './SmartMemoryCoordinator.js';
 
 export {
+  BatchMemoryCleanup,
+  type CleanupSeverity,
+  type BatchMemoryResources,
+  type BatchMemoryResult,
+} from './BatchMemoryCleanup.js';
+
+export {
   ComponentMemoryProfiler,
   type MemorySnapshot,
   type MemorySample,

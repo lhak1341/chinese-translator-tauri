@@ -42,9 +42,14 @@ Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or d
 passes `allowedVariableTypes` of the intended wrapping Phase B pattern — that's what the bonus check gates on.
 
 **Test coverage:** `test_phase_a_composite_bonus_wins_over_larger_own_span` (`tests/two_phase_test.rs`) covers the
-trailing-bonus path (`estimate_trailing_bonus`) — literal chars after the candidate. The mirror-image leading-bonus
-path (`estimate_leading_bonus` — literal chars before the candidate) has zero test coverage, direct or indirect.
-Verify it by hand before trusting a leading-bonus-dependent fix.
+trailing-bonus path (`estimate_trailing_bonus`) end-to-end, via `process_tokens`. `estimate_leading_bonus` has
+direct unit coverage (architecture review 2026-07-29, candidate #5) in `two_phase.rs`'s inline
+`mod tests::estimate_leading_bonus` — 5 tests, including the critical case that the two functions are NOT mirror
+images: trailing scans forward from `var_idx+1` and `break`s at the next variable; leading scans forward through
+`tokens[..var_idx]` and `.clear()`s on hitting a variable, keeping only the LAST contiguous literal run before
+`var_idx` (verified: a `[Lit, Var, Lit, Lit, Var]`-shaped pattern correctly discards the literal run before the
+earlier variable). A passing trailing test gives no confidence about leading correctness — they're genuinely
+different code shapes, not symmetric halves of one algorithm.
 
 ## Phase B Protection Blocks Shorter-or-Equal Matches
 
@@ -72,6 +77,8 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 - `tests/pattern_matching_test.rs` — `find_best_pattern_match` + `PatternMatcher` unit tests
 - `tests/pattern_semantic_type_test.rs` — semantic type propagation Phase A → Phase B
 
+**`pub(crate)` functions (e.g. `tokenize_text_core`) are unreachable from `wasm-core/tests/*.rs`** — integration test files only see the crate's public API. Tests against a `pub(crate)` function must live inside that source file's own `#[cfg(test)] mod tests` (nest a submodule there if it needs its own file-like organization — see `text_tokenizer.rs`'s `mod tests::parity`).
+
 ## `number_processor.rs` Is Rust Spec Only — No WASM Export
 
 `#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (155 tests validate parity). Do NOT add `#[wasm_bindgen]` back.
@@ -91,3 +98,5 @@ Before finishing a `pub mod` deletion, grep the crate for any dependency only th
 `tokenize_text_core`'s final `else` branch classifies **any** character that isn't `is_chinese_char`/`is_latin_letter`/`is_digit`/whitespace as `TokenType::Punctuation` — mirroring JS `TextTokenizer.ts`'s regex catch-all group (`[^\w\s一-鿿]+`). Do NOT reintroduce a finite `is_punctuation()` char-list here: the prior enumerated version (deleted 2026-07-17c) was missing 20 of the 41 characters in the production `punctuation.json` dictionary — including `…` and the corner brackets `「」『』` used constantly in Chinese-fiction dialogue — causing those chars to fall through to `unknown` in WASM while JS correctly typed them `punctuation`. This divergence had already caused one confirmed production bug (a spacing rule in `TranslationEngine.js` needed an allowlist workaround specifically because WASM gave `'…'` type `unknown`). `Token`/`TokenType` still derive `Deserialize`/`Serialize` matching the JS-side shape; `TokenType::Unknown` remains in the enum for wire-format parity but `tokenize_text_core` no longer constructs it (a finite Rust char list would always be one dictionary addition away from reopening this gap — the catch-all can't drift).
 
 Token-count parity (grouping consecutive punctuation into one token vs. one token per char) is a separate, deliberately unfixed divergence: JS's `tokenizeJS` groups runs (`"……"` → 1 token), Rust emits one token per char (`"……"` → 2 tokens). Left as-is because the punctuation dictionary is single-char-keyed only — per-char tokens are safer against the dictionary-translate-prefix-match truncation risk documented in the root `CLAUDE.md`'s `cleanupFormatting` note. See `text_tokenizer.rs`'s `mod tests` (`punctuation_run_produces_one_token_per_character`) and `TextTokenizer.test.ts` (`groups a run of punctuation into one token`) for the characterization tests documenting both sides.
+
+**Cross-language parity contract (architecture review 2026-07-29, candidate #6):** `../test-fixtures/tokenizer-parity.json` (repo root) is now the single shared source of truth for this divergence and the other 3 documented ones (CJK Extension A, Compatibility Ideographs, underscore, BOM) plus 6 agreement spot-checks. `text_tokenizer.rs`'s `mod tests::parity::tokenize_text_core_matches_the_shared_fixture` reads it via `include_str!` + `serde_json` and asserts `tokenize_text_core`'s real output against it; the JS mirror is `src/utils/__tests__/TextTokenizer.parity.test.ts`. `tokenize_text_core` is `pub(crate)` — this had to live inside `text_tokenizer.rs`'s own test module, not a separate `wasm-core/tests/*.rs` integration file. Adding a new documented divergence, or fixing an existing one: update the fixture first, both sides' tests will then tell you if the real implementation doesn't match what you just wrote.

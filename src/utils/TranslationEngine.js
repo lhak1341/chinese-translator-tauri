@@ -151,7 +151,6 @@ import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { MAX_SAFE_SEGMENTS } from './highlighting/semanticArrayConstants.js';
-import { compareByTokenIndex } from './highlighting/TextPositionMapper.js';
 import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
@@ -172,7 +171,10 @@ import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
 import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import { SmartMemoryCoordinator } from './memory/SmartMemoryCoordinator.js';
-import { PATTERN_PROCESSING } from '../constants/TranslationConstants.js';
+import { BatchMemoryCleanup } from './memory/BatchMemoryCleanup.js';
+import { calculateNextBatchSize } from './text/AdaptiveBatchSizer.js';
+import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
+import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
 import { systemPerformanceMonitor } from './performance/SystemPerformanceMonitor.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
@@ -188,7 +190,6 @@ import {
 import {
   PHRASE_PROCESSING,
   MEMORY_MANAGEMENT,
-  POSITION_TRACKING, // CODE REVIEW FIX (LOW-3)
   getAdaptiveMaxSegments, // CODE REVIEW FIX (MEDIUM-2)
   PHASE_TIMEOUTS, // LOW-2 FIX: Import phase timeouts from constants
   DEVICE_MEMORY_LIMITS,
@@ -5275,13 +5276,15 @@ export class TranslationEngine {
     // Initialize adaptive batch sizing and memory tracking
     this.batchPerformanceHistory = []; // Reset for this translation session
     this.memoryTracker = new MemoryLeakDetector(); // Track memory usage patterns
+    this.batchMemoryCleanup = new BatchMemoryCleanup();
 
-    // Set up memory cleanup callback
-    this.memoryTracker.onCleanupNeeded = (level) => {
-      this.performMemoryCleanup(level);
-    };
-
-    // Initialize smart memory management refinements
+    // Initialize smart memory management refinements. The coordinator decides WHEN
+    // (pressure-based, real 10s-interval sampling); BatchMemoryCleanup decides WHAT/
+    // HOW MUCH to trim. translationSegments is intentionally not trimmed from any of
+    // these callbacks — trackTranslationSegment already enforces a canonical,
+    // regression-tested hard ceiling on every push (see src/utils/CLAUDE.md), and
+    // semanticArrayBuilder has no real light-cleanup method and no verified-safe
+    // mid-translation reset (architecture review 2026-07-29, candidate #1).
     this.memoryCoordinator = new SmartMemoryCoordinator({
       pressureConfig: {
         lowPressure: 0.6,
@@ -5292,203 +5295,34 @@ export class TranslationEngine {
         growthThreshold: 15,
       },
       onEmergency: () => {
-        if (this.translationSegments && this.translationSegments.length > 3) {
-          this.translationSegments = this.translationSegments.slice(-3);
-        }
-        if (global.gc) global.gc();
-        if (
-          this.semanticArrayBuilder &&
-          typeof this.semanticArrayBuilder.clearCache === 'function'
-        ) {
-          this.semanticArrayBuilder.clearCache();
-        }
+        const trimmed = this.batchMemoryCleanup.cleanup('emergency', {
+          batchPerformanceHistory: this.batchPerformanceHistory,
+          memoryTrackerSnapshots: this.memoryTracker.snapshots,
+          variableCache: this.semanticPatternProcessor?.variableCache,
+        });
+        this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
+        this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
       },
       onHighPriority: () => {
-        if (this.translationSegments && this.translationSegments.length > 5) {
-          this.translationSegments = this.translationSegments.slice(-5);
-        }
-        if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 50) {
-          this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-20);
-        }
+        const trimmed = this.batchMemoryCleanup.cleanup('elevated', {
+          batchPerformanceHistory: this.batchPerformanceHistory,
+          memoryTrackerSnapshots: this.memoryTracker.snapshots,
+          variableCache: this.semanticPatternProcessor?.variableCache,
+        });
+        this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
+        this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
       },
       onBackground: () => {
-        if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 100) {
-          this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-50);
-        }
-        if (this.memoryTracker && this.memoryTracker.snapshots) {
-          if (this.memoryTracker.snapshots.length > 25) {
-            this.memoryTracker.snapshots = this.memoryTracker.snapshots.slice(-15);
-          }
-        }
-        if (
-          this.translationSegments &&
-          this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-        ) {
-          this.translationSegments = this.translationSegments.slice(
-            -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-          );
-        }
-        if (this.dictionaryManager && typeof this.dictionaryManager.optimizeCaches === 'function') {
-          this.dictionaryManager.optimizeCaches();
-        }
+        const trimmed = this.batchMemoryCleanup.cleanup('background', {
+          batchPerformanceHistory: this.batchPerformanceHistory,
+          memoryTrackerSnapshots: this.memoryTracker.snapshots,
+          variableCache: this.semanticPatternProcessor?.variableCache,
+        });
+        this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
+        this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
       },
     });
     let performanceBaseline = null;
-
-    /**
-     * Handle memory cleanup based on severity level
-     * @param {string} level - 'automatic', 'critical', or 'emergency'
-     */
-    this.performMemoryCleanup = (level) => {
-      performanceLogger.startTiming(`memory-cleanup-${level}`, `Memory cleanup - ${level}`, {
-        level,
-      });
-
-      try {
-        batchLog.warn(`🧹 Performing ${level} memory cleanup...`, {
-          level,
-          translationSegments: this.translationSegments?.length || 0,
-          memoryPressure: this.memoryTracker.getCurrentMemoryRatio(),
-        });
-
-        if (level === 'automatic') {
-          // OPTIMIZATION: Defer automatic cleanup to idle time to avoid blocking translation
-          const automaticCleanupFn = () => {
-            // Gentle cleanup: Keep last N segments, clean older ones
-            if (
-              this.translationSegments &&
-              this.translationSegments.length > MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-            ) {
-              const segmentsToClean = this.translationSegments.slice(
-                0,
-                -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-              );
-              segmentsToClean.forEach((segment) => {
-                // Nullify properties to break references
-                if (segment) {
-                  segment.originalSegment = null;
-                  segment.translatedSegment = null;
-                  segment.metadata = null;
-                }
-              });
-              this.translationSegments = this.translationSegments.slice(
-                -MEMORY_THRESHOLDS.SEGMENT_CLEANUP_KEEP
-              );
-              batchLog.info(
-                `🧹 Async automatic cleanup: Removed ${segmentsToClean.length} old segments`
-              );
-            }
-
-            // Clear performance history if too long
-            if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 10) {
-              this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-5);
-            }
-
-            performanceLogger.endTiming(`memory-cleanup-${level}`);
-          };
-
-          // CODE REVIEW FIX (2026-02-01): Track and cancel cleanup callbacks to prevent memory leak
-          // Use requestIdleCallback if available, otherwise defer with setTimeout
-          if (typeof requestIdleCallback !== 'undefined') {
-            const callbackId = requestIdleCallback(
-              () => {
-                this.pendingCleanupCallbacks.delete(callbackId);
-                automaticCleanupFn();
-              },
-              { timeout: UI_TIMEOUTS.IDLE_CALLBACK_TIMEOUT }
-            );
-            this.pendingCleanupCallbacks.add(callbackId);
-          } else {
-            const callbackId = setTimeout(() => {
-              this.pendingCleanupCallbacks.delete(callbackId);
-              automaticCleanupFn();
-            }, 0);
-            this.pendingCleanupCallbacks.add(callbackId);
-          }
-        } else if (level === 'critical') {
-          // CRITICAL cleanup must be synchronous - we're in trouble and need immediate action
-          // Aggressive cleanup: Keep only last 5 segments
-          if (this.translationSegments && this.translationSegments.length > 5) {
-            const segmentsToClean = this.translationSegments.slice(0, -5);
-            segmentsToClean.forEach((segment) => {
-              if (segment) {
-                Object.keys(segment).forEach((key) => {
-                  segment[key] = null;
-                });
-              }
-            });
-            this.translationSegments = this.translationSegments.slice(-5);
-            batchLog.warn(
-              `🧹 Critical cleanup: Removed ${segmentsToClean.length} segments, kept 5`
-            );
-          }
-
-          // Clear most performance history
-          this.batchPerformanceHistory = [];
-
-          // Force garbage collection if available
-          if (global.gc) {
-            global.gc();
-            batchLog.info('🗑️ Forced garbage collection');
-          }
-        } else if (level === 'emergency') {
-          // Emergency cleanup: Clear everything possible
-          if (this.translationSegments) {
-            this.translationSegments.forEach((segment) => {
-              if (segment) {
-                Object.keys(segment).forEach((key) => {
-                  segment[key] = null;
-                });
-              }
-            });
-            this.translationSegments = [];
-            batchLog.error('🆘 Emergency cleanup: Cleared all translation segments');
-          }
-
-          // Clear all performance data
-          this.batchPerformanceHistory = [];
-
-          // Force multiple garbage collections
-          if (global.gc) {
-            for (let i = 0; i < 3; i++) {
-              global.gc();
-            }
-            batchLog.error('🆘 Forced multiple garbage collections');
-          }
-
-          // Request browser memory pressure if available
-          if (typeof window !== 'undefined' && window.performance && window.performance.memory) {
-            batchLog.error('🆘 Browser memory pressure detected', {
-              usedMemory: Math.round(window.performance.memory.usedJSHeapSize / 1048576),
-              totalMemory: Math.round(window.performance.memory.totalJSHeapSize / 1048576),
-            });
-          }
-        }
-
-        // Log cleanup results (only for synchronous cleanups)
-        if (level !== 'automatic') {
-          const postCleanupRatio = this.memoryTracker.getCurrentMemoryRatio();
-          batchLog.info(`✅ Memory cleanup completed`, {
-            level,
-            memoryBefore: (this.memoryTracker.getCurrentMemoryRatio() * 100).toFixed(1) + '%',
-            memoryAfter: (postCleanupRatio * 100).toFixed(1) + '%',
-            remainingSegments: this.translationSegments?.length || 0,
-          });
-        }
-      } catch (error) {
-        batchLog.error('❌ Memory cleanup failed:', error);
-      } finally {
-        // Only end timing for synchronous cleanups
-        // Async automatic cleanup handles its own timing
-        if (level !== 'automatic') {
-          performanceLogger.endTiming(`memory-cleanup-${level}`, {
-            level,
-            success: true,
-            remainingSegments: this.translationSegments?.length || 0,
-          });
-        }
-      }
-    };
 
     let processedChunks = 0;
     let batchIndex = 0;
@@ -5506,49 +5340,19 @@ export class TranslationEngine {
       }
 
       // Adaptive batch sizing: adjust based on performance history
-      if (this.batchPerformanceHistory.length >= 2) {
-        const recentBatches = this.batchPerformanceHistory.slice(-2);
-        const avgRecentTime =
-          recentBatches.reduce((sum, batch) => sum + batch.avgTimePerChunk, 0) /
-          recentBatches.length;
-
-        if (!performanceBaseline) {
-          performanceBaseline = this.batchPerformanceHistory[0].avgTimePerChunk;
-        }
-
-        const performanceRatio = avgRecentTime / performanceBaseline;
-
-        // Memory leak detection disabled to prevent performance impact
-        if (performanceRatio > 2.0) {
-          // Logging disabled: memory leak monitoring creates more performance issues than it solves
-          // this.log(DEBUG_LEVELS.ERROR, `🔍 MEMORY LEAK SUSPECTED: Batch ${batchIndex} is ${performanceRatio.toFixed(1)}x slower`);
-        }
-
-        // Don't reduce batch size due to the known memory leak issue
-        // The performance degradation is consistent, not getting worse
-        if (performanceRatio > 3.0 && currentBatchSize > 3) {
-          // Only reduce if performance is EXTREMELY bad (>3x slower)
-          currentBatchSize = Math.max(3, currentBatchSize - 1);
-          this.log(
-            DEBUG_LEVELS.WARN,
-            `📉 Reducing batch size to ${currentBatchSize} due to extreme degradation (${performanceRatio.toFixed(1)}x slower)`
-          );
-        } else if (performanceRatio < 0.8 && currentBatchSize < 5 && batchIndex > 1) {
-          // Performance is good, can try larger batches
-          currentBatchSize = Math.min(5, currentBatchSize + 1);
-          this.log(
-            DEBUG_LEVELS.INFO,
-            `📈 Increasing batch size to ${currentBatchSize} due to good performance (${performanceRatio.toFixed(1)}x baseline)`
-          );
-        }
-
-        // Log the consistent performance issue without changing batch size
-        if (performanceRatio > 2.0 && performanceRatio <= 3.0) {
-          this.log(
-            DEBUG_LEVELS.INFO,
-            `📊 Consistent performance degradation: ${performanceRatio.toFixed(1)}x slower (memory-related, not reducing batch size)`
-          );
-        }
+      const sizing = calculateNextBatchSize({
+        batchPerformanceHistory: this.batchPerformanceHistory,
+        currentBatchSize,
+        performanceBaseline,
+        batchIndex,
+      });
+      currentBatchSize = sizing.batchSize;
+      performanceBaseline = sizing.performanceBaseline;
+      if (sizing.log) {
+        this.log(
+          sizing.log.level === 'warn' ? DEBUG_LEVELS.WARN : DEBUG_LEVELS.INFO,
+          sizing.log.message
+        );
       }
 
       const batchStart = processedChunks; // Chunk index
@@ -5561,14 +5365,14 @@ export class TranslationEngine {
       // Pass current batch number for accurate logging
       this.currentBatchNumber = batchIndex;
 
-      // Track where time is being spent
-      const batchStartTime = performance.now();
+      // Throttled memory sampling: every 5th batch, dev AND prod (previously dev-only,
+      // which silently meant the growth-based cleanup path never ran in production —
+      // architecture review 2026-07-29, candidate #1).
+      const sampleThisBatch = batchIndex % 5 === 0;
+      let postProcessingSnapshot;
 
-      // Take memory snapshot before processing (dev only for performance)
-      let preProcessingSnapshot, postProcessingSnapshot;
-
-      if (process.env.NODE_ENV === 'development') {
-        preProcessingSnapshot = this.memoryTracker.takeSnapshot(batchIndex, {
+      if (sampleThisBatch) {
+        this.memoryTracker.takeSnapshot(batchIndex, {
           phase: 'pre-processing',
           batchSize: currentBatch.length,
           processedChunks,
@@ -5598,26 +5402,29 @@ export class TranslationEngine {
       }, 0);
       cumulativeTokenCount += batchTokenCount;
 
-      // Take memory snapshot after processing (dev only for performance)
-      if (process.env.NODE_ENV === 'development') {
+      if (sampleThisBatch) {
         postProcessingSnapshot = this.memoryTracker.takeSnapshot(batchIndex, {
           phase: 'post-processing',
           batchSize: currentBatch.length,
           processedChunks: processedChunks + currentBatch.length,
           semanticArraySize: this.semanticArrayBuilder?.getArrays()?.originalSegments?.length || 0,
         });
-      }
 
-      // Analyze memory growth patterns
-      if (postProcessingSnapshot) {
+        // Analyze memory growth patterns and delegate to BatchMemoryCleanup when excessive.
         const leakAnalysis = this.memoryTracker.detectLeaks(postProcessingSnapshot);
-
         if (leakAnalysis) {
           if (leakAnalysis.isExcessive) {
             this.log(
               DEBUG_LEVELS.WARN,
               `🧠 HIGH MEMORY USAGE: +${leakAnalysis.memoryGrowthRate.toFixed(1)}MB per batch, ${leakAnalysis.totalGrowthMB.toFixed(1)}MB total (semantic arrays for long text)`
             );
+            const trimmed = this.batchMemoryCleanup.cleanup('elevated', {
+              batchPerformanceHistory: this.batchPerformanceHistory,
+              memoryTrackerSnapshots: this.memoryTracker.snapshots,
+              variableCache: this.semanticPatternProcessor?.variableCache,
+            });
+            this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
+            this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
           } else if (leakAnalysis.isHighUsage) {
             this.log(
               DEBUG_LEVELS.DEBUG,
@@ -5626,55 +5433,31 @@ export class TranslationEngine {
           }
         }
 
-        // DYNAMIC MEMORY CLEANUP: Trigger cleanup when high memory usage is detected OR segments are high
-        let cleanupPerformed = false;
-        const forceCleanup = leakAnalysis && (leakAnalysis.isExcessive || leakAnalysis.isHighUsage);
+        // Periodic diagnostics (dictionary lookup stats, semantic array size) — read-only,
+        // same 5-batch cadence as the growth check above.
+        const currentArrays = this.semanticArrayBuilder?.getArrays() || {
+          original: [],
+          translated: [],
+          metadata: [],
+        };
+        this.log(
+          DEBUG_LEVELS.INFO,
+          `🧹 Batch ${batchIndex} semantic arrays: ${currentArrays?.originalSegments?.length || 0} original, ${currentArrays?.translatedSegments?.length || 0} translated segments`
+        );
 
-        // 1. Cleanup translation segments (reduce false emergency alerts)
-        const segmentThreshold = 60; // Balanced threshold after fixing false memory alerts
-        if (this.translationSegments && this.translationSegments.length > segmentThreshold) {
-          const oldCount = this.translationSegments.length;
-
-          // Dynamic cleanup amount based on memory pressure
-          const keepSegments = forceCleanup ? 10 : 25;
-
-          // Aggressive cleanup: Break references in discarded segments
-          this.translationSegments.slice(0, -keepSegments).forEach((segment) => {
-            if (segment && typeof segment === 'object') {
-              Object.keys(segment).forEach((key) => {
-                segment[key] = null;
-              });
-            }
-          });
-
-          // Keep only the last N segments based on memory pressure
-          this.translationSegments = this.translationSegments.slice(-keepSegments);
-
-          // Always log as DEBUG - these are routine maintenance operations
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🧹 Translation segments cleaned: ${oldCount} → ${this.translationSegments.length} (freed ${oldCount - keepSegments} segments)`
-          );
-          cleanupPerformed = true;
-        }
-
-        // 2. Cleanup semantic array builder (dynamic threshold based on memory pressure)
-        const currentSemanticArrays = this.semanticArrayBuilder?.getArrays();
-        const semanticThreshold = forceCleanup ? 50 : 200;
-        if (currentSemanticArrays?.originalSegments?.length > semanticThreshold) {
-          const semanticLogLevel = forceCleanup ? DEBUG_LEVELS.ERROR : DEBUG_LEVELS.DEBUG;
-          this.log(
-            semanticLogLevel,
-            `🧹 Resetting semantic array builder (${forceCleanup ? 'EMERGENCY' : 'ROUTINE'}): ${currentSemanticArrays.originalSegments.length} segments)`
-          );
-          this.semanticArrayBuilder.reset();
-          cleanupPerformed = true;
-        }
-
-        // 3. Force garbage collection hint
-        if (cleanupPerformed && typeof global !== 'undefined' && global.gc) {
-          global.gc();
-          this.log(DEBUG_LEVELS.DEBUG, '🧹 Forced garbage collection');
+        if (this.dictionaryManager) {
+          const parallelStats = this.dictionaryManager.parallelLookupStats;
+          if (parallelStats) {
+            const totalLookups = parallelStats.parallelCalls + parallelStats.sequentialCalls;
+            const parallelRatio =
+              totalLookups > 0
+                ? ((parallelStats.parallelCalls / totalLookups) * 100).toFixed(1)
+                : 0;
+            this.log(
+              DEBUG_LEVELS.INFO,
+              `🔍 Dictionary lookups: ${parallelRatio}% parallel, ${parallelStats.fallbackCount || 0} fallbacks, avg parallel: ${parallelStats.averageParallelTime?.toFixed(1) || 0}ms`
+            );
+          }
         }
       }
 
@@ -5720,276 +5503,30 @@ export class TranslationEngine {
 
       // Call progress callback if provided (with debouncing to reduce UI overhead)
       if (options.onProgress) {
-        const now = performance.now();
-        const timeSinceLastUpdate = now - this.lastProgressUpdate;
+        const enableStreaming = translatableChunks.length >= this.minChunksForStreaming;
         const isLastBatch = processedChunks >= translatableChunks.length;
 
-        // Only enable streaming UI for texts with enough chunks (prevents streaming for short texts)
-        const enableStreaming = translatableChunks.length >= this.minChunksForStreaming;
+        const update = buildProgressiveProgressUpdate({
+          now: performance.now(),
+          lastProgressUpdate: this.lastProgressUpdate,
+          progressUpdateInterval: this.progressUpdateInterval,
+          isLastBatch,
+          enableStreaming,
+          batchIndex,
+          processedChunks,
+          totalChunks: translatableChunks.length,
+          currentBatchSize,
+          semanticArrays: this.semanticArrayBuilder?.getArrays(),
+          progressText: this.progressivePositionTracker.finalText || cleanedResult,
+          clickableSegments: this.progressivePositionTracker.clickableSegments,
+        });
 
-        // Send update if: streaming is enabled AND (enough time passed OR this is the last batch)
-        // PLUS: Skip 2/3 of batches to reduce GPU rendering pressure (only update every 3rd batch)
-        const shouldSendUpdate =
-          enableStreaming &&
-          (timeSinceLastUpdate >= this.progressUpdateInterval || isLastBatch) &&
-          (batchIndex % 3 === 0 || isLastBatch);
-
-        if (shouldSendUpdate) {
-          // Calculate remaining batches based on current batch size
-          const remainingChunks = translatableChunks.length - processedChunks;
-          const estimatedRemainingBatches = Math.ceil(remainingChunks / currentBatchSize);
-          const estimatedTotalBatches = batchIndex + estimatedRemainingBatches;
-
-          // BUGFIX: Use semanticArrayBuilder directly to avoid duplicates
-          // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-          const currentSemanticArrays = this.semanticArrayBuilder?.getArrays() || {
-            original: [],
-            translated: [],
-            metadata: [],
-          };
-
-          // OPTIMIZED: Reuse existing metadata array, only fill missing entries
-          // Optimization #2 & #3: Use array.slice() + reuse default object
-          const progressiveMetadata = currentSemanticArrays.metadata
-            ? currentSemanticArrays.metadata.slice()
-            : [];
-
-          // Fill missing entries with frozen default metadata object (prevents object creation overhead)
-          const targetLength = currentSemanticArrays.original?.length || 0;
-          if (progressiveMetadata.length < targetLength) {
-            // CRITICAL FIX: Use explicit 'missing' indicator instead of 'unknown'
-            // Helps distinguish between: (1) metadata never set vs (2) metadata intentionally omitted
-            // Reuse single frozen object for all defaults (safe since read-only)
-            const DEFAULT_METADATA = Object.freeze({
-              source: 'progressive',
-              phase: null, // null = missing, not unknown
-              dictionary: null, // null = missing, not unknown
-              isMissing: true, // Explicit flag for debugging
-            });
-
-            for (let i = progressiveMetadata.length; i < targetLength; i++) {
-              progressiveMetadata[i] = DEFAULT_METADATA;
-            }
-          }
-
-          const progressText = this.progressivePositionTracker.finalText || cleanedResult;
-
-          // CRITICAL FIX: Deep clone arrays to prevent race condition
-          // Issue: React state updates receive direct references that continue to be mutated by next batches
-          // Scenario: Batch 5 sends arrays[size=100] → Batch 6 mutates to [size=120] → React reads [size=120]
-          // Result: Clickable highlighting crashes (array size mismatch with text length)
-          // Fix: Deep clone arrays before sending to React (prevents mutation after state update scheduled)
-          const safeOriginal = currentSemanticArrays.original
-            ? [...currentSemanticArrays.original]
-            : [];
-          const safeTranslated = currentSemanticArrays.translated
-            ? [...currentSemanticArrays.translated]
-            : [];
-
-          // PHASE 2: Send progressive results with clickable segments
-          options.onProgress({
-            currentBatch: batchIndex,
-            totalBatches: estimatedTotalBatches,
-            completedChunks: processedChunks,
-            totalChunks: translatableChunks.length,
-            partialTranslation: progressText,
-            isComplete: isLastBatch, // Signal when translation is complete
-            // PHASE 2: Send progressive semantic arrays and clickable segments (from builder)
-            // CRITICAL: Use deep-cloned arrays to prevent race condition mutations
-            semanticArrays: {
-              original: safeOriginal,
-              translated: safeTranslated,
-              metadata: progressiveMetadata, // Already shallow-cloned at line 4955
-            },
-            // CODE REVIEW FIX: Clone clickableSegments to prevent race condition
-            // Issue: Next batch continues mutating array after React receives reference
-            // Scenario: Batch 5 sends array[100] → Batch 6 mutates to [120] → React reads [120]
-            progressiveSegments: [...this.progressivePositionTracker.clickableSegments],
-          });
-
-          // Update timestamp
-          this.lastProgressUpdate = now;
+        if (update.send) {
+          options.onProgress(update.payload);
+          this.lastProgressUpdate = performance.now();
         } else {
-          // Skipped update due to debouncing
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `⏭️ Skipped progress update (${timeSinceLastUpdate.toFixed(0)}ms since last update, threshold: ${this.progressUpdateInterval}ms)`
-          );
+          this.log(DEBUG_LEVELS.DEBUG, update.log.message);
         }
-      }
-
-      // Memory cleanup between batches to prevent accumulation
-      if (processedChunks < translatableChunks.length) {
-        // More aggressive cleanup for longer texts
-        const isLongText = translatableChunks.length > 40;
-        const recentBatch = this.batchPerformanceHistory[this.batchPerformanceHistory.length - 1];
-        const memoryPressure =
-          performanceBaseline &&
-          recentBatch &&
-          recentBatch.avgTimePerChunk > performanceBaseline * 1.5;
-
-        if (isLongText || memoryPressure) {
-          // Clear performance history more aggressively
-          if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 5) {
-            this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-3);
-          }
-
-          // EMERGENCY FIX: Clear old translation segments AND break any hidden references
-          if (this.translationSegments && this.translationSegments.length > 3) {
-            const oldCount = this.translationSegments.length;
-
-            // CRITICAL: Null out all properties in discarded segments to break references
-            this.translationSegments.slice(0, -3).forEach((segment) => {
-              if (segment && typeof segment === 'object') {
-                Object.keys(segment).forEach((key) => {
-                  segment[key] = null; // Break any hidden references
-                });
-              }
-            });
-
-            // Keep only recent segments (last 3 for emergency cleanup)
-            this.translationSegments = this.translationSegments.slice(-3);
-
-            this.log(
-              DEBUG_LEVELS.INFO,
-              `🚨 Emergency: Cleared translation segments: ${oldCount} → ${this.translationSegments.length} (nullified ${oldCount - 3} segment references)`
-            );
-          }
-
-          // ENHANCED: Also clear semantic arrays if they exist
-          if (this.semanticArrays && this.semanticArrays.length > 100) {
-            const oldSemanticCount = this.semanticArrays.length;
-            this.semanticArrays = this.semanticArrays.slice(-50);
-            this.log(
-              DEBUG_LEVELS.INFO,
-              `🧹 Semantic array cleanup: ${oldSemanticCount} → ${this.semanticArrays.length}`
-            );
-          }
-
-          // ENHANCED: Clear pattern processor cache if it gets too large
-          if (this.semanticPatternProcessor && this.semanticPatternProcessor.variableCache) {
-            const cacheSize = this.semanticPatternProcessor.variableCache.size;
-            if (cacheSize > PATTERN_PROCESSING.VARIABLE_CACHE_CLEANUP_THRESHOLD) {
-              this.semanticPatternProcessor.variableCache.clear();
-              this.log(DEBUG_LEVELS.INFO, `🧹 Pattern cache cleared: ${cacheSize} entries`);
-            }
-          }
-
-          // REMOVED: Don't reset semantic array builder - let it accumulate for final clickability
-
-          // Monitor and clean semantic arrays periodically to prevent memory buildup
-          if (batchIndex % 5 === 0 && this.semanticArrayBuilder) {
-            const debugInfo = this.semanticArrayBuilder.getDebugInfo?.();
-            // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-            const currentArrays = this.semanticArrayBuilder?.getArrays() || {
-              original: [],
-              translated: [],
-              metadata: [],
-            };
-
-            this.log(
-              DEBUG_LEVELS.INFO,
-              `🧹 Batch ${batchIndex} semantic arrays: ${currentArrays?.originalSegments?.length || 0} original, ${currentArrays?.translatedSegments?.length || 0} translated segments`
-            );
-
-            if (debugInfo) {
-              this.log(
-                DEBUG_LEVELS.INFO,
-                `📊 Debug info: ${debugInfo.totalUnits} units, ${debugInfo.mappings?.length || 0} mappings`
-              );
-            }
-
-            // More aggressive cleanup for semantic arrays
-            if (this.semanticArrayBuilder.cleanup) {
-              this.semanticArrayBuilder.cleanup();
-              this.log(DEBUG_LEVELS.INFO, `🧹 Performed semantic array cleanup`);
-            }
-
-            // REMOVED: Don't reset semantic array builder - preserve all data for final clickability
-          }
-
-          // Monitor and clear caches if available
-          if (this.dictionaryManager) {
-            try {
-              const cacheStats = this.dictionaryManager.getCacheStats?.();
-              if (cacheStats && batchIndex % 5 === 0) {
-                this.log(
-                  DEBUG_LEVELS.INFO,
-                  `📚 Dictionary cache: ${cacheStats.hitRate || 'N/A'} hit rate, ${cacheStats.size || 0}/${cacheStats.maxSize || 0} entries`
-                );
-              }
-
-              const parallelStats = this.dictionaryManager.parallelLookupStats;
-              if (parallelStats && batchIndex % 5 === 0) {
-                const totalLookups = parallelStats.parallelCalls + parallelStats.sequentialCalls;
-                const parallelRatio =
-                  totalLookups > 0
-                    ? ((parallelStats.parallelCalls / totalLookups) * 100).toFixed(1)
-                    : 0;
-                this.log(
-                  DEBUG_LEVELS.INFO,
-                  `🔍 Dictionary lookups: ${parallelRatio}% parallel, ${parallelStats.fallbackCount || 0} fallbacks, avg parallel: ${parallelStats.averageParallelTime?.toFixed(1) || 0}ms`
-                );
-              }
-            } catch (error) {
-              // CODE REVIEW FIX: Categorize cache stat errors instead of silently ignoring
-              // Expected: Cache not yet initialized (normal during startup)
-              // Unexpected: Other errors that might indicate cache corruption
-              if (error.message && error.message.includes('not initialized')) {
-                this.log(DEBUG_LEVELS.DEBUG, 'Cache stats unavailable (not yet initialized)');
-              } else {
-                this.log(
-                  DEBUG_LEVELS.WARN,
-                  '⚠️ Unexpected error reading cache stats:',
-                  error.message || error
-                );
-              }
-            }
-          }
-
-          if (this.translationCache && this.translationCache.clearOldEntries) {
-            this.translationCache.clearOldEntries();
-          }
-
-          // CODE REVIEW FIX: Only attempt manual GC in development (requires --expose-gc flag)
-          // Modern JS engines handle GC automatically in production
-          if (process.env.NODE_ENV === 'development') {
-            if (typeof global !== 'undefined' && global.gc) {
-              global.gc();
-            } else if (typeof window !== 'undefined' && window.gc) {
-              window.gc();
-            }
-          }
-
-          // Remove artificial delays entirely - they were causing exponential slowdown
-          const cleanupStartTime = performance.now();
-          // await new Promise(resolve => setTimeout(resolve, 2)); // REMOVED - this was the bottleneck
-          const cleanupTime = performance.now() - cleanupStartTime;
-
-          const totalBatchTime = performance.now() - batchStartTime;
-          this.log(
-            DEBUG_LEVELS.INFO,
-            `⏱️ Batch ${batchIndex} timing: ${totalBatchTime.toFixed(1)}ms total, ${cleanupTime.toFixed(1)}ms cleanup delay`
-          );
-
-          // If batch is taking too long, warn about potential blocking
-          if (totalBatchTime > 5000) {
-            // >5 seconds per batch
-            this.log(
-              DEBUG_LEVELS.ERROR,
-              `🐌 SLOW BATCH DETECTED: Batch ${batchIndex} took ${totalBatchTime.toFixed(1)}ms - investigate blocking operations`
-            );
-          }
-        } else {
-          // Standard cleanup
-          if (this.batchPerformanceHistory && this.batchPerformanceHistory.length > 10) {
-            this.batchPerformanceHistory = this.batchPerformanceHistory.slice(-5);
-          }
-
-          // await new Promise(resolve => setTimeout(resolve, 1)); // REMOVED - no delays needed
-        }
-      } else {
-        // await new Promise(resolve => setTimeout(resolve, 1)); // REMOVED - no delays needed
       }
     }
 
@@ -6022,247 +5559,14 @@ export class TranslationEngine {
     // Store prebuilt segments like the original method
     this.prebuiltSegments = reconstructed.segments;
 
-    // Note: semanticArrays already obtained above (line 5415) - reuse it
+    // Note: semanticArrays already obtained above - reuse it
     // Find the original chunk that was translated
     const translatedChunk = chunks.find((chunk) => chunk.translated && chunk.content.trim());
 
     if (translatedChunk && semanticArrays.original.length > 0) {
-      // Now let's try to create word-level segments in the correct output order
-
-      // We know the semantic arrays contain: 0:"五百八十"→"580", 1:"第"→"Thứ", 2:"章"→"chương"
-      // But the output order is: "Thứ 580 chương"
-      // Let's find each word in the output and map it to the correct semantic array index
-
-      const wordSegments = [];
-      let currentPosition = 0;
-
-      // Dynamically detect word order by scanning the output text
-      const outputOrder = [];
-
-      // Create candidate words from semantic arrays
-      // CRITICAL BUG FIX: Normalize translated units to NFC to match normalized cleanedFinalResult
-      // Skip consumed tokens (translated: null) — pattern-consumed entries have no output text
-      // and calling .normalize() on null crashes the loop, causing all prebuiltSegments to fall
-      // back to reconstructed.segments with wrong unitIndex values for tokens after the pattern.
-      const candidateWords = [];
-      for (let i = 0; i < semanticArrays.original.length; i++) {
-        if (semanticArrays.translated[i] == null) continue;
-        candidateWords.push({
-          semanticIndex: i,
-          original: semanticArrays.original[i],
-          translated: semanticArrays.translated[i].normalize('NFC'), // Normalize to match output
-          // tokenIndex reflects the source token's position in the Chinese text
-          // (global semantic token index, monotonically increasing with text position).
-          // Used as tie-breaker so same-translated-text entries are claimed in Chinese text order,
-          // matching the bridge's occurrence counting (i < activeIndex = semantic array index order,
-          // which for same-phase entries equals Chinese text order; for cross-phase entries the
-          // bridge counts by semantic index but the Vietnamese output order also matches tokenIndex).
-          tokenIndex: semanticArrays.metadata[i]?.tokenIndex ?? -1,
-        });
-      }
-
-      // CRITICAL BUG FIX: Sort by length (longest first) to prevent shorter words from
-      // matching inside longer words (e.g., "mà" matching inside "màu trắng").
-      // Within same-translated-text groups, sort by tokenIndex (Chinese text order) so that
-      // when two different Chinese characters translate to the same Vietnamese word (e.g., "没"
-      // and "不" both → "không"), the one that appears EARLIER in the Chinese text claims
-      // the EARLIER Vietnamese position — regardless of which translation phase produced it.
-      // Missing/unavailable tokenIndex sorts last (compareByTokenIndex), not first —
-      // shared with SegmentPrecomputer's tokenIndex sorts.
-      candidateWords.sort((a, b) => {
-        const lengthDiff = b.translated.length - a.translated.length;
-        if (lengthDiff !== 0) return lengthDiff;
-        // CRITICAL FIX: Sort ALL same-length candidates by tokenIndex (Chinese text position),
-        // NOT just same-translated-value ones.
-        //
-        // WRONG: `if (a.translated === b.translated && ...) return tokenIndex diff; return 0;`
-        // That creates an INTRANSITIVE comparator: if A="đích" B="la" C="đích" (all length 4),
-        // then A=B (return 0), B=C (return 0), but A≠C (return tokenIndex diff). This cycle
-        // makes TimSort produce undefined results, leaving e.g. si=12(ti=37) before si=24(ti=3)
-        // even though ti=3 should come first.
-        //
-        // CORRECT: For same-length candidates, always sort by tokenIndex. Candidates with
-        // different translated values find different positions and never conflict regardless
-        // of sort order; candidates with same translated value must be sorted by tokenIndex
-        // to correctly assign earlier-Chinese-text entries to earlier Vietnamese positions.
-        return compareByTokenIndex(a.tokenIndex, b.tokenIndex);
-      });
-
-      // Find each candidate word in the output text and record its position
-      // Handle duplicates by searching from different starting positions
-      const foundWords = [];
-      const usedPositions = new Set(); // Track positions to handle duplicates
-      // CODE REVIEW FIX (LOW-3): Use constant instead of magic number
-      const MAX_TRACKING_POSITIONS = POSITION_TRACKING.MAX_TRACKING_POSITIONS;
-
-      // CODE REVIEW FIX (HIGH-3): Normalize output once before loop for efficiency
-      // NFC normalization ensures composed form (base + diacritic = single character)
-      // This handles cases where input might have decomposed form (NFD)
-      const normalizedOutput = cleanedFinalResult.normalize('NFC').toLowerCase();
-
-      for (const candidate of candidateWords) {
-        // CODE REVIEW FIX: Stop processing if position tracking exceeds hard limit
-        // This prevents O(n²) performance degradation for very large texts
-        if (usedPositions.size > MAX_TRACKING_POSITIONS * 2) {
-          this.log(
-            DEBUG_LEVELS.WARN,
-            `⚠️ Position tracking limit exceeded (${usedPositions.size} positions). Stopping candidate processing to prevent performance degradation.`
-          );
-          break; // Exit candidate loop but keep already-found words
-        }
-
-        // Normalize candidate for consistent matching with normalized output
-        const normalizedCandidate = candidate.translated.normalize('NFC').toLowerCase();
-
-        let position = -1;
-        let searchStart = 0;
-
-        // For duplicates, try to find the next occurrence that hasn't been used
-        do {
-          position = normalizedOutput.indexOf(normalizedCandidate, searchStart);
-          if (position >= 0) {
-            // Check if this position overlaps with any used position
-            // CRITICAL: Use normalized length since position is from normalized search
-            const candidateEnd = position + normalizedCandidate.length;
-            let overlaps = false;
-            for (const usedPos of usedPositions) {
-              if (position < usedPos.end && candidateEnd > usedPos.start) {
-                overlaps = true;
-                break;
-              }
-            }
-
-            if (!overlaps) {
-              // Found a non-overlapping position
-              foundWords.push({
-                ...candidate,
-                position: position,
-              });
-              usedPositions.add({
-                start: position,
-                end: candidateEnd,
-              });
-
-              // CODE REVIEW FIX (HIGH-4): Log warning if set grows too large (indicates performance issue)
-              // CRITICAL: Don't evict during loop - would break overlap detection and clickable highlighting
-              // Instead, warn and let it complete (correctness > performance)
-              if (usedPositions.size > MAX_TRACKING_POSITIONS && usedPositions.size % 100 === 0) {
-                this.log(
-                  DEBUG_LEVELS.WARN,
-                  `⚠️ Position tracking set large: ${usedPositions.size} positions (may impact performance for very large texts)`
-                );
-              }
-
-              break;
-            } else {
-              // This position overlaps, try next occurrence
-              searchStart = position + 1;
-            }
-          }
-        } while (position >= 0);
-      }
-
-      // Sort by position in output text to get the correct order
-      foundWords.sort((a, b) => a.position - b.position);
-
-      // CODE REVIEW FIX: Clear usedPositions Set to prevent memory leak
-      // Issue: Set grows unbounded (~1KB per 50 positions), never cleared
-      // Impact: 50,000 char texts leak ~20KB per translation, cumulative pressure
-      // Fix: Explicitly release memory after position tracking completes
-      usedPositions.clear();
-
-      // Create the output order from sorted words
-      for (const word of foundWords) {
-        outputOrder.push({
-          semanticIndex: word.semanticIndex,
-          original: word.original,
-          translated: word.translated,
-        });
-      }
-
-      // CODE REVIEW FIX (HIGH-3): Normalize output once before loop for efficiency
-      // NFC normalization ensures composed form for consistent position finding
-      const normalizedOutputForSegments = cleanedFinalResult.normalize('NFC').toLowerCase();
-
-      for (let i = 0; i < outputOrder.length; i++) {
-        const wordInfo = outputOrder[i];
-        // Normalize translated text for consistent matching
-        const normalizedTranslated = wordInfo.translated.normalize('NFC').toLowerCase();
-        const position = normalizedOutputForSegments.indexOf(normalizedTranslated, currentPosition);
-
-        if (position >= 0) {
-          // Add spacing segment if there's a gap before this word
-          if (position > currentPosition) {
-            const spaceText = cleanedFinalResult.substring(currentPosition, position);
-
-            // Check if spacing contains quotes that need space cleaning
-            const quotePattern = /[\u201c\u2018\u201d\u2019"']/; // Opening and closing quotes
-
-            if (quotePattern.test(spaceText)) {
-              // For spacing containing quotes, clean horizontal spacing around them
-              // (spaces/tabs only — must NOT strip \n/\r, otherwise blank lines from
-              // the source Chinese text adjacent to a quote get dropped, causing the
-              // Full Translation pane to lose paragraph breaks present in the original).
-              // Remove horizontal space after opening quotes: ' → '
-              // Remove horizontal space before closing quotes: ' → '
-              const cleanedSpaceText = spaceText
-                .replace(/(["\u201c\u2018])[ \t]+/, '$1') // Remove space after opening quotes
-                .replace(/[ \t]+([\u201d\u2019"'])/, '$1'); // Remove space before closing quotes
-              wordSegments.push({
-                type: 'spacing',
-                start: currentPosition,
-                end: position,
-                text: cleanedSpaceText,
-                isClickable: false,
-              });
-            } else {
-              // Normal spacing without quotes
-              wordSegments.push({
-                type: 'spacing',
-                start: currentPosition,
-                end: position,
-                text: spaceText,
-                isClickable: false,
-              });
-            }
-          }
-
-          // Add the word segment using the actual text from the output (preserves capitalization)
-          // CRITICAL: Use normalized length since position is from normalized search
-          const wordLength = normalizedTranslated.length;
-          const actualText = cleanedFinalResult.substring(position, position + wordLength);
-          wordSegments.push({
-            type: 'semantic',
-            unitIndex: wordInfo.semanticIndex, // Use the correct semantic array index
-            start: position,
-            end: position + wordLength,
-            originalText: wordInfo.original,
-            translatedText: actualText, // Use actual text to preserve capitalization
-            source: semanticArrays.metadata[wordInfo.semanticIndex]?.source || 'unknown',
-            metadata: semanticArrays.metadata[wordInfo.semanticIndex],
-            isClickable: true,
-            text: actualText, // Use actual text to preserve capitalization
-          });
-
-          currentPosition = position + wordLength;
-        } else {
-          logger.warn(`❌ Could not find "${wordInfo.translated}" in output`);
-        }
-      }
-
-      // Add any remaining text as non-clickable content
-      if (currentPosition < cleanedFinalResult.length) {
-        const remainingText = cleanedFinalResult.substring(currentPosition);
-        wordSegments.push({
-          type: 'remaining',
-          start: currentPosition,
-          end: cleanedFinalResult.length,
-          text: remainingText,
-          isClickable: false,
-        });
-      }
-
-      this.prebuiltSegments = wordSegments;
+      // Map each translated semantic unit onto its actual position in the output text
+      // (extracted to WordSegmentMatcher — architecture review 2026-07-29, candidate #1)
+      this.prebuiltSegments = matchWordSegments(semanticArrays, cleanedFinalResult);
     } else {
       this.prebuiltSegments = [];
       logger.log(`⚠️ Progressive: No translated chunks or semantic arrays available`);
@@ -6283,11 +5587,13 @@ export class TranslationEngine {
     }
 
     // Verify position tracking worked correctly
-    const unpositionedSegments = this.translationSegments.filter((s) => s.translatedStart === -1);
-    if (unpositionedSegments.length > 0) {
+    const finalUnpositionedSegments = this.translationSegments.filter(
+      (s) => s.translatedStart === -1
+    );
+    if (finalUnpositionedSegments.length > 0) {
       this.log(
         DEBUG_LEVELS.WARN,
-        `⚠️ ${unpositionedSegments.length} segments missing positions in final processing - position tracking bug detected`
+        `⚠️ ${finalUnpositionedSegments.length} segments missing positions in final processing - position tracking bug detected`
       );
     }
     this.semanticArrayBuilder.updateWithCapitalizedText(cleanedFinalResult);
@@ -6303,9 +5609,6 @@ export class TranslationEngine {
     // Final memory report
     const finalMemoryReport = this.memoryTracker.getReport();
     if (finalMemoryReport) {
-      // Final memory logging disabled to prevent performance impact
-      // this.log(DEBUG_LEVELS.INFO, `🧠 Final memory usage: +${finalMemoryReport.memoryGrowthMB.toFixed(1)}MB growth, ${finalMemoryReport.currentUsedMB.toFixed(1)}MB current`);
-
       if (finalMemoryReport.memoryGrowthMB > 50) {
         this.log(
           DEBUG_LEVELS.WARN,

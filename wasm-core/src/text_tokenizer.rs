@@ -219,6 +219,64 @@ mod tests {
         tokenize_text_core(text).into_iter().map(|t| t.value).collect()
     }
 
+    /// Cross-language parity check against the shared fixture (architecture review
+    /// 2026-07-29, candidate #6). `test-fixtures/tokenizer-parity.json` is the single
+    /// source of truth for what BOTH `tokenize_text_core` and TS's `tokenizeJS` are
+    /// expected to produce for a given input — including the documented divergences.
+    /// The mirror check lives in `src/utils/__tests__/TextTokenizer.parity.test.ts`.
+    /// `tokenize_text_core` is `pub(crate)`, so this can't be a separate
+    /// `wasm-core/tests/*.rs` integration file — it has to live in this module.
+    mod parity {
+        use super::*;
+        use serde::Deserialize;
+
+        #[derive(Deserialize)]
+        struct FixtureCase {
+            name: String,
+            input: String,
+            rust: ExpectedTokens,
+        }
+
+        #[derive(Deserialize)]
+        struct ExpectedTokens {
+            values: Vec<String>,
+            types: Vec<String>,
+        }
+
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<FixtureCase>,
+        }
+
+        fn load_fixture() -> Fixture {
+            let raw = include_str!("../../test-fixtures/tokenizer-parity.json");
+            serde_json::from_str(raw).expect("tokenizer-parity.json must be valid JSON matching the Fixture shape")
+        }
+
+        #[test]
+        fn tokenize_text_core_matches_the_shared_fixture() {
+            let fixture = load_fixture();
+            assert!(!fixture.cases.is_empty(), "fixture must not be empty");
+
+            for case in fixture.cases {
+                let tokens = tokenize_text_core(&case.input);
+                let values: Vec<String> = tokens.iter().map(|t| t.value.clone()).collect();
+                let types: Vec<String> = tokens.iter().map(|t| t.token_type.clone()).collect();
+
+                assert_eq!(
+                    values, case.rust.values,
+                    "case \"{}\": token values diverged from the shared fixture (input: {:?})",
+                    case.name, case.input
+                );
+                assert_eq!(
+                    types, case.rust.types,
+                    "case \"{}\": token types diverged from the shared fixture (input: {:?})",
+                    case.name, case.input
+                );
+            }
+        }
+    }
+
     #[test]
     fn empty_text_produces_no_tokens() {
         assert!(tokenize_text_core("").is_empty());

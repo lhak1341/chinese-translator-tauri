@@ -18,10 +18,22 @@ interface MemoryThresholds {
   readonly SEGMENT_CLEANUP_KEEP: number;
   /** Above this, trim synchronously instead of waiting for idle time */
   readonly SEGMENT_CLEANUP_HARD_CEILING: number;
-  /** Emergency cleanup threshold (rarely hit) */
-  readonly EMERGENCY_CLEANUP_THRESHOLD: number;
-  /** Critical memory cleanup threshold */
-  readonly CRITICAL_CLEANUP_THRESHOLD: number;
+  /** Trigger batchPerformanceHistory trim at 'background' severity above this length */
+  readonly BATCH_HISTORY_TRIGGER_BACKGROUND: number;
+  /** Keep this many batchPerformanceHistory entries after a 'background' trim */
+  readonly BATCH_HISTORY_KEEP_BACKGROUND: number;
+  /** Trigger batchPerformanceHistory trim at 'elevated' severity above this length */
+  readonly BATCH_HISTORY_TRIGGER_ELEVATED: number;
+  /** Keep this many batchPerformanceHistory entries after an 'elevated' trim */
+  readonly BATCH_HISTORY_KEEP_ELEVATED: number;
+  /** Trigger memory-snapshot trim at 'background' severity above this length */
+  readonly MEMORY_SNAPSHOT_TRIGGER_BACKGROUND: number;
+  /** Keep this many memory snapshots after a 'background' trim */
+  readonly MEMORY_SNAPSHOT_KEEP_BACKGROUND: number;
+  /** Trigger memory-snapshot trim at 'elevated' severity above this length */
+  readonly MEMORY_SNAPSHOT_TRIGGER_ELEVATED: number;
+  /** Keep this many memory snapshots after an 'elevated' trim */
+  readonly MEMORY_SNAPSHOT_KEEP_ELEVATED: number;
 }
 
 /**
@@ -70,22 +82,20 @@ export const MEMORY_THRESHOLDS: MemoryThresholds = {
   SEGMENT_CLEANUP_HARD_CEILING: 100,
 
   /**
-   * Emergency cleanup threshold (rarely hit)
-   * Used in critical memory situations.
-   * CODE REVIEW FIX (HIGH-4): Raised from 3 → 10. Keeping only 3 segments after
-   * emergency cleanup wiped essentially all clickable highlighting (expected max ≤35).
-   * 10 preserves a minimal but functional set of highlights even under pressure.
+   * BatchMemoryCleanup thresholds (architecture review 2026-07-29, candidate #1).
+   * batchPerformanceHistory and memory-tracker snapshots are the only two resources
+   * with a real, safe trim operation across every severity — the values below carry
+   * forward this codebase's existing per-site numbers (background = former
+   * memoryCoordinator.onBackground values, elevated = former onHighPriority values).
    */
-  EMERGENCY_CLEANUP_THRESHOLD: 10,
-
-  /**
-   * Critical memory cleanup threshold
-   * Used when memory pressure is detected.
-   * CODE REVIEW FIX (HIGH-4): Raised from 5 → 20. Keeping only 5 segments after
-   * critical cleanup was almost as destructive as emergency. 20 keeps reasonable
-   * highlighting coverage while still aggressively reducing segment count.
-   */
-  CRITICAL_CLEANUP_THRESHOLD: 20,
+  BATCH_HISTORY_TRIGGER_BACKGROUND: 100,
+  BATCH_HISTORY_KEEP_BACKGROUND: 50,
+  BATCH_HISTORY_TRIGGER_ELEVATED: 50,
+  BATCH_HISTORY_KEEP_ELEVATED: 20,
+  MEMORY_SNAPSHOT_TRIGGER_BACKGROUND: 25,
+  MEMORY_SNAPSHOT_KEEP_BACKGROUND: 15,
+  MEMORY_SNAPSHOT_TRIGGER_ELEVATED: 20,
+  MEMORY_SNAPSHOT_KEEP_ELEVATED: 10,
 } as const;
 
 /**

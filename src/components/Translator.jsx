@@ -31,6 +31,8 @@ import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
 import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
 import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
+import { useForceReloadContext } from '../hooks/useForceReloadContext';
+import { useTranslationExecutionContext } from '../hooks/useTranslationExecutionContext';
 import { HIGHLIGHT_SCROLL_DELAY_MS } from '../utils/highlighting/semanticArrayConstants';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 
@@ -789,7 +791,7 @@ const Translator = ({ isActive = true }) => {
     [isLoading, isDictionaryReloading]
   );
 
-  const executionCtx = {
+  const executionCtx = useTranslationExecutionContext({
     consumeReloadTransition,
     clearHighlighting,
     setIsTranslating,
@@ -799,7 +801,7 @@ const Translator = ({ isActive = true }) => {
     isClipboardTranslationRef,
     resetClipboardFlag,
     translationTextRef,
-  };
+  });
 
   useAutoTranslateTrigger({
     inputText,
@@ -821,39 +823,21 @@ const Translator = ({ isActive = true }) => {
     setStreamingText,
   });
 
-  /** @type {import('../hooks/useForceReload.js').ForceReloadContext} */
-  const forceReloadCtx = {
-    cancelTranslations: async () => {
-      const { count, cleanupComplete } = cancelAllTranslations();
-      if (count > 0) {
-        logger.log(`🛑 Cancelled ${count} active translation(s)`);
-        await cleanupComplete;
-        logger.log('✅ All translation cleanup(s) completed');
-      }
-      isTranslatingRef.current = false;
-      setIsTranslating(false);
-      setProgressInfo(null);
-    },
-    destroyEngine: () => {
-      if (engineRef.current) {
-        try {
-          engineRef.current.destroy();
-          engineRef.current = null;
-          logger.log('✅ Engine destroyed and cleared successfully');
-        } catch (_engineError) {
-          logger.error('❌ Error clearing engine:', _engineError);
-        }
-      }
-    },
-    setStatus: setStatusMessage,
-    setReloadError: setTranslationError,
-    setReloading: setDictionaryReloading,
+  const forceReloadCtx = useForceReloadContext({
+    engineRef,
+    cancelAllTranslations,
+    isTranslatingRef,
+    setIsTranslating,
+    setProgressInfo,
+    setStatusMessage,
+    setTranslationError,
+    setDictionaryReloading,
     clearHighlighting,
     reinitializeEngine,
     retranslate,
     saveScrollPositions,
     restoreScrollPositions,
-  };
+  });
 
   const handleForceReload = useForceReload(
     forceReloadCtx,

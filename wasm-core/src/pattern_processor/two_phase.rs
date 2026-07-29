@@ -787,6 +787,118 @@ mod tests {
     use super::*;
     use crate::pattern_processor::parse_pattern;
 
+    fn tok(value: &str, index: usize) -> SemanticToken {
+        SemanticToken {
+            value: value.to_string(),
+            original_index: index,
+            protected_by_phase_a: None,
+            phase_a_result: None,
+            translation_source: None,
+            has_preceding_boundary: false,
+        }
+    }
+
+    /// Direct unit coverage for `estimate_leading_bonus` — architecture review
+    /// 2026-07-29, candidate #5. Previously only its sibling `estimate_trailing_bonus`
+    /// had coverage (indirectly, via `test_phase_a_composite_bonus_wins_over_larger_own_span`
+    /// in tests/two_phase_test.rs); `estimate_leading_bonus` had zero, direct or indirect
+    /// (see wasm-core/CLAUDE.md's now-resolved "verify by hand" note). The two functions
+    /// are NOT mirror images: trailing scans forward from var_idx+1 and `break`s at the
+    /// next variable; leading scans forward through tokens[..var_idx] and `.clear()`s on
+    /// hitting a variable, keeping only the LAST contiguous literal run before var_idx —
+    /// a passing trailing test gives no confidence about leading correctness.
+    mod estimate_leading_bonus {
+        use super::*;
+
+        #[test]
+        fn matches_the_literal_run_immediately_before_the_variable() {
+            // Pattern "丙Y甲乙X": tokens = [Lit(丙), Var(Y), Lit(甲), Lit(乙), Var(X)], var_idx(X) = 4.
+            let pattern = parse_pattern(
+                "丙Y甲乙X".to_string(),
+                "template X Y".to_string(),
+                None,
+                false,
+                false,
+                None,
+            );
+            let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
+
+            // Candidate starts at token index 3; tokens[..3] = "丙甲乙", ends with "甲乙".
+            let tokens = vec![tok("丙", 0), tok("甲", 1), tok("乙", 2), tok("候", 3), tok("选", 4)];
+
+            let bonus = processor.estimate_leading_bonus(&pattern, 4, &tokens, 3);
+            assert_eq!(bonus, 2, "should count both chars of the matching literal run \"甲乙\"");
+        }
+
+        #[test]
+        fn returns_zero_when_the_preceding_tokens_do_not_end_with_the_literal_run() {
+            let pattern = parse_pattern(
+                "甲乙X".to_string(),
+                "template X".to_string(),
+                None,
+                false,
+                false,
+                None,
+            );
+            let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
+
+            // tokens[..2] = "丙丁", does not end with "甲乙".
+            let tokens = vec![tok("丙", 0), tok("丁", 1), tok("候", 2)];
+
+            let bonus = processor.estimate_leading_bonus(&pattern, 2, &tokens, 2);
+            assert_eq!(bonus, 0);
+        }
+
+        #[test]
+        fn resets_at_an_earlier_variable_keeping_only_the_run_immediately_before_var_idx() {
+            // Pattern "丙Y甲乙X": scanning tokens[..4] = [Lit(丙), Var(Y), Lit(甲), Lit(乙)]
+            // must discard "丙" (reset by Var(Y)) and keep only "甲乙" — NOT "丙甲乙".
+            let pattern = parse_pattern(
+                "丙Y甲乙X".to_string(),
+                "template X Y".to_string(),
+                None,
+                false,
+                false,
+                None,
+            );
+            let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
+
+            // tokens[..3] ends with "丙甲乙" — if reset-on-variable were broken (i.e. "丙"
+            // were wrongly retained), this would also score 3 instead of 2.
+            let tokens = vec![tok("丙", 0), tok("甲", 1), tok("乙", 2), tok("候", 3)];
+
+            let bonus = processor.estimate_leading_bonus(&pattern, 4, &tokens, 3);
+            assert_eq!(bonus, 2, "must discard the literal run before the earlier variable Y");
+        }
+
+        #[test]
+        fn returns_zero_when_var_idx_is_zero() {
+            let pattern = parse_pattern("X甲".to_string(), "template X".to_string(), None, false, false, None);
+            let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
+            let tokens = vec![tok("候", 0), tok("选", 1)];
+
+            let bonus = processor.estimate_leading_bonus(&pattern, 0, &tokens, 1);
+            assert_eq!(bonus, 0, "no tokens precede X, nothing to match");
+        }
+
+        #[test]
+        fn returns_zero_when_before_pos_is_zero() {
+            let pattern = parse_pattern(
+                "甲X".to_string(),
+                "template X".to_string(),
+                None,
+                false,
+                false,
+                None,
+            );
+            let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
+            let tokens = vec![tok("候", 0)];
+
+            let bonus = processor.estimate_leading_bonus(&pattern, 1, &tokens, 0);
+            assert_eq!(bonus, 0, "candidate at the very start of the text has nothing before it");
+        }
+    }
+
     #[test]
     fn test_pattern_categorization() {
         let patterns = vec![

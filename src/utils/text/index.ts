@@ -22,6 +22,12 @@ export { TokenType, Token, TextTokenizer } from './TextTokenizer';
 export { TextChunk, TextChunker, createChunker } from './TextChunker';
 export { ChunkPostProcessor } from './ChunkPostProcessor';
 export { adaptiveChunker } from './AdaptiveChunker';
+export type {
+  AdaptiveBatchSizerInput,
+  AdaptiveBatchSizerLogEntry,
+  AdaptiveBatchSizerResult,
+} from './AdaptiveBatchSizer';
+export { calculateNextBatchSize } from './AdaptiveBatchSizer';
 
 // --- Normalization ---
 export {
