@@ -52,16 +52,25 @@ export interface SemanticArraySnapshot {
   readonly capacity: number;
 }
 
+/**
+ * Consumer map (architecture review 2026-07-30, candidate #5 grilling — corrected from
+ * the original "shared dual-consumer contract" framing, which overstated how much of this
+ * type both highlighting paths actually touch: verified via direct grep of real readers,
+ * most fields are char-only-exclusive, not shared). See src/utils/CLAUDE.md's
+ * `buildSegmentsFromPositions`, `addUnit`, and duplicate-word-highlighting gotchas for the
+ * specific behavioral failure modes behind originalStart/originalEnd, phase/dictionary, and
+ * tokenIndex respectively.
+ */
 export interface SemanticArrayMetadata {
-  index: number;
-  source: string;
-  tokenIndex: number;
-  phase: string | null;
-  dictionary: string | null;
-  translatedStart: number;
-  translatedEnd: number;
-  originalStart: number; // Character position in original Chinese text (-1 if not set)
-  originalEnd: number; // End position in original Chinese text (-1 if not set)
+  index: number; // Internal array-position bookkeeping — not consumed by either UI path
+  source: string; // Consumed by: char-only (ClickableOriginalSemantic.tsx, ClickableTranslationSemantic.tsx) AND full-translation (ClickableTranslationOptimized.tsx)
+  tokenIndex: number; // Consumed by: BOTH paths, via compareByTokenIndex tie-breaking (TextPositionMapper.ts)
+  phase: string | null; // Provenance only — zero real readers today (write-only; see addUnit's CLAUDE.md gotcha)
+  dictionary: string | null; // Provenance only — zero real readers today (write-only; see addUnit's CLAUDE.md gotcha)
+  translatedStart: number; // Consumed by: char-only only (PositionMetadataSegmenter.ts, characterOnlySemanticBuilder setup)
+  translatedEnd: number; // Consumed by: char-only only (see translatedStart)
+  originalStart: number; // Character position in original Chinese text (-1 if not set). Consumed by: char-only only (ClickableOriginalSemantic.tsx → precomputeOriginalSegments → buildSegmentsFromPositions)
+  originalEnd: number; // End position in original Chinese text (-1 if not set). Consumed by: char-only only (see originalStart)
 }
 
 /**

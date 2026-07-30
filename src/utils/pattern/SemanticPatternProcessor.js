@@ -377,7 +377,15 @@ export class SemanticPatternProcessor {
     const matchedTokens = [];
     let result = template;
 
-    // Process each token and resolve variables using existing variable cache
+    // Process each token and resolve variables using existing variable cache.
+    // Position (i - startIndex) maps 1:1 onto pattern.tokens (built char-by-char
+    // in parsePattern) — pattern.tokens[i - startIndex].name is the actual
+    // declared variable letter (X, Y, ...) this position fills. BUG FIX: this
+    // used to hardcode `.replace('X', ...)` regardless of which variable the
+    // token belonged to, so any pattern with 2+ distinct variables (e.g. "X的Y")
+    // only ever filled the first one — the second `.replace('X', ...)` found no
+    // more literal 'X' in the template and silently no-op'd, leaving 'Y' in the
+    // output untouched.
     for (let i = startIndex; i <= endIndex; i++) {
       const tokenValue = tokens[i].value;
       matchedTokens.push({
@@ -385,19 +393,14 @@ export class SemanticPatternProcessor {
         originalIndex: i,
       });
 
-      // Check if this token is a variable (not a literal part of the pattern)
-      if (!pattern.originalPattern.includes(tokenValue)) {
+      const patternToken = pattern.tokens[i - startIndex];
+      if (patternToken?.type === 'variable') {
         // This is the variable - try to translate it using variable cache
         const translation = this.variableCache?.get(tokenValue);
 
-        if (translation) {
-          // Variable cache stores objects with .translation property
-          const translatedValue =
-            typeof translation === 'string' ? translation : translation.translation;
-          result = result.replace('X', translatedValue || tokenValue);
-        } else {
-          result = result.replace('X', tokenValue);
-        }
+        const translatedValue =
+          translation && typeof translation === 'string' ? translation : translation?.translation;
+        result = result.replace(patternToken.name, translatedValue || tokenValue);
       }
     }
 

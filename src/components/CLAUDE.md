@@ -1,5 +1,7 @@
 # src/components — Gotchas
 
+**Hook call order in `Translator.jsx`:** which hook's output feeds which other hook (e.g. `executionCtx`/`forceReloadCtx`'s multi-hook fan-in) is documented in-file, in the SECTION 2 banner comment near the top of `Translator.jsx` (architecture review 2026-07-30, candidate #4) — not just in this file's per-hook rules below.
+
 ## React Stale Dependencies
 
 Never list frequently-updating state or callback props in a `useEffect` dep array that creates a `setInterval` or `addEventListener` — it recreates the subscription on every update. Use `const ref = useRef(value); ref.current = value;` and read `ref.current` inside the callback.

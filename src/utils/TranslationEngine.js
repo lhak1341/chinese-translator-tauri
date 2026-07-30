@@ -829,6 +829,15 @@ export class TranslationEngine {
     const startTime = performance.now();
 
     try {
+      // Documented in TranslationEngineInitOptions (TranslationEngineTypes.d.ts) as
+      // `patternSettings?: PatternProcessingSettings` but never actually wired up
+      // (architecture review 2026-07-30, candidate #3 grilling — zero references
+      // to `options.patternSettings` anywhere before this fix). Merge onto the
+      // constructor's { enableTwoPhasePatterns: true, ... } defaults.
+      if (options.patternSettings) {
+        this.settings = { ...this.settings, ...options.patternSettings };
+      }
+
       // Use caller-supplied activeProperNouns (already loaded by Translator.jsx before engine init)
       this.activeProperNouns = options.activeProperNouns || ['properNouns'];
       this.log(DEBUG_LEVELS.DEBUG, '🔧 Active proper noun dictionaries:', this.activeProperNouns);
@@ -5187,6 +5196,25 @@ export class TranslationEngine {
    * Requires onProgress callback - will not provide intermediate updates without it.
    * Each batch processes sequentially to maintain position tracking accuracy.
    */
+
+  /**
+   * Single convergence point for translateWithProgressiveBatches' batch-cleanup
+   * call sites (memoryCoordinator's onEmergency/onHighPriority/onBackground, and
+   * the every-5th-batch growth check). Trims batchPerformanceHistory and
+   * memoryTracker.snapshots via BatchMemoryCleanup and reassigns both — the
+   * one thing that can regress silently if a call site destructures only one of
+   * the two returned fields (architecture review 2026-07-30, candidate #6).
+   */
+  _applyBatchMemoryCleanup(severity) {
+    const trimmed = this.batchMemoryCleanup.cleanup(severity, {
+      batchPerformanceHistory: this.batchPerformanceHistory,
+      memoryTrackerSnapshots: this.memoryTracker.snapshots,
+      variableCache: this.semanticPatternProcessor?.variableCache,
+    });
+    this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
+    this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
+  }
+
   async translateWithProgressiveBatches(text, options = {}) {
     const startTime = performance.now();
 
@@ -5294,33 +5322,9 @@ export class TranslationEngine {
         samplingInterval: 10000,
         growthThreshold: 15,
       },
-      onEmergency: () => {
-        const trimmed = this.batchMemoryCleanup.cleanup('emergency', {
-          batchPerformanceHistory: this.batchPerformanceHistory,
-          memoryTrackerSnapshots: this.memoryTracker.snapshots,
-          variableCache: this.semanticPatternProcessor?.variableCache,
-        });
-        this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
-        this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
-      },
-      onHighPriority: () => {
-        const trimmed = this.batchMemoryCleanup.cleanup('elevated', {
-          batchPerformanceHistory: this.batchPerformanceHistory,
-          memoryTrackerSnapshots: this.memoryTracker.snapshots,
-          variableCache: this.semanticPatternProcessor?.variableCache,
-        });
-        this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
-        this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
-      },
-      onBackground: () => {
-        const trimmed = this.batchMemoryCleanup.cleanup('background', {
-          batchPerformanceHistory: this.batchPerformanceHistory,
-          memoryTrackerSnapshots: this.memoryTracker.snapshots,
-          variableCache: this.semanticPatternProcessor?.variableCache,
-        });
-        this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
-        this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
-      },
+      onEmergency: () => this._applyBatchMemoryCleanup('emergency'),
+      onHighPriority: () => this._applyBatchMemoryCleanup('elevated'),
+      onBackground: () => this._applyBatchMemoryCleanup('background'),
     });
     let performanceBaseline = null;
 
@@ -5418,13 +5422,7 @@ export class TranslationEngine {
               DEBUG_LEVELS.WARN,
               `🧠 HIGH MEMORY USAGE: +${leakAnalysis.memoryGrowthRate.toFixed(1)}MB per batch, ${leakAnalysis.totalGrowthMB.toFixed(1)}MB total (semantic arrays for long text)`
             );
-            const trimmed = this.batchMemoryCleanup.cleanup('elevated', {
-              batchPerformanceHistory: this.batchPerformanceHistory,
-              memoryTrackerSnapshots: this.memoryTracker.snapshots,
-              variableCache: this.semanticPatternProcessor?.variableCache,
-            });
-            this.batchPerformanceHistory = trimmed.batchPerformanceHistory;
-            this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
+            this._applyBatchMemoryCleanup('elevated');
           } else if (leakAnalysis.isHighUsage) {
             this.log(
               DEBUG_LEVELS.DEBUG,

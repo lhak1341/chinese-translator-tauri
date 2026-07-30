@@ -37,6 +37,8 @@ Signature: `addUnit(originalText, translatedText, source, tokenIndex, phase, dic
 - **`processChunksInParallel` merge loop** (~line 7023): correctly passes all 6 args from `isolatedArrays.metadata?.[j]`. After adding a new field to `addUnit`, propagate it through this merge loop too.
 - The `phase` arg (5th) is a **string label** (`'pattern'`, `'phrases'`, etc.), not a number — passing a number silently records wrong provenance with no error.
 
+See `SemanticArrayMetadata` in `SemanticArrayBuilder.ts` — `phase`/`dictionary` are tagged there as provenance-only, zero real readers today (architecture review 2026-07-30, candidate #5 grilling).
+
 ### Duplicate-Word Highlighting Requires `tokenIndex` Ordering
 
 Root cause — `processChunksInParallel` assigns semantic array indices by chunk completion order, not text order. `compareByTokenIndex(a, b)` / `resolveTokenIndex(tokenIndex)` in `src/utils/highlighting/TextPositionMapper.ts` (barrel-exported) are the single ordering rule: missing/negative tokenIndex sorts last. Three sort/tiebreak sites use it:
@@ -47,6 +49,8 @@ Root cause — `processChunksInParallel` assigns semantic array indices by chunk
 **`CharacterOnlyBridge.ts`'s `occurrenceInSource` count is NOT a sort** — it's a linear scan with its own dual-sided fallback (`i < sourceIndex` when tokenIndex is missing on either side). Different shape, does not use `compareByTokenIndex`; do not try to force it through the shared comparator.
 
 Any new sort over the semantic array by text position should use `compareByTokenIndex`, not a hand-rolled comparator — a prior hand-rolled version already caused an intransitive-comparator bug (see the CRITICAL FIX comment above `candidateWords.sort` in `TranslationEngine.js`), and a second hand-rolled copy in `SegmentPrecomputer.ts` disagreed with it on the missing-tokenIndex fallback (`?? 0` vs `?? Number.MAX_SAFE_INTEGER`) until unified.
+
+See `SemanticArrayMetadata` in `SemanticArrayBuilder.ts` — `tokenIndex` is tagged there as the one field genuinely consumed by both highlighting paths (architecture review 2026-07-30, candidate #5 grilling).
 
 ### `getSemanticTokens` Requires `TextToken[]`, Not a String
 
@@ -63,6 +67,8 @@ Chinese chars are 3 bytes each, making `token.start` ~3× too large for char-pos
 ### `buildSegmentsFromPositions` Fires Only When ALL `metadata[].originalStart >= 0`
 
 Since the parallel merge loop drops `originalStart`, this path never activates for multi-chunk translations — only for single-chunk (short) texts. Fixing the merge loop can trigger "no highlighting" regression if the path has latent bugs — test both short and long texts separately before enabling.
+
+See `SemanticArrayMetadata` in `SemanticArrayBuilder.ts` — `originalStart`/`originalEnd` are tagged there as char-only-exclusive, not consumed by the full-translation path at all (architecture review 2026-07-30, candidate #5 grilling).
 
 ### Phase 2 Proper Noun Lookahead
 
@@ -235,6 +241,7 @@ When adding `// @ts-check` to a new file, common patterns required for compatibi
 
 ## Testing Import Gotchas
 
+- **Temporary debug instrumentation in huge files (`TranslationEngine.js`, `SemanticPatternProcessor.js`) is easy to leave behind** — grep for `console.error`/`console.log`/any debug tag you added before considering a bug-hunt done; file size makes a stray line easy to miss on a final read-through.
 - **`vi.useFakeTimers()` does not fake `performance.now()` by default** — pass `{ toFake: ['setTimeout','clearTimeout','setInterval','clearInterval','Date','performance'] }` explicitly when testing code with `performance.now()`-based thresholds or growth-rate math.
 - **Testing a strict `elapsed > N` (not `>=`) time-window guard**: a fake-timer interval tick fires exactly at its scheduled boundary, not at "total time advanced" — offset the interval by 1ms (or advance one tick past N) so the check actually crosses the boundary, not just reaches it.
 - `AppConfiguration`: import from `src/types/ComponentTypes`, NOT `configValidation`

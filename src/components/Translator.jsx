@@ -31,8 +31,10 @@ import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
 import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
 import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
-import { useForceReloadContext } from '../hooks/useForceReloadContext';
-import { useTranslationExecutionContext } from '../hooks/useTranslationExecutionContext';
+import {
+  useForceReloadContext,
+  useTranslationExecutionContext,
+} from '../hooks/useReloadExecutionContexts';
 import { HIGHLIGHT_SCROLL_DELAY_MS } from '../utils/highlighting/semanticArrayConstants';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 
@@ -92,6 +94,23 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //   - Highlighting state spans multiple translation modes
 //   - Dictionary reload affects engine state and UI state atomically
 //   - Scroll position management requires DOM ref coordination
+//
+// Hook Call-Order Dependencies (why reordering hook calls below can silently break things):
+//   - useHighlightingState(semanticArrays) requires useTranslationResults to run first
+//   - useCharacterOnlyBridge requires useTranslationResults + useHighlightingState (both
+//     several hooks earlier) — consumes their destructured fields directly
+//   - useClipboardTranslation requires useDictionaryReloadGuard + useHighlightingState
+//   - executionCtx (useTranslationExecutionContext) fans in from 5 earlier hooks:
+//     useDictionaryReloadGuard, useHighlightingState, useTranslationResults,
+//     useClipboardTranslation, plus 2 raw refs — then useAutoTranslateTrigger consumes it
+//   - useEngineReinitializer + useReloadRetranslate both require useTranslatorEngine's
+//     reinitialize/engineRef
+//   - forceReloadCtx (useForceReloadContext) is the biggest fan-in: useTranslatorEngine,
+//     useTranslationController, useStreamingTranslation, useTranslationResults,
+//     useDictionaryReloadGuard, useHighlightingState, useEngineReinitializer,
+//     useReloadRetranslate, useScrollPositionManager — then useForceReload consumes it
+//   Net effect: nearly every hook above exists to eventually feed forceReloadCtx/
+//   useForceReload at the end of the setup section.
 // ============================================================================
 
 const Translator = ({ isActive = true }) => {

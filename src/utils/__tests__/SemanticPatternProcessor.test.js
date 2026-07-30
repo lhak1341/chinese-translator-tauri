@@ -145,6 +145,37 @@ describe('SemanticPatternProcessor — processTokens()', () => {
     const result = await proc.processTokens(tokens);
     expect(Array.isArray(result)).toBe(true);
   });
+
+  describe('prioritizedPatterns — multi-variable substitution', () => {
+    // Regression test for the WASM-fallback pattern path (architecture review
+    // 2026-07-30, candidate #3 grilling): convertPrioritizedPatternToMatchResult
+    // used to hardcode `.replace('X', ...)` for every variable token regardless
+    // of its actual declared name, so a 2-variable pattern like "X的Y" only ever
+    // filled the first variable — the second replace found no more literal 'X'
+    // in the template and silently no-op'd, leaving 'Y' in the output untouched.
+    test('fills both X and Y with their own resolved translations, not just X', async () => {
+      const proc = new SemanticPatternProcessor();
+      await proc.initializePatterns({ X的Y: 'Y của X' });
+      proc.variableCache = new Map([
+        ['猫', { translation: 'mèo' }],
+        ['狗', { translation: 'chó' }],
+      ]);
+
+      const tokens = [
+        makeToken('chinese_char', '猫'),
+        makeToken('chinese_char', '的'),
+        makeToken('chinese_char', '狗'),
+      ];
+      const pattern = proc.patterns.find((p) => p.originalPattern === 'X的Y');
+
+      const results = await proc.processTokens(tokens, {
+        prioritizedPatterns: [{ pattern, startIndex: 0, endIndex: 2 }],
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].translation).toBe('chó của mèo');
+    });
+  });
 });
 
 describe('SemanticPatternProcessor — getPerformanceStats()', () => {

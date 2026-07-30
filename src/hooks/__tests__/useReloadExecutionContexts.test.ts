@@ -1,18 +1,23 @@
 /**
- * Tests for useForceReloadContext — extracted from Translator.jsx's inline
- * forceReloadCtx object literal (architecture review 2026-07-29, candidate #3).
- * Covers the 2 relocated closures (cancelTranslations, destroyEngine) and the
- * dev-only input-shape guard that replaces the untyped assembly.
+ * Tests for useForceReloadContext / useTranslationExecutionContext —
+ * extracted from Translator.jsx's inline forceReloadCtx/executionCtx object
+ * literals (architecture review 2026-07-29, candidate #3), merged into one
+ * file/guard (architecture review 2026-07-30, candidate #1). Covers the 2
+ * relocated closures (cancelTranslations, destroyEngine), the assembly-only
+ * passthrough, and the shared dev-only input-shape guard.
  */
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useForceReloadContext } from '../useForceReloadContext';
+import {
+  useForceReloadContext,
+  useTranslationExecutionContext,
+} from '../useReloadExecutionContexts';
 
 vi.mock('../../utils/logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-function baseParams(overrides = {}) {
+function baseForceReloadParams(overrides = {}) {
   return {
     engineRef: { current: { destroy: vi.fn() } },
     cancelAllTranslations: vi.fn(() => ({ count: 0, cleanupComplete: Promise.resolve() })),
@@ -31,13 +36,28 @@ function baseParams(overrides = {}) {
   };
 }
 
+function baseExecutionParams(overrides = {}) {
+  return {
+    consumeReloadTransition: vi.fn(() => false),
+    clearHighlighting: vi.fn(),
+    setIsTranslating: vi.fn(),
+    isTranslatingRef: { current: false },
+    setResultArrays: vi.fn(),
+    setStreamingText: vi.fn(),
+    isClipboardTranslationRef: { current: false },
+    resetClipboardFlag: vi.fn(),
+    translationTextRef: { current: null },
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('useForceReloadContext', () => {
   test('assembles all 10 ForceReloadContext fields', () => {
-    const { result } = renderHook(() => useForceReloadContext(baseParams()));
+    const { result } = renderHook(() => useForceReloadContext(baseForceReloadParams()));
 
     expect(result.current).toEqual(
       expect.objectContaining({
@@ -56,7 +76,7 @@ describe('useForceReloadContext', () => {
   });
 
   test('setStatus/setReloadError/setReloading forward to the given setters', () => {
-    const params = baseParams();
+    const params = baseForceReloadParams();
     const { result } = renderHook(() => useForceReloadContext(params));
 
     result.current.setStatus('hi');
@@ -71,7 +91,7 @@ describe('useForceReloadContext', () => {
   describe('cancelTranslations', () => {
     test('when count is 0: does not await cleanupComplete, still resets translating state', async () => {
       const cleanupComplete = vi.fn();
-      const params = baseParams({
+      const params = baseForceReloadParams({
         cancelAllTranslations: vi.fn(() => ({ count: 0, cleanupComplete })),
         isTranslatingRef: { current: true },
       });
@@ -94,7 +114,7 @@ describe('useForceReloadContext', () => {
           resolve();
         }, 0);
       });
-      const params = baseParams({
+      const params = baseForceReloadParams({
         cancelAllTranslations: vi.fn(() => ({ count: 2, cleanupComplete })),
         setIsTranslating: vi.fn(() => order.push('setIsTranslating')),
       });
@@ -111,7 +131,7 @@ describe('useForceReloadContext', () => {
   describe('destroyEngine', () => {
     test('calls destroy() then nulls engineRef.current', () => {
       const destroy = vi.fn();
-      const params = baseParams({ engineRef: { current: { destroy } } });
+      const params = baseForceReloadParams({ engineRef: { current: { destroy } } });
       const { result } = renderHook(() => useForceReloadContext(params));
 
       result.current.destroyEngine();
@@ -121,7 +141,7 @@ describe('useForceReloadContext', () => {
     });
 
     test('is a no-op when engineRef.current is already null', () => {
-      const params = baseParams({ engineRef: { current: null } });
+      const params = baseForceReloadParams({ engineRef: { current: null } });
       const { result } = renderHook(() => useForceReloadContext(params));
 
       expect(() => result.current.destroyEngine()).not.toThrow();
@@ -132,7 +152,7 @@ describe('useForceReloadContext', () => {
         throw new Error('boom');
       });
       const engineInstance = { destroy };
-      const params = baseParams({ engineRef: { current: engineInstance } });
+      const params = baseForceReloadParams({ engineRef: { current: engineInstance } });
       const { result } = renderHook(() => useForceReloadContext(params));
 
       expect(() => result.current.destroyEngine()).not.toThrow();
@@ -153,19 +173,62 @@ describe('useForceReloadContext', () => {
     });
 
     test('throws when engineRef is not ref-shaped', () => {
-      const params = baseParams({ engineRef: null });
+      const params = baseForceReloadParams({ engineRef: null });
       expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/engineRef/);
     });
 
     test('throws when a required function param is missing', () => {
-      const params = baseParams({ retranslate: undefined });
+      const params = baseForceReloadParams({ retranslate: undefined });
       expect(() => renderHook(() => useForceReloadContext(params))).toThrow(/retranslate/);
     });
 
     test('does not throw in production even with a wrong-shaped param', () => {
       process.env.NODE_ENV = 'production';
-      const params = baseParams({ engineRef: null });
+      const params = baseForceReloadParams({ engineRef: null });
       expect(() => renderHook(() => useForceReloadContext(params))).not.toThrow();
+    });
+  });
+});
+
+describe('useTranslationExecutionContext', () => {
+  test('returns all 9 fields unchanged (assembly-only, no logic)', () => {
+    const params = baseExecutionParams();
+    const { result } = renderHook(() => useTranslationExecutionContext(params));
+
+    expect(result.current).toEqual(params);
+    expect(result.current.clearHighlighting).toBe(params.clearHighlighting);
+    expect(result.current.isTranslatingRef).toBe(params.isTranslatingRef);
+  });
+
+  describe('dev-only input-shape guard', () => {
+    const originalEnv = process.env.NODE_ENV;
+
+    beforeEach(() => {
+      process.env.NODE_ENV = 'development';
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    test('throws when a required ref param is not ref-shaped', () => {
+      const params = baseExecutionParams({ translationTextRef: undefined });
+      expect(() => renderHook(() => useTranslationExecutionContext(params))).toThrow(
+        /translationTextRef/
+      );
+    });
+
+    test('throws when a required function param is missing', () => {
+      const params = baseExecutionParams({ resetClipboardFlag: undefined });
+      expect(() => renderHook(() => useTranslationExecutionContext(params))).toThrow(
+        /resetClipboardFlag/
+      );
+    });
+
+    test('does not throw in production even with a wrong-shaped param', () => {
+      process.env.NODE_ENV = 'production';
+      const params = baseExecutionParams({ resetClipboardFlag: undefined });
+      expect(() => renderHook(() => useTranslationExecutionContext(params))).not.toThrow();
     });
   });
 });

@@ -16,7 +16,7 @@ The codebase is written in a mix of JavaScript and TypeScript. We need to decide
 - **Type Coverage**: WASM boundaries, API contracts, utilities
 - **Engine location**: `src/utils/TranslationEngine.js`
 
-**Note (2026-07-28):** these counts are long stale — dozens more TypeScript utilities exist now (e.g. `LookupIndexBuilder.ts`, `DictionaryOperationReverter.ts`, `PersistTimeValidator.ts`, `MatchComparator.ts`, `PhraseConsumptionMarker.ts`, `DictionaryTrieBuilder.ts`, and more), and `Translator.jsx` has shrunk to ~1069 lines via hook extraction (see ADR-011's supersession note). The qualitative decision — utilities migrate to TS, `TranslationEngine.js`/`Translator.jsx`/`SemanticPatternProcessor.js` stay JS — is unchanged and actively enforced (see CLAUDE.md's "Intentionally JavaScript" list). Don't cite the specific counts above as current.
+**Note (2026-07-30):** these counts are long stale — dozens more TypeScript utilities exist now (e.g. `LookupIndexBuilder.ts`, `DictionaryOperationReverter.ts`, `PersistTimeValidator.ts`, `MatchComparator.ts`, `PhraseConsumptionMarker.ts`, `DictionaryTrieBuilder.ts`, and more; ~106 non-`.d.ts` `.ts` files in `src/` as of 2026-07-30), `Translator.jsx` moved to `src/components/Translator.jsx` and is now 1053 lines via hook extraction (see ADR-011's supersession note), `TranslationEngine.js` is now 8,479 lines (grew, not shrunk), and only **12** `.d.ts` files remain in `src/types/` (not 19 — some were consolidated/removed since 2026-01-28). The qualitative decision — utilities migrate to TS, `TranslationEngine.js`/`Translator.jsx`/`SemanticPatternProcessor.js` stay JS — is unchanged and actively enforced (see CLAUDE.md's "Intentionally JavaScript" list). Don't cite the specific counts above as current.
 
 **Key Question**: What should our TypeScript migration strategy be?
 
@@ -157,18 +157,19 @@ class TranslationEngine {
 
 ```typescript
 // WASM Boundaries: Strict TypeScript validation
+// Real prod implementation: src/utils/wasm/WasmBoundaryValidation.ts
 export function validateWasmToken(token: unknown): WasmToken {
-  if (token.translated === undefined) {
-    // Convert undefined → null (prevents "undefined" in text)
-    return { ...token, translated: null };
-  }
-  return token as WasmToken;
+  // throws on missing/malformed fields, then:
+  const translated = t.translated === undefined ? null : t.translated;
+  // Convert undefined → null (prevents "undefined" in text)
 }
 
 // JavaScript Core Engine: Calls validation at boundaries
 const processedTokens = await processNumbersWasm(tokens);
-const validatedTokens = copyWasmTokens(tokens, processedTokens); // TS validation
+const validatedTokens = copyWasmTokens(tokens, processedTokens); // param1 = JS dest, param2 = WASM src
 ```
+
+**⚠️ Two files, reversed param order — do not conflate.** `src/utils/wasm/WasmBoundaryValidation.ts` (prod) takes `copyWasmTokens(jsTokens, wasmTokens)`. Root-level `types/WasmTypes.ts` (test-only, imported by `WasmTypes.test.ts`) takes the **opposite order**: `copyWasmTokens(wasmSource, jsDest)`. Swapping which file you copy a call site from causes silent data loss — see the warning comment at the top of `types/WasmTypes.ts`. Do not unify the two without testing both call paths.
 
 **Pros**:
 
@@ -324,12 +325,12 @@ test('translate() must stay synchronous', () => {
 
 ## References
 
-- Migrated Utilities: `ByteFormatter.ts`, `ValidationHelpers.ts`, `WasmTypes.ts`, etc. (15 files)
-- Type Definitions: `src/types/*.d.ts` (19 files, 11,000+ lines)
+- Migrated Utilities: `ByteFormatter.ts`, `ValidationHelpers.ts`, `WasmBoundaryValidation.ts`, etc. (~106 `.ts` files as of 2026-07-30)
+- Type Definitions: `src/types/*.d.ts` (12 files as of 2026-07-30, was 19)
 - Core Engine: `src/utils/TranslationEngine.js` (intentionally JS)
 - Migration Guide: CLAUDE.md "TypeScript Migration Strategy" section
 - Failed Attempts: `docs/archive/refactoring-2026/EXTRACTION_ANALYSIS.md`
-- Test Coverage: `WasmTypes.test.ts`, `WasmBoundaryEdgeCases.test.js`
+- Test Coverage: `WasmBoundaryValidation.test.ts` (prod), `WasmTypes.test.ts` (test-only twin, reversed param order — see boundary enforcement section above), `WasmBoundaryEdgeCases.test.js`
 
 ## Related ADRs
 
