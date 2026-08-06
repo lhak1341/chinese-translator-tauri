@@ -200,7 +200,9 @@ Entry point: `src/components/dictionary/useDictionaryCRUD.ts`. Used exclusively 
 
 The per-dictionary lookup structure. A prefix trie where each node owns `children: Map<char, TrieNode>`, `isEndOfWord`, `translation`, and `metadata`. Core operations: `insert`, `get`, `getWithMetadata`, `findMatches` (all prefix matches from a position), `findLongestMatch`, `getWithPrefix` (DFS collect).
 
-Owns its own structural health: `validateIntegrity()` detects circular references, orphaned nodes, missing translations, and size mismatches; `repair()` fixes size mismatches and removes orphans; `getHealthScore()` produces an A–F grade. `dispose()` is mandatory before discarding an instance — recursively nullifies all node references for GC.
+`dispose()` is mandatory before discarding an instance — recursively nullifies all node references for GC.
+
+Formerly also owned a structural self-healing subsystem (`validateIntegrity()`/`repair()`/`getHealthScore()`) — deleted 2026-08-06 (architecture review candidate #3). Confirmed dead by `ADR-034`: `repair()`/`getHealthScore()` had zero callers anywhere, ever; `validateIntegrity()`'s only 2 callers were the other two methods, so the whole subsystem was a closed, unreachable island. Unlike `TranslationProfiler`/Pattern Profiling (ADR-021, kept as gated dev tools with a real enable/disable toggle), this had no wiring or dev-console hook — just orphaned code. The supporting `.d.ts` types (`TrieValidationResult`, `TrieRepairResult`, `TrieHealthScore`, and 5 more feeding them) were deleted alongside from `DictionaryManagerTypes.d.ts`.
 
 `TrieNode` is exported from the same file so `DictionaryTrieLoader` can reconstruct cached tries without passing constructor references at the call site.
 

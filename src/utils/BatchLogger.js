@@ -266,188 +266,33 @@ class BatchLogger {
   }
 }
 
-/**
- * Performance Logger
- * Extends BatchLogger with timing capabilities and bottleneck detection
- */
-class PerformanceLogger extends BatchLogger {
-  constructor(options = {}) {
-    super(options);
-    this.slowOperationThreshold = options.slowThreshold || 200; // ms
-    this.timingData = new Map(); // operationId -> { start, operation, context }
-    this.bottlenecks = []; // Array of slow operations
-    this.maxBottlenecks = options.maxBottlenecks || 20; // Keep last N bottlenecks
-  }
+/** Threshold (ms) above which logIfSlow warns instead of verbose-logging. */
+const SLOW_OPERATION_THRESHOLD = 200;
 
-  /**
-   * Start timing an operation
-   * @param {string} operationId - Unique identifier for this operation
-   * @param {string} operation - Operation name/description
-   * @param {Object} context - Additional context data
-   */
-  startTiming(operationId, operation, context = {}) {
-    this.timingData.set(operationId, {
-      start: performance.now(),
-      operation,
+/**
+ * Log an operation's duration since startTime — WARN if it crossed
+ * SLOW_OPERATION_THRESHOLD, VERBOSE otherwise. Dev-only (batchLog itself is
+ * a no-op outside development).
+ * @param {string} operation - Operation name/description
+ * @param {number} startTime - `performance.now()` value captured at the operation's start
+ * @param {Object} [context] - Additional context data for the log line
+ */
+export function logIfSlow(operation, startTime, context = {}) {
+  const duration = performance.now() - startTime;
+
+  if (duration > SLOW_OPERATION_THRESHOLD) {
+    batchLog.warn(`🐌 Slow operation detected: ${operation} took ${duration.toFixed(1)}ms`, {
+      duration,
+      context,
+      threshold: SLOW_OPERATION_THRESHOLD,
+    });
+  } else {
+    batchLog.hotVerbose(operation, `⏱️ ${operation}: ${duration.toFixed(1)}ms`, {
+      duration,
       context,
     });
   }
-
-  /**
-   * End timing an operation and check for bottlenecks
-   * @param {string} operationId - Operation identifier
-   * @param {Object} additionalData - Additional data to include in bottleneck report
-   * @returns {number} Duration in milliseconds
-   */
-  endTiming(operationId, additionalData = {}) {
-    const timing = this.timingData.get(operationId);
-    if (!timing) {
-      this.log('WARN', `⚠️ EndTiming called for unknown operation: ${operationId}`);
-      return 0;
-    }
-
-    const duration = performance.now() - timing.start;
-    this.timingData.delete(operationId);
-
-    // Check if this is a bottleneck
-    if (duration > this.slowOperationThreshold) {
-      const bottleneck = {
-        operation: timing.operation,
-        operationId,
-        duration: Math.round(duration * 100) / 100, // Round to 2 decimal places
-        context: timing.context,
-        timestamp: Date.now(),
-        ...additionalData,
-      };
-
-      this.recordBottleneck(bottleneck);
-    }
-
-    // Log performance data
-    this.log('VERBOSE', `⏱️ ${timing.operation}: ${duration.toFixed(1)}ms`, {
-      operationId,
-      duration,
-      context: timing.context,
-    });
-
-    return duration;
-  }
-
-  /**
-   * Record a bottleneck and manage bottleneck history
-   * @param {Object} bottleneck - Bottleneck data
-   */
-  recordBottleneck(bottleneck) {
-    this.bottlenecks.push(bottleneck);
-
-    // Keep only the most recent bottlenecks
-    if (this.bottlenecks.length > this.maxBottlenecks) {
-      this.bottlenecks.shift();
-    }
-
-    // Log the bottleneck
-    this.log(
-      'WARN',
-      `🐌 Slow operation detected: ${bottleneck.operation} took ${bottleneck.duration}ms`,
-      {
-        operationId: bottleneck.operationId,
-        context: bottleneck.context,
-        threshold: this.slowOperationThreshold,
-      }
-    );
-  }
-
-  /**
-   * Get recent bottlenecks
-   * @param {number} count - Number of recent bottlenecks to return
-   * @returns {Array} Recent bottlenecks
-   */
-  getBottlenecks(count = null) {
-    const bottlenecks = count ? this.bottlenecks.slice(-count) : this.bottlenecks.slice();
-    return bottlenecks.sort((a, b) => b.timestamp - a.timestamp); // Most recent first
-  }
-
-  /**
-   * Get performance analysis
-   * @returns {Object} Performance analysis data
-   */
-  getPerformanceAnalysis() {
-    const now = Date.now();
-    const recentBottlenecks = this.bottlenecks.filter((b) => now - b.timestamp < 300000); // Last 5 minutes
-
-    const analysis = {
-      totalBottlenecks: this.bottlenecks.length,
-      recentBottlenecks: recentBottlenecks.length,
-      threshold: this.slowOperationThreshold,
-      activeTimings: this.timingData.size,
-      timestamp: now,
-    };
-
-    // Calculate statistics if we have bottlenecks
-    if (recentBottlenecks.length > 0) {
-      const durations = recentBottlenecks.map((b) => b.duration);
-      analysis.averageDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
-      analysis.maxDuration = Math.max(...durations);
-      analysis.minDuration = Math.min(...durations);
-
-      // Group by operation type
-      const operationGroups = {};
-      recentBottlenecks.forEach((b) => {
-        if (!operationGroups[b.operation]) {
-          operationGroups[b.operation] = [];
-        }
-        operationGroups[b.operation].push(b.duration);
-      });
-
-      analysis.operationBreakdown = Object.entries(operationGroups)
-        .map(([operation, durations]) => ({
-          operation,
-          count: durations.length,
-          averageDuration: durations.reduce((a, b) => a + b, 0) / durations.length,
-          maxDuration: Math.max(...durations),
-        }))
-        .sort((a, b) => b.averageDuration - a.averageDuration);
-    }
-
-    return analysis;
-  }
-
-  /**
-   * Clear bottleneck history
-   */
-  clearBottlenecks() {
-    this.bottlenecks = [];
-    this.log('INFO', '🗑️ Bottleneck history cleared');
-  }
-
-  /**
-   * Clear all performance data
-   */
-  clear() {
-    super.clear();
-    this.bottlenecks = [];
-    this.timingData.clear();
-  }
-
-  /**
-   * Cleanup resources
-   */
-  destroy() {
-    super.destroy();
-    this.bottlenecks = [];
-    this.timingData.clear();
-  }
 }
-
-/**
- * Global performance logger instance
- */
-export const performanceLogger = new PerformanceLogger({
-  slowThreshold: 200,
-  maxBottlenecks: 20,
-  batchSize: 30,
-  flushInterval: 2000,
-});
 
 // Create singleton instance for app-wide usage
 const batchLogger = new BatchLogger({

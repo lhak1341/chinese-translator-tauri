@@ -91,6 +91,18 @@ function validateDictionaryId(dictionaryId: string): boolean {
   return true;
 }
 
+/**
+ * Validates one or more named dictionary IDs; returns the standard rejection
+ * shape if any fail, or null if all are valid.
+ */
+function requireValidDictionaryIds(
+  ids: Record<string, string>
+): { success: false; error: string } | null {
+  if (Object.values(ids).every(validateDictionaryId)) return null;
+  logger.error('Invalid dictionary ID format:', ids);
+  return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const tauriAPI = {
@@ -104,10 +116,8 @@ const tauriAPI = {
   },
 
   saveDictionary: async (dictionaryId: string, data: unknown): Promise<SaveResult> => {
-    if (!validateDictionaryId(dictionaryId)) {
-      logger.error('Invalid dictionary ID format:', dictionaryId);
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ dictionaryId });
+    if (invalid) return invalid;
     try {
       const result = await invoke<SaveResult>(CMD.SAVE_DICTIONARY, { dictionaryId, data });
       if (!result.success && result.error) {
@@ -121,10 +131,8 @@ const tauriAPI = {
   },
 
   loadDictionary: async (dictionaryId: string): Promise<DictionaryLoadResult> => {
-    if (!validateDictionaryId(dictionaryId)) {
-      logger.error('Invalid dictionary ID format:', dictionaryId);
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ dictionaryId });
+    if (invalid) return invalid;
     try {
       const result = await invoke<DictionaryLoadResult>(CMD.LOAD_DICTIONARY, { dictionaryId });
       if (!result.success && result.error !== 'File not found') {
@@ -201,10 +209,8 @@ const tauriAPI = {
   },
 
   createProperNounsDictionary: async (dictionaryId: string): Promise<SaveResult> => {
-    if (!validateDictionaryId(dictionaryId)) {
-      logger.error('Invalid dictionary ID format:', dictionaryId);
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ dictionaryId });
+    if (invalid) return invalid;
     try {
       return await invoke<SaveResult>(CMD.CREATE_PROPER_NOUNS_DICTIONARY, { dictionaryId });
     } catch (error) {
@@ -214,10 +220,8 @@ const tauriAPI = {
   },
 
   createStructuralPatternsDictionary: async (dictionaryId: string): Promise<SaveResult> => {
-    if (!validateDictionaryId(dictionaryId)) {
-      logger.error('Invalid dictionary ID format:', dictionaryId);
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ dictionaryId });
+    if (invalid) return invalid;
     try {
       return await invoke<SaveResult>(CMD.CREATE_STRUCTURAL_PATTERNS_DICTIONARY, { dictionaryId });
     } catch (error) {
@@ -227,10 +231,8 @@ const tauriAPI = {
   },
 
   createFictionDictionaryPair: async (properNounId: string): Promise<SaveResult> => {
-    if (!validateDictionaryId(properNounId)) {
-      logger.error('Invalid dictionary ID format:', properNounId);
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ properNounId });
+    if (invalid) return invalid;
     try {
       return await invoke<SaveResult>(CMD.CREATE_FICTION_DICTIONARY_PAIR, { properNounId });
     } catch (error) {
@@ -243,10 +245,8 @@ const tauriAPI = {
     oldDictionaryId: string,
     newDictionaryId: string
   ): Promise<DictionaryOperationResult> => {
-    if (!validateDictionaryId(oldDictionaryId) || !validateDictionaryId(newDictionaryId)) {
-      logger.error('Invalid dictionary ID format:', { oldDictionaryId, newDictionaryId });
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ oldDictionaryId, newDictionaryId });
+    if (invalid) return invalid;
     try {
       return await invoke<DictionaryOperationResult>(CMD.RENAME_PROPER_NOUNS_DICTIONARY, {
         oldDictionaryId,
@@ -262,10 +262,8 @@ const tauriAPI = {
     oldDictionaryId: string,
     newDictionaryId: string
   ): Promise<DictionaryOperationResult> => {
-    if (!validateDictionaryId(oldDictionaryId) || !validateDictionaryId(newDictionaryId)) {
-      logger.error('Invalid dictionary ID format:', { oldDictionaryId, newDictionaryId });
-      return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
-    }
+    const invalid = requireValidDictionaryIds({ oldDictionaryId, newDictionaryId });
+    if (invalid) return invalid;
     try {
       return await invoke<DictionaryOperationResult>(CMD.RENAME_STRUCTURAL_PATTERNS_DICTIONARY, {
         oldDictionaryId,
@@ -391,7 +389,7 @@ const tauriAPI = {
 // Unlike window.translationEngine or window.performanceDashboard (which expose internal
 // state and should be dev-only), window.electronAPI is required for the app to function.
 if (typeof window !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (window as any).electronAPI = tauriAPI;
 }
 

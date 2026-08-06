@@ -1,5 +1,9 @@
 # src/components — Gotchas
 
+## Testing components that use `react-resizable-panels`
+
+`Panel`/`Group`/`Separator` construct `window.ResizeObserver` directly, unguarded — jsdom has none and `src/test/setup.ts` doesn't mock it. Mock the trio as trivial pass-throughs (`({children}) => <>{children}</>`) rather than rendering them for real. Found testing `TranslatorDisplayPanels.tsx`.
+
 **Hook call order in `Translator.jsx`:** which hook's output feeds which other hook (e.g. `executionCtx`/`forceReloadCtx`'s multi-hook fan-in) is documented in-file, in the SECTION 2 banner comment near the top of `Translator.jsx` (architecture review 2026-07-30, candidate #4) — not just in this file's per-hook rules below.
 
 ## React Stale Dependencies

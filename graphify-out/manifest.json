@@ -84,11 +84,6 @@
     "ast_hash": "49734ab845b2ca50966ba51e2211bf50",
     "semantic_hash": ""
   },
-  "wasm-core/src/position_mapper.rs": {
-    "mtime": 1771122972.9576252,
-    "ast_hash": "7ee96cdd3df784da9e346036e8c54cff",
-    "semantic_hash": ""
-  },
   "wasm-core/src/conflict_resolution.rs": {
     "mtime": 1779812025.7709694,
     "ast_hash": "fb1be6b72626434fde9fc60c00b47fb2",
@@ -837,11 +832,6 @@
   "src/utils/performance/DebugObjectPool.js": {
     "mtime": 1773509530.082927,
     "ast_hash": "c5dfecc6e0938adcb0eb4c3b555311b2",
-    "semantic_hash": ""
-  },
-  "src/utils/performance/PerformanceProfiler.js": {
-    "mtime": 1780694349.7717388,
-    "ast_hash": "5d01a9ccb9f7b8faaf7439bde5159098",
     "semantic_hash": ""
   },
   "src/utils/caching/LRUCache.ts": {

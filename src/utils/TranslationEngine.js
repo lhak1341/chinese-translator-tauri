@@ -151,7 +151,6 @@ import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { MAX_SAFE_SEGMENTS } from './highlighting/semanticArrayConstants.js';
-import { performanceProfiler } from './performance/PerformanceProfiler.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
@@ -165,7 +164,7 @@ import {
   resolveMatchConflictsWasm,
 } from './wasm/WasmConflictResolution.js';
 
-import { batchLog, performanceLogger } from './BatchLogger.js';
+import { batchLog, logIfSlow } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
 import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
@@ -285,7 +284,7 @@ export const DEBUG_LEVELS = {
 // ============================================================================
 
 export class TranslationEngine {
-  constructor({ performanceProfiler: injectedProfiler = performanceProfiler } = {}) {
+  constructor() {
     this.tokenizer = new TextTokenizer();
     // Get dictionary configuration from ParallelConfig
     const dictionaryConfig = parallelConfig.getOptimalConfig('dictionary');
@@ -360,7 +359,6 @@ export class TranslationEngine {
 
     // Initialize translation profiler for performance analysis
     this.phaseProfiler = new TranslationProfiler();
-    this.performanceProfiler = injectedProfiler;
 
     // Store reference to TwoPhasePatternProcessor for internal profiling
     this.twoPhaseProcessor = null;
@@ -1571,17 +1569,8 @@ export class TranslationEngine {
    * Do not call concurrently - results will interfere with each other.
    */
   async translateWithSegments(text, options = {}) {
-    // Phase 7: Start performance profiling
-    const operationId = `translation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    this.performanceProfiler.startTranslationProfile(operationId, text, options);
-
-    // Performance monitoring: Start timing for bottleneck detection
-    const perfId = `translateWithSegments_${Date.now()}`;
-    performanceLogger.startTiming(perfId, 'translateWithSegments', {
-      textLength: text.length,
-      chunks: text.split(/[。！？，；：]/g).length,
-      progressive: !!options.progressive,
-    });
+    // Performance monitoring: track timing for bottleneck detection
+    const perfStartTime = performance.now();
 
     // Reset segments for new translation
     // HIGH-5 FIX: Cleanup old segments before resetting to prevent memory leaks
@@ -1654,7 +1643,6 @@ export class TranslationEngine {
 
     // Legacy precomputed segments removed - components now compute segments on-demand from semanticArrays
 
-    // Phase 7: Complete performance profiling
     const result = {
       originalText: text,
       translatedText: translatedText,
@@ -1663,14 +1651,13 @@ export class TranslationEngine {
       prebuiltSegments: this.prebuiltSegments || [], // Instant segments built during translation
     };
 
-    this.performanceProfiler.endTranslationProfile(operationId, translatedText, result);
-
-    // Performance monitoring: End timing and check for bottlenecks
-    performanceLogger.endTiming(perfId, {
+    // Performance monitoring: check for bottlenecks
+    logIfSlow('translateWithSegments', perfStartTime, {
+      textLength: text.length,
       resultLength: result.translatedText.length,
-      semanticArrays: result.semanticArrays?.length || 0,
-      segmentsCount: result.segments?.length || 0,
-      prebuiltSegments: result.prebuiltSegments?.length || 0,
+      semanticArrays: result.semanticArrays?.length ?? 0,
+      segmentsCount: result.segments?.length ?? 0,
+      prebuiltSegments: result.prebuiltSegments?.length ?? 0,
     });
 
     return result;
@@ -4583,33 +4570,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Get comprehensive performance report including profiling data
-   * Phase 7: Performance monitoring and profiling
-   * @returns {Object} Complete performance analysis
-   */
-  getPerformanceReport() {
-    // Update profiler with current dictionary and cache stats
-    const cacheStats = this.dictionaryManager.getCacheStats();
-    const sortingStats = this.dictionaryManager.getSortingStats
-      ? this.dictionaryManager.getSortingStats()
-      : null;
-
-    this.performanceProfiler.updateDictionaryMetrics(cacheStats, sortingStats);
-    this.performanceProfiler.updateMemoryMetrics();
-
-    return this.performanceProfiler.getPerformanceReport();
-  }
-
-  /**
-   * Get real-time dashboard metrics
-   * Phase 7: Performance monitoring dashboard
-   * @returns {Object} Dashboard metrics
-   */
-  getDashboardMetrics() {
-    return this.performanceProfiler.getDashboardMetrics();
-  }
-
-  /**
    * Enable translation profiling to measure phase-by-phase performance
    * Usage: window.translationEngine.enableProfiling()
    * Then translate text and call getProfilingReport() to see breakdown
@@ -4705,14 +4665,6 @@ export class TranslationEngine {
   }
 
   /**
-   * Reset performance profiling data
-   * Phase 7: Performance profiler reset
-   */
-  resetPerformanceProfiler() {
-    this.performanceProfiler.reset();
-  }
-
-  /**
    * Reset statistics
    */
   resetStats() {
@@ -4789,15 +4741,6 @@ export class TranslationEngine {
     if (!this.parallelConfig) {
       this.initializeParallelProcessing(options);
     }
-
-    // Performance monitoring: Start timing for parallel processing
-    const perfId = `processChunksInParallel_${Date.now()}`;
-    performanceLogger.startTiming(perfId, 'processChunksInParallel', {
-      batchSize: batch.length,
-      batchStart,
-      parallelEnabled: this.parallelConfig.enableParallelChunks,
-      maxConcurrency: this.parallelConfig.maxParallelChunks,
-    });
 
     // Sequential fallback removed — always force parallel processing
     if (
@@ -4947,11 +4890,9 @@ export class TranslationEngine {
 
       throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
     } finally {
-      // Performance monitoring: End timing regardless of success/failure
-      performanceLogger.endTiming(perfId, {
-        processingTime: performance.now() - startTime,
+      // Performance monitoring: check for bottlenecks regardless of success/failure
+      logIfSlow('processChunksInParallel', startTime, {
         batchSize: batch.length,
-        success: true, // Will be overridden if error was thrown
       });
     }
   }
@@ -8390,88 +8331,7 @@ export class TranslationEngine {
     // WASM Core Engine removed
     return false;
   }
-
-  /**
-   * Get performance bottleneck analysis from PerformanceLogger
-   * @returns {Object} Performance analysis with bottlenecks and recommendations
-   */
-  getPerformanceAnalysis() {
-    const analysis = performanceLogger.getPerformanceAnalysis();
-    const bottlenecks = performanceLogger.getBottlenecks(10); // Last 10 bottlenecks
-
-    return {
-      ...analysis,
-      bottlenecks,
-      recommendations: this.generatePerformanceRecommendations(analysis, bottlenecks),
-    };
-  }
-
-  /**
-   * Generate performance recommendations based on bottleneck analysis
-   * @param {Object} analysis - Performance analysis data
-   * @param {Array} bottlenecks - Recent bottlenecks
-   * @returns {Array} Performance recommendations
-   */
-  generatePerformanceRecommendations(analysis, bottlenecks) {
-    const recommendations = [];
-
-    if (analysis.recentBottlenecks > 5) {
-      recommendations.push({
-        priority: 'high',
-        issue: 'Frequent slow operations detected',
-        recommendation: 'Consider reducing batch size or enabling parallel processing',
-        count: analysis.recentBottlenecks,
-      });
-    }
-
-    // Analyze operation types
-    if (analysis.operationBreakdown) {
-      analysis.operationBreakdown.forEach((op) => {
-        if (op.operation === 'translateWithSegments' && op.averageDuration > 500) {
-          recommendations.push({
-            priority: 'high',
-            issue: 'Main translation is consistently slow',
-            recommendation: 'Check for large text inputs or dictionary issues',
-            averageDuration: op.averageDuration,
-            operation: op.operation,
-          });
-        }
-
-        if (op.operation === 'processChunksInParallel' && op.averageDuration > 300) {
-          recommendations.push({
-            priority: 'medium',
-            issue: 'Parallel processing slower than expected',
-            recommendation: 'Verify parallel configuration or consider sequential processing',
-            averageDuration: op.averageDuration,
-            operation: op.operation,
-          });
-        }
-      });
-    }
-
-    // Check for text length patterns
-    const largeTextBottlenecks = bottlenecks.filter((b) => b.context?.textLength > 1000);
-    if (largeTextBottlenecks.length > 0) {
-      recommendations.push({
-        priority: 'medium',
-        issue: 'Large text inputs causing slowdowns',
-        recommendation: 'Consider implementing text chunking for very large inputs',
-        affectedOperations: largeTextBottlenecks.length,
-      });
-    }
-
-    return recommendations;
-  }
-
-  /**
-   * Clear performance monitoring data
-   */
-  clearPerformanceData() {
-    performanceLogger.clearBottlenecks();
-    performanceLogger.clear();
-    batchLog.info('🗑️ Performance monitoring data cleared');
-  }
 }
 
 // Factory function
-export const createTranslationEngine = (options = {}) => new TranslationEngine(options);
+export const createTranslationEngine = () => new TranslationEngine();

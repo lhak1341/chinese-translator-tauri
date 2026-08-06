@@ -24,3 +24,5 @@ Do not build `DictionaryManager.validateIntegrity()`. Fix the test instead: remo
 ## Consequence
 
 Future architecture reviews should not re-propose a `DictionaryManager.validateIntegrity()` aggregator on spec. If a concrete need for dictionary-health surfacing arises later (e.g. a debug panel), the trie-level methods (`validateIntegrity`, `repair`, `getHealthScore`) already exist and can be wired up then, informed by that real need's actual shape — not built ahead of one.
+
+**Addendum (2026-08-06, architecture review candidate #3):** the trie-level methods no longer exist — deleted. This ADR's own finding (zero callers, confirmed) was re-verified 9 days later and still held; with no consumer anywhere and no gated dev-tool wiring (unlike `TranslationProfiler`/Pattern Profiling, ADR-021), the "wire it up when a real need arises" fallback this ADR left open was itself unused code. If a concrete need for dictionary-health surfacing arises later, it will need to be rebuilt from scratch, informed by that need's actual shape — not resurrected from this deleted version.
