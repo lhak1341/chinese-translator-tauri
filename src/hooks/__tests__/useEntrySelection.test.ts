@@ -32,10 +32,8 @@ function makeProps(overrides = {}) {
     withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
       await fn();
     }),
-    getScrollTop: vi.fn().mockReturnValue(0),
     bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 2, errors: [] }),
-    onRefreshDuplicates: undefined,
-    onScrollSave: undefined,
+    refreshDuplicatesPreservingScroll: undefined,
     onSelectionChange: undefined,
     ...overrides,
   };
@@ -161,6 +159,30 @@ describe('useEntrySelection — handleBulkDelete (duplicate mode)', () => {
     act(() => result.current.handleSelectEntry('龙::nonexistent', true));
     await act(async () => result.current.handleBulkDelete());
     expect(bulkDeleteEntries).not.toHaveBeenCalled();
+  });
+
+  it('calls refreshDuplicatesPreservingScroll after a successful delete', async () => {
+    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 1, errors: [] });
+    const refreshDuplicatesPreservingScroll = vi.fn().mockResolvedValue(undefined);
+    const props = makeProps({
+      showDuplicatesMode: true,
+      bulkDeleteEntries,
+      refreshDuplicatesPreservingScroll,
+    });
+    const { result } = renderHook(() => useEntrySelection(props));
+    act(() => result.current.handleSelectEntry('龙::phrases', true));
+    await act(async () => result.current.handleBulkDelete());
+    expect(refreshDuplicatesPreservingScroll).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call refreshDuplicatesPreservingScroll in normal mode', async () => {
+    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 1, errors: [] });
+    const refreshDuplicatesPreservingScroll = vi.fn().mockResolvedValue(undefined);
+    const props = makeProps({ bulkDeleteEntries, refreshDuplicatesPreservingScroll });
+    const { result } = renderHook(() => useEntrySelection(props));
+    act(() => result.current.handleSelectEntry('龙', true));
+    await act(async () => result.current.handleBulkDelete());
+    expect(refreshDuplicatesPreservingScroll).not.toHaveBeenCalled();
   });
 });
 

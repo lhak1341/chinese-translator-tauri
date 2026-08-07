@@ -23,10 +23,9 @@ interface UseEntrySelectionDeps {
   dictionaries: Record<string, DictionaryData>;
   showDuplicatesMode: boolean;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
-  getScrollTop: () => number;
   bulkDeleteEntries: (dictId: string, sources: string[]) => Promise<BulkDeleteResult>;
-  onRefreshDuplicates?: (reloadFromBackend?: boolean) => Promise<void>;
-  onScrollSave?: (position: number | null) => void;
+  /** Refreshes the duplicate list after a delete, preserving scroll across the resulting remount. */
+  refreshDuplicatesPreservingScroll?: () => Promise<void>;
   onSelectionChange?: (state: SelectionState) => void;
 }
 
@@ -36,10 +35,8 @@ export function useEntrySelection({
   dictionaries,
   showDuplicatesMode,
   withScrollPreservation,
-  getScrollTop,
   bulkDeleteEntries,
-  onRefreshDuplicates,
-  onScrollSave,
+  refreshDuplicatesPreservingScroll,
   onSelectionChange,
 }: UseEntrySelectionDeps) {
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
@@ -178,10 +175,8 @@ export function useEntrySelection({
         setShowBulkDeleteConfirm(false);
       }
 
-      if (showDuplicatesMode && onRefreshDuplicates && onScrollSave) {
-        const currentScroll = getScrollTop();
-        await onRefreshDuplicates();
-        onScrollSave(currentScroll);
+      if (showDuplicatesMode && refreshDuplicatesPreservingScroll) {
+        await refreshDuplicatesPreservingScroll();
       }
     } catch (error) {
       toast.error(`Critical error during deletion: ${(error as Error).message}`, 6000);
@@ -194,9 +189,7 @@ export function useEntrySelection({
     bulkDeleteEntries,
     dictionaries,
     showDuplicatesMode,
-    onRefreshDuplicates,
-    onScrollSave,
-    getScrollTop,
+    refreshDuplicatesPreservingScroll,
   ]);
 
   const handleBulkMove = useCallback((): void => {

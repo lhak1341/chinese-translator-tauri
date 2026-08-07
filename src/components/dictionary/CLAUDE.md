@@ -69,7 +69,7 @@ Use `classifyDictionaryId(id)` from `DictionaryIdClassifier.ts` for all UI-layer
 
 Same risk for fiction-prefix checks: use `isFictionProperNounsId(id)`/`isFictionPatternsId(id)` (same file) — never hand-roll `id.startsWith('properNouns-f_')`/`'patterns-f_'` again (found duplicated at 10 call sites across 5 files, 2026-07-28).
 
-`onRefreshDuplicates`'s `reloadFromBackend?: boolean` param is dead in every signature in the chain (`DictionaryManager.tsx` → `EnhancedVirtualizedDictionaryTable.tsx:40` → `useEntrySelection.ts:28`) — confirmed zero callers pass it anywhere. Safe to drop from the remaining 2 signatures in one pass if touching this chain again.
+`onRefreshDuplicates`'s dead `reloadFromBackend?: boolean` param — dropped 2026-08-08 (architecture review round, candidate #5 grilling), alongside `useEntrySelection`'s scroll-interface deepening below.
 
 Use `toPatternsId(properNounsId)`/`toProperNounsId(patternsId)` (same file) for the ADR-027 fiction pairing derivation — never hand-roll `'patterns-' + id.slice('properNouns-'.length)`.
 
@@ -93,7 +93,9 @@ Use `toPatternsId(properNounsId)`/`toProperNounsId(patternsId)` (same file) for 
 
 ## `useEntrySelection` Hook — Selection State Not in EVDT
 
-`showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT. Hook takes `withScrollPreservation` + `getScrollTop` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` in its interface. `getScrollTop()` used by the duplicate-mode bulk-delete to capture position before async refresh.
+`showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT. Hook takes `withScrollPreservation` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` in its interface.
+
+**Duplicate-mode scroll preservation is a single `refreshDuplicatesPreservingScroll: () => Promise<void>` callback (not `getScrollTop`+`onScrollSave`+`onRefreshDuplicates` separately)** — deepened 2026-08-08 (architecture review round, candidate #5 grilling). EVDT owns the capture-refresh-restore mechanic itself (it has `scroll.getScrollTop`, `onScrollSave`, `onRefreshDuplicates` all in scope); `useEntrySelection` just calls the one callback in `handleBulkDelete`'s `showDuplicatesMode` branch without knowing scroll is involved. The mechanic exists because duplicate-mode delete triggers a backend refresh that re-renders EVDT under a new `key` (see `DictionaryManager.tsx`), wiping `useVirtualScrollRange`'s own scroll state — `duplicateScrollRestore` state in `DictionaryManager.tsx` is what survives that remount, not sprawl to clean up. Do NOT re-add `getScrollTop`/`onScrollSave` as separate `useEntrySelection` params.
 
 ## `useDictionaryEntryFilter` Hook — Filter State Not in EVDT
 

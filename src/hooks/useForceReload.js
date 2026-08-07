@@ -14,6 +14,28 @@ import { parallelDictionaryLoader } from '../utils/dictionary';
  */
 
 /**
+ * Loads one dictionary from storage. Throws on failure — required by
+ * ParallelDictionaryLoader.loadDictionariesParallel, which wraps calls to its
+ * loadFunction in its own try/catch to build {name, success, result|error}.
+ * The manual Promise.all fallback below has no such wrapper, so it catches
+ * this itself and builds the same normalized shape by hand.
+ *
+ * @param {string} dictId
+ * @returns {Promise<{data: Object, entryCount: number}>}
+ */
+async function loadDictionaryOrThrow(dictId) {
+  logger.log(`Force loading dictionary from storage: ${dictId}`);
+  const result = await window.electronAPI.loadDictionary(dictId);
+  if (!result.success) {
+    throw new Error(result.error || 'Unknown error');
+  }
+  return {
+    data: result.data,
+    entryCount: Object.keys(result.data || {}).length,
+  };
+}
+
+/**
  * Shared accumulate-and-log step for both dictionary-load branches in handleForceReload
  * (parallelDictionaryLoader primary path and the manual Promise.all fallback). The two
  * branches source their results differently and normalize into this common item shape
@@ -107,17 +129,7 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
           path: dictId,
         }));
 
-        const loadFunction = async (name, _path) => {
-          logger.log(`Force loading dictionary from storage: ${name}`);
-          const result = await window.electronAPI.loadDictionary(name);
-          if (!result.success) {
-            throw new Error(result.error || 'Unknown error');
-          }
-          return {
-            data: result.data,
-            entryCount: Object.keys(result.data || {}).length,
-          };
-        };
+        const loadFunction = (name, _path) => loadDictionaryOrThrow(name);
 
         const loadResult = await parallelDictionaryLoader.loadDictionariesParallel(
           dictionariesToLoad,
@@ -146,17 +158,8 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
         // log here too (this branch used to double-log before that was unified).
         const loadPromises = allDictionaryIds.map(async (dictId) => {
           try {
-            logger.log(`Force loading dictionary from storage: ${dictId}`);
-            const result = await window.electronAPI.loadDictionary(dictId);
-            if (result.success) {
-              return {
-                dictId,
-                data: result.data,
-                success: true,
-                entryCount: Object.keys(result.data || {}).length,
-              };
-            }
-            return { dictId, error: result.error, success: false };
+            const { data, entryCount } = await loadDictionaryOrThrow(dictId);
+            return { dictId, data, success: true, entryCount };
           } catch (error) {
             return { dictId, error: error.message, success: false };
           }

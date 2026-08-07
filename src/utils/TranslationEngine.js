@@ -174,7 +174,6 @@ import { BatchMemoryCleanup } from './memory/BatchMemoryCleanup.js';
 import { calculateNextBatchSize } from './text/AdaptiveBatchSizer.js';
 import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
 import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
-import { systemPerformanceMonitor } from './performance/SystemPerformanceMonitor.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
 import { logger } from './logger';
 import { buildProperNounCapitalizationMap } from './text/ProperNounCapitalizationMap';
@@ -2281,14 +2280,6 @@ export class TranslationEngine {
             { duration: 8000 }
           );
           this._wasmInitWarningShown = true;
-
-          // Record failure for diagnostics and performance monitoring
-          if (
-            typeof systemPerformanceMonitor !== 'undefined' &&
-            typeof systemPerformanceMonitor.recordAlert === 'function'
-          ) {
-            systemPerformanceMonitor.recordAlert('pattern_processing_failure', errorContext);
-          }
         }
 
         return;
@@ -2358,18 +2349,6 @@ export class TranslationEngine {
           `Pattern matching failed (attempt ${count}/${PATTERN_FAILURE_DETECTION.MAX_FAILURES}). Translation quality may be reduced. Try reloading dictionaries.`,
           { duration: 8000 }
         );
-      }
-
-      if (
-        typeof systemPerformanceMonitor !== 'undefined' &&
-        typeof systemPerformanceMonitor.recordAlert === 'function'
-      ) {
-        systemPerformanceMonitor.recordAlert('pattern_processing_error', {
-          error: error.message,
-          timestamp: Date.now(),
-          failureCount: count,
-          autoDisabled: action === 'disable',
-        });
       }
     }
   }
@@ -6319,18 +6298,6 @@ export class TranslationEngine {
             { duration: 10000 }
           );
         }
-
-        // Record alert for monitoring
-        if (
-          typeof systemPerformanceMonitor !== 'undefined' &&
-          typeof systemPerformanceMonitor.recordAlert === 'function'
-        ) {
-          systemPerformanceMonitor.recordAlert('semantic_array_corruption', {
-            phase: phaseName,
-            telemetry,
-            timestamp: Date.now(),
-          });
-        }
       }
     };
 
@@ -6389,19 +6356,6 @@ export class TranslationEngine {
             duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
           });
 
-          // Record corruption event for diagnostics
-          if (
-            typeof systemPerformanceMonitor !== 'undefined' &&
-            typeof systemPerformanceMonitor.recordAlert === 'function'
-          ) {
-            systemPerformanceMonitor.recordAlert('token_array_corruption', {
-              phase: 'patterns',
-              beforeLength: tokensLengthBeforePhase1,
-              afterLength: tokens.length,
-              timestamp: Date.now(),
-            });
-          }
-
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
@@ -6453,18 +6407,6 @@ export class TranslationEngine {
           toast.error('Translation engine encountered a critical error. Please reload the page.', {
             duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
           });
-
-          if (
-            typeof systemPerformanceMonitor !== 'undefined' &&
-            typeof systemPerformanceMonitor.recordAlert === 'function'
-          ) {
-            systemPerformanceMonitor.recordAlert('token_array_corruption', {
-              phase: 'properNouns',
-              beforeLength: tokensLengthBeforePhase2,
-              afterLength: tokens.length,
-              timestamp: Date.now(),
-            });
-          }
 
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
@@ -6544,19 +6486,6 @@ export class TranslationEngine {
             duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
           });
 
-          // Record corruption event for diagnostics
-          if (
-            typeof systemPerformanceMonitor !== 'undefined' &&
-            typeof systemPerformanceMonitor.recordAlert === 'function'
-          ) {
-            systemPerformanceMonitor.recordAlert('token_array_corruption', {
-              phase: 'numbers',
-              beforeLength: tokensLengthBeforePhase3,
-              afterLength: tokens.length,
-              timestamp: Date.now(),
-            });
-          }
-
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
@@ -6614,19 +6543,6 @@ export class TranslationEngine {
           toast.error('Translation engine encountered a critical error. Please reload the page.', {
             duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
           });
-
-          // Record corruption event for diagnostics
-          if (
-            typeof systemPerformanceMonitor !== 'undefined' &&
-            typeof systemPerformanceMonitor.recordAlert === 'function'
-          ) {
-            systemPerformanceMonitor.recordAlert('token_array_corruption', {
-              phase: 'phrases',
-              beforeLength: tokensLengthBeforePhase4,
-              afterLength: tokens.length,
-              timestamp: Date.now(),
-            });
-          }
 
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
@@ -6705,19 +6621,6 @@ export class TranslationEngine {
             duration: UI_TIMEOUTS.TOAST_DURATION_NORMAL,
           });
 
-          // Record corruption event for diagnostics
-          if (
-            typeof systemPerformanceMonitor !== 'undefined' &&
-            typeof systemPerformanceMonitor.recordAlert === 'function'
-          ) {
-            systemPerformanceMonitor.recordAlert('token_array_corruption', {
-              phase: 'characters',
-              beforeLength: tokensLengthBeforePhase5,
-              afterLength: tokens.length,
-              timestamp: Date.now(),
-            });
-          }
-
           // Throw to stop execution (graceful degradation in caller)
           throw new Error(`Token array corruption detected: ${errorMsg}`);
         }
@@ -6762,14 +6665,6 @@ export class TranslationEngine {
           DEBUG_LEVELS.DEBUG,
           `✅ Completed phases: ${Array.from(completedPhases).join(', ')}`
         );
-
-        // Send to performance monitor for tracking
-        if (
-          typeof systemPerformanceMonitor !== 'undefined' &&
-          typeof systemPerformanceMonitor.recordAlert === 'function'
-        ) {
-          systemPerformanceMonitor.recordAlert('phase_failures', failureReport);
-        }
 
         // Store on engine instance for diagnostics API
         this.lastPhaseFailures = failureReport;

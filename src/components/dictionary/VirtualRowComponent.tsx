@@ -1,6 +1,7 @@
 import React from 'react';
 import { classifyDictionaryId } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
+import type { InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import {
   SEMANTIC_TYPE_COLORS,
@@ -198,6 +199,48 @@ const SemanticTypeToggleCell: React.FC<{
   );
 };
 
+const RowShell: React.FC<{
+  onContextMenu: (e: React.MouseEvent) => void;
+  isSelected: boolean;
+  isScrolling: boolean;
+  children: React.ReactNode;
+}> = ({ onContextMenu, isSelected, isScrolling, children }) => (
+  <div
+    onContextMenu={onContextMenu}
+    style={{
+      height: ITEM_HEIGHT,
+      display: 'flex',
+      alignItems: 'center',
+      borderBottom: '1px solid var(--border-color)',
+      backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+      willChange: isScrolling ? 'transform' : 'auto',
+    }}
+  >
+    {children}
+  </div>
+);
+
+/** Toggles between the inline `<input>` and a clickable display span. Wrapping div/width/className is the caller's concern. */
+const EditableCell: React.FC<{
+  edit: InlineFieldEdit;
+  renderDisplay: () => React.ReactNode;
+}> = ({ edit, renderDisplay }) =>
+  edit.editing ? (
+    <input
+      type="text"
+      value={edit.tempValue}
+      onChange={(e) => edit.handleChange(e.target.value)}
+      onBlur={edit.commitEdit}
+      onKeyDown={edit.onKeyDown}
+      autoFocus
+      className={styles.inlineEditInput}
+    />
+  ) : (
+    <span onClick={edit.startEdit} className={styles.clickableText} title="Click to edit">
+      {renderDisplay()}
+    </span>
+  );
+
 export interface VirtualRowProps {
   source: string;
   translation: DictionaryEntryValue;
@@ -284,16 +327,10 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       const hasX = source.includes('X');
       const hasY = source.includes('Y');
       return (
-        <div
+        <RowShell
           onContextMenu={(e) => onContextMenu(e, source, translationText)}
-          style={{
-            height: ITEM_HEIGHT,
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-            willChange: isScrolling ? 'transform' : 'auto',
-          }}
+          isSelected={isSelected}
+          isScrolling={isScrolling}
         >
           <div className={styles.checkboxCell}>
             <input
@@ -306,62 +343,29 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           </div>
 
           <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
-            {sourceEdit.editing ? (
-              <input
-                type="text"
-                value={sourceEdit.tempValue}
-                onChange={(e) => sourceEdit.handleChange(e.target.value)}
-                onBlur={sourceEdit.commitEdit}
-                onKeyDown={sourceEdit.onKeyDown}
-                autoFocus
-                className={styles.inlineEditInput}
-              />
-            ) : (
-              <span
-                onClick={sourceEdit.startEdit}
-                className={styles.clickableText}
-                title="Click to edit"
-              >
-                {highlightPatternVariables(source)}
-              </span>
-            )}
+            <EditableCell
+              edit={sourceEdit}
+              renderDisplay={() => highlightPatternVariables(source)}
+            />
           </div>
 
           <div className={styles.cellEditable} style={{ width: '34%' }}>
-            {translEdit.editing ? (
-              <input
-                type="text"
-                value={translEdit.tempValue}
-                onChange={(e) => translEdit.handleChange(e.target.value)}
-                onBlur={translEdit.commitEdit}
-                onKeyDown={translEdit.onKeyDown}
-                autoFocus
-                className={styles.inlineEditInput}
-              />
-            ) : (
-              <>
-                <span
-                  onClick={translEdit.startEdit}
-                  className={styles.clickableText}
-                  title="Click to edit"
-                >
-                  {translationText}
-                </span>
-                <div className={styles.badgeContainer}>
-                  <MetadataBadge
-                    type="variable"
-                    active={allowAsPatternVariable}
-                    onClick={() =>
-                      handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
-                    }
-                  />
-                  <MetadataBadge
-                    type="lowPriority"
-                    active={lowPriority}
-                    onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
-                  />
-                </div>
-              </>
+            <EditableCell edit={translEdit} renderDisplay={() => translationText} />
+            {!translEdit.editing && (
+              <div className={styles.badgeContainer}>
+                <MetadataBadge
+                  type="variable"
+                  active={allowAsPatternVariable}
+                  onClick={() =>
+                    handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
+                  }
+                />
+                <MetadataBadge
+                  type="lowPriority"
+                  active={lowPriority}
+                  onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
+                />
+              </div>
             )}
           </div>
 
@@ -389,23 +393,17 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             activeTypes={allowedVariableTypes['Y'] || []}
             onToggle={handleToggleVariableType}
           />
-        </div>
+        </RowShell>
       );
     }
 
     // Phrases layout: 3-column (checkbox | source | translation+VAR badge | semantic)
     if (selectedDictionary === 'phrases') {
       return (
-        <div
+        <RowShell
           onContextMenu={(e) => onContextMenu(e, source, translationText)}
-          style={{
-            height: ITEM_HEIGHT,
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-            willChange: isScrolling ? 'transform' : 'auto',
-          }}
+          isSelected={isSelected}
+          isScrolling={isScrolling}
         >
           <div className={styles.checkboxCell}>
             <input
@@ -417,75 +415,22 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             />
           </div>
 
-          <div
-            style={{
-              width: 'calc(25% - 20px)',
-              padding: '0.25rem 0.75rem',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {sourceEdit.editing ? (
-              <input
-                type="text"
-                value={sourceEdit.tempValue}
-                onChange={(e) => sourceEdit.handleChange(e.target.value)}
-                onBlur={sourceEdit.commitEdit}
-                onKeyDown={sourceEdit.onKeyDown}
-                autoFocus
-                className={styles.inlineEditInput}
-              />
-            ) : (
-              <span
-                onClick={sourceEdit.startEdit}
-                className={styles.clickableText}
-                title="Click to edit"
-              >
-                {source}
-              </span>
-            )}
+          <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
+            <EditableCell edit={sourceEdit} renderDisplay={() => source} />
           </div>
 
-          <div
-            style={{
-              width: 'calc(60% - 20px)',
-              padding: '0.25rem 0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              overflow: 'hidden',
-            }}
-          >
-            {translEdit.editing ? (
-              <input
-                type="text"
-                value={translEdit.tempValue}
-                onChange={(e) => translEdit.handleChange(e.target.value)}
-                onBlur={translEdit.commitEdit}
-                onKeyDown={translEdit.onKeyDown}
-                autoFocus
-                className={styles.inlineEditInput}
-              />
-            ) : (
-              <>
-                <span
-                  onClick={translEdit.startEdit}
-                  className={styles.clickableText}
-                  title="Click to edit"
-                >
-                  {translationText}
-                </span>
-                <div className={styles.badgeContainer}>
-                  <MetadataBadge
-                    type="variable"
-                    active={allowAsPatternVariable}
-                    onClick={() =>
-                      handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
-                    }
-                  />
-                </div>
-              </>
+          <div className={styles.cellEditable} style={{ width: 'calc(60% - 20px)' }}>
+            <EditableCell edit={translEdit} renderDisplay={() => translationText} />
+            {!translEdit.editing && (
+              <div className={styles.badgeContainer}>
+                <MetadataBadge
+                  type="variable"
+                  active={allowAsPatternVariable}
+                  onClick={() =>
+                    handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
+                  }
+                />
+              </div>
             )}
           </div>
 
@@ -498,7 +443,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           ) : (
             <div style={{ width: '15%', minWidth: '15%' }} />
           )}
-        </div>
+        </RowShell>
       );
     }
 
@@ -508,117 +453,27 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     const translationWidth = isProperNoun ? 'calc(60% - 20px)' : 'calc(65% - 20px)';
 
     return (
-      <div
+      <RowShell
         onContextMenu={(e) => onContextMenu(e, source, translationText)}
-        style={{
-          height: ITEM_HEIGHT,
-          display: 'flex',
-          alignItems: 'center',
-          borderBottom: '1px solid var(--border-color)',
-          backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
-          willChange: isScrolling ? 'transform' : 'auto',
-        }}
+        isSelected={isSelected}
+        isScrolling={isScrolling}
       >
-        <div
-          style={{
-            width: '40px',
-            minWidth: '40px',
-            maxWidth: '40px',
-            padding: '0.25rem 0.75rem',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}
-        >
+        <div className={styles.checkboxCell}>
           <input
             type="checkbox"
             checked={isSelected}
             onChange={(e) => onSelectEntry(source, e.target.checked)}
-            style={{ cursor: 'pointer' }}
+            className={styles.checkboxInput}
             title="Select for deletion"
           />
         </div>
 
         <div className={styles.cell} style={{ width: sourceWidth }}>
-          {sourceEdit.editing ? (
-            <input
-              type="text"
-              value={sourceEdit.tempValue}
-              onChange={(e) => sourceEdit.handleChange(e.target.value)}
-              onBlur={sourceEdit.commitEdit}
-              onKeyDown={sourceEdit.onKeyDown}
-              autoFocus
-              style={{
-                width: '100%',
-                border: '1px solid var(--accent-color)',
-                borderRadius: '2px',
-                padding: '2px 4px',
-                fontSize: 'inherit',
-                fontFamily: 'inherit',
-                backgroundColor: 'var(--background-color)',
-                color: 'var(--text-color)',
-              }}
-            />
-          ) : (
-            <span
-              onClick={sourceEdit.startEdit}
-              style={{
-                cursor: 'pointer',
-                display: 'block',
-                width: '100%',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title="Click to edit"
-            >
-              {source}
-            </span>
-          )}
+          <EditableCell edit={sourceEdit} renderDisplay={() => source} />
         </div>
 
-        <div
-          className={styles.cell}
-          style={{
-            width: translationWidth,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            overflow: 'hidden',
-          }}
-        >
-          {translEdit.editing ? (
-            <input
-              type="text"
-              value={translEdit.tempValue}
-              onChange={(e) => translEdit.handleChange(e.target.value)}
-              onBlur={translEdit.commitEdit}
-              onKeyDown={translEdit.onKeyDown}
-              autoFocus
-              style={{
-                width: '100%',
-                border: '1px solid var(--accent-color)',
-                borderRadius: '2px',
-                padding: '2px 4px',
-                fontSize: 'inherit',
-                fontFamily: 'inherit',
-                backgroundColor: 'var(--background-color)',
-                color: 'var(--text-color)',
-              }}
-            />
-          ) : (
-            <span
-              onClick={translEdit.startEdit}
-              style={{
-                cursor: 'pointer',
-                flex: 1,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-              title="Click to edit"
-            >
-              {translationText}
-            </span>
-          )}
+        <div className={styles.cellEditable} style={{ width: translationWidth }}>
+          <EditableCell edit={translEdit} renderDisplay={() => translationText} />
         </div>
 
         {isProperNoun && (
@@ -628,7 +483,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             width="15%"
           />
         )}
-      </div>
+      </RowShell>
     );
   }
 );

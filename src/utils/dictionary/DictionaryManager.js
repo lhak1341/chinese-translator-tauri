@@ -87,7 +87,6 @@ export class DictionaryManager {
           getPriorities: () => this._extractPriorityMap(),
         })
       : null;
-    this._validationCallCount = 0;
     if (this.wasmLookup) {
       this.wasmLookup.startBackgroundInit({
         maxMemoryMB: 15,
@@ -810,10 +809,6 @@ export class DictionaryManager {
     return this.dictionaries.get(name) ?? null;
   }
 
-  getDictionaryNames() {
-    return this.dictionaries.keys();
-  }
-
   // ─── WASM Acceleration ────────────────────────────────────────────────────
 
   async syncDictionariesToWasm() {
@@ -888,17 +883,6 @@ export class DictionaryManager {
     validation.status =
       validation.results.failed === 0 && validation.results.wasmErrors === 0 ? 'PASSED' : 'FAILED';
     return validation;
-  }
-
-  periodicWasmValidation(currentWord, validationFrequency = 100) {
-    if (!this.wasmLookup?.isReady()) return;
-    this._validationCallCount++;
-    if (this._validationCallCount % validationFrequency !== 0) return;
-    const result = this.validateWasmFallback([currentWord]);
-    if (result.status === 'FAILED' || result.results.wasmErrors > 0) {
-      this.log(0, '❌ Periodic WASM validation failed', result);
-      logger.error('❌ [DictionaryManager] WASM validation failed:', result.differences);
-    }
   }
 
   _getSampleTestWords(count) {

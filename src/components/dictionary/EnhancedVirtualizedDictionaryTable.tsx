@@ -37,7 +37,7 @@ interface EnhancedVirtualizedDictionaryTableProps {
   /** Duplicate rows to display when in duplicate mode */
   duplicateRows?: import('../../utils/dictionary/DuplicateAnalyzer').DuplicateRow[];
   /** Callback to refresh duplicate view after deletion */
-  onRefreshDuplicates?: (reloadFromBackend?: boolean) => Promise<void>;
+  onRefreshDuplicates?: () => Promise<void>;
   /** Scroll position to restore (managed by parent to survive unmount/remount) */
   scrollRestore?: number | null;
   /** Callback to save scroll position before refresh (pass null to clear) */
@@ -114,6 +114,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     onScrollSave,
   });
 
+  // Duplicate-mode delete triggers a backend refresh, which re-renders EVDT under a new
+  // `key` (see DictionaryManager.tsx) — wiping useVirtualScrollRange's own scroll state.
+  // Capture-then-hand-off to the parent (onScrollSave) is what survives that remount.
+  const refreshDuplicatesPreservingScroll = useCallback(async (): Promise<void> => {
+    if (!onRefreshDuplicates || !onScrollSave) return;
+    const currentScroll = scroll.getScrollTop();
+    await onRefreshDuplicates();
+    onScrollSave(currentScroll);
+  }, [onRefreshDuplicates, onScrollSave, scroll]);
+
   const {
     selectedEntries,
     showBulkMoveDialog,
@@ -127,10 +137,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     dictionaries,
     showDuplicatesMode,
     withScrollPreservation: scroll.withScrollPreservation,
-    getScrollTop: scroll.getScrollTop,
     bulkDeleteEntries,
-    onRefreshDuplicates,
-    onScrollSave,
+    refreshDuplicatesPreservingScroll,
     onSelectionChange,
   });
 
