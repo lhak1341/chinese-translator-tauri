@@ -17,6 +17,7 @@ function makeDictionaryManager(overrides = {}) {
   return {
     flatEntries: {},
     getDefaultSearchOrder: vi.fn(() => ['characters']),
+    getPriorityForDictionary: vi.fn(() => 1),
     buildComprehensiveLookupIndex: vi.fn(),
     ...overrides,
   };
@@ -92,6 +93,31 @@ describe('buildLookupIndexOrFallback', () => {
     expect(options.useSharedLookupIndex).toBe(true);
     expect(logDebug).toHaveBeenCalledTimes(1);
     expect(dictionaryManager.buildComprehensiveLookupIndex).not.toHaveBeenCalled();
+  });
+
+  it('passes real per-dictionary priority to the Rust build, not dictionaryOrder position', async () => {
+    const options: Record<string, unknown> = {};
+    const dictionaryManager = makeDictionaryManager({
+      getDefaultSearchOrder: vi.fn(() => ['properNouns-f_A', 'properNouns-f_B']),
+      getPriorityForDictionary: vi.fn((name: string) =>
+        name.startsWith('properNouns-f_') ? 1 : 10
+      ),
+    });
+    mockRustLookupIndexManager.isAvailable.mockReturnValue(true);
+    mockRustLookupIndexManager.buildLookupIndex.mockResolvedValue({
+      success: true,
+      index: {},
+      buildTimeMs: 1,
+      positionsIndexed: 0,
+      indexSize: 0,
+    });
+
+    await buildLookupIndexOrFallback(LONG_TEXT, options, { dictionaryManager, logDebug, logWarn });
+
+    const priorityByName = mockRustLookupIndexManager.buildLookupIndex.mock.calls[0][3];
+    expect(priorityByName).toBeInstanceOf(Map);
+    expect(priorityByName.get('properNouns-f_A')).toBe(1);
+    expect(priorityByName.get('properNouns-f_B')).toBe(1);
   });
 
   it('falls back to the JS comprehensive index when the Rust build throws', async () => {

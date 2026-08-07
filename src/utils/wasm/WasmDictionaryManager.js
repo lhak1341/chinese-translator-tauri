@@ -110,100 +110,6 @@ export class WasmDictionaryManager {
     return true;
   }
 
-  /**
-   * Batch load multiple dictionaries in a single WASM call
-   * Reduces boundary crossings from N calls to 1 call
-   */
-  async loadDictionariesBatch(dictionaries) {
-    if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
-      logger.log('🔄 Using fallback for batch loading (WASM not available)');
-      let successCount = 0;
-      for (const { name, entries } of dictionaries) {
-        const success = await this.loadDictionary(name, entries);
-        if (success) successCount++;
-      }
-      logger.log(
-        `✅ Sequential fallback loaded ${successCount}/${dictionaries.length} dictionaries`
-      );
-
-      // Return actual success — callers must know when only a partial set loaded
-      // so they can avoid producing silent translation gaps from missing dictionaries.
-      return successCount === dictionaries.length;
-    }
-
-    try {
-      logger.log(`🚀 Memory pool batch loading ${dictionaries.length} dictionaries...`);
-
-      // Estimate memory requirements for batch operation
-      const totalEntries = dictionaries.reduce((sum, dict) => sum + dict.entries.length, 0);
-      const estimatedMemoryNeeds = this.estimateBatchMemoryRequirement(dictionaries);
-
-      // CODE REVIEW FIX: Track buffer and its release status
-      let buffer = null;
-      let bufferReleased = false;
-
-      try {
-        // Get optimized buffer from memory pool (inside try to ensure cleanup)
-        buffer = this.memoryPool.getBuffer(estimatedMemoryNeeds);
-        // Convert all dictionaries to WASM format in one operation
-        const batchData = dictionaries.map(({ name, entries }) => ({
-          name,
-          entries: entries.map((entry) => ({
-            chinese: entry.chinese || entry.original || entry.word || '',
-            vietnamese: entry.vietnamese || entry.translation || '',
-            metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
-          })),
-        }));
-
-        // INVESTIGATION: Check if batch methods exist (debug only)
-        const hasBatchMethod = typeof this.engine.load_dictionaries_batch === 'function';
-        const hasFallbackMethod =
-          typeof this.engine.load_dictionaries_batch_fallback === 'function';
-
-        logger.debug(
-          `🔍 WASM batch method investigation:\n` +
-            `  - load_dictionaries_batch exists: ${hasBatchMethod}\n` +
-            `  - load_dictionaries_batch_fallback exists: ${hasFallbackMethod}\n` +
-            `  - Available methods: ${Object.keys(this.engine)
-              .filter((k) => typeof this.engine[k] === 'function')
-              .join(', ')}`
-        );
-
-        // Single WASM call for all dictionaries with memory pool optimization
-        // JSON.stringify required — load_dictionaries_batch takes &str to avoid JS interop during Rc borrow
-        const success =
-          this.engine.load_dictionaries_batch?.(JSON.stringify(batchData)) ??
-          this.engine.load_dictionaries_batch_fallback?.(batchData) ??
-          false;
-
-        if (success) {
-          // Update performance stats with memory pool usage
-          this.performanceStats.memoryUsage = this.memoryPool.getStats().totalMemoryUsage;
-          logger.log(
-            `✅ Memory pool batch loaded ${dictionaries.length} dictionaries (${totalEntries} entries, ${(estimatedMemoryNeeds / 1024).toFixed(1)}KB buffer)`
-          );
-          return true;
-        } else {
-          logger.log('⚠️ Memory pool batch loading returned false, using sequential fallback');
-          return false; // Trigger fallback to sequential loading
-        }
-      } finally {
-        // CODE REVIEW FIX: Guarantee buffer return even on process interruption, with null check
-        if (buffer && !bufferReleased) {
-          this.memoryPool.returnBuffer(buffer);
-          bufferReleased = true;
-        }
-      }
-    } catch (error) {
-      logger.error('❌ Batch dictionary loading failed:', error);
-
-      // REFACTOR (2026-01-28): Use centralized failure handling
-      this.handleFailure();
-
-      return false;
-    }
-  }
-
   async loadDictionary(name, entries) {
     if (!this.initialized || this.fallbackHandler.isInFallbackMode()) {
       logger.log(`🔄 Using fallback for dictionary ${name} (WASM not available)`);
@@ -211,11 +117,12 @@ export class WasmDictionaryManager {
     }
 
     try {
-      // Convert entries to WASM format
+      // Convert entries to WASM format. metadata arrives pre-serialized
+      // (string|null) from DictionaryManager.flatEntries — do not re-stringify.
       const wasmEntries = entries.map((entry) => ({
         chinese: entry.chinese || entry.original || entry.word || '',
         vietnamese: entry.vietnamese || entry.translation || '',
-        metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
+        metadata: entry.metadata ?? null,
       }));
 
       // JSON.stringify required — load_dictionary takes &str to avoid JS interop during Rc borrow
@@ -469,51 +376,6 @@ export class WasmDictionaryManager {
 
   isInFallbackMode() {
     return this.fallbackHandler.isInFallbackMode();
-  }
-
-  /**
-   * Estimate memory requirement for batch dictionary loading
-   *
-   * CODE REVIEW FIX (MEDIUM-2): Improved accuracy and documentation
-   *
-   * Memory estimation formula:
-   * - Chinese characters: 3 bytes/char (UTF-8 typical)
-   * - Vietnamese characters: 1.5 bytes/char average (mostly Latin-1 + diacritics)
-   * - Metadata: 2 bytes/char (JSON overhead)
-   * - Structure overhead: 50% (trie nodes, pointers, padding)
-   *
-   * Conservative bounds:
-   * - Minimum: 4KB (prevent tiny allocations)
-   * - Maximum: 1MB (prevent OOM from malicious/corrupted data)
-   *
-   * @param {Array} dictionaries - Array of {name, entries}
-   * @returns {number} Estimated memory in bytes
-   */
-  estimateBatchMemoryRequirement(dictionaries) {
-    // Calculate total text size for all dictionary entries
-    let totalTextSize = 0;
-
-    for (const { entries } of dictionaries) {
-      for (const entry of entries) {
-        const chinese = entry.chinese || entry.original || entry.word || '';
-        const vietnamese = entry.vietnamese || entry.translation || '';
-        const metadata = entry.metadata ? JSON.stringify(entry.metadata) : '';
-
-        // CODE REVIEW FIX (MEDIUM-2): More accurate UTF-8 size estimation
-        // Chinese: 3 bytes/char (typical CJK in UTF-8)
-        // Vietnamese: 1.5 bytes/char (Latin-1 base + diacritics)
-        // Metadata: 2 bytes/char (JSON structure overhead)
-        totalTextSize += chinese.length * 3 + vietnamese.length * 1.5 + metadata.length * 2;
-      }
-    }
-
-    // Add overhead for structure and serialization (50% overhead)
-    // Accounts for: trie nodes, HashMap entries, pointers, padding, Vec capacity
-    const structureOverhead = Math.ceil(totalTextSize * 0.5);
-    const totalEstimate = totalTextSize + structureOverhead;
-
-    // Minimum 4KB (avoid tiny allocations), maximum 1MB (prevent OOM)
-    return Math.max(4096, Math.min(totalEstimate, 1024 * 1024));
   }
 
   /**

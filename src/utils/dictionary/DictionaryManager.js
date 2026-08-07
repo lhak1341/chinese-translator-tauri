@@ -83,7 +83,7 @@ export class DictionaryManager {
     // WASM acceleration — provide wasmAdapter option to enable (omit for pure-JS / tests)
     this.wasmLookup = options.wasmAdapter
       ? new DictionaryWasmLookup(options.wasmAdapter, {
-          getEntries: () => this._extractAllEntries(),
+          getEntries: () => this.flatEntries,
           getPriorities: () => this._extractPriorityMap(),
         })
       : null;
@@ -818,15 +818,7 @@ export class DictionaryManager {
 
   async syncDictionariesToWasm() {
     if (!this.wasmLookup?.isReady()) return;
-    return this.wasmLookup.sync(this._extractAllEntries(), this._extractPriorityMap());
-  }
-
-  _extractAllEntries() {
-    const result = new Map();
-    for (const [name, trie] of this.dictionaries) {
-      result.set(name, this._extractTrieEntries(trie));
-    }
-    return result;
+    return this.wasmLookup.sync(this.flatEntries, this._extractPriorityMap());
   }
 
   _extractPriorityMap() {
@@ -835,24 +827,6 @@ export class DictionaryManager {
       result.set(name, meta.priority ?? 999);
     }
     return result;
-  }
-
-  _extractTrieEntries(trie) {
-    const entries = [];
-    const traverse = (node, currentWord = '') => {
-      if (node.isEndOfWord) {
-        entries.push({
-          chinese: currentWord,
-          vietnamese: node.translation,
-          metadata: node.metadata,
-        });
-      }
-      for (const [char, childNode] of node.children) {
-        traverse(childNode, currentWord + char);
-      }
-    };
-    traverse(trie.root);
-    return entries;
   }
 
   /**

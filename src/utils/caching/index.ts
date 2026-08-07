@@ -14,7 +14,6 @@ export {
   calculateDictionaryChecksum,
   tryLoadPrecomputedTrie,
   savePrecomputedTrie,
-  invalidatePrecomputedTrie,
   PrecomputedTrieStats,
   precomputedTrieStats,
 } from './PrecomputedTrieCache.js';

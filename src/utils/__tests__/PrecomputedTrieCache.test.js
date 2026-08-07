@@ -164,14 +164,12 @@ describe('PrecomputedTrieCache', () => {
       expect(summary.speedup).toBe('10.0x');
     });
 
-    it('should track saves and invalidations', () => {
+    it('should track saves', () => {
       stats.recordCacheSave();
       stats.recordCacheSave();
-      stats.recordCacheInvalidation();
 
       const summary = stats.getSummary();
       expect(summary.cacheSaves).toBe(2);
-      expect(summary.cacheInvalidations).toBe(1);
     });
   });
 });

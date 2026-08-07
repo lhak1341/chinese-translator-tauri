@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
-import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
+import { loadAppConfig, saveAppConfig, invalidateAppConfig } from '../../utils/appConfig';
 import { toPatternsId, isFictionProperNounsId } from '../../utils/dictionary';
 import {
   sortDictionaries,
@@ -107,6 +107,12 @@ export function useDictionaryConfigManagement() {
 
       if (result.success) {
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
+        // Creation also activates the new dictionary on disk (Rust-side, non-fatal
+        // best-effort) — sync from the response's true active list instead of assuming.
+        if (result.dictionaries) {
+          setActiveDictionaries(result.dictionaries);
+        }
+        invalidateAppConfig();
         setShowNewDictionaryModal(false);
         setNewDictionaryName('');
 
@@ -173,6 +179,11 @@ export function useDictionaryConfigManagement() {
         if (defaultQuickAddDictionary === renamingDictionaryId) {
           setDefaultQuickAddDictionary(newDictionaryId);
         }
+
+        // Rust wrote activeProperNouns/lastSelectedDictionary/defaultQuickAddDictionary
+        // straight to config.json — invalidate so the next loadAppConfig/saveAppConfig
+        // doesn't work from a stale pre-rename cache (see CONTEXT.md's AppConfig entry).
+        invalidateAppConfig();
 
         handleCancelRename();
       } else {

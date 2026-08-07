@@ -47,10 +47,11 @@ class RustLookupIndexManager {
    * @param {string} text - The input text to index
    * @param {Object} flatEntriesMap - Map of dictionary name -> flat {chinese,vietnamese,metadata}[] (DictionaryManager.flatEntries)
    * @param {string[]} dictionaryOrder - Order to search dictionaries
+   * @param {Map<string, number>} priorityByName - Real dictionary priority per name (DictionaryManager.getPriorityForDictionary) — NOT derived from dictionaryOrder's array position
    * @param {{ minTextLength?: number, enableIndexing?: boolean, useParallel?: boolean }} [options] - Build options
    * @returns {Promise<{success: boolean, index: Object, buildTimeMs: number, positionsIndexed: number, indexSize: number, error?: string}>}
    */
-  async buildLookupIndex(text, flatEntriesMap, dictionaryOrder, options = {}) {
+  async buildLookupIndex(text, flatEntriesMap, dictionaryOrder, priorityByName, options = {}) {
     // Use options.minTextLength if provided, otherwise use default
     const minTextLength = options.minTextLength ?? this.minTextLength;
     const enableIndexing = options.enableIndexing ?? true;
@@ -69,7 +70,11 @@ class RustLookupIndexManager {
 
     try {
       // Convert flat entries to the format expected by Rust
-      const dictionaries = this.convertDictionariesToRustFormat(flatEntriesMap, dictionaryOrder);
+      const dictionaries = this.convertDictionariesToRustFormat(
+        flatEntriesMap,
+        dictionaryOrder,
+        priorityByName
+      );
 
       // Debug: Log what dictionaries are being indexed
       if (process.env.NODE_ENV === 'development') {
@@ -122,9 +127,12 @@ class RustLookupIndexManager {
    *
    * @param {Object} flatEntriesMap - Map of dictionary name -> flat {chinese,vietnamese,metadata}[]
    * @param {string[]} dictionaryOrder - Order to search dictionaries
+   * @param {Map<string, number>} [priorityByName] - Real dictionary priority per name. Falls back
+   *   to 999 (the codebase's existing "unknown/lowest" sentinel, matching
+   *   DictionaryManager._extractPriorityMap) for any name missing from the map.
    * @returns {Array<{name: string, entries: Array<*>, priority: number}>}
    */
-  convertDictionariesToRustFormat(flatEntriesMap, dictionaryOrder) {
+  convertDictionariesToRustFormat(flatEntriesMap, dictionaryOrder, priorityByName) {
     const dictionaries = [];
 
     // Handle both Map and plain object for flatEntriesMap
@@ -137,14 +145,14 @@ class RustLookupIndexManager {
       dictionaryOrder = Object.keys(entriesMap);
     }
 
-    for (const [idx, dictName] of dictionaryOrder.entries()) {
+    for (const dictName of dictionaryOrder) {
       const entries = entriesMap[dictName];
       if (!entries) continue;
 
       dictionaries.push({
         name: dictName,
         entries,
-        priority: idx,
+        priority: priorityByName?.get(dictName) ?? 999,
       });
     }
 

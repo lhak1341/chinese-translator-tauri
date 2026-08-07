@@ -9,6 +9,7 @@ interface LookupIndexOptions {
 interface LookupIndexDictionaryManager {
   flatEntries: Record<string, unknown>;
   getDefaultSearchOrder(): string[];
+  getPriorityForDictionary(dictionaryName: string): number;
   buildComprehensiveLookupIndex(
     text: string,
     options: { enableLookupIndexing: boolean }
@@ -53,11 +54,18 @@ export async function buildLookupIndexOrFallback(
 
     const indexStartTime = performance.now();
     const dictionaryOrder = dictionaryManager.getDefaultSearchOrder() || [];
+    // Real per-dictionary priority, not dictionaryOrder's array position — see CONTEXT.md's
+    // LookupIndexBuilder entry (2026-08-07 fix). Mirrors DictionaryWasmLookup's own
+    // priorityByName pattern for the same "priority per dictionary name" need on the WASM path.
+    const priorityByName = new Map(
+      dictionaryOrder.map((name) => [name, dictionaryManager.getPriorityForDictionary(name)])
+    );
 
     const indexResult = await rustLookupIndexManager.buildLookupIndex(
       text,
       dictionaryManager.flatEntries, // Map of dictionary name -> flat entries (computed once at load)
       dictionaryOrder,
+      priorityByName,
       {
         minTextLength: 50,
         enableIndexing: true,

@@ -798,6 +798,28 @@ fn create_and_activate_proper_noun_file(
     Ok(())
 }
 
+/// Reads the true, current `activeProperNouns` list from `config.json` for reporting back
+/// to the caller — NOT computed in-memory from what `create_and_activate_proper_noun_file`
+/// intended to write, since that write is best-effort and can silently fail. Empty vec on
+/// any read/parse failure or missing config, matching the same non-fatal philosophy as the
+/// write side.
+fn read_active_proper_nouns(config_path: &PathBuf) -> Vec<String> {
+    if !config_path.exists() {
+        return Vec::new();
+    }
+    let Ok(contents) = fs::read_to_string(config_path) else {
+        return Vec::new();
+    };
+    let Ok(config) = serde_json::from_str::<serde_json::Value>(&contents) else {
+        return Vec::new();
+    };
+    config
+        .get("activeProperNouns")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
 /// Removes `dictionary_id` from `activeProperNouns` in the config at `config_path`, if present.
 /// Best-effort — mirrors the non-fatal contract of the append side. Used to reverse
 /// `create_and_activate_proper_noun_file`'s config bookkeeping when a downstream step fails.
@@ -842,7 +864,9 @@ pub async fn create_proper_nouns_dictionary(
     // Invalidate any stale cache entry for this dictionary (defensive: handles delete/re-create cycles)
     cache.invalidate(Some(&dictionary_id));
 
-    Ok(DictionaryResponse::ok())
+    // Report the true post-activation active list — not an assumption — so the caller
+    // never has to guess whether creation also activated the new dictionary.
+    Ok(DictionaryResponse::ok_with_dicts(read_active_proper_nouns(&config_path)))
 }
 
 /// ADR-027: creates a fiction proper-nouns dictionary (`properNouns-f_X`) together with its
@@ -894,7 +918,7 @@ pub async fn create_fiction_dictionary_pair(
     }
     cache.invalidate(Some(&patterns_id));
 
-    Ok(DictionaryResponse::ok())
+    Ok(DictionaryResponse::ok_with_dicts(read_active_proper_nouns(&config_path)))
 }
 
 #[tauri::command]
@@ -1611,8 +1635,9 @@ fn load_dictionaries_parallel_impl(
     }
 }
 
-/// Swaps `old` to `new` wherever it appears in `activeProperNouns` (array) or
-/// `lastSelectedDictionary` (string) on `config`. No-op if `old` isn't referenced.
+/// Swaps `old` to `new` wherever it appears in `activeProperNouns` (array),
+/// `lastSelectedDictionary` (string), or `defaultQuickAddDictionary` (string) on `config`.
+/// No-op if `old` isn't referenced.
 ///
 /// Direction-agnostic: `rename_proper_nouns_dictionary` calls this with `(old, new)` to
 /// apply a rename, and with `(new, old)` to reverse it on rollback — collapsing what was
@@ -1630,6 +1655,11 @@ fn substitute_dictionary_reference(config: &mut serde_json::Value, old: &str, ne
     if let Some(last_selected) = config.get_mut("lastSelectedDictionary") {
         if last_selected.as_str() == Some(old) {
             *last_selected = serde_json::Value::String(new.to_string());
+        }
+    }
+    if let Some(default_quick_add) = config.get_mut("defaultQuickAddDictionary") {
+        if default_quick_add.as_str() == Some(old) {
+            *default_quick_add = serde_json::Value::String(new.to_string());
         }
     }
 }
@@ -2373,6 +2403,69 @@ mod tests {
     }
 
     #[test]
+    fn test_read_active_proper_nouns_returns_true_disk_state() {
+        let dir = temp_test_dir("read_active_happy_path");
+        let config_path = dir.join("config.json");
+        fs::write(
+            &config_path,
+            r#"{"activeProperNouns": ["properNouns-f_A", "properNouns-f_B"]}"#,
+        )
+        .unwrap();
+
+        let result = read_active_proper_nouns(&config_path);
+
+        assert_eq!(result, vec!["properNouns-f_A".to_string(), "properNouns-f_B".to_string()]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_active_proper_nouns_reflects_create_and_activate() {
+        let dir = temp_test_dir("read_active_after_create");
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"activeProperNouns": []}"#).unwrap();
+
+        create_and_activate_proper_noun_file(&dir, &config_path, "properNouns-f_Test").unwrap();
+        let result = read_active_proper_nouns(&config_path);
+
+        assert_eq!(result, vec!["properNouns-f_Test".to_string()]);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_active_proper_nouns_empty_when_config_missing() {
+        let dir = temp_test_dir("read_active_no_config");
+        let config_path = dir.join("config.json"); // does not exist
+
+        assert_eq!(read_active_proper_nouns(&config_path), Vec::<String>::new());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_active_proper_nouns_empty_when_config_corrupt() {
+        let dir = temp_test_dir("read_active_corrupt_config");
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, "not valid json").unwrap();
+
+        assert_eq!(read_active_proper_nouns(&config_path), Vec::<String>::new());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_read_active_proper_nouns_empty_when_key_absent() {
+        let dir = temp_test_dir("read_active_no_key");
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"lastSelectedDictionary": "properNouns-Other"}"#).unwrap();
+
+        assert_eq!(read_active_proper_nouns(&config_path), Vec::<String>::new());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn test_deactivate_removes_entry_from_config() {
         let dir = temp_test_dir("deactivate_happy_path");
         let config_path = dir.join("config.json");
@@ -2630,29 +2723,42 @@ mod tests {
     }
 
     #[test]
-    fn test_substitute_swaps_both_fields_at_once() {
+    fn test_substitute_swaps_matching_default_quick_add_dictionary() {
+        let mut config = serde_json::json!({"defaultQuickAddDictionary": "properNouns-f_Old"});
+
+        substitute_dictionary_reference(&mut config, "properNouns-f_Old", "properNouns-f_New");
+
+        assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-f_New"));
+    }
+
+    #[test]
+    fn test_substitute_swaps_all_three_fields_at_once() {
         let mut config = serde_json::json!({
             "activeProperNouns": ["properNouns-f_Old"],
-            "lastSelectedDictionary": "properNouns-f_Old"
+            "lastSelectedDictionary": "properNouns-f_Old",
+            "defaultQuickAddDictionary": "properNouns-f_Old"
         });
 
         substitute_dictionary_reference(&mut config, "properNouns-f_Old", "properNouns-f_New");
 
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_New"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-f_New"));
+        assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-f_New"));
     }
 
     #[test]
     fn test_substitute_is_noop_when_old_not_referenced() {
         let mut config = serde_json::json!({
             "activeProperNouns": ["properNouns-Other"],
-            "lastSelectedDictionary": "properNouns-Other"
+            "lastSelectedDictionary": "properNouns-Other",
+            "defaultQuickAddDictionary": "properNouns-Other"
         });
 
         substitute_dictionary_reference(&mut config, "properNouns-f_Old", "properNouns-f_New");
 
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-Other"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-Other"));
+        assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-Other"));
     }
 
     #[test]
@@ -2669,7 +2775,8 @@ mod tests {
         // Mirrors the rollback call site: apply forward, then reverse with (new, old).
         let mut config = serde_json::json!({
             "activeProperNouns": ["properNouns-f_Old"],
-            "lastSelectedDictionary": "properNouns-f_Old"
+            "lastSelectedDictionary": "properNouns-f_Old",
+            "defaultQuickAddDictionary": "properNouns-f_Old"
         });
 
         substitute_dictionary_reference(&mut config, "properNouns-f_Old", "properNouns-f_New");
@@ -2677,6 +2784,7 @@ mod tests {
 
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_Old"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-f_Old"));
+        assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-f_Old"));
     }
 
     // ── Test helpers for the command-handler bodies below ────────────────────
@@ -3098,7 +3206,7 @@ mod tests {
         let config_path = dir.join("config.json");
         fs::write(
             &config_path,
-            r#"{"activeProperNouns": ["properNouns-Old"], "lastSelectedDictionary": "properNouns-Old"}"#,
+            r#"{"activeProperNouns": ["properNouns-Old"], "lastSelectedDictionary": "properNouns-Old", "defaultQuickAddDictionary": "properNouns-Old"}"#,
         )
         .unwrap();
         let cache = make_cache();
@@ -3121,6 +3229,7 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
         assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-New"]));
         assert_eq!(config["lastSelectedDictionary"], serde_json::json!("properNouns-New"));
+        assert_eq!(config["defaultQuickAddDictionary"], serde_json::json!("properNouns-New"));
         assert!(cache.get("properNouns-Old").is_none());
 
         let _ = fs::remove_dir_all(&dir);

@@ -14,7 +14,10 @@
  * - On load: Try loading .trie.json with checksum validation
  * - If valid: Deserialize precomputed trie (fast path)
  * - If invalid/missing: Build trie from JSON and save cache
- * - On save: Delete .trie.json to invalidate cache
+ * - Staleness is detected entirely by checksum mismatch on the next load — there is no
+ *   explicit invalidation/delete-on-save path; one was scaffolded and removed 2026-08-07
+ *   (architecture review candidate #5 grilling) after confirming it had zero production
+ *   callers and the checksum check alone was already sufficient for correctness.
  *
  * @module PrecomputedTrieCache
  */
@@ -201,31 +204,6 @@ export async function savePrecomputedTrie(dictionaryName, dictionary, trie, save
 }
 
 /**
- * Invalidate precomputed trie cache
- *
- * Call this when dictionary is modified to force rebuild on next load
- *
- * @param {string} dictionaryName - Name of dictionary
- * @param {Function} deleteCacheFile - Function to delete .trie.json file
- * @returns {Promise<boolean>} Success status
- */
-export async function invalidatePrecomputedTrie(dictionaryName, deleteCacheFile) {
-  try {
-    const cacheFileName = `${dictionaryName}.trie.json`;
-    const success = await deleteCacheFile(cacheFileName);
-
-    if (success) {
-      logger.log(`🗑️  [PrecomputedTrie] Invalidated cache for ${dictionaryName}`);
-    }
-
-    return success;
-  } catch (error) {
-    logger.debug(`[PrecomputedTrie] Failed to invalidate cache for ${dictionaryName}:`, error);
-    return false;
-  }
-}
-
-/**
  * Precomputed trie cache statistics
  */
 export class PrecomputedTrieStats {
@@ -233,7 +211,6 @@ export class PrecomputedTrieStats {
     this.cacheHits = 0;
     this.cacheMisses = 0;
     this.cacheSaves = 0;
-    this.cacheInvalidations = 0;
     this.totalLoadTime = 0;
     this.totalBuildTime = 0;
   }
@@ -250,10 +227,6 @@ export class PrecomputedTrieStats {
 
   recordCacheSave() {
     this.cacheSaves++;
-  }
-
-  recordCacheInvalidation() {
-    this.cacheInvalidations++;
   }
 
   getHitRate() {
@@ -280,7 +253,6 @@ export class PrecomputedTrieStats {
       cacheHits: this.cacheHits,
       cacheMisses: this.cacheMisses,
       cacheSaves: this.cacheSaves,
-      cacheInvalidations: this.cacheInvalidations,
       hitRate: `${this.getHitRate().toFixed(1)}%`,
       avgLoadTime: `${this.getAverageLoadTime().toFixed(2)}ms`,
       avgBuildTime: `${this.getAverageBuildTime().toFixed(2)}ms`,

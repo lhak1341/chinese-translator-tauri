@@ -19,7 +19,6 @@ vi.mock('../toast', () => ({
 // Mock WASM module
 const mockDictionaryEngine = {
   load_dictionary: vi.fn(),
-  load_dictionaries_batch: vi.fn(),
   find_matches: vi.fn(),
   find_longest_match: vi.fn(),
   get_total_entries: vi.fn(),
@@ -84,7 +83,6 @@ describe('WasmDictionaryManager Error Handling', () => {
 
     // Default successful responses
     mockDictionaryEngine.load_dictionary.mockReturnValue(true);
-    mockDictionaryEngine.load_dictionaries_batch.mockReturnValue(true);
     mockDictionaryEngine.find_matches.mockReturnValue('[]');
     mockDictionaryEngine.find_longest_match.mockReturnValue(null);
     mockDictionaryEngine.get_total_entries.mockReturnValue(0);
@@ -268,6 +266,45 @@ describe('WasmDictionaryManager Error Handling', () => {
     });
   });
 
+  describe('loadDictionary metadata mapping', () => {
+    it('passes flatEntries-shaped pre-stringified metadata through without double-encoding', async () => {
+      await manager.initialize({});
+      manager.initialized = true;
+      manager.engine = mockDictionaryEngine;
+
+      // DictionaryManager.flatEntries (DictionaryEntryFlattener.flattenDictionaryEntries)
+      // already produces metadata as a JSON string, not a raw object.
+      const preStringifiedMetadata = JSON.stringify({ allowAsPatternVariable: true });
+
+      await manager.loadDictionary('characters', [
+        { chinese: '测试', vietnamese: 'test', metadata: preStringifiedMetadata },
+      ]);
+
+      const [, payload] = mockDictionaryEngine.load_dictionary.mock.calls[0];
+      const [wasmEntry] = JSON.parse(payload);
+
+      // A double-encode bug would leave metadata as a JSON string containing
+      // an escaped string, not the original object shape.
+      expect(wasmEntry.metadata).toBe(preStringifiedMetadata);
+      expect(JSON.parse(wasmEntry.metadata)).toEqual({ allowAsPatternVariable: true });
+    });
+
+    it('passes null metadata through as null', async () => {
+      await manager.initialize({});
+      manager.initialized = true;
+      manager.engine = mockDictionaryEngine;
+
+      await manager.loadDictionary('characters', [
+        { chinese: '测试', vietnamese: 'test', metadata: null },
+      ]);
+
+      const [, payload] = mockDictionaryEngine.load_dictionary.mock.calls[0];
+      const [wasmEntry] = JSON.parse(payload);
+
+      expect(wasmEntry.metadata).toBeNull();
+    });
+  });
+
   describe('Error propagation', () => {
     it('should handle dictionary loading errors', async () => {
       const mockFallbackManager = {
@@ -328,29 +365,6 @@ describe('WasmDictionaryManager Error Handling', () => {
 
       expect(mockFallbackManager.findLongestMatch).toHaveBeenCalled();
       expect(manager.fallbackHandler.getFailureCount()).toBe(1);
-    });
-  });
-
-  describe('loadDictionariesBatch failure handling', () => {
-    it('records failure and releases the buffer when the WASM batch call throws', async () => {
-      const { wasmMemoryPoolManager } = await import('../wasm/WasmMemoryPoolManager.js');
-
-      await manager.initialize({});
-      manager.initialized = true;
-      manager.engine = mockDictionaryEngine;
-
-      mockDictionaryEngine.load_dictionaries_batch.mockImplementation(() => {
-        throw new Error('Batch load failed');
-      });
-
-      const result = await manager.loadDictionariesBatch([
-        { name: 'characters', entries: [{ chinese: '测试', vietnamese: 'test' }] },
-      ]);
-
-      expect(result).toBe(false);
-      expect(manager.fallbackHandler.getFailureCount()).toBe(1);
-      // Buffer must be returned via the finally block even though the try body threw.
-      expect(wasmMemoryPoolManager.returnBuffer).toHaveBeenCalled();
     });
   });
 

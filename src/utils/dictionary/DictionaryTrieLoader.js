@@ -10,7 +10,6 @@
 import {
   tryLoadPrecomputedTrie,
   savePrecomputedTrie,
-  invalidatePrecomputedTrie,
   precomputedTrieStats,
 } from '../caching/PrecomputedTrieCache.js';
 import { logger } from '../logger.js';
@@ -145,36 +144,6 @@ async function saveDictionaryCache(dictionaryName, dictionaryData, trie, tauriAP
 }
 
 /**
- * Invalidate dictionary trie cache
- *
- * Call this when dictionary is modified to force rebuild on next load
- *
- * @param {string} dictionaryName - Name of dictionary
- * @param {Object} tauriAPI - Tauri API
- * @returns {Promise<boolean>} Success status
- */
-async function invalidateDictionaryCache(dictionaryName, tauriAPI) {
-  const deleteCacheFile = async (/** @type {string} */ cacheFileName) => {
-    try {
-      // For now, just return false - deletion can be added later
-      // The checksum validation will handle stale caches
-      logger.debug(
-        `[DictionaryTrieLoader] Cache invalidation requested for ${cacheFileName} (will rebuild on next load)`
-      );
-      return false;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const result = await invalidatePrecomputedTrie(dictionaryName, deleteCacheFile);
-  if (result) {
-    precomputedTrieStats.recordCacheInvalidation();
-  }
-  return result;
-}
-
-/**
  * Get cache statistics
  *
  * @returns {Object} Cache performance statistics
@@ -188,6 +157,5 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
   // @ts-ignore - debug convenience property
   window.dictionaryTrieLoader = {
     getCacheStats,
-    invalidateCache: invalidateDictionaryCache,
   };
 }

@@ -9,7 +9,6 @@ const mockPrecomputedTrieStats = vi.hoisted(() => ({
 vi.mock('../caching/PrecomputedTrieCache.js', () => ({
   tryLoadPrecomputedTrie: vi.fn(),
   savePrecomputedTrie: vi.fn(),
-  invalidatePrecomputedTrie: vi.fn(),
   precomputedTrieStats: mockPrecomputedTrieStats,
 }));
 

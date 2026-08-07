@@ -18,6 +18,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import ConfigurationManager from '../ConfigurationManager';
 
+const { invalidateAppConfig } = vi.hoisted(() => ({ invalidateAppConfig: vi.fn() }));
 vi.mock('../../../utils/appConfig', () => ({
   loadAppConfig: vi.fn().mockResolvedValue({
     engine: { activeProperNouns: [] },
@@ -25,6 +26,7 @@ vi.mock('../../../utils/appConfig', () => ({
     session: { lastSelectedDictionary: null },
   }),
   saveAppConfig: vi.fn().mockResolvedValue(undefined),
+  invalidateAppConfig,
 }));
 
 const loadDictionary = vi.fn();
@@ -96,6 +98,31 @@ describe('ConfigurationManager handleCreateDictionary', () => {
     await waitFor(() => expect(loadDictionary).toHaveBeenCalledWith('properNouns-Test'));
     // Plain proper-noun create has no paired patterns dict to refresh.
     expect(loadDictionary).not.toHaveBeenCalledWith(expect.stringMatching(/^patterns-/));
+  });
+
+  test('create syncs the checkbox from the response active list and invalidates the config cache', async () => {
+    createProperNounsDictionary.mockResolvedValue({
+      success: true,
+      dictionaries: ['properNouns-Test'],
+    });
+
+    render(<ConfigurationManager />);
+    await openModalAndCreate('Test');
+
+    // Regression: creation also activates on disk (Rust-side); the checkbox must reflect
+    // that immediately from the response instead of rendering unchecked until a second click.
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: /Test/ })).toBeChecked());
+    expect(invalidateAppConfig).toHaveBeenCalled();
+  });
+
+  test('create does not force-check when the response omits dictionaries', async () => {
+    createProperNounsDictionary.mockResolvedValue({ success: true }); // no `dictionaries` field
+
+    render(<ConfigurationManager />);
+    await openModalAndCreate('Test');
+
+    await waitFor(() => expect(screen.getByText('Test')).toBeInTheDocument());
+    expect(screen.getByRole('checkbox', { name: /Test/ })).not.toBeChecked();
   });
 
   test('fiction pair failure surfaces an error and does not add the dictionary', async () => {
@@ -185,6 +212,7 @@ describe('ConfigurationManager handleConfirmRename', () => {
     );
     await waitFor(() => expect(callOrder).toContain('remove:properNouns-Old'));
     expect(callOrder).toEqual(['load:properNouns-New', 'remove:properNouns-Old']);
+    expect(invalidateAppConfig).toHaveBeenCalled();
   });
 
   test('fiction rename also refreshes the paired patterns-f_* dict', async () => {
@@ -231,5 +259,6 @@ describe('ConfigurationManager handleConfirmRename', () => {
     );
     expect(loadDictionary).not.toHaveBeenCalled();
     expect(removeDictionaryKey).not.toHaveBeenCalled();
+    expect(invalidateAppConfig).not.toHaveBeenCalled();
   });
 });
