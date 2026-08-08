@@ -55,6 +55,18 @@ export function capitalizeExceptFirstN(text: string, n: number): string {
 }
 
 /**
+ * Drop the last `n` words and prepend `replacement` instead of moving them.
+ * Suffix-keyed Transform Rule variant of `moveLastNWordsToBeginning`.
+ */
+export function replaceLastNWordsWithText(text: string, n: number, replacement: string): string {
+  if (n <= 0) return text;
+  const words = text.split(' ');
+  if (words.length <= n) return text;
+  const head = words.slice(0, -n);
+  return [replacement, ...head].join(' ');
+}
+
+/**
  * Move the first `n` words to the end of the string.
  * Head-anchored mirror of `moveLastNWordsToBeginning` — for prefix-keyed Transform Rules.
  * Returns the original text unchanged if there are not enough words to reorder.
@@ -65,6 +77,18 @@ export function moveFirstNWordsToEnd(text: string, n: number): string {
   const head = words.slice(0, n);
   const tail = words.slice(n);
   return [...tail, ...head].join(' ');
+}
+
+/**
+ * Drop the first `n` words and append `replacement` instead of moving them.
+ * Head-anchored mirror of `replaceLastNWordsWithText` — for prefix-keyed Transform Rules.
+ */
+export function replaceFirstNWordsWithText(text: string, n: number, replacement: string): string {
+  if (n <= 0) return text;
+  const words = text.split(' ');
+  if (words.length <= n) return text;
+  const tail = words.slice(n);
+  return [...tail, replacement].join(' ');
 }
 
 // Named baked-n variants — each is directly testable without mounting DictionaryEntry.

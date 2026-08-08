@@ -156,3 +156,9 @@ Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefC
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.
 
 **`WasmNumberProcessor` IIFE resolves (not rejects) on failure**: the module-bottom `.catch()` only fires on rejection; the IIFE swallows errors and resolves to `false`. Clearing `initializationPromise` must happen inside the IIFE `catch` block — if omitted, `getWasmNumberProcessorStatus()` permanently reports `{ initializing: true }`.
+
+## Reusable Row/Badge Building Blocks — `VirtualRowComponent.tsx`
+
+`RowShell` (fixed-`ITEM_HEIGHT` flex row wrapper), `MetadataBadge` (VAR/LP toggle chip), and `SemanticTypeToggleCell` (semantic-type toggle row) are exported from `VirtualRowComponent.tsx` specifically for reuse by other table-shaped views (e.g. `src/components/rules/RulesManager.tsx`, `RuleMatchesModal.tsx`) — import and reuse them rather than re-deriving the same padding/font-size/color values, which drift silently (found twice in one session: a copied semantic-chip badge missing `alignItems: 'center'`, and missing `fontSize`/`padding` overrides that fell back to the shared class's different defaults).
+
+**A real `<table>`'s `<tr>` `height` is a minimum, not a cap** — content padding/line-height can still force it taller. To match Dictionary's exact row density, don't build a `<table>`; use `RowShell`'s fixed-height flex-div technique instead (same mechanism `EnhancedVirtualizedDictionaryTable` itself uses). Setting `height: 40px` on a `<tr>` and expecting Dictionary-identical row height is a no-op if the cell content needs more room.

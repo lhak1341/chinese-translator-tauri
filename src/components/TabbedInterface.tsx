@@ -3,6 +3,7 @@ import { Languages, Book, Settings, Palette, Wand2, LucideIcon } from 'lucide-re
 import Translator from './Translator';
 import DictionaryManager from './dictionary/DictionaryManager';
 import RulesManager from './rules/RulesManager';
+import type { RulesManagerHandle } from './rules/RulesManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
@@ -26,9 +27,9 @@ type TabId = 'translator' | 'dictionary' | 'rules' | 'configuration' | 'appearan
 const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] = [
   { id: 'translator', label: 'Translator', shortcut: '1', icon: Languages },
   { id: 'dictionary', label: 'Dictionary', shortcut: '2', icon: Book },
-  { id: 'rules', label: 'Rules', shortcut: '5', icon: Wand2 },
-  { id: 'configuration', label: 'Configuration', shortcut: '3', icon: Settings },
-  { id: 'appearance', label: 'Appearance', shortcut: '4', icon: Palette },
+  { id: 'rules', label: 'Rules', shortcut: '3', icon: Wand2 },
+  { id: 'configuration', label: 'Configuration', shortcut: '4', icon: Settings },
+  { id: 'appearance', label: 'Appearance', shortcut: '5', icon: Palette },
 ];
 
 /**
@@ -46,6 +47,7 @@ const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
 const TabbedInterface: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('translator');
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
+  const rulesManagerRef = useRef<RulesManagerHandle>(null);
   const { setSelectedDictionary, dictionaries } = useDictionary();
 
   const handleTabChange = (tab: TabId): void => {
@@ -57,6 +59,17 @@ const TabbedInterface: React.FC = () => {
       dictionarySearchRef.current.focus();
     }
   };
+
+  // Deliberately does NOT switch to the Rules tab — same in-place-overlay UX as the
+  // Cmd-1..6 quick-add modals, which open directly on top of Translator without
+  // navigating away. RulesManager stays on its own always-mounted `useTransformRules()`
+  // instance (not a second one in Translator.jsx) so the rule immediately shows up in
+  // the Rules tab's own list with no state-sync/staleness gap; the modal itself portals
+  // to document.body (see RulesManager.tsx) so it's visible despite its real ancestor
+  // (the Rules tab panel) staying `visibility: hidden` while Translator is active.
+  const handleOpenNewRule = useCallback((text?: string): void => {
+    rulesManagerRef.current?.openNew(text);
+  }, []);
 
   const handleDictionaryTabHotkey = useCallback(
     async (key: string): Promise<void> => {
@@ -103,6 +116,7 @@ const TabbedInterface: React.FC = () => {
     onTabSwitch: handleTabChange,
     onFocusSearch: handleFocusSearch,
     onDictionaryTabHotkey: handleDictionaryTabHotkey,
+    onOpenNewRule: handleOpenNewRule,
     activeTab,
   });
 
@@ -122,7 +136,7 @@ const TabbedInterface: React.FC = () => {
               id={`tab-${tab.id}`}
               onClick={() => handleTabChange(tab.id)}
               className={`${styles.tabButton} ${isActive ? styles.tabButtonActive : styles.tabButtonInactive}`}
-              title={`Switch to ${tab.label} (Cmd/Ctrl + Shift + ${tab.shortcut})`}
+              title={`Switch to ${tab.label} (Option/Alt + ${tab.shortcut})`}
             >
               <Icon size={17} className={styles.tabIcon} />
               {tab.label}
@@ -158,9 +172,9 @@ const TabbedInterface: React.FC = () => {
           role="tabpanel"
           id="panel-rules"
           aria-labelledby="tab-rules"
-          className={`${styles.componentWrapper} ${styles.componentWrapperScroll} ${activeTab === 'rules' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
+          className={`${styles.componentWrapper} ${activeTab === 'rules' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
-          <RulesManager />
+          <RulesManager ref={rulesManagerRef} />
         </div>
         <div
           role="tabpanel"

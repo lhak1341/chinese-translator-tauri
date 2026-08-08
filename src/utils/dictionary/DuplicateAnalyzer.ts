@@ -62,7 +62,7 @@ const METADATA_KEYS = new Set([
 /**
  * Checks if a key should be skipped (metadata or invalid entry)
  */
-function shouldSkipKey(key: string): boolean {
+export function shouldSkipKey(key: string): boolean {
   // Skip metadata keys
   if (METADATA_KEYS.has(key)) {
     return true;

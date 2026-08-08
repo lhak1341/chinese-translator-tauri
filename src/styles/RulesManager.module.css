@@ -1,30 +1,43 @@
+/* Container/header/table structure mirrors DictionaryManager.module.css +
+   EnhancedVirtualizedDictionaryTable.tsx as closely as a plain (non-virtualized) table
+   allows: absolute-fill flex column, a bordered toolbar-bar header, and a flush
+   (no page padding) scrollable table area — not a padded page with a boxed, rounded
+   table card. */
 .container {
-  padding: 20px;
-  height: 100%;
-  overflow-y: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
   color: var(--text-color);
   background-color: var(--background-color);
+  overflow: hidden;
+}
+
+.loadingContainer {
+  justify-content: center;
+  align-items: center;
 }
 
 .header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-color);
+  flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
+  gap: 0.75rem;
   align-items: center;
-  margin-bottom: 16px;
 }
 
-.title {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.addButton {
-  padding: 8px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--primary-color);
-  background-color: var(--primary-color);
-  color: #fff;
-  cursor: pointer;
+/* No .title — DictionaryManager's header has no title text, only controls; matched here
+   for parity. Add button is DictionaryManager.module.css's real `.button`/`primary`
+   classes (dictStyles import), not a locally re-derived approximation. */
+.tableArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .empty {
@@ -35,26 +48,92 @@
 
 .table {
   width: 100%;
-  border-collapse: collapse;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Matches Dictionary's fixed table header (EnhancedVirtualizedDictionaryTable): bold,
-   normal-size text, not uppercase — see the header row inline styles there. */
-.table th {
-  text-align: left;
-  font-weight: bold;
-  padding: 0.5rem 0.75rem;
-  background-color: var(--background-color);
+/* Fixed table header — same shape as EnhancedVirtualizedDictionaryTable's header div
+   (flex row, bottom-border-only, background var(--background-color), flexShrink 0). */
+.headerRow {
+  display: flex;
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  flex-shrink: 0;
 }
 
-.table td {
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border-subtle, var(--border-color));
-  font-size: 13px;
+/* Bold, normal-size text, not uppercase — same padding as Dictionary's header cells
+   (EnhancedVirtualizedDictionaryTable.tsx header divs). */
+.headerCell {
+  padding: 0.5rem 0.75rem;
+  font-weight: bold;
+}
+
+/* Column widths — the single source of truth shared by both the header cell and the
+   matching row cell (same className on both), so header/row columns can't drift out
+   of alignment the way two independently-set inline widths could. */
+.colOn {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  text-align: center;
+}
+
+.colMatch {
+  width: 64px;
+  min-width: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.colKey {
+  width: 110px;
+  min-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.colChars,
+.colMove,
+.colCap {
+  width: 64px;
+  min-width: 64px;
+  text-align: center;
+  justify-content: center;
+}
+
+/* Replace and Label are the two free-text columns, so both share the row's leftover
+   width (like Dictionary's Source/Translation split) instead of one column hogging all
+   of it while the other stays pinned at a fixed width. */
+.colReplace {
+  flex: 1;
+  min-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.colType {
+  width: 150px;
+  min-width: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.colLabel {
+  flex: 2;
+  min-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.colActions {
+  width: 70px;
+  min-width: 70px;
+  text-align: center;
 }
 
 .key {
@@ -62,29 +141,42 @@
   font-weight: 600;
 }
 
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
+.placeholderText {
+  color: var(--text-muted, #9ca3af);
+  font-style: italic;
 }
 
-.rowActions button {
-  margin-right: 6px;
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
-.deleteButton {
+/* Shared shape/layout for row-level icon actions — same padding, radius, and hover
+   mechanics for every action button, only the color differs per action. */
+.rowIconButton {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--error-color, #ef4444);
   display: inline-flex;
   align-items: center;
   padding: 4px;
   border-radius: 4px;
+}
+
+.viewMatchesButton {
+  composes: rowIconButton;
+  color: var(--text-secondary, var(--text-color));
+}
+
+.viewMatchesButton:hover {
+  background-color: var(--surface-color);
+}
+
+.deleteButton {
+  composes: rowIconButton;
+  color: var(--error-color, #ef4444);
 }
 
 .deleteButton:hover {

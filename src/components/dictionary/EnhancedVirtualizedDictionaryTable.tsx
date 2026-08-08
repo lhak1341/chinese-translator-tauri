@@ -117,12 +117,18 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   // Duplicate-mode delete triggers a backend refresh, which re-renders EVDT under a new
   // `key` (see DictionaryManager.tsx) — wiping useVirtualScrollRange's own scroll state.
   // Capture-then-hand-off to the parent (onScrollSave) is what survives that remount.
+  // Depend on scroll.getScrollTop (itself a stable useCallback), NOT the whole `scroll`
+  // object — useVirtualScrollRange returns a fresh object every render, so depending on
+  // `scroll` recreates this callback every render, which recreates useEntrySelection's
+  // handleBulkDelete, which re-fires its onSelectionChange effect, which calls
+  // setSelectionState in the parent, which re-renders this component — an infinite loop.
   const refreshDuplicatesPreservingScroll = useCallback(async (): Promise<void> => {
     if (!onRefreshDuplicates || !onScrollSave) return;
     const currentScroll = scroll.getScrollTop();
     await onRefreshDuplicates();
     onScrollSave(currentScroll);
-  }, [onRefreshDuplicates, onScrollSave, scroll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRefreshDuplicates, onScrollSave, scroll.getScrollTop]);
 
   const {
     selectedEntries,
@@ -657,7 +663,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       width: '15%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
-                      fontSize: '0.75rem',
                       textAlign: 'center',
                     }}
                     title="Output semantic type (shown when pattern can be used as a variable)"
@@ -669,7 +674,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       width: '13%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
-                      fontSize: '0.75rem',
                       textAlign: 'center',
                     }}
                     title="Type constraints for variable X"
@@ -681,7 +685,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       width: '13%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
-                      fontSize: '0.75rem',
                       textAlign: 'center',
                     }}
                     title="Type constraints for variable Y"
@@ -736,7 +739,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       width: '15%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
-                      fontSize: '0.75rem',
                       textAlign: 'center',
                     }}
                     title="Semantic type"
@@ -790,7 +792,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       width: '15%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
-                      fontSize: '0.75rem',
                       textAlign: 'center',
                     }}
                     title="Semantic type"

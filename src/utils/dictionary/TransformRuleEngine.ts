@@ -4,14 +4,20 @@
  * full contract this implements.
  */
 import type { TransformRule } from '../../types/TransformRuleTypes';
+import type { DictionaryData } from '../../types/DictionaryTypes';
+import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
+import { shouldSkipKey } from './DuplicateAnalyzer';
+import { getDictionaryLabel } from '../dictionaryHelpers';
 import {
   titleCaseExceptLastN,
   moveLastNWordsToBeginning,
   capitalizeExceptFirstN,
   moveFirstNWordsToEnd,
+  replaceLastNWordsWithText,
+  replaceFirstNWordsWithText,
 } from '../wordTransformHelpers';
 
-function ruleMatches(rule: TransformRule, source: string): boolean {
+export function ruleMatches(rule: TransformRule, source: string): boolean {
   if (!rule.enabled) return false;
   if (rule.charCount !== undefined && source.length !== rule.charCount) return false;
   return rule.matchKind === 'suffix' ? source.endsWith(rule.key) : source.startsWith(rule.key);
@@ -53,15 +59,15 @@ export function applyRule(
 ): string {
   const gloss = glossFn(source);
   if (rule.matchKind === 'suffix') {
-    return moveLastNWordsToBeginning(
-      titleCaseExceptLastN(gloss, rule.capitalizeExceptN),
-      rule.moveWords
-    );
+    const capitalized = titleCaseExceptLastN(gloss, rule.capitalizeExceptN);
+    return rule.moveReplacement !== undefined
+      ? replaceLastNWordsWithText(capitalized, rule.moveWords, rule.moveReplacement)
+      : moveLastNWordsToBeginning(capitalized, rule.moveWords);
   }
-  return moveFirstNWordsToEnd(
-    capitalizeExceptFirstN(gloss, rule.capitalizeExceptN),
-    rule.moveWords
-  );
+  const capitalized = capitalizeExceptFirstN(gloss, rule.capitalizeExceptN);
+  return rule.moveReplacement !== undefined
+    ? replaceFirstNWordsWithText(capitalized, rule.moveWords, rule.moveReplacement)
+    : moveFirstNWordsToEnd(capitalized, rule.moveWords);
 }
 
 /**
@@ -74,5 +80,65 @@ export function findConflict(
 ): TransformRule | undefined {
   return rules.find(
     (r) => r.id !== candidate.id && r.matchKind === candidate.matchKind && r.key === candidate.key
+  );
+}
+
+/** A dictionary entry matching a Transform Rule's preview, with its full metadata —
+ * not just the display fields — so the matches view can edit Translation/VAR/Semantic
+ * in place without accidentally clobbering fields it doesn't surface (e.g. lowPriority,
+ * allowedVariableTypes) on save. See `useEntryMetadataEdit`'s snapshot-before-patch
+ * invariant, which this shape exists to feed correctly. */
+export interface RuleMatchEntry {
+  source: string;
+  translation: string;
+  dictionaryId: string;
+  dictionaryLabel: string;
+  semanticType: SemanticType | PatternSemanticTypeRef | '';
+  allowAsPatternVariable: boolean;
+  lowPriority: boolean;
+  allowedVariableTypes: Record<string, string[]>;
+}
+
+/**
+ * Finds every entry, across every dictionary this rule type applies to
+ * (`dictionarySupportsTransformRules`), whose Source matches this rule's
+ * suffix/prefix + key + charCount criteria — for the "preview matches" UI.
+ * Ignores `rule.enabled` on purpose: previewing a disabled rule's matches (e.g. before
+ * re-enabling it) is a reasonable thing to want, so the enabled gate is bypassed here
+ * rather than reimplementing the suffix/prefix/charCount check a second time.
+ */
+export function findRuleMatchingEntries(
+  rule: TransformRule,
+  dictionaries: Record<string, DictionaryData>
+): RuleMatchEntry[] {
+  const alwaysEnabledRule: TransformRule = { ...rule, enabled: true };
+  const results: RuleMatchEntry[] = [];
+
+  for (const [dictionaryId, dict] of Object.entries(dictionaries)) {
+    if (!dict || !dictionarySupportsTransformRules(dictionaryId)) continue;
+
+    for (const [source, value] of Object.entries(dict)) {
+      if (shouldSkipKey(source)) continue;
+      if (!ruleMatches(alwaysEnabledRule, source)) continue;
+
+      const isObject = typeof value === 'object';
+      results.push({
+        source,
+        translation: isObject ? value.translation : value,
+        dictionaryId,
+        dictionaryLabel: getDictionaryLabel(dictionaryId),
+        semanticType: (isObject && value.semanticType) || '',
+        allowAsPatternVariable: isObject && value.allowAsPatternVariable === true,
+        lowPriority: isObject && value.lowPriority === true,
+        allowedVariableTypes: (isObject && value.allowedVariableTypes) || {},
+      });
+    }
+  }
+
+  return results.sort(
+    (a, b) =>
+      b.source.length - a.source.length ||
+      a.source.localeCompare(b.source) ||
+      a.dictionaryLabel.localeCompare(b.dictionaryLabel)
   );
 }

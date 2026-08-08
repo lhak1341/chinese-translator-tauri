@@ -4,6 +4,7 @@ import {
   applyRule,
   findConflict,
   dictionarySupportsTransformRules,
+  findRuleMatchingEntries,
 } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -98,6 +99,28 @@ describe('applyRule', () => {
     const r = rule({ matchKind: 'suffix', key: '城', moveWords: 0, capitalizeExceptN: 0 });
     expect(applyRule(r, '南京城', glossFn)).toBe('Nam Kinh Thanh');
   });
+
+  test('suffix rule with moveReplacement drops the moved words and prepends the replacement', () => {
+    const r = rule({
+      matchKind: 'suffix',
+      key: '城',
+      moveWords: 1,
+      capitalizeExceptN: 1,
+      moveReplacement: 'thanh pho',
+    });
+    expect(applyRule(r, '南京城', glossFn)).toBe('thanh pho Nam Kinh');
+  });
+
+  test('prefix rule with moveReplacement drops the moved words and appends the replacement', () => {
+    const r = rule({
+      matchKind: 'prefix',
+      key: '南',
+      moveWords: 1,
+      capitalizeExceptN: 1,
+      moveReplacement: 'mien nam',
+    });
+    expect(applyRule(r, '南京城', glossFn)).toBe('Kinh Thanh mien nam');
+  });
 });
 
 describe('findConflict', () => {
@@ -123,6 +146,70 @@ describe('findConflict', () => {
     const existing = rule({ id: 'existing', matchKind: 'suffix', key: '城' });
     const candidate = { id: 'new', matchKind: 'suffix' as const, key: '市' };
     expect(findConflict([existing], candidate)).toBeUndefined();
+  });
+});
+
+describe('findRuleMatchingEntries', () => {
+  const dictionaries = {
+    phrases: {
+      南京城: { translation: 'nam kinh thanh' },
+      北京城: { translation: 'bac kinh thanh' },
+      南京: { translation: 'nam kinh' },
+    },
+    'properNouns-f_Test': {
+      西安城: { translation: 'tay an thanh' },
+    },
+    patterns: {
+      X城: { translation: 'X thanh' }, // patterns dict — must be excluded
+    },
+  };
+
+  test('matches entries across every supported dictionary, sorted alphabetically within a length', () => {
+    const r = rule({ matchKind: 'suffix', key: '城' });
+    const result = findRuleMatchingEntries(r, dictionaries);
+    expect(result.map((row) => row.source)).toEqual(['北京城', '南京城', '西安城']);
+  });
+
+  test('longer sources sort first, regardless of alphabetical order', () => {
+    const longThenShort = {
+      phrases: {
+        南京城: { translation: 'nam kinh thanh' }, // 3 chars
+        古南京城: { translation: 'co nam kinh thanh' }, // 4 chars, alphabetically after 南京城
+      },
+    };
+    const r = rule({ matchKind: 'suffix', key: '城' });
+    const result = findRuleMatchingEntries(r, longThenShort);
+    expect(result.map((row) => row.source)).toEqual(['古南京城', '南京城']);
+  });
+
+  test('excludes dictionaries that do not support Transform Rules (e.g. patterns)', () => {
+    const r = rule({ matchKind: 'suffix', key: '城' });
+    const result = findRuleMatchingEntries(r, dictionaries);
+    expect(result.some((row) => row.dictionaryId === 'patterns')).toBe(false);
+  });
+
+  test('excludes entries not matching the key', () => {
+    const r = rule({ matchKind: 'suffix', key: '城' });
+    const result = findRuleMatchingEntries(r, dictionaries);
+    expect(result.some((row) => row.source === '南京')).toBe(false);
+  });
+
+  test('ignores rule.enabled — previews matches for disabled rules too', () => {
+    const r = rule({ matchKind: 'suffix', key: '城', enabled: false });
+    const result = findRuleMatchingEntries(r, dictionaries);
+    expect(result.map((row) => row.source)).toEqual(['北京城', '南京城', '西安城']);
+  });
+
+  test('returns each row with its translation and dictionaryId', () => {
+    const r = rule({ matchKind: 'suffix', key: '城' });
+    const result = findRuleMatchingEntries(r, dictionaries);
+    expect(result).toContainEqual(
+      expect.objectContaining({
+        source: '南京城',
+        translation: 'nam kinh thanh',
+        dictionaryId: 'phrases',
+      })
+    );
   });
 });
 

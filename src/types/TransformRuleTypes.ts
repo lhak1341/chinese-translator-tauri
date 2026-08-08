@@ -14,6 +14,7 @@ export interface TransformRule {
   key: string; // 1-4 Chinese characters
   charCount?: number; // optional exact total-Source-length constraint
   moveWords: number;
+  moveReplacement?: string; // if set, replaces the moved words instead of relocating them
   capitalizeExceptN: number;
   semanticType: SemanticType;
   enabled: boolean;

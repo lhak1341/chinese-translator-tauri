@@ -61,3 +61,6 @@ coverage
 **/graphify-out/*.html
 !graphify-out/GRAPH_REPORT.md
 graphify-out/[0-9]*/
+
+# Machine-local notes, not shared via the repo
+.claude.local.md

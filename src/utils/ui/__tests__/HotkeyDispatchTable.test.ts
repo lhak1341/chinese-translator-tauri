@@ -5,14 +5,24 @@ import type { MatchHotkeyContext } from '../HotkeyDispatchTable';
 // Helpers — build minimal KeyboardEvent-shaped objects
 function key(
   k: string,
-  opts: { meta?: boolean; ctrl?: boolean; shift?: boolean } = {}
-): Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'shiftKey'> {
+  opts: { meta?: boolean; ctrl?: boolean; shift?: boolean; alt?: boolean; code?: string } = {}
+): Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'> {
   return {
     key: k,
+    code: opts.code ?? '',
     metaKey: opts.meta ?? false,
     ctrlKey: opts.ctrl ?? false,
     shiftKey: opts.shift ?? false,
+    altKey: opts.alt ?? false,
   };
+}
+
+// Option+digit helper — Option remaps `.key` per keyboard layout (e.g. Option+1 → '¡'
+// on a US Mac layout), so real callers only ever match on `.code`. `key` here is set to
+// something implausible on purpose, so a test that accidentally matches on `.key`
+// instead of `.code` fails loudly instead of passing for the wrong reason.
+function altDigit(code: string) {
+  return key('WRONG_IF_MATCHED_ON_KEY', { alt: true, code });
 }
 
 const ctx = (overrides: Partial<MatchHotkeyContext> = {}): MatchHotkeyContext => ({
@@ -41,35 +51,63 @@ describe('matchHotkey guards', () => {
   });
 });
 
-// ─── Tab switch (Cmd+Shift+1-4) ───────────────────────────────────────────────
+// ─── Tab switch (Option/Alt+1-5) ───────────────────────────────────────────────
 
 describe('tab switch', () => {
-  it('Cmd+Shift+1 → tabSwitch:translator', () => {
-    expect(matchHotkey(key('1', { meta: true, shift: true }), ctx())).toEqual({
+  it('Option+1 → tabSwitch:translator', () => {
+    expect(matchHotkey(altDigit('Digit1'), ctx())).toEqual({
       type: 'tabSwitch',
       tab: 'translator',
     });
   });
 
-  it('Cmd+Shift+2 → tabSwitch:dictionary', () => {
-    expect(matchHotkey(key('2', { meta: true, shift: true }), ctx())).toEqual({
+  it('Option+2 → tabSwitch:dictionary', () => {
+    expect(matchHotkey(altDigit('Digit2'), ctx())).toEqual({
       type: 'tabSwitch',
       tab: 'dictionary',
     });
   });
 
-  it('Cmd+Shift+3 → tabSwitch:configuration', () => {
-    expect(matchHotkey(key('3', { meta: true, shift: true }), ctx())).toEqual({
+  it('Option+3 → tabSwitch:rules', () => {
+    expect(matchHotkey(altDigit('Digit3'), ctx())).toEqual({
+      type: 'tabSwitch',
+      tab: 'rules',
+    });
+  });
+
+  it('Option+4 → tabSwitch:configuration', () => {
+    expect(matchHotkey(altDigit('Digit4'), ctx())).toEqual({
       type: 'tabSwitch',
       tab: 'configuration',
     });
   });
 
-  it('Cmd+Shift+4 → tabSwitch:appearance', () => {
-    expect(matchHotkey(key('4', { meta: true, shift: true }), ctx())).toEqual({
+  it('Option+5 → tabSwitch:appearance', () => {
+    expect(matchHotkey(altDigit('Digit5'), ctx())).toEqual({
       type: 'tabSwitch',
       tab: 'appearance',
     });
+  });
+
+  it('Option+6 (no mapping) → null', () => {
+    expect(matchHotkey(altDigit('Digit6'), ctx())).toBeNull();
+  });
+
+  it('Cmd+Shift+1 no longer switches tabs (freed up — used to collide with a default macOS shortcut)', () => {
+    expect(matchHotkey(key('1', { meta: true, shift: true }), ctx())).toBeNull();
+  });
+
+  it('Option+Cmd+1 does not switch tabs — Cmd/Ctrl takes precedence over Option', () => {
+    expect(
+      matchHotkey(
+        key('1', { alt: true, meta: true, code: 'Digit1' }),
+        ctx({ activeTab: 'dictionary' })
+      )
+    ).toEqual({ type: 'dictionaryTabHotkey', key: '1' });
+  });
+
+  it('is gated by isInputFocused like every other shortcut', () => {
+    expect(matchHotkey(altDigit('Digit1'), ctx({ isInputFocused: true }))).toBeNull();
   });
 });
 
@@ -164,6 +202,22 @@ describe('Cmd+1-5 on translator tab → quickAdd variants', () => {
   it('Cmd+5 → quickAddCustomProperNoun', () => {
     expect(matchHotkey(key('5', { meta: true }), transCtx)).toEqual({
       type: 'quickAddCustomProperNoun',
+    });
+  });
+});
+
+// ─── Cmd+7 (open new rule) ────────────────────────────────────────────────────
+
+describe('openNewRule', () => {
+  it('Cmd+7 on translator tab → openNewRule', () => {
+    expect(matchHotkey(key('7', { meta: true }), ctx({ activeTab: 'translator' }))).toEqual({
+      type: 'openNewRule',
+    });
+  });
+
+  it('Cmd+7 on dictionary tab → openNewRule too (unlike 1-6, no per-tab meaning)', () => {
+    expect(matchHotkey(key('7', { meta: true }), ctx({ activeTab: 'dictionary' }))).toEqual({
+      type: 'openNewRule',
     });
   });
 });

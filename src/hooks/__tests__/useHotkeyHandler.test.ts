@@ -38,10 +38,10 @@ describe('useHotkeyHandler', () => {
   });
 
   describe('dispatch wiring', () => {
-    test('Cmd+Shift+1 dispatches tabSwitch to translator', async () => {
+    test('Option+1 dispatches tabSwitch to translator', async () => {
       const onTabSwitch = vi.fn();
       renderHook(() => useHotkeyHandler({ onTabSwitch }));
-      fireKey({ key: '1', shiftKey: true });
+      fireKey({ key: '1', code: 'Digit1', altKey: true, metaKey: false });
       await flush();
       expect(onTabSwitch).toHaveBeenCalledWith('translator');
     });
@@ -177,6 +177,29 @@ describe('useHotkeyHandler', () => {
 
       expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
       expect(onQuickAddCharacter).not.toHaveBeenCalled();
+    });
+
+    test('Cmd+7 on translator tab: onOpenNewRule receives clipboard text, same as other quick-add keys', async () => {
+      setSelection('太岳山脉');
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue('太岳山脉');
+      const onOpenNewRule = vi.fn();
+
+      renderHook(() => useHotkeyHandler({ onOpenNewRule, activeTab: 'translator' }));
+      fireKey({ key: '7' });
+      await flush();
+
+      expect(onOpenNewRule).toHaveBeenCalledWith('太岳山脉');
+    });
+
+    test('Cmd+7 on non-translator tab: onOpenNewRule is not called', async () => {
+      setSelection('太岳山脉');
+      const onOpenNewRule = vi.fn();
+
+      renderHook(() => useHotkeyHandler({ onOpenNewRule, activeTab: 'dictionary' }));
+      fireKey({ key: '7' });
+      await flush();
+
+      expect(onOpenNewRule).not.toHaveBeenCalled();
     });
   });
 

@@ -23,6 +23,7 @@ export interface HotkeyHandlerOptions {
   onReloadDictionary?: () => void;
   onFocusSearch?: () => void;
   onDictionaryTabHotkey?: (key: string) => Promise<void>;
+  onOpenNewRule?: (text?: string) => void;
   activeTab?: TabId;
 }
 
@@ -30,8 +31,10 @@ export interface HotkeyHandlerOptions {
  * Hook that registers global keyboard shortcuts for the application.
  *
  * Keyboard Shortcuts:
- * - Cmd/Ctrl+Shift+1-4: Switch tabs
+ * - Option/Alt+1-5: Switch tabs (Translator/Dictionary/Rules/Configuration/Appearance)
  * - Cmd/Ctrl+1-5: Quick add to different dictionaries (Translator tab) / Switch dictionary (Dictionary tab)
+ * - Cmd/Ctrl+7: Switch to Rules tab and open the new-rule form, prefilled with the
+ *   clipboard/selection text as the Key (Translator tab only, like the quick-add keys)
  * - Cmd/Ctrl+R: Reload dictionary (Translator tab only)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
  * - Cmd/Ctrl+Z: Undo
@@ -128,6 +131,9 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           break;
         case 'reloadDictionary':
           opts.onReloadDictionary?.();
+          break;
+        case 'openNewRule':
+          await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule');
           break;
       }
     };

@@ -23,7 +23,9 @@ interface BadgeProps {
   onClick: () => void;
 }
 
-const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
+/** Exported so other table-shaped views (e.g. the Rules tab's match preview) can reuse
+ * the exact VAR/LP badge instead of re-deriving its colors/labels. */
+export const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
   const config =
     type === 'variable'
       ? {
@@ -122,7 +124,8 @@ const TypeToggleCell: React.FC<{
   );
 };
 
-const SemanticTypeToggleCell: React.FC<{
+/** Exported for the same reason as `MetadataBadge` — reuse, not re-derive. */
+export const SemanticTypeToggleCell: React.FC<{
   activeType: string;
   onSelect: (type: string) => void;
   width?: string;
@@ -199,14 +202,19 @@ const SemanticTypeToggleCell: React.FC<{
   );
 };
 
-const RowShell: React.FC<{
-  onContextMenu: (e: React.MouseEvent) => void;
-  isSelected: boolean;
-  isScrolling: boolean;
+/** Fixed-height flex row shell — the canonical Dictionary row rhythm (`ITEM_HEIGHT`,
+ * flex/align-center, bottom-border-only). Exported so any other table-shaped view
+ * (e.g. Rules tab) can reuse the exact same row metrics instead of re-deriving them. */
+export const RowShell: React.FC<{
+  onContextMenu?: (e: React.MouseEvent) => void;
+  isSelected?: boolean;
+  isScrolling?: boolean;
+  role?: string;
   children: React.ReactNode;
-}> = ({ onContextMenu, isSelected, isScrolling, children }) => (
+}> = ({ onContextMenu, isSelected = false, isScrolling = false, role, children }) => (
   <div
     onContextMenu={onContextMenu}
+    role={role}
     style={{
       height: ITEM_HEIGHT,
       display: 'flex',

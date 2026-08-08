@@ -1,6 +1,19 @@
 import React from 'react';
-import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Activity } from 'lucide-react';
+import { ClipboardPaste, PlusCircle, RotateCcw, Zap, Activity, Command } from 'lucide-react';
 import styles from '../../styles/TranslatorControls.module.css';
+
+/** Quick-add hotkeys 1-7 — see docs/HOTKEYS.md's Translator-tab table (single source of
+ * truth for the actual dispatch: src/utils/ui/HotkeyDispatchTable.ts). Keep in sync if
+ * that table changes. */
+const QUICK_ADD_HINTS: readonly [key: string, label: string][] = [
+  ['1', 'Char'],
+  ['2', 'Phrase'],
+  ['3', 'Name'],
+  ['4', 'Pattern'],
+  ['5', 'Novel Name'],
+  ['6', 'Novel Pattern'],
+  ['7', 'Rule'],
+];
 
 /**
  * Performance statistics for translation operations
@@ -116,6 +129,19 @@ export default function TranslatorControls({
         <RotateCcw size={15} aria-hidden="true" />
         {isReloading ? 'Reloading...' : 'Reload'}
       </button>
+
+      {/* Hotkey hints — fainted strip, see docs/HOTKEYS.md */}
+      <div className={styles.hotkeyHints} title="Quick-add hotkeys (see each button's tooltip)">
+        <span className={styles.hintModKey}>
+          <Command size={10} aria-hidden="true" />
+        </span>
+        {QUICK_ADD_HINTS.map(([key, label]) => (
+          <span key={key} className={styles.hintChip}>
+            <span className={styles.hintKey}>{key}</span>
+            <span className={styles.hintLabel}>{label}</span>
+          </span>
+        ))}
+      </div>
 
       {/* Spacer */}
       <div className={styles.spacer} />

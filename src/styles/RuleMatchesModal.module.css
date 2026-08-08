@@ -1,0 +1,92 @@
+/* Fullscreen (fills the Rules tab's own content area, same technique
+   DictionaryManager.module.css's .container uses) instead of a small centered modal —
+   there are 4 columns (Source/Translation/Semantic/Dictionary) that need real room. */
+.fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--background-color);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.count {
+  font-weight: 400;
+  color: var(--text-secondary, var(--text-color));
+}
+
+.empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted, #9ca3af);
+}
+
+.tableArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Same header shape as Dictionary's fixed header (EnhancedVirtualizedDictionaryTable):
+   flex row, bottom-border-only, background var(--background-color). Uniform font-size
+   across every column, including Dictionary/Semantic — no per-column shrink. */
+.headerRow {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  flex-shrink: 0;
+}
+
+.headerCell {
+  padding: 0.5rem 0.75rem;
+  font-weight: bold;
+}
+
+.colSource {
+  width: 20%;
+}
+
+.colTranslation {
+  width: 35%;
+}
+
+.colSemantic {
+  width: 20%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.colDictionary {
+  width: 25%;
+}
+
+/* Muted styling for the Dictionary column's VALUE only — not its header, which stays
+   the same size/weight as every other header cell. */
+.dictionaryValue {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.8125rem;
+}

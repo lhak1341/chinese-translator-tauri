@@ -4,6 +4,12 @@
 
 CSS modules live at `src/styles/ComponentName.module.css`, not co-located with components.
 
+## Cross-Component Reuse
+
+CSS module classes are cross-importable — scoping guarantees unique generated class _names_, not file-privacy. For visual parity with an existing component, `import otherStyles from '../ComponentX.module.css'` and reuse its classes directly rather than duplicating rules (e.g. `RulesManager.tsx` reuses `EnhancedVirtualizedDictionaryTable.module.css`'s `.metadataBadge`).
+
+**A typo'd or wrong-file class reference resolves to `undefined` silently — no error, no visual difference until closely inspected.** Found: `RulesManager.tsx` imported `EnhancedVirtualizedDictionaryTable.module.css` as `dictStyles` and used `dictStyles.button` — but `.button` lives in `DictionaryManager.module.css`, not that file. The button rendered with base `<button>` styles only (missing padding/font-size/radius refinements) for a full session before being caught. When reusing a class cross-file, verify it actually exists in _that_ file (`grep '^\.className' path/to/File.module.css`), not just that the import resolves.
+
 ## Modal Overlays
 
 Use `composes: modalOverlay from './shared.module.css'` then add per-component `background-color`/`padding`.

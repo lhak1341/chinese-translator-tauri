@@ -4,6 +4,8 @@ import {
   moveFirstNWordsToEnd,
   titleCaseExceptLastN,
   moveLastNWordsToBeginning,
+  replaceLastNWordsWithText,
+  replaceFirstNWordsWithText,
 } from '../wordTransformHelpers';
 
 describe('capitalizeExceptFirstN', () => {
@@ -43,6 +45,40 @@ describe('moveFirstNWordsToEnd', () => {
 
   test('n=0 is a no-op', () => {
     expect(moveFirstNWordsToEnd('lao vuong', 0)).toBe('lao vuong');
+  });
+});
+
+describe('replaceLastNWordsWithText', () => {
+  test('drops the last n words and prepends the replacement instead of moving them', () => {
+    expect(replaceLastNWordsWithText('Thai Nhac son mach', 2, 'dãy núi')).toBe('dãy núi Thai Nhac');
+  });
+
+  test('n=0 is a no-op, ignoring the replacement', () => {
+    expect(replaceLastNWordsWithText('Thai Nhac son mach', 0, 'dãy núi')).toBe(
+      'Thai Nhac son mach'
+    );
+  });
+
+  test('returns text unchanged when n >= word count', () => {
+    expect(replaceLastNWordsWithText('son mach', 5, 'dãy núi')).toBe('son mach');
+  });
+});
+
+describe('replaceFirstNWordsWithText', () => {
+  test('drops the first n words and appends the replacement instead of moving them', () => {
+    expect(replaceFirstNWordsWithText('son mach Thai Nhac', 2, 'dãy núi')).toBe(
+      'Thai Nhac dãy núi'
+    );
+  });
+
+  test('n=0 is a no-op, ignoring the replacement', () => {
+    expect(replaceFirstNWordsWithText('son mach Thai Nhac', 0, 'dãy núi')).toBe(
+      'son mach Thai Nhac'
+    );
+  });
+
+  test('returns text unchanged when n >= word count', () => {
+    expect(replaceFirstNWordsWithText('son mach', 5, 'dãy núi')).toBe('son mach');
   });
 });
 
