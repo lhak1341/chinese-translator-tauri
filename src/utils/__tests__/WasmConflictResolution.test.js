@@ -11,22 +11,12 @@ vi.mock('../../wasm/translation_wasm_core.js', () => ({
 vi.mock('../logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
-vi.mock('../wasm/WasmTextAssembler', () => ({
-  wasmTextAssembler: { retireOnSharedModulePanic: vi.fn() },
-}));
-vi.mock('../wasm/WasmTextChunker', () => ({
-  wasmTextChunker: { retireOnSharedModulePanic: vi.fn() },
-}));
-vi.mock('../wasm/WasmDictionaryManager', () => ({
-  retireWasmDictionaryOnSharedPanic: vi.fn(),
-  WasmDictionaryManager: vi.fn(),
-}));
 
 import {
   resolveGlobalConflictsWasm,
   resolveMatchConflictsWasm,
-  retireWasmConflictResolutionOnSharedPanic,
 } from '../wasm/WasmConflictResolution';
+import { fireCascadeRetire } from '../wasm/WasmCascadeRegistry';
 
 // ─── resolveGlobalConflictsWasm (Phase 4) ────────────────────────────────────
 
@@ -171,15 +161,15 @@ describe('resolveMatchConflictsWasm — JS fallback', () => {
   });
 });
 
-// ─── retireWasmConflictResolutionOnSharedPanic ────────────────────────────────
+// ─── cascade retire (via the real WasmCascadeRegistry interface) ─────────────
 
-describe('retireWasmConflictResolutionOnSharedPanic', () => {
-  test('does not throw', () => {
-    expect(() => retireWasmConflictResolutionOnSharedPanic()).not.toThrow();
+describe('cascade retire', () => {
+  test('fireCascadeRetire() does not throw', () => {
+    expect(() => fireCascadeRetire()).not.toThrow();
   });
 
   test('subsequent resolve calls still return arrays (JS fallback after retire)', () => {
-    retireWasmConflictResolutionOnSharedPanic();
+    fireCascadeRetire();
     const m = { startIndex: 0, endIndex: 1, length: 2, type: 'phrase' };
     expect(Array.isArray(resolveGlobalConflictsWasm([m]))).toBe(true);
     expect(Array.isArray(resolveMatchConflictsWasm([m]))).toBe(true);

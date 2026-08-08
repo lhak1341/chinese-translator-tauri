@@ -54,10 +54,6 @@ import { verifyWasmModule } from './wasmIntegrityVerifier';
 import { fetchWasmBinary } from './wasmBinaryCache';
 import { callWasmWithTimeout, DEFAULT_WASM_TIMEOUTS } from './wasmOperationTimeout';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
-import { wasmTextAssembler } from './WasmTextAssembler';
-import { wasmTextChunker } from './WasmTextChunker';
-import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
-import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 // Static literal required so Vite transforms import.meta.url to the correct asset URL in production
@@ -74,12 +70,14 @@ let wasmModule = null;
 let wasmPatternProcessor = null;
 let lastPatternWarningTime = 0;
 const PATTERN_WARNING_COOLDOWN = 10 * 60 * 1000; // 10 minutes
-registerCascadeHandler(() => {
+
+function retireWasmPatternProcessorOnSharedPanic() {
   // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
   wasmPatternProcessor?.__destroy_into_raw();
   wasmPatternProcessor = null;
   lifecycle.permanentlyFail();
-});
+}
+registerCascadeHandler(retireWasmPatternProcessorOnSharedPanic);
 
 /**
  * Initialize the WASM Pattern Processor
@@ -223,14 +221,6 @@ export async function processTokensWasm(semanticTokens, variableCache) {
   } catch (error) {
     const errorMsg = `WASM pattern processing error: ${error.message}`;
     logger.error('❌ Error in WASM pattern processing, skipping patterns:', error);
-    // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
-    wasmPatternProcessor?.__destroy_into_raw();
-    wasmPatternProcessor = null;
-    lifecycle.permanentlyFail();
-    wasmTextAssembler.retireOnSharedModulePanic();
-    wasmTextChunker.retireOnSharedModulePanic();
-    retireWasmDictionaryOnSharedPanic();
-    retireWasmConflictResolutionOnSharedPanic();
     fireCascadeRetire();
 
     // MEDIUM-3 FIX: Show warning with cooldown instead of once-per-session

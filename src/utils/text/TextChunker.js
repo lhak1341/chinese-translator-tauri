@@ -19,7 +19,7 @@ import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
 import { logger } from '../logger.js';
 import { wasmTextChunker } from '../wasm/WasmTextChunker.js';
 
-export class TextChunk {
+class TextChunk {
   constructor(content, punctuation = '', startIndex = 0, lineBreaks = '', startedBy = 'start') {
     this.content = content.trim(); // The actual text content
     this.punctuation = punctuation; // The punctuation that follows this chunk (will be translated later)
@@ -83,7 +83,6 @@ export class TextChunker {
 
     // Build regex patterns based on Unicode support
     this.buildChunkingRegex();
-
   }
 
   /**
@@ -334,7 +333,6 @@ export class TextChunker {
     return chunks;
   }
 
-
   /**
    * Analyze chunk composition for optimization
    * @param {TextChunk[]} chunks - Array of chunks
@@ -385,9 +383,4 @@ export class TextChunker {
     const chineseRegex = /[\u4e00-\u9fff]/;
     return chunks.filter((chunk) => chunk.content.trim() && chineseRegex.test(chunk.content));
   }
-
 }
-
-// Utility function
-export const createChunker = () => new TextChunker();
-

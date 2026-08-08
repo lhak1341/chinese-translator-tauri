@@ -14,11 +14,6 @@
     "ast_hash": "74b9ee9d7bc8628c82c63c62a737b56f",
     "semantic_hash": ""
   },
-  "types/WasmTypes.ts": {
-    "mtime": 1772511299.6019492,
-    "ast_hash": "0e02bab5cb3adb1d1cb0cd7ff6aaaa8d",
-    "semantic_hash": ""
-  },
   "public/wasm/translation_wasm_core.js": {
     "mtime": 1769696878.2937768,
     "ast_hash": "ececdd815ba6fa5a10db0cb6d5dc4a74",
@@ -212,11 +207,6 @@
   "src/types/ViewportTypes.d.ts": {
     "mtime": 1768370416.564221,
     "ast_hash": "0be59a0c64b575712274ee1c91669698",
-    "semantic_hash": ""
-  },
-  "src/types/WasmTypes.d.ts": {
-    "mtime": 1780322059.522066,
-    "ast_hash": "6d105f0b3a9b94c61bd8813e48efb981",
     "semantic_hash": ""
   },
   "src/types/ClickableTypes.d.ts": {
@@ -457,11 +447,6 @@
   "src/utils/highlighting/TextPositionMapper.ts": {
     "mtime": 1781278738.4186933,
     "ast_hash": "e1f79098507c7261debec77f14bdfe7b",
-    "semantic_hash": ""
-  },
-  "src/utils/highlighting/PositionMappingUtils.js": {
-    "mtime": 1777807276.131699,
-    "ast_hash": "74c4ee328ae5ae684a40dc58d0e78af5",
     "semantic_hash": ""
   },
   "src/utils/highlighting/PositionMetadataSegmenter.ts": {

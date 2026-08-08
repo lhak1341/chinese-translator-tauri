@@ -6,9 +6,6 @@ import init, {
 } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
-import { wasmTextAssembler } from './WasmTextAssembler';
-import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
-import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 /**
@@ -146,9 +143,6 @@ export class WasmTextChunker {
       _chunker?.__destroy_into_raw();
       _chunker = null;
       lifecycle.permanentlyFail();
-      wasmTextAssembler.retireOnSharedModulePanic();
-      retireWasmDictionaryOnSharedPanic();
-      retireWasmConflictResolutionOnSharedPanic();
       fireCascadeRetire();
       try {
         recordFallback();

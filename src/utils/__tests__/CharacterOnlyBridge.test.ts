@@ -1,9 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import {
-  findCharacterOnlyMatch,
-  MAX_MATCHES,
-  CONTEXT_WINDOW,
-} from '../highlighting/CharacterOnlyBridge';
+import { findCharacterOnlyMatch } from '../highlighting/CharacterOnlyBridge';
 import type { SemanticArrays } from '../highlighting/SegmentPrecomputer';
 
 // Minimal SemanticArrays builder — only fields the bridge uses
@@ -120,13 +116,9 @@ describe('findCharacterOnlyMatch — position-ratio fallback', () => {
   });
 });
 
-describe('findCharacterOnlyMatch — MAX_MATCHES constant', () => {
-  test('MAX_MATCHES is 100', () => {
-    expect(MAX_MATCHES).toBe(100);
-  });
-
+describe('findCharacterOnlyMatch — MAX_MATCHES occurrence cap', () => {
   test('stops scanning after MAX_MATCHES occurrences', () => {
-    // Build a target with 110 occurrences of '在'
+    // Build a target with 110 occurrences of '在' — internal cap is 100
     const manyChars = Array.from({ length: 110 }, () => '在');
     const source = makeArrays(['在']);
     const target = makeArrays(manyChars);
@@ -135,13 +127,7 @@ describe('findCharacterOnlyMatch — MAX_MATCHES constant', () => {
     expect(Array.isArray(result)).toBe(true);
     expect(result!.length).toBe(1);
     expect(result![0]).toBeGreaterThanOrEqual(0);
-    expect(result![0]).toBeLessThan(MAX_MATCHES);
-  });
-});
-
-describe('findCharacterOnlyMatch — CONTEXT_WINDOW constant', () => {
-  test('CONTEXT_WINDOW is 50', () => {
-    expect(CONTEXT_WINDOW).toBe(50);
+    expect(result![0]).toBeLessThan(100);
   });
 });
 

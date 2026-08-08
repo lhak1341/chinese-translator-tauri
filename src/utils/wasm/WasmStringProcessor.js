@@ -3,10 +3,6 @@ import init, { StringProcessor } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
-import { wasmTextAssembler } from './WasmTextAssembler';
-import { wasmTextChunker } from './WasmTextChunker';
-import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
-import { retireWasmConflictResolutionOnSharedPanic } from './WasmConflictResolution';
 
 /**
  * High-performance string processor using Rust WASM
@@ -81,10 +77,6 @@ class WasmStringProcessor {
       _processor?.__destroy_into_raw();
       _processor = null;
       lifecycle.permanentlyFail();
-      wasmTextAssembler.retireOnSharedModulePanic();
-      wasmTextChunker.retireOnSharedModulePanic();
-      retireWasmDictionaryOnSharedPanic();
-      retireWasmConflictResolutionOnSharedPanic();
       fireCascadeRetire();
       return false;
     }

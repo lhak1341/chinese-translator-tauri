@@ -5,9 +5,6 @@ import init, {
   resolveMatchConflictsCore as wasmResolveMatchConflictsCore,
 } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger';
-import { wasmTextAssembler } from './WasmTextAssembler';
-import { wasmTextChunker } from './WasmTextChunker';
-import { retireWasmDictionaryOnSharedPanic } from './WasmDictionaryManager';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
 /**
@@ -31,7 +28,7 @@ let initializationFailed = false;
 /** @type {Promise<boolean> | null} */
 let initializationPromise = null;
 
-export function retireWasmConflictResolutionOnSharedPanic() {
+function retireWasmConflictResolutionOnSharedPanic() {
   initialized = false;
   initializationFailed = true;
   initializationPromise = null;
@@ -145,10 +142,6 @@ export function resolveGlobalConflictsWasm(allMatches) {
     // cleanup, so borrow_mut_count stays stuck at 1. Retire so future calls go straight
     // to the JS fallback without retrying the corrupted module.
     logger.warn('WASM resolveGlobalConflicts failed, retiring module:', error);
-    retireWasmConflictResolutionOnSharedPanic();
-    wasmTextAssembler.retireOnSharedModulePanic();
-    wasmTextChunker.retireOnSharedModulePanic();
-    retireWasmDictionaryOnSharedPanic();
     fireCascadeRetire();
     return jsFallback(allMatches);
   }
@@ -257,10 +250,6 @@ export function resolveMatchConflictsWasm(potentialMatches) {
     return Array.from(selectedIndices).map((i) => potentialMatches[i]);
   } catch (/** @type {any} */ error) {
     logger.warn('WASM resolveMatchConflictsCore failed, retiring module:', error);
-    retireWasmConflictResolutionOnSharedPanic();
-    wasmTextAssembler.retireOnSharedModulePanic();
-    wasmTextChunker.retireOnSharedModulePanic();
-    retireWasmDictionaryOnSharedPanic();
     fireCascadeRetire();
     return jsFallbackPhase2(potentialMatches);
   }

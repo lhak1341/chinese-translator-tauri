@@ -3,7 +3,7 @@
  *
  * Primary entry points:
  *   - new TextTokenizer() — character-level tokenization
- *   - createChunker()   — punctuation-based text segmentation
+ *   - new TextChunker() — punctuation-based text segmentation
  *   - sanitizeDictionaryEntry() — user input sanitization
  */
 
@@ -19,7 +19,7 @@ export type {
 export { TokenType, Token, TextTokenizer } from './TextTokenizer';
 
 // --- Chunking ---
-export { TextChunk, TextChunker, createChunker } from './TextChunker';
+export { TextChunker } from './TextChunker';
 export { ChunkPostProcessor } from './ChunkPostProcessor';
 export { adaptiveChunker } from './AdaptiveChunker';
 export type {

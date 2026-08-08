@@ -3263,6 +3263,68 @@ export class TranslationEngine {
    * Cannot be extracted because proper-noun-consumed tokens affect Phase 4 and 5.
    * Token state coordination requires synchronous phase execution.
    */
+  /**
+   * Resolve candidate dictionary matches at a single token position, hiding the
+   * shared-lookup-index-vs-fallback branch and the onlyPatternVariables filter.
+   * Shared by applyDictionaryTranslation's main scan and its lookahead-defer scan —
+   * both need identical candidate resolution, just at a different position.
+   * @param {Array} tokens
+   * @param {number} pos
+   * @param {string} category
+   * @param {Set<string>} dictionarySet
+   * @param {Array<string>} dictionaryOrder
+   * @param {boolean} useSharedLookupIndex
+   * @param {Object} options
+   * @param {string} logContext - 'main' or 'lookahead', for VERBOSE log disambiguation
+   * @returns {Promise<Array>}
+   */
+  async getCandidateMatchesAtPosition(
+    tokens,
+    pos,
+    category,
+    dictionarySet,
+    dictionaryOrder,
+    useSharedLookupIndex,
+    options,
+    logContext
+  ) {
+    let matches;
+    if (useSharedLookupIndex) {
+      const textPosition = getTextPositionForTokenIndex(tokens, pos);
+      matches = getIndexedMatches(options.lookupIndex, textPosition, category);
+      matches = matches.filter((match) => dictionarySet.has(match.dictionary));
+
+      if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && matches.length > 0) {
+        this.log(
+          DEBUG_LEVELS.VERBOSE,
+          `📊 Shared index (${logContext}): ${matches.length} matches found for position ${textPosition}, category ${category}`
+        );
+      }
+    } else {
+      // MEDIUM FIX: Validate token index before reconstruction
+      if (pos >= tokens.length) {
+        this.log(
+          DEBUG_LEVELS.ERROR,
+          `⚠️ Token index ${pos} out of bounds (length: ${tokens.length})`
+        );
+        matches = [];
+      } else {
+        const remainingText = reconstructTextFromIndex(tokens, pos);
+        matches = await this.findAllMatches(remainingText, 0, dictionaryOrder);
+      }
+    }
+
+    if (options.onlyPatternVariables) {
+      matches = matches.filter(
+        (match) =>
+          match.dictionary !== 'phrases' ||
+          (match.metadata && match.metadata.allowAsPatternVariable === true)
+      );
+    }
+
+    return matches;
+  }
+
   async applyDictionaryTranslation(tokens, options) {
     const dictionaryOrder =
       options.dictionaryOrder !== undefined
@@ -3372,47 +3434,16 @@ export class TranslationEngine {
             characters: 'characters',
             general: 'phrases',
           }[phase] || 'phrases';
-        let matches;
-        if (useSharedLookupIndex) {
-          // Get text position for this token to look up in the index
-          const textPosition = getTextPositionForTokenIndex(tokens, i);
-
-          // Get pre-computed matches from lookup index
-          matches = getIndexedMatches(options.lookupIndex, textPosition, category);
-
-          // Filter matches by the specific dictionaries for this phase (since index contains all matches)
-          matches = matches.filter((match) => dictionarySet.has(match.dictionary));
-
-          if (this.debugLevel >= DEBUG_LEVELS.VERBOSE && matches.length > 0) {
-            this.log(
-              DEBUG_LEVELS.VERBOSE,
-              `📊 Shared index: ${matches.length} matches found for position ${textPosition}, category ${category}`
-            );
-          }
-        } else {
-          // Fallback: Traditional dictionary lookup
-          // MEDIUM FIX: Validate token index before reconstruction
-          if (i >= tokens.length) {
-            this.log(
-              DEBUG_LEVELS.ERROR,
-              `⚠️ Token index ${i} out of bounds (length: ${tokens.length})`
-            );
-            matches = [];
-          } else {
-            const remainingText = reconstructTextFromIndex(tokens, i);
-            matches = await this.findAllMatches(remainingText, 0, dictionaryOrder);
-          }
-        }
-
-        // Filter matches based on onlyPatternVariables option
-        let filteredMatches = matches;
-        if (options.onlyPatternVariables) {
-          filteredMatches = matches.filter(
-            (match) =>
-              match.dictionary !== 'phrases' ||
-              (match.metadata && match.metadata.allowAsPatternVariable === true)
-          );
-        }
+        const filteredMatches = await this.getCandidateMatchesAtPosition(
+          tokens,
+          i,
+          category,
+          dictionarySet,
+          dictionaryOrder,
+          useSharedLookupIndex,
+          options,
+          'main'
+        );
 
         if (filteredMatches.length > 0) {
           const bestMatch = filteredMatches[0];
@@ -3452,25 +3483,16 @@ export class TranslationEngine {
                 (tokens[j].translationSource && !tokens[j].isPatternPartialReset)
               )
                 continue;
-              const jTextPos = getTextPositionForTokenIndex(tokens, j);
-              let jMatches;
-              if (useSharedLookupIndex) {
-                jMatches = getIndexedMatches(options.lookupIndex, jTextPos, category);
-                jMatches = jMatches.filter((m) => dictionarySet.has(m.dictionary));
-              } else {
-                jMatches = await this.findAllMatches(
-                  reconstructTextFromIndex(tokens, j),
-                  0,
-                  dictionaryOrder
-                );
-              }
-              if (options.onlyPatternVariables) {
-                jMatches = jMatches.filter(
-                  (m) =>
-                    m.dictionary !== 'phrases' ||
-                    (m.metadata && m.metadata.allowAsPatternVariable === true)
-                );
-              }
+              const jMatches = await this.getCandidateMatchesAtPosition(
+                tokens,
+                j,
+                category,
+                dictionarySet,
+                dictionaryOrder,
+                useSharedLookupIndex,
+                options,
+                'lookahead'
+              );
               if (jMatches.length > 0 && jMatches[0].word.length > bestMatch.word.length) {
                 deferToLookahead = true;
               }

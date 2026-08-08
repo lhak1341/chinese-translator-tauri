@@ -28,6 +28,7 @@ const DICTS = {
     中: 'trung',
     国: 'quốc',
     人: 'người',
+    日: 'nhật',
   },
   phrases: {
     不知道: 'không biết',
@@ -38,6 +39,8 @@ const DICTS = {
   patterns: {},
   properNouns: {
     张三: 'Trương Tam',
+    日元: 'Yên Nhật',
+    元始圣人: 'Nguyên Thủy Thánh Nhân',
   },
   conversion: {},
 };
@@ -167,6 +170,28 @@ describe('TranslationEngine.translateSinglePass — pipeline', () => {
       expect(tokens[1].translationSource).toBe('properNouns_consumed');
       expect(tokens[2].translationSource).toBe('characters');
       expect(tokens[2].translated).toBe('là');
+    });
+
+    test('lookahead defers a short match when a longer match starts inside its span', async () => {
+      // 日元 (2 chars, i=0) would greedily match first, but 元始圣人 (4 chars) starts
+      // at i=1 — strictly longer, so the short match at i=0 must defer. See
+      // src/utils/CLAUDE.md "Phase 2 Proper Noun Lookahead".
+      const tokens = [tok('日', 0), tok('元', 1), tok('始', 2), tok('圣', 3), tok('人', 4)];
+      await engine.translateSinglePass(tokens, {});
+
+      // 日元 never wins — 日 falls through to Phase 5 character fallback instead.
+      expect(tokens[0].translationSource).toBe('characters');
+      expect(tokens[0].translated).toBe('nhật');
+
+      // 元始圣人 wins the deferred position, consuming all 4 remaining tokens.
+      expect(tokens[1].translationSource).toBe('properNouns');
+      expect(tokens[1].translated).toBe('Nguyên Thủy Thánh Nhân');
+      expect(tokens[2].translationSource).toBe('properNouns_consumed');
+      expect(tokens[3].translationSource).toBe('properNouns_consumed');
+      expect(tokens[4].translationSource).toBe('properNouns_consumed');
+      expect(tokens[2].translated).toBeNull();
+      expect(tokens[3].translated).toBeNull();
+      expect(tokens[4].translated).toBeNull();
     });
   });
 

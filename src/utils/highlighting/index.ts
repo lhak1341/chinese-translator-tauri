@@ -21,7 +21,7 @@ export {
 } from './SegmentPrecomputer';
 
 // --- Character-Only bridge scoring ---
-export { findCharacterOnlyMatch, MAX_MATCHES, CONTEXT_WINDOW } from './CharacterOnlyBridge';
+export { findCharacterOnlyMatch } from './CharacterOnlyBridge';
 
 // --- Shared Clickable* highlight predicate ---
 export { isUnitHighlighted } from './UnitHighlightPredicate';
@@ -30,11 +30,6 @@ export { isUnitHighlighted } from './UnitHighlightPredicate';
 export { scrollToHighlightedElement, scheduleHighlightScroll } from './ScrollHelpers';
 
 // --- Position utilities ---
-export {
-  tokenPositionToCharPosition,
-  buildFullTextFromTokens,
-  convertWasmMatchToTokenMatch,
-} from './PositionMappingUtils';
 export { mapToPositions, compareByTokenIndex, resolveTokenIndex } from './TextPositionMapper';
 
 // --- Overflow guard constants (shared with TranslationEngine and Translator) ---

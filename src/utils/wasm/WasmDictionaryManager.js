@@ -34,7 +34,7 @@ const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', imp
 // Guards all engine calls so the corrupted module is never touched again.
 let _sharedModuleCorrupted = false;
 
-export function retireWasmDictionaryOnSharedPanic() {
+function retireWasmDictionaryOnSharedPanic() {
   _sharedModuleCorrupted = true;
 }
 registerCascadeHandler(retireWasmDictionaryOnSharedPanic);

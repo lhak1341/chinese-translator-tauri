@@ -6,14 +6,14 @@ import type { SemanticArrays } from './SegmentPrecomputer';
  * 100 balances accuracy (95%+) with memory (<10 MB) and latency (<50 ms) on
  * 10,000+ character documents with common single-character segments.
  */
-export const MAX_MATCHES = 100;
+const MAX_MATCHES = 100;
 
 /**
  * CONTEXT_WINDOW limits per-click memory when building context strings.
  * 50 segments (~1 KB) gives 90%+ accuracy; beyond 100 gives negligible gain
  * at >2 KB memory and >10 ms extraction on 20,000-character documents.
  */
-export const CONTEXT_WINDOW = 50;
+const CONTEXT_WINDOW = 50;
 
 interface MatchCandidate {
   startIndex: number;

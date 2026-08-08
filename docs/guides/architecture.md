@@ -396,35 +396,13 @@ if (token.translated !== null) {
 
 **Critical**: Consumed tokens MUST have `translated: null`, otherwise processed instead of skipped.
 
-### WASM Boundary Type Contracts (Enhanced 2026-01-16)
+### WASM Boundary Type Contracts (Updated 2026-08-08, see ADR-037)
 
-**Location**: `types/WasmTypes.ts`
+**Location**: `src/utils/wasm/WasmBoundaryValidation.ts`
 
-**Comprehensive validation** for all 4 WASM systems:
+Only `validateWasmDictionaryMatch()` (dictionary engine results — infers length from word, default priority) survives today, called by `src/utils/dictionary/DictionaryWasmLookup.js`. The root-level `types/WasmTypes.ts` twin (reversed `copyWasmTokens` param order) and `validateWasmToken`/`copyWasmTokens`/`validateWasmPatternMatch`/`validateRustLookupMatch`/`isMetadataSizeValid` were deleted as dead code — `copyWasmTokens`/`validateWasmToken`'s sole production caller (the WASM NumberProcessor's Phase 3 boundary copy) was removed when Phase 3 moved to pure JS; the rest never had a production caller. See ADR-037 for the full history and the confirmed-open gap this left: `WasmPatternProcessor.js`/`WasmTextChunker.js` do no structural validation of their own WASM output today.
 
-1. **WasmToken** - Number processor tokens with undefined → null conversion
-2. **WasmPatternMatch** - Pattern processor results with validation
-3. **WasmDictionaryMatch** - Dictionary engine results with defaults
-4. **RustLookupMatch** - Lookup index results with type enforcement
-
-**Validation functions**:
-
-- `validateWasmToken()` - Converts undefined to null, logs warnings
-- `validateWasmPatternMatch()` - Ensures required fields, provides defaults
-- `validateWasmDictionaryMatch()` - Infers length from word, default priority
-- `validateRustLookupMatch()` - Enforces dictionary type, infers length
-- `copyWasmTokens()` - Two-phase validation prevents partial corruption
-
-**Safety rules documented**:
-
-- undefined → null conversion (Rule 1)
-- Array length preservation (Rule 2)
-- In-place modification (Rule 3)
-- Consumed token pattern (Rule 4)
-- Two-phase validation (Rule 5)
-- Error propagation (Rule 6)
-
-**Test coverage**: 57 tests across WasmTypes.test.ts and WasmBoundaryEdgeCases.test.js
+**Test coverage**: `WasmBoundaryValidation.test.ts` (the surviving `validateWasmDictionaryMatch` describe block only).
 
 ---
 

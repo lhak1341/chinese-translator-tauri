@@ -6,7 +6,7 @@
 
 import { logger } from '../logger.js';
 
-export class PerformanceMonitor {
+class PerformanceMonitor {
   /**
    * @param {{ sampleRate?: number, maxSamples?: number, enabled?: boolean }} [options]
    */
@@ -186,19 +186,3 @@ export const globalPerformanceMonitor = new PerformanceMonitor({
   enabled: true,
   sampleRate: process.env.NODE_ENV === 'production' ? 0.05 : 0.2,
 });
-
-// Convenience wrapper for simple timing
-export const timeOperation = async (
-  /** @type {string} */ operationName,
-  /** @type {() => Promise<any>} */ asyncOperation
-) => {
-  const timer = globalPerformanceMonitor.startTimer(operationName);
-  try {
-    const result = await asyncOperation();
-    globalPerformanceMonitor.endTimer(timer, operationName);
-    return result;
-  } catch (error) {
-    globalPerformanceMonitor.endTimer(timer, operationName);
-    throw error;
-  }
-};

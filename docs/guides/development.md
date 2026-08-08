@@ -499,14 +499,7 @@ Accumulated pitfalls confirmed across development sessions. Organized by area.
 
 ### Types / Imports
 
-**Dual `WasmTypes` implementations — DO NOT confuse** (2026-02-13): Two files with OPPOSITE `copyWasmTokens` conventions:
-
-- `types/WasmTypes.ts` (project ROOT, not `src/`) — `copyWasmTokens(source, target)`: source=WASM output (param1, read-only), target=JS tokens (param2, written to). Used by ALL test files via `'../../../types/WasmTypes.js'`.
-- `src/utils/WasmBoundaryValidation.ts` — `copyWasmTokens(sourceTokens, wasmTokens)`: sourceTokens=JS destination (param1, written to), wasmTokens=WASM output (param2, read). Used by `TranslationEngine.js`.
-
-Swapping imports between production code and tests will silently reverse the copy direction.
-
-**`'../../../types/WasmTypes.js'` test import resolves to project root** (2026-02-13): From any `src/**/__tests__/` directory, three `../` levels exit to the project root, so `'../../../types/WasmTypes.js'` → `{project_root}/types/WasmTypes.ts` (Vite resolves `.js` → `.ts`). The same path works from both `src/types/__tests__/` and `src/utils/__tests__/`.
+**`types/WasmTypes.ts` (project root) deleted 2026-08-08 (ADR-037)** — it was a test-only twin of `src/utils/wasm/WasmBoundaryValidation.ts` with a reversed `copyWasmTokens` param order, plus a drifted copy of `validateWasmDictionaryMatch` that its own tests were silently validating instead of the real one. `copyWasmTokens`/`validateWasmToken`/`validateWasmPatternMatch`/`validateRustLookupMatch`/`isMetadataSizeValid` are gone from `WasmBoundaryValidation.ts` too — their sole production caller (WASM NumberProcessor) was already deleted when Phase 3 moved to pure JS. Only `validateWasmDictionaryMatch` survives, called by `DictionaryWasmLookup.js`. Do not recreate either file's dead functions without a concrete new caller — see ADR-037.
 
 **`validateDictionaryEntry` renamed — DO NOT revert** (2026-02-14): `configValidation.ts` exports `validateRawDictionaryEntry` (raw JSON structural validation). The name `validateDictionaryEntry` belongs to `src/components/dictionary/DictionaryTypes.ts` (dictionary-type-specific rules, different signature). Same name was a maintenance collision.
 
@@ -604,6 +597,8 @@ Fallow reports are a starting point, not a deletion list. Four blind spots:
 
 4. **Test imports count.** Fallow may flag exports used only in `__tests__/` files as dead. Check test files before removing.
 
+4b. **A test-only caller isn't automatically "delete it."** If the test unit-tests real, substantial edge-case logic that only works via direct import, keep the export — a real test surface justifies an interface with zero cross-module callers. Reserve unexport/delete for trivial constants or logic the surviving public function already covers indirectly. (2026-08-08: kept `VocabularyWarmup.js`'s `extractHighFrequencyVocabulary`/`generateCharacterCombinations` exported for this reason; unexported `CharacterOnlyBridge`/`PerformanceMonitor`'s trivial constants safely since their tests lost nothing hardcoding literals instead.)
+
 5. **Partial-dead ≠ file-dead.** A file with some dead exports is NOT a dead file. Verify every export has zero callers before deleting the file.
 
 6. **JSDoc `@import {...} from '...'` and inline `@type {import('...').X}` are invisible to `analyze`/`trace_export`.** This codebase types many `.js` files via JSDoc, not real ES imports — a `.d.ts` file consumed only this way shows `file_reachable: false` even when genuinely alive. Grep for `@import\s*{` and `import\(['"].*['"]\)\.` referencing a file before trusting fallow's verdict on it.
@@ -621,7 +616,7 @@ Fallow reports are a starting point, not a deletion list. Four blind spots:
 **Verification after each batch:**
 
 ```bash
-pnpm type-check && pnpm test -- --run
+pnpm type-check && pnpm test -- --run  # add --reporter=verbose if backgrounding — default reporter is silent when piped, and a full run legitimately slows down deep in; that's not a hang
 pnpm tauri:dev  # catches dynamic import() breakage — type-check/tests miss it
 ```
 
