@@ -118,13 +118,13 @@ describe('RulesManager', () => {
     expect(screen.getByLabelText(/Key \(1-4/)).toHaveValue('');
   });
 
-  test('adding a rule with a Replace-moved-words value saves it on the rule', async () => {
+  test('adding a rule with a Replace key value saves it on the rule', async () => {
     render(<RulesManager />);
     await waitFor(() => expect(screen.queryByText(/Loading rules/)).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByText('Add Rule'));
     fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: '城' } });
-    fireEvent.change(screen.getByLabelText(/Replace moved words with/), {
+    fireEvent.change(screen.getByLabelText(/Replace key with/), {
       target: { value: 'thanh pho' },
     });
     fireEvent.click(screen.getByText('Save'));
@@ -157,10 +157,10 @@ describe('RulesManager', () => {
   test('editing the Replace cell inline commits the new value', async () => {
     loadTransformRules.mockResolvedValue([makeRule()]);
     render(<RulesManager />);
-    const cell = await screen.findByLabelText('Replace-moved-words for City suffix');
+    const cell = await screen.findByLabelText('Replace key text for City suffix');
 
     fireEvent.click(cell);
-    const input = screen.getByLabelText('Replace-moved-words for City suffix');
+    const input = screen.getByLabelText('Replace key text for City suffix');
     fireEvent.change(input, { target: { value: 'dãy núi' } });
     fireEvent.blur(input);
 

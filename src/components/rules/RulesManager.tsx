@@ -281,11 +281,11 @@ function NewRuleModal({
 
         <div className={styles.formRow}>
           <div className={styles.formGroup}>
-            <label htmlFor="rule-moveReplacement">Replace moved words with (optional)</label>
+            <label htmlFor="rule-moveReplacement">Replace key with (optional)</label>
             <input
               id="rule-moveReplacement"
               value={draft.moveReplacement ?? ''}
-              placeholder="leave blank to move the words as-is"
+              placeholder="leave blank to use the key's plain gloss"
               onChange={(e) => setDraft({ ...draft, moveReplacement: e.target.value || undefined })}
             />
           </div>
@@ -424,8 +424,8 @@ function RuleRow({
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colReplace}`}>
         <EditableCell
           value={rule.moveReplacement ?? ''}
-          placeholder="moves as-is"
-          label={`Replace-moved-words for ${rule.label || rule.key}`}
+          placeholder="plain gloss"
+          label={`Replace key text for ${rule.label || rule.key}`}
           onCommit={async (v) => updateRule({ ...rule, moveReplacement: v || undefined })}
         />
       </div>

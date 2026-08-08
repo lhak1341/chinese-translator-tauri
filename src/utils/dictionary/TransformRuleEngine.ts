@@ -15,6 +15,8 @@ import {
   moveFirstNWordsToEnd,
   replaceLastNWordsWithText,
   replaceFirstNWordsWithText,
+  replaceLastNWordsInPlace,
+  replaceFirstNWordsInPlace,
 } from '../wordTransformHelpers';
 
 export function ruleMatches(rule: TransformRule, source: string): boolean {
@@ -49,8 +51,14 @@ export function findBestMatch(rules: TransformRule[], source: string): Transform
 
 /**
  * Applies a matched rule's transform to `source`'s per-character gloss.
- * Capitalize always runs before move, on the pre-move word order — see
+ * Capitalize always runs before move/replace, on the pre-move word order — see
  * CONTEXT.md for why order isn't configurable.
+ *
+ * When `moveReplacement` is set, the number of words replaced is always the key's own
+ * character count (`rule.key.length`), not `rule.moveWords` — `moveWords` only decides
+ * whether the replacement text relocates to the opposite end (moveWords > 0, matching
+ * the plain move behavior) or stays in the key's own position (moveWords === 0 — useful
+ * when you want to substitute the key's translation without reordering anything).
  */
 export function applyRule(
   rule: TransformRule,
@@ -58,16 +66,23 @@ export function applyRule(
   glossFn: (source: string) => string
 ): string {
   const gloss = glossFn(source);
+  const replaceCount = [...rule.key].length;
   if (rule.matchKind === 'suffix') {
     const capitalized = titleCaseExceptLastN(gloss, rule.capitalizeExceptN);
-    return rule.moveReplacement !== undefined
-      ? replaceLastNWordsWithText(capitalized, rule.moveWords, rule.moveReplacement)
-      : moveLastNWordsToBeginning(capitalized, rule.moveWords);
+    if (rule.moveReplacement === undefined) {
+      return moveLastNWordsToBeginning(capitalized, rule.moveWords);
+    }
+    return rule.moveWords > 0
+      ? replaceLastNWordsWithText(capitalized, replaceCount, rule.moveReplacement)
+      : replaceLastNWordsInPlace(capitalized, replaceCount, rule.moveReplacement);
   }
   const capitalized = capitalizeExceptFirstN(gloss, rule.capitalizeExceptN);
-  return rule.moveReplacement !== undefined
-    ? replaceFirstNWordsWithText(capitalized, rule.moveWords, rule.moveReplacement)
-    : moveFirstNWordsToEnd(capitalized, rule.moveWords);
+  if (rule.moveReplacement === undefined) {
+    return moveFirstNWordsToEnd(capitalized, rule.moveWords);
+  }
+  return rule.moveWords > 0
+    ? replaceFirstNWordsWithText(capitalized, replaceCount, rule.moveReplacement)
+    : replaceFirstNWordsInPlace(capitalized, replaceCount, rule.moveReplacement);
 }
 
 /**

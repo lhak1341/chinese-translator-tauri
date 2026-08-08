@@ -489,7 +489,8 @@ interface TransformRule {
   matchKind: 'suffix' | 'prefix';
   key: string; // 1-4 Chinese chars, matched against the tail (suffix) or head (prefix) of Source
   charCount?: number; // optional exact total-Source-length constraint (not the key's own length)
-  moveWords: number; // N words relocated
+  moveWords: number; // N words relocated (when moveReplacement is unset) or relocate-or-not toggle (when it's set — see below)
+  moveReplacement?: string; // if set, substitutes for the key's own glossed words instead of moving them verbatim
   capitalizeExceptN: number; // N words left lowercase
   semanticType: SemanticType; // stamped on the entry when this rule matches
   enabled: boolean;
@@ -503,7 +504,9 @@ interface TransformRule {
 
 **Transform application order is fixed, not configurable**: the capitalize step always runs before the move step, on the original (pre-move) word order. This isn't an arbitrary choice — `titleCaseExceptLastN`'s "except last N" only means the intended words when applied before reordering; running it after `moveLastNWordsToBeginning` would target the wrong words. Traced from the canonical worked example: rough gloss `"nam kinh thành"` → `titleCaseExceptLastN(text, 1)` → `"Nam Kinh thành"` → `moveLastNWordsToBeginning(result, 1)` → `"thành Nam Kinh"`.
 
-**Suffix rules reuse the existing tail-anchored helpers** (`titleCaseExceptLastN`, `moveLastNWordsToBeginning` in `src/utils/wordTransformHelpers.ts`). **Prefix rules need their own mirrored, head-anchored helpers** (`capitalizeExceptFirstN`, `moveFirstNWordsToEnd` — not yet implemented as of this writing) — `matchKind` selects which helper pair runs; the `moveWords`/`capitalizeExceptN` field pair is shared, not duplicated per direction.
+**Suffix rules reuse the existing tail-anchored helpers** (`titleCaseExceptLastN`, `moveLastNWordsToBeginning` in `src/utils/wordTransformHelpers.ts`). **Prefix rules have their own mirrored, head-anchored helpers** (`capitalizeExceptFirstN`, `moveFirstNWordsToEnd`) — `matchKind` selects which helper pair runs; the `moveWords`/`capitalizeExceptN` field pair is shared, not duplicated per direction.
+
+**`moveReplacement` (added 2026-08-08, same session as the initial feature): substitutes custom text for the key's own glossed words instead of relocating them verbatim.** The word-count it operates on is always `[...rule.key].length` (the key's own character count) — **not** `rule.moveWords`, even though the two are typically equal in practice (the UI doesn't enforce it). `moveWords` is repurposed when `moveReplacement` is set: `moveWords > 0` relocates the replacement to the opposite end (`replaceLastNWordsWithText`/`replaceFirstNWordsWithText` — same position a plain move would have landed it); `moveWords === 0` leaves it in the key's own position instead (`replaceLastNWordsInPlace`/`replaceFirstNWordsInPlace`) — useful for substituting the key's translation without reordering anything else. Worked example: suffix key `山脉` (2 chars), gloss `"Thái Nhạc sơn mạch"`, replacement `"dãy núi"` — `moveWords: 2` → `"dãy núi Thái Nhạc"` (relocated to front); `moveWords: 0` → `"Thái Nhạc dãy núi"` (stays at the end, in place).
 
 Storage: a dedicated file, Tauri-fs-synced the same way dictionaries are (own Rust read/write commands) — deliberately NOT folded into `appConfig.ts`'s `config.json`, both because Transform Rules are a growing list (closer in cardinality to dictionary entries than to `AppConfig`'s handful of scalar/short-list fields) and to sidestep `AppConfig`'s documented direct-Rust-write cache-invalidation landmine (see the `AppConfig` entry above) entirely rather than risk a third occurrence of it.
 

@@ -121,6 +121,39 @@ describe('applyRule', () => {
     });
     expect(applyRule(r, '南京城', glossFn)).toBe('Kinh Thanh mien nam');
   });
+
+  test('suffix rule with moveReplacement and moveWords=0 replaces the key words in place — no relocation', () => {
+    const r = rule({
+      matchKind: 'suffix',
+      key: '京城', // 2 chars
+      moveWords: 0,
+      capitalizeExceptN: 1,
+      moveReplacement: 'thanh pho',
+    });
+    expect(applyRule(r, '南京城', glossFn)).toBe('Nam thanh pho');
+  });
+
+  test('prefix rule with moveReplacement and moveWords=0 replaces the key words in place — no relocation', () => {
+    const r = rule({
+      matchKind: 'prefix',
+      key: '南',
+      moveWords: 0,
+      capitalizeExceptN: 1,
+      moveReplacement: 'mien nam',
+    });
+    expect(applyRule(r, '南京城', glossFn)).toBe('mien nam Kinh Thanh');
+  });
+
+  test('replace-word-count always derives from the key length, not moveWords, even when moveWords is relocating', () => {
+    const r = rule({
+      matchKind: 'suffix',
+      key: '城', // 1 char
+      moveWords: 5, // ignored as a count now — only relocate-or-not (>0) matters
+      capitalizeExceptN: 1,
+      moveReplacement: 'thanh pho',
+    });
+    expect(applyRule(r, '南京城', glossFn)).toBe('thanh pho Nam Kinh');
+  });
 });
 
 describe('findConflict', () => {

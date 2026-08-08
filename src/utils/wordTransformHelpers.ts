@@ -91,6 +91,30 @@ export function replaceFirstNWordsWithText(text: string, n: number, replacement:
   return [...tail, replacement].join(' ');
 }
 
+/**
+ * Drop the last `n` words and append `replacement` in their place — same trailing
+ * position, no relocation to the front. In-place variant of `replaceLastNWordsWithText`.
+ */
+export function replaceLastNWordsInPlace(text: string, n: number, replacement: string): string {
+  if (n <= 0) return text;
+  const words = text.split(' ');
+  if (words.length <= n) return text;
+  const head = words.slice(0, -n);
+  return [...head, replacement].join(' ');
+}
+
+/**
+ * Drop the first `n` words and prepend `replacement` in their place — same leading
+ * position, no relocation to the end. In-place variant of `replaceFirstNWordsWithText`.
+ */
+export function replaceFirstNWordsInPlace(text: string, n: number, replacement: string): string {
+  if (n <= 0) return text;
+  const words = text.split(' ');
+  if (words.length <= n) return text;
+  const tail = words.slice(n);
+  return [replacement, ...tail].join(' ');
+}
+
 // Named baked-n variants — each is directly testable without mounting DictionaryEntry.
 
 export const capitalizeAll = (text: string): string => titleCaseWords(text);
