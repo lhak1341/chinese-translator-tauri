@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Languages, Book, Settings, Palette, LucideIcon } from 'lucide-react';
+import { Languages, Book, Settings, Palette, Wand2, LucideIcon } from 'lucide-react';
 import Translator from './Translator';
 import DictionaryManager from './dictionary/DictionaryManager';
+import RulesManager from './rules/RulesManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
@@ -17,7 +18,7 @@ import styles from '../styles/TabbedInterface.module.css';
 /**
  * Valid tab identifiers for the application
  */
-type TabId = 'translator' | 'dictionary' | 'configuration' | 'appearance';
+type TabId = 'translator' | 'dictionary' | 'rules' | 'configuration' | 'appearance';
 
 /**
  * Tab configuration
@@ -25,6 +26,7 @@ type TabId = 'translator' | 'dictionary' | 'configuration' | 'appearance';
 const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] = [
   { id: 'translator', label: 'Translator', shortcut: '1', icon: Languages },
   { id: 'dictionary', label: 'Dictionary', shortcut: '2', icon: Book },
+  { id: 'rules', label: 'Rules', shortcut: '5', icon: Wand2 },
   { id: 'configuration', label: 'Configuration', shortcut: '3', icon: Settings },
   { id: 'appearance', label: 'Appearance', shortcut: '4', icon: Palette },
 ];
@@ -151,6 +153,14 @@ const TabbedInterface: React.FC = () => {
             searchRef={dictionarySearchRef as React.RefObject<HTMLInputElement>}
             isActive={activeTab === 'dictionary'}
           />
+        </div>
+        <div
+          role="tabpanel"
+          id="panel-rules"
+          aria-labelledby="tab-rules"
+          className={`${styles.componentWrapper} ${styles.componentWrapperScroll} ${activeTab === 'rules' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
+        >
+          <RulesManager />
         </div>
         <div
           role="tabpanel"

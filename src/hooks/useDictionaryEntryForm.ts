@@ -19,6 +19,13 @@ import {
   validateDictionaryEntry,
   toProperNounsId,
 } from '../utils/dictionary';
+import { loadTransformRules } from '../utils/dictionary/TransformRuleBackend';
+import {
+  findBestMatch,
+  applyRule,
+  dictionarySupportsTransformRules,
+} from '../utils/dictionary/TransformRuleEngine';
+import type { TransformRule } from '../types/TransformRuleTypes';
 
 export interface DictionaryEntryFormDeps {
   updateEntry: (
@@ -54,6 +61,8 @@ export interface DictionaryEntryFormState {
   showPatternValidation: boolean;
   existingEntry: ExistingEntryData | null;
   showExistingEntryNotification: boolean;
+  /** Plain, unmodified per-character gloss — a reference to compare a Transform Rule's guess against. */
+  roughGlossReference: string;
   isSaving: boolean;
   sourceInputRef: RefObject<HTMLInputElement | null>;
   translationInputRef: RefObject<HTMLInputElement | null>;
@@ -124,6 +133,8 @@ export function useDictionaryEntryForm(
   const [showCharacterValidation, setShowCharacterValidation] = useState<boolean>(false);
   const [showPatternValidation, setShowPatternValidation] = useState<boolean>(false);
   const [isFormValid, setIsFormValid] = useState<boolean>(true);
+  const [transformRules, setTransformRules] = useState<TransformRule[]>([]);
+  const [roughGlossReference, setRoughGlossReference] = useState<string>('');
 
   useEffect(() => {
     if (entry) {
@@ -158,6 +169,22 @@ export function useDictionaryEntryForm(
       }
     };
     loadActiveProperNouns();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadRules = async (): Promise<void> => {
+      try {
+        const rules = await loadTransformRules();
+        if (isMounted) setTransformRules(rules);
+      } catch (err) {
+        if (isMounted) logger.error('Failed to load transform rules:', err);
+      }
+    };
+    loadRules();
     return () => {
       isMounted = false;
     };
@@ -229,25 +256,59 @@ export function useDictionaryEntryForm(
     validateForm();
   }, [source, translation, validateForm]);
 
-  const generateRoughTranslation = useCallback(
-    (sourceText: string, targetDictionary: string): string => {
+  const joinCharGloss = useCallback(
+    (sourceText: string): string => {
       if (!dictionaries?.characters || !sourceText) return '';
       const chars = dictionaries.characters as Record<string, string>;
-      let rough = sourceText
+      return sourceText
         .split('')
         .map((ch) => chars[ch] || ch)
         .join(' ');
+    },
+    [dictionaries]
+  );
+
+  const generateRoughTranslation = useCallback(
+    (sourceText: string, targetDictionary: string): string => {
+      const gloss = joinCharGloss(sourceText);
+      if (!gloss) return '';
       if (targetDictionary.includes('properNoun')) {
-        rough = rough
+        return gloss
           .split(' ')
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
           .join(' ');
-      } else {
-        rough = rough.toLowerCase();
       }
-      return rough;
+      return gloss.toLowerCase();
     },
-    [dictionaries]
+    [joinCharGloss]
+  );
+
+  /**
+   * The initial Translation guess for a newly-populated Source: a matching
+   * Transform Rule's guess when one exists for phrases/properNouns* targets,
+   * falling back to today's generateRoughTranslation otherwise. Also returns
+   * the matched rule's semanticType, if any, so the caller can stamp it.
+   */
+  const computeInitialTranslation = useCallback(
+    (
+      sourceText: string,
+      targetDictionary: string
+    ): { translation: string; matchedRule: TransformRule | null } => {
+      if (dictionarySupportsTransformRules(targetDictionary)) {
+        const match = findBestMatch(transformRules, sourceText);
+        if (match) {
+          return {
+            translation: applyRule(match, sourceText, joinCharGloss),
+            matchedRule: match,
+          };
+        }
+      }
+      return {
+        translation: generateRoughTranslation(sourceText, targetDictionary),
+        matchedRule: null,
+      };
+    },
+    [transformRules, joinCharGloss, generateRoughTranslation]
   );
 
   // Auto-populate source from initialSource or clipboard on mount
@@ -264,8 +325,15 @@ export function useDictionaryEntryForm(
 
         if (initialSource?.trim()) {
           if (isMounted) {
-            setSource(initialSource.trim());
-            setTranslation(generateRoughTranslation(initialSource.trim(), activeDictionary));
+            const trimmed = initialSource.trim();
+            setSource(trimmed);
+            setRoughGlossReference(generateRoughTranslation(trimmed, activeDictionary));
+            const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
+              trimmed,
+              activeDictionary
+            );
+            setTranslation(initialTranslation);
+            if (matchedRule) setSemanticType(matchedRule.semanticType);
             focusTimeout = setTimeout(() => {
               if (isMounted) {
                 translationInputRef.current?.focus();
@@ -278,9 +346,16 @@ export function useDictionaryEntryForm(
 
         if (navigator.clipboard?.readText) {
           const clipboardText = await navigator.clipboard.readText();
-          if (clipboardText.trim() && isMounted) {
-            setSource(clipboardText.trim());
-            setTranslation(generateRoughTranslation(clipboardText.trim(), activeDictionary));
+          const trimmed = clipboardText.trim();
+          if (trimmed && isMounted) {
+            setSource(trimmed);
+            setRoughGlossReference(generateRoughTranslation(trimmed, activeDictionary));
+            const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
+              trimmed,
+              activeDictionary
+            );
+            setTranslation(initialTranslation);
+            if (matchedRule) setSemanticType(matchedRule.semanticType);
             focusTimeout = setTimeout(() => {
               if (isMounted) {
                 translationInputRef.current?.focus();
@@ -302,7 +377,13 @@ export function useDictionaryEntryForm(
       isMounted = false;
       if (focusTimeout) clearTimeout(focusTimeout);
     };
-  }, [activeDictionary, entry?.source, generateRoughTranslation, initialSource]);
+  }, [
+    activeDictionary,
+    entry?.source,
+    generateRoughTranslation,
+    computeInitialTranslation,
+    initialSource,
+  ]);
 
   const checkForExistingEntry = useCallback(
     (sourceText: string): void => {
@@ -473,6 +554,7 @@ export function useDictionaryEntryForm(
     showPatternValidation,
     existingEntry,
     showExistingEntryNotification,
+    roughGlossReference,
     isSaving,
     sourceInputRef,
     translationInputRef,

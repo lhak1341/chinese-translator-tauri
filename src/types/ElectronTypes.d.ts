@@ -9,6 +9,7 @@
 
 import type { AppConfiguration, DictionaryInfo, AppearanceSettings } from './ComponentTypes';
 import type { DictionaryData } from './DictionaryTypes';
+import type { TransformRule } from './TransformRuleTypes';
 
 // =============================================================================
 // Result Types
@@ -67,6 +68,14 @@ export interface ConfigurationResult extends ElectronResult<AppConfiguration> {
 export interface AppearanceResult extends ElectronResult<AppearanceSettings> {
   /** Appearance settings data */
   data?: AppearanceSettings;
+}
+
+/**
+ * Transform rules load result
+ */
+export interface TransformRulesResult extends ElectronResult<TransformRule[]> {
+  /** Persisted Transform Rule list */
+  data?: TransformRule[];
 }
 
 /**
@@ -213,6 +222,12 @@ export interface ElectronAPI {
   loadAppearanceSettings: () => Promise<AppearanceResult>;
   /** Save appearance settings */
   saveAppearanceSettings: (settings: AppearanceSettings) => Promise<SaveResult>;
+
+  // Transform Rule operations
+  /** Load persisted Transform Rules */
+  loadTransformRules: () => Promise<TransformRulesResult>;
+  /** Save the full Transform Rule list */
+  saveTransformRules: (rules: TransformRule[]) => Promise<SaveResult>;
 
   // File operations
   /** Open file selection dialog */

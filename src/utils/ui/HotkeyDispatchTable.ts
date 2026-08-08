@@ -52,6 +52,8 @@ export function matchHotkey(
         return { type: 'tabSwitch', tab: 'configuration' };
       case '4':
         return { type: 'tabSwitch', tab: 'appearance' };
+      case '5':
+        return { type: 'tabSwitch', tab: 'rules' };
       case 'n':
         return { type: 'quickAdd' };
       case 'v':

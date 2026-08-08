@@ -146,7 +146,7 @@ const ConfigurationManager: React.FC = () => {
               {activeDictionaries.length} active
               {defaultQuickAddDictionary && (
                 <>
-                  {' • Quick Add defaults to '}
+                  {' • Add defaults to '}
                   <span className={styles.quickAddDefault}>
                     {defaultQuickAddDictionary.replace('properNouns-', '')}
                   </span>

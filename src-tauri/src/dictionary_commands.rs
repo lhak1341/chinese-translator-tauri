@@ -1141,6 +1141,22 @@ pub async fn save_configuration(
 }
 
 #[tauri::command]
+pub async fn load_transform_rules(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+    let rules_path = get_app_data_dir(&app_handle)?.join("transform-rules.json");
+    let default_rules = serde_json::json!([]);
+    load_json_file_with_default(&rules_path, default_rules)
+}
+
+#[tauri::command]
+pub async fn save_transform_rules(
+    app_handle: tauri::AppHandle,
+    rules: serde_json::Value,
+) -> Result<DictionaryResponse, String> {
+    let rules_path = get_app_data_dir(&app_handle)?.join("transform-rules.json");
+    save_json_file(&rules_path, &rules)
+}
+
+#[tauri::command]
 pub async fn load_appearance_settings(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
     let appearance_path = get_app_data_dir(&app_handle)?.join("appearance.json");
     let default_appearance = serde_json::json!({

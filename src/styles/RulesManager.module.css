@@ -1,0 +1,155 @@
+.container {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+  color: var(--text-color);
+  background-color: var(--background-color);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.addButton {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--primary-color);
+  background-color: var(--primary-color);
+  color: #fff;
+  cursor: pointer;
+}
+
+.empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted, #9ca3af);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Matches Dictionary's fixed table header (EnhancedVirtualizedDictionaryTable): bold,
+   normal-size text, not uppercase — see the header row inline styles there. */
+.table th {
+  text-align: left;
+  font-weight: bold;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--background-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle, var(--border-color));
+  font-size: 13px;
+}
+
+.key {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.rowActions button {
+  margin-right: 6px;
+}
+
+.deleteButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--error-color, #ef4444);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.deleteButton:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.overlay {
+  composes: modalOverlay from './shared.module.css';
+  background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal {
+  width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background-color: var(--surface-color, var(--background-color));
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.formRow {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.formGroup label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, var(--text-color));
+}
+
+.formGroup input,
+.formGroup select {
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.formError {
+  color: var(--error-color, #ef4444);
+  font-size: 12px;
+  margin-top: -6px;
+  margin-bottom: 12px;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.modalActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

@@ -39,6 +39,34 @@ export function moveLastNWordsToBeginning(text: string, n: number): string {
   return [...tail, ...head].join(' ');
 }
 
+/**
+ * Capitalize all words except the first `n`, which are lowercased.
+ * Head-anchored mirror of `titleCaseExceptLastN` — for prefix-keyed Transform Rules.
+ * Returns the original text unchanged if it has no words.
+ */
+export function capitalizeExceptFirstN(text: string, n: number): string {
+  const words = text.split(' ');
+  if (words.length <= n) return text;
+  return words
+    .map((word, index) =>
+      index < n ? word.toLowerCase() : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    )
+    .join(' ');
+}
+
+/**
+ * Move the first `n` words to the end of the string.
+ * Head-anchored mirror of `moveLastNWordsToBeginning` — for prefix-keyed Transform Rules.
+ * Returns the original text unchanged if there are not enough words to reorder.
+ */
+export function moveFirstNWordsToEnd(text: string, n: number): string {
+  const words = text.split(' ');
+  if (words.length <= n) return text;
+  const head = words.slice(0, n);
+  const tail = words.slice(n);
+  return [...tail, ...head].join(' ');
+}
+
 // Named baked-n variants — each is directly testable without mounting DictionaryEntry.
 
 export const capitalizeAll = (text: string): string => titleCaseWords(text);

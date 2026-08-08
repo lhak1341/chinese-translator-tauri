@@ -16,7 +16,7 @@
 /**
  * Valid tab identifiers for the main application interface
  */
-export type TabId = 'translator' | 'dictionary' | 'configuration' | 'appearance';
+export type TabId = 'translator' | 'dictionary' | 'rules' | 'configuration' | 'appearance';
 
 // =============================================================================
 // Configuration Types

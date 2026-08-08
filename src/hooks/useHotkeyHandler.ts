@@ -96,29 +96,25 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           await opts.onDictionaryTabHotkey?.(action.key);
           break;
         case 'quickAddCharacter':
-          await handleQuickAdd(event, opts.onQuickAddCharacter, 'Quick Add Character');
+          await handleQuickAdd(event, opts.onQuickAddCharacter, 'Add Character');
           break;
         case 'quickAddPhrase':
-          await handleQuickAdd(event, opts.onQuickAddPhrase, 'Quick Add Phrase');
+          await handleQuickAdd(event, opts.onQuickAddPhrase, 'Add Phrase');
           break;
         case 'quickAddProperNoun':
-          await handleQuickAdd(event, opts.onQuickAddProperNoun, 'Quick Add Proper Noun');
+          await handleQuickAdd(event, opts.onQuickAddProperNoun, 'Add Proper Noun');
           break;
         case 'quickAddPattern':
-          await handleQuickAdd(event, opts.onQuickAddPattern, 'Quick Add Pattern');
+          await handleQuickAdd(event, opts.onQuickAddPattern, 'Add Pattern');
           break;
         case 'quickAddCustomProperNoun':
-          await handleQuickAdd(
-            event,
-            opts.onQuickAddCustomProperNoun,
-            'Quick Add Custom Proper Noun'
-          );
+          await handleQuickAdd(event, opts.onQuickAddCustomProperNoun, 'Add Custom Proper Noun');
           break;
         case 'quickAddCustomStructuralPattern':
           await handleQuickAdd(
             event,
             opts.onQuickAddCustomStructuralPattern,
-            'Quick Add Structural Pattern'
+            'Add Structural Pattern'
           );
           break;
         case 'focusSearch':

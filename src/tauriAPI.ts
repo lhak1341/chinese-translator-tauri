@@ -16,8 +16,10 @@ import type {
   ConfigurationResult,
   AppearanceResult,
   ProperNounsListResult,
+  TransformRulesResult,
 } from './types/ElectronTypes';
 import type { AppConfiguration, AppearanceSettings } from './types/ComponentTypes';
+import type { TransformRule } from './types/TransformRuleTypes';
 
 // ── Rust command name constants ───────────────────────────────────────────────
 const CMD = {
@@ -37,6 +39,8 @@ const CMD = {
   SAVE_CONFIGURATION: 'save_configuration',
   LOAD_APPEARANCE_SETTINGS: 'load_appearance_settings',
   SAVE_APPEARANCE_SETTINGS: 'save_appearance_settings',
+  LOAD_TRANSFORM_RULES: 'load_transform_rules',
+  SAVE_TRANSFORM_RULES: 'save_transform_rules',
   EXPORT_DICTIONARIES: 'export_dictionaries',
   IMPORT_DICTIONARIES: 'import_dictionaries',
   RESET_DICTIONARIES: 'reset_dictionaries',
@@ -310,6 +314,24 @@ const tauriAPI = {
       });
     } catch (error) {
       logger.error('Error in saveAppearanceSettings:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+
+  loadTransformRules: async (): Promise<TransformRulesResult> => {
+    try {
+      return await invoke<TransformRulesResult>(CMD.LOAD_TRANSFORM_RULES);
+    } catch (error) {
+      logger.error('Error in loadTransformRules:', error);
+      return { success: false, error: String(error) };
+    }
+  },
+
+  saveTransformRules: async (rules: TransformRule[]): Promise<SaveResult> => {
+    try {
+      return await invoke<SaveResult>(CMD.SAVE_TRANSFORM_RULES, { rules });
+    } catch (error) {
+      logger.error('Error in saveTransformRules:', error);
       return { success: false, error: String(error) };
     }
   },

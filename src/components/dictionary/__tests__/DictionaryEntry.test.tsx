@@ -52,6 +52,7 @@ function makeFormState(overrides: Record<string, any> = {}) {
     showPatternValidation: false,
     existingEntry: null,
     showExistingEntryNotification: false,
+    roughGlossReference: '',
     isSaving: false,
     sourceInputRef: { current: null },
     translationInputRef: { current: null },
@@ -76,9 +77,9 @@ beforeEach(() => {
 });
 
 describe('DictionaryEntry — title', () => {
-  test('shows "Quick New Entry" when no entry prop is given', () => {
+  test('shows "New Entry" when no entry prop is given', () => {
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
-    expect(screen.getByText('Quick New Entry')).toBeInTheDocument();
+    expect(screen.getByText('New Entry')).toBeInTheDocument();
   });
 
   test('shows "Edit Entry" when an entry prop is given', () => {
@@ -285,5 +286,36 @@ describe('DictionaryEntry — pattern/phrase metadata checkboxes', () => {
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="patterns" />);
     expect(screen.getByLabelText(/Allow as pattern variable/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Low priority/)).toBeInTheDocument();
+  });
+});
+
+describe('DictionaryEntry — revert to character-only gloss', () => {
+  test('no reference shown when roughGlossReference is empty (e.g. editing an existing entry)', () => {
+    formStateRef.current = makeFormState({ roughGlossReference: '', translation: 'hello' });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+    expect(screen.queryByText(/Character-only translation/)).not.toBeInTheDocument();
+  });
+
+  test('reference shown but no revert button when Translation already matches the gloss (no rule applied)', () => {
+    formStateRef.current = makeFormState({
+      roughGlossReference: 'You Good',
+      translation: 'You Good',
+    });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+    expect(screen.getByText(/Character-only translation: You Good/)).toBeInTheDocument();
+    expect(screen.queryByText('Revert to character-only')).not.toBeInTheDocument();
+  });
+
+  test('revert button appears and reverts Translation when a rule changed it', () => {
+    formStateRef.current = makeFormState({
+      roughGlossReference: 'You Good',
+      translation: 'Good You',
+    });
+    render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
+
+    const revertButton = screen.getByText('Revert to character-only');
+    fireEvent.click(revertButton);
+
+    expect(formStateRef.current.setTranslation).toHaveBeenCalledWith('You Good');
   });
 });

@@ -577,7 +577,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   Dictionary is empty
                 </div>
                 <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                  Add entries using Quick Add
+                  Add entries using the
                   <br />
                   shortcuts (Cmd/Ctrl+1-5)
                 </div>

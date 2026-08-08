@@ -31,6 +31,9 @@ vi.mock('../../utils/logger', () => ({
   logger: { log: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
+const { loadTransformRules } = vi.hoisted(() => ({ loadTransformRules: vi.fn() }));
+vi.mock('../../utils/dictionary/TransformRuleBackend', () => ({ loadTransformRules }));
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const CHARACTERS_DICT: DictionaryData = { 你: 'you', 好: 'good' };
@@ -53,6 +56,10 @@ function stubEmptyClipboard() {
     clipboard: { readText: vi.fn().mockResolvedValue('') },
   });
 }
+
+beforeEach(() => {
+  loadTransformRules.mockReset().mockResolvedValue([]);
+});
 
 // ─── Initial state ────────────────────────────────────────────────────────────
 
@@ -136,6 +143,88 @@ describe('auto-populate from initialSource', () => {
     // Entry editing: auto-setup focuses source field but does not overwrite
     expect(result.current.source).toBe('你好');
     expect(result.current.translation).toBe('hello');
+  });
+
+  it('roughGlossReference is always populated, regardless of Transform Rules', async () => {
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
+    );
+    await waitFor(() => expect(result.current.source).toBe('你好'));
+    expect(result.current.roughGlossReference).toBe('You Good');
+  });
+});
+
+// ─── Auto-populate — Transform Rule application ───────────────────────────────
+
+describe('auto-populate — Transform Rule application', () => {
+  beforeEach(() => {
+    vi.stubGlobal('navigator', {
+      clipboard: { readText: vi.fn().mockResolvedValue('ignored') },
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const suffixRule = {
+    id: 'r1',
+    matchKind: 'suffix' as const,
+    key: '好',
+    moveWords: 1,
+    capitalizeExceptN: 1,
+    semanticType: 'location' as const,
+    enabled: true,
+    label: 'test rule',
+  };
+
+  it('a matching rule replaces the naive gloss and stamps semanticType, for a properNouns* target', async () => {
+    loadTransformRules.mockResolvedValue([suffixRule]);
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
+    );
+    // gloss "you good" -> capitalizeExceptLastN(_,1) "You good" -> moveLastNWordsToBeginning(_,1) "good You"
+    // Rules load asynchronously — the auto-populate effect re-runs once they arrive, so wait on
+    // the final translation rather than racing on `source` (set synchronously on the first pass).
+    await waitFor(() => expect(result.current.translation).toBe('good You'));
+    expect(result.current.semanticType).toBe('location');
+    // The naive gloss stays available as the reference field, unaffected by the rule.
+    expect(result.current.roughGlossReference).toBe('You Good');
+  });
+
+  it('a matching rule replaces the naive gloss for a phrases target too', async () => {
+    loadTransformRules.mockResolvedValue([suffixRule]);
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'phrases', makeDeps({ initialSource: '你好' }))
+    );
+    await waitFor(() => expect(result.current.translation).toBe('good You'));
+    expect(result.current.semanticType).toBe('location');
+  });
+
+  it('does not apply a matching rule to a patterns* target', async () => {
+    loadTransformRules.mockResolvedValue([suffixRule]);
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'patterns', makeDeps({ initialSource: '你好' }))
+    );
+    await waitFor(() => expect(result.current.source).toBe('你好'));
+    // Falls back to today's plain lowercase gloss — the rule never applies, on either pass.
+    expect(result.current.translation).toBe('you good');
+  });
+
+  it('falls back to the naive gloss when no rule matches', async () => {
+    const nonMatchingRule = { ...suffixRule, key: '市' };
+    loadTransformRules.mockResolvedValue([nonMatchingRule]);
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
+    );
+    await waitFor(() => expect(result.current.source).toBe('你好'));
+    expect(result.current.translation).toBe('You Good');
+  });
+
+  it('a disabled rule never matches', async () => {
+    loadTransformRules.mockResolvedValue([{ ...suffixRule, enabled: false }]);
+    const { result } = renderHook(() =>
+      useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
+    );
+    await waitFor(() => expect(result.current.source).toBe('你好'));
+    expect(result.current.translation).toBe('You Good');
   });
 });
 

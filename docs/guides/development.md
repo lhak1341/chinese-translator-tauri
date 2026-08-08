@@ -297,7 +297,7 @@ pnpm tauri:build    # Build production Tauri app
 
 ## Keyboard Shortcuts
 
-- **Translator**: Cmd/Ctrl-R (Reload), Cmd/Ctrl-1-5 (Quick Add)
+- **Translator**: Cmd/Ctrl-R (Reload), Cmd/Ctrl-1-5 (Add)
 - **Dictionary**: Cmd/Ctrl-L (Focus Search), Click (Edit), Enter (Save), Escape (Cancel)
 - **Global**: Cmd/Ctrl-Shift-1-4 (Switch Tabs)
 

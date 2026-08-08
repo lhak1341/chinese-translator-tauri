@@ -1055,7 +1055,7 @@ const Translator = ({ isActive = true }) => {
       />
       {/* Add Quick Add Entry modal */}
       {showQuickAdd && (
-        <ModalErrorBoundary onClose={closeQuickAdd} title="❌ Failed to load Quick Add">
+        <ModalErrorBoundary onClose={closeQuickAdd} title="❌ Failed to load Add">
           <DictionaryEntry
             onClose={closeQuickAdd}
             selectedDictionary={quickAddDictionary}

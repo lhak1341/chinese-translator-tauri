@@ -476,3 +476,39 @@ Both hooks live in one file, **`src/hooks/useReloadExecutionContexts.ts`** (merg
 **Shared dev-only input-shape guard** (`createShapeGuard`, internal to the file — not exported): since `Translator.jsx`'s call sites are never type-checked, each hook validates its own inputs at the top through one generic guard factory instead of two hand-copied functions. Each hook still declares one canonical array of its expected key names (typed `satisfies readonly (keyof Params)[]` so a typo/renamed key is a compile error) — kept because checking only `Object.keys(params)` would miss a field dropped entirely from the call site, the actual failure mode this guard exists to catch. What the merge removed is the second, hand-maintained array per hook classifying each field as ref-vs-function: kind is now inferred from the `*Ref` naming suffix (both real param shapes obey it with zero exceptions). Throws in `development` on a mismatch (`process.env.NODE_ENV !== 'development'` short-circuits to a no-op in production). This is deliberately an input guard, not an output guard: the returned object's shape is already guaranteed correct by TypeScript inside the `.ts` file (it's built the same way every call), so the only real remaining risk is `Translator.jsx` passing a wrong-shaped argument — which is exactly what the guard catches.
 
 Entry point: `src/hooks/useReloadExecutionContexts.ts`. Sole caller of both hooks: `Translator.jsx`.
+
+## Transform Rule
+
+A user-authored rule that auto-transforms a dictionary entry's Translation guess and stamps its `semanticType`, keyed off 1-4 leading or trailing Chinese characters of the entry's Source text. Introduced 2026-08-08 (wayfinder map "Suffix-Driven Transform Rules for Dictionary Quick-Add", ticket "Transform rule persistence and schema") to formalize a pattern the user was previously applying by hand via `WordTransformToolbar`.
+
+Schema:
+
+```ts
+interface TransformRule {
+  id: string; // stable identity — survives key edits
+  matchKind: 'suffix' | 'prefix';
+  key: string; // 1-4 Chinese chars, matched against the tail (suffix) or head (prefix) of Source
+  charCount?: number; // optional exact total-Source-length constraint (not the key's own length)
+  moveWords: number; // N words relocated
+  capitalizeExceptN: number; // N words left lowercase
+  semanticType: SemanticType; // stamped on the entry when this rule matches
+  enabled: boolean;
+  label?: string; // optional human note, e.g. "Nanjing-style city suffix"
+}
+```
+
+`charCount` constrains the TOTAL Source text length, exact-match only — omitted means no constraint. Lets a rule target short names specifically (e.g. only 3-char sources ending in `城`) without also firing on long ones ending the same way. Distinct from `key`'s own 1-4 char cap.
+
+**Matching precedence**: a `suffix` match always wins outright over a `prefix` match on the same entry — prefix rules are only even considered when no suffix rule matches at all. Within one `matchKind` pool, longest `key` wins on conflict. `(matchKind, key)` is unique at the persistence layer — two rules can't share both fields, but `"城"` can exist once as a suffix rule and once as a prefix rule simultaneously.
+
+**Transform application order is fixed, not configurable**: the capitalize step always runs before the move step, on the original (pre-move) word order. This isn't an arbitrary choice — `titleCaseExceptLastN`'s "except last N" only means the intended words when applied before reordering; running it after `moveLastNWordsToBeginning` would target the wrong words. Traced from the canonical worked example: rough gloss `"nam kinh thành"` → `titleCaseExceptLastN(text, 1)` → `"Nam Kinh thành"` → `moveLastNWordsToBeginning(result, 1)` → `"thành Nam Kinh"`.
+
+**Suffix rules reuse the existing tail-anchored helpers** (`titleCaseExceptLastN`, `moveLastNWordsToBeginning` in `src/utils/wordTransformHelpers.ts`). **Prefix rules need their own mirrored, head-anchored helpers** (`capitalizeExceptFirstN`, `moveFirstNWordsToEnd` — not yet implemented as of this writing) — `matchKind` selects which helper pair runs; the `moveWords`/`capitalizeExceptN` field pair is shared, not duplicated per direction.
+
+Storage: a dedicated file, Tauri-fs-synced the same way dictionaries are (own Rust read/write commands) — deliberately NOT folded into `appConfig.ts`'s `config.json`, both because Transform Rules are a growing list (closer in cardinality to dictionary entries than to `AppConfig`'s handful of scalar/short-list fields) and to sidestep `AppConfig`'s documented direct-Rust-write cache-invalidation landmine (see the `AppConfig` entry above) entirely rather than risk a third occurrence of it.
+
+**Explicitly out of scope**: `patterns*` dictionaries. Source text there is a literal template containing an `X`/`Y` placeholder character rather than plain Chinese content, so "trailing/leading N Chinese characters" doesn't carry the same meaning — Transform Rules apply only to `phrases`/`properNouns*` entries.
+
+**A matched rule's casing wins outright over `generateRoughTranslation`'s dictionary-type default** (title-case-all for `properNoun*`, lowercase-all otherwise), for both dictionary kinds — a rule match implies proper-noun-like content (it stamps `semanticType`) regardless of which dictionary the entry happens to be filed under. Mechanically this is moot for `properNoun*`: `titleCaseExceptLastN` unconditionally re-cases every word it touches, ignoring prior casing, so "replace" and "compose-after" produce identical output there. The real effect is on `phrases` (default lowercase-all) — a matching rule title-cases the non-suffix words there too, intentionally making a `phrases` entry read like a proper noun when a rule fires. Implementation: skip the dictionary-type-default casing step entirely when a rule matches; apply the rule's own `capitalizeExceptN` → `moveWords` sequence directly to the raw per-char gloss join instead.
+
+**Rules tab authoring UI** (wayfinder ticket, resolved via `/prototype`): table-and-modal layout — dense sortable table (enabled toggle, up/down reorder, edit/delete per row), add/edit via modal dialog. Undo/reset for a wrong auto-applied guess belongs on the dictionary entry form itself (a revert icon next to the Translation field in `DictionaryEntry.tsx`), NOT on the Rules tab. Duplicate `(matchKind, key)` conflicts: inline form error naming the colliding rule, Save blocked until resolved. Three full variant mockups (this one plus a master-detail and a card-grid layout) are preserved on the throwaway branch `prototype/rules-tab-ui` for reference — not on `main`.

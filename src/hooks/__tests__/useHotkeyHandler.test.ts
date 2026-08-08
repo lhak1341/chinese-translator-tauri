@@ -160,7 +160,7 @@ describe('useHotkeyHandler', () => {
       await flush();
 
       expect(toast.error).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to open Quick Add Character')
+        expect.stringContaining('Failed to open Add Character')
       );
       expect(event.defaultPrevented).toBe(true);
     });

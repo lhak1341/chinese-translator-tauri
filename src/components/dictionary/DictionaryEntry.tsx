@@ -57,7 +57,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
       >
         <div className={styles.header}>
           <h2 id="dict-entry-dialog-title" className={styles.title}>
-            {entry ? 'Edit Entry' : 'Quick New Entry'}
+            {entry ? 'Edit Entry' : 'New Entry'}
           </h2>
         </div>
 
@@ -226,6 +226,23 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               onChange={form.setTranslation}
               disabled={form.isSaving}
             />
+
+            {form.roughGlossReference && (
+              <div className={styles.notificationHelper}>
+                Character-only translation: {form.roughGlossReference}
+                {form.translation !== form.roughGlossReference && (
+                  <button
+                    type="button"
+                    onClick={() => form.setTranslation(form.roughGlossReference)}
+                    disabled={form.isSaving}
+                    className={styles.utilityButton}
+                    title="Revert Translation to the plain character-only gloss"
+                  >
+                    Revert to character-only
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {(form.activeDictionary === 'phrases' ||
