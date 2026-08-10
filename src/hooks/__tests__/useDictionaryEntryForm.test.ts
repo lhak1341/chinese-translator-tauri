@@ -353,7 +353,6 @@ describe('isFormValid', () => {
 });
 
 // ─── Existing entry detection ─────────────────────────────────────────────────
-// Use 'characters' as activeDictionary so handleTranslationFocus is not suppressed.
 
 describe('existing entry detection', () => {
   const dictsWithEntry: { [key: string]: DictionaryData } = {
@@ -429,7 +428,7 @@ describe('existing entry detection', () => {
     expect(result.current.translation).toBe('hello');
   });
 
-  it('handleTranslationFocus suppresses check for patterns dictionary', async () => {
+  it('handleTranslationFocus runs the check for patterns dictionary too', async () => {
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'patterns', makeDeps({ dictionaries: dictsWithEntry }))
     );
@@ -444,7 +443,7 @@ describe('existing entry detection', () => {
       result.current.handleTranslationFocus();
     });
 
-    expect(result.current.showExistingEntryNotification).toBe(false);
+    expect(result.current.showExistingEntryNotification).toBe(true);
   });
 
   it('clears notification when source changes', async () => {

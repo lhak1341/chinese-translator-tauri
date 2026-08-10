@@ -181,7 +181,7 @@ describe('RulesManager', () => {
     fireEvent.click(screen.getByText('Add Rule'));
     fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: '城' } });
 
-    expect(await screen.findByText(/Conflicts with existing rule/)).toBeInTheDocument();
+    expect(await screen.findByText(/Conflicts with/)).toBeInTheDocument();
     expect(screen.getByText('Save')).toBeDisabled();
   });
 

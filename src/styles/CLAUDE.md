@@ -10,6 +10,10 @@ CSS module classes are cross-importable — scoping guarantees unique generated 
 
 **A typo'd or wrong-file class reference resolves to `undefined` silently — no error, no visual difference until closely inspected.** Found: `RulesManager.tsx` imported `EnhancedVirtualizedDictionaryTable.module.css` as `dictStyles` and used `dictStyles.button` — but `.button` lives in `DictionaryManager.module.css`, not that file. The button rendered with base `<button>` styles only (missing padding/font-size/radius refinements) for a full session before being caught. When reusing a class cross-file, verify it actually exists in _that_ file (`grep '^\.className' path/to/File.module.css`), not just that the import resolves.
 
+## Class Name Collisions
+
+**Before adding a new class name to a `.module.css` file (directly or via `composes`), grep that file for the name first** — a collision with a pre-existing same-named class silently merges both rules onto one generated class name (found: adding a modal `.header` clashed with an existing page-toolbar `.header` in the same file).
+
 ## Modal Overlays
 
 Use `composes: modalOverlay from './shared.module.css'` then add per-component `background-color`/`padding`.

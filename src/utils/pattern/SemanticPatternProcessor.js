@@ -77,25 +77,22 @@ export class SemanticPatternProcessor {
     // Convert patterns to semantic pattern objects with metadata
     for (const [patternText, templateOrObject] of Object.entries(patternsDict)) {
       // Handle both string templates and object with metadata
-      let template, allowedVariableTypes, allowAsPatternVariable, lowPriority;
+      let template, allowedVariableTypes, allowAsPatternVariable;
       if (typeof templateOrObject === 'string') {
         template = templateOrObject;
         allowedVariableTypes = null;
         allowAsPatternVariable = false;
-        lowPriority = false;
       } else {
         template = templateOrObject.translation || templateOrObject;
         allowedVariableTypes = templateOrObject.allowedVariableTypes;
         allowAsPatternVariable = templateOrObject.allowAsPatternVariable || false;
-        lowPriority = templateOrObject.lowPriority || false;
       }
 
       const semanticPattern = this.parsePattern(
         patternText,
         template,
         allowedVariableTypes,
-        allowAsPatternVariable,
-        lowPriority
+        allowAsPatternVariable
       );
       if (semanticPattern) {
         this.patterns.push(semanticPattern);
@@ -151,13 +148,7 @@ export class SemanticPatternProcessor {
    * @param {boolean} allowAsPatternVariable - Whether pattern can be used as variable in hierarchical processing
    * @returns {Object} Semantic pattern object
    */
-  parsePattern(
-    patternText,
-    template,
-    allowedVariableTypes = null,
-    allowAsPatternVariable = false,
-    lowPriority = false
-  ) {
+  parsePattern(patternText, template, allowedVariableTypes = null, allowAsPatternVariable = false) {
     const tokens = [];
     const variables = [];
 
@@ -211,14 +202,12 @@ export class SemanticPatternProcessor {
       variables: variables,
       firstToken: tokens[0],
       allowAsPatternVariable: allowAsPatternVariable,
-      lowPriority: lowPriority,
-      priority: calculatePatternPriority(tokens, variables, lowPriority),
+      priority: calculatePatternPriority(tokens, variables),
       metadata: {
-        priority: calculatePatternPriority(tokens, variables, lowPriority),
+        priority: calculatePatternPriority(tokens, variables),
         complexity: variables.length,
         length: tokens.length,
         allowedVariableTypes: allowedVariableTypes,
-        lowPriority: lowPriority,
       },
       usage: {
         matchCount: 0,
@@ -432,7 +421,6 @@ export class SemanticPatternProcessor {
         translation: pattern.template || pattern.translation,
         allowAsPatternVariable: pattern.allowAsPatternVariable || false,
         allowedVariableTypes: pattern.allowedVariableTypes,
-        lowPriority: pattern.lowPriority || false,
       };
     }
 
@@ -805,7 +793,7 @@ export class SemanticPatternProcessor {
           this.log(
             debugLevel,
             6,
-            `✅ Pattern MATCH: "${pattern.originalPattern}" (priority: ${pattern.metadata.priority}, lowPriority: ${pattern.metadata.lowPriority})`
+            `✅ Pattern MATCH: "${pattern.originalPattern}" (priority: ${pattern.metadata.priority})`
           );
         }
       }

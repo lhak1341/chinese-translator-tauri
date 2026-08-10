@@ -17,7 +17,6 @@ use std::collections::HashMap;
 /// * `template` - Translation template (e.g., "những X này")
 /// * `allowed_variable_types` - Optional variable type constraints
 /// * `allow_as_pattern_variable` - Whether pattern can be used as variable in hierarchical processing
-/// * `low_priority` - Whether this is a low priority pattern
 /// * `semantic_type` - Optional semantic type this pattern produces (e.g., "person", "place")
 ///
 /// # Returns
@@ -30,7 +29,6 @@ use std::collections::HashMap;
 ///     "những X Y này".to_string(),
 ///     None,
 ///     false,
-///     false,
 ///     None
 /// );
 /// assert_eq!(pattern.variables.len(), 2); // X and Y
@@ -41,7 +39,6 @@ pub fn parse_pattern(
     template: String,
     allowed_variable_types: Option<HashMap<String, Vec<String>>>,
     allow_as_pattern_variable: bool,
-    low_priority: bool,
     semantic_type: Option<String>,
 ) -> SemanticPattern {
     let mut tokens = Vec::new();
@@ -83,7 +80,6 @@ pub fn parse_pattern(
         tokens,
         variables,
         allow_as_pattern_variable,
-        low_priority,
         allowed_variable_types,
         semantic_type,
     )
@@ -100,7 +96,7 @@ pub fn parse_pattern(
 /// # Example
 /// ```ignore
 /// let mut dict = HashMap::new();
-/// dict.insert("这些X".to_string(), json!({"translation": "những X này", "lowPriority": true}));
+/// dict.insert("这些X".to_string(), json!({"translation": "những X này"}));
 /// dict.insert("X的Y".to_string(), json!("Y của X"));
 ///
 /// let patterns = parse_patterns_dict(dict);
@@ -112,13 +108,12 @@ pub fn parse_patterns_dict(
     let mut patterns = Vec::new();
 
     for (pattern_text, template_or_object) in patterns_dict {
-        let (template, allowed_variable_types, allow_as_pattern_variable, low_priority, semantic_type) =
+        let (template, allowed_variable_types, allow_as_pattern_variable, semantic_type) =
             if template_or_object.is_string() {
                 // Simple string template
                 (
                     template_or_object.as_str().unwrap().to_string(),
                     None,
-                    false,
                     false,
                     None,
                 )
@@ -141,11 +136,6 @@ pub fn parse_patterns_dict(
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
 
-                let low_priority = obj
-                    .get("lowPriority")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-
                 let semantic_type = obj
                     .get("semanticType")
                     .and_then(|v| v.as_str())
@@ -155,7 +145,6 @@ pub fn parse_patterns_dict(
                     template,
                     allowed_variable_types,
                     allow_as_pattern_variable,
-                    low_priority,
                     semantic_type,
                 )
             } else {
@@ -168,7 +157,6 @@ pub fn parse_patterns_dict(
             template,
             allowed_variable_types,
             allow_as_pattern_variable,
-            low_priority,
             semantic_type,
         );
 
@@ -189,7 +177,6 @@ mod tests {
             "这些X".to_string(),
             "những X này".to_string(),
             None,
-            false,
             false,
             None,
         );
@@ -216,7 +203,6 @@ mod tests {
             "Y của X".to_string(),
             None,
             false,
-            false,
             None,
         );
 
@@ -232,28 +218,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_pattern_with_low_priority() {
-        let pattern = parse_pattern(
-            "在XY中".to_string(),
-            "ở trong X Y".to_string(),
-            None,
-            false,
-            true, // low priority
-            None,
-        );
-
-        assert!(pattern.low_priority);
-        assert_eq!(pattern.priority, 17); // 2*10 + 4 + 5 - 12 = 17
-    }
-
-    #[test]
     fn test_parse_pattern_with_repeated_variable() {
         // Pattern with same variable used twice: "XYX"
         let pattern = parse_pattern(
             "XYX".to_string(),
             "X Y X".to_string(),
             None,
-            false,
             false,
             None,
         );
@@ -289,7 +259,6 @@ mod tests {
             "在XY中".to_string(),
             json!({
                 "translation": "ở trong X Y",
-                "lowPriority": true,
                 "allowAsPatternVariable": false
             }),
         );
@@ -299,7 +268,6 @@ mod tests {
 
         let pattern = &patterns[0];
         assert_eq!(pattern.template, "ở trong X Y");
-        assert!(pattern.low_priority);
         assert!(!pattern.allow_as_pattern_variable);
     }
 
@@ -310,7 +278,6 @@ mod tests {
             "这是一个测试X".to_string(),
             "đây là một thử nghiệm X".to_string(),
             None,
-            false,
             false,
             None,
         );

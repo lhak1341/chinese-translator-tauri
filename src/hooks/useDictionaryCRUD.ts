@@ -98,7 +98,6 @@ function prepareMutationEntry(
     const entryValue: DictionaryEntryValue = {
       translation: cleanTranslation,
       allowAsPatternVariable: metadata.allowAsPatternVariable ?? false,
-      lowPriority: metadata.lowPriority,
     };
     if (metadata.semanticType) entryValue.semanticType = metadata.semanticType;
     if (metadata.allowedVariableTypes)

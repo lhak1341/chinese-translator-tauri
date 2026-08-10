@@ -62,7 +62,6 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
           translation: value.translation,
           metadata: {
             allowAsPatternVariable: value.allowAsPatternVariable,
-            lowPriority: value.lowPriority,
             semanticType: value.semanticType,
             allowedVariableTypes: value.allowedVariableTypes,
           },
@@ -109,11 +108,9 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
       return;
     }
 
-    const { allowAsPatternVariable, lowPriority, semanticType, allowedVariableTypes } =
-      fullEntry.metadata;
+    const { allowAsPatternVariable, semanticType, allowedVariableTypes } = fullEntry.metadata;
     const hasMetadata =
       allowAsPatternVariable ||
-      lowPriority ||
       semanticType ||
       (allowedVariableTypes && Object.keys(allowedVariableTypes).length > 0);
 
@@ -127,7 +124,6 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
     if (!supportsMetadata) {
       const flags: string[] = [];
       if (allowAsPatternVariable) flags.push('allowAsPatternVariable');
-      if (lowPriority) flags.push('lowPriority');
       if (semanticType) flags.push(`semanticType (${semanticType})`);
       if (allowedVariableTypes && Object.keys(allowedVariableTypes).length > 0)
         flags.push('allowedVariableTypes');
@@ -214,16 +210,12 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
               </div>
               {fullEntry.metadata &&
                 (fullEntry.metadata.allowAsPatternVariable ||
-                  fullEntry.metadata.lowPriority ||
                   fullEntry.metadata.semanticType ||
                   (fullEntry.metadata.allowedVariableTypes &&
                     Object.keys(fullEntry.metadata.allowedVariableTypes).length > 0)) && (
                   <div className={styles.previewMetadata}>
                     {fullEntry.metadata.allowAsPatternVariable && (
                       <span className={styles.metadataTag}>Variable</span>
-                    )}
-                    {fullEntry.metadata.lowPriority && (
-                      <span className={styles.metadataTag}>Low Priority</span>
                     )}
                     {fullEntry.metadata.semanticType && (
                       <span className={styles.metadataTag}>

@@ -86,8 +86,6 @@ export interface PatternMetadata {
   length: number;
   /** Allowed variable types */
   allowedVariableTypes?: Record<string, string[]> | null;
-  /** Low priority flag for pattern competition */
-  lowPriority: boolean;
 }
 
 /**
@@ -108,8 +106,6 @@ export interface SemanticPattern {
   firstToken: PatternToken;
   /** Can be used as variable in hierarchical processing */
   allowAsPatternVariable: boolean;
-  /** Low priority for pattern competition */
-  lowPriority: boolean;
   /** Pattern priority score */
   priority: number;
   /** Pattern metadata */

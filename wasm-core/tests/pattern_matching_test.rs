@@ -31,7 +31,6 @@ fn test_simple_literal_pattern_match() {
         "những".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -54,7 +53,6 @@ fn test_single_variable_pattern_match() {
         "这些X".to_string(),
         "những X này".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -96,7 +94,6 @@ fn test_multi_variable_pattern_match() {
         "X的Y".to_string(),
         "Y của X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -147,7 +144,6 @@ fn test_multi_token_variable_resolution() {
         "ở trong mắt X".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -193,7 +189,7 @@ fn test_multi_token_variable_resolution() {
 fn test_variable_backtracking_with_lookahead() {
     // Pattern: "XY" where both X and Y are variables
     // Test that backtracking works correctly
-    let pattern = parse_pattern("XY".to_string(), "X Y".to_string(), None, false, false, None);
+    let pattern = parse_pattern("XY".to_string(), "X Y".to_string(), None, false, None);
 
     // Tokens: ["那些", "人"]
     let tokens = vec![create_token("那些", 0), create_token("人", 1)];
@@ -244,7 +240,6 @@ fn test_pattern_match_failure_not_enough_tokens() {
         "những X Y này".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -265,7 +260,6 @@ fn test_pattern_match_failure_literal_mismatch() {
         "这些X".to_string(),
         "những X này".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -291,7 +285,6 @@ fn test_pattern_match_failure_variable_not_in_cache() {
         "这些X".to_string(),
         "những X này".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -336,14 +329,12 @@ fn test_pattern_competition_higher_priority_wins() {
         "những X này".to_string(),
         None,
         false,
-        false,
         None,
     );
     let pattern2 = parse_pattern(
         "这些XY".to_string(),
         "những X Y này".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -385,67 +376,6 @@ fn test_pattern_competition_higher_priority_wins() {
 }
 
 #[test]
-fn test_pattern_competition_low_priority_loses() {
-    // Critical test from PATTERN_MATCHING_RUST_CONVERSION.md:
-    // "在XY中" (lowPriority: true) → priority 17
-    // "在X眼中" (normal priority) → priority 19
-    // Should select "在X眼中" when both match
-    let pattern_generic = parse_pattern(
-        "在XY中".to_string(),
-        "ở trong X Y".to_string(),
-        None,
-        false,
-        true, // lowPriority = true → -12 penalty
-        None,
-    );
-    let pattern_specific = parse_pattern(
-        "在X眼中".to_string(),
-        "ở trong mắt X".to_string(),
-        None,
-        false,
-        false,
-        None,
-    );
-
-    // Verify priorities are calculated correctly
-    assert_eq!(pattern_generic.priority, 17); // 2*10 + 4 + 5 - 12 = 17
-    assert_eq!(pattern_specific.priority, 19); // 1*10 + 4 + 5 = 19
-
-    // Tokens: ["在", "那些", "魔帅", "眼", "中"]
-    let tokens = vec![
-        create_token("在", 0),
-        create_token("那些", 1),
-        create_token("魔帅", 2),
-        create_token("眼", 3),
-        create_token("中", 4),
-    ];
-
-    // Variable cache
-    let mut variable_cache = HashMap::new();
-    variable_cache.insert(
-        "那些魔帅".to_string(),
-        VariableCacheEntry {
-            translation: "những ma soái kia".to_string(),
-            source: "phrase".to_string(),
-            var_type: Some("phrase".to_string()),
-        },
-    );
-
-    let patterns = vec![pattern_generic, pattern_specific];
-    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
-
-    assert!(best_match.is_some(), "Should find a match");
-    let result = best_match.unwrap();
-
-    // Should select "在X眼中" (priority 19) over "在XY中" (priority 17)
-    assert_eq!(result.pattern_id.as_deref().unwrap(), "在X眼中");
-    assert_eq!(
-        result.result.as_ref().unwrap(),
-        "ở trong mắt những ma soái kia"
-    );
-}
-
-#[test]
 fn test_variable_blocked_by_preceding_punctuation_boundary() {
     // "那柄X" must NOT match "那柄『天琊』".
     // 『』 are stripped from semantic tokens, but hasPrecedingBoundary=true is set
@@ -454,7 +384,6 @@ fn test_variable_blocked_by_preceding_punctuation_boundary() {
         "那柄X".to_string(),
         "cái X kia".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -496,7 +425,6 @@ fn test_variable_without_boundary_still_matches() {
         "cái X kia".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -529,7 +457,6 @@ fn test_pattern_competition_no_match() {
         "这些X".to_string(),
         "những X này".to_string(),
         None,
-        false,
         false,
         None,
     );

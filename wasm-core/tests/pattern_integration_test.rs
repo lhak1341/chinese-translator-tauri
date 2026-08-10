@@ -21,7 +21,7 @@ fn test_parse_real_patterns_json() {
         "这些X": "những X này",
         "那些Y": "những Y kia",
         "X的Y": "Y của X",
-        "在XY中": {"translation": "ở trong X Y", "lowPriority": true}
+        "在XY中": "ở trong X Y"
     }"#;
 
     // Parse JSON into HashMap
@@ -44,20 +44,14 @@ fn test_parse_real_patterns_json() {
     assert!(pattern_texts.contains(&"这些X".to_string()));
     assert!(pattern_texts.contains(&"在XY中".to_string()));
 
-    // Verify lowPriority flag was parsed correctly
+    // Verify priority calculation
     let zai_xy_zhong = patterns
         .iter()
         .find(|p| p.original_pattern == "在XY中")
         .expect("Pattern '在XY中' not found");
-    assert!(
-        zai_xy_zhong.low_priority,
-        "Pattern '在XY中' should have lowPriority=true"
-    );
-
-    // Verify priority calculation
     assert_eq!(
-        zai_xy_zhong.priority, 17,
-        "Pattern '在XY中' should have priority 17 (2*10 + 4 + 5 - 12)"
+        zai_xy_zhong.priority, 29,
+        "Pattern '在XY中' should have priority 29 (2*10 + 4 + 5)"
     );
 }
 
@@ -70,7 +64,7 @@ fn test_index_real_patterns() {
         "X的眼睛": "mắt của X",
         "这些X": "những X này",
         "那些Y": "những Y kia",
-        "在XY中": {"translation": "ở trong X Y", "lowPriority": true}
+        "在XY中": "ở trong X Y"
     }"#;
 
     let patterns_dict: HashMap<String, serde_json::Value> =
@@ -117,68 +111,13 @@ fn test_index_real_patterns() {
 }
 
 #[test]
-fn test_pattern_priority_comparison() {
-    // Create patterns with different priorities
-    let patterns_json = r#"{
-        "这些X": "những X này",
-        "这些XY": "những X Y này",
-        "在XY中": {"translation": "ở trong X Y", "lowPriority": true},
-        "在X眼中": "ở trong mắt X"
-    }"#;
-
-    let patterns_dict: HashMap<String, serde_json::Value> =
-        serde_json::from_str(patterns_json).expect("Failed to parse patterns JSON");
-
-    let patterns = parse_patterns_dict(patterns_dict);
-
-    // Find specific patterns
-    let zhe_xie_x = patterns
-        .iter()
-        .find(|p| p.original_pattern == "这些X")
-        .unwrap();
-    let zhe_xie_xy = patterns
-        .iter()
-        .find(|p| p.original_pattern == "这些XY")
-        .unwrap();
-    let zai_xy_zhong = patterns
-        .iter()
-        .find(|p| p.original_pattern == "在XY中")
-        .unwrap();
-    let zai_x_yan_zhong = patterns
-        .iter()
-        .find(|p| p.original_pattern == "在X眼中")
-        .unwrap();
-
-    // Verify priorities
-    // "这些X": 1 var * 10 + 3 tokens + 5 literal = 18
-    assert_eq!(zhe_xie_x.priority, 18);
-
-    // "这些XY": 2 vars * 10 + 4 tokens + 5 literal = 29
-    assert_eq!(zhe_xie_xy.priority, 29);
-
-    // "在XY中" (lowPriority): 2 vars * 10 + 4 tokens + 5 literal - 12 = 17
-    assert_eq!(zai_xy_zhong.priority, 17);
-
-    // "在X眼中": 1 var * 10 + 4 tokens + 5 literal = 19
-    assert_eq!(zai_x_yan_zhong.priority, 19);
-
-    // Verify that "在X眼中" wins over "在XY中" due to lowPriority flag
-    assert!(
-        zai_x_yan_zhong.priority > zai_xy_zhong.priority,
-        "Pattern '在X眼中' (priority {}) should win over '在XY中' (priority {}) due to lowPriority flag",
-        zai_x_yan_zhong.priority,
-        zai_xy_zhong.priority
-    );
-}
-
-#[test]
 fn test_complete_workflow() {
     // Complete workflow: Parse → Index → Lookup
     let patterns_json = r#"{
         "X的右手": "tay phải của X",
         "X的左手": "tay trái của X",
         "这些X": "những X này",
-        "在XY中": {"translation": "ở trong X Y", "lowPriority": true}
+        "在XY中": "ở trong X Y"
     }"#;
 
     // Step 1: Parse JSON

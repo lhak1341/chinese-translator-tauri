@@ -8,9 +8,9 @@
 }
 
 .modal {
-  background-color: var(--background-color);
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: var(--surface-color, var(--background-color));
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   width: 100%;
   max-width: 480px;
   position: relative;
@@ -36,6 +36,8 @@
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .formGroup {
@@ -43,6 +45,22 @@
   width: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* Pairs two formGroups side by side (e.g. Variable X / Variable Y allowed
+   types) — children override the standalone formGroup's own margin-bottom
+   since this row carries it instead. */
+.formGroupRow {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.formGroupRow > .formGroup {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
 }
 
 .label {
@@ -54,6 +72,50 @@
 
 .labelCentered {
   text-align: center;
+}
+
+/* Plain character-only gloss reference, shown between Source Text and
+   Translation. Source's own formGroup already contributes 1rem below it —
+   -0.5rem here brings that down to an even 0.5rem gap on both sides
+   (Source's formGroup margin-bottom is fixed regardless of what renders
+   inside it, so this reads identically whether or not a validation banner
+   preceded it). Truncated with an ellipsis (full text on hover/title) — the
+   gloss is a space-joined char-by-char lookup so it grows much longer than
+   the source itself and can overflow the modal on longer selections. */
+.glossReference {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: -0.5rem 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+  min-width: 0;
+}
+
+.glossText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.glossUseButton {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  background-color: var(--secondary-button-bg);
+  color: var(--secondary-button-text);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  min-height: auto;
+}
+
+.glossUseButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .input {
@@ -205,7 +267,7 @@
 }
 
 .notificationIcon {
-  font-size: 0.9rem;
+  flex-shrink: 0;
   margin-top: 0.1rem;
 }
 
@@ -264,6 +326,13 @@
   border-radius: 3px;
   cursor: pointer;
   min-height: auto;
+}
+
+/* Override the global button:hover (light gray bg) — it left white text on a
+   near-white background in light theme, unreadable. Darken the same blue
+   instead of switching to the generic secondary-button hover shade. */
+.notificationButton:hover {
+  background-color: color-mix(in srgb, var(--info-bg) 85%, black);
 }
 
 .notificationButtonText {

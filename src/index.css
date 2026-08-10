@@ -268,14 +268,17 @@
     --alert-success-bg: rgba(16, 185, 129, 0.15);
     --alert-success-border: rgba(52, 211, 153, 0.3);
     --alert-success-text: #34d399;
+    --alert-success-dark: #34d399;
 
     --alert-warning-bg: rgba(245, 158, 11, 0.15);
     --alert-warning-border: rgba(251, 191, 36, 0.3);
     --alert-warning-text: #fbbf24;
+    --alert-warning-dark: #fbbf24;
 
     --alert-error-bg: rgba(239, 68, 68, 0.15);
     --alert-error-border: rgba(248, 113, 113, 0.3);
     --alert-error-text: #f87171;
+    --alert-error-dark: #f87171;
   }
 }
 

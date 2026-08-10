@@ -25,10 +25,9 @@ export function useDictionaryEntryFilter(
   filterSemanticTypes: Set<string>;
   filterPatternType: Set<string>;
   filterAllowAsVariable: boolean;
-  filterLowPriority: boolean;
   toggleSemanticType: (type: string) => void;
   togglePatternType: (type: 'x-only' | 'x-y') => void;
-  toggleFlag: (flag: 'allowAsVariable' | 'lowPriority') => void;
+  toggleFlag: (flag: 'allowAsVariable') => void;
   setVariable: (v: 'all' | 'allowed' | 'not-allowed') => void;
   clearFilters: () => void;
   resetFilters: (newSelectedDictionary: string) => void;
@@ -39,7 +38,6 @@ export function useDictionaryEntryFilter(
   const [filterSemanticTypes, setFilterSemanticTypes] = useState<Set<string>>(new Set());
   const [filterPatternType, setFilterPatternType] = useState<Set<string>>(new Set());
   const [filterAllowAsVariable, setFilterAllowAsVariable] = useState(false);
-  const [filterLowPriority, setFilterLowPriority] = useState(false);
 
   const debouncedSearchTerm = useThrottledValue(searchTerm, SEARCH_DEBOUNCE_MS);
 
@@ -55,7 +53,6 @@ export function useDictionaryEntryFilter(
     if (!newIsPatterns) {
       setFilterPatternType(new Set());
       setFilterAllowAsVariable(false);
-      setFilterLowPriority(false);
     }
     if (!newIsPhrases) {
       setFilterVariable('all');
@@ -72,8 +69,7 @@ export function useDictionaryEntryFilter(
     filterVariable !== 'all' ||
     filterSemanticTypes.size > 0 ||
     filterPatternType.size > 0 ||
-    filterAllowAsVariable ||
-    filterLowPriority;
+    filterAllowAsVariable;
 
   const filteredEntries = useMemo((): [string, DictionaryEntryValue][] => {
     if (showDuplicatesMode) return [];
@@ -120,12 +116,6 @@ export function useDictionaryEntryFilter(
       );
     }
 
-    if (filterLowPriority) {
-      entries = entries.filter(
-        ([, translation]) => typeof translation === 'object' && translation.lowPriority === true
-      );
-    }
-
     if (filterSemanticTypes.size > 0) {
       entries = entries.filter(([, translation]) => {
         const semType = (typeof translation === 'object' && translation.semanticType) || '';
@@ -147,7 +137,6 @@ export function useDictionaryEntryFilter(
     filterSemanticTypes,
     filterPatternType,
     filterAllowAsVariable,
-    filterLowPriority,
   ]);
 
   const filteredDuplicateRows = useMemo(() => {
@@ -199,9 +188,8 @@ export function useDictionaryEntryFilter(
     });
   }, []);
 
-  const toggleFlag = useCallback((flag: 'allowAsVariable' | 'lowPriority'): void => {
+  const toggleFlag = useCallback((flag: 'allowAsVariable'): void => {
     if (flag === 'allowAsVariable') setFilterAllowAsVariable((v) => !v);
-    else setFilterLowPriority((v) => !v);
   }, []);
 
   const setVariable = useCallback((v: 'all' | 'allowed' | 'not-allowed'): void => {
@@ -213,7 +201,6 @@ export function useDictionaryEntryFilter(
     setFilterSemanticTypes(new Set());
     setFilterPatternType(new Set());
     setFilterAllowAsVariable(false);
-    setFilterLowPriority(false);
   }, []);
 
   return {
@@ -230,7 +217,6 @@ export function useDictionaryEntryFilter(
     filterSemanticTypes,
     filterPatternType,
     filterAllowAsVariable,
-    filterLowPriority,
     toggleSemanticType,
     togglePatternType,
     toggleFlag,

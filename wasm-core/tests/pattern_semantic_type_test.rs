@@ -24,7 +24,6 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
         "số X".to_string(),
         None,              // no allowedVariableTypes on A itself
         true,              // allowAsPatternVariable
-        false,
         Some("concept".to_string()),  // semanticType
     );
 
@@ -35,7 +34,6 @@ fn phase_a_semantic_type_satisfies_phase_b_constraint() {
         "在X中".to_string(),
         "ở trong X".to_string(),
         Some(avt),
-        false,
         false,
         None,
     );
@@ -128,7 +126,6 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
         "số X".to_string(),
         None,
         true,  // allowAsPatternVariable
-        false,
         None,  // no semanticType → defaults to "structural_pattern" in enhanced cache
     );
 
@@ -139,7 +136,6 @@ fn phase_a_without_semantic_type_defaults_to_structural_pattern() {
         "在X中".to_string(),
         "ở trong X".to_string(),
         Some(avt),
-        false,
         false,
         None,
     );
@@ -226,7 +222,6 @@ fn dollar_x_resolves_to_variable_type_from_cache() {
         "nhà của X".to_string(),
         None,
         false,
-        false,
         Some("$X".to_string()),
     );
 
@@ -269,7 +264,6 @@ fn dollar_y_resolves_to_variable_type_from_cache() {
         "X去Y".to_string(),
         "X đi Y".to_string(),
         None,
-        false,
         false,
         Some("$Y".to_string()),
     );
@@ -321,7 +315,6 @@ fn dollar_x_resolves_to_none_when_variable_untyped() {
         "nhà của X".to_string(),
         None,
         false,
-        false,
         Some("$X".to_string()),
     );
 
@@ -362,7 +355,6 @@ fn fixed_semantic_type_unchanged() {
         "X的家".to_string(),
         "nhà của X".to_string(),
         None,
-        false,
         false,
         Some("location".to_string()),
     );
@@ -406,7 +398,6 @@ fn dollar_ref_to_missing_variable_resolves_to_none() {
         "X的家".to_string(),
         "nhà của X".to_string(),
         None,
-        false,
         false,
         Some("$Z".to_string()),
     );
@@ -452,7 +443,6 @@ fn dollar_x_with_proper_noun_var_type_resolves_to_proper_noun() {
         "nhà của X".to_string(),
         None,
         false,
-        false,
         Some("$X".to_string()),
     );
 
@@ -493,7 +483,6 @@ fn pattern_metadata_has_semantic_type_field() {
         complexity: 1,
         length: 3,
         allowed_variable_types: None,
-        low_priority: false,
         semantic_type: Some("person".to_string()),
     };
     assert_eq!(meta.semantic_type.as_deref(), Some("person"));

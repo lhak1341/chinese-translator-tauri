@@ -100,7 +100,7 @@ export function findConflict(
 
 /** A dictionary entry matching a Transform Rule's preview, with its full metadata —
  * not just the display fields — so the matches view can edit Translation/VAR/Semantic
- * in place without accidentally clobbering fields it doesn't surface (e.g. lowPriority,
+ * in place without accidentally clobbering fields it doesn't surface (e.g.
  * allowedVariableTypes) on save. See `useEntryMetadataEdit`'s snapshot-before-patch
  * invariant, which this shape exists to feed correctly. */
 export interface RuleMatchEntry {
@@ -110,7 +110,6 @@ export interface RuleMatchEntry {
   dictionaryLabel: string;
   semanticType: SemanticType | PatternSemanticTypeRef | '';
   allowAsPatternVariable: boolean;
-  lowPriority: boolean;
   allowedVariableTypes: Record<string, string[]>;
 }
 
@@ -144,7 +143,6 @@ export function findRuleMatchingEntries(
         dictionaryLabel: getDictionaryLabel(dictionaryId),
         semanticType: (isObject && value.semanticType) || '',
         allowAsPatternVariable: isObject && value.allowAsPatternVariable === true,
-        lowPriority: isObject && value.lowPriority === true,
         allowedVariableTypes: (isObject && value.allowedVariableTypes) || {},
       });
     }

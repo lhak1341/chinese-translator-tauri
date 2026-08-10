@@ -186,14 +186,6 @@ export class WasmDictionaryManager {
           return null;
         }
 
-        // Validate lowPriority flag (used in priority calculation)
-        if (parsed.lowPriority !== undefined && typeof parsed.lowPriority !== 'boolean') {
-          logger.warn(
-            `⚠️ Invalid lowPriority type in metadata (${typeof parsed.lowPriority}), using null`
-          );
-          return null;
-        }
-
         // Validate allowAsPatternVariable flag (used in two-phase processing)
         if (
           parsed.allowAsPatternVariable !== undefined &&

@@ -33,7 +33,6 @@ fn test_pattern_categorization() {
         "Y của X".to_string(),
         None,
         true, // allowAsPatternVariable
-        false,
         None,
     );
 
@@ -43,7 +42,6 @@ fn test_pattern_categorization() {
         "những X này".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -52,7 +50,6 @@ fn test_pattern_categorization() {
         "在X眼中".to_string(),
         "ở trong mắt X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -75,7 +72,6 @@ fn test_phase_a_processing() {
         "Y của X".to_string(),
         None,
         true, // allowAsPatternVariable
-        false,
         None,
     );
 
@@ -127,7 +123,6 @@ fn test_phase_b_processing_without_phase_a() {
         "những X này".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -169,7 +164,6 @@ fn test_hierarchical_composition_detection() {
         "X đáng sợ".to_string(),
         None,
         true, // allowAsPatternVariable
-        false,
         None,
     );
 
@@ -178,7 +172,6 @@ fn test_hierarchical_composition_detection() {
         "在X中".to_string(),
         "ở trong X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -253,7 +246,6 @@ fn test_multiple_phase_a_results() {
         "Y của X".to_string(),
         None,
         true,
-        false,
         None,
     );
 
@@ -263,7 +255,6 @@ fn test_multiple_phase_a_results() {
         "X đáng sợ".to_string(),
         None,
         true,
-        false,
         None,
     );
 
@@ -338,7 +329,6 @@ fn test_token_protection_by_phase_a() {
         "Y của X".to_string(),
         None,
         true,
-        false,
         None,
     );
 
@@ -347,7 +337,6 @@ fn test_token_protection_by_phase_a() {
         "X的".to_string(),
         "của X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -402,7 +391,6 @@ fn test_phase_b_enhanced_variable_resolution() {
         "X đáng sợ".to_string(),
         None,
         true,
-        false,
         None,
     );
 
@@ -411,7 +399,6 @@ fn test_phase_b_enhanced_variable_resolution() {
         "在X中".to_string(),
         "ở trong X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -469,7 +456,6 @@ fn test_result_selection_with_overlaps() {
         "những X này".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -478,7 +464,6 @@ fn test_result_selection_with_overlaps() {
         "这些XY".to_string(),
         "những X Y này".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -532,7 +517,6 @@ fn test_non_overlapping_patterns() {
         "những X này".to_string(),
         None,
         false,
-        false,
         None,
     );
 
@@ -541,7 +525,6 @@ fn test_non_overlapping_patterns() {
         "在X中".to_string(),
         "ở trong X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -612,7 +595,6 @@ fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
         "biệt viện".to_string(),
         None,
         true,  // allowAsPatternVariable — absorbed into composite
-        false,
         None,
     );
 
@@ -623,7 +605,6 @@ fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
         "CÁI X KIA".to_string(),
         None,
         true,  // allowAsPatternVariable — within composite span but NOT absorbed
-        false,
         None,
     );
 
@@ -631,7 +612,6 @@ fn test_hierarchical_composite_suppresses_phase_a_sub_match_within_its_span() {
         "在X中的那个人".to_string(),
         "cái người kia trong X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -696,7 +676,6 @@ fn test_phase_a_longest_span_wins_over_leftmost_shorter_match() {
         "loại X này".to_string(),
         None,
         true, // allowAsPatternVariable — kept for use as outer variable in other patterns
-        false,
         None,
     );
 
@@ -705,7 +684,6 @@ fn test_phase_a_longest_span_wins_over_leftmost_shorter_match() {
         "X cấp truyền kỳ".to_string(),
         None,
         true, // allowAsPatternVariable — inner, feeds Phase B as variable
-        false,
         None,
     );
 
@@ -780,7 +758,6 @@ fn test_phase_a_char_count_wins_over_token_span_with_compound_tokens() {
         "loại X này".to_string(),
         None,
         true,
-        false,
         None,
     );
     let phase_a_inner = parse_pattern(
@@ -788,7 +765,6 @@ fn test_phase_a_char_count_wins_over_token_span_with_compound_tokens() {
         "X cấp truyền kỳ".to_string(),
         None,
         true,
-        false,
         None,
     );
 
@@ -859,7 +835,6 @@ fn test_phase_b_variable_span_covers_long_phase_a_result() {
         "suy đoán của X".to_string(),
         None,
         true,  // allowAsPatternVariable
-        false,
         None,
     );
 
@@ -868,7 +843,6 @@ fn test_phase_b_variable_span_covers_long_phase_a_result() {
         "在X中".to_string(),
         "Ở trong X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -919,8 +893,8 @@ fn test_phase_b_variable_span_covers_long_phase_a_result() {
 #[test]
 fn test_longer_pattern_via_json_roundtrip() {
     let patterns_json = r#"{
-        "X的手腕": {"allowAsPatternVariable":true,"allowedVariableTypes":{"X":["person","character"]},"lowPriority":false,"semanticType":"object","translation":"cổ tay X"},
-        "X的手腕上": {"allowAsPatternVariable":false,"allowedVariableTypes":{"X":["character"]},"lowPriority":false,"translation":"trên cổ tay X"}
+        "X的手腕": {"allowAsPatternVariable":true,"allowedVariableTypes":{"X":["person","character"]},"semanticType":"object","translation":"cổ tay X"},
+        "X的手腕上": {"allowAsPatternVariable":false,"allowedVariableTypes":{"X":["character"]},"translation":"trên cổ tay X"}
     }"#;
     let tokens_json = r#"[
         {"value":"还","originalIndex":0,"hasPrecedingBoundary":false},
@@ -961,8 +935,8 @@ fn test_production_exact_json_replica() {
     ]"#;
     let cache_json = r#"{"他":{"translation":"hắn","source":"phrases_pattern_variable","type":"character"}}"#;
     let patterns_json = r#"{
-        "X的手腕": {"allowAsPatternVariable":true,"allowedVariableTypes":{"X":["person","character"]},"lowPriority":false,"semanticType":"object","translation":"cổ tay X"},
-        "X的手腕上": {"allowAsPatternVariable":false,"allowedVariableTypes":{"X":["character"]},"lowPriority":false,"translation":"trên cổ tay X"}
+        "X的手腕": {"allowAsPatternVariable":true,"allowedVariableTypes":{"X":["person","character"]},"semanticType":"object","translation":"cổ tay X"},
+        "X的手腕上": {"allowAsPatternVariable":false,"allowedVariableTypes":{"X":["character"]},"translation":"trên cổ tay X"}
     }"#;
 
     let patterns_map: std::collections::HashMap<String, serde_json::Value> = serde_json::from_str(patterns_json).unwrap();
@@ -998,7 +972,6 @@ fn test_longer_pattern_beats_shorter_phase_a() {
         "cổ tay X".to_string(),
         Some(allowed_short),
         true,  // allowAsPatternVariable
-        false,
         Some("object".to_string()),
     );
     let pattern_long = parse_pattern(
@@ -1006,7 +979,6 @@ fn test_longer_pattern_beats_shorter_phase_a() {
         "trên cổ tay X".to_string(),
         Some(allowed_long),
         false, // NOT allowAsPatternVariable
-        false,
         None,
     );
 
@@ -1065,7 +1037,6 @@ fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
         "tốc độ của sinh vật".to_string(),
         None,
         true, // allowAsPatternVariable
-        false,
         Some("concept".to_string()),
     );
 
@@ -1076,7 +1047,6 @@ fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
         "con X này".to_string(),
         Some(literal_type.clone()),
         true, // allowAsPatternVariable
-        false,
         Some("$X".to_string()),
     );
 
@@ -1087,7 +1057,6 @@ fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
         "tốc độ của X".to_string(),
         Some(literal_type),
         false, // NOT allowAsPatternVariable — Phase B only
-        false,
         None,
     );
 

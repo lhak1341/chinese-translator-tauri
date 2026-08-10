@@ -6,7 +6,6 @@ export interface EntryMetadataEditOptions {
   semanticType: string;
   allowedVariableTypes: Record<string, string[]>;
   allowAsPatternVariable: boolean;
-  lowPriority: boolean;
   selectedDictionary: string;
   onUpdateEntry: (
     dictionaryId: string,
@@ -35,12 +34,11 @@ export function useEntryMetadataEdit({
   semanticType,
   allowedVariableTypes,
   allowAsPatternVariable,
-  lowPriority,
   selectedDictionary,
   onUpdateEntry,
 }: EntryMetadataEditOptions): EntryMetadataEditResult {
   const buildBaseMetadata = (): Record<string, unknown> => {
-    const m: Record<string, unknown> = { allowAsPatternVariable, lowPriority };
+    const m: Record<string, unknown> = { allowAsPatternVariable };
     if (semanticType) m.semanticType = semanticType;
     if (Object.keys(allowedVariableTypes).length > 0) m.allowedVariableTypes = allowedVariableTypes;
     return m;

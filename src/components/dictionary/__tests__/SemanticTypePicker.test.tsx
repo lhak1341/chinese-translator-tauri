@@ -39,10 +39,10 @@ describe('SemanticTypePicker — visibility gate', () => {
     expect(screen.getByText('Semantic Type')).toBeInTheDocument();
   });
 
-  test('renders "Output Semantic Type" label and explanatory text for a patterns dictionary', () => {
+  test('renders "Output type" label and explanatory text for a patterns dictionary', () => {
     renderPicker({ activeDictionary: 'patterns' });
-    expect(screen.getByText('Output Semantic Type')).toBeInTheDocument();
-    expect(screen.getByText(/Leave blank to match any variable slot/)).toBeInTheDocument();
+    expect(screen.getByText('Output type')).toBeInTheDocument();
+    expect(screen.getByText(/Blank = any type/)).toBeInTheDocument();
   });
 });
 
@@ -113,18 +113,18 @@ describe('SemanticTypePicker — $X/$Y variable-ref badges (patterns only)', () 
 describe('SemanticTypePicker — per-variable allowed-type constraints (patterns only)', () => {
   test('is not rendered for a non-patterns dictionary', () => {
     renderPicker({ activeDictionary: 'phrases', source: 'X的手上' });
-    expect(screen.queryByText(/Variable X allowed types/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/X allowed types/)).not.toBeInTheDocument();
   });
 
   test('renders a section per variable present in the source', () => {
     renderPicker({ activeDictionary: 'patterns', source: 'X和Y' });
-    expect(screen.getByText('Variable X allowed types')).toBeInTheDocument();
-    expect(screen.getByText('Variable Y allowed types')).toBeInTheDocument();
+    expect(screen.getByText('X allowed types')).toBeInTheDocument();
+    expect(screen.getByText('Y allowed types')).toBeInTheDocument();
   });
 
   test('shows the "no constraints" hint when no types are toggled for a variable', () => {
     renderPicker({ activeDictionary: 'patterns', source: 'X的手上' });
-    expect(screen.getByText('No constraints — X matches all variable entries')).toBeInTheDocument();
+    expect(screen.getByText('No constraint — matches any type')).toBeInTheDocument();
   });
 
   test('toggling a type ON adds it to that variable’s allowed list', () => {

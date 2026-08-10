@@ -52,14 +52,12 @@ mod integration_tests {
             "những X này".to_string(),
             None,
             false,
-            false,
             None,
         );
         let pattern2 = parse_pattern(
             "X的Y".to_string(),
             "Y của X".to_string(),
             None,
-            false,
             false,
             None,
         );
@@ -91,8 +89,7 @@ mod integration_tests {
         dict.insert(
             "在XY中".to_string(),
             json!({
-                "translation": "ở trong X Y",
-                "lowPriority": true
+                "translation": "ở trong X Y"
             }),
         );
 
@@ -115,7 +112,6 @@ mod integration_tests {
         // Verify literal-starting patterns
         let zai_patterns = index.get_patterns_by_first_token("在");
         assert_eq!(zai_patterns.len(), 1);
-        assert!(zai_patterns[0].low_priority);
     }
 
     #[test]
@@ -123,26 +119,14 @@ mod integration_tests {
         let mut dict = HashMap::new();
         dict.insert("这些X".to_string(), json!("những X này")); // 1 var, 3 tokens, literal first → 1*10 + 3 + 5 = 18
         dict.insert("这些XY".to_string(), json!("những X Y này")); // 2 vars, 4 tokens, literal first → 2*10 + 4 + 5 = 29
-        dict.insert(
-            "在XY中".to_string(),
-            json!({
-                "translation": "ở trong X Y",
-                "lowPriority": true  // 2 vars, 4 tokens, literal first, LOW → 2*10 + 4 + 5 - 12 = 17
-            }),
-        );
 
         let patterns = parse_patterns_dict(dict);
 
         // Find specific patterns
         let pattern_18 = patterns.iter().find(|p| p.original_pattern == "这些X").unwrap();
         let pattern_29 = patterns.iter().find(|p| p.original_pattern == "这些XY").unwrap();
-        let pattern_17 = patterns.iter().find(|p| p.original_pattern == "在XY中").unwrap();
 
         assert_eq!(pattern_18.priority, 18);
         assert_eq!(pattern_29.priority, 29);
-        assert_eq!(pattern_17.priority, 17);
-
-        // Verify low priority penalty
-        assert_eq!(pattern_29.priority - pattern_17.priority, 12);
     }
 }

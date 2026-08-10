@@ -42,11 +42,12 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
   if (!supportsSemanticTypes(activeDictionary)) return null;
 
   const { isPatterns } = classifyDictionaryId(activeDictionary);
+  const activeVars = (['X', 'Y'] as const).filter((v) => source.includes(v));
 
   const badgeBase: React.CSSProperties = {
     display: 'inline-block',
-    padding: '2px 8px',
-    fontSize: '0.75rem',
+    padding: '2px 6px',
+    fontSize: '0.7rem',
     fontWeight: 600,
     borderRadius: '4px',
     cursor: isSaving ? 'default' : 'pointer',
@@ -59,7 +60,7 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
       {/* Output semantic type badge picker */}
       <div className={styles.formGroup}>
         <label className={`${styles.label} ${styles.labelCentered}`}>
-          {isPatterns ? 'Output Semantic Type' : 'Semantic Type'}
+          {isPatterns ? 'Output type' : 'Semantic Type'}
         </label>
         {isPatterns && (
           <p
@@ -70,14 +71,13 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
               textAlign: 'center',
             }}
           >
-            Type this pattern produces when used as a variable in another pattern. Leave blank to
-            match any variable slot.
+            Type produced when reused elsewhere. Blank = any type.
           </p>
         )}
         <div
           role="radiogroup"
           aria-label="Semantic type"
-          style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'center' }}
+          style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'center' }}
         >
           {/* None option */}
           <span
@@ -172,19 +172,20 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
         </div>
       </div>
 
-      {/* Per-variable type constraints — patterns only */}
-      {isPatterns &&
-        (['X', 'Y'] as const)
-          .filter((v) => source.includes(v))
-          .map((varName) => (
+      {/* Per-variable type constraints — patterns only. Side by side when both
+          X and Y are present, so they read as a pair rather than two full-width
+          stacked rows. */}
+      {isPatterns && activeVars.length > 0 && (
+        <div className={styles.formGroupRow}>
+          {activeVars.map((varName) => (
             <div className={styles.formGroup} key={varName}>
               <label className={`${styles.label} ${styles.labelCentered}`}>
-                Variable {varName} allowed types
+                {varName} allowed types
               </label>
               <div
                 style={{
                   display: 'flex',
-                  gap: '0.5rem',
+                  gap: '0.3rem',
                   flexWrap: 'wrap',
                   justifyContent: 'center',
                 }}
@@ -237,11 +238,13 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
                     textAlign: 'center',
                   }}
                 >
-                  No constraints — {varName} matches all variable entries
+                  No constraint — matches any type
                 </div>
               )}
             </div>
           ))}
+        </div>
+      )}
     </>
   );
 };

@@ -51,7 +51,6 @@ export interface DictionaryEntryFormState {
   translation: string;
   activeDictionary: string;
   allowAsPatternVariable: boolean;
-  lowPriority: boolean;
   semanticType: SemanticType | PatternSemanticTypeRef | '';
   allowedVariableTypes: Record<string, string[]>;
   availableDictionaries: [string, DictionaryTypesCollection[string]][];
@@ -75,7 +74,6 @@ export interface DictionaryEntryFormState {
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => Promise<boolean>;
   setTranslation: React.Dispatch<React.SetStateAction<string>>;
   setAllowAsPatternVariable: React.Dispatch<React.SetStateAction<boolean>>;
-  setLowPriority: React.Dispatch<React.SetStateAction<boolean>>;
   setSemanticType: React.Dispatch<React.SetStateAction<SemanticType | PatternSemanticTypeRef | ''>>;
   setAllowedVariableTypes: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
 }
@@ -105,11 +103,6 @@ export function useDictionaryEntryForm(
   const [allowAsPatternVariable, setAllowAsPatternVariable] = useState<boolean>(
     (typeof entry?.translation === 'object' && entry.translation?.allowAsPatternVariable) ||
       entry?.allowAsPatternVariable ||
-      false
-  );
-  const [lowPriority, setLowPriority] = useState<boolean>(
-    (typeof entry?.translation === 'object' && entry.translation?.lowPriority) ||
-      entry?.lowPriority ||
       false
   );
   const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
@@ -143,7 +136,6 @@ export function useDictionaryEntryForm(
         translation: entry.translation,
         translationType: typeof entry.translation,
         allowAsPatternVariable: entry.allowAsPatternVariable,
-        lowPriority: entry.lowPriority,
         translationObject: typeof entry.translation === 'object' ? entry.translation : 'N/A',
       });
     }
@@ -461,7 +453,6 @@ export function useDictionaryEntryForm(
   };
 
   const handleTranslationFocus = (): void => {
-    if (activeDictionary.startsWith('patterns')) return;
     if (source.trim()) checkForExistingEntry(source);
   };
 
@@ -501,7 +492,6 @@ export function useDictionaryEntryForm(
         activeDictionary.startsWith('properNouns')
           ? {
               allowAsPatternVariable,
-              lowPriority,
               ...(semanticType && { semanticType }),
               ...(activeDictionary.startsWith('patterns') &&
                 Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
@@ -511,7 +501,6 @@ export function useDictionaryEntryForm(
       logger.log('🔍 DictionaryEntry: Saving with metadata:', {
         activeDictionary,
         allowAsPatternVariable,
-        lowPriority,
         semanticType,
         allowedVariableTypes,
         finalMetadata: metadata,
@@ -544,7 +533,6 @@ export function useDictionaryEntryForm(
     translation,
     activeDictionary,
     allowAsPatternVariable,
-    lowPriority,
     semanticType,
     allowedVariableTypes,
     availableDictionaries,
@@ -566,7 +554,6 @@ export function useDictionaryEntryForm(
     handleSubmit,
     setTranslation,
     setAllowAsPatternVariable,
-    setLowPriority,
     setSemanticType,
     setAllowedVariableTypes,
   };

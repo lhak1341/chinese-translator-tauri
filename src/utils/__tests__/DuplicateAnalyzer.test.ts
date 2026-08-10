@@ -213,7 +213,7 @@ describe('DuplicateAnalyzer', () => {
           在XY中: { translation: 'ở trong X Y', allowAsPatternVariable: true },
         },
         phrases: {
-          在XY中: { translation: 'in X Y', lowPriority: true },
+          在XY中: { translation: 'in X Y', allowAsPatternVariable: false },
         },
       };
       const result = findConflictingEntries(dicts);
@@ -224,7 +224,7 @@ describe('DuplicateAnalyzer', () => {
       const phrasesEntry = result.find((r) => r.translation === 'in X Y');
       const patternsEntry = result.find((r) => r.translation === 'ở trong X Y');
 
-      expect(phrasesEntry?.metadata?.lowPriority).toBe(true);
+      expect(phrasesEntry?.metadata?.allowAsPatternVariable).toBe(false);
       expect(patternsEntry?.metadata?.allowAsPatternVariable).toBe(true);
     });
 

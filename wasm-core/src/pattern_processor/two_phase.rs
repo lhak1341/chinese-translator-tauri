@@ -818,7 +818,6 @@ mod tests {
                 "template X Y".to_string(),
                 None,
                 false,
-                false,
                 None,
             );
             let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
@@ -836,7 +835,6 @@ mod tests {
                 "甲乙X".to_string(),
                 "template X".to_string(),
                 None,
-                false,
                 false,
                 None,
             );
@@ -858,7 +856,6 @@ mod tests {
                 "template X Y".to_string(),
                 None,
                 false,
-                false,
                 None,
             );
             let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
@@ -873,7 +870,7 @@ mod tests {
 
         #[test]
         fn returns_zero_when_var_idx_is_zero() {
-            let pattern = parse_pattern("X甲".to_string(), "template X".to_string(), None, false, false, None);
+            let pattern = parse_pattern("X甲".to_string(), "template X".to_string(), None, false, None);
             let processor = TwoPhasePatternProcessor::new(vec![pattern.clone()]);
             let tokens = vec![tok("候", 0), tok("选", 1)];
 
@@ -887,7 +884,6 @@ mod tests {
                 "甲X".to_string(),
                 "template X".to_string(),
                 None,
-                false,
                 false,
                 None,
             );
@@ -907,7 +903,6 @@ mod tests {
                 "Y của X".to_string(),
                 None,
                 true, // allowAsPatternVariable
-                false,
                 None,
             ),
             parse_pattern(
@@ -915,14 +910,12 @@ mod tests {
                 "những X này".to_string(),
                 None,
                 false,
-                false,
                 None,
             ),
             parse_pattern(
                 "在X眼中".to_string(),
                 "ở trong mắt X".to_string(),
                 None,
-                false,
                 false,
                 None,
             ),

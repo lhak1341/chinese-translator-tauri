@@ -96,7 +96,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     filterSemanticTypes,
     filterPatternType,
     filterAllowAsVariable,
-    filterLowPriority,
     toggleSemanticType,
     togglePatternType,
     toggleFlag,
@@ -211,7 +210,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   // Filter state is only reset for dictionary types where a filter doesn't apply:
   //   filterSemanticTypes  → phrases + proper nouns
   //   filterVariable       → phrases only
-  //   filterPatternType / filterAllowAsVariable / filterLowPriority → patterns only
+  //   filterPatternType / filterAllowAsVariable → patterns only
   useEffect(() => {
     resetFilters(selectedDictionary);
     resetEditAndMove();
@@ -398,7 +397,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 {(
                   [
                     [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
-                    [filterLowPriority, 'lowPriority', 'Low Priority', '#dc2626'],
                   ] as const
                 ).map(([isActive, flag, label, color]) => (
                   <button

@@ -12,7 +12,7 @@ After touching any CRUD function or `addToHistory`, audit for:
 2. Typed error throws (`ValidationError`/`SaveError`) including pre-`try` existence checks
 3. Dep-array correctness
 4. `isValidationError`/`isSaveError` double-toast guards
-5. Metadata coverage (`allowAsPatternVariable`, `lowPriority`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
+5. Metadata coverage (`allowAsPatternVariable`, `semanticType`, `allowedVariableTypes` for `phrases|patterns|properNouns-*`)
 6. `prepareMutationEntry` called at the top of `addEntry`/`updateEntry` — owns sanitize + validate + typed value construction. Throws `ValidationError` (no toast); catch block handles the toast via `isValidationError(error)` branch. Validation is `validatePersistEntry(dictionaryId, source, translation)` from `utils/dictionary/PersistTimeValidator` — NOT the form-time `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (different signature, different return type).
 7. Cache invalidation called after successful save via `invokeEngineInvalidator(engineInvalidatorRef, id)` — required in every CRUD success branch. `engineInvalidatorRef` is registered by `Translator.jsx` at engine-ready time. Undo/redo paths handle invalidation via `invalidateEngine` injected into `useDictionaryHistory`.
 
@@ -61,7 +61,7 @@ Resolution edge cases: `$-ref` to non-existent variable (e.g. `"$Z"` in an X-onl
 
 ## Pattern Variable Contract
 
-X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally invalid. `validatePatternEntry(sourceText, translationText?)` enforces: source needs exactly one X; translation must contain X; if source has Y, translation must also have Y. Existing-entry suggestion (from other dictionaries) is suppressed for patterns — `handleTranslationFocus` guards on `activeDictionary.startsWith('patterns')`.
+X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally invalid. `validatePatternEntry(sourceText, translationText?)` enforces: source needs exactly one X; translation must contain X; if source has Y, translation must also have Y. Existing-entry suggestion (`handleTranslationFocus` → `checkForExistingEntry`) applies to patterns too (re-enabled 2026-08-10) — was previously suppressed via an `activeDictionary.startsWith('patterns')` guard with no recorded rationale; removed since it left same-dict pattern overwrites completely silent, unlike every other dict type.
 
 ## Dictionary Type Classification
 
@@ -105,12 +105,12 @@ All filter state lives in `src/hooks/useDictionaryEntryFilter.ts`. Call as `useD
 
 - `toggleSemanticType(type: string)` — toggle one semantic type in/out of the active filter set
 - `togglePatternType(type: 'x-only' | 'x-y')` — toggle one pattern shape filter
-- `toggleFlag(flag: 'allowAsVariable' | 'lowPriority')` — toggle a boolean flag filter
+- `toggleFlag(flag: 'allowAsVariable')` — toggle a boolean flag filter
 - `setVariable(v: 'all' | 'allowed' | 'not-allowed')` — set the variable filter to an explicit value
 - `clearFilters()` — reset all filter dimensions atomically (used by the "Clear filters" button)
 - `resetFilters(newSelectedDictionary)` — smart reset on dict switch: clears only filters inapplicable to the new dict type. Called from the `selectedDictionary` coordinator effect alongside `resetEditAndMove`/`resetSelection`/`closeContextMenu`/`scroll.resetScroll`.
 
-**Read-only state (for `.has()` / `isActive` checks in JSX):** `filterSemanticTypes`, `filterPatternType`, `filterAllowAsVariable`, `filterLowPriority`, `filterVariable`.
+**Read-only state (for `.has()` / `isActive` checks in JSX):** `filterSemanticTypes`, `filterPatternType`, `filterAllowAsVariable`, `filterVariable`.
 
 **Raw setters that still escape (UI-only, no filter logic):** `setSearchTerm`, `setShowFilterPanel`.
 
@@ -159,6 +159,6 @@ Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefC
 
 ## Reusable Row/Badge Building Blocks — `VirtualRowComponent.tsx`
 
-`RowShell` (fixed-`ITEM_HEIGHT` flex row wrapper), `MetadataBadge` (VAR/LP toggle chip), and `SemanticTypeToggleCell` (semantic-type toggle row) are exported from `VirtualRowComponent.tsx` specifically for reuse by other table-shaped views (e.g. `src/components/rules/RulesManager.tsx`, `RuleMatchesModal.tsx`) — import and reuse them rather than re-deriving the same padding/font-size/color values, which drift silently (found twice in one session: a copied semantic-chip badge missing `alignItems: 'center'`, and missing `fontSize`/`padding` overrides that fell back to the shared class's different defaults).
+`RowShell` (fixed-`ITEM_HEIGHT` flex row wrapper), `MetadataBadge` (VAR toggle chip), and `SemanticTypeToggleCell` (semantic-type toggle row) are exported from `VirtualRowComponent.tsx` specifically for reuse by other table-shaped views (e.g. `src/components/rules/RulesManager.tsx`, `RuleMatchesModal.tsx`) — import and reuse them rather than re-deriving the same padding/font-size/color values, which drift silently (found twice in one session: a copied semantic-chip badge missing `alignItems: 'center'`, and missing `fontSize`/`padding` overrides that fell back to the shared class's different defaults).
 
 **A real `<table>`'s `<tr>` `height` is a minimum, not a cap** — content padding/line-height can still force it taller. To match Dictionary's exact row density, don't build a `<table>`; use `RowShell`'s fixed-height flex-div technique instead (same mechanism `EnhancedVirtualizedDictionaryTable` itself uses). Setting `height: 40px` on a `<tr>` and expecting Dictionary-identical row height is a no-op if the cell content needs more room.

@@ -193,15 +193,15 @@ describe('pattern-type filter', () => {
 });
 
 describe('flag filters', () => {
-  test('toggling "Low Priority" narrows to entries with lowPriority: true', () => {
+  test('toggling "Allow as Variable" narrows to entries with allowAsPatternVariable: true', () => {
     setDict('patterns', {
-      X的手: { translation: 'tay của X', lowPriority: true },
+      X的手: { translation: 'tay của X', allowAsPatternVariable: true },
       X给Y: { translation: 'X cho Y' },
     });
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="patterns" />);
     fireEvent.click(screen.getByTitle('Filter entries'));
 
-    fireEvent.click(screen.getByText('Low Priority'));
+    fireEvent.click(screen.getByText('Allow as Variable'));
 
     expect(screen.getByText('tay của X')).toBeTruthy();
     expect(screen.queryByText('X cho Y')).toBeNull();
@@ -244,7 +244,7 @@ describe('semantic-type filter', () => {
 describe('clear filters', () => {
   test('appears only when a filter is active, and resets the full entry list on click', () => {
     setDict('patterns', {
-      X的手: { translation: 'tay của X', lowPriority: true },
+      X的手: { translation: 'tay của X', allowAsPatternVariable: true },
       X给Y: { translation: 'X cho Y' },
     });
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="patterns" />);
@@ -252,7 +252,7 @@ describe('clear filters', () => {
 
     expect(screen.queryByText('Clear filters')).toBeNull();
 
-    fireEvent.click(screen.getByText('Low Priority'));
+    fireEvent.click(screen.getByText('Allow as Variable'));
     expect(screen.getByText('Clear filters')).toBeTruthy();
     expect(screen.queryByText('X cho Y')).toBeNull();
 
@@ -273,7 +273,7 @@ describe('empty state', () => {
     setDict('patterns', { X的手: { translation: 'tay của X' } });
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="patterns" />);
     fireEvent.click(screen.getByTitle('Filter entries'));
-    fireEvent.click(screen.getByText('Low Priority')); // no entry has lowPriority: true
+    fireEvent.click(screen.getByText('Allow as Variable')); // no entry has allowAsPatternVariable: true
 
     expect(screen.getByText('No entries match the active filters')).toBeTruthy();
     expect(screen.queryByText('Dictionary is empty')).toBeNull();

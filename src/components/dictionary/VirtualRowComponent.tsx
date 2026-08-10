@@ -18,28 +18,20 @@ import { highlightPatternVariables } from '../../utils/text/PatternTextFormatter
 export const ITEM_HEIGHT = 40;
 
 interface BadgeProps {
-  type: 'variable' | 'lowPriority';
+  type: 'variable';
   active: boolean;
   onClick: () => void;
 }
 
 /** Exported so other table-shaped views (e.g. the Rules tab's match preview) can reuse
- * the exact VAR/LP badge instead of re-deriving its colors/labels. */
-export const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) => {
-  const config =
-    type === 'variable'
-      ? {
-          label: 'VAR',
-          title: active ? 'Click to disallow as variable' : 'Click to allow as variable',
-          activeColor: '#059669',
-          inactiveColor: '#6b7280',
-        }
-      : {
-          label: 'LP',
-          title: active ? 'Click to remove low priority' : 'Click to set low priority',
-          activeColor: '#dc2626',
-          inactiveColor: '#6b7280',
-        };
+ * the exact VAR toggle chip instead of re-deriving its colors/labels. */
+export const MetadataBadge: React.FC<BadgeProps> = ({ active, onClick }) => {
+  const config = {
+    label: 'VAR',
+    title: active ? 'Click to disallow as variable' : 'Click to allow as variable',
+    activeColor: '#059669',
+    inactiveColor: '#6b7280',
+  };
 
   return (
     <span
@@ -55,7 +47,7 @@ export const MetadataBadge: React.FC<BadgeProps> = ({ type, active, onClick }) =
         border: active ? 'none' : `1px solid ${config.inactiveColor}`,
       }}
     >
-      {active && (type === 'variable' ? '✓ ' : '⬇ ')}
+      {active && '✓ '}
       {config.label}
     </span>
   );
@@ -282,7 +274,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     const translationText = typeof translation === 'string' ? translation : translation.translation;
     const allowAsPatternVariable =
       typeof translation === 'object' && translation.allowAsPatternVariable === true;
-    const lowPriority = typeof translation === 'object' && translation.lowPriority === true;
     const semanticType = (typeof translation === 'object' && translation.semanticType) || '';
     const allowedVariableTypes =
       (typeof translation === 'object' && translation.allowedVariableTypes) || {};
@@ -292,7 +283,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       isPatterns || isPhrases || isProperNouns
         ? {
             allowAsPatternVariable,
-            lowPriority,
             ...(semanticType && { semanticType }),
             ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
           }
@@ -325,7 +315,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
         semanticType,
         allowedVariableTypes,
         allowAsPatternVariable,
-        lowPriority,
         selectedDictionary,
         onUpdateEntry,
       });
@@ -367,11 +356,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
                   onClick={() =>
                     handleCheckboxChange('allowAsPatternVariable', !allowAsPatternVariable)
                   }
-                />
-                <MetadataBadge
-                  type="lowPriority"
-                  active={lowPriority}
-                  onClick={() => handleCheckboxChange('lowPriority', !lowPriority)}
                 />
               </div>
             )}

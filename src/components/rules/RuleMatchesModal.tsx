@@ -58,7 +58,6 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
   const translEdit = useInlineFieldEdit(row.translation, async (newTranslation) => {
     await updateEntry(row.dictionaryId, row.source, row.source, newTranslation, {
       allowAsPatternVariable: row.allowAsPatternVariable,
-      lowPriority: row.lowPriority,
       ...(row.semanticType && { semanticType: row.semanticType }),
       ...(Object.keys(row.allowedVariableTypes).length > 0 && {
         allowedVariableTypes: row.allowedVariableTypes,
@@ -72,7 +71,6 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
     semanticType: row.semanticType,
     allowedVariableTypes: row.allowedVariableTypes,
     allowAsPatternVariable: row.allowAsPatternVariable,
-    lowPriority: row.lowPriority,
     selectedDictionary: row.dictionaryId,
     onUpdateEntry: updateEntry,
   });

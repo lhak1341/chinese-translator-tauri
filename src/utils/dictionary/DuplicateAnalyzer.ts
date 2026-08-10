@@ -23,7 +23,6 @@ export interface DuplicateRow {
   /** Metadata for patterns/phrases (if applicable) */
   metadata?: {
     allowAsPatternVariable?: boolean;
-    lowPriority?: boolean;
   };
 }
 
@@ -91,7 +90,7 @@ export function findConflictingEntries(
     Array<{
       dictionaryId: string;
       translation: string;
-      metadata?: { allowAsPatternVariable?: boolean; lowPriority?: boolean };
+      metadata?: { allowAsPatternVariable?: boolean };
     }>
   >();
 
@@ -122,7 +121,6 @@ export function findConflictingEntries(
         typeof value === 'object'
           ? {
               allowAsPatternVariable: value.allowAsPatternVariable,
-              lowPriority: value.lowPriority,
             }
           : undefined;
 

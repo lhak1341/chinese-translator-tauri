@@ -7,7 +7,7 @@ const DICT_ID = 'phrases';
 const SOURCE = '龙';
 const TRANSLATION = 'rồng';
 
-const phraseEntry = { translation: TRANSLATION, allowAsPatternVariable: true, lowPriority: false };
+const phraseEntry = { translation: TRANSLATION, allowAsPatternVariable: true };
 const dictionaries: Record<string, DictionaryData> = {
   [DICT_ID]: { [SOURCE]: phraseEntry },
 };
@@ -40,7 +40,6 @@ describe('useEntryEditAndMove — onContextMenuEdit', () => {
       source: SOURCE,
       translation: phraseEntry,
       allowAsPatternVariable: true,
-      lowPriority: false,
     });
   });
 
@@ -51,7 +50,6 @@ describe('useEntryEditAndMove — onContextMenuEdit', () => {
     const { result } = renderHook(() => useEntryEditAndMove(params));
     act(() => result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION }));
     expect(result.current.editingEntry?.allowAsPatternVariable).toBe(false);
-    expect(result.current.editingEntry?.lowPriority).toBe(false);
   });
 
   it('returns early when dictionary is not found', () => {

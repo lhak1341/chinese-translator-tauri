@@ -152,7 +152,6 @@ mod tests {
             "những X này".to_string(),
             None,
             false,
-            false,
             None,
         );
 
@@ -172,7 +171,6 @@ mod tests {
             "Y của X".to_string(),
             None,
             false,
-            false,
             None,
         );
 
@@ -188,8 +186,8 @@ mod tests {
     fn test_index_multiple_patterns_same_first_token() {
         let mut index = PatternIndex::new();
 
-        let pattern1 = parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, false, None);
-        let pattern2 = parse_pattern("这个Y".to_string(), "cái Y này".to_string(), None, false, false, None);
+        let pattern1 = parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, None);
+        let pattern2 = parse_pattern("这个Y".to_string(), "cái Y này".to_string(), None, false, None);
 
         index.index_pattern(pattern1);
         index.index_pattern(pattern2);
@@ -208,10 +206,10 @@ mod tests {
         let mut index = PatternIndex::new();
 
         let patterns = vec![
-            parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, false, None),
-            parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, false, None),
-            parse_pattern("在XY中".to_string(), "ở trong X Y".to_string(), None, false, false, None),
-            parse_pattern("Y是Z".to_string(), "Z là Y".to_string(), None, false, false, None),
+            parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, None),
+            parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, None),
+            parse_pattern("在XY中".to_string(), "ở trong X Y".to_string(), None, false, None),
+            parse_pattern("Y是Z".to_string(), "Z là Y".to_string(), None, false, None),
         ];
 
         index.index_patterns(&patterns);
@@ -241,7 +239,7 @@ mod tests {
     fn test_clear_index() {
         let mut index = PatternIndex::new();
 
-        let pattern = parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, false, None);
+        let pattern = parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, None);
         index.index_pattern(pattern);
 
         assert_eq!(index.len(), 1);
@@ -257,9 +255,9 @@ mod tests {
         let mut index = PatternIndex::new();
 
         let patterns = vec![
-            parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, false, None),
-            parse_pattern("那些Y".to_string(), "những Y kia".to_string(), None, false, false, None),
-            parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, false, None),
+            parse_pattern("这些X".to_string(), "những X này".to_string(), None, false, None),
+            parse_pattern("那些Y".to_string(), "những Y kia".to_string(), None, false, None),
+            parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, None),
         ];
 
         index.index_patterns(&patterns);

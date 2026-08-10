@@ -213,7 +213,6 @@ impl PatternMatchResult {
             complexity: 0,
             length: 0,
             allowed_variable_types: None,
-            low_priority: false,
             semantic_type: semantic_type.clone(),
         };
 
@@ -228,7 +227,6 @@ impl PatternMatchResult {
             variables: vec![],  // Empty - not needed for result serialization
             first_token,
             allow_as_pattern_variable: false,
-            low_priority: false,
             priority,
             semantic_type,
             metadata,

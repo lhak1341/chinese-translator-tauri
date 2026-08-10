@@ -81,9 +81,6 @@ pub struct PatternMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_variable_types: Option<HashMap<String, Vec<String>>>,
 
-    /// Whether this is a low priority pattern (-12 penalty)
-    pub low_priority: bool,
-
     /// Semantic type this pattern produces when used as a variable (e.g., "person", "place")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub semantic_type: Option<String>,
@@ -168,10 +165,6 @@ pub struct SemanticPattern {
     #[serde(rename = "allowAsPatternVariable")]
     pub allow_as_pattern_variable: bool,
 
-    /// Whether this is a low priority pattern
-    #[serde(rename = "lowPriority")]
-    pub low_priority: bool,
-
     /// Calculated priority
     pub priority: i32,
 
@@ -195,7 +188,6 @@ impl SemanticPattern {
         tokens: Vec<PatternToken>,
         variables: Vec<String>,
         allow_as_pattern_variable: bool,
-        low_priority: bool,
         allowed_variable_types: Option<HashMap<String, Vec<String>>>,
         semantic_type: Option<String>,
     ) -> Self {
@@ -203,14 +195,13 @@ impl SemanticPattern {
             PatternToken::literal("".to_string(), 0)
         });
 
-        let priority = Self::calculate_priority(&tokens, &variables, low_priority);
+        let priority = Self::calculate_priority(&tokens, &variables);
 
         let metadata = PatternMetadata {
             priority,
             complexity: variables.len(),
             length: tokens.len(),
             allowed_variable_types,
-            low_priority,
             semantic_type: semantic_type.clone(),
         };
 
@@ -222,7 +213,6 @@ impl SemanticPattern {
             variables,
             first_token,
             allow_as_pattern_variable,
-            low_priority,
             priority,
             semantic_type,
             metadata,
@@ -231,8 +221,8 @@ impl SemanticPattern {
     }
 
     /// Calculate pattern priority
-    /// Formula: (variables.length * 10) + tokens.length + (literal_first ? 5 : 0) - (lowPriority ? 12 : 0)
-    pub fn calculate_priority(tokens: &[PatternToken], variables: &[String], low_priority: bool) -> i32 {
+    /// Formula: (variables.length * 10) + tokens.length + (literal_first ? 5 : 0)
+    pub fn calculate_priority(tokens: &[PatternToken], variables: &[String]) -> i32 {
         let mut priority = 0;
 
         // More variables = higher priority (more specific patterns)
@@ -246,11 +236,6 @@ impl SemanticPattern {
             if first.token_type == TokenType::Literal {
                 priority += 5;
             }
-        }
-
-        // Low priority flag penalty for same-length pattern competition
-        if low_priority {
-            priority -= 12;
         }
 
         priority
@@ -284,30 +269,9 @@ mod tests {
         ];
         let variables = vec!["X".to_string(), "Y".to_string()];
 
-        let priority = SemanticPattern::calculate_priority(&tokens, &variables, false);
+        let priority = SemanticPattern::calculate_priority(&tokens, &variables);
         // Expected: 2*10 + 3 + 5 = 28
         assert_eq!(priority, 28);
-    }
-
-    #[test]
-    fn test_low_priority_penalty() {
-        let tokens = vec![
-            PatternToken::literal("在".to_string(), 0),
-            PatternToken::variable("X".to_string(), 1),
-            PatternToken::variable("Y".to_string(), 2),
-            PatternToken::literal("中".to_string(), 3),
-        ];
-        let variables = vec!["X".to_string(), "Y".to_string()];
-
-        let normal_priority = SemanticPattern::calculate_priority(&tokens, &variables, false);
-        let low_priority = SemanticPattern::calculate_priority(&tokens, &variables, true);
-
-        // Expected difference: 12
-        assert_eq!(normal_priority - low_priority, 12);
-        // Normal: 2*10 + 4 + 5 = 29
-        // Low: 29 - 12 = 17
-        assert_eq!(normal_priority, 29);
-        assert_eq!(low_priority, 17);
     }
 
     #[test]
@@ -320,7 +284,7 @@ mod tests {
         ];
         let variables = vec!["X".to_string(), "Y".to_string()];
 
-        let priority = SemanticPattern::calculate_priority(&tokens, &variables, false);
+        let priority = SemanticPattern::calculate_priority(&tokens, &variables);
         // Expected: 2*10 + 3 + 0 (no literal first) = 23
         assert_eq!(priority, 23);
     }

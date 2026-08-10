@@ -10,9 +10,9 @@ afterEach(() => vi.useRealTimers());
 const phrases: DictionaryData = {
   龙: { translation: 'rồng' },
   凤凰: { translation: 'phượng hoàng', allowAsPatternVariable: true },
-  仙人: { translation: 'tiên nhân', lowPriority: true },
+  仙人: { translation: 'tiên nhân' },
   圣人: { translation: 'thánh nhân', semanticType: 'character' },
-  真人: { translation: 'chân nhân', allowAsPatternVariable: true, lowPriority: true },
+  真人: { translation: 'chân nhân', allowAsPatternVariable: true },
 };
 
 const patterns: DictionaryData = {
@@ -152,18 +152,6 @@ describe('useDictionaryEntryFilter — filter state', () => {
     expect(sources).not.toContain('龙');
   });
 
-  it('filterLowPriority shows only lowPriority=true', () => {
-    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
-    act(() => {
-      result.current.toggleFlag('lowPriority');
-    });
-    const sources = result.current.filteredEntries.map(([s]) => s);
-    expect(sources).toContain('仙人');
-    expect(sources).toContain('真人');
-    expect(sources).not.toContain('龙');
-    expect(sources).not.toContain('凤凰');
-  });
-
   it('filterSemanticTypes filters by specific type', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
@@ -192,11 +180,11 @@ describe('useDictionaryEntryFilter — filter state', () => {
     expect(sources).toContain('龙');
   });
 
-  it('combined: search + filterLowPriority', () => {
+  it('combined: search + filterAllowAsVariable', () => {
     const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'phrases', [], false));
     act(() => {
       result.current.setSearchTerm('真');
-      result.current.toggleFlag('lowPriority');
+      result.current.toggleFlag('allowAsVariable');
     });
     act(() => {
       vi.runAllTimers();
@@ -248,14 +236,12 @@ describe('useDictionaryEntryFilter — resetFilters', () => {
     act(() => {
       result.current.togglePatternType('x-only');
       result.current.toggleFlag('allowAsVariable');
-      result.current.toggleFlag('lowPriority');
     });
     act(() => {
       result.current.resetFilters('phrases');
     });
     expect(result.current.filterPatternType.size).toBe(0);
     expect(result.current.filterAllowAsVariable).toBe(false);
-    expect(result.current.filterLowPriority).toBe(false);
   });
 
   it('keeps pattern filters when staying on patterns', () => {

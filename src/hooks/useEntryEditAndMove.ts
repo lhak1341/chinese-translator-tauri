@@ -65,7 +65,6 @@ export function useEntryEditAndMove({
         translation: value,
         allowAsPatternVariable:
           typeof value === 'object' && value.allowAsPatternVariable ? true : false,
-        lowPriority: typeof value === 'object' && value.lowPriority ? true : false,
       });
     },
     [dictionaries, selectedDictionary]

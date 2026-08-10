@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle, Info, XCircle } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import styles from '../../styles/DictionaryEntry.module.css';
 import type { EditingEntryData } from '../../types/DictionaryTypes';
@@ -107,9 +108,11 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                   <div
                     className={`${styles.notificationContent} ${form.existingEntry.isSelectedDictionary ? styles.notificationTextWarning : styles.notificationTextSuccess}`}
                   >
-                    <span className={styles.notificationIcon}>
-                      {form.existingEntry.isSelectedDictionary ? '⚠️' : 'ℹ️'}
-                    </span>
+                    {form.existingEntry.isSelectedDictionary ? (
+                      <AlertTriangle size={16} className={styles.notificationIcon} />
+                    ) : (
+                      <Info size={16} className={styles.notificationIcon} />
+                    )}
                     <div className={styles.notificationBody}>
                       <div className={styles.notificationTitle}>
                         {form.existingEntry.isSelectedDictionary
@@ -160,17 +163,9 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             {form.showCharacterValidation && form.activeDictionary === 'characters' && (
               <div className={`${styles.notification} ${styles.notificationError}`}>
                 <div className={`${styles.notificationContent} ${styles.notificationTextError}`}>
-                  <span className={styles.notificationIcon}>❌</span>
-                  <div className={styles.notificationBody}>
-                    <div className={styles.notificationTitle}>
-                      Invalid entry for character dictionary
-                    </div>
-                    <div className={styles.notificationDetailError}>
-                      Character dictionary entries must be exactly 1 character long.
-                    </div>
-                    <div className={styles.notificationHelper}>
-                      Current length: {form.source.trim().length} characters
-                    </div>
+                  <XCircle size={16} className={styles.notificationIcon} />
+                  <div className={styles.notificationDetailError}>
+                    Must be exactly 1 character (got {form.source.trim().length}).
                   </div>
                 </div>
               </div>
@@ -179,31 +174,38 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
             {form.showPatternValidation && form.activeDictionary.startsWith('patterns') && (
               <div className={`${styles.notification} ${styles.notificationError}`}>
                 <div className={`${styles.notificationContent} ${styles.notificationTextError}`}>
-                  <span className={styles.notificationIcon}>❌</span>
-                  <div className={styles.notificationBody}>
-                    <div className={styles.notificationTitle}>
-                      Invalid entry for pattern dictionary
-                    </div>
-                    <div className={styles.notificationDetailError}>
-                      {(form.source.trim().match(/X/g) || []).length !== 1
-                        ? 'Source must contain exactly one "X".'
-                        : !(form.translation.trim().match(/X/g) || []).length
-                          ? 'Translation must contain "X".'
-                          : (form.source.trim().match(/Y/g) || []).length > 0 &&
-                              !(form.translation.trim().match(/Y/g) || []).length
-                            ? 'Source has "Y" — translation must also contain "Y".'
-                            : 'Check source and translation contain matching variables.'}
-                    </div>
-                    <div className={styles.notificationHelper}>
-                      Source X count: {(form.source.trim().match(/X/g) || []).length}
-                      {(form.source.trim().match(/Y/g) || []).length > 0 &&
-                        ` · Y in translation: ${(form.translation.trim().match(/Y/g) || []).length}`}
-                    </div>
+                  <XCircle size={16} className={styles.notificationIcon} />
+                  <div className={styles.notificationDetailError}>
+                    {(form.source.trim().match(/X/g) || []).length !== 1
+                      ? `Source needs exactly one "X" (found ${(form.source.trim().match(/X/g) || []).length}).`
+                      : !(form.translation.trim().match(/X/g) || []).length
+                        ? 'Translation is missing "X".'
+                        : (form.source.trim().match(/Y/g) || []).length > 0 &&
+                            !(form.translation.trim().match(/Y/g) || []).length
+                          ? 'Translation is missing "Y".'
+                          : 'Source and translation variables don’t match.'}
                   </div>
                 </div>
               </div>
             )}
           </div>
+
+          {form.roughGlossReference && (
+            <div className={styles.glossReference}>
+              <span className={styles.glossText} title={form.roughGlossReference}>
+                &ldquo;{form.roughGlossReference}&rdquo;
+              </span>
+              <button
+                type="button"
+                onClick={() => form.setTranslation(form.roughGlossReference)}
+                disabled={form.isSaving || form.translation === form.roughGlossReference}
+                className={styles.glossUseButton}
+                title="Replace Translation with this plain character-only gloss"
+              >
+                Use
+              </button>
+            </div>
+          )}
 
           <div className={styles.formGroup}>
             <label htmlFor="entry-translation" className={styles.label}>
@@ -226,34 +228,12 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
               onChange={form.setTranslation}
               disabled={form.isSaving}
             />
-
-            {form.roughGlossReference && (
-              <div className={styles.notificationHelper}>
-                Character-only translation: {form.roughGlossReference}
-                {form.translation !== form.roughGlossReference && (
-                  <button
-                    type="button"
-                    onClick={() => form.setTranslation(form.roughGlossReference)}
-                    disabled={form.isSaving}
-                    className={styles.utilityButton}
-                    title="Revert Translation to the plain character-only gloss"
-                  >
-                    Revert to character-only
-                  </button>
-                )}
-              </div>
-            )}
           </div>
 
           {(form.activeDictionary === 'phrases' ||
             form.activeDictionary.startsWith('patterns')) && (
             <div className={styles.formGroup}>
-              <div
-                className={styles.checkboxContainer}
-                style={{
-                  marginBottom: form.activeDictionary.startsWith('patterns') ? '0.5rem' : '0',
-                }}
-              >
+              <div className={styles.checkboxContainer}>
                 <input
                   type="checkbox"
                   id="allowAsPatternVariable"
@@ -266,22 +246,6 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                   Allow as pattern variable (X)
                 </label>
               </div>
-
-              {form.activeDictionary.startsWith('patterns') && (
-                <div className={styles.checkboxContainer}>
-                  <input
-                    type="checkbox"
-                    id="lowPriority"
-                    checked={form.lowPriority}
-                    onChange={(e) => form.setLowPriority(e.target.checked)}
-                    disabled={form.isSaving}
-                    className={styles.checkboxInput}
-                  />
-                  <label htmlFor="lowPriority" className={styles.checkboxLabel}>
-                    Low priority (for same-length conflicts)
-                  </label>
-                </div>
-              )}
             </div>
           )}
 

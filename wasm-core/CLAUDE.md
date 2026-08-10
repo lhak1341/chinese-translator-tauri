@@ -79,6 +79,8 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 
 **`pub(crate)` functions (e.g. `tokenize_text_core`) are unreachable from `wasm-core/tests/*.rs`** — integration test files only see the crate's public API. Tests against a `pub(crate)` function must live inside that source file's own `#[cfg(test)] mod tests` (nest a submodule there if it needs its own file-like organization — see `text_tokenizer.rs`'s `mod tests::parity`).
 
+**Removing/renaming a `parse_pattern`/`SemanticPattern` positional field:** grep under-counts call sites that pass it as a bare positional value (no field name to match). `two_phase.rs`, `index.rs`, and `mod.rs` each have their own inline `#[cfg(test)] mod tests` with `parse_pattern(...)` calls — easy to miss since they're not in `wasm-core/tests/`. Use `cargo build --tests` (not `cargo build`) as the completeness check; the compiler enumerates every call site.
+
 ## `number_processor.rs` Is Rust Spec Only — No WASM Export
 
 `#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (155 tests validate parity). Do NOT add `#[wasm_bindgen]` back.

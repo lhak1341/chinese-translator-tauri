@@ -49,11 +49,15 @@ function sortRules(rules: TransformRule[]): TransformRule[] {
   );
 }
 
-/** Single-select semantic-type toggle row — pixel-identical badges to Dictionary's
- * SemanticTypeToggleCell (VirtualRowComponent.tsx): same container padding/gap and the
- * same per-badge inline style overrides (fontSize/padding/cursor) on top of the shared
- * `.metadataBadge` class — copy every value, not just the class name, or the chips drift
- * out of sync with what that class's own defaults would render.
+/** Single-select semantic-type toggle row. Default size is pixel-identical to
+ * Dictionary's SemanticTypeToggleCell (VirtualRowComponent.tsx): same container
+ * padding/gap and the same per-badge inline style overrides (fontSize/padding/cursor)
+ * on top of the shared `.metadataBadge` class — copy every value, not just the class
+ * name, or the chips drift out of sync with what that class's own defaults would
+ * render. `size="form"` is a larger variant for spacious form contexts (NewRuleModal)
+ * where the table-cell scale reads as too small — still built on `.metadataBadge`, just
+ * bigger padding/font. `align="left"` matches a left-aligned label above it (form
+ * layout); default `"center"` matches the table-cell usage.
  * Unlike that cell, a Transform Rule's semanticType is required, so the active badge
  * can't be toggled off — clicking it again is a no-op.
  */
@@ -61,19 +65,27 @@ function SemanticTypeToggles({
   activeType,
   onSelect,
   label,
+  size = 'table',
+  align = 'center',
 }: {
   activeType: SemanticType;
   onSelect: (type: SemanticType) => void;
   label: string;
+  size?: 'table' | 'form';
+  align?: 'center' | 'left';
 }) {
+  const badgeSize =
+    size === 'form'
+      ? { fontSize: '0.7rem', padding: '2px 6px' }
+      : { fontSize: '0.6rem', padding: '1px 3px' };
   return (
     <div
       style={{
         display: 'flex',
         padding: '0 0.25rem',
-        gap: '2px',
+        gap: size === 'form' ? '0.35rem' : '2px',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: align === 'left' ? 'flex-start' : 'center',
         flexWrap: 'nowrap',
       }}
     >
@@ -92,9 +104,8 @@ function SemanticTypeToggles({
               background: isActive ? color : 'transparent',
               color: isActive ? 'white' : '#9ca3af',
               border: isActive ? 'none' : '1px solid #d1d5db',
-              fontSize: '0.6rem',
               cursor: 'pointer',
-              padding: '1px 3px',
+              ...badgeSize,
             }}
           >
             {SEMANTIC_TYPE_ABBREVIATIONS[type]}
@@ -222,128 +233,135 @@ function NewRuleModal({
   return createPortal(
     <div className={styles.overlay} onClick={onCancel}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <h3>New Rule</h3>
-        <div className={styles.formRow}>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-matchKind">Match</label>
-            <select
-              id="rule-matchKind"
-              value={draft.matchKind}
-              onChange={(e) =>
-                setDraft({ ...draft, matchKind: e.target.value as TransformRuleMatchKind })
-              }
-            >
-              <option value="suffix">Suffix (end of Source)</option>
-              <option value="prefix">Prefix (start of Source)</option>
-            </select>
-          </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-key">Key (1-4 Chinese chars)</label>
-            <input
-              id="rule-key"
-              value={draft.key}
-              maxLength={4}
-              onChange={(e) => handleKeyChange(e.target.value)}
-              placeholder="城"
-            />
-          </div>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>New Rule</h3>
         </div>
-
-        {conflictLabel && (
-          <div className={styles.formError}>
-            Conflicts with existing rule &quot;{conflictLabel}&quot; — same match kind + key already
-            exists.
+        <div className={styles.formBody}>
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-matchKind">Match</label>
+              <select
+                id="rule-matchKind"
+                value={draft.matchKind}
+                onChange={(e) =>
+                  setDraft({ ...draft, matchKind: e.target.value as TransformRuleMatchKind })
+                }
+              >
+                <option value="suffix">Suffix (end of Source)</option>
+                <option value="prefix">Prefix (start of Source)</option>
+              </select>
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-key">Key (1-4 Chinese chars)</label>
+              <input
+                id="rule-key"
+                value={draft.key}
+                maxLength={4}
+                onChange={(e) => handleKeyChange(e.target.value)}
+                placeholder="城"
+              />
+            </div>
           </div>
-        )}
 
-        <div className={styles.formRow}>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-moveWords">Move N words</label>
+          {conflictLabel && (
+            <div className={styles.formError}>
+              Conflicts with &quot;{conflictLabel}&quot; — same match kind + key already used.
+            </div>
+          )}
+
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-moveWords">Move N words</label>
+              <input
+                id="rule-moveWords"
+                type="number"
+                min={0}
+                value={draft.moveWords}
+                onChange={(e) => setDraft({ ...draft, moveWords: Number(e.target.value) })}
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-capitalizeExceptN">Capitalize except N</label>
+              <input
+                id="rule-capitalizeExceptN"
+                type="number"
+                min={0}
+                value={draft.capitalizeExceptN}
+                onChange={(e) => setDraft({ ...draft, capitalizeExceptN: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-moveReplacement">Replace key with (optional)</label>
+              <input
+                id="rule-moveReplacement"
+                value={draft.moveReplacement ?? ''}
+                placeholder="leave blank to use the key's plain gloss"
+                onChange={(e) =>
+                  setDraft({ ...draft, moveReplacement: e.target.value || undefined })
+                }
+              />
+            </div>
+          </div>
+
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label>Semantic type</label>
+              <SemanticTypeToggles
+                activeType={draft.semanticType}
+                label="new rule"
+                onSelect={(semanticType) => setDraft({ ...draft, semanticType })}
+                size="form"
+                align="left"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-charCount">Total-length limit (optional)</label>
+              <input
+                id="rule-charCount"
+                type="number"
+                min={1}
+                value={draft.charCount ?? ''}
+                placeholder="no limit"
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    charCount: e.target.value ? Number(e.target.value) : undefined,
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label htmlFor="rule-label">Label (optional note)</label>
+              <input
+                id="rule-label"
+                value={draft.label ?? ''}
+                onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className={styles.checkboxRow}>
             <input
-              id="rule-moveWords"
-              type="number"
-              min={0}
-              value={draft.moveWords}
-              onChange={(e) => setDraft({ ...draft, moveWords: Number(e.target.value) })}
+              id="rule-enabled"
+              type="checkbox"
+              checked={draft.enabled}
+              onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
             />
+            <label htmlFor="rule-enabled">Enabled</label>
           </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-capitalizeExceptN">Capitalize except N</label>
-            <input
-              id="rule-capitalizeExceptN"
-              type="number"
-              min={0}
-              value={draft.capitalizeExceptN}
-              onChange={(e) => setDraft({ ...draft, capitalizeExceptN: Number(e.target.value) })}
-            />
-          </div>
-        </div>
 
-        <div className={styles.formRow}>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-moveReplacement">Replace key with (optional)</label>
-            <input
-              id="rule-moveReplacement"
-              value={draft.moveReplacement ?? ''}
-              placeholder="leave blank to use the key's plain gloss"
-              onChange={(e) => setDraft({ ...draft, moveReplacement: e.target.value || undefined })}
-            />
+          <div className={styles.modalActions}>
+            <button onClick={onCancel}>Cancel</button>
+            <button className="primary" onClick={onSave} disabled={!draft.key || !!conflictLabel}>
+              Save
+            </button>
           </div>
-        </div>
-
-        <div className={styles.formRow}>
-          <div className={styles.formGroup}>
-            <label>Semantic type (stamped on match)</label>
-            <SemanticTypeToggles
-              activeType={draft.semanticType}
-              label="new rule"
-              onSelect={(semanticType) => setDraft({ ...draft, semanticType })}
-            />
-          </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-charCount">Total-length limit (optional)</label>
-            <input
-              id="rule-charCount"
-              type="number"
-              min={1}
-              value={draft.charCount ?? ''}
-              placeholder="no limit"
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  charCount: e.target.value ? Number(e.target.value) : undefined,
-                })
-              }
-            />
-          </div>
-        </div>
-
-        <div className={styles.formRow}>
-          <div className={styles.formGroup}>
-            <label htmlFor="rule-label">Label (optional note)</label>
-            <input
-              id="rule-label"
-              value={draft.label ?? ''}
-              onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className={styles.checkboxRow}>
-          <input
-            id="rule-enabled"
-            type="checkbox"
-            checked={draft.enabled}
-            onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
-          />
-          <label htmlFor="rule-enabled">Enabled</label>
-        </div>
-
-        <div className={styles.modalActions}>
-          <button onClick={onSave} disabled={!draft.key || !!conflictLabel}>
-            Save
-          </button>
-          <button onClick={onCancel}>Cancel</button>
         </div>
       </div>
     </div>,

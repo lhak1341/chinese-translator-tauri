@@ -50,7 +50,7 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 - `findAllMatchesWithSemanticCache()` — timing-sensitive cache invalidation
 - `postProcess()` — position precision requires exact assembly order
 
-**DO NOT modify dictionaries** without permission. Production: `~/Library/Application Support/com.lhak.chinese-translator/dictionaries/`
+**DO NOT modify dictionaries** without permission. Production: `~/Library/Application Support/com.lhak.chinese-translator/dictionaries/`. When permission is given for a bulk edit: back up the target files to the scratchpad dir first; confirm real formatting (indent width, literal-UTF-8 vs `\u` escapes via `grep -c '\\u'`, trailing-newline via `tail -c`) before `JSON.parse`→mutate→`JSON.stringify(obj,null,2)`, so the rewrite is a surgical diff. `.trie.json` caches don't need manual deletion — checksum staleness detection regenerates them.
 
 **Large files are intentional.** `TranslationEngine.js` and `Translator.jsx` coordinate state that can't be extracted. Can extract: pure functions → `src/utils/`; single-concern hooks → `src/hooks/`. Cannot extract: anything using `this.*`, `setState`, refs, or requiring 10+ parameters.
 
@@ -62,7 +62,9 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 ## Development
 
-**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. RTK also replaces long matched identifiers (and import paths containing them) with `n` in search output — use Read for accurate caller-tracing, not bash rg. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax.
+**Environment:** `grep` is aliased to `rg` — flags behave differently. Always use the Grep tool. For **post-edit verification**, use `Read` or `sed -n 'N,Mp' file` — Bash+grep goes through RTK which may return stale file content for recently-written files. RTK also replaces long matched identifiers (and import paths containing them) with `n` in search output — use Read for accurate caller-tracing, not bash rg. In shell scripts, multi-pattern rg requires `-e 'A' -e 'B'`; `'A\\|B'` matches a literal backslash-pipe and silently returns nothing. `--include` is not a valid flag; use `-g '*.js'` glob syntax. `-g` occasionally hits real BSD `grep` (`usage: grep` error) instead of the `rg` alias — if it errors, drop `-g` and rerun plain recursive `grep`.
+
+**RTK tee-log context strips leading whitespace/indentation** — `grep -A/-B` output saved to `~/Library/Application Support/rtk/tee/*.log` shows real content but wrong (stripped) indentation. Never build an `Edit` `old_string` from the log's whitespace — `Read` the actual file first to confirm exact indent/comment spacing.
 
 **RTK silently truncates large grep match sets** — a Bash+grep with many hits returns a partial list with no error, and the rest lands in `~/Library/Application Support/rtk/tee/<n>_grep_*.log`; `cat`/`tail` that log for the remainder rather than assuming the visible output is complete.
 

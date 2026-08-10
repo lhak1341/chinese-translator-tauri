@@ -11,7 +11,6 @@ import type { SemanticType, PatternSemanticTypeRef } from '../constants/Semantic
 export type DictionaryEntryValue = {
   translation: string;
   allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
   semanticType?: SemanticType | PatternSemanticTypeRef;
   allowedVariableTypes?: Record<string, string[]>;
 };
@@ -21,7 +20,6 @@ export type DictionaryEntryValue = {
  */
 export interface DictionaryEntryMetadata {
   allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
   semanticType?: SemanticType | PatternSemanticTypeRef;
   allowedVariableTypes?: Record<string, string[]>;
 }
@@ -48,7 +46,6 @@ export interface EditingEntryData {
   source: string;
   translation: string | DictionaryEntryValue;
   allowAsPatternVariable?: boolean;
-  lowPriority?: boolean;
 }
 
 /**

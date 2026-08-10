@@ -39,7 +39,6 @@ function makeFormState(overrides: Record<string, any> = {}) {
     translation: '',
     activeDictionary: 'properNouns',
     allowAsPatternVariable: false,
-    lowPriority: false,
     semanticType: '',
     allowedVariableTypes: {},
     availableDictionaries: [
@@ -64,7 +63,6 @@ function makeFormState(overrides: Record<string, any> = {}) {
     handleSubmit: vi.fn().mockResolvedValue(true),
     setTranslation: vi.fn(),
     setAllowAsPatternVariable: vi.fn(),
-    setLowPriority: vi.fn(),
     setSemanticType: vi.fn(),
     setAllowedVariableTypes: vi.fn(),
     ...overrides,
@@ -190,12 +188,12 @@ describe('DictionaryEntry — validation banners', () => {
       source: '你好',
     });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="characters" />);
-    expect(screen.getByText('Invalid entry for character dictionary')).toBeInTheDocument();
+    expect(screen.getByText('Must be exactly 1 character (got 2).')).toBeInTheDocument();
   });
 
   test('character validation banner is hidden when showCharacterValidation is false', () => {
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
-    expect(screen.queryByText('Invalid entry for character dictionary')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Must be exactly 1 character/)).not.toBeInTheDocument();
   });
 
   test('pattern validation banner only shows for a patterns dictionary', () => {
@@ -206,8 +204,7 @@ describe('DictionaryEntry — validation banners', () => {
       translation: 'không có biến',
     });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="patterns" />);
-    expect(screen.getByText('Invalid entry for pattern dictionary')).toBeInTheDocument();
-    expect(screen.getByText('Source must contain exactly one "X".')).toBeInTheDocument();
+    expect(screen.getByText('Source needs exactly one "X" (found 0).')).toBeInTheDocument();
   });
 });
 
@@ -274,18 +271,16 @@ describe('DictionaryEntry — pattern/phrase metadata checkboxes', () => {
     expect(screen.queryByLabelText(/Allow as pattern variable/)).not.toBeInTheDocument();
   });
 
-  test('lowPriority checkbox only shows for patterns dictionaries, not phrases', () => {
+  test('allowAsPatternVariable checkbox shows for phrases', () => {
     formStateRef.current = makeFormState({ activeDictionary: 'phrases' });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="phrases" />);
     expect(screen.getByLabelText(/Allow as pattern variable/)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Low priority/)).not.toBeInTheDocument();
   });
 
-  test('both checkboxes show for a patterns dictionary', () => {
+  test('allowAsPatternVariable checkbox shows for a patterns dictionary', () => {
     formStateRef.current = makeFormState({ activeDictionary: 'patterns' });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="patterns" />);
     expect(screen.getByLabelText(/Allow as pattern variable/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Low priority/)).toBeInTheDocument();
   });
 });
 
@@ -293,27 +288,27 @@ describe('DictionaryEntry — revert to character-only gloss', () => {
   test('no reference shown when roughGlossReference is empty (e.g. editing an existing entry)', () => {
     formStateRef.current = makeFormState({ roughGlossReference: '', translation: 'hello' });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
-    expect(screen.queryByText(/Character-only translation/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Use')).not.toBeInTheDocument();
   });
 
-  test('reference shown but no revert button when Translation already matches the gloss (no rule applied)', () => {
+  test('use button disabled when Translation already matches the gloss (no rule applied)', () => {
     formStateRef.current = makeFormState({
       roughGlossReference: 'You Good',
       translation: 'You Good',
     });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
-    expect(screen.getByText(/Character-only translation: You Good/)).toBeInTheDocument();
-    expect(screen.queryByText('Revert to character-only')).not.toBeInTheDocument();
+    expect(screen.getByText('“You Good”')).toBeInTheDocument();
+    expect(screen.getByText('Use')).toBeDisabled();
   });
 
-  test('revert button appears and reverts Translation when a rule changed it', () => {
+  test('use button enabled and reverts Translation when a rule changed it', () => {
     formStateRef.current = makeFormState({
       roughGlossReference: 'You Good',
       translation: 'Good You',
     });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="properNouns" />);
 
-    const revertButton = screen.getByText('Revert to character-only');
+    const revertButton = screen.getByText('Use');
     fireEvent.click(revertButton);
 
     expect(formStateRef.current.setTranslation).toHaveBeenCalledWith('You Good');

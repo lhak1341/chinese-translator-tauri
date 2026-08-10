@@ -68,15 +68,14 @@ describe('VirtualRowComponent', () => {
   });
 
   describe('layout branch selection', () => {
-    it('renders the patterns layout (VAR/LP badges + X/Y toggle cells) for a patterns dictionary', () => {
+    it('renders the patterns layout (VAR badge + X/Y toggle cells) for a patterns dictionary', () => {
       render(<VirtualRowComponent {...makeProps()} />);
 
       expect(screen.getByText('của X Y')).toBeInTheDocument();
       expect(screen.getByTitle('Click to allow as variable')).toBeInTheDocument();
-      expect(screen.getByTitle('Click to set low priority')).toBeInTheDocument();
     });
 
-    it('renders the phrases layout (single VAR badge, no LP badge) for the phrases dictionary', () => {
+    it('renders the phrases layout (single VAR badge) for the phrases dictionary', () => {
       render(
         <VirtualRowComponent
           {...makeProps({
@@ -89,7 +88,6 @@ describe('VirtualRowComponent', () => {
 
       expect(screen.getByText('xin chào')).toBeInTheDocument();
       expect(screen.getByTitle('Click to allow as variable')).toBeInTheDocument();
-      expect(screen.queryByTitle('Click to set low priority')).not.toBeInTheDocument();
     });
 
     it('renders the simple layout (no badges) for a plain dictionary like characters', () => {
@@ -173,14 +171,14 @@ describe('VirtualRowComponent', () => {
   });
 
   describe('buildTextSaveMetadata via captured onCommit', () => {
-    it('includes allowAsPatternVariable/lowPriority for a patterns dictionary entry', async () => {
+    it('includes allowAsPatternVariable for a patterns dictionary entry', async () => {
       const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
       render(
         <VirtualRowComponent
           {...makeProps({
             selectedDictionary: 'patterns',
             source: 'X很好',
-            translation: { translation: 'của X', allowAsPatternVariable: true, lowPriority: false },
+            translation: { translation: 'của X', allowAsPatternVariable: true },
             onUpdateEntry,
           })}
         />
@@ -190,7 +188,6 @@ describe('VirtualRowComponent', () => {
 
       expect(onUpdateEntry).toHaveBeenCalledWith('patterns', 'X很好', 'X很好', 'của X mới', {
         allowAsPatternVariable: true,
-        lowPriority: false,
       });
     });
 
@@ -204,7 +201,6 @@ describe('VirtualRowComponent', () => {
             translation: {
               translation: 'của X',
               allowAsPatternVariable: true,
-              lowPriority: false,
               semanticType: 'character',
               allowedVariableTypes: { X: ['character'] },
             },
@@ -217,7 +213,6 @@ describe('VirtualRowComponent', () => {
 
       expect(onUpdateEntry).toHaveBeenCalledWith('patterns', 'X很好', 'X很好', 'của X mới', {
         allowAsPatternVariable: true,
-        lowPriority: false,
         semanticType: 'character',
         allowedVariableTypes: { X: ['character'] },
       });
@@ -251,7 +246,6 @@ describe('VirtualRowComponent', () => {
             translation: {
               translation: 'xin chào',
               allowAsPatternVariable: true,
-              lowPriority: true,
             },
             onUpdateEntry,
           })}
@@ -262,7 +256,6 @@ describe('VirtualRowComponent', () => {
 
       expect(onUpdateEntry).toHaveBeenCalledWith('phrases', '你好', '你好呀', 'xin chào', {
         allowAsPatternVariable: true,
-        lowPriority: true,
       });
     });
 
@@ -283,7 +276,6 @@ describe('VirtualRowComponent', () => {
 
       expect(onUpdateEntry).toHaveBeenCalledWith('properNouns', '孔宣', '孔宣氏', 'Khong Tuyen', {
         allowAsPatternVariable: false,
-        lowPriority: false,
       });
     });
   });
