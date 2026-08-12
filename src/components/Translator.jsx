@@ -16,7 +16,7 @@ import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { batchLog } from '../utils/BatchLogger.js';
 import { scheduleHighlightScroll, findCharacterOnlyMatch } from '../utils/highlighting';
-import { DebouncedProgressHandler, SmoothLoadingManager } from '../utils/ui';
+import { DebouncedProgressHandler } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
@@ -31,10 +31,7 @@ import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
 import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
 import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
-import {
-  useForceReloadContext,
-  useTranslationExecutionContext,
-} from '../hooks/useReloadExecutionContexts';
+import { useForceReloadContext } from '../hooks/useReloadExecutionContexts';
 import { HIGHLIGHT_SCROLL_DELAY_MS } from '../utils/highlighting/semanticArrayConstants';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 
@@ -100,7 +97,8 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //   - useCharacterOnlyBridge requires useTranslationResults + useHighlightingState (both
 //     several hooks earlier) — consumes their destructured fields directly
 //   - useClipboardTranslation requires useDictionaryReloadGuard + useHighlightingState
-//   - executionCtx (useTranslationExecutionContext) fans in from 5 earlier hooks:
+//   - executionCtx (plain object literal — see useAutoTranslateTrigger.ts's own dev-only
+//     shape guard) fans in from 5 earlier hooks:
 //     useDictionaryReloadGuard, useHighlightingState, useTranslationResults,
 //     useClipboardTranslation, plus 2 raw refs — then useAutoTranslateTrigger consumes it
 //   - useEngineReinitializer + useReloadRetranslate both require useTranslatorEngine's
@@ -133,7 +131,6 @@ const Translator = ({ isActive = true }) => {
     updateStreaming,
     setProgressInfo,
     setPartialSemanticArrays,
-    resetStreaming,
   } = useStreamingTranslation(100); // 100ms throttle
 
   // Quick Add modal hook
@@ -159,14 +156,12 @@ const Translator = ({ isActive = true }) => {
     characterOnlySemanticArrays,
     prebuiltSegments,
     setStreamingText,
-    setFullResult,
     setResultArrays,
     setDualResults,
     setCharOnlyResult,
     setStatusMessage,
     setError: setTranslationError,
     clearFullResult,
-    reset: resetTranslationResults,
   } = useTranslationResults();
 
   const {
@@ -193,7 +188,6 @@ const Translator = ({ isActive = true }) => {
     enginePhase,
     engineRef,
     initError: initializationError,
-    activeProperNounsFromConfig,
     reinitialize,
   } = useTranslatorEngine();
   const [activeTranslations, setActiveTranslations] = useState(0);
@@ -439,7 +433,6 @@ const Translator = ({ isActive = true }) => {
   // UI responsiveness optimizations
   // Increased from 100ms to 300ms to reduce GPU rendering pressure
   const debouncedProgressHandler = useRef(new DebouncedProgressHandler(300));
-  const smoothLoadingManager = useRef(new SmoothLoadingManager());
 
   useCharacterOnlyBridge({
     unitIndex: highlightedUnitIndex,
@@ -529,7 +522,7 @@ const Translator = ({ isActive = true }) => {
           // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
           try {
             validateSemanticArraySize(result.semanticArrays, 'character-only translation');
-          } catch (validationError) {
+          } catch {
             // Validation error already logged and toasted in validateSemanticArraySize
             return;
           }
@@ -723,7 +716,7 @@ const Translator = ({ isActive = true }) => {
                 // CODE REVIEW FIX (2026-02-01): Validate semantic array size before setting
                 try {
                   validateSemanticArraySize(segmentResult.semanticArrays, 'main translation');
-                } catch (validationError) {
+                } catch {
                   // Validation error already logged and toasted in validateSemanticArraySize
                   // Clear translation state on overflow
                   clearFullResult();
@@ -810,7 +803,7 @@ const Translator = ({ isActive = true }) => {
     [isLoading, isDictionaryReloading]
   );
 
-  const executionCtx = useTranslationExecutionContext({
+  const executionCtx = {
     consumeReloadTransition,
     clearHighlighting,
     setIsTranslating,
@@ -820,7 +813,7 @@ const Translator = ({ isActive = true }) => {
     isClipboardTranslationRef,
     resetClipboardFlag,
     translationTextRef,
-  });
+  };
 
   useAutoTranslateTrigger({
     inputText,

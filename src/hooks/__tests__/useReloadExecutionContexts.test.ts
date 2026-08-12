@@ -1,17 +1,18 @@
 /**
- * Tests for useForceReloadContext / useTranslationExecutionContext —
- * extracted from Translator.jsx's inline forceReloadCtx/executionCtx object
- * literals (architecture review 2026-07-29, candidate #3), merged into one
- * file/guard (architecture review 2026-07-30, candidate #1). Covers the 2
- * relocated closures (cancelTranslations, destroyEngine), the assembly-only
- * passthrough, and the shared dev-only input-shape guard.
+ * Tests for useForceReloadContext — extracted from Translator.jsx's inline
+ * forceReloadCtx object literal (architecture review 2026-07-29, candidate
+ * #3). Covers the 2 relocated closures (cancelTranslations, destroyEngine)
+ * and the dev-only input-shape guard.
+ *
+ * useTranslationExecutionContext used to live here too (assembly-only,
+ * identical interface to implementation — no logic behind the seam) until
+ * architecture review 2026-08-12 candidate #1 deleted it; its guard moved
+ * into useAutoTranslateTrigger.ts (the one real consumer of the type it
+ * checks), and its tests moved to useAutoTranslateTrigger.test.ts.
  */
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import {
-  useForceReloadContext,
-  useTranslationExecutionContext,
-} from '../useReloadExecutionContexts';
+import { useForceReloadContext } from '../useReloadExecutionContexts';
 
 vi.mock('../../utils/logger', () => ({
   logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -32,21 +33,6 @@ function baseForceReloadParams(overrides = {}) {
     retranslate: vi.fn(async () => {}),
     saveScrollPositions: vi.fn(() => ({ top: 0 })),
     restoreScrollPositions: vi.fn(async () => {}),
-    ...overrides,
-  };
-}
-
-function baseExecutionParams(overrides = {}) {
-  return {
-    consumeReloadTransition: vi.fn(() => false),
-    clearHighlighting: vi.fn(),
-    setIsTranslating: vi.fn(),
-    isTranslatingRef: { current: false },
-    setResultArrays: vi.fn(),
-    setStreamingText: vi.fn(),
-    isClipboardTranslationRef: { current: false },
-    resetClipboardFlag: vi.fn(),
-    translationTextRef: { current: null },
     ...overrides,
   };
 }
@@ -186,49 +172,6 @@ describe('useForceReloadContext', () => {
       process.env.NODE_ENV = 'production';
       const params = baseForceReloadParams({ engineRef: null });
       expect(() => renderHook(() => useForceReloadContext(params))).not.toThrow();
-    });
-  });
-});
-
-describe('useTranslationExecutionContext', () => {
-  test('returns all 9 fields unchanged (assembly-only, no logic)', () => {
-    const params = baseExecutionParams();
-    const { result } = renderHook(() => useTranslationExecutionContext(params));
-
-    expect(result.current).toEqual(params);
-    expect(result.current.clearHighlighting).toBe(params.clearHighlighting);
-    expect(result.current.isTranslatingRef).toBe(params.isTranslatingRef);
-  });
-
-  describe('dev-only input-shape guard', () => {
-    const originalEnv = process.env.NODE_ENV;
-
-    beforeEach(() => {
-      process.env.NODE_ENV = 'development';
-    });
-
-    afterEach(() => {
-      process.env.NODE_ENV = originalEnv;
-    });
-
-    test('throws when a required ref param is not ref-shaped', () => {
-      const params = baseExecutionParams({ translationTextRef: undefined });
-      expect(() => renderHook(() => useTranslationExecutionContext(params))).toThrow(
-        /translationTextRef/
-      );
-    });
-
-    test('throws when a required function param is missing', () => {
-      const params = baseExecutionParams({ resetClipboardFlag: undefined });
-      expect(() => renderHook(() => useTranslationExecutionContext(params))).toThrow(
-        /resetClipboardFlag/
-      );
-    });
-
-    test('does not throw in production even with a wrong-shaped param', () => {
-      process.env.NODE_ENV = 'production';
-      const params = baseExecutionParams({ resetClipboardFlag: undefined });
-      expect(() => renderHook(() => useTranslationExecutionContext(params))).not.toThrow();
     });
   });
 });

@@ -14,35 +14,24 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { TextTokenizer } from '../text/TextTokenizer';
 import fixture from '../../../test-fixtures/tokenizer-parity.json';
 
-const mockInitialize = vi.fn();
-const mockTokenize = vi.fn();
+const mockTokenize = vi.fn(() => null); // force JS fallback path
 
 vi.mock('../wasm/WasmTextTokenizer.js', () => ({
-  WasmTextTokenizer: class {
-    initialize = mockInitialize;
-    tokenize = mockTokenize;
-  },
+  wasmTextTokenizer: { tokenize: (...args: unknown[]) => mockTokenize(...args) },
 }));
-
-async function flushMicrotasks() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
 
 describe('TextTokenizer — shared fixture parity', () => {
   beforeEach(() => {
-    mockInitialize.mockReset();
-    mockInitialize.mockResolvedValue(false); // force JS fallback path
     mockTokenize.mockReset();
+    mockTokenize.mockReturnValue(null);
   });
 
   test('fixture is non-empty', () => {
     expect(fixture.cases.length).toBeGreaterThan(0);
   });
 
-  test.each(fixture.cases)('$name', async (fixtureCase) => {
+  test.each(fixture.cases)('$name', (fixtureCase) => {
     const tokenizer = new TextTokenizer();
-    await flushMicrotasks();
 
     const tokens = tokenizer.tokenize(fixtureCase.input);
 

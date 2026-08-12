@@ -19,12 +19,13 @@ const ConfigurationManager: React.FC = () => {
     isLoading,
     error,
     showNewDictionaryModal,
-    setShowNewDictionaryModal,
+    openCreateModal,
+    closeCreateModal,
     newDictionaryName,
-    setNewDictionaryName,
+    updateDraftName,
     renamingDictionaryId,
     renameValue,
-    setRenameValue,
+    updateRenameValue,
     defaultQuickAddDictionary,
     categorizedDictionaries,
     handleToggleDictionary,
@@ -57,7 +58,7 @@ const ConfigurationManager: React.FC = () => {
             <input
               type="text"
               value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
+              onChange={(e) => updateRenameValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleConfirmRename();
                 if (e.key === 'Escape') handleCancelRename();
@@ -154,10 +155,7 @@ const ConfigurationManager: React.FC = () => {
               )}
             </span>
           </div>
-          <button
-            onClick={() => setShowNewDictionaryModal(true)}
-            className={`primary ${styles.newButton}`}
-          >
+          <button onClick={openCreateModal} className={`primary ${styles.newButton}`}>
             <PlusCircle size={14} />
             New
           </button>
@@ -246,7 +244,7 @@ const ConfigurationManager: React.FC = () => {
                 <input
                   type="text"
                   value={newDictionaryName}
-                  onChange={(e) => setNewDictionaryName(e.target.value)}
+                  onChange={(e) => updateDraftName(e.target.value)}
                   placeholder="e.g., HarryPotter, JourneyToTheWest"
                   className={styles.formInput}
                 />
@@ -254,7 +252,7 @@ const ConfigurationManager: React.FC = () => {
               <div className={styles.buttonContainer}>
                 <button
                   type="button"
-                  onClick={() => setShowNewDictionaryModal(false)}
+                  onClick={closeCreateModal}
                   className={styles.modalCancelButton}
                 >
                   Cancel

@@ -6,7 +6,7 @@
  * Fallback: JavaScript regex-based tokenization if WASM unavailable
  */
 
-import { WasmTextTokenizer } from '../wasm/WasmTextTokenizer.js';
+import { wasmTextTokenizer } from '../wasm/WasmTextTokenizer.js';
 
 /**
  * Token type enum for classification
@@ -151,8 +151,6 @@ export interface TextAnalysis {
  */
 export class TextTokenizer {
   private tokenRegex: RegExp;
-  private wasmTokenizer: WasmTextTokenizer | null = null;
-  private wasmInitialized: boolean = false;
 
   constructor() {
     // Compiled regex for efficient matching - capture individual Chinese characters
@@ -160,22 +158,6 @@ export class TextTokenizer {
       `([\u4e00-\u9fff])|([A-Za-z]+)|(\\d+)|([^\\w\\s\u4e00-\u9fff]+)|(\\s+)`,
       'g'
     );
-
-    // Initialize WASM tokenizer (async, don't block constructor)
-    this.initializeWasm();
-  }
-
-  /**
-   * Initialize WASM tokenizer asynchronously
-   */
-  private async initializeWasm(): Promise<void> {
-    try {
-      this.wasmTokenizer = new WasmTextTokenizer();
-      this.wasmInitialized = await this.wasmTokenizer.initialize();
-    } catch (error) {
-      // WASM initialization failed, will use JavaScript fallback
-      this.wasmInitialized = false;
-    }
   }
 
   /**
@@ -194,13 +176,11 @@ export class TextTokenizer {
   tokenize(text: string): Token[] {
     if (!text) return [];
 
-    // Try WASM tokenizer first
-    if (this.wasmInitialized && this.wasmTokenizer) {
-      const wasmTokens = this.wasmTokenizer.tokenize(text);
-      if (wasmTokens !== null) {
-        // Convert WASM tokens to Token instances
-        return wasmTokens.map((t: any) => new Token(t.type, t.value, t.start, t.end));
-      }
+    // Try WASM tokenizer first — returns null if not ready or on failure
+    const wasmTokens = wasmTextTokenizer.tokenize(text);
+    if (wasmTokens !== null) {
+      // Convert WASM tokens to Token instances
+      return wasmTokens.map((t: any) => new Token(t.type, t.value, t.start, t.end));
     }
 
     // Fallback to JavaScript regex tokenization

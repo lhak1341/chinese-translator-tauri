@@ -79,6 +79,23 @@ export function useDictionaryConfigManagement() {
     loadDictionaries();
   }, [loadDictionary]);
 
+  const openCreateModal = (): void => {
+    setShowNewDictionaryModal(true);
+  };
+
+  const closeCreateModal = (): void => {
+    setShowNewDictionaryModal(false);
+    setNewDictionaryName('');
+  };
+
+  const updateDraftName = (name: string): void => {
+    setNewDictionaryName(name);
+  };
+
+  const updateRenameValue = (value: string): void => {
+    setRenameValue(value);
+  };
+
   const handleToggleDictionary = async (dictionaryId: string): Promise<void> => {
     try {
       const newActiveDictionaries = activeDictionaries.includes(dictionaryId)
@@ -113,8 +130,7 @@ export function useDictionaryConfigManagement() {
           setActiveDictionaries(result.dictionaries);
         }
         invalidateAppConfig();
-        setShowNewDictionaryModal(false);
-        setNewDictionaryName('');
+        closeCreateModal();
 
         await loadDictionary(dictionaryId);
         if (isFictionProperNounsId(dictionaryId)) {
@@ -212,12 +228,13 @@ export function useDictionaryConfigManagement() {
     isLoading,
     error,
     showNewDictionaryModal,
-    setShowNewDictionaryModal,
+    openCreateModal,
+    closeCreateModal,
     newDictionaryName,
-    setNewDictionaryName,
+    updateDraftName,
     renamingDictionaryId,
     renameValue,
-    setRenameValue,
+    updateRenameValue,
     defaultQuickAddDictionary,
     categorizedDictionaries,
     handleToggleDictionary,

@@ -309,3 +309,44 @@ describe('error recovery', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Dev-only ctx shape guard — migrated from useReloadExecutionContexts.test.ts
+// (architecture review 2026-08-12, candidate #1: useTranslationExecutionContext
+// was a pure identity pass-through, deleted; its guard now lives here, the one
+// real consumer of the TranslationExecutionContext type it checks). Throws
+// synchronously during render, before the effect ever runs — same shape as
+// useForceReloadContext's own guard tests.
+// ---------------------------------------------------------------------------
+
+describe('dev-only input-shape guard (ctx)', () => {
+  const originalEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    process.env.NODE_ENV = 'development';
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
+  });
+
+  it('throws when a required ref field is not ref-shaped', () => {
+    const ctx = makeCtx({ translationTextRef: undefined });
+    expect(() => renderHook(() => useAutoTranslateTrigger(makeProps({ ctx })))).toThrow(
+      /translationTextRef/
+    );
+  });
+
+  it('throws when a required function field is missing', () => {
+    const ctx = makeCtx({ resetClipboardFlag: undefined });
+    expect(() => renderHook(() => useAutoTranslateTrigger(makeProps({ ctx })))).toThrow(
+      /resetClipboardFlag/
+    );
+  });
+
+  it('does not throw in production even with a wrong-shaped field', () => {
+    process.env.NODE_ENV = 'production';
+    const ctx = makeCtx({ resetClipboardFlag: undefined });
+    expect(() => renderHook(() => useAutoTranslateTrigger(makeProps({ ctx })))).not.toThrow();
+  });
+});

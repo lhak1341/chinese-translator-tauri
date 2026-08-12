@@ -490,8 +490,8 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmTextTokenizer.js": {
-    "mtime": 1784294522.8946354,
-    "ast_hash": "de4ab41de4efbf382192a0ca16787ff0",
+    "mtime": 1786546178.3762283,
+    "ast_hash": "15938514896053884fa912f43bbe3c2e",
     "semantic_hash": ""
   },
   "src/utils/wasm/wasmIntegrityVerifier.js": {
@@ -675,8 +675,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/TextTokenizer.ts": {
-    "mtime": 1784303355.501755,
-    "ast_hash": "4868e0fd518b1a6c139b29f48078c601",
+    "mtime": 1786546211.410942,
+    "ast_hash": "ed5d1bb5f6f661f911d08d7db4a327aa",
     "semantic_hash": ""
   },
   "src/utils/text/ChunkPostProcessor.js": {
@@ -860,8 +860,8 @@
     "semantic_hash": ""
   },
   "src/components/Translator.jsx": {
-    "mtime": 1786177004.6147044,
-    "ast_hash": "64fcdf7cbef62c98673e0eaa2419d0e1",
+    "mtime": 1786547890.921321,
+    "ast_hash": "6a4885aa2bd86cdb3f06993a93ecbe3b",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "src/components/configuration/ConfigurationManager.tsx": {
-    "mtime": 1786176887.9796185,
-    "ast_hash": "349d31a87dfe2bad0d6c284a1ba00c1e",
+    "mtime": 1786548154.8945763,
+    "ast_hash": "cae94653d5a94074315bff535805f65a",
     "semantic_hash": ""
   },
   "src/components/char-only/ClickableOriginalSemantic.tsx": {
@@ -990,8 +990,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useAutoTranslateTrigger.ts": {
-    "mtime": 1781921881.4696815,
-    "ast_hash": "43f0e16bd1c9e63a21202231843d7f0a",
+    "mtime": 1786547534.9406972,
+    "ast_hash": "db127bd5d51a802eade32ecee2fe2cdf",
     "semantic_hash": ""
   },
   "src/hooks/useCachePoisoningGuard.ts": {
@@ -1140,8 +1140,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786512918.9046607,
-    "ast_hash": "87bee08947f60ff05e226b40c3596a66",
+    "mtime": 1786548243.3240864,
+    "ast_hash": "50a7577eedfd5eec4f22bfba7f827f22",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1786512918.9046607,
-    "ast_hash": "87bee08947f60ff05e226b40c3596a66",
+    "mtime": 1786548243.3240864,
+    "ast_hash": "50a7577eedfd5eec4f22bfba7f827f22",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1786159062.877211,
-    "ast_hash": "c53bd38273a4d391fd9ac1f33fdd9e09",
+    "mtime": 1786548454.9716249,
+    "ast_hash": "3afa0bac95df1a322466a1a4e96cc231",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1745,8 +1745,8 @@
     "semantic_hash": ""
   },
   "src/components/configuration/useDictionaryConfigManagement.ts": {
-    "mtime": 1786114758.6283982,
-    "ast_hash": "07bc0df8aecdf10253837d392804d646",
+    "mtime": 1786548138.2050598,
+    "ast_hash": "b5b7766e0cd6cd99887da43823bcc000",
     "semantic_hash": ""
   },
   "src/components/rules/EditableCell.tsx": {
@@ -1825,8 +1825,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReloadExecutionContexts.ts": {
-    "mtime": 1785389499.7373004,
-    "ast_hash": "753ad4468dafa7ce29f587f386f40544",
+    "mtime": 1786547519.229072,
+    "ast_hash": "fa569cdd8823a6949ef396b8d94670e2",
     "semantic_hash": ""
   },
   "src/hooks/useReloadRetranslate.js": {

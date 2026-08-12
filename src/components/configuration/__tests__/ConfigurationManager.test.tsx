@@ -144,6 +144,25 @@ describe('ConfigurationManager handleCreateDictionary', () => {
   });
 });
 
+describe('ConfigurationManager — create-modal draft name (architecture review 2026-08-12, candidate #3)', () => {
+  // Regression: closeCreateModal() now clears newDictionaryName on every close, not just on
+  // a successful create — Cancel used to leave a stale draft behind for the next time the
+  // modal opened (the two close paths had silently drifted from each other).
+  test('Cancel clears the draft name — reopening shows an empty input, not the stale value', async () => {
+    render(<ConfigurationManager />);
+
+    await waitFor(() => expect(screen.getByText('New')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('New'));
+    fireEvent.change(screen.getByPlaceholderText('e.g., HarryPotter, JourneyToTheWest'), {
+      target: { value: 'Abandoned' },
+    });
+    fireEvent.click(screen.getByText('Cancel'));
+
+    fireEvent.click(screen.getByText('New'));
+    expect(screen.getByPlaceholderText('e.g., HarryPotter, JourneyToTheWest')).toHaveValue('');
+  });
+});
+
 describe('ConfigurationManager — structural-pattern migration on mount', () => {
   test('creates and loads the missing patterns-f_* dict for a pre-existing fiction proper-noun dict', async () => {
     listProperNounsDictionaries.mockResolvedValue({

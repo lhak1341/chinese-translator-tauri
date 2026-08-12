@@ -1,35 +1,21 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { TextTokenizer, Token, TokenType } from '../text/TextTokenizer';
 
-const mockInitialize = vi.fn();
-const mockTokenize = vi.fn();
+const mockTokenize = vi.fn(() => null);
 
 vi.mock('../wasm/WasmTextTokenizer.js', () => ({
-  WasmTextTokenizer: class {
-    initialize = mockInitialize;
-    tokenize = mockTokenize;
-  },
+  wasmTextTokenizer: { tokenize: (...args: unknown[]) => mockTokenize(...args) },
 }));
-
-async function flushMicrotasks() {
-  await Promise.resolve();
-  await Promise.resolve();
-}
 
 describe('TextTokenizer', () => {
   beforeEach(() => {
-    mockInitialize.mockReset();
     mockTokenize.mockReset();
+    mockTokenize.mockReturnValue(null);
   });
 
   describe('tokenize() — JS fallback path (WASM unavailable)', () => {
-    beforeEach(() => {
-      mockInitialize.mockResolvedValue(false);
-    });
-
-    test('classifies Chinese characters individually', async () => {
+    test('classifies Chinese characters individually', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const tokens = tokenizer.tokenize('你好');
 
@@ -37,9 +23,8 @@ describe('TextTokenizer', () => {
       expect(tokens.map((t) => t.type)).toEqual([TokenType.CHINESE_CHAR, TokenType.CHINESE_CHAR]);
     });
 
-    test('groups a run of punctuation into one token', async () => {
+    test('groups a run of punctuation into one token', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const tokens = tokenizer.tokenize('他说……好');
 
@@ -47,7 +32,7 @@ describe('TextTokenizer', () => {
       expect(tokens[2].type).toBe(TokenType.PUNCTUATION);
     });
 
-    test('underscore run falls into the gap-fill UNKNOWN token', async () => {
+    test('underscore run falls into the gap-fill UNKNOWN token', () => {
       // KNOWN DIVERGENCE from Rust (see text_tokenizer.rs's mod tests):
       // \w excludes '_' from every capture group here (chinese/latin/digit/whitespace
       // all reject it, and the punct catch-all [^\w\s...] rejects it too since \w
@@ -55,7 +40,6 @@ describe('TextTokenizer', () => {
       // Rust's catch-all has no \w-shaped exclusion, so '_' becomes 'punctuation'
       // there instead. Left unreconciled — out of scope for the 2026-07-17c fix.
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const tokens = tokenizer.tokenize('他__好');
 
@@ -63,7 +47,7 @@ describe('TextTokenizer', () => {
       expect(tokens[1].type).toBe(TokenType.UNKNOWN);
     });
 
-    test('CJK Extension A / Compatibility Ideographs classify as punctuation, not chinese_char', async () => {
+    test('CJK Extension A / Compatibility Ideographs classify as punctuation, not chinese_char', () => {
       // KNOWN DIVERGENCE from Rust (see text_tokenizer.rs's mod tests):
       // this regex's chinese group only checks 一-鿿 (CJK Unified). Rust's
       // is_chinese_char additionally covers CJK Ext A (U+3400-4DBF) and
@@ -72,34 +56,30 @@ describe('TextTokenizer', () => {
       // the punct catch-all group instead. Mirror-image of the fixed punctuation gap,
       // on rare chars — not unified.
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       expect(tokenizer.tokenize('\u{3400}')[0].type).toBe(TokenType.PUNCTUATION);
       expect(tokenizer.tokenize('\u{F900}')[0].type).toBe(TokenType.PUNCTUATION);
     });
 
-    test('BOM (U+FEFF) classifies as whitespace, not punctuation', async () => {
+    test('BOM (U+FEFF) classifies as whitespace, not punctuation', () => {
       // KNOWN DIVERGENCE from Rust (see text_tokenizer.rs's mod tests): ECMAScript's
       // \s regex class matches ZERO WIDTH NO-BREAK SPACE (U+FEFF, the UTF-8 BOM) per
       // spec. Rust's char::is_whitespace() does not (U+FEFF isn't in Unicode's
       // White_Space property) — Rust's catch-all types it punctuation instead.
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       expect(tokenizer.tokenize('\u{FEFF}')[0].type).toBe(TokenType.WHITESPACE);
     });
 
-    test('consumes entire Latin word and number as single tokens', async () => {
+    test('consumes entire Latin word and number as single tokens', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       expect(tokenizer.tokenize('hello').map((t) => t.value)).toEqual(['hello']);
       expect(tokenizer.tokenize('12345').map((t) => t.value)).toEqual(['12345']);
     });
 
-    test('decimal point splits a number into two number tokens', async () => {
+    test('decimal point splits a number into two number tokens', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const tokens = tokenizer.tokenize('100.99');
 
@@ -111,24 +91,21 @@ describe('TextTokenizer', () => {
       ]);
     });
 
-    test('empty string returns no tokens', async () => {
+    test('empty string returns no tokens', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       expect(tokenizer.tokenize('')).toEqual([]);
     });
   });
 
   describe('tokenize() — WASM path', () => {
-    test('converts WASM raw token objects into Token instances', async () => {
-      mockInitialize.mockResolvedValue(true);
+    test('converts WASM raw token objects into Token instances', () => {
       mockTokenize.mockReturnValue([
         { type: 'chinese_char', value: '你', start: 0, end: 1 },
         { type: 'chinese_char', value: '好', start: 1, end: 2 },
       ]);
 
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const tokens = tokenizer.tokenize('你好');
 
@@ -137,12 +114,10 @@ describe('TextTokenizer', () => {
       expect(mockTokenize).toHaveBeenCalledWith('你好');
     });
 
-    test('per-call null from WASM falls back to the JS tokenizer for that call', async () => {
-      mockInitialize.mockResolvedValue(true);
+    test('per-call null from WASM falls back to the JS tokenizer for that call', () => {
       mockTokenize.mockReturnValue(null);
 
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const tokens = tokenizer.tokenize('你好');
 
@@ -209,13 +184,8 @@ describe('TextTokenizer', () => {
   });
 
   describe('analyzeText', () => {
-    beforeEach(() => {
-      mockInitialize.mockResolvedValue(false);
-    });
-
-    test('classifies Chinese-heavy text and suggests phrase-matching strategy', async () => {
+    test('classifies Chinese-heavy text and suggests phrase-matching strategy', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const analysis = tokenizer.analyzeText('你好世界啊');
 
@@ -223,9 +193,8 @@ describe('TextTokenizer', () => {
       expect(analysis.strategy).toBe('prioritize_phrase_matching');
     });
 
-    test('classifies Latin-heavy text and suggests minimal processing', async () => {
+    test('classifies Latin-heavy text and suggests minimal processing', () => {
       const tokenizer = new TextTokenizer();
-      await flushMicrotasks();
 
       const analysis = tokenizer.analyzeText('hello world');
 

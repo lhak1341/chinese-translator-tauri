@@ -1,325 +1,264 @@
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { WasmTextChunker } from '../wasm/WasmTextChunker.js';
-import { TextChunker } from '../text/TextChunker.js';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
+
+const mockChunkText = vi.fn(() => JSON.stringify([]));
+const mockGetStats = vi.fn(() =>
+  JSON.stringify({ chunksProcessed: 0, totalTimeUs: 0, avgTimeUs: 0 })
+);
+const mockResetStats = vi.fn();
+const mockRecordFallback = vi.fn();
+const mockGetGlobalChunkerStats = vi.fn(() =>
+  JSON.stringify({ totalChunks: 0, totalTimeUs: 0, avgTimeUs: 0, fallbackCount: 0 })
+);
+const mockInit = vi.fn();
+
+class MockTextChunker {
+  chunkText(text) {
+    return mockChunkText(text);
+  }
+  getStats() {
+    return mockGetStats();
+  }
+  resetStats() {
+    return mockResetStats();
+  }
+  // WasmTextChunker's retire path calls this wasm-bindgen internal — see CLAUDE.md's
+  // documented WASM mock gotcha (WasmPatternProcessor instances need the same).
+  __destroy_into_raw() {}
+}
+
+vi.mock('../../wasm/translation_wasm_core.js', () => ({
+  default: (...args) => mockInit(...args),
+  TextChunker: MockTextChunker,
+  recordFallback: (...args) => mockRecordFallback(...args),
+  getGlobalChunkerStats: (...args) => mockGetGlobalChunkerStats(...args),
+}));
+
+vi.mock('../logger', () => ({
+  logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+// Mirrors src/utils/CLAUDE.md's documented WasmProcessorLifecycle mock pattern, extended
+// with shared controllable state — same approach as WasmTextTokenizer.test.js.
+const lifecycleState = vi.hoisted(() => ({
+  isReady: false,
+  hasFailed: false,
+  pendingInit: null,
+}));
+
+vi.mock('../wasm/WasmProcessorLifecycle', () => ({
+  WasmProcessorLifecycle: vi.fn(function () {
+    return {
+      get isReady() {
+        return lifecycleState.isReady;
+      },
+      get hasFailed() {
+        return lifecycleState.hasFailed;
+      },
+      get pendingInit() {
+        return lifecycleState.pendingInit;
+      },
+      initialize: vi.fn(async (instantiateFn) => {
+        if (lifecycleState.hasFailed) return false;
+        await instantiateFn(new ArrayBuffer(0));
+        lifecycleState.isReady = true;
+        return true;
+      }),
+      permanentlyFail: vi.fn(() => {
+        lifecycleState.isReady = false;
+        lifecycleState.hasFailed = true;
+      }),
+    };
+  }),
+}));
+
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+// initializeWasm() caches lifecycle state at module scope — reset modules between tests so
+// each test gets a fresh, uninitialized copy, and reset the shared lifecycle state too (it
+// lives outside the mocked module, so resetModules() alone doesn't touch it). TextChunker.js
+// is imported fresh here too (not as a static top-of-file import) so its transitively-imported
+// wasmTextChunker singleton never leaks lifecycle state across tests.
+async function importFresh() {
+  vi.resetModules();
+  lifecycleState.isReady = false;
+  lifecycleState.hasFailed = false;
+  lifecycleState.pendingInit = null;
+  const wasmTextChunkerModule = await import('../wasm/WasmTextChunker.js');
+  const cascadeModule = await import('../wasm/WasmCascadeRegistry.js');
+  const textChunkerModule = await import('../text/TextChunker.js');
+  return { ...wasmTextChunkerModule, ...cascadeModule, ...textChunkerModule };
+}
 
 describe('WasmTextChunker', () => {
-  let wasmChunker;
-  let jsChunker;
-  let wasmInitialized = false;
-
-  beforeAll(async () => {
-    wasmChunker = new WasmTextChunker();
-    jsChunker = new TextChunker();
-
-    try {
-      wasmInitialized = await wasmChunker.initialize();
-    } catch (error) {
-      console.warn('WASM initialization failed in tests, using fallback:', error);
-    }
+  beforeEach(() => {
+    mockChunkText.mockReset();
+    mockChunkText.mockReturnValue(JSON.stringify([]));
+    mockGetStats.mockReset();
+    mockGetStats.mockReturnValue(
+      JSON.stringify({ chunksProcessed: 0, totalTimeUs: 0, avgTimeUs: 0 })
+    );
+    mockResetStats.mockReset();
+    mockRecordFallback.mockReset();
+    mockGetGlobalChunkerStats.mockReset();
+    mockGetGlobalChunkerStats.mockReturnValue(
+      JSON.stringify({ totalChunks: 0, totalTimeUs: 0, avgTimeUs: 0, fallbackCount: 0 })
+    );
+    mockInit.mockReset();
   });
 
-  afterEach(() => {
-    if (wasmInitialized) {
-      wasmChunker.resetStats();
-    }
-  });
+  describe('chunkText()', () => {
+    test('returns null and lazily triggers init on first call, uses WASM once ready', async () => {
+      const { wasmTextChunker } = await importFresh();
+      const chunks = [
+        { content: 'Hello', punctuation: ',', startIndex: 0, lineBreaks: '', startedBy: 'start' },
+      ];
+      mockChunkText.mockReturnValue(JSON.stringify(chunks));
 
-  describe('Initialization', () => {
-    it('should initialize successfully or fail gracefully', () => {
-      // Initialization result is environment-dependent
-      // Just verify we have a wasmChunker instance
-      expect(wasmChunker).toBeDefined();
+      const first = wasmTextChunker.chunkText('Hello, world!');
+      expect(first).toBeNull();
+      expect(mockChunkText).not.toHaveBeenCalled();
+
+      await flushMicrotasks();
+
+      const second = wasmTextChunker.chunkText('Hello, world!');
+      expect(second).toEqual(chunks);
     });
 
-    it('should return null when chunking before initialization', () => {
-      const uninitializedChunker = new WasmTextChunker();
-      const result = uninitializedChunker.chunkText('Hello, world!');
-      expect(result).toBeNull();
+    test('parses the JSON string the WASM instance returns', async () => {
+      const { wasmTextChunker } = await importFresh();
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
+
+      const chunks = [
+        { content: '你', punctuation: '，', startIndex: 0, lineBreaks: '', startedBy: 'start' },
+      ];
+      mockChunkText.mockReturnValue(JSON.stringify(chunks));
+
+      expect(wasmTextChunker.chunkText('你，')).toEqual(chunks);
     });
 
-    it('should expose statistics methods', () => {
-      expect(typeof wasmChunker.getStats).toBe('function');
-      expect(typeof wasmChunker.resetStats).toBe('function');
-      expect(typeof wasmChunker.getGlobalStats).toBe('function');
-    });
-  });
+    test('a real WASM panic permanently retires the wrapper — later calls stay JS fallback', async () => {
+      const { wasmTextChunker } = await importFresh();
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
 
-  describe('Basic Chunking (when WASM available)', () => {
-    const skipIfNoWasm = wasmInitialized ? it : it.skip;
-
-    skipIfNoWasm('should chunk simple text with punctuation', () => {
-      const text = 'Hello, world!';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-      expect(chunks.length).toBeGreaterThan(0);
-      expect(chunks[0]).toHaveProperty('content');
-      expect(chunks[0]).toHaveProperty('punctuation');
-      expect(chunks[0]).toHaveProperty('startIndex');
-      expect(chunks[0]).toHaveProperty('lineBreaks');
-      expect(chunks[0]).toHaveProperty('startedBy');
-    });
-
-    skipIfNoWasm('should chunk Chinese text', () => {
-      const text = '她的目光忽然落在陈暮的脸上，当看到陈暮闭上的双眼时，她的眼睛腾地红了。';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-      expect(chunks.length).toBeGreaterThan(0);
-    });
-
-    skipIfNoWasm('should handle empty text', () => {
-      const chunks = wasmChunker.chunkText('');
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-      expect(chunks.length).toBe(0);
-    });
-
-    skipIfNoWasm('should handle text with only whitespace', () => {
-      const chunks = wasmChunker.chunkText('   \n\t  ');
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-    });
-
-    skipIfNoWasm('should preserve line breaks', () => {
-      const text = 'Line 1\nLine 2\rLine 3';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      const hasLineBreaks = chunks.some((chunk) => chunk.lineBreaks && chunk.lineBreaks.length > 0);
-      expect(hasLineBreaks).toBe(true);
-    });
-
-    skipIfNoWasm('should handle mixed Chinese and English punctuation', () => {
-      const text = 'Hello, 世界！How are you? 你好吗？';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-      expect(chunks.length).toBeGreaterThan(0);
-    });
-
-    skipIfNoWasm('should track startIndex correctly', () => {
-      const text = 'ABC,DE.FG';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(chunks.length).toBeGreaterThan(0);
-
-      // Verify startIndex is a number and reasonable
-      chunks.forEach((chunk) => {
-        expect(typeof chunk.startIndex).toBe('number');
-        expect(chunk.startIndex).toBeGreaterThanOrEqual(0);
+      mockChunkText.mockImplementationOnce(() => {
+        throw new Error('wasm panic');
       });
+      expect(wasmTextChunker.chunkText('boom')).toBeNull();
+
+      // Even with a healthy mock again, retirement is permanent — no re-init attempt.
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      expect(wasmTextChunker.chunkText('after panic')).toBeNull();
+      expect(mockChunkText).toHaveBeenCalledTimes(1); // the throwing call only — warm-up never reached it
     });
 
-    skipIfNoWasm('should set startedBy context', () => {
-      const text = 'First. Second!';
-      const chunks = wasmChunker.chunkText(text);
+    test('malformed JSON from WASM is treated as a panic — retires and falls back', async () => {
+      const { wasmTextChunker } = await importFresh();
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
 
-      expect(chunks).toBeDefined();
-      chunks.forEach((chunk) => {
-        expect(chunk).toHaveProperty('startedBy');
-        expect(typeof chunk.startedBy).toBe('string');
+      mockChunkText.mockReturnValue('not valid json{{{');
+      expect(wasmTextChunker.chunkText('bad json')).toBeNull();
+
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      expect(wasmTextChunker.chunkText('after')).toBeNull(); // permanently retired, same as a real panic
+    });
+
+    test('registers with the shared cascade registry — a sibling panic retires this wrapper too', async () => {
+      const { wasmTextChunker, fireCascadeRetire } = await importFresh();
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      expect(wasmTextChunker.chunkText('ready')).not.toBeNull();
+
+      // Simulates ANOTHER wrapper's catch block firing the cascade — this wrapper never panicked itself.
+      fireCascadeRetire();
+
+      expect(wasmTextChunker.chunkText('after cascade')).toBeNull();
+    });
+
+    test('re-entrancy guard blocks a nested chunkText call while one is in flight', async () => {
+      const { wasmTextChunker } = await importFresh();
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
+
+      let nestedResult = 'not called';
+      mockChunkText.mockImplementationOnce(() => {
+        // Simulates a WASM callback re-entering chunkText while the outer borrow_mut is live —
+        // the exact scenario isProcessing exists to prevent a second-borrow panic for.
+        nestedResult = wasmTextChunker.chunkText('nested call');
+        return JSON.stringify([{ content: 'outer' }]);
       });
+
+      const outerResult = wasmTextChunker.chunkText('outer call');
+
+      expect(nestedResult).toBeNull();
+      expect(outerResult).toEqual([{ content: 'outer' }]);
     });
   });
 
-  describe('Consistency with JavaScript Chunker', () => {
-    const skipIfNoWasm = wasmInitialized ? it : it.skip;
+  describe('getStats() / resetStats() / getGlobalStats()', () => {
+    test('getStats returns zeroed shape when not ready', async () => {
+      const { wasmTextChunker } = await importFresh();
 
-    skipIfNoWasm('should produce same number of chunks for simple text', () => {
-      const text = 'ABC,DE.FG"HIJ"KL!MNOP.';
-      const wasmChunks = wasmChunker.chunkText(text);
-      const jsChunks = jsChunker.chunkText(text);
-
-      expect(wasmChunks.length).toBe(jsChunks.length);
+      expect(wasmTextChunker.getStats()).toMatchObject({ chunksProcessed: 0, wasmHits: 0 });
     });
 
-    skipIfNoWasm('should produce same content fields', () => {
-      const text = '她的目光忽然落在陈暮的脸上，当看到陈暮闭上的双眼时。';
-      const wasmChunks = wasmChunker.chunkText(text);
-      const jsChunks = jsChunker.chunkText(text);
+    test('getStats merges WASM stats with wasmHits/fallbackHits once ready', async () => {
+      const { wasmTextChunker } = await importFresh();
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
+      wasmTextChunker.chunkText('one'); // wasmHits = 1
 
-      expect(wasmChunks.length).toBe(jsChunks.length);
-
-      for (let i = 0; i < wasmChunks.length; i++) {
-        expect(wasmChunks[i].content.trim()).toBe(jsChunks[i].content.trim());
-      }
-    });
-
-    skipIfNoWasm('should produce same punctuation fields', () => {
-      const text = '测试，文本。这是！一个？测试；文本：示例';
-      const wasmChunks = wasmChunker.chunkText(text);
-      const jsChunks = jsChunker.chunkText(text);
-
-      expect(wasmChunks.length).toBe(jsChunks.length);
-
-      for (let i = 0; i < wasmChunks.length; i++) {
-        expect(wasmChunks[i].punctuation).toBe(jsChunks[i].punctuation);
-      }
-    });
-  });
-
-  describe('Edge Cases', () => {
-    const skipIfNoWasm = wasmInitialized ? it : it.skip;
-
-    skipIfNoWasm('should handle Unicode characters', () => {
-      const text = 'Test with emoji 😀 and symbols ∑∏';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-    });
-
-    skipIfNoWasm('should handle very long text', () => {
-      const text = '中'.repeat(5000) + '。';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-      expect(chunks.length).toBeGreaterThan(0);
-    });
-
-    skipIfNoWasm('should handle text with only punctuation', () => {
-      const text = '，。！？；：';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-    });
-
-    skipIfNoWasm('should handle multiple consecutive line breaks', () => {
-      const text = 'Line 1\n\n\nLine 2\r\r\rLine 3';
-      const chunks = wasmChunker.chunkText(text);
-
-      expect(chunks).toBeDefined();
-      expect(Array.isArray(chunks)).toBe(true);
-    });
-  });
-
-  describe('Statistics', () => {
-    const skipIfNoWasm = wasmInitialized ? it : it.skip;
-
-    skipIfNoWasm('should track chunk processing', () => {
-      wasmChunker.resetStats();
-
-      const text1 = 'Hello, world!';
-      const text2 = '你好，世界！';
-
-      wasmChunker.chunkText(text1);
-      wasmChunker.chunkText(text2);
-
-      const stats = wasmChunker.getStats();
-      expect(stats.wasmHits).toBe(2);
-      expect(stats.chunksProcessed).toBe(2);
-    });
-
-    skipIfNoWasm('should track time', () => {
-      wasmChunker.resetStats();
-
-      const text = '中'.repeat(1000) + '。';
-      wasmChunker.chunkText(text);
-
-      const stats = wasmChunker.getStats();
-      expect(stats.totalTimeUs).toBeGreaterThan(0);
-      expect(stats.avgTimeUs).toBeGreaterThan(0);
-    });
-
-    skipIfNoWasm('should calculate hit rate', () => {
-      wasmChunker.resetStats();
-
-      const text = 'Test text.';
-      wasmChunker.chunkText(text);
-
-      const stats = wasmChunker.getStats();
+      const stats = wasmTextChunker.getStats();
+      expect(stats.wasmHits).toBe(1);
       expect(stats).toHaveProperty('hitRate');
-      expect(stats.hitRate).toContain('%');
     });
 
-    it('should track fallbacks when not initialized', () => {
-      const uninitializedChunker = new WasmTextChunker();
+    test('resetStats zeroes hit counters and calls into the WASM instance', async () => {
+      const { wasmTextChunker } = await importFresh();
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      wasmTextChunker.chunkText('warm up');
+      await flushMicrotasks();
+      wasmTextChunker.chunkText('one');
 
-      uninitializedChunker.chunkText('Test 1');
-      uninitializedChunker.chunkText('Test 2');
+      wasmTextChunker.resetStats();
 
-      const stats = uninitializedChunker.getStats();
-      expect(stats.fallbackCount).toBeGreaterThanOrEqual(2);
-      expect(stats.wasmHits).toBe(0);
+      expect(mockResetStats).toHaveBeenCalled();
+      expect(wasmTextChunker.getStats().wasmHits).toBe(0);
+    });
+
+    test('getGlobalStats reads the module-level Rust counter', async () => {
+      const { wasmTextChunker } = await importFresh();
+      mockGetGlobalChunkerStats.mockReturnValue(JSON.stringify({ totalChunks: 5 }));
+
+      expect(wasmTextChunker.getGlobalStats()).toEqual({ totalChunks: 5 });
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle WASM initialization failure gracefully', () => {
-      const failingChunker = new WasmTextChunker();
-      expect(() => failingChunker.chunkText('Test')).not.toThrow();
-      const result = failingChunker.chunkText('Test');
+  describe('fallback tracking when WASM is not ready', () => {
+    test('records a fallback hit and increments fallbackHits before any init completes', async () => {
+      const { wasmTextChunker } = await importFresh();
+
+      const result = wasmTextChunker.chunkText('too early');
+
       expect(result).toBeNull();
-    });
-
-    it('should return stats even when not initialized', () => {
-      const uninitializedChunker = new WasmTextChunker();
-      const stats = uninitializedChunker.getStats();
-
-      expect(stats).toBeDefined();
-      expect(stats.chunksProcessed).toBe(0);
-      expect(stats.wasmHits).toBe(0);
-    });
-
-    const skipIfNoWasm = wasmInitialized ? it : it.skip;
-
-    skipIfNoWasm('should handle null input gracefully', () => {
-      const chunks = wasmChunker.chunkText(null);
-      // May return empty array or handle gracefully
-      expect(chunks === null || Array.isArray(chunks)).toBe(true);
+      expect(mockRecordFallback).toHaveBeenCalled();
+      expect(wasmTextChunker.getStats().fallbackCount).toBeGreaterThanOrEqual(1);
     });
   });
 
-  describe('Performance Characteristics', () => {
-    const skipIfNoWasm = wasmInitialized ? it : it.skip;
-
-    skipIfNoWasm('should be faster than JavaScript for large texts', () => {
-      const largeText = '中文测试，这是一个很长的文本。'.repeat(100);
-
-      // Warm up
-      wasmChunker.chunkText(largeText);
-      jsChunker.chunkText(largeText);
-
-      // Measure WASM
-      const wasmStart = performance.now();
-      for (let i = 0; i < 10; i++) {
-        wasmChunker.chunkText(largeText);
-      }
-      const wasmTime = performance.now() - wasmStart;
-
-      // Measure JavaScript
-      const jsStart = performance.now();
-      for (let i = 0; i < 10; i++) {
-        jsChunker.chunkText(largeText);
-      }
-      const jsTime = performance.now() - jsStart;
-
-      // WASM should be faster (allow some variance in test environment)
-      // We expect 2-3x speedup, but in tests just verify WASM completes
-      expect(wasmTime).toBeGreaterThan(0);
-      expect(jsTime).toBeGreaterThan(0);
-
-      console.log(`Performance comparison for large text (10 iterations):`);
-      console.log(`  WASM: ${wasmTime.toFixed(2)}ms`);
-      console.log(`  JavaScript: ${jsTime.toFixed(2)}ms`);
-      console.log(`  Speedup: ${(jsTime / wasmTime).toFixed(2)}x`);
-    });
-  });
-
-  describe('Integration with TextChunker', () => {
-    it('should integrate seamlessly with TextChunker fallback', () => {
-      // TextChunker should try WASM first, then fall back to JavaScript
+  describe('Integration with TextChunker (JS-facing shape)', () => {
+    test('TextChunker.chunkText never throws and returns array-shaped chunks', async () => {
+      const { TextChunker } = await importFresh();
       const chunker = new TextChunker();
       const text = 'Hello, world! 你好，世界！';
 
-      // Should work regardless of WASM availability
       expect(() => chunker.chunkText(text)).not.toThrow();
 
       const chunks = chunker.chunkText(text);
@@ -328,12 +267,11 @@ describe('WasmTextChunker', () => {
       expect(chunks.length).toBeGreaterThan(0);
     });
 
-    it('should produce TextChunk objects from TextChunker', () => {
+    test('produces TextChunk objects with the expected fields', async () => {
+      const { TextChunker } = await importFresh();
       const chunker = new TextChunker();
-      const text = 'Test, text.';
-      const chunks = chunker.chunkText(text);
+      const chunks = chunker.chunkText('Test, text.');
 
-      // Verify chunks have the expected structure
       chunks.forEach((chunk) => {
         expect(chunk).toHaveProperty('content');
         expect(chunk).toHaveProperty('punctuation');

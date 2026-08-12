@@ -15,82 +15,53 @@
  * - Process character-by-character with inline classification
  * - No regex compilation or execution overhead
  *
+ * Shares `translation_wasm_core.js`'s linear memory with the other 6 WASM
+ * wrappers — goes through `WasmProcessorLifecycle` + `WasmCascadeRegistry`
+ * like the rest of them (see src/utils/CLAUDE.md, "All 7 WASM Wrappers
+ * Share One Binary"). Exposes no owned WASM struct instance (tokenizeText /
+ * getTokenizerStats are plain wasm-bindgen free functions), so retire is
+ * just a lifecycle flag flip — no `__destroy_into_raw()` needed.
+ *
  * Usage:
  * ```javascript
- * const tokenizer = new WasmTextTokenizer();
- * await tokenizer.initialize();
- * const tokens = tokenizer.tokenize(text);
+ * import { wasmTextTokenizer } from './WasmTextTokenizer';
+ * const tokens = wasmTextTokenizer.tokenize(text); // null if WASM not ready — caller falls back to JS
  * ```
  */
 
+import init, { tokenizeText, getTokenizerStats } from '../../wasm/translation_wasm_core.js';
 import { logger } from '../logger.js';
+import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
+import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
 
-/** @type {Function|null} */
-let tokenizeTextWasm = null;
-/** @type {Function|null} */
-let getTokenizerStatsWasm = null;
-let wasmInitialized = false;
+// Static literal required so Vite transforms import.meta.url to the correct asset URL in production
+const _WASM_BINARY_URL = new URL('../../wasm/translation_wasm_core_bg.wasm', import.meta.url);
 
-/**
- * Initialize WASM module (done once)
- */
-async function initializeWasm() {
-  if (wasmInitialized) return true;
+const lifecycle = new WasmProcessorLifecycle({
+  name: 'TextTokenizer',
+  wasmFileName: 'translation_wasm_core_bg.wasm',
+  wasmBinaryUrl: _WASM_BINARY_URL,
+  expectedMethods: ['tokenizeText', 'getTokenizerStats'],
+});
 
-  try {
-    const wasmModule = await import('../../wasm/translation_wasm_core.js');
-    tokenizeTextWasm = wasmModule.tokenizeText;
-    getTokenizerStatsWasm = wasmModule.getTokenizerStats;
-    wasmInitialized = true;
-
-    if (process.env.NODE_ENV === 'development') {
-      logger.log('✅ WASM TextTokenizer initialized successfully');
-    }
-
-    return true;
-  } catch (error) {
-    logger.warn('⚠️ Failed to initialize WASM TextTokenizer:', error);
-    return false;
-  }
+async function _initializeTextTokenizer() {
+  return lifecycle.initialize(async (wasmBinary) => {
+    await init(wasmBinary);
+    logger.log('✅ WASM TextTokenizer initialized');
+    // tokenizeText/getTokenizerStats are live bindings to this same module's
+    // top-level `wasm` var — no owned instance to hand back, just prove the
+    // expected functions exist for verifyWasmInstance.
+    return { tokenizeText, getTokenizerStats };
+  });
 }
 
-/**
- * WASM Text Tokenizer wrapper
- */
-export class WasmTextTokenizer {
-  constructor() {
-    this.initialized = false;
-  }
-
+class WasmTextTokenizer {
   /**
-   * Initialize the tokenizer
+   * Tokenize text using WASM.
    *
-   * @returns {Promise<boolean>} True if initialization succeeded
-   */
-  async initialize() {
-    try {
-      const wasmReady = await initializeWasm();
-      if (!wasmReady) {
-        return false;
-      }
-
-      this.initialized = true;
-
-      if (process.env.NODE_ENV === 'development') {
-        const stats = this.getStats();
-        logger.log('✅ WASM TextTokenizer ready:', stats);
-      }
-
-      return true;
-    } catch (error) {
-      logger.warn('⚠️ Error initializing WASM text tokenizer:', error);
-      this.initialized = false;
-      return false;
-    }
-  }
-
-  /**
-   * Tokenize text using WASM
+   * Triggers lazy background init if not yet started. Returns null when WASM
+   * isn't ready — caller uses JS fallback. Synchronous by design (hot-path
+   * caller in TranslationEngine.js never awaits this).
    *
    * @param {string} text - Text to tokenize
    * @returns {Array<*>|null} Array of tokens or null if WASM unavailable
@@ -104,20 +75,31 @@ export class WasmTextTokenizer {
    * }
    */
   tokenize(text) {
-    if (!this.initialized || !tokenizeTextWasm) {
+    // Lazy background init: trigger once if lifecycle has never started
+    if (!lifecycle.isReady && !lifecycle.hasFailed && !lifecycle.pendingInit) {
+      _initializeTextTokenizer().catch((err) => {
+        logger.warn('Lazy WASM TextTokenizer initialization failed:', err);
+      });
+    }
+
+    if (!lifecycle.isReady) {
       return null;
     }
 
     try {
       // WASM tokenizer expects NFC-normalized text for consistent Unicode handling
       const normalizedText = text.normalize('NFC');
-
-      // Call WASM tokenizer
-      const tokens = tokenizeTextWasm(normalizedText);
-
-      return tokens;
+      return tokenizeText(normalizedText);
     } catch (error) {
-      logger.warn('⚠️ Error in WASM text tokenization:', error);
+      // A WASM trap (Rust panic → `unreachable` instruction) leaves the shared linear
+      // memory allocator in a potentially corrupt state. Retire permanently and cascade
+      // to the other 6 wrappers so nothing else calls into the corrupted module either.
+      logger.error(
+        '❌ WASM TextTokenizer panic — retiring instance, falling back to JS permanently:',
+        error
+      );
+      lifecycle.permanentlyFail();
+      fireCascadeRetire();
       return null;
     }
   }
@@ -128,24 +110,37 @@ export class WasmTextTokenizer {
    * @returns {Object|null} Statistics or null if not initialized
    */
   getStats() {
-    if (!this.initialized || !getTokenizerStatsWasm) {
-      return null;
-    }
+    if (!lifecycle.isReady) return null;
 
     try {
-      return getTokenizerStatsWasm();
+      return getTokenizerStats();
     } catch (error) {
       logger.warn('⚠️ Error getting WASM tokenizer stats:', error);
       return null;
     }
   }
 
-  /**
-   * Check if WASM is available and initialized
-   *
-   * @returns {boolean} True if WASM is ready
-   */
-  isAvailable() {
-    return wasmInitialized && this.initialized;
+  /** Retire this wrapper when a sibling WASM wrapper's shared module panics */
+  retireOnSharedModulePanic() {
+    lifecycle.permanentlyFail();
   }
+}
+
+// Export singleton instance
+export const wasmTextTokenizer = new WasmTextTokenizer();
+
+// Register cascade handler so other panicking wrappers can retire this one
+registerCascadeHandler(() => wasmTextTokenizer.retireOnSharedModulePanic());
+
+// Background init: warms up WASM so first caller hits the fast path
+if (import.meta.env.MODE !== 'test') {
+  _initializeTextTokenizer().catch((err) => {
+    logger.warn('Background WASM TextTokenizer initialization failed:', err);
+  });
+}
+
+// Expose globally for debugging
+if (typeof window !== 'undefined') {
+  // @ts-ignore - debug convenience property
+  window.wasmTextTokenizer = wasmTextTokenizer;
 }

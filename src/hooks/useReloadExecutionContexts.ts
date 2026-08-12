@@ -1,22 +1,26 @@
 import { useCallback } from 'react';
-import type { RefObject, MutableRefObject } from 'react';
-import type { SemanticArrays } from '../utils/highlighting';
-import type { TranslationExecutionContext } from './useAutoTranslateTrigger.js';
+import type { MutableRefObject } from 'react';
 import { logger } from '../utils/logger.js';
 
 /**
- * Dev-only input-shape guard shared by both assembly hooks below. Neither
- * `Translator.jsx` call site is type-checked (ADR-003 — intentionally JS,
- * never TypeScript), so nothing else verifies the object it builds actually
- * matches the hook's declared param type. Kind (ref vs function) is inferred
- * from the `*Ref` naming convention — both real param shapes here obey it
- * with zero exceptions. `expectedKeys` is still an explicit list (typed
+ * Dev-only input-shape guard. Neither `Translator.jsx`'s call site nor
+ * `useAutoTranslateTrigger.ts`'s caller is type-checked at the JS boundary
+ * (ADR-003 — Translator.jsx is intentionally JS, never TypeScript), so
+ * nothing else verifies the object built there actually matches the
+ * declared param type. Kind (ref vs function) is inferred from the `*Ref`
+ * naming convention — every real param shape here obeys it with zero
+ * exceptions. `expectedKeys` is still an explicit list (typed
  * `satisfies readonly (keyof Params)[]` at each call site for typo/drift
  * protection) because checking only `Object.keys(params)` would miss a
  * field dropped entirely from the call site — the actual failure mode this
  * guard exists to catch. No-ops entirely outside development.
+ *
+ * Used here by `useForceReloadContext`; also imported directly by
+ * `useAutoTranslateTrigger.ts` for the same purpose (that hook has no
+ * assembly step of its own to hang a wrapper off of — see architecture
+ * review 2026-08-12, candidate #1).
  */
-function createShapeGuard<Params extends object>(
+export function createShapeGuard<Params extends object>(
   hookName: string,
   expectedKeys: readonly (keyof Params)[]
 ) {
@@ -154,52 +158,4 @@ export function useForceReloadContext(params: UseForceReloadContextParams): Forc
     saveScrollPositions,
     restoreScrollPositions,
   };
-}
-
-export interface UseTranslationExecutionContextParams {
-  consumeReloadTransition: () => boolean;
-  clearHighlighting: () => void;
-  setIsTranslating: (v: boolean) => void;
-  isTranslatingRef: MutableRefObject<boolean>;
-  setResultArrays: (arrays: SemanticArrays | null, segs?: unknown[]) => void;
-  setStreamingText: (text: string) => void;
-  isClipboardTranslationRef: RefObject<boolean>;
-  resetClipboardFlag: () => void;
-  translationTextRef: RefObject<HTMLElement | null>;
-}
-
-const TRANSLATION_EXECUTION_EXPECTED_KEYS = [
-  'consumeReloadTransition',
-  'clearHighlighting',
-  'setIsTranslating',
-  'isTranslatingRef',
-  'setResultArrays',
-  'setStreamingText',
-  'isClipboardTranslationRef',
-  'resetClipboardFlag',
-  'translationTextRef',
-] as const satisfies readonly (keyof UseTranslationExecutionContextParams)[];
-
-const assertTranslationExecutionParamsShape =
-  createShapeGuard<UseTranslationExecutionContextParams>(
-    'useTranslationExecutionContext',
-    TRANSLATION_EXECUTION_EXPECTED_KEYS
-  );
-
-/**
- * Assembles the typed TranslationExecutionContext consumed by
- * useAutoTranslateTrigger. Every field is already a ref/setter produced by
- * another hook (useDictionaryReloadGuard, useHighlightingState,
- * useTranslationResults, useClipboardTranslation) — this is assembly-only,
- * no logic relocation. The assembly itself was previously an untyped object
- * literal built directly in Translator.jsx.
- *
- * Replaces Translator.jsx's inline `executionCtx` object literal.
- * Entry point: architecture review 2026-07-29, candidate #3.
- */
-export function useTranslationExecutionContext(
-  params: UseTranslationExecutionContextParams
-): TranslationExecutionContext {
-  assertTranslationExecutionParamsShape(params);
-  return params;
 }
