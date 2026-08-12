@@ -19,13 +19,11 @@ import {
   validateDictionaryEntry,
   toProperNounsId,
 } from '../utils/dictionary';
-import { loadTransformRules } from '../utils/dictionary/TransformRuleBackend';
+import { useTransformRules } from './useTransformRules';
 import {
-  findBestMatch,
-  applyRule,
-  dictionarySupportsTransformRules,
+  generateRoughTranslation,
+  computeInitialTranslation,
 } from '../utils/dictionary/TransformRuleEngine';
-import type { TransformRule } from '../types/TransformRuleTypes';
 
 export interface DictionaryEntryFormDeps {
   updateEntry: (
@@ -94,23 +92,26 @@ export function useDictionaryEntryForm(
   const { updateEntry, addEntry, dictionaries, initialSource, onDictionaryChange } = deps;
 
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
-  const [source, setSource] = useState<string>(entry?.source || '');
+  const [source, setSource] = useState<string>(entry?.source ?? '');
   const [translation, setTranslation] = useState<string>(
     typeof entry?.translation === 'object'
       ? entry.translation.translation
-      : entry?.translation || ''
+      : (entry?.translation ?? '')
   );
   const [allowAsPatternVariable, setAllowAsPatternVariable] = useState<boolean>(
-    (typeof entry?.translation === 'object' && entry.translation?.allowAsPatternVariable) ||
-      entry?.allowAsPatternVariable ||
+    (typeof entry?.translation === 'object'
+      ? entry.translation.allowAsPatternVariable
+      : undefined) ??
+      entry?.allowAsPatternVariable ??
       false
   );
   const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
-    (typeof entry?.translation === 'object' && entry.translation?.semanticType) ||
+    (typeof entry?.translation === 'object' ? entry.translation.semanticType : undefined) ??
       (!entry && selectedDictionary.startsWith('properNouns') ? 'character' : '')
   );
   const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
-    (typeof entry?.translation === 'object' && entry.translation?.allowedVariableTypes) || {}
+    (typeof entry?.translation === 'object' ? entry.translation.allowedVariableTypes : undefined) ??
+      {}
   );
   const [error, setError] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -126,7 +127,7 @@ export function useDictionaryEntryForm(
   const [showCharacterValidation, setShowCharacterValidation] = useState<boolean>(false);
   const [showPatternValidation, setShowPatternValidation] = useState<boolean>(false);
   const [isFormValid, setIsFormValid] = useState<boolean>(true);
-  const [transformRules, setTransformRules] = useState<TransformRule[]>([]);
+  const { rules: transformRules } = useTransformRules();
   const [roughGlossReference, setRoughGlossReference] = useState<string>('');
 
   useEffect(() => {
@@ -161,22 +162,6 @@ export function useDictionaryEntryForm(
       }
     };
     loadActiveProperNouns();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadRules = async (): Promise<void> => {
-      try {
-        const rules = await loadTransformRules();
-        if (isMounted) setTransformRules(rules);
-      } catch (err) {
-        if (isMounted) logger.error('Failed to load transform rules:', err);
-      }
-    };
-    loadRules();
     return () => {
       isMounted = false;
     };
@@ -248,61 +233,6 @@ export function useDictionaryEntryForm(
     validateForm();
   }, [source, translation, validateForm]);
 
-  const joinCharGloss = useCallback(
-    (sourceText: string): string => {
-      if (!dictionaries?.characters || !sourceText) return '';
-      const chars = dictionaries.characters as Record<string, string>;
-      return sourceText
-        .split('')
-        .map((ch) => chars[ch] || ch)
-        .join(' ');
-    },
-    [dictionaries]
-  );
-
-  const generateRoughTranslation = useCallback(
-    (sourceText: string, targetDictionary: string): string => {
-      const gloss = joinCharGloss(sourceText);
-      if (!gloss) return '';
-      if (targetDictionary.includes('properNoun')) {
-        return gloss
-          .split(' ')
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-          .join(' ');
-      }
-      return gloss.toLowerCase();
-    },
-    [joinCharGloss]
-  );
-
-  /**
-   * The initial Translation guess for a newly-populated Source: a matching
-   * Transform Rule's guess when one exists for phrases/properNouns* targets,
-   * falling back to today's generateRoughTranslation otherwise. Also returns
-   * the matched rule's semanticType, if any, so the caller can stamp it.
-   */
-  const computeInitialTranslation = useCallback(
-    (
-      sourceText: string,
-      targetDictionary: string
-    ): { translation: string; matchedRule: TransformRule | null } => {
-      if (dictionarySupportsTransformRules(targetDictionary)) {
-        const match = findBestMatch(transformRules, sourceText);
-        if (match) {
-          return {
-            translation: applyRule(match, sourceText, joinCharGloss),
-            matchedRule: match,
-          };
-        }
-      }
-      return {
-        translation: generateRoughTranslation(sourceText, targetDictionary),
-        matchedRule: null,
-      };
-    },
-    [transformRules, joinCharGloss, generateRoughTranslation]
-  );
-
   // Auto-populate source from initialSource or clipboard on mount
   useEffect(() => {
     let isMounted = true;
@@ -319,8 +249,12 @@ export function useDictionaryEntryForm(
           if (isMounted) {
             const trimmed = initialSource.trim();
             setSource(trimmed);
-            setRoughGlossReference(generateRoughTranslation(trimmed, activeDictionary));
+            setRoughGlossReference(
+              generateRoughTranslation(dictionaries, trimmed, activeDictionary)
+            );
             const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
+              transformRules,
+              dictionaries,
               trimmed,
               activeDictionary
             );
@@ -341,8 +275,12 @@ export function useDictionaryEntryForm(
           const trimmed = clipboardText.trim();
           if (trimmed && isMounted) {
             setSource(trimmed);
-            setRoughGlossReference(generateRoughTranslation(trimmed, activeDictionary));
+            setRoughGlossReference(
+              generateRoughTranslation(dictionaries, trimmed, activeDictionary)
+            );
             const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
+              transformRules,
+              dictionaries,
               trimmed,
               activeDictionary
             );
@@ -369,13 +307,7 @@ export function useDictionaryEntryForm(
       isMounted = false;
       if (focusTimeout) clearTimeout(focusTimeout);
     };
-  }, [
-    activeDictionary,
-    entry?.source,
-    generateRoughTranslation,
-    computeInitialTranslation,
-    initialSource,
-  ]);
+  }, [activeDictionary, entry?.source, dictionaries, transformRules, initialSource]);
 
   const checkForExistingEntry = useCallback(
     (sourceText: string): void => {

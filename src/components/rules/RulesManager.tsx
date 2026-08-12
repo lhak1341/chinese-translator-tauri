@@ -4,7 +4,7 @@ import { Trash2, PlusCircle, Filter, Search } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
-import { RowShell } from '../dictionary/VirtualRowComponent';
+import { RowShell, SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import RuleMatchesModal from './RuleMatchesModal';
 import { useTransformRules } from '../../hooks/useTransformRules';
@@ -49,77 +49,9 @@ function sortRules(rules: TransformRule[]): TransformRule[] {
   );
 }
 
-/** Single-select semantic-type toggle row. Default size is pixel-identical to
- * Dictionary's SemanticTypeToggleCell (VirtualRowComponent.tsx): same container
- * padding/gap and the same per-badge inline style overrides (fontSize/padding/cursor)
- * on top of the shared `.metadataBadge` class — copy every value, not just the class
- * name, or the chips drift out of sync with what that class's own defaults would
- * render. `size="form"` is a larger variant for spacious form contexts (NewRuleModal)
- * where the table-cell scale reads as too small — still built on `.metadataBadge`, just
- * bigger padding/font. `align="left"` matches a left-aligned label above it (form
- * layout); default `"center"` matches the table-cell usage.
- * Unlike that cell, a Transform Rule's semanticType is required, so the active badge
- * can't be toggled off — clicking it again is a no-op.
- */
-function SemanticTypeToggles({
-  activeType,
-  onSelect,
-  label,
-  size = 'table',
-  align = 'center',
-}: {
-  activeType: SemanticType;
-  onSelect: (type: SemanticType) => void;
-  label: string;
-  size?: 'table' | 'form';
-  align?: 'center' | 'left';
-}) {
-  const badgeSize =
-    size === 'form'
-      ? { fontSize: '0.7rem', padding: '2px 6px' }
-      : { fontSize: '0.6rem', padding: '1px 3px' };
-  return (
-    <div
-      style={{
-        display: 'flex',
-        padding: '0 0.25rem',
-        gap: size === 'form' ? '0.35rem' : '2px',
-        alignItems: 'center',
-        justifyContent: align === 'left' ? 'flex-start' : 'center',
-        flexWrap: 'nowrap',
-      }}
-    >
-      {SEMANTIC_TYPE_LIST.map((type) => {
-        const isActive = activeType === type;
-        const color = SEMANTIC_TYPE_COLORS[type];
-        return (
-          <span
-            key={type}
-            role="button"
-            aria-label={`Set ${SEMANTIC_TYPE_LABELS[type]} for ${label}`}
-            onClick={() => !isActive && onSelect(type)}
-            className={dictStyles.metadataBadge}
-            title={isActive ? SEMANTIC_TYPE_LABELS[type] : `Set as ${SEMANTIC_TYPE_LABELS[type]}`}
-            style={{
-              background: isActive ? color : 'transparent',
-              color: isActive ? 'white' : '#9ca3af',
-              border: isActive ? 'none' : '1px solid #d1d5db',
-              cursor: 'pointer',
-              ...badgeSize,
-            }}
-          >
-            {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Suffix/prefix toggle — same chip styling as SemanticTypeToggles (fontSize/padding
- * copied from Dictionary's badge convention) instead of a `<select>`, which crops in a
- * narrow table cell. Always exactly one of the two is active — clicking the active one
- * is a no-op (same "required, non-clearable" contract as SemanticTypeToggles). */
+/** Suffix/prefix toggle — same chip styling as Dictionary's badge convention
+ * (fontSize/padding), instead of a `<select>`, which crops in a narrow table cell.
+ * Always exactly one of the two is active — clicking the active one is a no-op. */
 function MatchKindToggle({
   value,
   onSelect,
@@ -309,12 +241,16 @@ function NewRuleModal({
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label>Semantic type</label>
-              <SemanticTypeToggles
+              <SemanticTypeToggleCell
                 activeType={draft.semanticType}
-                label="new rule"
-                onSelect={(semanticType) => setDraft({ ...draft, semanticType })}
+                rowLabel="new rule"
+                onSelect={(semanticType) =>
+                  setDraft({ ...draft, semanticType: semanticType as SemanticType })
+                }
+                clearable={false}
                 size="form"
                 align="left"
+                width="100%"
               />
             </div>
             <div className={styles.formGroup}>
@@ -448,10 +384,14 @@ function RuleRow({
         />
       </div>
       <div role="cell" className={styles.colType}>
-        <SemanticTypeToggles
+        <SemanticTypeToggleCell
           activeType={rule.semanticType}
-          label={rule.label || rule.key}
-          onSelect={(semanticType) => updateRule({ ...rule, semanticType })}
+          rowLabel={rule.label || rule.key}
+          onSelect={(semanticType) =>
+            updateRule({ ...rule, semanticType: semanticType as SemanticType })
+          }
+          clearable={false}
+          width="100%"
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colLabel}`}>

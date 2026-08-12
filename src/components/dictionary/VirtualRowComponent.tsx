@@ -6,6 +6,7 @@ import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import {
   SEMANTIC_TYPE_COLORS,
   SEMANTIC_TYPE_ABBREVIATIONS,
+  SEMANTIC_TYPE_LABELS,
   SEMANTIC_TYPE_LIST,
   PATTERN_SEMANTIC_TYPE_REF_LIST,
 } from '../../constants/SemanticTypes';
@@ -116,13 +117,41 @@ const TypeToggleCell: React.FC<{
   );
 };
 
-/** Exported for the same reason as `MetadataBadge` — reuse, not re-derive. */
+/** Exported for the same reason as `MetadataBadge` — reuse, not re-derive.
+ * `clearable=false` (Rules tab's semanticType, which is required/non-clearable):
+ * clicking the active chip no-ops instead of calling `onSelect('')`, and the tooltip
+ * drops the "(click to remove)" suffix since removal isn't possible.
+ * `size="form"` is a larger variant for spacious form contexts (Rules tab's
+ * NewRuleModal) where the table-cell scale reads as too small — still built on
+ * `.metadataBadge`, just bigger padding/font. `align="left"` matches a left-aligned
+ * label above it (form layout); default `"center"` matches table-cell usage.
+ * `rowLabel` (optional): when a view renders many rows of this cell at once (e.g. the
+ * Rules tab's table), pass a per-row identifier so each chip gets a distinct
+ * `aria-label` ("Set Object for City suffix") — otherwise every row's "Object" chip
+ * is indistinguishable to assistive tech / `getByLabelText`. */
 export const SemanticTypeToggleCell: React.FC<{
   activeType: string;
   onSelect: (type: string) => void;
   width?: string;
   patternSource?: string;
-}> = ({ activeType, onSelect, width = '15%', patternSource }) => {
+  clearable?: boolean;
+  size?: 'table' | 'form';
+  align?: 'center' | 'left';
+  rowLabel?: string;
+}> = ({
+  activeType,
+  onSelect,
+  width = '15%',
+  patternSource,
+  clearable = true,
+  size = 'table',
+  align = 'center',
+  rowLabel,
+}) => {
+  const badgeSize =
+    size === 'form'
+      ? { fontSize: '0.7rem', padding: '2px 6px' }
+      : { fontSize: '0.6rem', padding: '1px 3px' };
   return (
     <div
       style={{
@@ -130,7 +159,7 @@ export const SemanticTypeToggleCell: React.FC<{
         padding: '0 0.25rem',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: align === 'left' ? 'flex-start' : 'center',
         gap: '2px',
         flexWrap: 'nowrap',
       }}
@@ -144,17 +173,23 @@ export const SemanticTypeToggleCell: React.FC<{
             key={type}
             onClick={(e) => {
               e.stopPropagation();
-              onSelect(isActive ? '' : type);
+              if (isActive) {
+                if (clearable) onSelect('');
+                return;
+              }
+              onSelect(type);
             }}
             className={styles.metadataBadge}
-            title={isActive ? `${type} (click to remove)` : `Set as ${type}`}
+            {...(rowLabel && {
+              'aria-label': `Set ${SEMANTIC_TYPE_LABELS[type as SemanticType]} for ${rowLabel}`,
+            })}
+            title={isActive ? (clearable ? `${type} (click to remove)` : type) : `Set as ${type}`}
             style={{
               background: isActive ? color : 'transparent',
               color: isActive ? 'white' : '#9ca3af',
               border: isActive ? 'none' : '1px solid #d1d5db',
-              fontSize: '0.6rem',
               cursor: 'pointer',
-              padding: '1px 3px',
+              ...badgeSize,
             }}
           >
             {label}

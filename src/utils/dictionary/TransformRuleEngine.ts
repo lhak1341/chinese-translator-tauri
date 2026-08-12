@@ -17,6 +17,8 @@ import {
   replaceFirstNWordsWithText,
   replaceLastNWordsInPlace,
   replaceFirstNWordsInPlace,
+  titleCaseWords,
+  lowercaseAll,
 } from '../wordTransformHelpers';
 
 export function ruleMatches(rule: TransformRule, source: string): boolean {
@@ -154,4 +156,60 @@ export function findRuleMatchingEntries(
       a.source.localeCompare(b.source) ||
       a.dictionaryLabel.localeCompare(b.dictionaryLabel)
   );
+}
+
+/** Per-character gloss built by joining each Source character's `characters` dict
+ * entry (space-separated); characters missing from that dict pass through unchanged. */
+export function joinCharGloss(
+  dictionaries: Record<string, DictionaryData>,
+  sourceText: string
+): string {
+  if (!dictionaries?.characters || !sourceText) return '';
+  const chars = dictionaries.characters as Record<string, string>;
+  return sourceText
+    .split('')
+    .map((ch) => chars[ch] || ch)
+    .join(' ');
+}
+
+/** Fallback Translation guess for a newly-populated Source when no Transform Rule
+ * matches: title-cased for properNoun targets, all-lowercase otherwise. */
+export function generateRoughTranslation(
+  dictionaries: Record<string, DictionaryData>,
+  sourceText: string,
+  targetDictionary: string
+): string {
+  const gloss = joinCharGloss(dictionaries, sourceText);
+  if (!gloss) return '';
+  if (targetDictionary.includes('properNoun')) {
+    return titleCaseWords(gloss);
+  }
+  return lowercaseAll(gloss);
+}
+
+/**
+ * The initial Translation guess for a newly-populated Source: a matching Transform
+ * Rule's guess when one exists for phrases/properNouns* targets, falling back to
+ * `generateRoughTranslation` otherwise. Also returns the matched rule's semanticType,
+ * if any, so the caller can stamp it.
+ */
+export function computeInitialTranslation(
+  rules: TransformRule[],
+  dictionaries: Record<string, DictionaryData>,
+  sourceText: string,
+  targetDictionary: string
+): { translation: string; matchedRule: TransformRule | null } {
+  if (dictionarySupportsTransformRules(targetDictionary)) {
+    const match = findBestMatch(rules, sourceText);
+    if (match) {
+      return {
+        translation: applyRule(match, sourceText, (s) => joinCharGloss(dictionaries, s)),
+        matchedRule: match,
+      };
+    }
+  }
+  return {
+    translation: generateRoughTranslation(dictionaries, sourceText, targetDictionary),
+    matchedRule: null,
+  };
 }
