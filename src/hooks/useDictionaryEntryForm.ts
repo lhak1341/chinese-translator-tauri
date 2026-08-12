@@ -238,6 +238,25 @@ export function useDictionaryEntryForm(
     let isMounted = true;
     let focusTimeout: NodeJS.Timeout | null = null;
 
+    const populateSourceAndTranslation = (trimmed: string): void => {
+      setSource(trimmed);
+      setRoughGlossReference(generateRoughTranslation(dictionaries, trimmed, activeDictionary));
+      const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
+        transformRules,
+        dictionaries,
+        trimmed,
+        activeDictionary
+      );
+      setTranslation(initialTranslation);
+      if (matchedRule) setSemanticType(matchedRule.semanticType);
+      focusTimeout = setTimeout(() => {
+        if (isMounted) {
+          translationInputRef.current?.focus();
+          translationInputRef.current?.select();
+        }
+      }, 100);
+    };
+
     const handleAutoSetup = async (): Promise<void> => {
       try {
         if (entry?.source) {
@@ -246,27 +265,7 @@ export function useDictionaryEntryForm(
         }
 
         if (initialSource?.trim()) {
-          if (isMounted) {
-            const trimmed = initialSource.trim();
-            setSource(trimmed);
-            setRoughGlossReference(
-              generateRoughTranslation(dictionaries, trimmed, activeDictionary)
-            );
-            const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
-              transformRules,
-              dictionaries,
-              trimmed,
-              activeDictionary
-            );
-            setTranslation(initialTranslation);
-            if (matchedRule) setSemanticType(matchedRule.semanticType);
-            focusTimeout = setTimeout(() => {
-              if (isMounted) {
-                translationInputRef.current?.focus();
-                translationInputRef.current?.select();
-              }
-            }, 100);
-          }
+          if (isMounted) populateSourceAndTranslation(initialSource.trim());
           return;
         }
 
@@ -274,24 +273,7 @@ export function useDictionaryEntryForm(
           const clipboardText = await navigator.clipboard.readText();
           const trimmed = clipboardText.trim();
           if (trimmed && isMounted) {
-            setSource(trimmed);
-            setRoughGlossReference(
-              generateRoughTranslation(dictionaries, trimmed, activeDictionary)
-            );
-            const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
-              transformRules,
-              dictionaries,
-              trimmed,
-              activeDictionary
-            );
-            setTranslation(initialTranslation);
-            if (matchedRule) setSemanticType(matchedRule.semanticType);
-            focusTimeout = setTimeout(() => {
-              if (isMounted) {
-                translationInputRef.current?.focus();
-                translationInputRef.current?.select();
-              }
-            }, 100);
+            populateSourceAndTranslation(trimmed);
             return;
           }
         }

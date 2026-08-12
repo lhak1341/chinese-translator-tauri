@@ -875,8 +875,8 @@
     "semantic_hash": ""
   },
   "src/components/configuration/ConfigurationManager.tsx": {
-    "mtime": 1786548154.8945763,
-    "ast_hash": "cae94653d5a94074315bff535805f65a",
+    "mtime": 1786548550.2972763,
+    "ast_hash": "f2f35a8d8c011090a710d514c1e26fc7",
     "semantic_hash": ""
   },
   "src/components/char-only/ClickableOriginalSemantic.tsx": {
@@ -1105,8 +1105,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryEntryForm.ts": {
-    "mtime": 1786510041.7283168,
-    "ast_hash": "f649158567922952101fce2ff68e9b56",
+    "mtime": 1786551408.321611,
+    "ast_hash": "3e8641858ea5aee9e48c28ca9b69252b",
     "semantic_hash": ""
   },
   "src/hooks/useInlineFieldEdit.ts": {
@@ -1140,8 +1140,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786548243.3240864,
-    "ast_hash": "50a7577eedfd5eec4f22bfba7f827f22",
+    "mtime": 1786553271.1632423,
+    "ast_hash": "4645a8e3faa2a7d11dcf0b8d340b3b60",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1786548243.3240864,
-    "ast_hash": "50a7577eedfd5eec4f22bfba7f827f22",
+    "mtime": 1786553271.1632423,
+    "ast_hash": "4645a8e3faa2a7d11dcf0b8d340b3b60",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1750,8 +1750,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/EditableCell.tsx": {
-    "mtime": 1786511264.9167988,
-    "ast_hash": "962f54e7145f00447b9978d453c29a9f",
+    "mtime": 1786552355.9711318,
+    "ast_hash": "7f478e3c409fd30c2d05c5c610b6e591",
     "semantic_hash": ""
   },
   "src/components/rules/MatchKindToggle.tsx": {
@@ -1770,8 +1770,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/RuleMatchesModal.tsx": {
-    "mtime": 1786380608.886326,
-    "ast_hash": "416ef6f00d02906ab8bece65905317d4",
+    "mtime": 1786552401.5189974,
+    "ast_hash": "cae58845f382a5e8d109029ce305e368",
     "semantic_hash": ""
   },
   "src/components/rules/RuleRow.tsx": {

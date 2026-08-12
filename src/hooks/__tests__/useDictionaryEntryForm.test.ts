@@ -154,6 +154,25 @@ describe('auto-populate from initialSource', () => {
   });
 });
 
+// ─── Auto-populate from clipboard ─────────────────────────────────────────────
+// Smoke test only: proves the clipboard path reaches the same shared
+// populateSourceAndTranslation as initialSource — rule-matching behavior itself
+// is already covered by the initialSource describe block above.
+
+describe('auto-populate from clipboard', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sets source and generates rough translation from clipboard text', async () => {
+    vi.stubGlobal('navigator', {
+      clipboard: { readText: vi.fn().mockResolvedValue('你好') },
+    });
+    const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
+    await waitFor(() => expect(result.current.source).toBe('你好'));
+    expect(result.current.translation).toBe('you good');
+    expect(result.current.roughGlossReference).toBe('you good');
+  });
+});
+
 // ─── Auto-populate — Transform Rule application ───────────────────────────────
 
 describe('auto-populate — Transform Rule application', () => {

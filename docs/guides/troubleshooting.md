@@ -495,6 +495,21 @@ if (dictResult.success && dictResult.data) {
 
 ---
 
+## Resolved Bug Postmortems
+
+Moved out of root `CLAUDE.md` 2026-08-13 (agent-config-hygiene audit) — the one-line actionable rule stays in `CLAUDE.md`, full narrative lives here.
+
+### `useEngineReinitializer.js` WASM-sync-validation status check
+
+`useEngineReinitializer.js`'s WASM-sync-validation status check (`'PASS'`/`'FAIL_DIFFERENCES'`/`'FAIL_ERRORS'`) never matched what `DictionaryManager.validateWasmFallback()` actually returns (`'PENDING'`/`'SKIPPED'`/`'PASSED'`/`'FAILED'`) — only `'SKIPPED'` ever matched. In production this meant the success log never fired on a passing sync, and — more importantly — **the user-facing toast warning on a real WASM/JS mismatch never fired either**, since neither `'FAILED'` nor any of the checked strings matched. `useEngineReinitializer.test.js` masked this by mocking `validateWasmFallback` to return the wrong strings the consumer expected, not what the real implementation produces — tests were green while the integration was broken. The mismatch-count toast also read `syncStatus.results.different`, a field that has never existed on the real `results` object (`{tested, passed, failed, wasmErrors, jsErrors}`) — would have printed "undefined mismatches". Fixed: `useEngineReinitializer.js` now checks the real status strings and branches on `results.wasmErrors`/`jsErrors` (not a nonexistent `FAIL_ERRORS` status) to distinguish the two failure toasts; `results.failed` (not `.different`) feeds the mismatch count. `WasmValidationResult.status` and `WasmValidationResults` in `DictionaryManagerTypes.d.ts` were documenting this same wrong contract — fixed to match the real implementation.
+
+### Pattern substitution and constructor option, 2026-07-30
+
+Found via architecture review candidate #3 grilling — unskipping a stale `TranslationEngine.integration.test.js` block surfaced both:
+
+1. `SemanticPatternProcessor.convertPrioritizedPatternToMatchResult` (`src/utils/pattern/SemanticPatternProcessor.js`) hardcoded `.replace('X', ...)` for every variable token regardless of which variable it actually filled. Any pattern with 2+ distinct variables (e.g. `"X的Y"`, or ADR-004's own canonical `"在XY中"` example) only ever filled the first one — the second `.replace('X', ...)` found no more literal `'X'` in the template and silently no-op'd, leaving `'Y'` untranslated in the output. This path is live in production: `applyPatterns()` falls onto it after 3 WASM failures (ADR-007's documented fallback), so any multi-variable structural pattern hit wrong output whenever that fallback engaged. Fixed: substitution now uses `pattern.tokens[i - startIndex].name` (the actual declared variable letter) instead of a hardcoded `'X'`. Regression test: `SemanticPatternProcessor.test.js`'s "prioritizedPatterns — multi-variable substitution" block — confirmed the bug reproduces exactly (`"Y của mèo"` instead of `"chó của mèo"`) by reverting the fix and rerunning.
+2. `TranslationEngine`'s constructor hardcodes `this.settings.enableTwoPhasePatterns = true` — passing `enableTwoPhasePatterns` as a constructor option does nothing at all. The real (previously unwired) contract is `initialize(dictionaries, options)`'s `options.patternSettings` — already declared in `TranslationEngineTypes.d.ts` (`TranslationEngineInitOptions.patternSettings?: PatternProcessingSettings`) but never once referenced in the real implementation before this fix. Fixed: `initialize()` now merges `options.patternSettings` onto `this.settings` if provided.
+
 ## Related Guides
 
 - [Architecture Guide](./architecture.md) - System architecture and WASM acceleration

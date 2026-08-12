@@ -5,6 +5,7 @@ import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.c
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { RowShell, MetadataBadge, SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
+import EditableCell from './EditableCell';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import { findRuleMatchingEntries } from '../../utils/dictionary/TransformRuleEngine';
 import type { RuleMatchEntry } from '../../utils/dictionary/TransformRuleEngine';
@@ -55,7 +56,7 @@ function VarBadge({
 function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUpdateEntry }) {
   const isProperNoun = row.dictionaryId.startsWith('properNouns');
 
-  const translEdit = useInlineFieldEdit(row.translation, async (newTranslation) => {
+  const commitTranslation = async (newTranslation: string): Promise<void> => {
     await updateEntry(row.dictionaryId, row.source, row.source, newTranslation, {
       allowAsPatternVariable: row.allowAsPatternVariable,
       ...(row.semanticType && { semanticType: row.semanticType }),
@@ -63,7 +64,8 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
         allowedVariableTypes: row.allowedVariableTypes,
       }),
     });
-  });
+  };
+  const translEdit = useInlineFieldEdit(row.translation, commitTranslation);
 
   const { handleCheckboxChange, handleSetSemanticType } = useEntryMetadataEdit({
     source: row.source,
@@ -85,7 +87,14 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
         {row.source}
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colTranslation}`}>
-        <EditableTextCell edit={translEdit} display={row.translation} />
+        <EditableCell
+          value={row.translation}
+          onCommit={commitTranslation}
+          label={`Translation for ${row.source}`}
+          edit={translEdit}
+          inputClassName={dictStyles.inlineEditInput}
+          spanClassName={dictStyles.clickableText}
+        />
         {!translEdit.editing && (
           <div className={dictStyles.badgeContainer}>
             <VarBadge
@@ -114,37 +123,6 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
         {row.dictionaryLabel}
       </div>
     </RowShell>
-  );
-}
-
-/** Minimal inline-edit span — same click-to-edit interaction as Dictionary's own
- * EditableCell (VirtualRowComponent.tsx), reimplemented locally since that one isn't
- * exported (it's a thin two-line wrapper, not worth widening VirtualRowComponent's
- * public surface for). */
-function EditableTextCell({
-  edit,
-  display,
-}: {
-  edit: ReturnType<typeof useInlineFieldEdit>;
-  display: string;
-}) {
-  if (edit.editing) {
-    return (
-      <input
-        type="text"
-        value={edit.tempValue}
-        onChange={(e) => edit.handleChange(e.target.value)}
-        onBlur={edit.commitEdit}
-        onKeyDown={edit.onKeyDown}
-        autoFocus
-        className={dictStyles.inlineEditInput}
-      />
-    );
-  }
-  return (
-    <span onClick={edit.startEdit} className={dictStyles.clickableText} title="Click to edit">
-      {display}
-    </span>
   );
 }
 

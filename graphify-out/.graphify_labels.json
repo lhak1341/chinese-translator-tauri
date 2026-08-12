@@ -285,6 +285,7 @@
   "283": "Notes",
   "284": "🚀 How to Use This Index",
   "285": "✅ Completed Work",
+  "286": "🚀 How to Use This Index",
   "287": "ADR-024: Do Not Move Style Objects into useAppearanceSettings",
   "288": "ADR-027: Fiction Structural Pattern Dictionaries Coupled to Proper Nouns by Naming Convention at Engine Init",
   "289": "ADR-021: Do Not Unify TranslationEngine's Performance Reporting Surface",
@@ -309,5 +310,9 @@
   "308": "Recommendations Summary",
   "309": "🎯 Complete Optimization Timeline",
   "310": "types",
-  "311": "sanitizeDictionaryEntry"
+  "311": "sanitizeDictionaryEntry",
+  "312": "vite",
+  "313": "vite-plugin-wasm",
+  "314": "vitest",
+  "315": "@vitest/ui"
 }
