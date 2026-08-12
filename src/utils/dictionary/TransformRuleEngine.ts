@@ -34,21 +34,24 @@ export function dictionarySupportsTransformRules(dictionaryId: string): boolean 
 }
 
 /**
- * A matching suffix rule always wins outright over a matching prefix rule;
- * within one matchKind pool, the rule with the longer key wins.
+ * Sole owner of "which rule wins" — used both to resolve a match (`findBestMatch`)
+ * and to order the Rules table for display (`RulesManager.tsx`). A matching suffix
+ * rule always wins outright over a matching prefix rule; within one matchKind pool,
+ * longer key wins; ties broken by key text, then semantic type — for determinism in
+ * both match resolution and table order, not just cosmetic table sorting.
  */
+export function compareRulePrecedence(a: TransformRule, b: TransformRule): number {
+  if (a.matchKind !== b.matchKind) return a.matchKind === 'suffix' ? -1 : 1;
+  return (
+    b.key.length - a.key.length ||
+    a.key.localeCompare(b.key) ||
+    a.semanticType.localeCompare(b.semanticType)
+  );
+}
+
 export function findBestMatch(rules: TransformRule[], source: string): TransformRule | null {
   const candidates = rules.filter((r) => ruleMatches(r, source));
-
-  const suffixes = candidates
-    .filter((r) => r.matchKind === 'suffix')
-    .sort((a, b) => b.key.length - a.key.length);
-  if (suffixes.length > 0) return suffixes[0];
-
-  const prefixes = candidates
-    .filter((r) => r.matchKind === 'prefix')
-    .sort((a, b) => b.key.length - a.key.length);
-  return prefixes[0] ?? null;
+  return [...candidates].sort(compareRulePrecedence)[0] ?? null;
 }
 
 /**

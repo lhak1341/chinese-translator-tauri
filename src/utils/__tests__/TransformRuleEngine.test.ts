@@ -5,6 +5,7 @@ import {
   findConflict,
   dictionarySupportsTransformRules,
   findRuleMatchingEntries,
+  compareRulePrecedence,
 } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -78,6 +79,33 @@ describe('findBestMatch', () => {
   test('charCount is not enforced when omitted', () => {
     const rules = [rule({ id: 'r1', matchKind: 'suffix', key: '城' })];
     expect(findBestMatch(rules, '南京大城')).toEqual(rules[0]);
+  });
+});
+
+describe('compareRulePrecedence', () => {
+  test('all suffix rules sort before all prefix rules, regardless of key length', () => {
+    const longPrefix = rule({ id: 'long-prefix', matchKind: 'prefix', key: '南京卫' });
+    const shortSuffix = rule({ id: 'short-suffix', matchKind: 'suffix', key: '城' });
+    const sorted = [longPrefix, shortSuffix].sort(compareRulePrecedence);
+    expect(sorted).toEqual([shortSuffix, longPrefix]);
+  });
+
+  test('within one matchKind, longer key sorts first', () => {
+    const shortRule = rule({ id: 'short', matchKind: 'suffix', key: '城' });
+    const longRule = rule({ id: 'long', matchKind: 'suffix', key: '卫城' });
+    expect([shortRule, longRule].sort(compareRulePrecedence)).toEqual([longRule, shortRule]);
+  });
+
+  test('within equal key length, key text breaks the tie alphabetically', () => {
+    const ruleB = rule({ id: 'b', matchKind: 'suffix', key: 'b' });
+    const ruleA = rule({ id: 'a', matchKind: 'suffix', key: 'a' });
+    expect([ruleB, ruleA].sort(compareRulePrecedence)).toEqual([ruleA, ruleB]);
+  });
+
+  test('within equal key length and text, semanticType breaks the final tie', () => {
+    const zRule = rule({ id: 'z', matchKind: 'suffix', key: '城', semanticType: 'object' });
+    const aRule = rule({ id: 'a', matchKind: 'suffix', key: '城', semanticType: 'location' });
+    expect([zRule, aRule].sort(compareRulePrecedence)).toEqual([aRule, zRule]);
   });
 });
 
