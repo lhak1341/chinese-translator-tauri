@@ -1,8 +1,10 @@
 import { createPortal } from 'react-dom';
 import styles from '../../styles/RulesManager.module.css';
 import { SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
-import { parseValidatedNumber } from './RuleFieldValidation';
+import { parseValidatedNumber, parseValidatedKey } from './RuleFieldValidation';
+import { deriveCapitalizeExceptNForKeyEdit } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule, TransformRuleMatchKind } from '../../types/TransformRuleTypes';
+import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
 function NewRuleModal({
@@ -21,14 +23,20 @@ function NewRuleModal({
   const handleKeyChange = (key: string) => {
     // Default Capitalize-except-N to the key's own length as the user types —
     // a reasonable starting point (see the worked "城"/moveWords=1,capitalizeExceptN=1
-    // example) that the user can still override before saving.
-    setDraft({ ...draft, key, capitalizeExceptN: [...key].length });
+    // example) that the user can still override before saving. Only re-derives on a
+    // length change, so an override survives a same-length typo-fix.
+    setDraft({
+      ...draft,
+      key,
+      capitalizeExceptN: deriveCapitalizeExceptNForKeyEdit(draft.key, key, draft.capitalizeExceptN),
+    });
   };
 
   // Number inputs commit every keystroke straight to draft state with no
   // per-keystroke guard (a typed "-" must stay visible while typing "-5" is
   // still in progress) — validity is checked here, once, to gate Save instead.
   const fieldsValid =
+    parseValidatedKey(draft.key) !== null &&
     parseValidatedNumber(String(draft.moveWords), 0) !== null &&
     parseValidatedNumber(String(draft.capitalizeExceptN), 0) !== null &&
     (draft.charCount === undefined || parseValidatedNumber(String(draft.charCount), 1) !== null);
@@ -64,7 +72,7 @@ function NewRuleModal({
               <input
                 id="rule-key"
                 value={draft.key}
-                maxLength={4}
+                maxLength={MAX_TRANSFORM_RULE_KEY_LENGTH}
                 onChange={(e) => handleKeyChange(e.target.value)}
                 placeholder="城"
               />
@@ -79,21 +87,38 @@ function NewRuleModal({
 
           {!fieldsValid && (
             <div className={styles.formError}>
-              Move N words and Capitalize except N must be non-negative numbers; Total-length limit
-              (if set) must be at least 1.
+              Key must be 1-{MAX_TRANSFORM_RULE_KEY_LENGTH} Chinese characters; Move N words and
+              Capitalize except N must be non-negative numbers; Total-length limit (if set) must be
+              at least 1.
             </div>
           )}
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
-              <label htmlFor="rule-moveWords">Move N words</label>
-              <input
-                id="rule-moveWords"
-                type="number"
-                min={0}
-                value={draft.moveWords}
-                onChange={(e) => setDraft({ ...draft, moveWords: Number(e.target.value) })}
-              />
+              {draft.moveReplacement ? (
+                <>
+                  <label htmlFor="rule-moveWords-relocate">
+                    Relocate replacement to opposite end
+                  </label>
+                  <input
+                    id="rule-moveWords-relocate"
+                    type="checkbox"
+                    checked={draft.moveWords > 0}
+                    onChange={(e) => setDraft({ ...draft, moveWords: e.target.checked ? 1 : 0 })}
+                  />
+                </>
+              ) : (
+                <>
+                  <label htmlFor="rule-moveWords">Move N words</label>
+                  <input
+                    id="rule-moveWords"
+                    type="number"
+                    min={0}
+                    value={draft.moveWords}
+                    onChange={(e) => setDraft({ ...draft, moveWords: Number(e.target.value) })}
+                  />
+                </>
+              )}
             </div>
             <div className={styles.formGroup}>
               <label htmlFor="rule-capitalizeExceptN">Capitalize except N</label>
@@ -177,11 +202,7 @@ function NewRuleModal({
 
           <div className={styles.modalActions}>
             <button onClick={onCancel}>Cancel</button>
-            <button
-              className="primary"
-              onClick={onSave}
-              disabled={!draft.key || !!conflictLabel || !fieldsValid}
-            >
+            <button className="primary" onClick={onSave} disabled={!!conflictLabel || !fieldsValid}>
               Save
             </button>
           </div>

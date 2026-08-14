@@ -94,6 +94,28 @@ export function applyRule(
  * Returns the existing rule that collides with `candidate` on (matchKind, key),
  * or undefined if there's no collision. A rule never conflicts with itself.
  */
+/**
+ * Derives the Capitalize-except-N default when a rule's `key` changes, shared by
+ * NewRuleModal's per-keystroke create path and RuleRow's inline edit path — see
+ * CONTEXT.md's "Transform Rule" glossary entry for why capitalizeExceptN defaults
+ * to the key's own length.
+ *
+ * Only re-derives when the key's LENGTH actually changes: a same-length edit (e.g.
+ * fixing one wrong character) leaves `currentValue` untouched, so a manually-tuned
+ * value survives a trivial typo-fix instead of being silently clobbered back to the
+ * default on every keystroke. A length change re-derives to the new key's length,
+ * same as the create path's existing per-keystroke behavior.
+ */
+export function deriveCapitalizeExceptNForKeyEdit(
+  oldKey: string,
+  newKey: string,
+  currentValue: number
+): number {
+  const oldLength = [...oldKey].length;
+  const newLength = [...newKey].length;
+  return oldLength === newLength ? currentValue : newLength;
+}
+
 export function findConflict(
   rules: TransformRule[],
   candidate: Pick<TransformRule, 'id' | 'matchKind' | 'key'>

@@ -6,6 +6,7 @@ import {
   dictionarySupportsTransformRules,
   findRuleMatchingEntries,
   compareRulePrecedence,
+  deriveCapitalizeExceptNForKeyEdit,
 } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -181,6 +182,25 @@ describe('applyRule', () => {
       moveReplacement: 'thanh pho',
     });
     expect(applyRule(r, '南京城', glossFn)).toBe('thanh pho Nam Kinh');
+  });
+});
+
+describe('deriveCapitalizeExceptNForKeyEdit', () => {
+  test('re-derives to the new key length when the length changes', () => {
+    expect(deriveCapitalizeExceptNForKeyEdit('城', '紫禁城', 1)).toBe(3);
+  });
+
+  test('leaves currentValue untouched on a same-length edit (typo fix)', () => {
+    expect(deriveCapitalizeExceptNForKeyEdit('城', '巿', 2)).toBe(2);
+  });
+
+  test('starting from an empty old key always re-derives (create path)', () => {
+    expect(deriveCapitalizeExceptNForKeyEdit('', '城', 0)).toBe(1);
+  });
+
+  test('surrogate-pair-safe: counts by codepoint, not UTF-16 code unit', () => {
+    // U+20000 is one Han codepoint but two UTF-16 code units.
+    expect(deriveCapitalizeExceptNForKeyEdit('城', '\u{20000}', 1)).toBe(1);
   });
 });
 

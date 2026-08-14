@@ -92,4 +92,66 @@ describe('NewRuleModal', () => {
     renderModal({ ...EMPTY_DRAFT, key: '城' }, null);
     expect(screen.queryByText(/must be non-negative numbers/)).not.toBeInTheDocument();
   });
+
+  test('Save is disabled when the key is not Chinese characters, even with no conflict', () => {
+    renderModal({ ...EMPTY_DRAFT, key: 'abc' }, null);
+    expect(screen.getByText('Save')).toBeDisabled();
+  });
+
+  test('shows the field-validity error message when the key is not Chinese characters', () => {
+    renderModal({ ...EMPTY_DRAFT, key: 'abc' }, null);
+    expect(screen.getByText(/Key must be 1-4 Chinese characters/)).toBeInTheDocument();
+  });
+
+  test('key input caps at 4 characters via maxLength', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城' }, null);
+    expect(screen.getByLabelText('Key (1-4 Chinese chars)')).toHaveAttribute('maxLength', '4');
+  });
+
+  test('Move field is a plain numeric input when moveReplacement is unset', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城' }, null);
+    expect(screen.getByLabelText('Move N words')).toHaveAttribute('type', 'number');
+  });
+
+  test('Move field becomes a checkbox when moveReplacement is set', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho' }, null);
+    expect(screen.queryByLabelText('Move N words')).not.toBeInTheDocument();
+    const checkbox = screen.getByLabelText('Relocate replacement to opposite end');
+    expect(checkbox).toHaveAttribute('type', 'checkbox');
+  });
+
+  test('checkbox reflects moveWords > 0 as checked', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho', moveWords: 1 }, null);
+    expect(screen.getByLabelText('Relocate replacement to opposite end')).toBeChecked();
+  });
+
+  test('checking the box calls setDraft with moveWords: 1', () => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={{ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho', moveWords: 0 }}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.click(screen.getByLabelText('Relocate replacement to opposite end'));
+    expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 1 }));
+  });
+
+  test('unchecking the box calls setDraft with moveWords: 0', () => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={{ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho', moveWords: 1 }}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.click(screen.getByLabelText('Relocate replacement to opposite end'));
+    expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 0 }));
+  });
 });

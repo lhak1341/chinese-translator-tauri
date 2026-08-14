@@ -6,14 +6,8 @@ import MoveEntryDialog from './MoveEntryDialog';
 import BulkMoveDialog from './BulkMoveDialog';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import {
-  SEMANTIC_TYPE_COLORS,
-  SEMANTIC_TYPE_ABBREVIATIONS,
-  SEMANTIC_TYPES,
-} from '../../constants/SemanticTypes';
-import type { SemanticType } from '../../constants/SemanticTypes';
 import { classifyDictionaryId } from '../../utils/dictionary';
-import { VirtualRowComponent, ITEM_HEIGHT } from './VirtualRowComponent';
+import { VirtualRowComponent, ITEM_HEIGHT, SemanticTypeFilterChips } from './VirtualRowComponent';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
 import { useContextMenu } from '../../hooks/useContextMenu';
@@ -449,27 +443,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
                 Type:
               </span>
-              {(Object.values(SEMANTIC_TYPES) as SemanticType[]).map((type) => {
-                const isActive = filterSemanticTypes.has(type);
-                return (
-                  <button
-                    key={type}
-                    onClick={() => toggleSemanticType(type)}
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      fontSize: '0.75rem',
-                      borderRadius: '4px',
-                      border: `1px solid ${isActive ? SEMANTIC_TYPE_COLORS[type] : 'var(--border-color)'}`,
-                      cursor: 'pointer',
-                      backgroundColor: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
-                      color: isActive ? 'white' : 'var(--text-color)',
-                      fontWeight: 600,
-                    }}
-                  >
-                    {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-                  </button>
-                );
-              })}
+              <SemanticTypeFilterChips
+                activeTypes={filterSemanticTypes}
+                onToggle={toggleSemanticType}
+              />
               <button
                 onClick={() => toggleSemanticType('none')}
                 style={{

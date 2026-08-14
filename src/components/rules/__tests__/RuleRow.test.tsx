@@ -73,4 +73,81 @@ describe('RuleRow', () => {
     fireEvent.click(screen.getByLabelText('Set prefix for City suffix'));
     expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ matchKind: 'prefix' }));
   });
+
+  test('committing a valid Chinese key calls updateRule with the new key', () => {
+    renderRow(makeRule());
+    fireEvent.click(screen.getByLabelText('Key for City suffix'));
+    const input = screen.getByLabelText('Key for City suffix');
+    fireEvent.change(input, { target: { value: '卫城' } });
+    fireEvent.blur(input);
+    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ key: '卫城' }));
+  });
+
+  test('committing a non-Chinese key is silently rejected — updateRule is not called', () => {
+    renderRow(makeRule());
+    fireEvent.click(screen.getByLabelText('Key for City suffix'));
+    const input = screen.getByLabelText('Key for City suffix');
+    fireEvent.change(input, { target: { value: 'abc' } });
+    fireEvent.blur(input);
+    expect(updateRule).not.toHaveBeenCalled();
+  });
+
+  test('committing a same-length key preserves a manually-tuned capitalizeExceptN', () => {
+    renderRow(makeRule({ key: '城', capitalizeExceptN: 3 }));
+    fireEvent.click(screen.getByLabelText('Key for City suffix'));
+    const input = screen.getByLabelText('Key for City suffix');
+    fireEvent.change(input, { target: { value: '巿' } });
+    fireEvent.blur(input);
+    expect(updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({ key: '巿', capitalizeExceptN: 3 })
+    );
+  });
+
+  test('committing a different-length key re-derives capitalizeExceptN to the new length', () => {
+    renderRow(makeRule({ key: '城', capitalizeExceptN: 1 }));
+    fireEvent.click(screen.getByLabelText('Key for City suffix'));
+    const input = screen.getByLabelText('Key for City suffix');
+    fireEvent.change(input, { target: { value: '紫禁城' } });
+    fireEvent.blur(input);
+    expect(updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({ key: '紫禁城', capitalizeExceptN: 3 })
+    );
+  });
+
+  test('key cell input caps at 4 characters via maxLength', () => {
+    renderRow(makeRule());
+    fireEvent.click(screen.getByLabelText('Key for City suffix'));
+    expect(screen.getByLabelText('Key for City suffix')).toHaveAttribute('maxLength', '4');
+  });
+
+  test('Move cell is a plain numeric field when moveReplacement is unset', () => {
+    renderRow(makeRule({ moveReplacement: undefined }));
+    expect(screen.getByLabelText('Move N words for City suffix')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Set Relocate to opposite end/)).not.toBeInTheDocument();
+  });
+
+  test('Move cell becomes a MOVE/STAY toggle when moveReplacement is set', () => {
+    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 0 }));
+    expect(screen.queryByLabelText('Move N words for City suffix')).not.toBeInTheDocument();
+    expect(screen.getByText('MOVE')).toBeInTheDocument();
+    expect(screen.getByText('STAY')).toBeInTheDocument();
+  });
+
+  test('clicking MOVE calls updateRule with moveWords: 1', () => {
+    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 0 }));
+    fireEvent.click(screen.getByLabelText('Set Relocate to opposite end for City suffix'));
+    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 1 }));
+  });
+
+  test('clicking STAY calls updateRule with moveWords: 0', () => {
+    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 1 }));
+    fireEvent.click(screen.getByLabelText('Set Stay in place for City suffix'));
+    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 0 }));
+  });
+
+  test('clicking the already-active MOVE/STAY option is a no-op', () => {
+    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 1 }));
+    fireEvent.click(screen.getByLabelText('Set Relocate to opposite end for City suffix'));
+    expect(updateRule).not.toHaveBeenCalled();
+  });
 });

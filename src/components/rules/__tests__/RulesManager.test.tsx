@@ -97,6 +97,26 @@ describe('RulesManager', () => {
     expect(await screen.findByText('卫城')).toBeInTheDocument();
   });
 
+  test('a manually-tuned Capitalize-except-N survives a same-length key edit', async () => {
+    render(<RulesManager />);
+    await waitFor(() => expect(screen.queryByText(/Loading rules/)).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('Add Rule'));
+    fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: '城' } });
+    expect(screen.getByLabelText('Capitalize except N')).toHaveValue(1);
+
+    fireEvent.change(screen.getByLabelText('Capitalize except N'), { target: { value: '5' } });
+    expect(screen.getByLabelText('Capitalize except N')).toHaveValue(5);
+
+    // Same-length typo fix — override must survive.
+    fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: '巿' } });
+    expect(screen.getByLabelText('Capitalize except N')).toHaveValue(5);
+
+    // Length change — re-derives, overriding the tuned value.
+    fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: '紫禁城' } });
+    expect(screen.getByLabelText('Capitalize except N')).toHaveValue(3);
+  });
+
   test('imperative openNew() (wired to the Cmd-7 hotkey) opens the modal prefilled with the given text as Key, truncated to 4 chars', async () => {
     const ref = React.createRef<RulesManagerHandle>();
     render(<RulesManager ref={ref} />);
@@ -116,6 +136,16 @@ describe('RulesManager', () => {
     act(() => ref.current?.openNew());
 
     expect(screen.getByLabelText(/Key \(1-4/)).toHaveValue('');
+  });
+
+  test('imperative openNew() with mixed-script prefill text extracts only the Chinese characters', async () => {
+    const ref = React.createRef<RulesManagerHandle>();
+    render(<RulesManager ref={ref} />);
+    await waitFor(() => expect(screen.queryByText(/Loading rules/)).not.toBeInTheDocument());
+
+    act(() => ref.current?.openNew('the city of 城市'));
+
+    expect(screen.getByLabelText(/Key \(1-4/)).toHaveValue('城市');
   });
 
   test('adding a rule with a Replace key value saves it on the rule', async () => {

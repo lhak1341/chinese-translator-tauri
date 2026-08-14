@@ -3,9 +3,12 @@ import styles from '../../styles/RulesManager.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { RowShell, SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
 import MatchKindToggle from './MatchKindToggle';
+import MoveModeToggle from './MoveModeToggle';
 import EditableCell from './EditableCell';
-import { parseValidatedNumber } from './RuleFieldValidation';
+import { parseValidatedNumber, parseValidatedKey } from './RuleFieldValidation';
+import { deriveCapitalizeExceptNForKeyEdit } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
+import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
 function RuleRow({
@@ -47,7 +50,17 @@ function RuleRow({
         <EditableCell
           value={rule.key}
           label={`Key for ${rule.label || rule.key}`}
-          onCommit={(key) => updateRule({ ...rule, key })}
+          maxLength={MAX_TRANSFORM_RULE_KEY_LENGTH}
+          onCommit={async (key) => {
+            const k = parseValidatedKey(key);
+            if (k === null) return;
+            const capitalizeExceptN = deriveCapitalizeExceptNForKeyEdit(
+              rule.key,
+              k,
+              rule.capitalizeExceptN
+            );
+            await updateRule({ ...rule, key: k, capitalizeExceptN });
+          }}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colChars}`}>
@@ -63,12 +76,20 @@ function RuleRow({
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colMove}`}>
-        <EditableCell
-          value={String(rule.moveWords)}
-          type="number"
-          label={`Move N words for ${rule.label || rule.key}`}
-          onCommit={commitNumber('moveWords')}
-        />
+        {rule.moveReplacement ? (
+          <MoveModeToggle
+            isRelocate={rule.moveWords > 0}
+            label={rule.label || rule.key}
+            onToggle={(isRelocate) => updateRule({ ...rule, moveWords: isRelocate ? 1 : 0 })}
+          />
+        ) : (
+          <EditableCell
+            value={String(rule.moveWords)}
+            type="number"
+            label={`Move N words for ${rule.label || rule.key}`}
+            onCommit={commitNumber('moveWords')}
+          />
+        )}
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colCap}`}>
         <EditableCell

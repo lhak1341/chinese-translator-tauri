@@ -2,6 +2,9 @@ import type { SemanticType } from '../constants/SemanticTypes';
 
 export type TransformRuleMatchKind = 'suffix' | 'prefix';
 
+/** Contract length cap for `TransformRule.key` — 1 to this many Chinese characters. */
+export const MAX_TRANSFORM_RULE_KEY_LENGTH = 4;
+
 /**
  * A user-authored rule that auto-transforms a dictionary entry's rough-gloss
  * Translation guess and stamps its semanticType, keyed off leading/trailing

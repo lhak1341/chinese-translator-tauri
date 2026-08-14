@@ -3,18 +3,18 @@ import { PlusCircle, Filter } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
+import { SemanticTypeFilterChips } from '../dictionary/VirtualRowComponent';
 import RuleMatchesModal from './RuleMatchesModal';
 import NewRuleModal from './NewRuleModal';
 import RuleRow from './RuleRow';
 import { useTransformRules } from '../../hooks/useTransformRules';
-import { compareRulePrecedence } from '../../utils/dictionary/TransformRuleEngine';
-import type { TransformRule } from '../../types/TransformRuleTypes';
 import {
-  SEMANTIC_TYPE_LIST,
-  SEMANTIC_TYPE_LABELS,
-  SEMANTIC_TYPE_ABBREVIATIONS,
-  SEMANTIC_TYPE_COLORS,
-} from '../../constants/SemanticTypes';
+  compareRulePrecedence,
+  deriveCapitalizeExceptNForKeyEdit,
+} from '../../utils/dictionary/TransformRuleEngine';
+import { extractHanChars } from './RuleFieldValidation';
+import type { TransformRule } from '../../types/TransformRuleTypes';
+import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
 /** Imperative handle so callers outside this component's own tree (e.g. the Cmd-7
@@ -81,10 +81,17 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
       setDraft({ ...EMPTY_DRAFT });
       return;
     }
-    // Key is capped at 4 Chinese chars (see TransformRuleTypes.ts) — truncate via an
-    // array spread, not string slicing, so a surrogate-pair character never splits.
-    const key = [...prefillText].slice(0, 4).join('');
-    setDraft({ ...EMPTY_DRAFT, key, capitalizeExceptN: [...key].length });
+    // Key is capped at MAX_TRANSFORM_RULE_KEY_LENGTH Chinese characters (see
+    // TransformRuleTypes.ts) — extractHanChars skips any non-Han chars in the
+    // prefill text (e.g. a selected English discourse marker) rather than
+    // truncating blindly, so the draft key is never handed to the user already
+    // out-of-contract.
+    const key = extractHanChars(prefillText, MAX_TRANSFORM_RULE_KEY_LENGTH);
+    setDraft({
+      ...EMPTY_DRAFT,
+      key,
+      capitalizeExceptN: deriveCapitalizeExceptNForKeyEdit('', key, EMPTY_DRAFT.capitalizeExceptN),
+    });
   };
 
   useImperativeHandle(ref, () => ({ openNew }));
@@ -167,28 +174,10 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
           <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
             Type:
           </span>
-          {SEMANTIC_TYPE_LIST.map((type) => {
-            const isActive = filterSemanticTypes.has(type);
-            return (
-              <button
-                key={type}
-                onClick={() => toggleSemanticTypeFilter(type)}
-                aria-label={`Filter by ${SEMANTIC_TYPE_LABELS[type]}`}
-                style={{
-                  padding: '0.2rem 0.5rem',
-                  fontSize: '0.75rem',
-                  borderRadius: '4px',
-                  border: `1px solid ${isActive ? SEMANTIC_TYPE_COLORS[type] : 'var(--border-color)'}`,
-                  cursor: 'pointer',
-                  backgroundColor: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
-                  color: isActive ? 'white' : 'var(--text-color)',
-                  fontWeight: 600,
-                }}
-              >
-                {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-              </button>
-            );
-          })}
+          <SemanticTypeFilterChips
+            activeTypes={filterSemanticTypes}
+            onToggle={toggleSemanticTypeFilter}
+          />
         </div>
       )}
 

@@ -9,6 +9,7 @@ interface RenderProps {
   inputClassName?: string;
   spanClassName?: string;
   title?: string;
+  maxLength?: number;
 }
 
 function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
@@ -20,6 +21,7 @@ function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
     inputClassName,
     spanClassName,
     title = 'Click to edit',
+    maxLength,
   } = props;
 
   if (edit.editing) {
@@ -27,6 +29,7 @@ function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
       <input
         type={type}
         min={type === 'number' ? 0 : undefined}
+        maxLength={maxLength}
         autoFocus
         aria-label={label}
         className={inputClassName}

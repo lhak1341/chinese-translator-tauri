@@ -229,6 +229,48 @@ export const SemanticTypeToggleCell: React.FC<{
   );
 };
 
+/** One toggle-button chip per real `SemanticType`, for a multi-select filter-bar
+ * (a `Set<SemanticType>` of active types), NOT the per-row single-active-type
+ * selector `SemanticTypeToggleCell` above. Renders a bare Fragment — no wrapper
+ * div, no label, no "none"/clear-all affordance — so callers compose it into
+ * their own flex row alongside whatever else that row needs (a label span, a
+ * caller-specific extra option, a shared clear-filters button). Exported so
+ * other filter bars (e.g. the Rules tab's type filter) reuse the exact chip
+ * styling instead of re-deriving it — see `dictionary/CLAUDE.md`'s reuse note. */
+export const SemanticTypeFilterChips: React.FC<{
+  // Set<string> (not Set<SemanticType>) — EVDT's filter set also carries the
+  // synthetic 'none' value alongside real SemanticTypes; only `.has()` is ever
+  // called on it here, so the wider type costs nothing and avoids a cast at
+  // that call site.
+  activeTypes: Set<string>;
+  onToggle: (type: SemanticType) => void;
+}> = ({ activeTypes, onToggle }) => (
+  <>
+    {SEMANTIC_TYPE_LIST.map((type) => {
+      const isActive = activeTypes.has(type);
+      return (
+        <button
+          key={type}
+          onClick={() => onToggle(type)}
+          aria-label={`Filter by ${SEMANTIC_TYPE_LABELS[type]}`}
+          style={{
+            padding: '0.2rem 0.5rem',
+            fontSize: '0.75rem',
+            borderRadius: '4px',
+            border: `1px solid ${isActive ? SEMANTIC_TYPE_COLORS[type] : 'var(--border-color)'}`,
+            cursor: 'pointer',
+            backgroundColor: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
+            color: isActive ? 'white' : 'var(--text-color)',
+            fontWeight: 600,
+          }}
+        >
+          {SEMANTIC_TYPE_ABBREVIATIONS[type]}
+        </button>
+      );
+    })}
+  </>
+);
+
 /** Fixed-height flex row shell — the canonical Dictionary row rhythm (`ITEM_HEIGHT`,
  * flex/align-center, bottom-border-only). Exported so any other table-shaped view
  * (e.g. Rules tab) can reuse the exact same row metrics instead of re-deriving them. */
