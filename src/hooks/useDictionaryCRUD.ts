@@ -11,6 +11,7 @@ import type {
   DictionaryData,
   DictionaryEntryValue,
   DictionaryEntryMetadata,
+  DictionaryContextInterface,
   HistoryOperation,
 } from '../types/DictionaryTypes';
 
@@ -37,38 +38,10 @@ type CommitMoveOp = (updates: MoveOpUpdates) => Promise<boolean>;
 type InvalidateEngine = (dictionaryId: string) => Promise<void>;
 type AddToHistory = (op: Omit<HistoryOperation, 'timestamp'>) => void;
 
-export interface DictionaryCRUDAPI {
-  addEntry: (
-    dictionaryId: string,
-    source: string,
-    translation: string,
-    metadata?: DictionaryEntryMetadata
-  ) => Promise<void>;
-  updateEntry: (
-    dictionaryId: string,
-    oldSource: string,
-    newSource: string,
-    translation: string,
-    metadata?: DictionaryEntryMetadata
-  ) => Promise<void>;
-  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
-  bulkDeleteEntries: (
-    dictionaryId: string,
-    sources: string[]
-  ) => Promise<{ successCount: number; errors: string[] }>;
-  moveEntry: (
-    sourceDictId: string,
-    targetDictId: string,
-    source: string,
-    targetDictLabel: string
-  ) => Promise<void>;
-  bulkMoveEntries: (
-    sourceDictId: string,
-    targetDictId: string,
-    sources: string[],
-    targetDictLabel: string
-  ) => Promise<{ movedCount: number; errors: string[] }>;
-}
+export type DictionaryCRUDAPI = Pick<
+  DictionaryContextInterface,
+  'addEntry' | 'updateEntry' | 'deleteEntry' | 'bulkDeleteEntries' | 'moveEntry' | 'bulkMoveEntries'
+>;
 
 // Sanitizes, validates, and builds the typed entry value for addEntry/updateEntry.
 // Throws ValidationError (no toast — caller's catch block handles UI feedback).

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { RefObject } from 'react';
 import { findCharacterOnlyMatch, scrollToHighlightedElement } from '../utils/highlighting';
 import type { SemanticArrays } from '../utils/highlighting';
@@ -32,15 +32,9 @@ export function useCharacterOnlyBridge({
   setCharacterOnlyIndex,
   characterOnlyTextRef,
 }: UseCharacterOnlyBridgeOptions): void {
-  const computationRef = useRef<{ cancelled: boolean } | null>(null);
-
   // Match effect: maps Full Translation / Original highlight → Character Only unit(s).
   useEffect(() => {
-    const computationState = { cancelled: false };
-    computationRef.current = computationState;
-
     if (!semanticArrays || !characterOnlySemanticArrays) {
-      computationRef.current = null;
       return;
     }
 
@@ -83,10 +77,6 @@ export function useCharacterOnlyBridge({
         : null;
 
     setCharacterOnlyIndex(matchIndices ?? -1);
-
-    return () => {
-      computationRef.current = null;
-    };
   }, [
     unitIndex,
     translationUnitIndex,

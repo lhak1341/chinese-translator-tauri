@@ -1,38 +1,26 @@
 import styles from '../../styles/RulesManager.module.css';
 import { useInlineFieldEdit, type InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 
-/**
- * Click-to-edit text/number cell — the same interaction Dictionary's table uses.
- *
- * `edit` lets a caller that needs to observe `.editing` externally (e.g. to hide a
- * sibling badge mid-edit — see RuleMatchesModal's MatchRow) build its own
- * useInlineFieldEdit instance and pass it in. Callers that don't need that
- * (RuleRow's 6 field cells) omit it and EditableCell builds one internally, same
- * as before this prop existed.
- */
-function EditableCell({
-  value,
-  onCommit,
-  type = 'text',
-  placeholder,
-  label,
-  edit: externalEdit,
-  inputClassName,
-  spanClassName,
-  title = 'Click to edit',
-}: {
+interface RenderProps {
   value: string;
-  onCommit: (newValue: string) => Promise<void>;
   type?: 'text' | 'number';
   placeholder?: string;
   label: string;
-  edit?: InlineFieldEdit;
   inputClassName?: string;
   spanClassName?: string;
   title?: string;
-}) {
-  const internalEdit = useInlineFieldEdit(value, onCommit);
-  const edit = externalEdit ?? internalEdit;
+}
+
+function renderEditableCell(edit: InlineFieldEdit, props: RenderProps) {
+  const {
+    value,
+    type = 'text',
+    placeholder,
+    label,
+    inputClassName,
+    spanClassName,
+    title = 'Click to edit',
+  } = props;
 
   if (edit.editing) {
     return (
@@ -62,6 +50,29 @@ function EditableCell({
       {value || placeholder || '—'}
     </span>
   );
+}
+
+/** Click-to-edit text/number cell — the same interaction Dictionary's table uses. */
+function EditableCell({
+  value,
+  onCommit,
+  ...renderProps
+}: RenderProps & { onCommit: (newValue: string) => Promise<void> }) {
+  const edit = useInlineFieldEdit(value, onCommit);
+  return renderEditableCell(edit, { value, ...renderProps });
+}
+
+/**
+ * Controlled variant for a caller that already owns a `useInlineFieldEdit`
+ * instance and needs to observe `.editing` externally (e.g. to hide a sibling
+ * badge mid-edit — see RuleMatchesModal's MatchRow). No internal edit state.
+ */
+export function ControlledEditableCell({
+  edit,
+  value,
+  ...renderProps
+}: RenderProps & { edit: InlineFieldEdit }) {
+  return renderEditableCell(edit, { value, ...renderProps });
 }
 
 export default EditableCell;

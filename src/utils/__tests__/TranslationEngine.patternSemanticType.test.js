@@ -3,8 +3,9 @@
  *
  * WHAT WE TEST:
  * - applyHierarchicalResults() stores result.semanticType on the leader token
- * - applyPatternsToTokenSequences() stores pattern.metadata.semanticType on the leader token
  * - Consumed follower tokens do NOT get patternSemanticType
+ * - Consumed follower tokens DO get groupLeader (needed by postProcess orphan check)
+ * - consumedSource is derived from result.translationSource, not hardcoded
  * - null is stored when semanticType is absent from the result
  *
  * WHY THIS MATTERS (Task 4):
@@ -12,69 +13,13 @@
  * the variable cache for the next translation chunk. Without this field being set here,
  * Task 5 cannot determine what semantic type a pattern-translated token represents.
  *
- * APPROACH:
- * We test the two methods on a minimal mock object (no WASM/Tauri needed).
- * applyHierarchicalResults() is the primary path (WASM results flow through it).
- * applyPatternsToTokenSequences() is the JS fallback path (loop at ~line 3607).
+ * All tests call the REAL TranslationEngine.prototype.applyHierarchicalResults via a
+ * minimal engine stub — no hand-copied reimplementation. See src/utils/CLAUDE.md's
+ * "postProcess Orphan Safety Net" and "applyHierarchicalResults Has No Overlap Check"
+ * entries for the invariants this method must uphold.
  */
 
-import { describe, test, expect, vi } from 'vitest';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Minimal engine stub — only the fields/methods used by the tested functions
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Create a minimal stub that exposes the two methods we want to test.
- * We extract the method bodies verbatim so the test exercises the REAL code,
- * not a reimplementation.
- *
- * We import TranslationEngine and bind its prototype methods to a stub instance.
- */
-// ─────────────────────────────────────────────────────────────────────────────
-// Pure unit tests using extracted method bodies
-// (avoids the need to initialise the full engine with WASM/Tauri)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Standalone reimplementation of applyHierarchicalResults that mirrors the
- * real code exactly, including the Task 4 change under test.
- *
- * When the real code is updated to add:
- *   tokens[result.startIndex].patternSemanticType = result.semanticType ?? null;
- * these tests will pass.  Before the change, they will fail.
- */
-function applyHierarchicalResults(tokens, hierarchicalResults, options) {
-  // Copied from TranslationEngine.js applyHierarchicalResults — DO NOT diverge
-  for (const result of hierarchicalResults) {
-    tokens[result.startIndex].translated = result.translation;
-    tokens[result.startIndex].translationSource =
-      result.translationSource || 'hierarchical_pattern';
-
-    // Task 4: store semanticType on leader token
-    tokens[result.startIndex].patternSemanticType = result.semanticType ?? null;
-
-    if (result.type === 'composite') {
-      tokens[result.startIndex].compositePattern = true;
-      tokens[result.startIndex].compositeComponents = result.components;
-    }
-
-    if (result.pattern) {
-      tokens[result.startIndex].patternUsed = result.pattern.originalPattern;
-    }
-
-    for (let i = result.startIndex + 1; i <= result.endIndex; i++) {
-      if (tokens[i]) {
-        tokens[i].translated = null;
-        tokens[i].translationSource = 'hierarchical_pattern_consumed';
-      }
-    }
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+import { describe, test, expect, vi, beforeAll } from 'vitest';
 
 function makeTokens(values) {
   return values.map((value) => ({
@@ -103,11 +48,28 @@ function makeHierarchicalResult({
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests for applyHierarchicalResults (primary WASM path)
-// ─────────────────────────────────────────────────────────────────────────────
+function makeEngineStub() {
+  return {
+    semanticArrayBuilder: {
+      addUnit: vi.fn(),
+    },
+    log: vi.fn(),
+  };
+}
 
-describe('applyHierarchicalResults — patternSemanticType on leader token', () => {
+describe('TranslationEngine.applyHierarchicalResults — real method (no WASM)', () => {
+  let applyHierarchicalResultsFn;
+
+  beforeAll(async () => {
+    // Import without constructing (avoids all WASM/Tauri side effects).
+    const mod = await import('../TranslationEngine.js');
+    applyHierarchicalResultsFn = mod.TranslationEngine.prototype.applyHierarchicalResults;
+  });
+
+  function apply(tokens, results, options = {}) {
+    return applyHierarchicalResultsFn.call(makeEngineStub(), tokens, results, options);
+  }
+
   test('stores semanticType on single-token leader', () => {
     const tokens = makeTokens(['在', '天', '空', '中']);
     const results = [
@@ -119,7 +81,7 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     expect(tokens[0].patternSemanticType).toBe('concept');
   });
@@ -130,7 +92,7 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       makeHierarchicalResult({ startIndex: 0, endIndex: 3, translation: 'ở trong bầu trời' }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     expect(tokens[0].patternSemanticType).toBeNull();
   });
@@ -146,7 +108,7 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     expect(tokens[0].patternSemanticType).toBeNull();
   });
@@ -162,7 +124,7 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     // Leader gets it
     expect(tokens[0].patternSemanticType).toBe('structural');
@@ -189,7 +151,7 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     expect(tokens[0].patternSemanticType).toBe('concept');
     expect(tokens[2].patternSemanticType).toBe('action');
@@ -206,7 +168,7 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     // empty string is falsy but not null/undefined, ?? null only fires for null/undefined
     expect(tokens[0].patternSemanticType).toBe('');
@@ -224,49 +186,15 @@ describe('applyHierarchicalResults — patternSemanticType on leader token', () 
       }),
     ];
 
-    applyHierarchicalResults(tokens, results, {});
+    apply(tokens, results);
 
     expect(tokens[0].translated).toBe('ở trong');
     expect(tokens[0].translationSource).toBe('hierarchical_pattern');
     expect(tokens[0].patternSemanticType).toBe('structural_pattern');
     expect(tokens[0].compositePattern).toBe(true);
   });
-});
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests for the real TranslationEngine method via direct method call
-// We import TranslationEngine dynamically, but only call the method — no WASM init.
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('TranslationEngine.applyHierarchicalResults — real method (no WASM)', () => {
-  let engine;
-
-  // Build a minimal stub that satisfies the method's `this.*` usage
-  // without initialising WASM, Tauri, or dictionaries.
-  function makeEngineStub() {
-    return {
-      semanticArrayBuilder: {
-        addUnit: vi.fn(),
-      },
-      log: vi.fn(),
-    };
-  }
-
-  test('real method stores semanticType on leader token', async () => {
-    // Import without constructing (avoids all WASM/Tauri side effects)
-    const mod = await import('../TranslationEngine.js');
-    const EngineClass = mod.TranslationEngine;
-
-    // Get the prototype method
-    const applyHierarchicalResultsFn = EngineClass.prototype.applyHierarchicalResults;
-
-    if (!applyHierarchicalResultsFn) {
-      // If the method is not accessible (e.g., private), skip gracefully
-      console.warn('applyHierarchicalResults not found on prototype — skipping');
-      return;
-    }
-
-    const stub = makeEngineStub();
+  test('sets groupLeader on consumed follower tokens (needed by postProcess orphan check)', () => {
     const tokens = makeTokens(['在', '天', '空', '中']);
     const results = [
       makeHierarchicalResult({
@@ -277,60 +205,33 @@ describe('TranslationEngine.applyHierarchicalResults — real method (no WASM)',
       }),
     ];
 
-    applyHierarchicalResultsFn.call(stub, tokens, results, {});
+    apply(tokens, results);
 
-    expect(tokens[0].patternSemanticType).toBe('concept');
+    expect(tokens[1].groupLeader).toBe(0);
+    expect(tokens[2].groupLeader).toBe(0);
+    expect(tokens[3].groupLeader).toBe(0);
   });
 
-  test('real method stores null when semanticType absent', async () => {
-    const mod = await import('../TranslationEngine.js');
-    const EngineClass = mod.TranslationEngine;
-
-    const applyHierarchicalResultsFn = EngineClass.prototype.applyHierarchicalResults;
-
-    if (!applyHierarchicalResultsFn) {
-      console.warn('applyHierarchicalResults not found on prototype — skipping');
-      return;
-    }
-
-    const stub = makeEngineStub();
-    const tokens = makeTokens(['在', '中']);
-    const results = [
+  test('derives consumedSource from result.translationSource instead of hardcoding it', () => {
+    // WASM path: translationSource absent, falls back to 'hierarchical_pattern'
+    const wasmTokens = makeTokens(['在', '天']);
+    const wasmResults = [
       makeHierarchicalResult({ startIndex: 0, endIndex: 1, translation: 'ở trong' }),
     ];
+    apply(wasmTokens, wasmResults);
+    expect(wasmTokens[1].translationSource).toBe('hierarchical_pattern_consumed');
 
-    applyHierarchicalResultsFn.call(stub, tokens, results, {});
-
-    expect(tokens[0].patternSemanticType).toBeNull();
-  });
-
-  test('real method does not set patternSemanticType on follower tokens', async () => {
-    const mod = await import('../TranslationEngine.js');
-    const EngineClass = mod.TranslationEngine;
-
-    const applyHierarchicalResultsFn = EngineClass.prototype.applyHierarchicalResults;
-
-    if (!applyHierarchicalResultsFn) {
-      console.warn('applyHierarchicalResults not found on prototype — skipping');
-      return;
-    }
-
-    const stub = makeEngineStub();
-    const tokens = makeTokens(['在', '天', '空', '中']);
-    const results = [
+    // JS fallback path: translationSource explicitly 'pattern'
+    const jsTokens = makeTokens(['在', '天']);
+    const jsResults = [
       makeHierarchicalResult({
         startIndex: 0,
-        endIndex: 3,
-        translation: 'ở trong bầu trời',
-        semanticType: 'concept',
+        endIndex: 1,
+        translation: 'ở trong',
+        translationSource: 'pattern',
       }),
     ];
-
-    applyHierarchicalResultsFn.call(stub, tokens, results, {});
-
-    expect(tokens[0].patternSemanticType).toBe('concept');
-    expect(tokens[1].patternSemanticType).toBeUndefined();
-    expect(tokens[2].patternSemanticType).toBeUndefined();
-    expect(tokens[3].patternSemanticType).toBeUndefined();
+    apply(jsTokens, jsResults);
+    expect(jsTokens[1].translationSource).toBe('pattern_consumed');
   });
 });

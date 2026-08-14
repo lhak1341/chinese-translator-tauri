@@ -980,8 +980,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useCharacterOnlyBridge.ts": {
-    "mtime": 1781897040.0850961,
-    "ast_hash": "f6bc888dbc2c7902a868fb5ee0f88e94",
+    "mtime": 1786718532.894204,
+    "ast_hash": "cc3ff474603a5591d08fb8113ceffbb4",
     "semantic_hash": ""
   },
   "src/hooks/usePerformanceMonitoring.js": {
@@ -1030,8 +1030,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryCRUD.ts": {
-    "mtime": 1786380349.4925706,
-    "ast_hash": "fa9d49a298c290a4111b5e216bf2ec9c",
+    "mtime": 1786718282.2061377,
+    "ast_hash": "eaa988c8eb52f8eef4182a57f3a4ca5a",
     "semantic_hash": ""
   },
   "src/hooks/useEntryMetadataEdit.ts": {
@@ -1140,8 +1140,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786553271.1632423,
-    "ast_hash": "4645a8e3faa2a7d11dcf0b8d340b3b60",
+    "mtime": 1786718712.1238337,
+    "ast_hash": "4ffbfa185aa995fcff05be91ef0d6cda",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1786553271.1632423,
-    "ast_hash": "4645a8e3faa2a7d11dcf0b8d340b3b60",
+    "mtime": 1786718712.1238337,
+    "ast_hash": "4ffbfa185aa995fcff05be91ef0d6cda",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1575,8 +1575,8 @@
     "semantic_hash": ""
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1769698131.819285,
-    "ast_hash": "d64fbcffae72ec68aa9ffa9dd744fe7d",
+    "mtime": 1786554192.407621,
+    "ast_hash": "d2eeaa49f5ccd6e95bfee7eb94bbe652",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": ""
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1786548454.9716249,
-    "ast_hash": "3afa0bac95df1a322466a1a4e96cc231",
+    "mtime": 1786718719.3320644,
+    "ast_hash": "aeb9d53ab839199260177191943e121a",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1750,8 +1750,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/EditableCell.tsx": {
-    "mtime": 1786552355.9711318,
-    "ast_hash": "7f478e3c409fd30c2d05c5c610b6e591",
+    "mtime": 1786718374.7017307,
+    "ast_hash": "d4a46e4892374d6f25bbd9881c67c879",
     "semantic_hash": ""
   },
   "src/components/rules/MatchKindToggle.tsx": {
@@ -1770,8 +1770,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/RuleMatchesModal.tsx": {
-    "mtime": 1786552401.5189974,
-    "ast_hash": "cae58845f382a5e8d109029ce305e368",
+    "mtime": 1786718384.3180578,
+    "ast_hash": "fd43c671da67f767d7d7d399ec4d3c96",
     "semantic_hash": ""
   },
   "src/components/rules/RuleRow.tsx": {

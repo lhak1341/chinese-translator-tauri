@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, expect, test, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import EditableCell from '../EditableCell';
+import EditableCell, { ControlledEditableCell } from '../EditableCell';
 import { useInlineFieldEdit } from '../../../hooks/useInlineFieldEdit';
 
 describe('EditableCell — internal edit state (RuleRow usage)', () => {
@@ -35,7 +35,7 @@ describe('EditableCell — externally-supplied edit (RuleMatchesModal usage)', (
     const edit = useInlineFieldEdit('hello', onCommit);
     return (
       <>
-        <EditableCell value="hello" onCommit={onCommit} label="Test field" edit={edit} />
+        <ControlledEditableCell value="hello" label="Test field" edit={edit} />
         {!edit.editing && <span data-testid="sibling-badge">badge</span>}
       </>
     );

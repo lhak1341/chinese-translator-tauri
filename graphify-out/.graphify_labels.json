@@ -299,7 +299,6 @@
   "297": "Architecture Overview",
   "298": "Appendix: File Reference",
   "299": "2. Unicode Handling ⭐⭐⭐⭐",
-  "300": "src/styles — CSS Module Conventions",
   "301": "build.rs",
   "302": "Implementation Roadmap",
   "303": "Recommendations",
@@ -307,12 +306,5 @@
   "305": "Integration Sequence (Recommended Order)",
   "306": "🚀 Next Steps",
   "307": "🔄 Git Status",
-  "308": "Recommendations Summary",
-  "309": "🎯 Complete Optimization Timeline",
-  "310": "types",
-  "311": "sanitizeDictionaryEntry",
-  "312": "vite",
-  "313": "vite-plugin-wasm",
-  "314": "vitest",
-  "315": "@vitest/ui"
+  "310": "types"
 }

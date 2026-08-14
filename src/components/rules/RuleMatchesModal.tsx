@@ -5,7 +5,7 @@ import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.c
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { RowShell, MetadataBadge, SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
-import EditableCell from './EditableCell';
+import { ControlledEditableCell } from './EditableCell';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import { findRuleMatchingEntries } from '../../utils/dictionary/TransformRuleEngine';
 import type { RuleMatchEntry } from '../../utils/dictionary/TransformRuleEngine';
@@ -87,9 +87,8 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
         {row.source}
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colTranslation}`}>
-        <EditableCell
+        <ControlledEditableCell
           value={row.translation}
-          onCommit={commitTranslation}
           label={`Translation for ${row.source}`}
           edit={translEdit}
           inputClassName={dictStyles.inlineEditInput}
