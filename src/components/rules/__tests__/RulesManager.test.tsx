@@ -87,7 +87,7 @@ describe('RulesManager', () => {
     await waitFor(() => expect(screen.queryByText(/Loading rules/)).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByText('Add Rule'));
-    expect(screen.getByLabelText('Move N words')).toHaveValue(0);
+    expect(screen.getByLabelText('Relocate to opposite end')).not.toBeChecked();
 
     fireEvent.change(screen.getByLabelText(/Key \(1-4/), { target: { value: '卫城' } });
     expect(screen.getByLabelText('Capitalize except N')).toHaveValue(2);
@@ -271,18 +271,15 @@ describe('RulesManager', () => {
     );
   });
 
-  test('editing Move inline commits the new number', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ moveWords: 1 })]);
+  test('clicking the Move toggle commits immediately, no click-to-edit needed', async () => {
+    loadTransformRules.mockResolvedValue([makeRule({ moveWords: 0 })]);
     render(<RulesManager />);
-    const moveCell = await screen.findByLabelText('Move N words for City suffix');
+    const moveToggle = await screen.findByLabelText('Set Relocate to opposite end for City suffix');
 
-    fireEvent.click(moveCell);
-    const input = screen.getByLabelText('Move N words for City suffix');
-    fireEvent.change(input, { target: { value: '2' } });
-    fireEvent.blur(input);
+    fireEvent.click(moveToggle);
 
     await waitFor(() =>
-      expect(saveTransformRules).toHaveBeenCalledWith([expect.objectContaining({ moveWords: 2 })])
+      expect(saveTransformRules).toHaveBeenCalledWith([expect.objectContaining({ moveWords: 1 })])
     );
   });
 

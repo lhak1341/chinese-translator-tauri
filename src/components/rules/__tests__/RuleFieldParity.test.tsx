@@ -77,8 +77,9 @@ const FIELD_QUERIES: Record<
     row: (s) => s.getAllByLabelText('Key for City suffix'),
   },
   moveWords: {
-    modal: (s) => s.getAllByLabelText(/^Move N words$/),
-    row: (s) => s.getAllByLabelText('Move N words for City suffix'),
+    modal: (s) => s.getAllByLabelText('Relocate to opposite end'),
+    row: (s) =>
+      s.getAllByLabelText(/^Set (Stay in place|Relocate to opposite end) for City suffix$/),
   },
   capitalizeExceptN: {
     modal: (s) => s.getAllByLabelText('Capitalize except N'),

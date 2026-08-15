@@ -1,5 +1,6 @@
 export const SEMANTIC_TYPES = {
   CHARACTER: 'character',
+  CREATURE: 'creature',
   LOCATION: 'location',
   ORGANIZATION: 'organization',
   CONCEPT: 'concept',
@@ -10,6 +11,7 @@ export type SemanticType = (typeof SEMANTIC_TYPES)[keyof typeof SEMANTIC_TYPES];
 
 export const SEMANTIC_TYPE_LABELS: Record<SemanticType, string> = {
   character: 'Character',
+  creature: 'Creature',
   location: 'Location',
   organization: 'Organization',
   concept: 'Concept',
@@ -18,6 +20,7 @@ export const SEMANTIC_TYPE_LABELS: Record<SemanticType, string> = {
 
 export const SEMANTIC_TYPE_ABBREVIATIONS: Record<SemanticType, string> = {
   character: 'CHA',
+  creature: 'CRE',
   location: 'LOC',
   organization: 'ORG',
   concept: 'CON',
@@ -28,6 +31,7 @@ export const SEMANTIC_TYPE_LIST: SemanticType[] = Object.values(SEMANTIC_TYPES);
 
 export const SEMANTIC_TYPE_COLORS: Record<SemanticType, string> = {
   character: '#2563eb',
+  creature: '#d97706',
   location: '#059669',
   organization: '#dc2626',
   concept: '#7c3aed',

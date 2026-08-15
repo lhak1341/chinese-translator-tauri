@@ -1,7 +1,7 @@
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
 
-/** Parses a Transform Rule numeric field (Move N words, Capitalize except N,
- * Total-length limit) from raw input text. Returns null when the value isn't a
+/** Parses a Transform Rule numeric field (Capitalize except N, Total-length limit)
+ * from raw input text. Returns null when the value isn't a
  * finite number at least `min` — callers decide what "invalid" means for them
  * (silently keep the previous value, or block Save). Integer-ness is NOT enforced —
  * fractional counts (e.g. "2.5") are accepted, matching the original per-site guards

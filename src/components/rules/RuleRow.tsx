@@ -24,9 +24,9 @@ function RuleRow({
   toggleEnabled: (id: string) => Promise<void>;
   onViewMatches: (rule: TransformRule) => void;
 }) {
-  const commitNumber = (field: 'moveWords' | 'capitalizeExceptN') => async (v: string) => {
+  const commitCapitalizeExceptN = async (v: string) => {
     const n = parseValidatedNumber(v, 0);
-    if (n !== null) await updateRule({ ...rule, [field]: n });
+    if (n !== null) await updateRule({ ...rule, capitalizeExceptN: n });
   };
 
   return (
@@ -76,27 +76,18 @@ function RuleRow({
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colMove}`}>
-        {rule.moveReplacement ? (
-          <MoveModeToggle
-            isRelocate={rule.moveWords > 0}
-            label={rule.label || rule.key}
-            onToggle={(isRelocate) => updateRule({ ...rule, moveWords: isRelocate ? 1 : 0 })}
-          />
-        ) : (
-          <EditableCell
-            value={String(rule.moveWords)}
-            type="number"
-            label={`Move N words for ${rule.label || rule.key}`}
-            onCommit={commitNumber('moveWords')}
-          />
-        )}
+        <MoveModeToggle
+          isRelocate={rule.moveWords > 0}
+          label={rule.label || rule.key}
+          onToggle={(isRelocate) => updateRule({ ...rule, moveWords: isRelocate ? 1 : 0 })}
+        />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colCap}`}>
         <EditableCell
           value={String(rule.capitalizeExceptN)}
           type="number"
           label={`Capitalize except N for ${rule.label || rule.key}`}
-          onCommit={commitNumber('capitalizeExceptN')}
+          onCommit={commitCapitalizeExceptN}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colReplace}`}>

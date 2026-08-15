@@ -3,7 +3,7 @@ import type { SemanticType } from '../../constants/SemanticTypes';
 /**
  * Return type of classifyVariableType.
  *
- * Canonical SemanticType values ('character', 'location', 'organization', 'concept', 'object')
+ * Canonical SemanticType values ('character', 'creature', 'location', 'organization', 'concept', 'object')
  * are used directly in allowedVariableTypes constraint matching.
  *
  * Internal discriminators are NOT canonical SemanticType values:

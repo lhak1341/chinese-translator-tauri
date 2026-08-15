@@ -37,7 +37,6 @@ function NewRuleModal({
   // still in progress) — validity is checked here, once, to gate Save instead.
   const fieldsValid =
     parseValidatedKey(draft.key) !== null &&
-    parseValidatedNumber(String(draft.moveWords), 0) !== null &&
     parseValidatedNumber(String(draft.capitalizeExceptN), 0) !== null &&
     (draft.charCount === undefined || parseValidatedNumber(String(draft.charCount), 1) !== null);
 
@@ -87,38 +86,20 @@ function NewRuleModal({
 
           {!fieldsValid && (
             <div className={styles.formError}>
-              Key must be 1-{MAX_TRANSFORM_RULE_KEY_LENGTH} Chinese characters; Move N words and
-              Capitalize except N must be non-negative numbers; Total-length limit (if set) must be
-              at least 1.
+              Key must be 1-{MAX_TRANSFORM_RULE_KEY_LENGTH} Chinese characters; Capitalize except N
+              must be a non-negative number; Total-length limit (if set) must be at least 1.
             </div>
           )}
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
-              {draft.moveReplacement ? (
-                <>
-                  <label htmlFor="rule-moveWords-relocate">
-                    Relocate replacement to opposite end
-                  </label>
-                  <input
-                    id="rule-moveWords-relocate"
-                    type="checkbox"
-                    checked={draft.moveWords > 0}
-                    onChange={(e) => setDraft({ ...draft, moveWords: e.target.checked ? 1 : 0 })}
-                  />
-                </>
-              ) : (
-                <>
-                  <label htmlFor="rule-moveWords">Move N words</label>
-                  <input
-                    id="rule-moveWords"
-                    type="number"
-                    min={0}
-                    value={draft.moveWords}
-                    onChange={(e) => setDraft({ ...draft, moveWords: Number(e.target.value) })}
-                  />
-                </>
-              )}
+              <label htmlFor="rule-moveWords-relocate">Relocate to opposite end</label>
+              <input
+                id="rule-moveWords-relocate"
+                type="checkbox"
+                checked={draft.moveWords > 0}
+                onChange={(e) => setDraft({ ...draft, moveWords: e.target.checked ? 1 : 0 })}
+              />
             </div>
             <div className={styles.formGroup}>
               <label htmlFor="rule-capitalizeExceptN">Capitalize except N</label>

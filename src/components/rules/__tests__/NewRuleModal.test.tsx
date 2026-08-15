@@ -68,11 +68,6 @@ describe('NewRuleModal', () => {
     expect(onCancel).toHaveBeenCalled();
   });
 
-  test('Save is disabled when moveWords is negative, even with a valid key and no conflict', () => {
-    renderModal({ ...EMPTY_DRAFT, key: '城', moveWords: -1 }, null);
-    expect(screen.getByText('Save')).toBeDisabled();
-  });
-
   test('Save is disabled when charCount is set below its minimum of 1', () => {
     renderModal({ ...EMPTY_DRAFT, key: '城', charCount: 0 }, null);
     expect(screen.getByText('Save')).toBeDisabled();
@@ -83,14 +78,14 @@ describe('NewRuleModal', () => {
     expect(screen.getByText('Save')).not.toBeDisabled();
   });
 
-  test('shows the field-validity error message when moveWords is invalid', () => {
-    renderModal({ ...EMPTY_DRAFT, key: '城', moveWords: -1 }, null);
-    expect(screen.getByText(/must be non-negative numbers/)).toBeInTheDocument();
+  test('shows the field-validity error message when capitalizeExceptN is invalid', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城', capitalizeExceptN: -1 }, null);
+    expect(screen.getByText(/must be a non-negative number/)).toBeInTheDocument();
   });
 
   test('does not show the field-validity error message when all fields are valid', () => {
     renderModal({ ...EMPTY_DRAFT, key: '城' }, null);
-    expect(screen.queryByText(/must be non-negative numbers/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/must be a non-negative number/)).not.toBeInTheDocument();
   });
 
   test('Save is disabled when the key is not Chinese characters, even with no conflict', () => {
@@ -108,35 +103,28 @@ describe('NewRuleModal', () => {
     expect(screen.getByLabelText('Key (1-4 Chinese chars)')).toHaveAttribute('maxLength', '4');
   });
 
-  test('Move field is a plain numeric input when moveReplacement is unset', () => {
+  test('Move field is always a checkbox, regardless of moveReplacement', () => {
     renderModal({ ...EMPTY_DRAFT, key: '城' }, null);
-    expect(screen.getByLabelText('Move N words')).toHaveAttribute('type', 'number');
-  });
-
-  test('Move field becomes a checkbox when moveReplacement is set', () => {
-    renderModal({ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho' }, null);
-    expect(screen.queryByLabelText('Move N words')).not.toBeInTheDocument();
-    const checkbox = screen.getByLabelText('Relocate replacement to opposite end');
-    expect(checkbox).toHaveAttribute('type', 'checkbox');
+    expect(screen.getByLabelText('Relocate to opposite end')).toHaveAttribute('type', 'checkbox');
   });
 
   test('checkbox reflects moveWords > 0 as checked', () => {
-    renderModal({ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho', moveWords: 1 }, null);
-    expect(screen.getByLabelText('Relocate replacement to opposite end')).toBeChecked();
+    renderModal({ ...EMPTY_DRAFT, key: '城', moveWords: 1 }, null);
+    expect(screen.getByLabelText('Relocate to opposite end')).toBeChecked();
   });
 
   test('checking the box calls setDraft with moveWords: 1', () => {
     const setDraft = vi.fn();
     render(
       <NewRuleModal
-        draft={{ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho', moveWords: 0 }}
+        draft={{ ...EMPTY_DRAFT, key: '城', moveWords: 0 }}
         setDraft={setDraft}
         conflictLabel={null}
         onSave={onSave}
         onCancel={onCancel}
       />
     );
-    fireEvent.click(screen.getByLabelText('Relocate replacement to opposite end'));
+    fireEvent.click(screen.getByLabelText('Relocate to opposite end'));
     expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 1 }));
   });
 
@@ -144,14 +132,14 @@ describe('NewRuleModal', () => {
     const setDraft = vi.fn();
     render(
       <NewRuleModal
-        draft={{ ...EMPTY_DRAFT, key: '城', moveReplacement: 'thanh pho', moveWords: 1 }}
+        draft={{ ...EMPTY_DRAFT, key: '城', moveWords: 1 }}
         setDraft={setDraft}
         conflictLabel={null}
         onSave={onSave}
         onCancel={onCancel}
       />
     );
-    fireEvent.click(screen.getByLabelText('Relocate replacement to opposite end'));
+    fireEvent.click(screen.getByLabelText('Relocate to opposite end'));
     expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 0 }));
   });
 });

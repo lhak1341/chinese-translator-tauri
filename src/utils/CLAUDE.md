@@ -132,6 +132,10 @@ A translation-scoped `let corruptionToastShown = false` guards `toast.error` to 
 
 Adapter-specific logic that stays in each file: Semantic's Phase A result injection (seeded as lowest-priority `initialCache`); TwoPhase's step-1b pattern-translated tokens (`patternSemanticType`, runs AFTER shared stages so it overrides stage-1 proper-noun entries for the same word); type resolution strategy (Semantic imports `classifyVariableType` from `VariableTypeClassifier.ts`; TwoPhase uses `metadata?.semanticType` with inline fallback). Canonical phrase type fallback: `metadata?.semanticType || 'concept'` (NOT `'phrase'`). Semantic token types: `chinese_char`, `chinese_word`, `latin_word`, `number`. Fiction dicts (`properNouns-f_*`) contain ALL SemanticType values — do not assume character-only; `metadata.semanticType` is authoritative, heuristic only fires when absent.
 
+### `allowedVariableTypes`/`SemanticType` Constraint Filtering Is Pure JS
+
+Confirmed zero mirror in `wasm-core/src/` — no `SemanticType`/`allowedVariableTypes` anywhere there. Adding/removing/renaming a `SemanticType` value (`src/constants/SemanticTypes.ts`) never requires a Rust change.
+
 ### `buildVariableCache` `shouldInclude` Requires `hasUnconstrainedPatterns` Guard
 
 `requiredTypes` collects all types in any pattern's `allowedVariableTypes`. Filtering by `requiredTypes` is only correct when ALL patterns are constrained — any unconstrained pattern accepts any type, so filtering would silently exclude entries it needs. Guard: `if (!requiredTypes || hasUnconstrainedPatterns) return true;`.

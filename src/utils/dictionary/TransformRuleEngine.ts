@@ -59,11 +59,11 @@ export function findBestMatch(rules: TransformRule[], source: string): Transform
  * Capitalize always runs before move/replace, on the pre-move word order — see
  * CONTEXT.md for why order isn't configurable.
  *
- * When `moveReplacement` is set, the number of words replaced is always the key's own
- * character count (`rule.key.length`), not `rule.moveWords` — `moveWords` only decides
- * whether the replacement text relocates to the opposite end (moveWords > 0, matching
- * the plain move behavior) or stays in the key's own position (moveWords === 0 — useful
- * when you want to substitute the key's translation without reordering anything).
+ * `moveWords` is always a boolean relocate/stay flag, never a literal word count — the
+ * number of words moved (or replaced) is always the key's own character count
+ * (`rule.key.length`). `moveWords > 0` relocates to the opposite end; `moveWords === 0`
+ * leaves the words (or, with `moveReplacement` set, the replacement text) in the key's
+ * own position.
  */
 export function applyRule(
   rule: TransformRule,
@@ -75,7 +75,9 @@ export function applyRule(
   if (rule.matchKind === 'suffix') {
     const capitalized = titleCaseExceptLastN(gloss, rule.capitalizeExceptN);
     if (rule.moveReplacement === undefined) {
-      return moveLastNWordsToBeginning(capitalized, rule.moveWords);
+      return rule.moveWords > 0
+        ? moveLastNWordsToBeginning(capitalized, replaceCount)
+        : capitalized;
     }
     return rule.moveWords > 0
       ? replaceLastNWordsWithText(capitalized, replaceCount, rule.moveReplacement)
@@ -83,7 +85,7 @@ export function applyRule(
   }
   const capitalized = capitalizeExceptFirstN(gloss, rule.capitalizeExceptN);
   if (rule.moveReplacement === undefined) {
-    return moveFirstNWordsToEnd(capitalized, rule.moveWords);
+    return rule.moveWords > 0 ? moveFirstNWordsToEnd(capitalized, replaceCount) : capitalized;
   }
   return rule.moveWords > 0
     ? replaceFirstNWordsWithText(capitalized, replaceCount, rule.moveReplacement)

@@ -120,15 +120,8 @@ describe('RuleRow', () => {
     expect(screen.getByLabelText('Key for City suffix')).toHaveAttribute('maxLength', '4');
   });
 
-  test('Move cell is a plain numeric field when moveReplacement is unset', () => {
+  test('Move cell is always a MOVE/STAY toggle, regardless of moveReplacement', () => {
     renderRow(makeRule({ moveReplacement: undefined }));
-    expect(screen.getByLabelText('Move N words for City suffix')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Set Relocate to opposite end/)).not.toBeInTheDocument();
-  });
-
-  test('Move cell becomes a MOVE/STAY toggle when moveReplacement is set', () => {
-    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 0 }));
-    expect(screen.queryByLabelText('Move N words for City suffix')).not.toBeInTheDocument();
     expect(screen.getByText('MOVE')).toBeInTheDocument();
     expect(screen.getByText('STAY')).toBeInTheDocument();
   });
