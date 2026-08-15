@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { segmentFromPositionMetadata } from '../utils/highlighting';
 import type { Segment, SemanticArrays } from '../utils/highlighting';
 import { logger } from '../utils/logger';
@@ -11,22 +11,16 @@ export function useCharacterOnlySegments(
   translatedText: string | undefined,
   semanticArrays: SemanticArrays | undefined
 ): Segment[] {
-  const [segments, setSegments] = useState<Segment[]>([]);
-
-  useEffect(() => {
+  return useMemo(() => {
     if (!semanticArrays || !semanticArrays.translated || semanticArrays.translated.length === 0) {
-      setSegments([]);
-      return;
+      return [];
     }
     if (!translatedText) {
       logger.warn(
         'translatedText is null/undefined in character-only mode, returning empty segments'
       );
-      setSegments([]);
-      return;
+      return [];
     }
-    setSegments(segmentFromPositionMetadata(translatedText, semanticArrays));
+    return segmentFromPositionMetadata(translatedText, semanticArrays);
   }, [translatedText, semanticArrays]);
-
-  return segments;
 }

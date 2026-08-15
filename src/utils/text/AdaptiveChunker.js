@@ -7,19 +7,6 @@
  * - Real-time processing performance
  * - Memory usage patterns
  * - Text structure analysis
- *
- * @import {
- *   AdaptiveChunkerOptions,
- *   AdaptiveChunker as IAdaptiveChunker,
- *   ContentCharacteristics,
- *   ComplexityFactors,
- *   ComplexityThresholds,
- *   ChunkingStrategy,
- *   OptimizationRecommendations,
- *   DeviceInfo,
- *   PerformanceDataPoint,
- *   PerformanceTrend
- * } from '../types/BatchProcessingTypes'
  */
 
 import { batchLog } from '../BatchLogger.js';
@@ -54,7 +41,6 @@ class AdaptiveChunker {
     const analysis = {
       complexity: 0,
       factors: {},
-      recommendations: {},
       chunkingStrategy: 'standard',
     };
 
@@ -90,7 +76,6 @@ class AdaptiveChunker {
 
     // Determine chunking strategy based on analysis
     analysis.chunkingStrategy = this.determineChunkingStrategy(analysis);
-    analysis.recommendations = this.generateOptimizationRecommendations(analysis);
 
     batchLog.verbose(
       'adaptive-chunker-analysis',
@@ -338,66 +323,6 @@ class AdaptiveChunker {
       confidence: Math.min(correlation, 1.0),
       slope: slope,
     };
-  }
-
-  /**
-   * Generate optimization recommendations based on analysis
-   * @param {Object} analysis - Content analysis results
-   * @returns {Object} Optimization recommendations
-   */
-  generateOptimizationRecommendations(analysis) {
-    const recommendations = {
-      chunkSizeStrategy: analysis.chunkingStrategy,
-      priorityOptimizations: [],
-      performanceExpectations: {},
-    };
-
-    // Vocabulary complexity recommendations
-    if (analysis.factors.vocabularyComplexity > 0.7) {
-      recommendations.priorityOptimizations.push({
-        type: 'dictionary_preloading',
-        priority: 'high',
-        description: 'High proper noun density detected - preload relevant dictionaries',
-        expectedGain: '15-25% faster processing',
-      });
-    }
-
-    // Dictionary hit rate recommendations
-    if (analysis.factors.dictionaryHitRate < 0.6) {
-      recommendations.priorityOptimizations.push({
-        type: 'dictionary_expansion',
-        priority: 'medium',
-        description: 'Low dictionary hit rate - consider expanding relevant dictionaries',
-        expectedGain: '10-20% better translation quality',
-      });
-    }
-
-    // Structural complexity recommendations
-    if (analysis.factors.structuralComplexity > 1.5) {
-      recommendations.priorityOptimizations.push({
-        type: 'conservative_processing',
-        priority: 'high',
-        description: 'Complex sentence structures detected - use smaller chunk sizes',
-        expectedGain: 'Better translation accuracy',
-      });
-    }
-
-    // Performance expectations based on complexity
-    if (analysis.complexity < 0.8) {
-      recommendations.performanceExpectations = {
-        relativeSpeed: '110-130%',
-        qualityImpact: 'minimal',
-        memoryUsage: 'standard',
-      };
-    } else if (analysis.complexity > 1.5) {
-      recommendations.performanceExpectations = {
-        relativeSpeed: '70-85%',
-        qualityImpact: 'improved accuracy',
-        memoryUsage: 'reduced due to smaller chunks',
-      };
-    }
-
-    return recommendations;
   }
 }
 

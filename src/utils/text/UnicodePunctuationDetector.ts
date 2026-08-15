@@ -291,27 +291,6 @@ export class UnicodePunctuationDetector {
   }
 
   /**
-   * Update configuration and recompile regexes
-   * @param newConfig - New configuration options
-   */
-  updateConfig(newConfig: Partial<UnicodePunctuationConfig>): void {
-    this.config = { ...this.config, ...newConfig };
-    this.compiledRegexes = this.compileRegexes();
-  }
-
-  /**
-   * Get current configuration for debugging/settings UI
-   * @returns Current configuration (deep copy)
-   */
-  getConfig(): ResolvedConfig {
-    return {
-      ...this.config,
-      excludedCharacters: new Set(this.config.excludedCharacters),
-      includedCharacters: new Set(this.config.includedCharacters),
-    };
-  }
-
-  /**
    * Get supported Unicode punctuation categories
    * @returns List of category information
    */

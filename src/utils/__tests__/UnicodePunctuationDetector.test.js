@@ -93,27 +93,6 @@ describe('TextChunker with Unicode Punctuation', () => {
     expect(chunks[0].content).toBe('Hello');
     expect(chunks[0].punctuation).toBe(',');
   });
-
-  test('should provide diagnostic information', () => {
-    const chunker = new TextChunker();
-    const diagnostics = chunker.getDiagnosticInfo();
-
-    expect(typeof diagnostics.supportsUnicodeProperties).toBe('boolean');
-    expect(typeof diagnostics.enabledCategories).toBe('object');
-    expect(typeof diagnostics.customSeparatorCount).toBe('number');
-  });
-
-  test('should allow configuration updates', () => {
-    const chunker = new TextChunker();
-
-    // Test that we can update configuration
-    chunker.updatePunctuationConfig({
-      excludedCharacters: new Set(['.']),
-    });
-
-    expect(chunker.isPunctuationSeparator('.')).toBe(false);
-    expect(chunker.isPunctuationSeparator(',')).toBe(true);
-  });
 });
 
 describe('Unicode Category Support', () => {

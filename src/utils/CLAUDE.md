@@ -126,6 +126,8 @@ WASM combines consecutive punctuation like `”《` into one field `’”«’`
 
 A translation-scoped `let corruptionToastShown = false` guards `toast.error` to at most once per translation. `isCorrupted` is sticky across all 5 phase checks. Any new call site that toasts on `isCorrupted` must reuse this flag.
 
+**Do not wire `SemanticArrayMetadata.translatedStart`/`.translatedEnd` validity into this check.** Both fields are initialized to `-1` in `addUnit` and stay `-1` for the entire full-translation pipeline until `postProcess`'s position-tracking loop (`TranslationEngine.js`, `assembledPositions` → `setPositionByMatch`, ~line 3824) runs — _after_ all 5 phases finish. `checkSemanticArrayCorruption` fires _during_ each phase, so a per-entry position-validity check here sees `-1` on every entry, every call, every translation — 100% false positive, not an edge case. Even after `postProcess` sets them, both fields are documented (`SemanticArrayBuilder.ts:71-72`) as consumed by the char-only path only — never read by full-translation highlighting (`matchWordSegments`/`prebuiltSegments`) at all. Shipped and reverted same-day, 2026-08-16 — see root `CLAUDE.md`.
+
 ### `buildVariableCache` Delegates to `PatternVariableCache.buildPatternVariableCache`
 
 `SemanticPatternProcessor.buildVariableCache` and `TwoPhasePatternProcessor.buildVariableCache` both delegate the four shared lookup stages (proper noun tokens, phrase lookups, proper noun single-token, full-text scan) to `src/utils/pattern/PatternVariableCache.js`. Changes to phrase type handling or the full-text scan guard go in `PatternVariableCache.js` only — no mirroring required.

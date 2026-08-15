@@ -216,6 +216,26 @@ describe('HIGH-5: Position Metadata Validation', () => {
     expect(report.invalidEntries).toHaveLength(1);
     expect(report.invalidEntries[0].index).toBe(2);
   });
+
+  // Regression test, 2026-08-16: `checkSemanticArrayCorruption` (TranslationEngine.js) was
+  // briefly wired to `validateAllPositions` and fired a false-positive "quality degraded" toast
+  // on every full-translation phase checkpoint, because that's exactly the state below — no
+  // `setPositionByMatch` call has happened yet at that point in the pipeline (it only runs in
+  // `postProcess`, after all 5 phases finish). 100% invalid here is normal mid-phase state, not
+  // corruption — do not treat it as a corruption signal without first calling setPositionByMatch.
+  test('reports 100% invalid immediately after addUnit, before any setPositionByMatch call', () => {
+    const builder = new SemanticArrayBuilder();
+    builder.addUnit('在', 'ở', 'characters', 0);
+    builder.addUnit('那', 'đó', 'characters', 1);
+    builder.addUnit('里', 'trong', 'characters', 2);
+
+    const report = semanticArrayValidator.validateAllPositions(builder.getSnapshot());
+
+    expect(report.total).toBe(3);
+    expect(report.valid).toBe(0);
+    expect(report.invalid).toBe(3);
+    expect(report.coverage).toBe(0);
+  });
 });
 
 describe('MEDIUM-3: Reducer Index Validation', () => {

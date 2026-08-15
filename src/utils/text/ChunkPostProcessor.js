@@ -1,10 +1,3 @@
-/**
- * @import {
- *   TextChunk as ITextChunk,
- *   TextReconstructionResult
- * } from '../types/BatchProcessingTypes'
- */
-
 import { PunctuationProcessor } from './PunctuationProcessor.js';
 import { QuoteProcessor, QUOTE_TYPES } from './QuoteProcessor';
 

@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1786787603.613961,
-    "ast_hash": "abfe7d8e7630e33fe5fdc7fad7858f8f",
+    "mtime": 1786814331.606546,
+    "ast_hash": "41532b1d272265b917665c286e1ed4b2",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -440,9 +440,9 @@
     "semantic_hash": "c307b7ea95220a8363f6124c247f7ae1"
   },
   "src/utils/highlighting/SemanticArrayBuilder.ts": {
-    "mtime": 1785389008.7909448,
-    "ast_hash": "09c31bbc419d67aa5d52c709b5bb33ee",
-    "semantic_hash": "09c31bbc419d67aa5d52c709b5bb33ee"
+    "mtime": 1786810936.0840647,
+    "ast_hash": "95194a4405e3477f29f4bf7fc7b19f60",
+    "semantic_hash": ""
   },
   "src/utils/highlighting/TextPositionMapper.ts": {
     "mtime": 1784212853.7144053,
@@ -680,9 +680,9 @@
     "semantic_hash": "ed5d1bb5f6f661f911d08d7db4a327aa"
   },
   "src/utils/text/ChunkPostProcessor.js": {
-    "mtime": 1781959746.9766665,
-    "ast_hash": "f050b5f8d50c07266f99e61d6d838cdb",
-    "semantic_hash": "f050b5f8d50c07266f99e61d6d838cdb"
+    "mtime": 1786813116.1275527,
+    "ast_hash": "265cea3af97cbc6122c4c4f9e92a21f8",
+    "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
     "mtime": 1779467704.7008452,
@@ -710,19 +710,19 @@
     "semantic_hash": "789476ecd7e7f96fb5d9ecc0633dedf8"
   },
   "src/utils/text/TextChunker.js": {
-    "mtime": 1786786664.0602741,
-    "ast_hash": "1fc0a68a3512e58928a2661f61f90f74",
+    "mtime": 1786813112.415733,
+    "ast_hash": "31b065447203bdcb738ec241b723d8ba",
     "semantic_hash": ""
   },
   "src/utils/text/AdaptiveChunker.js": {
-    "mtime": 1784328688.0998785,
-    "ast_hash": "b17ae2ccd74ab475ffafd1c69e261662",
-    "semantic_hash": "b17ae2ccd74ab475ffafd1c69e261662"
+    "mtime": 1786813728.1668537,
+    "ast_hash": "eec7a1f07cf96f6757ca1168c559aeed",
+    "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
-    "mtime": 1772897608.5392623,
-    "ast_hash": "65866b4550ca8163114245d671b16581",
-    "semantic_hash": "65866b4550ca8163114245d671b16581"
+    "mtime": 1786811515.5911129,
+    "ast_hash": "d223878add917798216e10f19a464e87",
+    "semantic_hash": ""
   },
   "src/utils/text/TextNormalizationHelpers.ts": {
     "mtime": 1772666306.8270755,
@@ -1055,8 +1055,8 @@
     "semantic_hash": "ec699833df1616cc5db32598f5db2ca0"
   },
   "src/hooks/useCharacterOnlySegments.ts": {
-    "mtime": 1786787569.4785016,
-    "ast_hash": "c2642ac2e1d1c2ff23c476341a631d15",
+    "mtime": 1786813154.1655295,
+    "ast_hash": "a0251630bf79c549c8037053bb27d37b",
     "semantic_hash": ""
   },
   "src/hooks/useTranslationController.js": {
@@ -1140,8 +1140,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786788199.4618096,
-    "ast_hash": "b6860ad9feaf1ea766fd09eee2221239",
+    "mtime": 1786815101.5864108,
+    "ast_hash": "a6e6d8fc00ddaaacd55bd4bd9147c666",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1786788199.4618096,
-    "ast_hash": "b6860ad9feaf1ea766fd09eee2221239",
+    "mtime": 1786815101.5864108,
+    "ast_hash": "a6e6d8fc00ddaaacd55bd4bd9147c666",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1786787549.9997635,
-    "ast_hash": "b1dd78658722be2e4a6ad793ed0afb4e",
+    "mtime": 1786815123.268448,
+    "ast_hash": "d97f4f6074bd0938dfd86adf8f33d0d5",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1905,9 +1905,9 @@
     "semantic_hash": "db3a3da3e4664a1727b68b6113de24a8"
   },
   "src/utils/highlighting/WordSegmentMatcher.ts": {
-    "mtime": 1785327708.3571877,
-    "ast_hash": "28be233bdb40b696649ebdf4ee4eafb4",
-    "semantic_hash": "28be233bdb40b696649ebdf4ee4eafb4"
+    "mtime": 1786808639.3310986,
+    "ast_hash": "30a8c82e7b58501720385a92cd602f40",
+    "semantic_hash": ""
   },
   "src/utils/memory/BatchMemoryCleanup.ts": {
     "mtime": 1785327607.1558404,
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/PositionBasedSegmentBuilder.ts": {
-    "mtime": 1786786903.3165677,
-    "ast_hash": "4c81f107d23d42bc10cb472cfd60ddca",
+    "mtime": 1786788646.7720366,
+    "ast_hash": "86b23bed2201b3864040249e5afe0981",
     "semantic_hash": ""
   }
 }

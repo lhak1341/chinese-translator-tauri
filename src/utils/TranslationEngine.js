@@ -5252,8 +5252,7 @@ export class TranslationEngine {
     batchLog.info(
       'smart-chunk-adaptation',
       `📊 Smart chunk sizing: complexity=${contentAnalysis.complexity.toFixed(2)}, ` +
-        `strategy=${contentAnalysis.chunkingStrategy}, batch_size=${currentBatchSize}`,
-      contentAnalysis.recommendations
+        `strategy=${contentAnalysis.chunkingStrategy}, batch_size=${currentBatchSize}`
     );
 
     let _totalBatches = Math.ceil(translatableChunks.length / currentBatchSize);

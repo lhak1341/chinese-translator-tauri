@@ -54,17 +54,22 @@ const QUOTE_PATTERN = /[“‘”’"']/;
  * Pure function of its inputs — reads `semanticArrays` and `outputText`, writes nothing.
  * No engine state (`this`) touched anywhere in the algorithm.
  *
- * Algorithm (unchanged from the original inline version — carries forward one already-
- * fixed bug, see the sort comparator below):
+ * Algorithm (carries forward one already-fixed bug, see the sort comparator below):
  * 1. Build candidate words from semantic-array entries with non-null translations.
  * 2. Sort candidates longest-first (prevents a short word matching inside a longer one),
  *    tie-broken by tokenIndex (Chinese text order) for same-length candidates — this
  *    tie-break must apply to ALL same-length candidates, not just same-translated-text
  *    ones, or the comparator becomes intransitive (see compareByTokenIndex usage below).
  * 3. Find each candidate's first non-overlapping occurrence in the (NFC-normalized,
- *    lowercased) output text, in sorted order.
- * 4. Re-sort found words by their actual output position, then build spacing/semantic/
- *    remaining segments left-to-right.
+ *    lowercased) output text, in sorted order. Each found position is validated against
+ *    every other candidate's occupied range (not just previously-added ones), so the
+ *    final set is pairwise non-overlapping regardless of processing order.
+ * 4. Re-sort found words by their actual output position, then walk that order building
+ *    spacing/semantic/remaining segments left-to-right — reusing each word's position
+ *    from step 3 directly rather than re-searching for it. (A second independent search
+ *    here would not be guaranteed to agree with step 3's choice: step 3's overlap check
+ *    sees candidates claimed by not-yet-visited-in-position-order words too, which a
+ *    naive left-to-right re-search from the running cursor cannot see.)
  */
 export function matchWordSegments(
   semanticArrays: WordSegmentSemanticArrays,
@@ -142,57 +147,54 @@ export function matchWordSegments(
     semanticIndex: word.semanticIndex,
     original: word.original,
     translated: word.translated,
+    position: word.position,
   }));
 
   for (const wordInfo of outputOrder) {
+    const { position } = wordInfo;
     const normalizedTranslated = wordInfo.translated.normalize('NFC').toLowerCase();
-    const position = normalizedOutput.indexOf(normalizedTranslated, currentPosition);
 
-    if (position >= 0) {
-      if (position > currentPosition) {
-        const spaceText = outputText.substring(currentPosition, position);
+    if (position > currentPosition) {
+      const spaceText = outputText.substring(currentPosition, position);
 
-        if (QUOTE_PATTERN.test(spaceText)) {
-          const cleanedSpaceText = spaceText
-            .replace(/(["“‘])[ \t]+/, '$1')
-            .replace(/[ \t]+([”’"'])/, '$1');
-          wordSegments.push({
-            type: 'spacing',
-            start: currentPosition,
-            end: position,
-            text: cleanedSpaceText,
-            isClickable: false,
-          });
-        } else {
-          wordSegments.push({
-            type: 'spacing',
-            start: currentPosition,
-            end: position,
-            text: spaceText,
-            isClickable: false,
-          });
-        }
+      if (QUOTE_PATTERN.test(spaceText)) {
+        const cleanedSpaceText = spaceText
+          .replace(/(["“‘])[ \t]+/, '$1')
+          .replace(/[ \t]+([”’"'])/, '$1');
+        wordSegments.push({
+          type: 'spacing',
+          start: currentPosition,
+          end: position,
+          text: cleanedSpaceText,
+          isClickable: false,
+        });
+      } else {
+        wordSegments.push({
+          type: 'spacing',
+          start: currentPosition,
+          end: position,
+          text: spaceText,
+          isClickable: false,
+        });
       }
-
-      const wordLength = normalizedTranslated.length;
-      const actualText = outputText.substring(position, position + wordLength);
-      wordSegments.push({
-        type: 'semantic',
-        unitIndex: wordInfo.semanticIndex,
-        start: position,
-        end: position + wordLength,
-        originalText: wordInfo.original,
-        translatedText: actualText,
-        source: semanticArrays.metadata[wordInfo.semanticIndex]?.source || 'unknown',
-        metadata: semanticArrays.metadata[wordInfo.semanticIndex],
-        isClickable: true,
-        text: actualText,
-      });
-
-      currentPosition = position + wordLength;
-    } else {
-      logger.warn(`❌ Could not find "${wordInfo.translated}" in output`);
     }
+
+    const wordLength = normalizedTranslated.length;
+    const actualText = outputText.substring(position, position + wordLength);
+    wordSegments.push({
+      type: 'semantic',
+      unitIndex: wordInfo.semanticIndex,
+      start: position,
+      end: position + wordLength,
+      originalText: wordInfo.original,
+      translatedText: actualText,
+      source: semanticArrays.metadata[wordInfo.semanticIndex]?.source || 'unknown',
+      metadata: semanticArrays.metadata[wordInfo.semanticIndex],
+      isClickable: true,
+      text: actualText,
+    });
+
+    currentPosition = position + wordLength;
   }
 
   if (currentPosition < outputText.length) {

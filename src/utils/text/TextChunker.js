@@ -2,16 +2,6 @@
  * Text Chunker for punctuation-based text segmentation
  * Splits text into chunks by punctuation boundaries to prevent cross-punctuation matching
  * and enable parallel processing
- *
- * @import {
- *   TextChunk as ITextChunk,
- *   TextChunker as ITextChunker,
- *   PunctuationConfig,
- *   SeparatedPunctuation,
- *   ChunkerDiagnosticInfo,
- *   ReconstructionSegment,
- *   TextReconstructionResult
- * } from '../types/BatchProcessingTypes'
  */
 
 import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
@@ -42,34 +32,12 @@ export class TextChunker {
   }
 
   /**
-   * Update punctuation detection configuration
-   * @param {Object} newConfig - New punctuation configuration
-   */
-  updatePunctuationConfig(newConfig) {
-    this.unicodePunctuationDetector.updateConfig(newConfig);
-  }
-
-  /**
    * Test if a character is treated as a punctuation separator
    * @param {string} char - Character to test
    * @returns {boolean} True if character is a separator
    */
   isPunctuationSeparator(char) {
     return this.unicodePunctuationDetector.isPunctuationSeparator(char);
-  }
-
-  /**
-   * Get diagnostic information about punctuation detection capabilities
-   * @returns {Object} Diagnostic information
-   */
-  getDiagnosticInfo() {
-    return {
-      supportsUnicodeProperties: this.unicodePunctuationDetector.supportsUnicodeProperties,
-      enabledCategories: this.unicodePunctuationDetector.config.enabledCategories,
-      customSeparatorCount: this.unicodePunctuationDetector.config.customSeparators.length,
-      excludedCharacters: Array.from(this.unicodePunctuationDetector.config.excludedCharacters),
-      includedCharacters: Array.from(this.unicodePunctuationDetector.config.includedCharacters),
-    };
   }
 
   /**

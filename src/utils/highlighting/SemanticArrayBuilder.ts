@@ -6,6 +6,7 @@
 import { batchLog } from '../BatchLogger.js';
 import { logger } from '../logger';
 import { mapToPositions } from './TextPositionMapper';
+import { semanticArrayValidator } from './SemanticArrayValidator';
 
 // Rejects out-of-order, overlapping, or invalid-range positions to prevent bidirectional highlighting corruption.
 function validatePosition(
@@ -606,48 +607,7 @@ export class SemanticArrayBuilder {
   }
 
   private validateArrays(): boolean {
-    const capacitiesMatch =
-      this.original.length === this.translated.length &&
-      this.original.length === this.metadata.length;
-
-    const isLengthValid =
-      capacitiesMatch &&
-      this.length <= this.original.length &&
-      this.length <= this.translated.length &&
-      this.length <= this.metadata.length;
-
-    if (!isLengthValid) {
-      logger.error('❌ CRITICAL: Optimized semantic arrays desynchronized!', {
-        actualLength: this.length,
-        originalCapacity: this.original.length,
-        translatedCapacity: this.translated.length,
-        metadataCapacity: this.metadata.length,
-        capacitiesMatch,
-        impact: 'Highlighting functionality may break',
-      });
-      return false;
-    }
-
-    if (this.length > 0) {
-      const lastIdx = this.length - 1;
-      const elementsSynced =
-        this.original[lastIdx] !== undefined &&
-        this.translated[lastIdx] !== undefined &&
-        this.metadata[lastIdx] !== undefined;
-
-      if (!elementsSynced) {
-        logger.error('❌ CRITICAL: Optimized semantic arrays have partial write at last slot!', {
-          lastIdx,
-          hasOriginal: this.original[lastIdx] !== undefined,
-          hasTranslated: this.translated[lastIdx] !== undefined,
-          hasMetadata: this.metadata[lastIdx] !== undefined,
-          impact: 'Last semantic unit is corrupted — highlighting may misfire',
-        });
-        return false;
-      }
-    }
-
-    return true;
+    return semanticArrayValidator.validateArrays(this.getSnapshot());
   }
 
   /**

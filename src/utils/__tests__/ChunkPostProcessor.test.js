@@ -12,7 +12,7 @@ import { describe, test, expect, beforeEach } from 'vitest';
 import { ChunkPostProcessor } from '../text/ChunkPostProcessor.js';
 import { QUOTE_TYPES } from '../text/QuoteProcessor.js';
 
-/** @param {Partial<import('../types/BatchProcessingTypes').TextChunk>} overrides */
+/** @param {{content?: string, punctuation?: string, startIndex?: number, lineBreaks?: string, startedBy?: string}} overrides */
 function makeChunk(overrides = {}) {
   return {
     content: '',

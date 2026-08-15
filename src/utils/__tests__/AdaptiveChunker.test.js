@@ -112,60 +112,6 @@ describe('AdaptiveChunker', () => {
     });
   });
 
-  describe('generateOptimizationRecommendations', () => {
-    it('recommends dictionary preloading when vocabulary complexity is high', () => {
-      const analysis = {
-        complexity: 1.0,
-        factors: { vocabularyComplexity: 0.8, dictionaryHitRate: 0.9, structuralComplexity: 0.5 },
-        chunkingStrategy: 'standard',
-      };
-      const recs = chunker.generateOptimizationRecommendations(analysis);
-      expect(recs.priorityOptimizations.some((o) => o.type === 'dictionary_preloading')).toBe(true);
-    });
-
-    it('recommends dictionary expansion when hit rate is low', () => {
-      const analysis = {
-        complexity: 1.0,
-        factors: { vocabularyComplexity: 0.2, dictionaryHitRate: 0.3, structuralComplexity: 0.5 },
-        chunkingStrategy: 'standard',
-      };
-      const recs = chunker.generateOptimizationRecommendations(analysis);
-      expect(recs.priorityOptimizations.some((o) => o.type === 'dictionary_expansion')).toBe(true);
-    });
-
-    it('recommends conservative processing when structural complexity is high', () => {
-      const analysis = {
-        complexity: 1.0,
-        factors: { vocabularyComplexity: 0.2, dictionaryHitRate: 0.9, structuralComplexity: 1.8 },
-        chunkingStrategy: 'standard',
-      };
-      const recs = chunker.generateOptimizationRecommendations(analysis);
-      expect(recs.priorityOptimizations.some((o) => o.type === 'conservative_processing')).toBe(
-        true
-      );
-    });
-
-    it('sets faster performance expectations for low complexity', () => {
-      const analysis = {
-        complexity: 0.5,
-        factors: { vocabularyComplexity: 0.1, dictionaryHitRate: 0.9, structuralComplexity: 0.1 },
-        chunkingStrategy: 'aggressive',
-      };
-      const recs = chunker.generateOptimizationRecommendations(analysis);
-      expect(recs.performanceExpectations.relativeSpeed).toBe('110-130%');
-    });
-
-    it('sets reduced-speed, improved-accuracy expectations for high complexity', () => {
-      const analysis = {
-        complexity: 2.0,
-        factors: { vocabularyComplexity: 0.9, dictionaryHitRate: 0.2, structuralComplexity: 1.9 },
-        chunkingStrategy: 'careful',
-      };
-      const recs = chunker.generateOptimizationRecommendations(analysis);
-      expect(recs.performanceExpectations.relativeSpeed).toBe('70-85%');
-    });
-  });
-
   describe('analyzeContentCharacteristics', () => {
     it('classifies simple text with a low-complexity strategy', () => {
       const simple = '他去了。她也走了。你也来吧。';
