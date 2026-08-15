@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useCallback } from 'react';
-import { Edit2, Trash2, Loader, ChevronsUp, ChevronsDown, Filter } from 'lucide-react';
+import { Edit2, Trash2, Loader, ChevronsUp, ChevronsDown } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveEntryDialog from './MoveEntryDialog';
@@ -8,6 +8,7 @@ import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { classifyDictionaryId } from '../../utils/dictionary';
 import { VirtualRowComponent, ITEM_HEIGHT, SemanticTypeFilterChips } from './VirtualRowComponent';
+import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
 import { useContextMenu } from '../../hooks/useContextMenu';
@@ -274,216 +275,172 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Search controls */}
-      <div
-        style={{
-          display: 'flex',
-          padding: '1rem',
-          gap: '1rem',
-          alignItems: 'center',
-          borderBottom: '1px solid var(--border-color)',
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Search dictionary entries..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          ref={searchRef}
-          style={{
-            flex: 1,
-            padding: '0.5rem',
-            border: '1px solid var(--border-color)',
-            borderRadius: '4px',
-            backgroundColor: 'var(--background-color)',
-            color: 'var(--text-color)',
-            fontSize: '0.875rem',
-          }}
-        />
-        <div style={{ display: 'flex', gap: '0.25rem' }}>
-          <button
-            onClick={scroll.scrollToTop}
-            className="icon"
-            title="Scroll to top"
-            style={{ padding: '0.5rem' }}
-          >
-            <ChevronsUp size={16} />
-          </button>
-          <button
-            onClick={scroll.scrollToBottom}
-            className="icon"
-            title="Scroll to bottom"
-            style={{ padding: '0.5rem' }}
-          >
-            <ChevronsDown size={16} />
-          </button>
-          {hasFilterOptions && (
+      <SearchFilterHeader
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search dictionary entries..."
+        searchRef={searchRef}
+        showFilterButton={hasFilterOptions}
+        filterOpen={showFilterPanel}
+        filterActive={hasActiveFilter}
+        onToggleFilter={() => setShowFilterPanel((v) => !v)}
+        filterButtonLabel="Filter entries"
+        trailingActions={
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
             <button
-              onClick={() => setShowFilterPanel((v) => !v)}
+              onClick={scroll.scrollToTop}
               className="icon"
-              title={showFilterPanel ? 'Hide filters' : 'Filter entries'}
-              style={{
-                padding: '0.5rem',
-                backgroundColor: hasActiveFilter
-                  ? 'var(--accent-color)'
-                  : showFilterPanel
-                    ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)'
-                    : undefined,
-                color: hasActiveFilter ? 'white' : undefined,
-                borderRadius: '4px',
-              }}
+              title="Scroll to top"
+              style={{ padding: '0.5rem' }}
             >
-              <Filter size={16} />
+              <ChevronsUp size={16} />
             </button>
-          )}
-        </div>
-      </div>
+            <button
+              onClick={scroll.scrollToBottom}
+              className="icon"
+              title="Scroll to bottom"
+              style={{ padding: '0.5rem' }}
+            >
+              <ChevronsDown size={16} />
+            </button>
+          </div>
+        }
+      />
 
       {/* Filter panel */}
-      {showFilterPanel && hasFilterOptions && (
-        <div
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: '1px solid var(--border-color)',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.75rem',
-            alignItems: 'center',
-            backgroundColor: 'color-mix(in srgb, var(--accent-color) 5%, var(--background-color))',
-          }}
-        >
-          {showPatternFilter && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-                  Pattern:
-                </span>
-                {(
-                  [
-                    ['x-only', 'X only'],
-                    ['x-y', 'X–Y'],
-                  ] as const
-                ).map(([key, label]) => {
-                  const isActive = filterPatternType.has(key);
-                  return (
-                    <button
-                      key={key}
-                      onClick={() => togglePatternType(key)}
-                      style={{
-                        padding: '0.2rem 0.5rem',
-                        fontSize: '0.75rem',
-                        borderRadius: '4px',
-                        border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                        cursor: 'pointer',
-                        backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
-                        color: isActive ? 'white' : 'var(--text-color)',
-                        fontWeight: isActive ? 600 : 400,
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-                  Flags:
-                </span>
-                {(
-                  [
-                    [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
-                  ] as const
-                ).map(([isActive, flag, label, color]) => (
+      <FilterPanel open={showFilterPanel && hasFilterOptions}>
+        {showPatternFilter && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+                Pattern:
+              </span>
+              {(
+                [
+                  ['x-only', 'X only'],
+                  ['x-y', 'X–Y'],
+                ] as const
+              ).map(([key, label]) => {
+                const isActive = filterPatternType.has(key);
+                return (
                   <button
-                    key={label}
-                    onClick={() => toggleFlag(flag)}
+                    key={key}
+                    onClick={() => togglePatternType(key)}
                     style={{
                       padding: '0.2rem 0.5rem',
                       fontSize: '0.75rem',
                       borderRadius: '4px',
-                      border: `1px solid ${isActive ? color : 'var(--border-color)'}`,
+                      border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
                       cursor: 'pointer',
-                      backgroundColor: isActive ? color : 'transparent',
+                      backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
                       color: isActive ? 'white' : 'var(--text-color)',
                       fontWeight: isActive ? 600 : 400,
                     }}
                   >
                     {label}
                   </button>
-                ))}
-              </div>
-            </>
-          )}
-          {showVariableFilter && (
+                );
+              })}
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-                Variable:
+                Flags:
               </span>
-              {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
+              {(
+                [
+                  [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
+                ] as const
+              ).map(([isActive, flag, label, color]) => (
                 <button
-                  key={opt}
-                  onClick={() => setVariable(opt)}
+                  key={label}
+                  onClick={() => toggleFlag(flag)}
                   style={{
                     padding: '0.2rem 0.5rem',
                     fontSize: '0.75rem',
                     borderRadius: '4px',
-                    border: `1px solid ${filterVariable === opt ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                    border: `1px solid ${isActive ? color : 'var(--border-color)'}`,
                     cursor: 'pointer',
-                    backgroundColor: filterVariable === opt ? 'var(--accent-color)' : 'transparent',
-                    color: filterVariable === opt ? 'white' : 'var(--text-color)',
-                    fontWeight: filterVariable === opt ? 600 : 400,
+                    backgroundColor: isActive ? color : 'transparent',
+                    color: isActive ? 'white' : 'var(--text-color)',
+                    fontWeight: isActive ? 600 : 400,
                   }}
                 >
-                  {opt === 'all' ? 'All' : opt === 'allowed' ? 'Allowed' : 'Not Allowed'}
+                  {label}
                 </button>
               ))}
             </div>
-          )}
-          {showSemanticTypeFilter && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-                Type:
-              </span>
-              <SemanticTypeFilterChips
-                activeTypes={filterSemanticTypes}
-                onToggle={toggleSemanticType}
-              />
+          </>
+        )}
+        {showVariableFilter && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+              Variable:
+            </span>
+            {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
               <button
-                onClick={() => toggleSemanticType('none')}
+                key={opt}
+                onClick={() => setVariable(opt)}
                 style={{
                   padding: '0.2rem 0.5rem',
                   fontSize: '0.75rem',
                   borderRadius: '4px',
-                  border: `1px solid ${filterSemanticTypes.has('none') ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                  border: `1px solid ${filterVariable === opt ? 'var(--accent-color)' : 'var(--border-color)'}`,
                   cursor: 'pointer',
-                  backgroundColor: filterSemanticTypes.has('none')
-                    ? 'var(--accent-color)'
-                    : 'transparent',
-                  color: filterSemanticTypes.has('none') ? 'white' : 'var(--text-color)',
+                  backgroundColor: filterVariable === opt ? 'var(--accent-color)' : 'transparent',
+                  color: filterVariable === opt ? 'white' : 'var(--text-color)',
+                  fontWeight: filterVariable === opt ? 600 : 400,
                 }}
               >
-                No Type
+                {opt === 'all' ? 'All' : opt === 'allowed' ? 'Allowed' : 'Not Allowed'}
               </button>
-            </div>
-          )}
-          {hasActiveFilter && (
+            ))}
+          </div>
+        )}
+        {showSemanticTypeFilter && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+              Type:
+            </span>
+            <SemanticTypeFilterChips
+              activeTypes={filterSemanticTypes}
+              onToggle={toggleSemanticType}
+            />
             <button
-              onClick={clearFilters}
+              onClick={() => toggleSemanticType('none')}
               style={{
                 padding: '0.2rem 0.5rem',
                 fontSize: '0.75rem',
                 borderRadius: '4px',
-                border: '1px solid var(--border-color)',
+                border: `1px solid ${filterSemanticTypes.has('none') ? 'var(--accent-color)' : 'var(--border-color)'}`,
                 cursor: 'pointer',
-                backgroundColor: 'transparent',
-                color: 'var(--muted-text)',
-                marginLeft: 'auto',
+                backgroundColor: filterSemanticTypes.has('none')
+                  ? 'var(--accent-color)'
+                  : 'transparent',
+                color: filterSemanticTypes.has('none') ? 'white' : 'var(--text-color)',
               }}
             >
-              Clear filters
+              No Type
             </button>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+        {hasActiveFilter && (
+          <button
+            onClick={clearFilters}
+            style={{
+              padding: '0.2rem 0.5rem',
+              fontSize: '0.75rem',
+              borderRadius: '4px',
+              border: '1px solid var(--border-color)',
+              cursor: 'pointer',
+              backgroundColor: 'transparent',
+              color: 'var(--muted-text)',
+              marginLeft: 'auto',
+            }}
+          >
+            Clear filters
+          </button>
+        )}
+      </FilterPanel>
 
       {/* Enhanced entry count indicator with performance metrics */}
       <div

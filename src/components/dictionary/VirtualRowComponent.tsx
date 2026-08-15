@@ -297,6 +297,25 @@ export const RowShell: React.FC<{
   </div>
 );
 
+/** Row-selection checkbox cell — identical across all 3 row layouts below, no per-type
+ * variation. Not exported: unlike RowShell/MetadataBadge/etc., no other table-shaped view
+ * (Rules tab) has a bulk-select column today — add an export only when a second real
+ * caller shows up. */
+const CheckboxCell: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({
+  checked,
+  onChange,
+}) => (
+  <div className={styles.checkboxCell}>
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className={styles.checkboxInput}
+      title="Select for deletion"
+    />
+  </div>
+);
+
 /** Toggles between the inline `<input>` and a clickable display span. Wrapping div/width/className is the caller's concern. */
 const EditableCell: React.FC<{
   edit: InlineFieldEdit;
@@ -406,15 +425,10 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           isSelected={isSelected}
           isScrolling={isScrolling}
         >
-          <div className={styles.checkboxCell}>
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => onSelectEntry(source, e.target.checked)}
-              className={styles.checkboxInput}
-              title="Select for deletion"
-            />
-          </div>
+          <CheckboxCell
+            checked={isSelected}
+            onChange={(checked) => onSelectEntry(source, checked)}
+          />
 
           <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
             <EditableCell
@@ -474,15 +488,10 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
           isSelected={isSelected}
           isScrolling={isScrolling}
         >
-          <div className={styles.checkboxCell}>
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={(e) => onSelectEntry(source, e.target.checked)}
-              className={styles.checkboxInput}
-              title="Select for deletion"
-            />
-          </div>
+          <CheckboxCell
+            checked={isSelected}
+            onChange={(checked) => onSelectEntry(source, checked)}
+          />
 
           <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
             <EditableCell edit={sourceEdit} renderDisplay={() => source} />
@@ -527,15 +536,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
         isSelected={isSelected}
         isScrolling={isScrolling}
       >
-        <div className={styles.checkboxCell}>
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => onSelectEntry(source, e.target.checked)}
-            className={styles.checkboxInput}
-            title="Select for deletion"
-          />
-        </div>
+        <CheckboxCell checked={isSelected} onChange={(checked) => onSelectEntry(source, checked)} />
 
         <div className={styles.cell} style={{ width: sourceWidth }}>
           <EditableCell edit={sourceEdit} renderDisplay={() => source} />

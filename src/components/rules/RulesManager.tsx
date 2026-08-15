@@ -1,9 +1,10 @@
 import { useMemo, useState, forwardRef, useImperativeHandle } from 'react';
-import { PlusCircle, Filter } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { SemanticTypeFilterChips } from '../dictionary/VirtualRowComponent';
+import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
 import RuleMatchesModal from './RuleMatchesModal';
 import NewRuleModal from './NewRuleModal';
 import RuleRow from './RuleRow';
@@ -114,72 +115,37 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <input
-          type="text"
-          placeholder="Search rules..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          aria-label="Search rules"
-          style={{
-            flex: 1,
-            padding: '0.5rem',
-            border: '1px solid var(--border-color)',
-            borderRadius: '4px',
-            backgroundColor: 'var(--background-color)',
-            color: 'var(--text-color)',
-            fontSize: '0.875rem',
-          }}
-        />
-        <button
-          onClick={() => setShowFilterPanel((v) => !v)}
-          className="icon"
-          title={showFilterPanel ? 'Hide filters' : 'Filter by semantic type'}
-          style={{
-            padding: '0.5rem',
-            backgroundColor:
-              filterSemanticTypes.size > 0
-                ? 'var(--accent-color)'
-                : showFilterPanel
-                  ? 'color-mix(in srgb, var(--accent-color) 15%, transparent)'
-                  : undefined,
-            color: filterSemanticTypes.size > 0 ? 'white' : undefined,
-            borderRadius: '4px',
-          }}
-        >
-          <Filter size={16} />
-        </button>
-        <button
-          className={`primary ${dmStyles.button}`}
-          onClick={() => openNew()}
-          title="Add new rule"
-        >
-          <PlusCircle size={15} />
-          Add Rule
-        </button>
-      </div>
+      <SearchFilterHeader
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Search rules..."
+        searchAriaLabel="Search rules"
+        showFilterButton
+        filterOpen={showFilterPanel}
+        filterActive={filterSemanticTypes.size > 0}
+        onToggleFilter={() => setShowFilterPanel((v) => !v)}
+        filterButtonLabel="Filter by semantic type"
+        trailingActions={
+          <button
+            className={`primary ${dmStyles.button}`}
+            onClick={() => openNew()}
+            title="Add new rule"
+          >
+            <PlusCircle size={15} />
+            Add Rule
+          </button>
+        }
+      />
 
-      {showFilterPanel && (
-        <div
-          style={{
-            padding: '0.5rem 1rem',
-            borderBottom: '1px solid var(--border-color)',
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '0.75rem',
-            alignItems: 'center',
-            backgroundColor: 'color-mix(in srgb, var(--accent-color) 5%, var(--background-color))',
-          }}
-        >
-          <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-            Type:
-          </span>
-          <SemanticTypeFilterChips
-            activeTypes={filterSemanticTypes}
-            onToggle={toggleSemanticTypeFilter}
-          />
-        </div>
-      )}
+      <FilterPanel open={showFilterPanel}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+          Type:
+        </span>
+        <SemanticTypeFilterChips
+          activeTypes={filterSemanticTypes}
+          onToggle={toggleSemanticTypeFilter}
+        />
+      </FilterPanel>
 
       <div className={styles.tableArea}>
         {filteredRules.length === 0 ? (

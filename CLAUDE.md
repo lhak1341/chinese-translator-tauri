@@ -82,7 +82,9 @@ Completely separate code paths. Debug the right one. Both subdirectories have an
 
 **Test file placement in `src/utils/`:** goes flat in `src/utils/__tests__/`, even for modules living in a subdirectory (`dictionary/`, `pattern/`, `highlighting/`, etc.) — NOT in a nested `src/utils/<subdir>/__tests__/`. `src/utils/ui/__tests__/` is the one pre-existing exception. Check `ls src/utils/__tests__/ | grep <ModuleName>` before creating a new test file.
 
-**Test file placement in `src/components/`:** opposite convention from `src/utils/` — nests per component directory (`src/components/dictionary/__tests__/`, `src/components/configuration/__tests__/`, etc.), never a flat top-level dir. Don't apply the utils flat-rule here.
+**Test file placement in `src/components/`:** components that live in a subdirectory nest their tests there (`src/components/dictionary/__tests__/`, `src/components/configuration/__tests__/`, etc.). Root-level components with no subdirectory (`ErrorBoundary.tsx`, `TabbedInterface.tsx`, a new cross-cutting primitive like `SearchFilterHeader.tsx`) use the flat `src/components/__tests__/` dir instead — it already holds several. Don't apply the `src/utils/` flat-rule to a component that DOES have a subdirectory, though.
+
+**Edit tool's `replace_all` matches exact whitespace** — near-identical blocks that differ only in indentation (common in this codebase's copy-pasted JSX, e.g. duplicated row/cell markup) will silently skip the non-matching copy with no error. After any `replace_all` across "identical" blocks, grep-verify the replacement count matches how many you expected.
 
 **RTK filters `cargo test` failure output** — full assertion details (panicked at, left/right values) are in `~/Library/Application Support/rtk/tee/<latest>_cargo_test.log`; grep the test name there when a Rust test fails with no detail shown in terminal.
 

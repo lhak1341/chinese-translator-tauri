@@ -103,6 +103,10 @@ Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of
 
 `sharedTextStyle`, `inputTextStyle`, `outputTextStyle`, `characterOnlyTextStyle` in `Translator.jsx` use CSS variable string values (e.g. `'var(--chinese-text-font, ...)'`) with deps `[]` — static constants, not derived from `appearance` state. `useAppearanceSettings` is called only from `AppearanceManager.tsx`. Do not move these into the hook. See ADR-024.
 
+## Table Toolbar Building Blocks — `SearchFilterHeader.tsx`
+
+`SearchFilterHeader` (search box + filter-toggle button + `trailingActions` slot) and `FilterPanel` (filter-dimension wrapper shell, `open`-gated) live flat in `src/components/SearchFilterHeader.tsx`, shared by `RulesManager.tsx` and `EnhancedVirtualizedDictionaryTable.tsx`. Both are presentational — search/filter-open state stays owned by the caller. This is the 5th confirmed instance of the same table-toolbar duplication drift `dictionary/CLAUDE.md`'s `RowShell`/`MetadataBadge`/`SemanticTypeFilterChips` entry tracks (search input + filter-button style/color-mix logic + filter-panel wrapper were independently hand-copied between the two files). Import and reuse these rather than re-deriving the same inline styles in a new table-shaped view.
+
 ## Global Singleton Lifecycle — `performanceHealth` / `systemPerformanceMonitor`
 
 `performanceHealth.startMonitoring()` and `performanceHealth.destroy()` are owned exclusively by `App.jsx`. Do NOT call `destroy()` in `Translator.jsx` or any child component — Translator unmounts before App, causing double-destroy on a live singleton. App's cleanup effect is the sole teardown site.

@@ -297,5 +297,9 @@
   "305": "Integration Sequence (Recommended Order)",
   "306": "🚀 Next Steps",
   "307": "🔄 Git Status",
-  "310": "types"
+  "310": "types",
+  "259": "DictionaryManager Types",
+  "265": "ESLint Tooling",
+  "278": "Tauri Build Script",
+  "283": "Vite Env Types"
 }
