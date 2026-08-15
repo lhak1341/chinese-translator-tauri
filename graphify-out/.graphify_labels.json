@@ -341,5 +341,7 @@
   "339": "RuleFieldParity.test.tsx",
   "340": "TransformRuleEngine.ts (compareRulePrecedence, applyRule, deriveCapitalizeExceptNForKeyEdit)",
   "341": "PositionMetadataSegmenter.ts",
-  "342": "SegmentPrecomputer.ts (precomputeSegments/precomputeOriginalSegments)"
+  "342": "SegmentPrecomputer.ts (precomputeSegments/precomputeOriginalSegments)",
+  "343": "typescript",
+  "344": "typescript-eslint"
 }

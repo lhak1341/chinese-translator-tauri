@@ -405,6 +405,30 @@ Plain function, not a component — matches the pre-extraction style (both calle
 
 Entry point: `src/components/char-only/SegmentedParagraphs.tsx`. Not barrel-exported (no `char-only/index.ts` exists) — imported directly by both callers, matching how `HighlightableSegment.tsx` is already imported.
 
+## PositionBasedSegmentBuilder
+
+The direct-placement fast path for `precomputeOriginalSegments` (original Chinese panel): when every semantic-array entry already has `originalStart`/`originalEnd` metadata (set during `postProcess`), walks entries sorted by `originalStart` instead of running the greedy scan. Avoids the scan's first-available tie-breaking, which can diverge from the Vietnamese panel's assignment order for duplicate translated words. Only fires for single-chunk (short) translations — the parallel merge loop drops `originalStart`, so multi-chunk translations always fall through to the scan.
+
+Extracted from `SegmentPrecomputer.ts` 2026-08-15 (architecture review candidate #3) — self-contained, shares no state or matching logic with `precomputeSegments`/`precomputeOriginalSegments`, the two scan loops ADR-036 protects from unification. Not that pair; the split doesn't reopen ADR-036. Its existing tests (`SegmentPrecomputer.test.ts`, `describe('buildSegmentsFromPositions (fast path)')`) test it black-box through `precomputeOriginalSegments`'s routing and needed no changes — they never imported the function directly, since it wasn't exported before this extraction.
+
+Interface: `buildSegmentsFromPositions(text, semanticArrays) → Segment[]`. Takes `Segment`/`SemanticArrays` as type-only imports from `SegmentPrecomputer.ts` (erased at compile time — no real runtime import cycle, even though `SegmentPrecomputer.ts` imports the function back).
+
+Entry point: `src/utils/highlighting/PositionBasedSegmentBuilder.ts`, barrel-exported from `src/utils/highlighting/index.ts`. Sole caller: `precomputeOriginalSegments` in `SegmentPrecomputer.ts`, gated by the `allHavePositions` check.
+
+## _clampInitialBatchSize
+
+`TranslationEngine.js`'s seam-contract fix for the batch-size floor (architecture review 2026-08-15, candidate #2 — real bug, not just shallowness). `AdaptiveBatchSizer.calculateNextBatchSize`'s severe-degradation shrink guard (`currentBatchSize > MIN_BATCH_SIZE`) silently never fires below `MIN_BATCH_SIZE` (3) — reachable whenever `chunkConfig.enabled === false` (short texts, <~400 chars), which previously pinned the initial `currentBatchSize` to a hardcoded `2`, one below the floor. `_clampInitialBatchSize(chunkConfig, currentBatchSize)` now floors the disabled-chunking case at `MIN_BATCH_SIZE` instead — self-sufficient fix, since the shrink branch's own floor (`max(MIN_BATCH_SIZE, size-1)`) keeps `currentBatchSize` in range for the rest of the loop once entry respects it. `MIN_BATCH_SIZE`/`MAX_BATCH_SIZE` now exported from `AdaptiveBatchSizer.ts`.
+
+Entry point: `src/utils/TranslationEngine.js`, private method next to `_applyBatchMemoryCleanup`. Tests: `AdaptiveBatchSizer.test.ts` (pure-function boundary behavior), `TranslationEngine.regression.test.js`'s `_clampInitialBatchSize wiring` block (real call-site invariant).
+
+## emptySemanticArrays / _logUnpositionedSegments
+
+Two small dedup extractions from `TranslationEngine.js` (architecture review 2026-08-15, candidate #4), both scoped file-wide rather than to a single method — neither call site is on the DO-NOT-EXTRACT list (`translateSinglePass`/`findAllMatchesWithSemanticCache`/`postProcess`).
+
+`emptySemanticArrays()` — the `{ original: [], translated: [], metadata: [] }` fallback shape for `semanticArrayBuilder?.getArrays() || ...`. Was hand-copied at 8 sites across 5 methods (`translateWithCharactersOnly`, `translateWithSegments`, `translateWithProgressiveBatches` ×4, `translateWithChunking`, `getBatchSemanticArrays`) before being unified. Zero `this` state — a plain exported function, not a TranslationEngine method. Entry point: `src/utils/highlighting/SegmentPrecomputer.ts`, barrel-exported.
+
+`_logUnpositionedSegments(contextSuffix)` — the `translationSegments.filter(s => s.translatedStart === -1)` + warn-if-any-found diagnostic. Was hand-copied at 3 sites across 2 methods (`translateWithSegments`, `translateWithProgressiveBatches` ×2 — "in batch processing" / "in final processing"), not the 3-sites-in-one-method the initial report card claimed (re-verified directly against the file during grilling). Needs `this.translationSegments`/`this.log` — stays a private TranslationEngine method, unlike `emptySemanticArrays`. Do NOT confuse with the single-line `if (translationSegment.translatedStart === -1)` guard elsewhere in the file (~line 4239, inside the position-assignment loop) — structurally different (a set-once guard, not a filter+warn diagnostic) and correctly left untouched.
+
 ## accumulateLoadResults
 
 The shared accumulate-and-log step for `useForceReload.js`'s two dictionary-load branches (`parallelDictionaryLoader` primary path, manual `Promise.all` catch-fallback). Extracted 2026-07-29 — both branches independently built `freshDictionaries`/`successCount` and logged per-item ✅/❌, and the fallback branch's per-item failure logging (inline inside its `loadPromises` map) was removed in the same pass since `accumulateLoadResults` is now the sole logger for failures — the fallback branch used to double-log before this.

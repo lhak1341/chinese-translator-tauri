@@ -14,7 +14,6 @@
  * } from '../types/BatchProcessingTypes'
  */
 
-import { QUOTE_CATEGORIES } from './QuoteProcessor';
 import { UnicodePunctuationDetector } from './UnicodePunctuationDetector.js';
 import { logger } from '../logger.js';
 import { wasmTextChunker } from '../wasm/WasmTextChunker.js';
@@ -40,108 +39,14 @@ export class TextChunker {
   constructor(punctuationConfig = {}) {
     // Initialize Unicode-based punctuation detection system
     this.unicodePunctuationDetector = new UnicodePunctuationDetector(punctuationConfig);
-
-    // Legacy punctuation marks for fallback compatibility
-    // These are used when Unicode property escapes are not supported
-    this.legacyChunkSeparators = [
-      ',',
-      '.',
-      '!',
-      '?',
-      ';',
-      ':',
-      '，',
-      '。',
-      '．',
-      '！',
-      '？',
-      '；',
-      '：',
-      '(',
-      ')',
-      '（',
-      '）',
-      '[',
-      ']',
-      '{',
-      '}',
-      '《',
-      '》',
-      '【',
-      '】',
-      '"',
-      '\u201c',
-      '\u201d',
-      '\u2018',
-      '\u2019',
-      "'",
-      '、',
-      '…',
-      '——',
-      '－',
-    ];
-
-    // Build regex patterns based on Unicode support
-    this.buildChunkingRegex();
   }
 
   /**
-   * Build chunking regex patterns based on Unicode punctuation detection capabilities
-   */
-  buildChunkingRegex() {
-    if (this.unicodePunctuationDetector.supportsUnicodeProperties) {
-      // Use Unicode property-based regex for comprehensive punctuation detection
-      const enabledCategories = Object.keys(
-        this.unicodePunctuationDetector.config.enabledCategories
-      ).filter((cat) => this.unicodePunctuationDetector.config.enabledCategories[cat]);
-
-      if (enabledCategories.length > 0) {
-        const categoryPattern = enabledCategories.map((cat) => `\\p{${cat}}`).join('|');
-        // Match content + punctuation, capturing both parts
-        this.chunkRegex = new RegExp(`([^\\p{P}]*?)([${categoryPattern}]*)`, 'gu');
-
-        if (process.env.NODE_ENV === 'development') {
-          logger.log(
-            `🔧 TextChunker: Using Unicode punctuation categories: ${enabledCategories.join(', ')}`
-          );
-        }
-        return;
-      }
-    }
-
-    // Fallback to legacy separator list
-    const escapedSeparators = this.legacyChunkSeparators.map((sep) =>
-      sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    );
-
-    // Match content + punctuation, capturing both parts
-    this.chunkRegex = new RegExp(
-      `([^${escapedSeparators.join('')}]+)([${escapedSeparators.join('')}]*)`,
-      'g'
-    );
-
-    if (process.env.NODE_ENV === 'development') {
-      logger.log(
-        `🔧 TextChunker: Using legacy punctuation separators (${this.legacyChunkSeparators.length} characters)`
-      );
-    }
-  }
-
-  /**
-   * Update punctuation detection configuration and rebuild regex
+   * Update punctuation detection configuration
    * @param {Object} newConfig - New punctuation configuration
    */
   updatePunctuationConfig(newConfig) {
     this.unicodePunctuationDetector.updateConfig(newConfig);
-    this.buildChunkingRegex();
-  }
-
-  /**
-   * Get current punctuation detection configuration
-   * @returns {Object} Current punctuation configuration
-   */
-  getPunctuationConfig() {
-    return this.unicodePunctuationDetector.getConfig();
   }
 
   /**
@@ -165,40 +70,6 @@ export class TextChunker {
       excludedCharacters: Array.from(this.unicodePunctuationDetector.config.excludedCharacters),
       includedCharacters: Array.from(this.unicodePunctuationDetector.config.includedCharacters),
     };
-  }
-
-  /**
-   * Check if punctuation contains opening punctuation that should precede content
-   * @param {string} punctuation - Punctuation string to check
-   * @returns {boolean} True if contains opening punctuation
-   */
-  hasOpeningPunctuation(punctuation) {
-    if (!punctuation) return false;
-    const openingChars = ['《', '【', '(', '（', '[', '{', ...QUOTE_CATEGORIES.OPENING];
-    return Array.from(punctuation).some((char) => openingChars.includes(char));
-  }
-
-  /**
-   * Extract opening punctuation from a punctuation string
-   * @param {string} punctuation - Full punctuation string
-   * @returns {{opening: string, remaining: string}} Separated punctuation
-   */
-  separateOpeningPunctuation(punctuation) {
-    if (!punctuation) return { opening: '', remaining: '' };
-
-    const openingChars = ['《', '【', '(', '（', '[', '{', ...QUOTE_CATEGORIES.OPENING];
-    let opening = '';
-    let remaining = '';
-
-    for (const char of punctuation) {
-      if (openingChars.includes(char)) {
-        opening += char;
-      } else {
-        remaining += char;
-      }
-    }
-
-    return { opening, remaining };
   }
 
   /**

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { calculateNextBatchSize } from '../text/AdaptiveBatchSizer';
+import { calculateNextBatchSize, MIN_BATCH_SIZE } from '../text/AdaptiveBatchSizer';
 
 function history(times: number[]) {
   return times.map((avgTimePerChunk) => ({ avgTimePerChunk }));
@@ -72,6 +72,29 @@ describe('calculateNextBatchSize', () => {
         message: expect.stringContaining('Increasing batch size'),
       })
     );
+  });
+
+  test('shrink guard stays inert (no shrink, no log) below MIN_BATCH_SIZE — the below-floor state closed off at the call site 2026-08-15', () => {
+    const result = calculateNextBatchSize({
+      batchPerformanceHistory: history([10, 40, 40]),
+      currentBatchSize: MIN_BATCH_SIZE - 1,
+      performanceBaseline: 10,
+      batchIndex: 3,
+    });
+
+    expect(result.batchSize).toBe(MIN_BATCH_SIZE - 1);
+    expect(result.log).toBeNull();
+  });
+
+  test('growth branch has no lower-bound guard — can raise a below-floor size on good performance', () => {
+    const result = calculateNextBatchSize({
+      batchPerformanceHistory: history([10, 5, 5]),
+      currentBatchSize: MIN_BATCH_SIZE - 1,
+      performanceBaseline: 10,
+      batchIndex: 2,
+    });
+
+    expect(result.batchSize).toBe(MIN_BATCH_SIZE);
   });
 
   test('does not grow on batch 0 or 1 even if performance is good', () => {

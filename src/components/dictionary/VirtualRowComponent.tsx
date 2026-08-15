@@ -13,7 +13,7 @@ import {
 import type { SemanticType } from '../../constants/SemanticTypes';
 import type { DictionaryEntryValue } from '../../types/DictionaryTypes';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { highlightPatternVariables } from '../../utils/text/PatternTextFormatter';
+import { highlightPatternVariables } from '../../utils/text';
 
 /** Height of each table row in pixels. Exported so the table can compute totalHeight. */
 export const ITEM_HEIGHT = 40;

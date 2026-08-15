@@ -15,7 +15,11 @@ import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import { batchLog } from '../utils/BatchLogger.js';
-import { scheduleHighlightScroll, findCharacterOnlyMatch } from '../utils/highlighting';
+import {
+  scheduleHighlightScroll,
+  findCharacterOnlyMatch,
+  HIGHLIGHT_SCROLL_DELAY_MS,
+} from '../utils/highlighting';
 import { DebouncedProgressHandler } from '../utils/ui';
 import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
@@ -32,7 +36,6 @@ import { useForceReload } from '../hooks/useForceReload';
 import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
 import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
 import { useForceReloadContext } from '../hooks/useReloadExecutionContexts';
-import { HIGHLIGHT_SCROLL_DELAY_MS } from '../utils/highlighting/semanticArrayConstants';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 
 // ============================================================================

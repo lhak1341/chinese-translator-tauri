@@ -5,7 +5,7 @@ import {
   highlightingReducer,
   INITIAL_HIGHLIGHTING_STATE,
 } from '../reducers/highlightingReducer.js';
-import { MAX_SAFE_SEGMENTS } from '../utils/highlighting/semanticArrayConstants';
+import { MAX_SAFE_SEGMENTS } from '../utils/highlighting';
 import type { SemanticArrays } from '../types/SemanticTypes';
 
 export interface HighlightingState {

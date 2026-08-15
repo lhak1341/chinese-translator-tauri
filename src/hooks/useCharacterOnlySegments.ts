@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
+import { segmentFromPositionMetadata } from '../utils/highlighting';
 import type { Segment, SemanticArrays } from '../utils/highlighting';
-import { segmentFromPositionMetadata } from '../utils/highlighting/PositionMetadataSegmenter';
 import { logger } from '../utils/logger';
 
 /**

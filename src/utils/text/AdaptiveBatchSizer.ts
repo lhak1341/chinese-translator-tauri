@@ -22,8 +22,8 @@ export interface AdaptiveBatchSizerResult {
   log: AdaptiveBatchSizerLogEntry | null;
 }
 
-const MIN_BATCH_SIZE = 3;
-const MAX_BATCH_SIZE = 5;
+export const MIN_BATCH_SIZE = 3;
+export const MAX_BATCH_SIZE = 5;
 const SEVERE_DEGRADATION_RATIO = 3.0;
 const NOTABLE_DEGRADATION_RATIO = 2.0;
 const IMPROVEMENT_RATIO = 0.8;

@@ -18,6 +18,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
 import { BatchMemoryCleanup } from '../memory/BatchMemoryCleanup.js';
+import { MIN_BATCH_SIZE, MAX_BATCH_SIZE } from '../text/AdaptiveBatchSizer.js';
 
 // Mock TranslationEngine with minimal implementation for testing
 class MockTranslationEngine {
@@ -189,6 +190,41 @@ describe('TranslationEngine Regression Tests', () => {
 
       expect(engine.batchPerformanceHistory).toEqual([]);
       expect(engine.memoryTracker.snapshots).toEqual([]);
+    });
+  });
+
+  describe('_clampInitialBatchSize wiring (architecture review 2026-08-15)', () => {
+    // AdaptiveBatchSizer.test.ts covers calculateNextBatchSize's own boundary
+    // behavior (shrink guard inert below MIN_BATCH_SIZE). This proves the real
+    // TranslationEngine call site never hands it a currentBatchSize below that
+    // floor in the first place — the disabled-chunking case previously hardcoded
+    // a bare 2, one below MIN_BATCH_SIZE (3).
+    let engine;
+
+    beforeEach(() => {
+      engine = new TranslationEngine({
+        debugLevel: 0,
+        enableMemoryMonitoring: false,
+        enablePerformanceMonitoring: false,
+      });
+    });
+
+    it('floors at MIN_BATCH_SIZE, not 2, when chunking is disabled', () => {
+      const result = engine._clampInitialBatchSize({ enabled: false }, 1);
+      expect(result).toBe(MIN_BATCH_SIZE);
+    });
+
+    it('always pins to exactly MIN_BATCH_SIZE when chunking is disabled, regardless of the requested size', () => {
+      const result = engine._clampInitialBatchSize({ enabled: false }, MIN_BATCH_SIZE + 1);
+      expect(result).toBe(MIN_BATCH_SIZE);
+    });
+
+    it('clamps to maxParallelChunks when chunking is enabled', () => {
+      const result = engine._clampInitialBatchSize(
+        { enabled: true, maxParallelChunks: MAX_BATCH_SIZE },
+        MAX_BATCH_SIZE + 10
+      );
+      expect(result).toBe(MAX_BATCH_SIZE);
     });
   });
 });

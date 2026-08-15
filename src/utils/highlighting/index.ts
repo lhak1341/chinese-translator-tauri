@@ -18,7 +18,10 @@ export {
   precomputeOriginalSegments,
   findUnitMatch,
   normalizeText,
+  emptySemanticArrays,
 } from './SegmentPrecomputer';
+export { buildSegmentsFromPositions } from './PositionBasedSegmentBuilder';
+export { segmentFromPositionMetadata } from './PositionMetadataSegmenter';
 
 // --- Character-Only bridge scoring ---
 export { findCharacterOnlyMatch } from './CharacterOnlyBridge';

@@ -150,7 +150,8 @@ import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
-import { MAX_SAFE_SEGMENTS } from './highlighting/semanticArrayConstants.js';
+import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
+import { MAX_SAFE_SEGMENTS } from './highlighting/index.js';
 import TwoPhasePatternProcessor from './pattern/TwoPhasePatternProcessor.js';
 import { PatternFailureTracker } from './pattern/PatternFailureTracker.js';
 import { markPhraseFollowersConsumed } from './pattern/PhraseConsumptionMarker.js';
@@ -171,7 +172,7 @@ import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePri
 import { globalPerformanceMonitor } from './performance/PerformanceMonitor.js';
 import { SmartMemoryCoordinator } from './memory/SmartMemoryCoordinator.js';
 import { BatchMemoryCleanup } from './memory/BatchMemoryCleanup.js';
-import { calculateNextBatchSize } from './text/AdaptiveBatchSizer.js';
+import { calculateNextBatchSize, MIN_BATCH_SIZE } from './text/AdaptiveBatchSizer.js';
 import { buildProgressiveProgressUpdate } from './performance/ProgressiveProgressReporter.js';
 import { matchWordSegments } from './highlighting/WordSegmentMatcher.js';
 import { scanTokens } from './ReadonlyOptimizationUtils.js';
@@ -1113,7 +1114,7 @@ export class TranslationEngine {
     if (!text || text.trim() === '') {
       return {
         translatedText: text,
-        semanticArrays: { original: [], translated: [], metadata: [] },
+        semanticArrays: emptySemanticArrays(),
         prebuiltSegments: [],
       };
     }
@@ -1605,13 +1606,7 @@ export class TranslationEngine {
       translatedText = await this.translate(text, options);
 
       // Verify position tracking worked correctly
-      const unpositionedSegments = this.translationSegments.filter((s) => s.translatedStart === -1);
-      if (unpositionedSegments.length > 0) {
-        this.log(
-          DEBUG_LEVELS.WARN,
-          `⚠️ ${unpositionedSegments.length} segments missing positions - position tracking bug detected`
-        );
-      }
+      this._logUnpositionedSegments();
 
       // Update semantic arrays with capitalized versions from final text
       this.semanticArrayBuilder.updateWithCapitalizedText(translatedText);
@@ -1633,11 +1628,7 @@ export class TranslationEngine {
 
       // Get semantic arrays
       // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-      semanticArrays = this.semanticArrayBuilder?.getArrays() || {
-        original: [],
-        translated: [],
-        metadata: [],
-      };
+      semanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
     }
 
     // Legacy precomputed segments removed - components now compute segments on-demand from semanticArrays
@@ -5157,6 +5148,36 @@ export class TranslationEngine {
     this.memoryTracker.snapshots = trimmed.memoryTrackerSnapshots;
   }
 
+  /**
+   * Clamps translateWithProgressiveBatches' initial batch size into
+   * AdaptiveBatchSizer's assumed [MIN_BATCH_SIZE, MAX_BATCH_SIZE] range. The
+   * disabled-chunking floor uses MIN_BATCH_SIZE (not a bare 2) so currentBatchSize
+   * never starts below the range calculateNextBatchSize's severe-degradation
+   * shrink guard (currentBatchSize > MIN_BATCH_SIZE) assumes — below that range
+   * the guard silently never fires (architecture review 2026-08-15).
+   */
+  _clampInitialBatchSize(chunkConfig, currentBatchSize) {
+    const baseBatchSize = chunkConfig.enabled ? chunkConfig.maxParallelChunks : MIN_BATCH_SIZE;
+    return Math.max(MIN_BATCH_SIZE, Math.min(baseBatchSize, currentBatchSize));
+  }
+
+  /**
+   * Verifies translationSegments position tracking and warns on any segment still
+   * missing a position. Shared by translateWithSegments and translateWithProgressiveBatches
+   * (3 call sites hand-copied the same filter+warn check before being unified here,
+   * architecture review 2026-08-15, candidate #4).
+   * @param {string} [contextSuffix] - e.g. ' in batch processing', appended to the log message
+   */
+  _logUnpositionedSegments(contextSuffix = '') {
+    const unpositionedSegments = this.translationSegments.filter((s) => s.translatedStart === -1);
+    if (unpositionedSegments.length > 0) {
+      this.log(
+        DEBUG_LEVELS.WARN,
+        `⚠️ ${unpositionedSegments.length} segments missing positions${contextSuffix} - position tracking bug detected`
+      );
+    }
+  }
+
   async translateWithProgressiveBatches(text, options = {}) {
     const startTime = performance.now();
 
@@ -5193,11 +5214,7 @@ export class TranslationEngine {
       // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
       return {
         translatedText: text,
-        semanticArrays: this.semanticArrayBuilder?.getArrays() || {
-          original: [],
-          translated: [],
-          metadata: [],
-        },
+        semanticArrays: this.semanticArrayBuilder?.getArrays() || emptySemanticArrays(),
       };
     }
 
@@ -5230,9 +5247,7 @@ export class TranslationEngine {
       translatableChunks.length
     );
 
-    // Ensure compatibility with existing ParallelConfig limits
-    const baseBatchSize = chunkConfig.enabled ? chunkConfig.maxParallelChunks : 2;
-    currentBatchSize = Math.max(2, Math.min(baseBatchSize, currentBatchSize));
+    currentBatchSize = this._clampInitialBatchSize(chunkConfig, currentBatchSize);
 
     batchLog.info(
       'smart-chunk-adaptation',
@@ -5375,11 +5390,7 @@ export class TranslationEngine {
 
         // Periodic diagnostics (dictionary lookup stats, semantic array size) — read-only,
         // same 5-batch cadence as the growth check above.
-        const currentArrays = this.semanticArrayBuilder?.getArrays() || {
-          original: [],
-          translated: [],
-          metadata: [],
-        };
+        const currentArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
         this.log(
           DEBUG_LEVELS.INFO,
           `🧹 Batch ${batchIndex} semantic arrays: ${currentArrays?.originalSegments?.length || 0} original, ${currentArrays?.translatedSegments?.length || 0} translated segments`
@@ -5415,13 +5426,7 @@ export class TranslationEngine {
       const cleanedResult = batchResult.cleanedBatchText;
 
       // Verify position tracking worked correctly
-      const unpositionedSegments = this.translationSegments.filter((s) => s.translatedStart === -1);
-      if (unpositionedSegments.length > 0) {
-        this.log(
-          DEBUG_LEVELS.WARN,
-          `⚠️ ${unpositionedSegments.length} segments missing positions in batch processing - position tracking bug detected`
-        );
-      }
+      this._logUnpositionedSegments(' in batch processing');
       this.semanticArrayBuilder.updateWithCapitalizedText(cleanedResult);
 
       // PHASE 4: Memory-efficient batch caching
@@ -5479,11 +5484,7 @@ export class TranslationEngine {
 
     // Use the same reconstruction method as original translateWithChunking for identical results
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const semanticArrays = this.semanticArrayBuilder?.getArrays() || {
-      original: [],
-      translated: [],
-      metadata: [],
-    };
+    const semanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
     const reconstructed = this.chunkPostProcessor.reconstructTextWithSegments(
       chunks,
       semanticArrays
@@ -5527,15 +5528,7 @@ export class TranslationEngine {
     }
 
     // Verify position tracking worked correctly
-    const finalUnpositionedSegments = this.translationSegments.filter(
-      (s) => s.translatedStart === -1
-    );
-    if (finalUnpositionedSegments.length > 0) {
-      this.log(
-        DEBUG_LEVELS.WARN,
-        `⚠️ ${finalUnpositionedSegments.length} segments missing positions in final processing - position tracking bug detected`
-      );
-    }
+    this._logUnpositionedSegments(' in final processing');
     this.semanticArrayBuilder.updateWithCapitalizedText(cleanedFinalResult);
 
     // Debug logging after final processing
@@ -5576,11 +5569,7 @@ export class TranslationEngine {
 
     // BUGFIX: Use semanticArrayBuilder directly for final return to avoid duplicates
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const finalSemanticArrays = this.semanticArrayBuilder?.getArrays() || {
-      original: [],
-      translated: [],
-      metadata: [],
-    };
+    const finalSemanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
 
     this.log(
       DEBUG_LEVELS.INFO,
@@ -5849,11 +5838,8 @@ export class TranslationEngine {
 
     // Step 6: Reconstruct the final text with segment positions built simultaneously
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const semanticArraysForReconstruction = this.semanticArrayBuilder?.getArrays() || {
-      original: [],
-      translated: [],
-      metadata: [],
-    };
+    const semanticArraysForReconstruction =
+      this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
     const reconstructed = this.chunkPostProcessor.reconstructTextWithSegments(
       chunks,
       semanticArraysForReconstruction
@@ -7493,11 +7479,7 @@ export class TranslationEngine {
   getBatchSemanticArrays(_batchChunks) {
     // Get current semantic arrays from builder
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const allSemanticArrays = this.semanticArrayBuilder?.getArrays() || {
-      original: [],
-      translated: [],
-      metadata: [],
-    };
+    const allSemanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
 
     // BUGFIX: Ensure metadata array has proper objects, not empty array
     const originalCount = allSemanticArrays.original ? allSemanticArrays.original.length : 0;
