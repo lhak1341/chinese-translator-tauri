@@ -5,8 +5,8 @@
  * Vietnamese panel's assignment order for duplicate translated words.
  *
  * Extracted from SegmentPrecomputer.ts (architecture review 2026-08-15) — self-contained,
- * shares no state or matching logic with precomputeSegments/precomputeOriginalSegments,
- * the two scan loops ADR-036 protects from unification. Not that pair; safe to split out.
+ * shares no state or matching logic with precomputeOriginalSegments's own greedy scan
+ * (the scan loop ADR-036 protects from unification). Not that scan; safe to split out.
  */
 
 import type { Segment, SemanticArrays } from './SegmentPrecomputer';

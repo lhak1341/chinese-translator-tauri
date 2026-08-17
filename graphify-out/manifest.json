@@ -90,9 +90,9 @@
     "semantic_hash": "129bbad79ad3780c1f0b9d900355db38"
   },
   "wasm-core/src/text_chunker.rs": {
-    "mtime": 1780132748.0173721,
-    "ast_hash": "95f8606908994de24b7c93497f2c9db8",
-    "semantic_hash": "95f8606908994de24b7c93497f2c9db8"
+    "mtime": 1786961287.48276,
+    "ast_hash": "285f147766e63ec2ceb0cde9a2dde1fa",
+    "semantic_hash": ""
   },
   "wasm-core/src/string_processor.rs": {
     "mtime": 1780131812.0031517,
@@ -450,13 +450,13 @@
     "semantic_hash": "1192d9b5627b70091e0a615edc764773"
   },
   "src/utils/highlighting/PositionMetadataSegmenter.ts": {
-    "mtime": 1780662887.3238873,
-    "ast_hash": "55897fa12f1c6b84f292ab6bdb6bb6b3",
-    "semantic_hash": "55897fa12f1c6b84f292ab6bdb6bb6b3"
+    "mtime": 1786959713.692014,
+    "ast_hash": "4d4c4ff442fd93b2f3d9ddf9d58f875d",
+    "semantic_hash": ""
   },
   "src/utils/highlighting/SegmentPrecomputer.ts": {
-    "mtime": 1786787194.3252745,
-    "ast_hash": "79f3f4fc9ef37609f981aedfd641d34c",
+    "mtime": 1786959999.6831965,
+    "ast_hash": "d53e624743b465b5a3461340ab56c75a",
     "semantic_hash": ""
   },
   "src/utils/highlighting/CharacterOnlyBridge.ts": {
@@ -480,8 +480,8 @@
     "semantic_hash": "66b8ee6279e9e67c4684caa8c307f10e"
   },
   "src/utils/highlighting/index.ts": {
-    "mtime": 1786787559.223547,
-    "ast_hash": "fbee9f9fee3abe18db4aec356ae15294",
+    "mtime": 1786959705.9854739,
+    "ast_hash": "df8528e52785d1c08826fcf28df0e7d0",
     "semantic_hash": ""
   },
   "src/utils/wasm/wasmOperationTimeout.js": {
@@ -715,8 +715,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/AdaptiveChunker.js": {
-    "mtime": 1786813728.1668537,
-    "ast_hash": "eec7a1f07cf96f6757ca1168c559aeed",
+    "mtime": 1786815922.1789744,
+    "ast_hash": "3d549ab81dc592b5abc0fe39f3482c5f",
     "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
@@ -885,9 +885,9 @@
     "semantic_hash": "d17803bc76b9d320ed2bdd604843364a"
   },
   "src/components/char-only/HighlightableSegment.tsx": {
-    "mtime": 1780794967.5357401,
-    "ast_hash": "425b48e979a5a72ee5816aa5a4355e6e",
-    "semantic_hash": "425b48e979a5a72ee5816aa5a4355e6e"
+    "mtime": 1786959788.710865,
+    "ast_hash": "b184090e160cad12ec39a7a42131ff82",
+    "semantic_hash": ""
   },
   "src/components/char-only/ClickableTranslationSemantic.tsx": {
     "mtime": 1785305641.2164664,
@@ -1140,8 +1140,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786815101.5864108,
-    "ast_hash": "a6e6d8fc00ddaaacd55bd4bd9147c666",
+    "mtime": 1786961946.961666,
+    "ast_hash": "cb07112fda9f13d41dac6ce383244dac",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1786815101.5864108,
-    "ast_hash": "a6e6d8fc00ddaaacd55bd4bd9147c666",
+    "mtime": 1786961946.961666,
+    "ast_hash": "cb07112fda9f13d41dac6ce383244dac",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1595,9 +1595,9 @@
     "semantic_hash": "459982a8a5a2a3b280fc09bab0a04260"
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1786382933.4044962,
-    "ast_hash": "d18fd6642128e69e972435e05f9ecac6",
-    "semantic_hash": "d18fd6642128e69e972435e05f9ecac6"
+    "mtime": 1786961958.111729,
+    "ast_hash": "b9bc67650447923a9b92abf04f8a2ecd",
+    "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
     "mtime": 1764739368.9793117,
@@ -1605,8 +1605,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1786815123.268448,
-    "ast_hash": "d97f4f6074bd0938dfd86adf8f33d0d5",
+    "mtime": 1786815921.6168904,
+    "ast_hash": "0840d095a914c15085e9c1574e00553c",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1615,8 +1615,8 @@
     "semantic_hash": "9d5307162f79ba5e6efd7196195d01c2"
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1786787639.9545941,
-    "ast_hash": "01263c918f3610351d1e0a9443d5fa5a",
+    "mtime": 1786961965.9647048,
+    "ast_hash": "8f5ff20d3555496685054b274eedd537",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1740,9 +1740,9 @@
     "semantic_hash": "4a762374d1ce7d8b4fbf142c9f0e7ed0"
   },
   "src/components/char-only/SegmentedParagraphs.tsx": {
-    "mtime": 1785306897.4461377,
-    "ast_hash": "0cfb70d2b2ab48baf71fc61d584f1a38",
-    "semantic_hash": "0cfb70d2b2ab48baf71fc61d584f1a38"
+    "mtime": 1786959792.7124894,
+    "ast_hash": "bd0b04d58ddba1c668ff1de056d2caac",
+    "semantic_hash": ""
   },
   "src/components/configuration/useDictionaryConfigManagement.ts": {
     "mtime": 1786548138.2050598,
@@ -1905,8 +1905,8 @@
     "semantic_hash": "db3a3da3e4664a1727b68b6113de24a8"
   },
   "src/utils/highlighting/WordSegmentMatcher.ts": {
-    "mtime": 1786808639.3310986,
-    "ast_hash": "30a8c82e7b58501720385a92cd602f40",
+    "mtime": 1786960752.250135,
+    "ast_hash": "1388446b4c0d087027eb7fe058de022b",
     "semantic_hash": ""
   },
   "src/utils/memory/BatchMemoryCleanup.ts": {
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/PositionBasedSegmentBuilder.ts": {
-    "mtime": 1786788646.7720366,
-    "ast_hash": "86b23bed2201b3864040249e5afe0981",
+    "mtime": 1786959776.4938092,
+    "ast_hash": "3f2182b76d7373210ce1448fd01610d4",
     "semantic_hash": ""
   }
 }

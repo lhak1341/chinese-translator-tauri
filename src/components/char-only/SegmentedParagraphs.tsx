@@ -72,7 +72,7 @@ export function renderSegmentedContent<S extends BaseSegment>({
                 unitIndex={segment.unitIndex}
                 isHighlighted={isHighlighted(segment)}
                 title={getTitle(segment)}
-                onClick={() => onUnitClick(segment.unitIndex)}
+                onUnitClick={onUnitClick}
               />
             ) : (
               <span

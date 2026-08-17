@@ -3,7 +3,6 @@
  *
  * Primary entry points:
  *   - SemanticArrayBuilder      — semantic relationship tracker
- *   - precomputeSegments        — translated text segment pre-computation
  *   - precomputeOriginalSegments — original Chinese text segment pre-computation
  */
 
@@ -13,13 +12,7 @@ export { SemanticArrayValidator, semanticArrayValidator } from './SemanticArrayV
 
 // --- Segment pre-computation (character-only mode) ---
 export type { SemanticArrays, Segment } from './SegmentPrecomputer';
-export {
-  precomputeSegments,
-  precomputeOriginalSegments,
-  findUnitMatch,
-  normalizeText,
-  emptySemanticArrays,
-} from './SegmentPrecomputer';
+export { precomputeOriginalSegments, emptySemanticArrays } from './SegmentPrecomputer';
 export { buildSegmentsFromPositions } from './PositionBasedSegmentBuilder';
 export { segmentFromPositionMetadata } from './PositionMetadataSegmenter';
 

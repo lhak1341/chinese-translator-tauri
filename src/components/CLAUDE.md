@@ -1,5 +1,9 @@
 # src/components — Gotchas
 
+## Memo-Regression Tests Need Their Own File
+
+Testing "does React.memo actually skip a re-render" requires `vi.mock`ing the child with a spy double — but that mock also poisons any sibling test in the same file asserting the real child's rendered output (className, styles). Isolate into a new file (e.g. `SegmentedParagraphs.memoization.test.tsx` alongside `SegmentedParagraphs.test.tsx`) rather than mocking inside the existing behavioral test file.
+
 ## Testing components that use `react-resizable-panels`
 
 `Panel`/`Group`/`Separator` construct `window.ResizeObserver` directly, unguarded — jsdom has none and `src/test/setup.ts` doesn't mock it. Mock the trio as trivial pass-throughs (`({children}) => <>{children}</>`) rather than rendering them for real. Found testing `TranslatorDisplayPanels.tsx`.

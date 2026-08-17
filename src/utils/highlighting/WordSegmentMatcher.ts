@@ -70,11 +70,18 @@ const QUOTE_PATTERN = /[“‘”’"']/;
  *    here would not be guaranteed to agree with step 3's choice: step 3's overlap check
  *    sees candidates claimed by not-yet-visited-in-position-order words too, which a
  *    naive left-to-right re-search from the running cursor cannot see.)
+ *
+ * outputText is normalized to NFC up front (matching SegmentPrecomputer.ts's own
+ * text = normalizeVietnameseText(text)! pattern) so position/length math and the final
+ * substring slices always read the same string — an NFD outputText would otherwise
+ * misalign every slice after the first NFD word. The sole caller (TranslationEngine.js)
+ * already normalizes before calling; this is defense-in-depth, not a live bug fix.
  */
 export function matchWordSegments(
   semanticArrays: WordSegmentSemanticArrays,
   outputText: string
 ): WordSegment[] {
+  outputText = outputText.normalize('NFC');
   const wordSegments: WordSegment[] = [];
   let currentPosition = 0;
 
@@ -98,7 +105,7 @@ export function matchWordSegments(
   const foundWords: Array<CandidateWord & { position: number }> = [];
   const usedPositions = new Set<{ start: number; end: number }>();
   const MAX_TRACKING_POSITIONS = POSITION_TRACKING.MAX_TRACKING_POSITIONS;
-  const normalizedOutput = outputText.normalize('NFC').toLowerCase();
+  const normalizedOutput = outputText.toLowerCase();
 
   for (const candidate of candidateWords) {
     if (usedPositions.size > MAX_TRACKING_POSITIONS * 2) {
@@ -188,7 +195,7 @@ export function matchWordSegments(
       end: position + wordLength,
       originalText: wordInfo.original,
       translatedText: actualText,
-      source: semanticArrays.metadata[wordInfo.semanticIndex]?.source || 'unknown',
+      source: semanticArrays.metadata[wordInfo.semanticIndex]?.source ?? 'unknown',
       metadata: semanticArrays.metadata[wordInfo.semanticIndex],
       isClickable: true,
       text: actualText,

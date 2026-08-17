@@ -1,7 +1,6 @@
 use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU32, Ordering};
-#[cfg(target_arch = "wasm32")]
 use unicode_properties::{UnicodeGeneralCategory, GeneralCategory};
 
 /// Statistics for text chunking performance tracking
@@ -34,8 +33,7 @@ pub struct TextChunkResult {
 /// - Speedup: 2-3x, significant for long texts with heavy punctuation
 #[wasm_bindgen]
 pub struct TextChunker {
-    /// Configuration for which punctuation categories to use (read only in wasm32 builds)
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    /// Configuration for which punctuation categories to use
     use_unicode_properties: bool,
 
     /// Performance statistics (AtomicU32 so chunk_text can use &self, avoiding RefCell::borrow_mut)
@@ -59,7 +57,6 @@ impl TextChunker {
     /// Check if a character is a punctuation separator
     ///
     /// Uses Unicode General Category for comprehensive punctuation detection
-    #[cfg(target_arch = "wasm32")]
     #[inline]
     fn is_punctuation_separator(&self, ch: char) -> bool {
         if self.use_unicode_properties {
@@ -98,7 +95,6 @@ impl TextChunker {
     ///
     /// # Returns
     /// * JSON string (parse with JSON.parse) — array of {content, punctuation, startIndex, lineBreaks, startedBy}
-    #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen(js_name = chunkText)]
     pub fn chunk_text(&self, text: &str) -> Result<String, JsValue> {
         if text.is_empty() || text.trim().is_empty() {
@@ -290,8 +286,6 @@ pub fn get_global_chunker_stats() -> String {
 mod tests {
     use super::*;
 
-    // is_punctuation_separator is cfg(target_arch = "wasm32") — test only on WASM
-    #[cfg(target_arch = "wasm32")]
     #[test]
     fn test_punctuation_detection() {
         let chunker = TextChunker::new(true);
@@ -321,9 +315,49 @@ mod tests {
 
     #[test]
     fn test_basic_chunking() {
-        let mut chunker = TextChunker::new(true);
+        let chunker = TextChunker::new(true);
+        let result: Vec<TextChunkResult> =
+            serde_json::from_str(&chunker.chunk_text("你好，世界").unwrap()).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].content, "你好");
+        assert_eq!(result[0].punctuation, "，");
+        assert_eq!(result[1].content, "世界");
+        assert_eq!(result[1].started_by, "，");
+    }
 
-        // This would need WASM context to run fully
-        // For unit testing, we rely on JavaScript integration tests
+    #[test]
+    fn test_leading_punctuation_produces_empty_content_chunk() {
+        let chunker = TextChunker::new(true);
+        let result: Vec<TextChunkResult> =
+            serde_json::from_str(&chunker.chunk_text("《标题》内容").unwrap()).unwrap();
+        assert_eq!(result[0].content, "");
+        assert_eq!(result[0].punctuation, "《");
+    }
+
+    #[test]
+    fn test_consecutive_punctuation_merges_onto_preceding_chunk() {
+        let chunker = TextChunker::new(true);
+        let result: Vec<TextChunkResult> =
+            serde_json::from_str(&chunker.chunk_text("道：「说").unwrap()).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].punctuation, "：「"); // merged, not split
+    }
+
+    #[test]
+    fn test_line_break_starts_next_chunk() {
+        let chunker = TextChunker::new(true);
+        let result: Vec<TextChunkResult> =
+            serde_json::from_str(&chunker.chunk_text("line1\nline2").unwrap()).unwrap();
+        assert_eq!(result[0].line_breaks, "\n");
+        assert_eq!(result[1].started_by, "linebreak");
+    }
+
+    #[test]
+    fn test_ascii_fallback_when_unicode_properties_disabled() {
+        let chunker = TextChunker::new(false); // exercises is_punctuation_separator's non-Unicode branch
+        let result: Vec<TextChunkResult> =
+            serde_json::from_str(&chunker.chunk_text("hello, world!").unwrap()).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].punctuation, ",");
     }
 }

@@ -10,7 +10,9 @@ import type { SemanticArrays, Segment } from './SegmentPrecomputer';
  * (character-only path where all units carry translatedStart/End).
  *
  * Caller: ClickableTranslationSemantic (char-only path).
- * For the async full-translation path, use SegmentPrecomputer.precomputeSegments().
+ * The full-translation path builds segments differently — see
+ * ChunkPostProcessor.reconstructTextWithSegments (single-pass) and
+ * WordSegmentMatcher.matchWordSegments (progressive batches).
  */
 export function segmentFromPositionMetadata(
   text: string,

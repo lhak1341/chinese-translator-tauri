@@ -102,3 +102,30 @@ describe('matchWordSegments', () => {
     );
   });
 });
+
+describe('matchWordSegments — NFC/NFD normalization', () => {
+  test('NFD-encoded output text does not misalign segment positions', () => {
+    const nfdWord = 'màu'.normalize('NFD'); // 'màu' decomposed, 4 UTF-16 units
+    const semanticArrays = arrays([{ original: '颜色', translated: nfdWord, tokenIndex: 0 }]);
+    const output = (nfdWord + ' trắng').normalize('NFD');
+
+    const segments = matchWordSegments(semanticArrays, output);
+    const sem = segments.filter((s) => s.type === 'semantic');
+
+    expect(sem).toHaveLength(1);
+    expect(sem[0].translatedText.normalize('NFC')).toBe('màu');
+  });
+
+  test('NFD candidate word matches inside an NFC output text', () => {
+    const nfdWord = 'màu'.normalize('NFD');
+    const semanticArrays = arrays([{ original: '颜色', translated: nfdWord, tokenIndex: 0 }]);
+    const output = 'màu trắng'.normalize('NFC');
+
+    const segments = matchWordSegments(semanticArrays, output);
+    const sem = segments.filter((s) => s.type === 'semantic');
+
+    expect(sem).toHaveLength(1);
+    expect(sem[0].translatedText.normalize('NFC')).toBe('màu');
+    expect(sem[0].end).toBe(sem[0].start + 'màu'.normalize('NFC').length);
+  });
+});
