@@ -26,7 +26,7 @@ export { isUnitHighlighted } from './UnitHighlightPredicate';
 export { scrollToHighlightedElement, scheduleHighlightScroll } from './ScrollHelpers';
 
 // --- Position utilities ---
-export { mapToPositions, compareByTokenIndex, resolveTokenIndex } from './TextPositionMapper';
+export { compareByTokenIndex, resolveTokenIndex } from './TextPositionMapper';
 
 // --- Overflow guard constants (shared with TranslationEngine and Translator) ---
 export { MAX_SAFE_SEGMENTS, HIGHLIGHT_SCROLL_DELAY_MS } from './semanticArrayConstants';

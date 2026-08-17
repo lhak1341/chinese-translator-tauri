@@ -5,7 +5,6 @@
 
 import { batchLog } from '../BatchLogger.js';
 import { logger } from '../logger';
-import { mapToPositions } from './TextPositionMapper';
 import { semanticArrayValidator } from './SemanticArrayValidator';
 
 // Rejects out-of-order, overlapping, or invalid-range positions to prevent bidirectional highlighting corruption.
@@ -89,14 +88,6 @@ interface PositionCandidate {
   index: number;
   meta: SemanticArrayMetadata;
   isMapped: boolean;
-}
-
-/**
- * Position mappings with typed arrays
- */
-interface PositionMappings {
-  originalPositions: Int32Array;
-  translatedPositions: Int32Array;
 }
 
 /**
@@ -424,26 +415,6 @@ export class SemanticArrayBuilder {
     this.stats.capacityResizes++;
 
     batchLog.info('semantic-resize', `Resized semantic arrays to capacity ${newCapacity}`);
-  }
-
-  /**
-   * Build position mappings for both original Chinese text and translated Vietnamese text.
-   * Delegates to TextPositionMapper.mapToPositions for the greedy longest-match algorithm.
-   */
-  buildPositionMappings(originalText: string, translatedText: string): PositionMappings {
-    if (!originalText || originalText.length === 0) {
-      logger.warn('⚠️ Empty original text in buildPositionMappings');
-      return { originalPositions: new Int32Array(0), translatedPositions: new Int32Array(0) };
-    }
-    if (!translatedText || translatedText.length === 0) {
-      logger.warn('⚠️ Empty translated text in buildPositionMappings');
-      return { originalPositions: new Int32Array(0), translatedPositions: new Int32Array(0) };
-    }
-
-    return {
-      originalPositions: mapToPositions(originalText, this.original, this.length),
-      translatedPositions: mapToPositions(translatedText, this.translated, this.length, true),
-    };
   }
 
   /**

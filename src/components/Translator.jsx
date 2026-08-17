@@ -310,6 +310,11 @@ const Translator = ({ isActive = true }) => {
    *
    * User action: Click any segment in Original, Full Translation, or Character Only panels
    *
+   * This is one of TWO triggers into the highlighting reducer — see CONTEXT.md's
+   * "Click-to-Highlight Lifecycle" entry for the full 7-file story, including the second,
+   * independent effect-driven trigger (useCharacterOnlyBridge) that fires on ANY change to
+   * unitIndex/translationUnitIndex, not just clicks routed through this handler.
+   *
    * Supports three click directions:
    * 1. translation-to-original: Full Translation → Original Text + Character Only
    * 2. original-to-translation: Original Text → Full Translation

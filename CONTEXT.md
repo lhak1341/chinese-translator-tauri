@@ -14,21 +14,11 @@ Entry point: `src/utils/text/ChunkPostProcessor.js`, re-exported from `src/utils
 
 ## TextPositionMapper
 
-The greedy longest-match algorithm that maps each character position in a text string to the index of the semantic unit covering it. Produces an `Int32Array` of length `text.length`; positions not covered by any unit are `-1`.
-
-Algorithm: builds a first-grapheme index (Map&lt;grapheme, unitIndices[]&gt;) for O(1) candidate lookup per position, then walks the text left-to-right, greedily selecting the longest unused unit that matches at each position.
-
-Two modes: **case-sensitive** (original Chinese text) and **case-insensitive** (Vietnamese translated text — handles capitalization differences from `updateWithCapitalizedText`).
-
-Interface: `mapToPositions(text, units, count, caseInsensitive?): Int32Array`. `units` is the raw pre-allocated array from `SemanticArrayBuilder`; `count` is the number of valid entries (avoids slice allocation).
-
-Bug history encoded in the implementation: CRITICAL-1 (skip empty units), MEDIUM-2 (grapheme-aware first-char extraction for Vietnamese combining diacritics), CRITICAL-5 (explicit bounds check before inner comparison loop).
-
-Replaces two near-identical private methods (`buildOriginalMapping`, `buildTranslatedMapping`) that previously lived in `SemanticArrayBuilder`. `SemanticArrayBuilder.buildPositionMappings` now delegates both passes to this function.
-
-Also owns the single Chinese-text-order comparator: `resolveTokenIndex(tokenIndex)` (missing/negative sorts last, `Number.MAX_SAFE_INTEGER`) and `compareByTokenIndex(a, b)`. Was independently reimplemented with disagreeing missing-tokenIndex fallbacks (`?? 0` vs `?? Number.MAX_SAFE_INTEGER`) at 2 sort sites in `SegmentPrecomputer.ts` and as part of a two-key sort in `TranslationEngine.js`'s word-level builder before being unified. `CharacterOnlyBridge.ts`'s occurrence-counting scan is a different shape (linear scan, not a sort) and does not use this comparator.
+Owns the single Chinese-text-order comparator: `resolveTokenIndex(tokenIndex)` (missing/negative sorts last, `Number.MAX_SAFE_INTEGER`) and `compareByTokenIndex(a, b)`. Was independently reimplemented with disagreeing missing-tokenIndex fallbacks (`?? 0` vs `?? Number.MAX_SAFE_INTEGER`) at 2 sort sites in `SegmentPrecomputer.ts` and as part of a two-key sort in `TranslationEngine.js`'s word-level builder before being unified. `CharacterOnlyBridge.ts`'s occurrence-counting scan is a different shape (linear scan, not a sort) and does not use this comparator.
 
 Entry point: `src/utils/highlighting/TextPositionMapper.ts`, re-exported from `src/utils/highlighting/index.ts`.
+
+This file used to also hold `mapToPositions`, the greedy longest-match position-mapper `SemanticArrayBuilder.buildPositionMappings` delegated to — deleted 2026-08-17, see `docs/guides/development.md`'s deleted-symbols entry for the bug history it encoded.
 
 ## PhraseConsumptionMarker
 
@@ -262,6 +252,22 @@ Constants `MAX_MATCHES = 100` and `CONTEXT_WINDOW = 50` are exported for tests.
 `findCharacterOnlyMatch(sourceIndex, sourceArrays, targetArrays)` is direction-generic — the params don't hardcode which side is "Character-Only." Two call sites use it in opposite directions: `useCharacterOnlyBridge` (`sourceArrays=semanticArrays, targetArrays=characterOnlySemanticArrays` — Full Translation/Original → Character-Only) and `Translator.jsx`'s `handleSemanticSegmentClick` `character-only-to-original` branch (`sourceArrays=characterOnlySemanticArrays, targetArrays=semanticArrays` — reverse). Unified 2026-07-17c: the reverse direction previously hand-rolled a separate, uncapped, less-accurate (position-ratio-only, no context scoring) copy of this same algorithm — deleted in favor of calling this function directly. On a total miss (`null`), the reverse-direction caller clears the highlight (`highlightFromCharacterOnly(-1)`) rather than falling back to a position-ratio guess, matching `useCharacterOnlyBridge`'s own null-handling convention.
 
 Entry point: `src/utils/highlighting/CharacterOnlyBridge.ts`. Called from `useCharacterOnlyBridge` hook (`src/hooks/useCharacterOnlyBridge.ts`), which owns the React plumbing (guards, bounds check, dispatch, 10ms scroll), and directly from `Translator.jsx`'s `handleSemanticSegmentClick` for the reverse direction.
+
+## Click-to-Highlight Lifecycle
+
+The end-to-end path from clicking a segment to a highlight appearing elsewhere. Spans 7 files with no single production module owning the whole story — this entry is that story (added 2026-08-17, architecture review candidate #4 grilling; the code itself wasn't restructured, a 3-branch fixed dispatch doesn't benefit from a dispatch-table conversion — see the grilling notes on why that half of the original candidate was dropped).
+
+**Origin.** `HighlightableSegment.tsx` renders a clickable span; its `onClick` calls the caller-supplied `onUnitClick(unitIndex)` (must stay referentially stable — see its own doc comment on `React.memo`). `SegmentedParagraphs.tsx` threads `onUnitClick` down to every segment it renders in a paragraph loop.
+
+**Payload.** `useSegmentClickHandler` (`src/hooks/useSegmentClickHandler.ts`) wraps `onUnitClick` — validates bounds against `semanticArrays`, builds a `SegmentClickPayload` (`unitIndex`, `originalText`, `translatedText`, `source`, `metadata`, `direction`), and calls the caller's `onSegmentClick`. This is the one seam for adding a new payload field.
+
+**Dispatch.** `Translator.jsx`'s `handleSemanticSegmentClick` receives the payload and branches on `segmentInfo.direction` (`'translation-to-original'`, `'original-to-translation'`, `'character-only-to-original'` — a fixed 3-way `if/else`, not a lookup table; each branch does meaningfully different work, not just a different label). Each branch calls a named action from `useHighlightingState` (`highlightBoth`, `highlightTranslation`, `highlightFromCharacterOnly` — see that hook's own entry in `src/components/CLAUDE.md`) and schedules an auto-scroll.
+
+**State.** `useHighlightingState` (`src/hooks/useHighlightingState.ts`) owns the `highlightingReducer` (`src/reducers/highlightingReducer.js`) — `unitIndex`, `translationUnitIndex`, `characterOnlyUnitIndex`, `isCharacterOnlyClick`.
+
+**The second trigger — not reachable by reading the click handler alone.** `useCharacterOnlyBridge` (`src/hooks/useCharacterOnlyBridge.ts`) runs a `useEffect` keyed on `[unitIndex, translationUnitIndex, semanticArrays, characterOnlySemanticArrays, isCharacterOnlyClick]`. It fires on ANY change to those reducer fields — whether caused by a click through `handleSemanticSegmentClick`'s `translation-to-original`/`original-to-translation` branches, or by anything else that ever calls `highlightTranslation`/`highlightOriginal`. It re-derives the Character-Only match via `findCharacterOnlyMatch` (see `CharacterOnlyBridge` above) and dispatches `setCharacterOnlyIndex`, independent of the click dispatch above. `isCharacterOnlyClick` guards it off when the click originated FROM the Character-Only panel — that direction is handled directly inside `handleSemanticSegmentClick`'s `character-only-to-original` branch instead (calling `findCharacterOnlyMatch` with source/target swapped — see `CharacterOnlyBridge`'s entry), so the two triggers never both fire for the same click.
+
+No ADR conflict here despite the original architecture-review candidate's claim — ADR-003 governs the JS-vs-TypeScript migration strategy, not decomposition; it says nothing about extracting hooks or dispatch tables from `Translator.jsx`, and `CLAUDE.md`'s deleted-symbols list documents ~10 prior extractions from that exact file.
 
 ## DictionaryBackend
 

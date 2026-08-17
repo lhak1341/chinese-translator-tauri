@@ -1,5 +1,13 @@
 # src/components — Gotchas
 
+## Hotkey Architecture
+
+`useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props. Key→action dispatch table lives in `src/utils/ui/HotkeyDispatchTable.ts` (`matchHotkey`) — add/change shortcuts there, not in the hook body.
+
+**Option/Alt-modified digit hotkeys must match `event.code` (`'Digit1'`...), never `event.key`** — macOS remaps Option+digit to a different character per keyboard layout (Option+1 → `¡` on US layout), so `.key` matching silently breaks for most users; `.code` is the physical key, immune to modifier remapping.
+
+**All `TabbedInterface` tabs are always mounted** (visibility toggled via CSS `visibility`, not conditional render) — so a hotkey pressed on one tab can imperatively trigger another always-mounted tab's component via a `forwardRef`/`useImperativeHandle` (see `RulesManagerHandle`, mirrors the older `dictionarySearchRef` precedent), without needing a second instance of that component's own state hooks. Any modal opened this way (target tab not switched to) must render via `createPortal(..., document.body)` — a plain nested overlay inherits `visibility: hidden` from the still-hidden tab-panel ancestor despite `position: fixed`.
+
 ## Memo-Regression Tests Need Their Own File
 
 Testing "does React.memo actually skip a re-render" requires `vi.mock`ing the child with a spy double — but that mock also poisons any sibling test in the same file asserting the real child's rendered output (className, styles). Isolate into a new file (e.g. `SegmentedParagraphs.memoization.test.tsx` alongside `SegmentedParagraphs.test.tsx`) rather than mocking inside the existing behavioral test file.
@@ -61,7 +69,9 @@ The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConf
 
 **Race condition**: `reinitialize` sets `isInitializingRef.current = true` synchronously on entry and the hook's init effect checks `enginePhase === 'loading' && !isInitializingRef.current`. `handleForceReload` must NOT set any separate lock — `reinitialize` handles it.
 
-**Config load**: `useTranslatorEngine` calls `loadAppConfig()` once on mount (cached). For `handleForceReload`, pass `forceConfigReload: true` to `reinitialize` — do NOT call `invalidateAppConfig`/`loadAppConfig` directly in `Translator.jsx`.
+**Config load**: `useTranslatorEngine` calls `loadAppConfig()` once on mount (cached). For `handleForceReload`, pass `forceConfigReload: true` to `reinitialize` — do NOT call `invalidateAppConfig`/`loadAppConfig` directly in `Translator.jsx`. More generally: use `loadAppConfig()` from `utils/appConfig.ts` everywhere — never call `window.electronAPI.loadConfiguration()` directly, it returns raw unvalidated data with absent/wrong-typed defaults. `saveAppConfig()` is the sole writer to config disk anywhere in `src/` (verified 2026-07-24) — this is what makes the cache safe to trust in-session; before adding any new `window.electronAPI.loadConfiguration`/`saveConfiguration` call site, grep for existing ones first (`DictionaryManager.tsx` was the last direct-call violator, fixed 2026-07-24).
+
+**`useDictionaryReloadGuard`**: `consumeReloadTransition()` must be called ONCE at the TOP of `loadAndTranslate` before any early returns — reads prev reload state, updates internal ref, and returns `justFinishedReloading` atomically. Calling it after any early return skips the ref update and breaks reload-skip detection.
 
 **Never reach into `engineRef.current.translationSegments`** (or other engine-private arrays) from `Translator.jsx` — the engine enforces its own memory invariants (see `src/utils/CLAUDE.md`'s segment-cleanup entry). A caller-side watchdog for this was deleted 2026-07-24.
 

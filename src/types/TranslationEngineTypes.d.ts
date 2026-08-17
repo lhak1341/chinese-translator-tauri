@@ -632,7 +632,6 @@ export interface TranslationEngine {
   ): Promise<void>;
 
   // Core Translation Methods
-  translate(text: string, options?: TranslationOptions): Promise<string>;
   translateWithSegments(text: string, options?: TranslationOptions): Promise<TranslationResult>;
   translateWithCharactersOnly(
     text: string,

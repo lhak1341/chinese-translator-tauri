@@ -235,9 +235,9 @@
     "semantic_hash": "7f64cda994b687b347c8878339986b9c"
   },
   "src/types/TranslationEngineTypes.d.ts": {
-    "mtime": 1784348864.7052534,
-    "ast_hash": "ef58552d4153f2554ae67c5b427e4ca0",
-    "semantic_hash": "ef58552d4153f2554ae67c5b427e4ca0"
+    "mtime": 1786983747.974218,
+    "ast_hash": "ee4517024c50becbd21fad1aab2e86b6",
+    "semantic_hash": ""
   },
   "src/types/DictionaryManagerTypes.d.ts": {
     "mtime": 1786016210.297178,
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1786981107.80439,
-    "ast_hash": "b769b5134dfa3d57321fc44d927ca893",
+    "mtime": 1786983732.5282593,
+    "ast_hash": "8de4927af7e069e005560a304936a0a1",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -440,14 +440,14 @@
     "semantic_hash": "c307b7ea95220a8363f6124c247f7ae1"
   },
   "src/utils/highlighting/SemanticArrayBuilder.ts": {
-    "mtime": 1786810936.0840647,
-    "ast_hash": "95194a4405e3477f29f4bf7fc7b19f60",
+    "mtime": 1786983980.3937693,
+    "ast_hash": "363d662db36c0f09971c22cfb72fb38f",
     "semantic_hash": ""
   },
   "src/utils/highlighting/TextPositionMapper.ts": {
-    "mtime": 1784212853.7144053,
-    "ast_hash": "1192d9b5627b70091e0a615edc764773",
-    "semantic_hash": "1192d9b5627b70091e0a615edc764773"
+    "mtime": 1786983992.0271652,
+    "ast_hash": "d568f0e394d0e03de4bb9985bdbba2c5",
+    "semantic_hash": ""
   },
   "src/utils/highlighting/PositionMetadataSegmenter.ts": {
     "mtime": 1786959713.692014,
@@ -480,8 +480,8 @@
     "semantic_hash": "66b8ee6279e9e67c4684caa8c307f10e"
   },
   "src/utils/highlighting/index.ts": {
-    "mtime": 1786959705.9854739,
-    "ast_hash": "df8528e52785d1c08826fcf28df0e7d0",
+    "mtime": 1786983999.5778244,
+    "ast_hash": "4c98395ba0c83060fee84f3b7ce05eb0",
     "semantic_hash": ""
   },
   "src/utils/wasm/wasmOperationTimeout.js": {
@@ -860,8 +860,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1786981152.9239821,
-    "ast_hash": "fae19d7d1cea55b30a902b876cd7de16",
+    "mtime": 1786984260.785278,
+    "ast_hash": "1a8593548d652b482e315a1ab70eba91",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -1135,13 +1135,13 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1786788209.645725,
-    "ast_hash": "5e18c5de3985f68667076dc828f02827",
+    "mtime": 1786986000.4835303,
+    "ast_hash": "b9efe29fb6b858454cdf2c2df0c89d84",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786982355.6601477,
-    "ast_hash": "10ce318c6bb89ddea49027612bedcbc3",
+    "mtime": 1786985974.499214,
+    "ast_hash": "0a75005200eba3599cf89361013cf1aa",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1786982355.6601477,
-    "ast_hash": "10ce318c6bb89ddea49027612bedcbc3",
+    "mtime": 1786985974.499214,
+    "ast_hash": "0a75005200eba3599cf89361013cf1aa",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1575,9 +1575,9 @@
     "semantic_hash": "ffe3070521c171ce32058444c7f3a4a3"
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1786554192.407621,
-    "ast_hash": "d2eeaa49f5ccd6e95bfee7eb94bbe652",
-    "semantic_hash": "d2eeaa49f5ccd6e95bfee7eb94bbe652"
+    "mtime": 1786985874.978317,
+    "ast_hash": "cfbbdfd5ec7999781b9bb7355bb5f8b2",
+    "semantic_hash": ""
   },
   "docs/guides/performance.md": {
     "mtime": 1769698032.5147018,
@@ -1585,9 +1585,9 @@
     "semantic_hash": "361e2be5aa5ed1ccb80a772d8fa22b28"
   },
   "docs/guides/development.md": {
-    "mtime": 1786176974.489696,
-    "ast_hash": "e12f759cba435f555c4a2598433c2eb5",
-    "semantic_hash": "e12f759cba435f555c4a2598433c2eb5"
+    "mtime": 1786985819.6756437,
+    "ast_hash": "577d79f867bf468ef0b9473dbefe8982",
+    "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
     "mtime": 1786183178.3181665,
@@ -1605,8 +1605,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1786815921.6168904,
-    "ast_hash": "0840d095a914c15085e9c1574e00553c",
+    "mtime": 1786985908.42239,
+    "ast_hash": "4db1939d2ec00dc1b2a195fbf2bb4eb0",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1615,8 +1615,8 @@
     "semantic_hash": "9d5307162f79ba5e6efd7196195d01c2"
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1786961965.9647048,
-    "ast_hash": "8f5ff20d3555496685054b274eedd537",
+    "mtime": 1786985939.7422724,
+    "ast_hash": "057d953c7148774b077a6d033a43bca1",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {

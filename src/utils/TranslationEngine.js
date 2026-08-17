@@ -10,7 +10,7 @@
  *                               Use this; do not call `new TranslationEngine()` directly.
  *
  *   TranslationEngine           Class — coordinates all 5 translation phases.
- *     .translate(text, opts)    Translates a Chinese text string → Vietnamese.
+ *     .translateWithSegments()  Translates a Chinese text string → Vietnamese + highlighting.
  *     .translateWithChunking()  Long-text path with adaptive chunking.
  *     .postProcess()            Assembles semantic array after translation phases.
  *
@@ -47,8 +47,11 @@
  *    - Critical: Initialization order matters
  *
  * 6. Main Translation Entry Points       (Lines 1445-2037) [COUPLED]
- *    - translate()                       (Line 1445)
  *    - translateWithCharactersOnly()     (Line 1551)
+ *    - Note: the non-progressive translate()/translateWithChunking()-as-dispatcher path was
+ *      deleted 2026-08-17 (zero production reachability — translateWithSegments always takes
+ *      the progressive branch); translateWithChunking()/translateDirectly() still exist and
+ *      are still live, reached via processChunksInParallel(), not via this section
  *
  * 7. Conflict Resolution & Segment Helpers (Lines 2038-2777) [COUPLED]
  *    - translateWithSegments()           (Line 2038)
@@ -194,7 +197,6 @@ import {
   DEVICE_MEMORY_LIMITS,
   UI_TIMEOUTS,
   PATTERN_FAILURE_DETECTION,
-  MEMORY_WASTE_DETECTION,
 } from '../constants/TranslationConstants.js';
 
 /**
@@ -935,109 +937,6 @@ export class TranslationEngine {
   // ============================================================================
 
   /**
-   * Translate text using optimized single-pass algorithm
-   *
-   * Convenience wrapper that automatically selects between chunked or direct translation
-   * based on options. Returns only the translated text string (no semantic arrays or segments).
-   * Use translateWithSegments() for interactive highlighting support.
-   *
-   * Translation mode selection:
-   * - useChunking=true (default): Split by punctuation, translate chunks independently
-   * - useChunking=false: Translate entire text as single unit
-   *
-   * @param {string} text - Input Chinese text to translate
-   * @param {Object} [options={}] - Translation options
-   * @param {boolean} [options.useChunking=true] - Enable chunk-based processing
-   * @param {boolean} [options.parallel=true] - Enable parallel chunk processing
-   * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
-   * @param {string[]} [options.activeProperNouns] - Active proper noun dictionaries
-   *
-   * @returns {Promise<string>} Translated Vietnamese text
-   *
-   * @throws {Error} If engine is not initialized (includes initialization error context)
-   *
-   * @example
-   * // Basic translation (chunked mode)
-   * const translated = await engine.translate('你好世界。这是一个测试。');
-   *
-   * @example
-   * // Direct translation (no chunking)
-   * const translated = await engine.translate(text, {
-   *   useChunking: false
-   * });
-   *
-   * @example
-   * // With abort signal
-   * const controller = new AbortController();
-   * const promise = engine.translate(text, {
-   *   abortSignal: controller.signal
-   * });
-   * // Later: controller.abort()
-   *
-   * @see translateWithSegments - Use this for clickable highlighting support
-   * @see translateWithChunking - Chunked translation implementation
-   * @see translateDirectly - Direct translation implementation
-   *
-   * @performance
-   * - Chunked mode: Better for long texts, enables parallelization
-   * - Direct mode: Better for short texts or debugging
-   * - Automatically uses Rust lookup index for texts >500 chars
-   *
-   * @note
-   * This method does NOT return semantic arrays or segments.
-   * Use translateWithSegments() if you need highlighting support.
-   */
-  async translate(text, options = {}) {
-    if (!this.isInitialized) {
-      // ERROR HANDLING FIX: Include initialization error context for better debugging
-      const errorContext = this.initializationError
-        ? `: ${this.initializationError}`
-        : ' (unknown reason)';
-      throw new Error(`Translation Engine not initialized${errorContext}`);
-    }
-
-    if (!text || text.trim() === '') {
-      return text;
-    }
-
-    // Start memory profiling for the translation operation
-    const memoryProfileId = this.memoryCoordinator?.startProfiling(
-      'TranslationEngine',
-      'main-translate'
-    );
-
-    try {
-      // Pure JavaScript translation implementation (WASM removed for reliability)
-      // Check if chunk-based processing should be used
-      const useChunking = options.useChunking !== false; // Default to true
-
-      let result;
-      if (useChunking) {
-        result = await this.translateWithChunking(text, options);
-      } else {
-        result = await this.translateDirectly(text, options);
-      }
-
-      return result;
-    } catch (error) {
-      // Complete memory profiling with error information
-      this.memoryCoordinator?.completeProfiling(memoryProfileId, {
-        error: error.message,
-        textLength: text.length,
-        useChunking: options.useChunking !== false,
-      });
-      throw error;
-    } finally {
-      // Complete memory profiling for successful translation
-      this.memoryCoordinator?.completeProfiling(memoryProfileId, {
-        textLength: text.length,
-        useChunking: options.useChunking !== false,
-        useRustEngine: false, // WASM Core Engine removed
-      });
-    }
-  }
-
-  /**
    * Translate text using only character-level translation (Phase 5 only)
    *
    * Performs character-by-character translation without applying patterns, proper nouns,
@@ -1577,52 +1476,15 @@ export class TranslationEngine {
     const estimatedUnits = Math.max(50, Math.ceil(text.length / 3));
     this.semanticArrayBuilder.reset(estimatedUnits);
 
-    let translatedText;
-    let semanticArrays;
-
-    // Choose between progressive or regular translation
-    // Progressive mode has better memory management and streaming capabilities - use for all text lengths
-    const useProgressive = options.progressive && options.onProgress;
-
-    this.log(
-      DEBUG_LEVELS.INFO,
-      `🔀 Translation mode decision: text=${text.length} chars, progressive=${options.progressive}, onProgress=${!!options.onProgress}, useProgressive=${useProgressive}`
-    );
-
-    if (useProgressive) {
-      // Use progressive batch translation (only for shorter texts)
-      const progressiveResult = await this.translateWithProgressiveBatches(text, options);
-      translatedText = progressiveResult.translatedText;
-      semanticArrays = progressiveResult.semanticArrays;
-    } else {
-      // Use regular translation
-      translatedText = await this.translate(text, options);
-
-      // Verify position tracking worked correctly
-      this._logUnpositionedSegments();
-
-      // Update semantic arrays with capitalized versions from final text
-      this.semanticArrayBuilder.updateWithCapitalizedText(translatedText);
-
-      // MEMORY PROFILING FIX: Auto-compact semantic arrays to remove wasted capacity
-      if (typeof this.semanticArrayBuilder.compact === 'function') {
-        const stats = this.semanticArrayBuilder.getMemoryStats();
-        const wastePercentage = stats.wastedCapacity / (stats.arrays * 100);
-
-        // Compact if >30% wasted capacity to reduce memory usage
-        if (wastePercentage > MEMORY_WASTE_DETECTION.WASTE_PERCENTAGE_THRESHOLD) {
-          this.semanticArrayBuilder.compact();
-          this.log(
-            DEBUG_LEVELS.DEBUG,
-            `🗜️  Auto-compact: removed ${stats.wastedCapacity} wasted array slots (${(wastePercentage * 100).toFixed(1)}% waste)`
-          );
-        }
-      }
-
-      // Get semantic arrays
-      // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-      semanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-    }
+    // Progressive batch translation is the sole path — the non-progressive `translate()`
+    // dispatcher (translateWithChunking/translateDirectly at the top level) was deleted
+    // 2026-08-17 (architecture review candidate #2 grilling) after tracing zero production
+    // reachability: the only caller of this method (Translator.jsx) always passes
+    // `progressive: true`, and progressiveBatches tolerates a missing `onProgress` via its
+    // own internal guard, so there was never a real reason to take a different path here.
+    const progressiveResult = await this.translateWithProgressiveBatches(text, options);
+    const translatedText = progressiveResult.translatedText;
+    const semanticArrays = progressiveResult.semanticArrays;
 
     // Legacy precomputed segments removed - components now compute segments on-demand from semanticArrays
 
@@ -5454,23 +5316,19 @@ export class TranslationEngine {
     // Apply capitalization to all chunks
     this.applySmartCapitalization(chunks);
 
-    // Use the same reconstruction method as original translateWithChunking for identical results
     // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
     const semanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-    const reconstructed = this.chunkPostProcessor.reconstructTextWithSegments(
-      chunks,
-      semanticArrays
-    );
-    const finalResult = reconstructed.text;
+    // Progressive-batch path: use the cheap reconstruct (no segments) per
+    // ChunkPostProcessor.js's own "NOT USED BY" doc block on reconstructTextWithSegments —
+    // prebuiltSegments gets rebuilt below via matchWordSegments regardless, so the segments
+    // half of reconstructTextWithSegments's return would be built and immediately discarded.
+    const finalResult = this.chunkPostProcessor.reconstructText(chunks);
     const cleanedFinalResult = this.applyFinalCleanup(finalResult).normalize('NFC');
 
     // CRITICAL BUG FIX: Normalize to NFC for consistent Vietnamese diacritic handling
     // Vietnamese "màu" can be NFC (3 chars: m+à+u) or NFD (4 chars: m+a+combining-grave+u)
     // Without normalization, .length calculations create wrong segment boundaries
     // causing "màu" to split into "mà" (clickable) + "u" (not clickable)
-
-    // Store prebuilt segments like the original method
-    this.prebuiltSegments = reconstructed.segments;
 
     // Note: semanticArrays already obtained above - reuse it
     // Find the original chunk that was translated

@@ -128,6 +128,30 @@ A translation-scoped `let corruptionToastShown = false` guards `toast.error` to 
 
 **Do not wire `SemanticArrayMetadata.translatedStart`/`.translatedEnd` validity into this check.** Both fields are initialized to `-1` in `addUnit` and stay `-1` for the entire full-translation pipeline until `postProcess`'s position-tracking loop (`TranslationEngine.js`, `assembledPositions` → `setPositionByMatch`, ~line 3824) runs — _after_ all 5 phases finish. `checkSemanticArrayCorruption` fires _during_ each phase, so a per-entry position-validity check here sees `-1` on every entry, every call, every translation — 100% false positive, not an edge case. Even after `postProcess` sets them, both fields are documented (`SemanticArrayBuilder.ts:71-72`) as consumed by the char-only path only — never read by full-translation highlighting (`matchWordSegments`/`prebuiltSegments`) at all. Shipped and reverted same-day, 2026-08-16 — see root `CLAUDE.md`.
 
+### Dev `window.*` Globals Rot Silently
+
+All installed via `installDevConsole(engine)` in `src/utils/__devtools__/DevConsole.js` — called from Translator.jsx engine-ready useEffect. Add new debug utilities there, not in App.jsx or Translator.jsx. **These are never automatically tested and can silently rot** — confirmed twice: a polling effect whose guard property (`engine.wasmManager`) stopped existing and nobody noticed (ADR-019), and `window.runPatternParityTests` referencing a property that never existed at all, broken since the commit that created it. After wiring a new command, manually invoke it once to confirm the guard actually passes.
+
+### `SegmentPrecomputer.ts`'s Two Scan Loops Are Not Unification Candidates
+
+`precomputeSegments` (Vietnamese panel: punctuation-skip + case/whitespace-normalized matching via `findUnitMatch`, lowercased-char indexing) and `precomputeOriginalSegments` (Chinese panel: raw exact `startsWith`, no punctuation-skip, grapheme-cluster indexing) solve genuinely different matching problems, not the same algorithm with cosmetic differences — confirmed 2026-08-08 (architecture review round, candidate #6 grilling; see ADR-036). A third function, `buildSegmentsFromPositions` (module-private, only reachable from `precomputeOriginalSegments`), bypasses scanning entirely when every semantic-array entry has `originalStart`/`originalEnd` — it had zero test coverage despite firing on every single-chunk (short) translation; now covered in `SegmentPrecomputer.test.ts`.
+
+### `WordSegmentMatcher.matchWordSegments` Pass 2 Must Reuse Pass 1's Positions
+
+Must reuse each word's `foundWords[i].position` from pass 1, never independently re-search via `indexOf`. Proven 2026-08-16 (architecture review candidate #4 grilling): given pass 1's global pairwise non-overlap guarantee (every accepted position is checked against every other candidate's claimed range, not just previously-added ones) and pass 2's strict left-to-right walk, an independent re-search can mathematically never diverge from pass 1's choice — so a second search isn't just redundant, it cannot ever catch a real mismatch. Do not reintroduce one "for safety."
+
+### `SemanticArrayBuilder` Validation Lives in `SemanticArrayValidator.ts`, Not on the Builder
+
+`hasValidPositions`/`validateAllPositions` are NOT on the builder — use `semanticArrayValidator.hasValidPositions(meta)`/`.validateAllPositions(builder.getSnapshot())` from `utils/highlighting/SemanticArrayValidator.ts`. As of 2026-08-16, the builder's own private `validateArrays()` (called only by `addUnit` internally) delegates to `semanticArrayValidator.validateArrays(this.getSnapshot())` instead of hand-duplicating the capacity/sync check — the two had been byte-for-byte identical implementations that had drifted apart in test coverage (only the standalone module was tested). Do not re-duplicate the check inline in the builder again.
+
+### `this.memoryCoordinator` Is Re-Constructed Per Translation
+
+Re-constructed each call to `translateWithProgressiveBatches` (not at engine init); shut down in `destroy()`; replaces the former `this.smartMemoryDetector`, `this.backgroundCleanup`, `this.memoryProfiler` trinity.
+
+### `VocabularyWarmup.warmNovelSpecificVocabulary`'s Limits Use `??`, Not `||`
+
+`limits.maxCharacters`/`limits.maxPhrases` use `??` defaulting (fixed 2026-07-17, was `||`) — `TranslationCache.js:545`'s `remainingCharCapacity = MAX_CHARACTER_PREWARM - charactersWarmed` can legitimately be `0` in production once the common-character pre-warm pass fills its budget; `0 || 50` would silently re-inflate that to the default and over-warm past the intended cache budget. Same failure shape as the earlier `WasmMemoryPoolManager` `initialPoolSize`/`shrinkThreshold` fix — grep for `|| 50` / `|| 30` style defaults on any caller-supplied numeric limit before assuming `0` is impossible.
+
 ### `buildVariableCache` Delegates to `PatternVariableCache.buildPatternVariableCache`
 
 `SemanticPatternProcessor.buildVariableCache` and `TwoPhasePatternProcessor.buildVariableCache` both delegate the four shared lookup stages (proper noun tokens, phrase lookups, proper noun single-token, full-text scan) to `src/utils/pattern/PatternVariableCache.js`. Changes to phrase type handling or the full-text scan guard go in `PatternVariableCache.js` only — no mirroring required.

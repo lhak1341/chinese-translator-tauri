@@ -275,6 +275,55 @@ describe('ChunkPostProcessor.reconstructText', () => {
   });
 });
 
+// ── reconstructText / reconstructTextWithSegments parity ──────────────────────
+// Progressive-batch path (TranslationEngine.js translateWithProgressiveBatches) calls
+// reconstructText(chunks) then .normalize('NFC') on the whole assembled string — this must
+// stay text-identical to reconstructTextWithSegments(chunks, arrays).text under the same
+// final normalize, since the latter is what the single-pass path (translateWithChunking)
+// uses and is the "reference" behavior. Guards against the two reconstruct methods drifting.
+
+describe('ChunkPostProcessor: reconstructText/reconstructTextWithSegments text parity', () => {
+  /** @type {ChunkPostProcessor} */
+  let cpp;
+  beforeEach(() => {
+    cpp = new ChunkPostProcessor();
+  });
+
+  test('plain multi-chunk text: identical after NFC-normalize', () => {
+    const chunks = [
+      makeChunk({
+        content: '说',
+        translated: 'nói',
+        punctuation: '，',
+        translatedPunctuation: ', ',
+      }),
+      makeChunk({ content: '话', translated: 'lời', semanticIndex: 0 }),
+    ];
+    const semanticArrays = {
+      original: ['话'],
+      translated: ['lời'],
+      metadata: [{ source: 'characters' }],
+    };
+    const fast = cpp.reconstructText(chunks).normalize('NFC');
+    const withSegments = cpp
+      .reconstructTextWithSegments(chunks, semanticArrays)
+      .text.normalize('NFC');
+    expect(fast).toBe(withSegments);
+  });
+
+  test('NFD-composable content across the boundary: identical after NFC-normalize', () => {
+    // reconstructTextWithSegments NFC-normalizes each chunk's content BEFORE concatenation;
+    // reconstructText does not. A trailing whole-string .normalize('NFC') must still converge
+    // both to the same result even when a chunk's own content is NFD.
+    const nfd = 'ma\u0300u'; // NFD: a + U+0300 combining grave = 'à'
+    const chunks = [makeChunk({ content: 'x', translated: nfd })];
+    const fast = cpp.reconstructText(chunks).normalize('NFC');
+    const withSegments = cpp.reconstructTextWithSegments(chunks).text.normalize('NFC');
+    expect(fast).toBe(withSegments);
+    expect(fast).toBe(nfd.normalize('NFC'));
+  });
+});
+
 // ── reconstructTextWithSegments ──────────────────────────────────────────────
 
 describe('ChunkPostProcessor.reconstructTextWithSegments', () => {
