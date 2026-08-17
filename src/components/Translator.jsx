@@ -673,11 +673,6 @@ const Translator = ({ isActive = true }) => {
                   startTransition(() => {
                     // Use debounced progress handler for smoother UI
                     debouncedProgressHandler.current.handleProgress(progressData);
-
-                    // PHASE 3: Handle progressive clickable segments (existing)
-                    if (progressData.progressiveSegments) {
-                      // Store progressive segments for immediate clickability
-                    }
                   });
                 },
                 // NEW: Add batch completion callback for streaming

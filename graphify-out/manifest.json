@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1786814331.606546,
-    "ast_hash": "41532b1d272265b917665c286e1ed4b2",
+    "mtime": 1786981107.80439,
+    "ast_hash": "b769b5134dfa3d57321fc44d927ca893",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -455,14 +455,14 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/SegmentPrecomputer.ts": {
-    "mtime": 1786959999.6831965,
-    "ast_hash": "d53e624743b465b5a3461340ab56c75a",
+    "mtime": 1786962098.1285934,
+    "ast_hash": "8fd98a9e64b08c78e867d836d24251cb",
     "semantic_hash": ""
   },
   "src/utils/highlighting/CharacterOnlyBridge.ts": {
-    "mtime": 1786161663.7349448,
-    "ast_hash": "11b103b383df66de5624c2d06007943f",
-    "semantic_hash": "11b103b383df66de5624c2d06007943f"
+    "mtime": 1786981975.8695135,
+    "ast_hash": "34879141ca62e9eec116ba38eae89b3f",
+    "semantic_hash": ""
   },
   "src/utils/highlighting/ScrollHelpers.ts": {
     "mtime": 1784325156.0501294,
@@ -680,8 +680,8 @@
     "semantic_hash": "ed5d1bb5f6f661f911d08d7db4a327aa"
   },
   "src/utils/text/ChunkPostProcessor.js": {
-    "mtime": 1786813116.1275527,
-    "ast_hash": "265cea3af97cbc6122c4c4f9e92a21f8",
+    "mtime": 1786981537.2988389,
+    "ast_hash": "071deba6bf6d292df96735fd1c6ab840",
     "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
@@ -860,8 +860,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1786787592.7555637,
-    "ast_hash": "735465d0251defe237ad55489ff63430",
+    "mtime": 1786981152.9239821,
+    "ast_hash": "fae19d7d1cea55b30a902b876cd7de16",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -1140,8 +1140,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786961946.961666,
-    "ast_hash": "cb07112fda9f13d41dac6ce383244dac",
+    "mtime": 1786982355.6601477,
+    "ast_hash": "10ce318c6bb89ddea49027612bedcbc3",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1786961946.961666,
-    "ast_hash": "cb07112fda9f13d41dac6ce383244dac",
+    "mtime": 1786982355.6601477,
+    "ast_hash": "10ce318c6bb89ddea49027612bedcbc3",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1920,9 +1920,9 @@
     "semantic_hash": "6a7f8204701af23efaf49addfd283202"
   },
   "src/utils/performance/ProgressiveProgressReporter.js": {
-    "mtime": 1785327667.7133408,
-    "ast_hash": "85dad2672196d710330f13860dc5afa4",
-    "semantic_hash": "85dad2672196d710330f13860dc5afa4"
+    "mtime": 1786981129.6372633,
+    "ast_hash": "e074ce0edbad8ae7f3b3661722de20e8",
+    "semantic_hash": ""
   },
   "src/utils/text/AdaptiveBatchSizer.ts": {
     "mtime": 1786786161.4374633,

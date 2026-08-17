@@ -22,12 +22,14 @@ export class ChunkPostProcessor {
    * Reconstruct text from translated chunks and build segment positions simultaneously
    *
    * EXECUTION PATH:
-   *   - Used by: Full Translation mode (right panel with clickable highlighting)
-   *   - Called from: TranslationEngine.translateSinglePass() after all 5 phases
+   *   - Used by: Full Translation mode, single-pass path
+   *   - Called from: TranslationEngine translateWithSegments/translateSinglePass, when
+   *     segments are needed inline immediately (not the progressive-batch path)
    *   - Purpose: Build both final text AND semantic arrays for clickable word highlighting
    *
    * NOT USED BY:
-   *   - Character-only mode uses reconstructText() instead (simpler, no segments)
+   *   - The progressive-batch path uses reconstructText() instead (no segments needed per
+   *     batch — segments are built once at the end via WordSegmentMatcher.matchWordSegments)
    *
    * PERFORMANCE:
    *   - Slower than reconstructText() due to semantic array building
@@ -46,52 +48,16 @@ export class ChunkPostProcessor {
       // Ensures .length calculations match normalized output text (prevents "màu" → "mà" + "u" split)
       const rawContent = chunk.translated || chunk.translatedContent || chunk.content;
       const content = rawContent ? rawContent.normalize('NFC') : rawContent;
-      const punctuation = chunk.translatedPunctuation || chunk.punctuation;
       const lineBreaks = chunk.lineBreaks || '';
 
-      // Handle spacing using unified punctuation processor
-      let prefixSpacing = '';
-      let processedPunctuation = '';
+      const { openingPunctuation, processedPunctuation } = this._computePunctuationSpacing(
+        chunk,
+        index,
+        chunks,
+        content
+      );
 
-      // Check if this chunk has opening punctuation that should appear before content
-      let openingPunctuation = chunk.openingPunctuation || '';
-      // Add space before opening punctuation if there's previous content and no existing space
-      if (openingPunctuation && content && index > 0 && !openingPunctuation.startsWith(' ')) {
-        openingPunctuation = ' ' + openingPunctuation;
-      }
-      let remainingPunctuation = punctuation;
-
-      // Process remaining punctuation using unified processor
-      if (remainingPunctuation) {
-        // Only add space after punctuation if there's a next chunk with content
-        const hasNextChunk =
-          index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
-        processedPunctuation = this.punctuationProcessor.processSequence(
-          remainingPunctuation,
-          hasNextChunk
-        );
-
-        // Add space before opening punctuation when there's content before it
-        // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
-        // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
-        // BUT DO add space for opening quotes (they need space before them)
-        const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-        const startsWithClosingElement = /^[\])}】》）»>]/.test(remainingPunctuation);
-
-        if (
-          content &&
-          this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
-          !processedPunctuation.startsWith(' ') &&
-          !startsWithSentencePunct &&
-          !startsWithClosingElement
-        ) {
-          // Add space for opening elements including opening quotes
-          processedPunctuation = ' ' + processedPunctuation;
-        }
-      }
-
-      const fullChunkText =
-        prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
+      const fullChunkText = openingPunctuation + content + processedPunctuation + lineBreaks;
 
       // Build segments if semantic arrays are provided
       if (segments !== null) {
@@ -179,16 +145,19 @@ export class ChunkPostProcessor {
    * Reconstruct text from translated chunks (WITHOUT building segment positions)
    *
    * EXECUTION PATH:
-   *   - Used by: Character-only translation mode (bottom-left panel)
-   *   - Called from: SegmentPrecomputer.js for simple text reconstruction
-   *   - Purpose: Fast text assembly without position tracking overhead
+   *   - Used by: Full Translation mode, progressive-batch path
+   *   - Called from: TranslationEngine.processBatchWithProgressivePositioning(), once per
+   *     batch — no segments needed here, they're built once at the end via
+   *     WordSegmentMatcher.matchWordSegments against the fully-assembled, NFC-normalized text
    *
    * NOT USED BY:
-   *   - Full Translation mode uses reconstructTextWithSegments() instead
+   *   - The single-pass path uses reconstructTextWithSegments() instead, when segments are
+   *     needed inline immediately
    *
    * PERFORMANCE:
    *   - Faster than reconstructTextWithSegments() (no segment building)
-   *   - Simple string concatenation with punctuation spacing
+   *   - Does NOT NFC-normalize content (pinned by ChunkPostProcessor.test.js) — this is the
+   *     fast per-batch path; the final NFC-normalize happens once at the end of the batch loop
    *
    * @param {TextChunk[]} chunks - Array of translated chunks
    * @returns {string} Reconstructed text
@@ -197,61 +166,79 @@ export class ChunkPostProcessor {
     const result = chunks
       .map((chunk, index) => {
         const content = chunk.translated || chunk.translatedContent || chunk.content;
-        const punctuation = chunk.translatedPunctuation || chunk.punctuation;
         const lineBreaks = chunk.lineBreaks || '';
 
-        // Handle spacing using unified punctuation processor
-        let prefixSpacing = '';
-        let processedPunctuation = '';
+        const { openingPunctuation, processedPunctuation } = this._computePunctuationSpacing(
+          chunk,
+          index,
+          chunks,
+          content
+        );
 
-        // Check if this chunk has opening punctuation that should appear before content
-        let openingPunctuation = chunk.openingPunctuation || '';
-        // Add space before opening punctuation if there's previous content and no existing space
-        if (openingPunctuation && content && index > 0 && !openingPunctuation.startsWith(' ')) {
-          openingPunctuation = ' ' + openingPunctuation;
-        }
-        let remainingPunctuation = punctuation;
-
-        // Note: Ellipsis spacing is now handled by PunctuationProcessor
-
-        // Process remaining punctuation using unified processor
-        if (remainingPunctuation) {
-          // Only add space after punctuation if there's a next chunk with content
-          // This prevents empty chunks from adding unwanted spaces
-          const hasNextChunk =
-            index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
-          processedPunctuation = this.punctuationProcessor.processSequence(
-            remainingPunctuation,
-            hasNextChunk
-          );
-
-          // Add space before opening punctuation when there's content before it
-          // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
-          // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
-          // BUT DO add space for opening quotes (they need space before them)
-          const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-          const startsWithClosingElement = /^[\])}】》）»>]/.test(remainingPunctuation);
-          const _containsOnlyOpeningQuotes =
-            remainingPunctuation.length > 0 &&
-            Array.from(remainingPunctuation).every((char) => QuoteProcessor.isOpeningQuote(char));
-
-          if (
-            content &&
-            this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
-            !processedPunctuation.startsWith(' ') &&
-            !startsWithSentencePunct &&
-            !startsWithClosingElement
-          ) {
-            // Add space for opening elements including opening quotes
-            processedPunctuation = ' ' + processedPunctuation;
-          }
-        }
-
-        return prefixSpacing + openingPunctuation + content + processedPunctuation + lineBreaks;
+        return openingPunctuation + content + processedPunctuation + lineBreaks;
       })
       .join('');
 
     return result;
+  }
+
+  /**
+   * Shared opening/closing-punctuation spacing rules for reconstructTextWithSegments and
+   * reconstructText. The two historically bug-prone rules here (opening-punctuation spacing,
+   * sentence/closing-element exclusion) previously lived as two independently-edited copies —
+   * see CLAUDE.md deleted-symbols entry (architecture review, candidate #1 grilling) for the
+   * drift that caused. Callers still own content-normalization and segment-building themselves;
+   * this helper only computes spacing.
+   *
+   * @param {TextChunk} chunk - Current chunk
+   * @param {number} index - Chunk's index in `chunks`
+   * @param {TextChunk[]} chunks - Full chunk array (for next-chunk lookahead)
+   * @param {string} content - Already-resolved (and possibly normalized) chunk content
+   * @returns {{ openingPunctuation: string, processedPunctuation: string }}
+   */
+  _computePunctuationSpacing(chunk, index, chunks, content) {
+    const punctuation = chunk.translatedPunctuation || chunk.punctuation;
+    const lineBreaks = chunk.lineBreaks || '';
+    let processedPunctuation = '';
+
+    // Check if this chunk has opening punctuation that should appear before content
+    let openingPunctuation = chunk.openingPunctuation || '';
+    // Add space before opening punctuation if there's previous content and no existing space
+    if (openingPunctuation && content && index > 0 && !openingPunctuation.startsWith(' ')) {
+      openingPunctuation = ' ' + openingPunctuation;
+    }
+    const remainingPunctuation = punctuation;
+
+    // Process remaining punctuation using unified processor
+    if (remainingPunctuation) {
+      // Only add space after punctuation if there's a next chunk with content
+      const hasNextChunk =
+        index < chunks.length - 1 && !lineBreaks && !!chunks[index + 1]?.content?.trim();
+      processedPunctuation = this.punctuationProcessor.processSequence(
+        remainingPunctuation,
+        hasNextChunk
+      );
+
+      // Add space before opening punctuation when there's content before it
+      // BUT NOT when the punctuation sequence starts with sentence punctuation (like :, ,, ., etc.)
+      // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
+      // BUT DO add space for opening quotes (they need space before them)
+      const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
+      const startsWithClosingElement = /^[\])}】》）»>]/.test(remainingPunctuation);
+
+      if (
+        content &&
+        this.punctuationProcessor.hasOpeningElements(remainingPunctuation) &&
+        !processedPunctuation.startsWith(' ') &&
+        !startsWithSentencePunct &&
+        !startsWithClosingElement
+      ) {
+        // Add space for opening elements including opening quotes
+        processedPunctuation = ' ' + processedPunctuation;
+      }
+    }
+
+    return { openingPunctuation, processedPunctuation };
   }
 
   /**

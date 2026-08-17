@@ -14,7 +14,6 @@ function baseInput(overrides = {}) {
     currentBatchSize: 2,
     semanticArrays: { original: ['甲', '乙'], translated: ['A', 'B'], metadata: [{}, {}] },
     progressText: 'A B',
-    clickableSegments: [{ id: 1 }],
     ...overrides,
   };
 }
@@ -48,14 +47,12 @@ describe('buildProgressiveProgressUpdate', () => {
     expect(result.send).toBe(true);
   });
 
-  test('deep-clones semantic arrays and clickable segments (no shared references)', () => {
+  test('deep-clones semantic arrays (no shared references)', () => {
     const input = baseInput({ batchIndex: 3 });
     const result = buildProgressiveProgressUpdate(input);
 
     expect(result.payload.semanticArrays.original).not.toBe(input.semanticArrays.original);
     expect(result.payload.semanticArrays.original).toEqual(input.semanticArrays.original);
-    expect(result.payload.progressiveSegments).not.toBe(input.clickableSegments);
-    expect(result.payload.progressiveSegments).toEqual(input.clickableSegments);
   });
 
   test('fills missing metadata entries with the shared frozen default, not per-entry allocation', () => {

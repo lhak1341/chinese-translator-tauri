@@ -102,20 +102,6 @@ describe('findCharacterOnlyMatch — context scoring', () => {
   });
 });
 
-describe('findCharacterOnlyMatch — position-ratio fallback', () => {
-  test('uses position ratio when no context signal exists', () => {
-    // source: ['在'] at index 0 out of 4 units → ratio = 0/4 = 0
-    // target has '在' at [0] and [3]; estimatedOccurrence = round(0 * 1) = 0 → picks [0]
-    const source = makeArrays(['在', 'X', 'Y', 'Z'], [0, 1, 2, 3]);
-    const target = makeArrays(['在', 'A', 'B', '在']);
-    // No context neighbors match anything, score stays -1 → position fallback
-    // occurrenceInSource=0 (no earlier '在') → sequential gives +100 to match[0] anyway
-    // This test verifies fallback when sequential score dominates as expected
-    const result = findCharacterOnlyMatch(0, source, target);
-    expect(result).toEqual([0]);
-  });
-});
-
 describe('findCharacterOnlyMatch — MAX_MATCHES occurrence cap', () => {
   test('stops scanning after MAX_MATCHES occurrences', () => {
     // Build a target with 110 occurrences of '在' — internal cap is 100

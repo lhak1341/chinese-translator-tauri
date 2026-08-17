@@ -686,12 +686,6 @@ export class TranslationEngine {
     this.memoryCoordinator?.shutdown();
     this.memoryCoordinator = null;
 
-    // Clear batch processing cache
-    if (this.processedBatchCache) {
-      this.processedBatchCache.clear();
-      this.processedBatchCache = null;
-    }
-
     // Clear semantic array builder cache
     if (this.semanticArrayBuilder && typeof this.semanticArrayBuilder.clearCache === 'function') {
       this.semanticArrayBuilder.clearCache();
@@ -1530,7 +1524,6 @@ export class TranslationEngine {
    * @returns {Array} result.semanticArrays.translated - Translated text segments
    * @returns {Array} result.semanticArrays.metadata - Metadata for each segment
    * @returns {Array} result.prebuiltSegments - Pre-built segments for ClickableTranslationOptimized
-   * @returns {Array} [result.progressiveSegments] - Progressive segments (progressive mode only)
    *
    * @throws {Error} If engine is not initialized
    *
@@ -5095,7 +5088,6 @@ export class TranslationEngine {
    * @returns {Array} result.semanticArrays.original - Original text segments
    * @returns {Array} result.semanticArrays.translated - Translated text segments
    * @returns {Array} result.semanticArrays.metadata - Metadata for each segment
-   * @returns {Array} result.progressiveSegments - Segments for progressive highlighting
    *
    * @example
    * // Progressive translation with UI updates
@@ -5192,7 +5184,6 @@ export class TranslationEngine {
     this.progressivePositionTracker = {
       runningTextPosition: 0,
       finalText: '',
-      clickableSegments: [],
       totalOriginalSegments: [],
       totalTranslatedSegments: [],
     };
@@ -5201,10 +5192,6 @@ export class TranslationEngine {
     this.lastProgressUpdate = 0;
     this.progressUpdateInterval = UI_UPDATE_THRESHOLDS.PROGRESS_DEBOUNCE_MS;
     this.minChunksForStreaming = UI_UPDATE_THRESHOLDS.STREAMING_MIN_CHUNKS;
-
-    // PHASE 4: Memory-efficient streaming for long texts
-    this.processedBatchCache = new Map();
-    this.maxCachedBatches = 3; // Keep only recent batches in memory
 
     // Step 1: Split text into chunks by punctuation boundaries
     const chunks = this.textChunker.chunkText(text);
@@ -5428,19 +5415,6 @@ export class TranslationEngine {
       this._logUnpositionedSegments(' in batch processing');
       this.semanticArrayBuilder.updateWithCapitalizedText(cleanedResult);
 
-      // PHASE 4: Memory-efficient batch caching
-      this.processedBatchCache.set(batchIndex, {
-        text: this.progressivePositionTracker.finalText.slice(-cleanedResult.length),
-        segments: batchResult.batchSegments || [],
-      });
-
-      // Remove old batches to prevent memory accumulation
-      if (this.processedBatchCache.size > this.maxCachedBatches) {
-        const oldestBatch = Math.min(...this.processedBatchCache.keys());
-        this.processedBatchCache.delete(oldestBatch);
-        this.log(DEBUG_LEVELS.DEBUG, `🧹 Removed cached batch ${oldestBatch} to free memory`);
-      }
-
       // Update progress tracking
       processedChunks = batchEnd;
       batchIndex++;
@@ -5462,7 +5436,6 @@ export class TranslationEngine {
           currentBatchSize,
           semanticArrays: this.semanticArrayBuilder?.getArrays(),
           progressText: this.progressivePositionTracker.finalText || cleanedResult,
-          clickableSegments: this.progressivePositionTracker.clickableSegments,
         });
 
         if (update.send) {
@@ -5603,7 +5576,6 @@ export class TranslationEngine {
         translated: finalSemanticArrays.translated || [],
         metadata: finalMetadata,
       },
-      progressiveSegments: this.progressivePositionTracker.clickableSegments,
     };
   }
 
@@ -7406,7 +7378,7 @@ export class TranslationEngine {
   }
 
   /**
-   * PHASE 2: Process batch with progressive position tracking and segment building
+   * PHASE 2: Process batch with progressive position tracking
    * @param {TextChunk[]} currentBatch - Current batch of chunks
    * @param {TextChunk[]} allChunks - All chunks for text reconstruction
    * @param {number} batchStartIndex - Starting index of batch
@@ -7417,42 +7389,23 @@ export class TranslationEngine {
       const batchText = this.chunkPostProcessor.reconstructText(currentBatch);
       const cleanedBatchText = this.applyFinalCleanup(batchText);
 
-      // Step 2: Get semantic arrays for current batch from the builder
-      const batchSemanticArrays = this.getBatchSemanticArrays(currentBatch);
-
-      // Step 3: Build clickable segments for this batch with progressive positioning
-      const batchSegments = this.buildProgressiveClickableSegments(
-        batchSemanticArrays,
-        cleanedBatchText,
-        this.progressivePositionTracker.runningTextPosition
-      );
-
-      // Step 4: Update progressive tracker
+      // Step 2: Update progressive tracker
       this.progressivePositionTracker.finalText += cleanedBatchText;
       this.progressivePositionTracker.runningTextPosition += cleanedBatchText.length;
-      // CODE REVIEW FIX: Clone array to prevent race condition with React state updates
-      // Issue: Direct mutation via push() continues after array is passed to React
-      // Fix: Create new array instead of mutating existing one
-      this.progressivePositionTracker.clickableSegments = [
-        ...this.progressivePositionTracker.clickableSegments,
-        ...batchSegments,
-      ];
 
       // Semantic arrays are accumulated by semanticArrayBuilder (no duplication needed)
 
       return {
         cleanedBatchText: cleanedBatchText,
         batchText: cleanedBatchText,
-        batchSegments: batchSegments,
         cumulativeText: this.progressivePositionTracker.finalText,
-        cumulativeSegments: this.progressivePositionTracker.clickableSegments,
       };
     } catch (error) {
       // PHASE 4: Progressive error handling - graceful degradation
       this.log(DEBUG_LEVELS.ERROR, `❌ Progressive batch processing failed: ${error.message}`);
       logger.error('Progressive positioning error:', error);
 
-      // Fallback: Return basic batch info without progressive segments
+      // Fallback: Return basic batch info
       const fallbackText = this.chunkPostProcessor.reconstructText(currentBatch);
       const cleanedFallbackText = this.applyFinalCleanup(fallbackText);
 
@@ -7462,198 +7415,10 @@ export class TranslationEngine {
 
       return {
         batchText: cleanedFallbackText,
-        batchSegments: [], // No segments on error, but text continues
         cumulativeText: this.progressivePositionTracker.finalText,
-        cumulativeSegments: this.progressivePositionTracker.clickableSegments,
         hasError: true,
       };
     }
-  }
-
-  /**
-   * Get semantic arrays specific to current batch
-   * @param {TextChunk[]} batchChunks - Current batch chunks
-   * @returns {Object} Batch-specific semantic arrays
-   */
-  getBatchSemanticArrays(_batchChunks) {
-    // Get current semantic arrays from builder
-    // CRITICAL FIX: Add null safety guard for semanticArrayBuilder
-    const allSemanticArrays = this.semanticArrayBuilder?.getArrays() || emptySemanticArrays();
-
-    // BUGFIX: Ensure metadata array has proper objects, not empty array
-    const originalCount = allSemanticArrays.original ? allSemanticArrays.original.length : 0;
-    const metadataArray = allSemanticArrays.metadata || [];
-
-    // Fill missing metadata with default objects to prevent SegmentPrecomputer errors
-    // CRITICAL FIX: Use explicit missing indicator for better debugging
-    const completeMetadata = [];
-    for (let i = 0; i < originalCount; i++) {
-      completeMetadata[i] = metadataArray[i] || {
-        source: 'progressive',
-        phase: null, // null = missing, not unknown
-        dictionary: null, // null = missing, not unknown
-        isMissing: true, // Explicit flag for debugging
-      };
-    }
-
-    /**
-     * Performance optimization opportunity: Currently returns all semantic arrays instead of
-     * batch-specific arrays. This works correctly but includes entries from other batches.
-     *
-     * Future optimization: Track which semantic array entries belong to each batch for better
-     * isolation. This would reduce memory usage and improve cache locality for multi-batch
-     * processing, but requires batch ID tracking in semantic array metadata.
-     *
-     * Current approach is acceptable because:
-     * - Semantic arrays are shared across batches (correct for progressive translation)
-     * - Performance impact is minimal for typical text sizes
-     * - Simplicity outweighs optimization benefits for current use cases
-     */
-    return {
-      original: allSemanticArrays.original || [],
-      translated: allSemanticArrays.translated || [],
-      metadata: completeMetadata,
-    };
-  }
-
-  /**
-   * Build clickable segments progressively for current batch
-   * @param {Object} batchSemanticArrays - Semantic arrays for batch
-   * @param {string} batchText - Cleaned text for current batch
-   * @param {number} runningOffset - Running character position offset
-   * @returns {Array} Clickable segments for this batch
-   */
-  buildProgressiveClickableSegments(batchSemanticArrays, batchText, runningOffset) {
-    const segments = [];
-
-    if (!batchSemanticArrays.original || batchSemanticArrays.original.length === 0) {
-      return segments;
-    }
-
-    // Create candidate words from batch semantic arrays
-    const candidateWords = [];
-    for (let i = 0; i < batchSemanticArrays.original.length; i++) {
-      candidateWords.push({
-        semanticIndex: i,
-        original: batchSemanticArrays.original[i],
-        translated: batchSemanticArrays.translated[i],
-      });
-    }
-
-    // Find word positions in batch text and create segments with global positioning
-    // OPTIMIZATION: Use sorted array instead of Set for O(log n) overlap detection
-    const usedPositions = []; // Sorted by start position
-
-    // Pre-lowercase batch text once (was being done N times in loop)
-    const lowerBatchText = batchText.toLowerCase();
-
-    for (const candidate of candidateWords) {
-      if (!candidate.translated || candidate.translated.trim() === '') continue;
-
-      const lowerCandidate = candidate.translated.toLowerCase();
-      let position = -1;
-      let searchStart = 0;
-
-      // Find non-overlapping position
-      do {
-        position = lowerBatchText.indexOf(lowerCandidate, searchStart);
-        if (position >= 0) {
-          const candidateEnd = position + candidate.translated.length;
-
-          // OPTIMIZATION: Binary search for overlap detection (O(log n) vs O(n))
-          const overlaps = this._checkOverlapBinarySearch(usedPositions, position, candidateEnd);
-
-          if (!overlaps) {
-            // Create segment with global position (batch position + running offset)
-            segments.push({
-              semanticIndex: candidate.semanticIndex,
-              originalText: candidate.original,
-              translatedText: candidate.translated,
-              localStart: position,
-              localEnd: candidateEnd,
-              globalStart: runningOffset + position,
-              globalEnd: runningOffset + candidateEnd,
-              isClickable: true,
-            });
-
-            // Insert position in sorted order (maintain sorted array for binary search)
-            this._insertSorted(usedPositions, { start: position, end: candidateEnd });
-
-            break;
-          } else {
-            searchStart = position + 1;
-          }
-        }
-      } while (position >= 0);
-    }
-
-    return segments;
-  }
-
-  /**
-   * Check if a position range overlaps with any used positions using binary search
-   * @param {Array} sortedPositions - Array of {start, end} objects sorted by start
-   * @param {number} start - Start position to check
-   * @param {number} end - End position to check
-   * @returns {boolean} True if overlaps with any used position
-   */
-  _checkOverlapBinarySearch(sortedPositions, start, end) {
-    if (sortedPositions.length === 0) return false;
-
-    // Binary search for positions that could overlap
-    let left = 0;
-    let right = sortedPositions.length - 1;
-
-    // Find the rightmost position where pos.start <= end
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      const pos = sortedPositions[mid];
-
-      // Check if this position overlaps
-      if (start < pos.end && end > pos.start) {
-        return true; // Overlap found
-      }
-
-      if (pos.start < start) {
-        left = mid + 1;
-      } else {
-        right = mid - 1;
-      }
-    }
-
-    // Check adjacent positions for overlap
-    if (left < sortedPositions.length) {
-      const pos = sortedPositions[left];
-      if (start < pos.end && end > pos.start) return true;
-    }
-    if (left > 0) {
-      const pos = sortedPositions[left - 1];
-      if (start < pos.end && end > pos.start) return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Insert a position into sorted array maintaining sort order
-   * @param {Array} sortedPositions - Array sorted by start position
-   * @param {Object} position - Position object {start, end}
-   */
-  _insertSorted(sortedPositions, position) {
-    // Binary search to find insertion point
-    let left = 0;
-    let right = sortedPositions.length;
-
-    while (left < right) {
-      const mid = Math.floor((left + right) / 2);
-      if (sortedPositions[mid].start < position.start) {
-        left = mid + 1;
-      } else {
-        right = mid;
-      }
-    }
-
-    sortedPositions.splice(left, 0, position);
   }
 
   /**

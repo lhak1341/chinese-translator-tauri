@@ -3,12 +3,12 @@
  * review 2026-07-29, candidate #1). Pure function of its inputs — no `this`, no
  * engine state. Owns: the debounce gate (time-since-last-update + every-3rd-batch +
  * last-batch-always), metadata gap-filling with a shared frozen default object, and
- * the deep-clone of semantic arrays / clickable segments.
+ * the deep-clone of semantic arrays.
  *
  * The deep-clone is load-bearing, not decorative: React state updates receive direct
  * references, and the next batch continues mutating the same arrays after React has
- * already scheduled a render from them — without cloning here, the clickable
- * highlighting UI can crash on an array-size mismatch against the text length it was
+ * already scheduled a render from them — without cloning here, the semantic-array
+ * consumer can crash on an array-size mismatch against the text length it was
  * rendered against (see the CRITICAL FIX comment this was extracted from).
  *
  * @typedef {{ source: string, phase: string|null, dictionary: string|null, isMissing: boolean }} DefaultMetadataEntry
@@ -34,7 +34,6 @@ const DEFAULT_METADATA = Object.freeze({
  *   currentBatchSize: number,
  *   semanticArrays: { original?: Array<*>, translated?: Array<*>, metadata?: Array<*> } | null | undefined,
  *   progressText: string,
- *   clickableSegments: Array<*>,
  * }} input
  * @returns {{ send: true, payload: object } | { send: false, log: { level: 'debug', message: string } }}
  */
@@ -50,7 +49,6 @@ export function buildProgressiveProgressUpdate({
   currentBatchSize,
   semanticArrays,
   progressText,
-  clickableSegments,
 }) {
   const timeSinceLastUpdate = now - lastProgressUpdate;
   const shouldSendUpdate =
@@ -93,7 +91,6 @@ export function buildProgressiveProgressUpdate({
         translated: arrays.translated ? [...arrays.translated] : [],
         metadata: progressiveMetadata,
       },
-      progressiveSegments: [...clickableSegments],
     },
   };
 }
