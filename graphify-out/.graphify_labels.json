@@ -358,5 +358,6 @@
   "356": "@vitest/ui",
   "357": ".getDictionaryCount",
   "358": "eslint-plugin-react-refresh",
-  "359": ".hasDictionary"
+  "359": ".hasDictionary",
+  "360": "typescript-eslint"
 }

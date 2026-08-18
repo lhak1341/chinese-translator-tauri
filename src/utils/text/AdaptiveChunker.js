@@ -263,6 +263,20 @@ class AdaptiveChunker {
   }
 
   /**
+   * Clear accumulated performance history.
+   *
+   * calculateOptimalChunkSize's trend-based adjustment reads performanceHistory once per
+   * translation, at the very start — before that translation's own batches have run. Without
+   * a per-translation reset, its trend nudge is driven entirely by prior translations' batch
+   * performance (unknown text, unknown device-load state, possibly stale) rather than anything
+   * about the current translation. Call this alongside TranslationEngine's own
+   * this.batchPerformanceHistory reset (architecture review 2026-08-18, candidate #3 grilling).
+   */
+  reset() {
+    this.performanceHistory = [];
+  }
+
+  /**
    * Record performance data for adaptation
    * @param {Object} performanceData - Batch performance metrics
    */

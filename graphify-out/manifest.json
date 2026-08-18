@@ -210,9 +210,9 @@
     "semantic_hash": "8081b090006ff2e1e0f3f97062f5a873"
   },
   "src/types/ClickableTypes.d.ts": {
-    "mtime": 1784348714.7727172,
-    "ast_hash": "09eb898fb6efb20a93b0e5acda0c69d6",
-    "semantic_hash": "09eb898fb6efb20a93b0e5acda0c69d6"
+    "mtime": 1787013582.789556,
+    "ast_hash": "3aacbe272d81ad330b882cc55cb9a08e",
+    "semantic_hash": ""
   },
   "src/types/UITypes.d.ts": {
     "mtime": 1785250298.0037766,
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1786983732.5282593,
-    "ast_hash": "8de4927af7e069e005560a304936a0a1",
+    "mtime": 1787015878.8008914,
+    "ast_hash": "5580dc3cca62d6898cd16c897a7d5f7f",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -715,8 +715,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/AdaptiveChunker.js": {
-    "mtime": 1786815922.1789744,
-    "ast_hash": "3d549ab81dc592b5abc0fe39f3482c5f",
+    "mtime": 1787015509.4131021,
+    "ast_hash": "fe6e9aa54a6a3055b6314e2b7c4a0bb6",
     "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
@@ -900,9 +900,9 @@
     "semantic_hash": "7af735b96f88f0cb5c059fce290b22c2"
   },
   "src/components/full-translation/ClickableTranslationOptimized.tsx": {
-    "mtime": 1784287458.0690904,
-    "ast_hash": "5978ae4387485776c26fe80be036de9f",
-    "semantic_hash": "5978ae4387485776c26fe80be036de9f"
+    "mtime": 1787013601.6748974,
+    "ast_hash": "9269d42053919853e7751148769b6f47",
+    "semantic_hash": ""
   },
   "src/components/translator/TranslatorDisplayPanels.tsx": {
     "mtime": 1786025831.7069244,
@@ -1135,8 +1135,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1786986000.4835303,
-    "ast_hash": "b9efe29fb6b858454cdf2c2df0c89d84",
+    "mtime": 1787013649.4592326,
+    "ast_hash": "23411691c3cd6bf09f1ae27e2084adfc",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1585,8 +1585,8 @@
     "semantic_hash": "361e2be5aa5ed1ccb80a772d8fa22b28"
   },
   "docs/guides/development.md": {
-    "mtime": 1786985819.6756437,
-    "ast_hash": "577d79f867bf468ef0b9473dbefe8982",
+    "mtime": 1786986088.0253806,
+    "ast_hash": "7c04b28342bd90184b0c827f127d3646",
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
@@ -1605,8 +1605,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1786985908.42239,
-    "ast_hash": "4db1939d2ec00dc1b2a195fbf2bb4eb0",
+    "mtime": 1787016559.8298273,
+    "ast_hash": "c5c01e9dc61c8162dc7531896ae6e4b4",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {

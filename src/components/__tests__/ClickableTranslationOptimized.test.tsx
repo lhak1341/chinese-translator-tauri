@@ -17,7 +17,7 @@
  * - Null / loading state (prebuiltSegments === undefined → null state)
  */
 
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import type { PrebuiltSegment } from '../../types/ClickableTypes';
 import ClickableTranslationOptimized from '../full-translation/ClickableTranslationOptimized';
@@ -357,5 +357,37 @@ describe('ClickableTranslationOptimized — title attribute', () => {
     const span = container.querySelector('[data-unit-index="0"]');
     expect(span?.getAttribute('title')).not.toBeNull();
     expect(span?.getAttribute('title')).toContain('bạn');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Array bounds checking
+// ---------------------------------------------------------------------------
+
+describe('ClickableTranslationOptimized — array bounds checking', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  test('clicking a segment whose unitIndex is out of range for semanticArrays does not call onSegmentClick', () => {
+    // prebuiltSegments is caller-supplied and can carry a stale/mismatched unitIndex
+    // relative to the current semanticArrays — this is the gap useSegmentClickHandler's
+    // bounds guard closes (previously bypassed by this component's hand-built payload).
+    const handler = vi.fn();
+    const segs = [makeSegment({ unitIndex: 5, key: 'seg-oob' })] as unknown as PrebuiltSegment[];
+    const { container } = render(
+      <ClickableTranslationOptimized
+        translatedText="bạn"
+        semanticArrays={{
+          translated: ['bạn'],
+          original: ['你'],
+          metadata: [{ source: 'character' }],
+        }}
+        prebuiltSegments={segs}
+        onSegmentClick={handler}
+      />
+    );
+    fireEvent.click(container.querySelector('[data-unit-index="5"]')!);
+    expect(handler).not.toHaveBeenCalled();
   });
 });

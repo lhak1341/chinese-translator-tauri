@@ -191,8 +191,8 @@ export interface ClickableTranslationOptimizedProps {
 export interface SegmentComponentProps {
   /** Segment data to render */
   segment: PrebuiltSegment;
-  /** Click handler */
-  onClick: FlexibleClickHandler;
+  /** Click handler — receives the segment's unitIndex, matches useSegmentClickHandler's return type */
+  onClick: (unitIndex: number) => void;
   /** Whether this segment is currently highlighted */
   isHighlighted: boolean;
 }

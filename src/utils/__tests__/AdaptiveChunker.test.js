@@ -291,6 +291,28 @@ describe('AdaptiveChunker', () => {
     });
   });
 
+  describe('reset (architecture review 2026-08-18, candidate #3 grilling)', () => {
+    it('clears performanceHistory', () => {
+      chunker.recordPerformance({
+        chunkSize: 10,
+        processingTime: 50,
+        throughput: 20,
+        memoryUsage: 100,
+      });
+      chunker.recordPerformance({
+        chunkSize: 10,
+        processingTime: 50,
+        throughput: 15,
+        memoryUsage: 100,
+      });
+      expect(chunker.performanceHistory).toHaveLength(2);
+
+      chunker.reset();
+
+      expect(chunker.performanceHistory).toHaveLength(0);
+    });
+  });
+
   describe('analyzePerformanceTrend', () => {
     it('returns unknown with 0 confidence for fewer than 3 records', () => {
       expect(chunker.analyzePerformanceTrend()).toEqual({ direction: 'unknown', confidence: 0 });

@@ -19,6 +19,7 @@ import { MEMORY_THRESHOLDS } from '../../constants/PerformanceThresholds.js';
 import { TranslationEngine } from '../TranslationEngine.js';
 import { BatchMemoryCleanup } from '../memory/BatchMemoryCleanup.js';
 import { MIN_BATCH_SIZE, MAX_BATCH_SIZE } from '../text/AdaptiveBatchSizer.js';
+import { adaptiveChunker } from '../text/AdaptiveChunker.js';
 
 // Mock TranslationEngine with minimal implementation for testing
 class MockTranslationEngine {
@@ -225,6 +226,147 @@ describe('TranslationEngine Regression Tests', () => {
         MAX_BATCH_SIZE + 10
       );
       expect(result).toBe(MAX_BATCH_SIZE);
+    });
+  });
+
+  describe('translateWithChunking parallel branch wiring (architecture review 2026-08-18, candidate #2)', () => {
+    // A prior isolated-per-chunk-builder approach here mutated the shared
+    // this.semanticArrayBuilder field around await boundaries inside translateDirectly —
+    // broken by construction (Array.prototype.map dispatches every chunk's synchronous
+    // prefix, including the builder swap, before any chunk reaches real async work; see
+    // src/utils/CLAUDE.md's addUnit section for the full analysis). Deleted in favor of
+    // writing straight to the shared builder with a chunkOffset computed upfront, same as
+    // processChunksInParallel already does. This proves the replacement lands every
+    // chunk's semantic units at the correct global tokenIndex regardless of which chunk's
+    // translateDirectly call actually resolves first — translateSinglePass itself needs
+    // WASM/dictionaries (see TranslationEngine.integration.test.js, skipped for that
+    // reason), so translateDirectly is stubbed here to isolate this orchestration logic.
+    let engine;
+    const fakeChunks = [
+      { content: 'aaa', startIndex: 0 },
+      { content: 'bb', startIndex: 3 },
+      { content: 'cccc', startIndex: 5 },
+    ];
+
+    beforeEach(() => {
+      engine = new TranslationEngine({
+        debugLevel: 0,
+        enableMemoryMonitoring: false,
+        enablePerformanceMonitoring: false,
+      });
+
+      engine.textChunker = {
+        chunkText: () => fakeChunks,
+        analyzeChunks: () => ({}),
+        getTranslatableChunks: () => fakeChunks,
+      };
+      // Token count == content length, so expected chunkOffsets are just cumulative
+      // content lengths (0, 3, 5) — easy to assert against without a real tokenizer.
+      vi.spyOn(engine.tokenizer, 'tokenize').mockImplementation((content) =>
+        new Array(content.length).fill({})
+      );
+      engine.chunkPostProcessor.translatePunctuation = vi.fn();
+      engine.applySmartCapitalization = vi.fn();
+      engine.chunkPostProcessor.reconstructTextWithSegments = vi.fn(() => ({
+        text: 'stub-result',
+        segments: [],
+      }));
+      engine.applyFinalCleanup = vi.fn((s) => s);
+    });
+
+    it('lands every chunk at the correct global tokenIndex regardless of completion order', async () => {
+      const originalBuilder = engine.semanticArrayBuilder;
+
+      // Resolve the LAST-offset chunk first — deliberately scrambled completion order —
+      // to prove chunkOffset correctness doesn't depend on resolution order.
+      const resolveDelayByOffset = { 0: 30, 3: 20, 5: 10 };
+      engine.translateDirectly = vi.fn(
+        (content, opts) =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              engine.semanticArrayBuilder.addUnit(
+                content,
+                `T-${content}`,
+                'character',
+                opts.chunkOffset,
+                'characters',
+                null
+              );
+              resolve(`T-${content}`);
+            }, resolveDelayByOffset[opts.chunkOffset]);
+          })
+      );
+
+      await engine.translateWithChunking('aaa|bb|cccc', {});
+
+      // chunkOffset is computed upfront, synchronously, in chunk order — regardless of
+      // the scrambled resolution order set up above.
+      const calledOffsets = engine.translateDirectly.mock.calls.map(([, opts]) => opts.chunkOffset);
+      expect(calledOffsets).toEqual([0, 3, 5]);
+
+      // Raw array order reflects completion order (documented, corrected downstream via
+      // compareByTokenIndex) — assert by tokenIndex instead of array position.
+      const { original, metadata } = engine.semanticArrayBuilder.getArrays();
+      expect(original).toHaveLength(3);
+      const tokenIndexByOriginal = Object.fromEntries(
+        original.map((text, i) => [text, metadata[i].tokenIndex])
+      );
+      expect(tokenIndexByOriginal).toEqual({ aaa: 0, bb: 3, cccc: 5 });
+
+      // No swap-based "isolation" reintroduced — same builder instance throughout.
+      expect(engine.semanticArrayBuilder).toBe(originalBuilder);
+    });
+  });
+
+  describe('translateWithProgressiveBatches adaptiveChunker reset wiring (architecture review 2026-08-18, candidate #3 grilling)', () => {
+    // adaptiveChunker is a module-level singleton (src/utils/text/AdaptiveChunker.js) whose
+    // performanceHistory previously persisted across translations — calculateOptimalChunkSize's
+    // trend adjustment (read once, before this translation's own batches run) was silently
+    // biased by unrelated prior translations. Proves the real call site resets it before that
+    // read, not just that AdaptiveChunker.reset() itself works (see AdaptiveChunker.test.js for
+    // the pure-method test) — the wiring is the thing that can regress silently.
+    afterEach(() => {
+      adaptiveChunker.reset();
+    });
+
+    it('resets adaptiveChunker.performanceHistory before this translation reads it', async () => {
+      adaptiveChunker.recordPerformance({
+        chunkSize: 10,
+        processingTime: 50,
+        throughput: 1,
+        memoryUsage: 0,
+      });
+      adaptiveChunker.recordPerformance({
+        chunkSize: 10,
+        processingTime: 50,
+        throughput: 1,
+        memoryUsage: 0,
+      });
+      expect(adaptiveChunker.performanceHistory).toHaveLength(2);
+
+      const engine = new TranslationEngine({
+        debugLevel: 0,
+        enableMemoryMonitoring: false,
+        enablePerformanceMonitoring: false,
+      });
+      const fakeChunks = [{ content: 'aaa', startIndex: 0 }];
+      engine.textChunker = {
+        chunkText: () => fakeChunks,
+        getTranslatableChunks: () => fakeChunks,
+      };
+      // Short-circuit right after the reset+sizing logic under test — the rest of the
+      // progressive-batch pipeline needs WASM/dictionaries (see
+      // TranslationEngine.integration.test.js, skipped for that reason) and isn't this test's
+      // concern.
+      engine.processChunksInParallel = vi.fn(async () => {
+        throw new Error('stub-stop-here');
+      });
+
+      await expect(engine.translateWithProgressiveBatches('aaa', {})).rejects.toThrow(
+        'stub-stop-here'
+      );
+
+      expect(adaptiveChunker.performanceHistory).toHaveLength(0);
     });
   });
 });

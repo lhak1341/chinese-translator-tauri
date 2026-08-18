@@ -17,94 +17,122 @@
  *   DEBUG_LEVELS                Enum — verbosity constants for engine logging.
  *
  * =============================================================================
- * FILE STRUCTURE (10,112 lines)
+ * FILE STRUCTURE (7902 lines)
  * =============================================================================
  *
  * This file coordinates all 5 translation phases with shared token state.
  * Large size is intentional - tight coupling prevents phase conflicts.
  *
- * SECTIONS:
+ * SECTIONS (numbered by physical file order — NOT by the 5-phase execution order;
+ * the two do not match. Phase 4 (Phrase Processing) and Phase 5 (Character
+ * Processing) code physically precede Phase 2 (Proper Noun) code, for example.
+ * Section names below still carry "PHASE N" where that's the section's dominant
+ * content, but treat that as a label, not a guarantee the section is phase-pure —
+ * see SECTION 10's note. Re-verified 2026-08-18, architecture review follow-up
+ * to candidate #2/#3):
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. Memory Management Utilities        (Lines 68-81)    [EXTRACTED]
+ * 1. Memory Management Utilities        (Lines 282-307)    [EXTRACTED]
  *    - Memory leak detection (now in MemoryLeakDetector.js)
  *
- * 2. Core Engine Class - Constructor     (Lines 91-546)   [COUPLED]
- *    - Constructor & configuration       (Lines 100-196)
- *    - Logging & device memory           (Lines 198-293)
+ * 2. Core Engine Class - Constructor     (Lines 308-544)    [COUPLED]
  *    - Critical: Initializes all subsystems
  *
- * 3. Dictionary Operations               (Lines 295-357)  [COUPLED]
+ * 3. Dictionary Operations               (Lines 545-613)    [COUPLED]
  *    - Semantic caching with phase priority
  *    - Critical: Cache timing affects phase order
  *
- * 4. Smart Memory Management             (Lines 358-1168) [COUPLED]
- *    - initializeCoreEngine()            (Line 547)
+ * 4. Smart Memory Management             (Lines 614-774)    [COUPLED]
  *    - SmartMemoryCoordinator            (constructed per translateWithProgressiveBatches call)
  *    - Critical: Cleanup must not interfere with translation
  *
- * 5. Engine Initialization               (Line 1169)      [COUPLED]
- *    - initialize() — dictionary loading & WASM setup
+ * 5. Engine Initialization               (Lines 775-958)    [COUPLED]
+ *    - initialize()                      (Line 841) — dictionary loading & WASM setup
  *    - Critical: Initialization order matters
  *
- * 6. Main Translation Entry Points       (Lines 1445-2037) [COUPLED]
- *    - translateWithCharactersOnly()     (Line 1551)
+ * 6. Main Translation Entry Points       (Lines 959-1421)   [COUPLED]
+ *    - translateWithCharactersOnly()     (Line 1026)
  *    - Note: the non-progressive translate()/translateWithChunking()-as-dispatcher path was
  *      deleted 2026-08-17 (zero production reachability — translateWithSegments always takes
  *      the progressive branch); translateWithChunking()/translateDirectly() still exist and
  *      are still live, reached via processChunksInParallel(), not via this section
  *
- * 7. Conflict Resolution & Segment Helpers (Lines 2038-2777) [COUPLED]
- *    - translateWithSegments()           (Line 2038)
- *    - resolveMatchConflicts()           (Line 2388)
- *    - resolveGlobalConflicts()          (Line 2693)
+ * 7. Conflict Resolution & Segment Helpers (Lines 1422-2001) [COUPLED]
+ *    - translateWithSegments()           (Line 1501)
+ *    - resolveMatchConflicts()           (Line 1774)
+ *    - resolveGlobalConflicts()          (Line 1984)
  *    - Critical: resolveMatch/resolveGlobal priority is intentionally INVERTED
  *
- * 8. Phase 1 - Pattern Processing        (Lines 2778-4235) [COUPLED]
- *    - applyPatterns()                   (Line 2778)
- *    - applyPatternsToTokenSequences()   (Line 3458)
+ * 8. Phase 1 - Pattern Processing        (Lines 2002-2324)  [COUPLED]
+ *    - applyPatterns()                   (Line 2069)
+ *    - applyPatternsToTokenSequences()   (Line 2686)
  *    - Hierarchical two-phase WASM patterns
  *    - Critical: Must run first (highest priority)
  *
- * 9. Post-Processing                     (Lines 4236-5283) [COUPLED]
- *    - postProcess()                     (Line 4236)
- *    - Semantic array, position mapping, text assembly
- *    - Critical: Position precision for clickable highlighting
+ * 9. Phase 4 - Phrase Processing         (Lines 2325-3078)  [COUPLED]
+ *    - createOptimalPhraseGroups()       (Line 1918 — physically inside section 7's
+ *      range, not this one; phase content and physical section boundaries diverge here)
  *
- * 10. Parallel Processing                (Lines 5284-5702) [COUPLED]
- *     - processChunksInParallel()        (Line 5284)
+ * 10. Phase 5 - Character Processing     (Lines 3079-3442)  [COUPLED]
+ *     - Also contains Phase 2 (Proper Noun) logic: applyDictionaryTranslation()
+ *       (Line 3212) sits inside this range, not its own section. The main Phase 5
+ *       method, processRemainingTokensInBatches(), is NOT here — it's at Line
+ *       4801, physically inside section 12 (Parallel Processing). Phase content
+ *       and physical section boundaries diverge throughout this file; do not
+ *       assume a section named after a phase contains only that phase's code.
+ *
+ * 11. Post-Processing                    (Lines 3443-4603)  [COUPLED]
+ *     - postProcess()                    (Line 3518)
+ *     - Semantic array, position mapping, text assembly
+ *     - Critical: Position precision for clickable highlighting
+ *
+ * 12. Parallel Processing                (Lines 4604-5083)  [COUPLED]
+ *     - processChunksInParallel()        (Line 4632)
+ *     - processRemainingTokensInBatches() (Line 4801) — Phase 5's main method, see note above
  *     - Critical: assigns semantic indices by chunk-completion order
  *
- * 11. Progressive Batch Translation      (Lines 5703-6901) [COUPLED]
- *     - translateWithProgressiveBatches() (Line 5703)
+ * 13. Progressive Batch Translation      (Lines 5084-5508)  [COUPLED]
+ *     - translateWithProgressiveBatches() (Line 5094)
  *
- * 12. Chunked Translation Paths          (Lines 6902-7444) [COUPLED]
- *     - translateWithChunking()          (Line 6902)
- *     - translateDirectly()              (Line 7167)
+ * 14. Chunked Translation Paths          (Lines 5509-5890)  [COUPLED]
+ *     - translateWithChunking()          (Line 5585)
+ *     - translateDirectly()              (Line 5803)
+ *     - Note: translateWithChunking's only production entry point is
+ *       translateDirectly's own oversized-input recursive fallback — see section 6
  *
- * 13. Core 5-Phase Pipeline              (Line 7445)       [COUPLED]
- *     - translateSinglePass()            (Line 7445)
+ * 15. Core 5-Phase Pipeline              (Lines 5891-7399)  [COUPLED]
+ *     - translateSinglePass()            (Line 6007)
  *       • Phase 1: Patterns
  *       • Phase 2: Proper Nouns
- *       • Phase 3: Numbers (WASM)
+ *       • Phase 3: Numbers (NumberProcessor.processTokens, via this.numberProcessor —
+ *         a separate class, not a TranslationEngine method like its phase siblings;
+ *         fixed 2026-08-18, previously cited a non-existent processNumbersWasm method)
  *       • Phase 4: Phrases
  *       • Phase 5: Characters
  *     - Critical: Phase order is IMMUTABLE
  *
- * 14. Cache Management                   [EXTENSION]
- *     - invalidateAllCaches()
+ * 16. Cache Management                   (Lines 7400-7894)  [EXTENSION]
+ *     - invalidateAllCaches()            (Line 7462)
  *     - Unified API for 6 cache systems
  *
- * 15. Utility Methods & Factory          (Line 10112) [SAFE]
- *     - createTranslationEngine()        (Line 10112)
+ * 17. Utility Methods & Factory          (Lines 7895-7902)  [SAFE]
+ *     - createTranslationEngine()        (Line 7902)
  *
- * NOTE: Key function anchors (verified 2026-04-01):
- *       initialize 1169, translate 1445, translateWithCharactersOnly 1551,
- *       translateWithSegments 2038, resolveMatchConflicts 2388,
- *       resolveGlobalConflicts 2693, applyPatterns 2778,
- *       applyPatternsToTokenSequences 3458, postProcess 4236,
- *       processChunksInParallel 5284, translateWithProgressiveBatches 5703,
- *       translateWithChunking 6902, translateDirectly 7167,
- *       translateSinglePass 7445, createTranslationEngine 10112.
+ * NOTE: Key function anchors (re-verified 2026-08-18, architecture review follow-up
+ * to candidate #2/#3 — the 2026-04-01 "verified" list above had drifted by 700-2300
+ * lines per anchor and still listed the deleted `translate()` dispatcher):
+ *       initialize 841, translateWithCharactersOnly 1026,
+ *       translateWithSegments 1501, resolveMatchConflicts 1774,
+ *       resolveGlobalConflicts 1984, applyPatterns 2069,
+ *       applyPatternsToTokenSequences 2686, postProcess 3518,
+ *       processChunksInParallel 4632, translateWithProgressiveBatches 5094,
+ *       translateWithChunking 5585, translateDirectly 5803,
+ *       translateSinglePass 6007, invalidateAllCaches 7462,
+ *       createTranslationEngine 7902.
+ *
+ * These numbers WILL drift again the next time this file is edited — they are a
+ * navigation aid accurate as of this commit, not a maintained invariant enforced
+ * by any test or lint rule. Treat a mismatch as expected, not a bug, and re-grep
+ * before trusting a specific line number cited here.
  *
  * =============================================================================
  * ARCHITECTURAL NOTES
@@ -1390,6 +1418,16 @@ export class TranslationEngine {
     }
   }
 
+  // ============================================================================
+  // SECTION 7: CONFLICT RESOLUTION & SEGMENT HELPERS
+  // ============================================================================
+  // Purpose: translateWithSegments entry point, dictionary match conflict resolution
+  // Dependencies: TextChunker, progressive/chunked translation paths
+  // Extraction Potential: NONE - resolveMatchConflicts/resolveGlobalConflicts priority
+  //   is intentionally inverted between phases, see src/utils/CLAUDE.md
+  // Critical: translateWithSegments resets translationSegments per call
+  // ============================================================================
+
   /**
    * Translate text and return enhanced result with segments for interactive highlighting
    *
@@ -2284,7 +2322,7 @@ export class TranslationEngine {
   }
 
   // ============================================================================
-  // SECTION 11: PHASE 4 - PHRASE PROCESSING
+  // SECTION 9: PHASE 4 - PHRASE PROCESSING
   // ============================================================================
   // Purpose: Common phrase dictionary matching for remaining tokens
   // Dependencies: Previous phase results (patterns, proper nouns, numbers)
@@ -3038,7 +3076,7 @@ export class TranslationEngine {
   }
 
   // ============================================================================
-  // SECTION 9: PHASE 5 - CHARACTER PROCESSING
+  // SECTION 10: PHASE 5 - CHARACTER PROCESSING
   // ============================================================================
   // Purpose: Character dictionary fallback for untranslated tokens
   // Dependencies: All previous phases (patterns, proper nouns, numbers, phrases)
@@ -3402,7 +3440,7 @@ export class TranslationEngine {
   }
 
   // ============================================================================
-  // SECTION 10: POST-PROCESSING
+  // SECTION 11: POST-PROCESSING
   // ============================================================================
   // Purpose: Assemble final translation from token results
   // Dependencies: Complete token state from all 5 phases
@@ -4562,6 +4600,16 @@ export class TranslationEngine {
     );
   }
 
+  // ============================================================================
+  // SECTION 12: PARALLEL PROCESSING
+  // ============================================================================
+  // Purpose: Process a batch's chunks concurrently within progressive translation
+  // Dependencies: translateDirectly, tokenizer (for chunkOffset computation)
+  // Critical: assigns semantic indices by chunk-completion order — see
+  //   compareByTokenIndex (src/utils/highlighting/TextPositionMapper.ts) for the
+  //   downstream correction this depends on
+  // ============================================================================
+
   /**
    * Process chunks in parallel within a batch
    *
@@ -5032,6 +5080,17 @@ export class TranslationEngine {
     }
   }
 
+  // ============================================================================
+  // SECTION 13: PROGRESSIVE BATCH TRANSLATION
+  // ============================================================================
+  // Purpose: Stream translation results in batches for UI progress updates
+  // Dependencies: AdaptiveChunker, AdaptiveBatchSizer, processChunksInParallel,
+  //   ProgressiveProgressReporter, BatchMemoryCleanup, WordSegmentMatcher
+  // Critical: this.batchPerformanceHistory resets per translation; adaptiveChunker's
+  //   own module-level performanceHistory does not (open architecture review finding,
+  //   2026-08-18 report, candidate #3 — not yet grilled)
+  // ============================================================================
+
   async translateWithProgressiveBatches(text, options = {}) {
     const startTime = performance.now();
 
@@ -5081,6 +5140,15 @@ export class TranslationEngine {
       textLength: text.length,
       chunkCount: translatableChunks.length,
     });
+
+    // Reset before reading performanceHistory below — calculateOptimalChunkSize's trend
+    // adjustment reads it once, right here, before this translation's own batches have run.
+    // Without resetting first, its nudge would be driven by prior translations' stale batch
+    // performance instead of a clean content+device-based starting point (architecture review
+    // 2026-08-18, candidate #3 grilling — same intent as this.batchPerformanceHistory's own
+    // "Reset for this translation session" reset below, just earlier: that one only needs to
+    // guard calculateNextBatchSize's later per-batch reads, not this upfront call).
+    adaptiveChunker.reset();
 
     // Enhanced content analysis for smart chunk size adaptation
     const contentAnalysis = adaptiveChunker.analyzeContentCharacteristics(text, translatableChunks);
@@ -5437,23 +5505,34 @@ export class TranslationEngine {
     };
   }
 
+  // ============================================================================
+  // SECTION 14: CHUNKED TRANSLATION PATHS
+  // ============================================================================
+  // Purpose: Alternative to progressive batching — chunk once, translate, reassemble
+  // Dependencies: TextChunker, ChunkPostProcessor, translateDirectly
+  // Note: Only production entry point is translateDirectly's own oversized-input
+  //   recursive fallback (see this file's SECTION 6 comment: translateWithSegments
+  //   always takes the progressive branch, not this one)
+  // ============================================================================
+
   /**
    * Translate text using chunk-based processing for better accuracy and potential parallelization
    *
    * Splits text by punctuation boundaries and translates each chunk independently. This approach
    * improves translation accuracy by respecting sentence boundaries and enables parallel processing
-   * for better performance. Each chunk maintains its own semantic arrays to prevent race conditions.
+   * for better performance. Each chunk writes to the shared semantic array builder with a
+   * chunkOffset computed upfront, keeping global tokenIndex values correct regardless of
+   * chunk-completion order.
    *
    * Process flow:
    * 1. Split text into chunks by punctuation (。！？，；：)
    * 2. Identify translatable chunks (contain Chinese text)
    * 3. Translate chunks in parallel or sequentially
    * 4. Reassemble chunks preserving original punctuation and whitespace
-   * 5. Merge semantic arrays from all chunks
-   * 6. Build pre-built segments for clickable highlighting
+   * 5. Build pre-built segments for clickable highlighting
    *
    * Parallel processing:
-   * - Each chunk uses isolated semantic builder to prevent race conditions
+   * - Chunks write directly to the shared this.semanticArrayBuilder (no per-chunk isolation)
    * - Deep copy options for each chunk to avoid shared state conflicts
    * - Automatically enabled for texts with 2+ translatable chunks
    *
@@ -5488,7 +5567,6 @@ export class TranslationEngine {
    * @see translateWithSegments - Entry point that selects chunked or progressive mode
    * @see translateDirectly - Translates individual chunks
    * @see TextChunker - Handles text splitting by punctuation
-   * @see SemanticArrayBuilder - Prevents race conditions in parallel mode
    *
    * @performance
    * - Parallel mode: 2-3x faster for texts with 5+ chunks
@@ -5496,9 +5574,13 @@ export class TranslationEngine {
    * - Shared Rust lookup index: 6-50x faster for large texts
    *
    * @critical
-   * Uses isolated semantic builders for each chunk in parallel mode.
-   * Shared semantic builder would corrupt state with concurrent addUnit() calls.
-   * Deep copies options for each chunk to prevent shared object mutations.
+   * Parallel mode writes directly to the shared this.semanticArrayBuilder with a
+   * chunkOffset computed upfront (correct regardless of which chunk's translateDirectly
+   * call resolves first) — same strategy processChunksInParallel uses. A prior
+   * isolated-per-chunk-builder attempt here was removed 2026-08-18 (architecture review
+   * candidate #2 grilling): it was unsound, see the comment inside the parallel branch
+   * for the full analysis. Deep copies options for each chunk to prevent shared object
+   * mutations.
    */
   async translateWithChunking(text, options = {}) {
     const startTime = performance.now();
@@ -5531,11 +5613,31 @@ export class TranslationEngine {
     if (enableParallel) {
       this.log(DEBUG_LEVELS.DEBUG, `🔄 Processing ${translatableChunks.length} chunks in parallel`);
 
-      // CRITICAL FIX: Create isolated semantic builders for each chunk to prevent race conditions
-      // Shared semantic builder would corrupt state with concurrent addUnit() calls
-      const isolatedBuilders = translatableChunks.map(() => new SemanticArrayBuilder());
+      // Chunks write directly to the shared this.semanticArrayBuilder with a correct global
+      // chunkOffset computed upfront — same strategy processChunksInParallel already uses in
+      // production (see its identical chunkTokenCounts/chunkTokenOffsets computation below).
+      //
+      // A prior isolated-per-chunk-builder attempt here was deleted 2026-08-18 (architecture
+      // review candidate #2 grilling) — it was NOT safe. It worked by swapping
+      // this.semanticArrayBuilder (a single shared instance field every addUnit call site reads
+      // live) in and out around await boundaries inside translateDirectly. Async functions run
+      // synchronously up to their first await, so Array.prototype.map dispatches every chunk's
+      // synchronous prefix — including the builder swap — before any chunk reaches real async
+      // work. That guarantees every chunk past the first captures the wrong "original" builder to
+      // restore, and writes its semantic units into whichever builder happens to be live at that
+      // instant (a moving target other chunks are also swapping), not its own. Deterministic
+      // corruption, not a timing fluke — see git history for the full analysis.
+      const chunkTokenCounts = translatableChunks.map(
+        (chunk) => this.tokenizer.tokenize(chunk.content).length
+      );
+      let cumulativeTokenCount = 0;
+      const chunkTokenOffsets = translatableChunks.map((_, index) => {
+        const offset = cumulativeTokenCount;
+        cumulativeTokenCount += chunkTokenCounts[index];
+        return offset;
+      });
 
-      // Translate chunks in parallel with isolated builders
+      // Translate chunks in parallel
       // CRITICAL FIX: Deep copy options for parallel processing
       // Each chunk runs in parallel - shared nested objects would cause race conditions
       const translationPromises = translatableChunks.map((chunk, idx) =>
@@ -5544,10 +5646,8 @@ export class TranslationEngine {
           // Deep copy complex nested objects to prevent race conditions
           lookupIndex: options.lookupIndex ? new Map(options.lookupIndex) : undefined,
           segments: options.segments ? [...options.segments] : undefined,
-          // Pass isolated semantic builder for this chunk
-          isolatedSemanticBuilder: isolatedBuilders[idx],
           useChunking: false,
-          chunkOffset: 0, // local indices only; merge loop applies global offset via cumulativeTokenCount
+          chunkOffset: chunkTokenOffsets[idx],
           chunkStartChar: chunk.startIndex, // char offset of chunk start in full original text
           isParallelChunk: true,
         })
@@ -5565,54 +5665,6 @@ export class TranslationEngine {
       translatableChunks.forEach((chunk, index) => {
         chunk.translated = translatedContents[index];
       });
-
-      // CRITICAL FIX: Merge isolated semantic arrays sequentially into main builder
-      // Must maintain position order for clickable highlighting
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        `🔀 Merging ${isolatedBuilders.length} isolated semantic arrays`
-      );
-
-      // MEDIUM FIX: Calculate cumulative token offsets for each chunk during merge
-      // Isolated builders use local token indices (0, 1, 2...); adjust to global indices
-      let cumulativeTokenCount = 0;
-
-      for (let i = 0; i < isolatedBuilders.length; i++) {
-        const chunk = translatableChunks[i];
-        const isolatedArrays = isolatedBuilders[i].getArrays();
-
-        // Calculate token count for this chunk (for next chunk's offset).
-        // chunk.content is a string — must tokenize first; getSemanticTokens() expects TextToken[].
-        const chunkTokenCount = this.tokenizer.tokenize(chunk.content).length;
-        const chunkTokenOffset = cumulativeTokenCount;
-        cumulativeTokenCount += chunkTokenCount;
-
-        if (isolatedArrays && isolatedArrays.original) {
-          // Merge each semantic unit from isolated builder
-          for (let j = 0; j < isolatedArrays.original.length; j++) {
-            // MEDIUM FIX: Adjust tokenIndex from local (isolated) to global
-            // Isolated builder had indices 0, 1, 2...; convert to global by adding chunk offset
-            const localTokenIndex = isolatedArrays.metadata?.[j]?.tokenIndex || 0;
-            const globalTokenIndex = chunkTokenOffset + localTokenIndex;
-
-            const mergeSource = isolatedArrays.metadata?.[j]?.source || null;
-            if (!mergeSource) {
-              this.log(
-                DEBUG_LEVELS.WARN,
-                `⚠️ Merge loop: semantic unit ${j} in chunk has null/empty source — getSourcePriority will return 999`
-              );
-            }
-            this.semanticArrayBuilder.addUnit(
-              isolatedArrays.original[j],
-              isolatedArrays.translated[j],
-              mergeSource,
-              globalTokenIndex,
-              isolatedArrays.metadata?.[j]?.phase ?? null,
-              isolatedArrays.metadata?.[j]?.dictionary ?? null
-            );
-          }
-        }
-      }
     } else {
       this.log(
         DEBUG_LEVELS.DEBUG,
@@ -5701,7 +5753,6 @@ export class TranslationEngine {
    * Key features:
    * - Full 5-phase translation pipeline
    * - Automatic Rust lookup index for texts >500 chars (6-50x speedup)
-   * - Isolated semantic builder support for parallel processing
    * - Token consumption tracking to prevent double-processing
    * - Semantic array generation for clickable highlighting
    *
@@ -5716,7 +5767,6 @@ export class TranslationEngine {
    * @param {Object} [options={}] - Translation options
    * @param {boolean} [options.useChunking=true] - Enable chunk-based processing (for standalone calls)
    * @param {boolean} [options.isParallelChunk=false] - Internal flag for parallel chunk processing
-   * @param {Object} [options.isolatedSemanticBuilder] - Isolated semantic builder (prevents race conditions)
    * @param {Object} [options.lookupIndex] - Pre-built Rust lookup index
    * @param {boolean} [options.useSharedLookupIndex=true] - Enable Rust lookup index for texts >500 chars
    * @param {AbortSignal} [options.abortSignal] - Signal to abort translation
@@ -5727,14 +5777,6 @@ export class TranslationEngine {
    * @example
    * // Basic direct translation
    * const translated = await engine.translateDirectly('你好世界');
-   *
-   * @example
-   * // With isolated semantic builder (for parallel processing)
-   * const isolated = new SemanticArrayBuilder();
-   * const translated = await engine.translateDirectly(chunk, {
-   *   isolatedSemanticBuilder: isolated,
-   *   isParallelChunk: true // Don't reset segments
-   * });
    *
    * @example
    * // With Rust lookup index
@@ -5754,24 +5796,14 @@ export class TranslationEngine {
    *
    * @critical
    * When isParallelChunk=true, does NOT reset semantic builder or segments.
-   * This allows accumulation across chunks in parallel processing.
-   * Isolated semantic builder prevents race conditions in parallel mode.
+   * This allows accumulation across chunks in parallel processing — all parallel chunks write
+   * to the same this.semanticArrayBuilder; chunkOffset (computed upfront by the caller) keeps
+   * tokenIndex values globally correct regardless of chunk-completion order.
    */
   async translateDirectly(text, options = {}) {
     // This is the original translate method logic, renamed for chunk-based architecture
     const startTime = performance.now();
     const _translationId = this.stats.totalTranslations++;
-
-    // CRITICAL FIX: Use isolated semantic builder if provided (for parallel chunk processing)
-    // Prevents race conditions when multiple chunks process concurrently
-    const originalSemanticBuilder = this.semanticArrayBuilder;
-    if (options.isolatedSemanticBuilder) {
-      this.semanticArrayBuilder = options.isolatedSemanticBuilder;
-      this.log(
-        DEBUG_LEVELS.DEBUG,
-        '🔒 Using isolated semantic builder for parallel chunk processing'
-      );
-    }
 
     try {
       // CRITICAL FIX: Only reset segments if this is a standalone translation
@@ -5852,17 +5884,11 @@ export class TranslationEngine {
     } catch (error) {
       this.log(DEBUG_LEVELS.ERROR, `🚨 Translation error:`, error);
       throw error;
-    } finally {
-      // CRITICAL FIX: Restore original semantic builder after isolated processing
-      if (options.isolatedSemanticBuilder) {
-        this.semanticArrayBuilder = originalSemanticBuilder;
-        this.log(DEBUG_LEVELS.DEBUG, '🔓 Restored original semantic builder');
-      }
     }
   }
 
   // ============================================================================
-  // SECTION 11: CORE 5-PHASE TRANSLATION PIPELINE
+  // SECTION 15: CORE 5-PHASE TRANSLATION PIPELINE
   // ============================================================================
   // Purpose: Execute all 5 phases in sequence
   // Dependencies: ALL PHASES (this is the main pipeline)
@@ -5872,7 +5898,7 @@ export class TranslationEngine {
   // Phase Execution Order (NEVER CHANGE):
   //   1. Pattern Processing    (applyPatterns)
   //   2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
-  //   3. Number Processing     (processNumbersWasm)
+  //   3. Number Processing     (NumberProcessor.processTokens, via this.numberProcessor)
   //   4. Phrase Processing     (createOptimalPhraseGroups)
   //   5. Character Processing  (processRemainingTokensInBatches)
   //
@@ -5897,7 +5923,7 @@ export class TranslationEngine {
    * Phase Execution Order (NEVER CHANGE):
    * 1. Pattern Processing (applyPatterns) - Highest priority
    * 2. Proper Noun Processing (applyDictionaryTranslation with activeProperNouns)
-   * 3. Number Processing (processNumbersWasm)
+   * 3. Number Processing (NumberProcessor.processTokens, via this.numberProcessor)
    * 4. Phrase Processing (createOptimalPhraseGroups)
    * 5. Character Processing (processRemainingTokensInBatches) - Lowest priority
    *
@@ -5945,7 +5971,11 @@ export class TranslationEngine {
    *
    * @see translateDirectly - Calls this method after tokenization
    * @see applyPatterns - Phase 1 implementation
-   * @see processNumbersWasm - Phase 3 implementation
+   * @see applyDictionaryTranslation - Phase 2 implementation
+   * @see NumberProcessor.processTokens - Phase 3 implementation (delegated to a separate
+   *      class via this.numberProcessor, not a TranslationEngine method like its phase
+   *      siblings — corrected 2026-08-18, architecture review follow-up to candidate #3;
+   *      previously cited a non-existent `processNumbersWasm` method)
    * @see createOptimalPhraseGroups - Phase 4 implementation
    * @see processRemainingTokensInBatches - Phase 5 implementation
    *
@@ -7366,6 +7396,13 @@ export class TranslationEngine {
     this.dictionaryManager.clearCache();
   }
 
+  // ============================================================================
+  // SECTION 16: CACHE MANAGEMENT
+  // ============================================================================
+  // Purpose: Unified invalidation API for all 6 cache systems
+  // Dependencies: DictionaryManager, SemanticArrayBuilder, pattern processor caches
+  // ============================================================================
+
   /**
    * Invalidate all caches across the translation system
    *
@@ -7853,6 +7890,12 @@ export class TranslationEngine {
     return false;
   }
 }
+
+// ============================================================================
+// SECTION 17: UTILITY METHODS & FACTORY
+// ============================================================================
+// Purpose: Public factory — use this, do not call `new TranslationEngine()` directly
+// ============================================================================
 
 // Factory function
 export const createTranslationEngine = () => new TranslationEngine();

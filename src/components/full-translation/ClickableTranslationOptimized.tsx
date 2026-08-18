@@ -6,12 +6,11 @@ import React, { useMemo, useCallback } from 'react';
 import type {
   ClickableTranslationOptimizedProps,
   SegmentComponentProps,
-  SegmentClickHandler,
-  SegmentClickPayload,
 } from '../../types/ClickableTypes';
 import styles from '../../styles/ClickableTranslationOptimized.module.css';
 import { sanitizeString } from '../../utils/configValidation';
 import { isUnitHighlighted } from '../../utils/highlighting';
+import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
 
 // Memoized segment component to prevent unnecessary re-renders
 const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
@@ -21,23 +20,12 @@ const SegmentComponent: React.FC<SegmentComponentProps> = React.memo(
     // change (100+ closures per click). Instead, depend only on primitive values.
     const isClickable = segment.isClickable;
     const unitIndex = segment.unitIndex;
-    const originalText = segment.originalText;
-    const translatedText = segment.translatedText;
-    const source = segment.source;
-    const metadata = segment.metadata;
 
     const handleClick = useCallback(() => {
       if (isClickable) {
-        (onClick as SegmentClickHandler)({
-          unitIndex,
-          originalText,
-          translatedText,
-          source,
-          metadata: metadata!,
-          direction: 'translation-to-original',
-        });
+        onClick(unitIndex);
       }
-    }, [isClickable, unitIndex, originalText, translatedText, source, metadata, onClick]);
+    }, [isClickable, unitIndex, onClick]);
 
     const className = useMemo(() => {
       const classes = [styles.segment];
@@ -145,14 +133,18 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
     return result;
   }, [renderSegments]);
 
-  // Memoize click handler to prevent re-renders
-  const handleSegmentClick = useCallback(
-    (segmentData: SegmentClickPayload) => {
-      if (onSegmentClick) {
-        (onSegmentClick as SegmentClickHandler)(segmentData);
-      }
-    },
-    [onSegmentClick]
+  // Routes through the shared click-payload seam (useSegmentClickHandler) instead of
+  // hand-building SegmentClickPayload here — recovers the bounds guard the other two
+  // Clickable* components already get, and drops to 3 handleClick deps instead of 6
+  // (originalText/translatedText/source/metadata come from semanticArrays[unitIndex]
+  // inside the hook, not from segment fields — those segment fields can diverge slightly
+  // from semanticArrays' raw values since WordSegmentMatcher slices translatedText from
+  // the final assembled output; no consumer reads those payload fields today, only
+  // unitIndex + direction).
+  const handleSegmentClick = useSegmentClickHandler(
+    semanticArrays,
+    onSegmentClick,
+    'translation-to-original'
   );
 
   // No loading state needed - segments are prebuilt!
