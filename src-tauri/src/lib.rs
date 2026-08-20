@@ -1,6 +1,6 @@
 // Dictionary commands module
 mod dictionary_commands;
-mod lookup_index_engine;
+pub mod lookup_index_engine;
 
 use dictionary_commands::{DictionaryCache, RateLimiters};
 use tauri_plugin_clipboard_manager::ClipboardExt;

@@ -21,7 +21,7 @@
 // Architecture: Focused WASM features with JavaScript fallbacks
 // See: WASM_RUST_SYSTEMS_MAP.md for complete system documentation
 
-mod trie;
+pub mod trie;
 pub mod number_processor;
 pub mod pattern_processor;
 pub mod text_tokenizer;

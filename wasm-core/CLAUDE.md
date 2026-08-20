@@ -79,7 +79,11 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 
 **`pub(crate)` functions (e.g. `tokenize_text_core`) are unreachable from `wasm-core/tests/*.rs`** — integration test files only see the crate's public API. Tests against a `pub(crate)` function must live inside that source file's own `#[cfg(test)] mod tests` (nest a submodule there if it needs its own file-like organization — see `text_tokenizer.rs`'s `mod tests::parity`).
 
-**Removing/renaming a `parse_pattern`/`SemanticPattern` positional field:** grep under-counts call sites that pass it as a bare positional value (no field name to match). `two_phase.rs`, `index.rs`, and `mod.rs` each have their own inline `#[cfg(test)] mod tests` with `parse_pattern(...)` calls — easy to miss since they're not in `wasm-core/tests/`. Use `cargo build --tests` (not `cargo build`) as the completeness check; the compiler enumerates every call site.
+**Removing/renaming a `parse_pattern`/`SemanticPattern` positional field:** grep under-counts call sites that pass it as a bare positional value (no field name to match). `two_phase.rs`, `index.rs`, and `mod.rs` each have their own inline `#[cfg(test)] mod tests` with `parse_pattern(...)` calls — easy to miss since they're not in `wasm-core/tests/`. Use `cargo build --tests` (not `cargo build`) as the completeness check; the compiler enumerates every call site. **`benches/*.rs` is NOT covered by `--tests`** — it silently bit-rots (found 2026-08-20: `pattern_matching.rs` had a stale `parse_pattern` call and a stale `find_best_pattern_match` call, broken across an unknown number of prior signature changes). Periodically run `cargo check --benches` too.
+
+## `trie.rs` Is Not the Translation-Speed Hot Path
+
+For any real translation text ≥50 chars (essentially all real usage), dictionary-lookup matching goes through a _separate_ native Rust trie in `src-tauri/src/lookup_index_engine.rs` (one Tauri IPC call, rayon-parallel across positions), not this file. Before benchmarking or optimizing `trie.rs` for "translation speed," trace the real call path — see ADR-040 for the full investigation and why an aho-corasick swap of the _actual_ hot path (the `src-tauri` trie, not this one) was evaluated and rejected.
 
 ## `number_processor.rs` Is Rust Spec Only — No WASM Export
 

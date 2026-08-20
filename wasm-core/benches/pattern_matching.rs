@@ -8,7 +8,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Benchmark
 use std::collections::HashMap;
 use translation_wasm_core::pattern_processor::{
     parse_pattern, find_best_pattern_match, SemanticToken, TwoPhasePatternProcessor,
-    VariableCacheEntry,
+    VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
 };
 
 /// Helper to create a semantic token
@@ -19,6 +19,7 @@ fn create_token(value: &str, index: usize) -> SemanticToken {
         protected_by_phase_a: None,
         phase_a_result: None,
         translation_source: None,
+        has_preceding_boundary: false,
     }
 }
 
@@ -28,7 +29,6 @@ fn bench_single_pattern_match(c: &mut Criterion) {
         "X的Y".to_string(),
         "Y của X".to_string(),
         None,
-        false,
         false,
         None,
     );
@@ -64,6 +64,7 @@ fn bench_single_pattern_match(c: &mut Criterion) {
                 black_box(&tokens),
                 black_box(0),
                 black_box(&variable_cache),
+                black_box(DEFAULT_MAX_VARIABLE_SPAN),
             )
         })
     });
@@ -82,7 +83,6 @@ fn bench_pattern_competition(c: &mut Criterion) {
                 format!("X的{}", "手".repeat(i + 1)),
                 format!("{} của X", "tay".repeat(i + 1)),
                 None,
-                false,
                 false,
                 None,
             ));
@@ -122,6 +122,7 @@ fn bench_pattern_competition(c: &mut Criterion) {
                         black_box(&tokens),
                         black_box(0),
                         black_box(&variable_cache),
+                        black_box(DEFAULT_MAX_VARIABLE_SPAN),
                     )
                 })
             },
@@ -145,7 +146,6 @@ fn bench_phase_a_processing(c: &mut Criterion) {
                 format!("X {}", "đáng sợ".repeat(i + 1)),
                 None,
                 true, // allowAsPatternVariable
-                false,
                 None,
             ));
         }
@@ -192,7 +192,6 @@ fn bench_two_phase_processing(c: &mut Criterion) {
         "X đáng sợ".to_string(),
         None,
         true,
-        false,
         None,
     );
 
@@ -202,11 +201,10 @@ fn bench_two_phase_processing(c: &mut Criterion) {
         "ở trong X".to_string(),
         None,
         false,
-        false,
         None,
     );
 
-    let mut tokens = vec![
+    let tokens = vec![
         create_token("在", 0),
         create_token("可", 1),
         create_token("怕", 2),
@@ -242,9 +240,9 @@ fn bench_large_token_array(c: &mut Criterion) {
     let mut group = c.benchmark_group("large_token_array");
 
     let patterns = vec![
-        parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, false, None),
-        parse_pattern("可怕的X".to_string(), "X đáng sợ".to_string(), None, true, false, None),
-        parse_pattern("在X中".to_string(), "ở trong X".to_string(), None, false, false, None),
+        parse_pattern("X的Y".to_string(), "Y của X".to_string(), None, false, None),
+        parse_pattern("可怕的X".to_string(), "X đáng sợ".to_string(), None, true, None),
+        parse_pattern("在X中".to_string(), "ở trong X".to_string(), None, false, None),
     ];
 
     let processor = TwoPhasePatternProcessor::new(patterns);

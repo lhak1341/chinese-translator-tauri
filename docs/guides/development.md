@@ -507,6 +507,10 @@ Accumulated pitfalls confirmed across development sessions. Organized by area.
 
 **`git diff HEAD`/`git diff <ref>` omits untracked new files** — when reviewing or diffing a session that created files, also pass their paths for direct `Read`, don't rely on the diff alone.
 
+**`cargo-outdated` isn't installed** (installing it costs several minutes to compile) — for a quick "what would update" signal instead, use `cargo update --dry-run --manifest-path <crate>/Cargo.toml`; this repo's `Cargo.toml`s use loose version constraints, so the dry-run's semver-compatible bumps usually cover what you need.
+
+**`pnpm update --latest`/`pnpm add pkg@latest` silently skip very-recently-published versions** (pnpm's built-in release-age cooldown) — bypassing it via an explicit version pin (`pnpm add pkg@x.y.z`) writes an exclude entry into `pnpm-workspace.yaml`, a shared repo-config change, not just a lockfile bump. Run `pnpm peers check` after any bulk dependency update — it catches peer-range breaks (e.g. a major bump outrunning a plugin's supported range) that a plain `pnpm add`/`update` won't warn about at all.
+
 ### JavaScript / TypeScript
 
 **Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `callWasmWithTimeout()` in `wasmOperationTimeout.js` uses `Promise.race([operation(), timeoutPromise])`. If `operation()` makes a synchronous WASM call, the JS thread is blocked for the full call duration — the timeout fires only _after_ WASM returns, not during it. True interruption requires a Web Worker.
