@@ -62,10 +62,6 @@ describe('useSegmentClickHandler — payload construction', () => {
     expect(onSegmentClick).toHaveBeenCalledOnce();
     expect(onSegmentClick).toHaveBeenCalledWith({
       unitIndex: 1,
-      originalText: '原1',
-      translatedText: 'tr1',
-      source: 'phrases',
-      metadata: ARRAYS.metadata[1],
       direction: 'original-to-translation',
     });
   });
@@ -76,15 +72,10 @@ describe('useSegmentClickHandler — payload construction', () => {
       useSegmentClickHandler(ARRAYS, onSegmentClick, 'translation-to-original')
     );
     act(() => result.current(2));
-    expect(onSegmentClick).toHaveBeenCalledWith(
-      expect.objectContaining({
-        unitIndex: 2,
-        originalText: '原2',
-        translatedText: 'tr2',
-        source: 'pattern',
-        direction: 'translation-to-original',
-      })
-    );
+    expect(onSegmentClick).toHaveBeenCalledWith({
+      unitIndex: 2,
+      direction: 'translation-to-original',
+    });
   });
 
   test('passes correct fields for character-only-to-original direction', () => {
@@ -93,9 +84,10 @@ describe('useSegmentClickHandler — payload construction', () => {
       useSegmentClickHandler(ARRAYS, onSegmentClick, 'character-only-to-original')
     );
     act(() => result.current(0));
-    expect(onSegmentClick).toHaveBeenCalledWith(
-      expect.objectContaining({ direction: 'character-only-to-original' })
-    );
+    expect(onSegmentClick).toHaveBeenCalledWith({
+      unitIndex: 0,
+      direction: 'character-only-to-original',
+    });
   });
 });
 

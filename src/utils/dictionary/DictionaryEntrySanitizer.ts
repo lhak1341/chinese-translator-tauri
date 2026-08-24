@@ -1,8 +1,8 @@
 /**
- * Text Sanitization Utilities
+ * Dictionary Entry Sanitizer
  *
  * Sanitizes user input to prevent JSON corruption and security issues
- * in dictionary entries and other persisted text data.
+ * in dictionary entries.
  *
  * Critical for preventing:
  * - JSON serialization failures from null bytes, unpaired surrogates

@@ -2,11 +2,10 @@ import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import toast from '../utils/toast';
 import { validatePersistEntry } from '../utils/dictionary/PersistTimeValidator';
-import { sanitizeDictionaryEntry } from '../utils/text';
 import { logger } from '../utils/logger';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../utils/errors';
 import { extractErrorMessage } from '../utils/errorHelpers';
-import { sortDictionaryEntries } from '../utils/dictionary';
+import { sanitizeDictionaryEntry, sortDictionaryEntries } from '../utils/dictionary';
 import type {
   DictionaryData,
   DictionaryEntryValue,

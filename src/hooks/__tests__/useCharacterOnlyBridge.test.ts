@@ -10,6 +10,7 @@ import { useCharacterOnlyBridge } from '../useCharacterOnlyBridge';
 vi.mock('../../utils/highlighting', () => ({
   findCharacterOnlyMatch: vi.fn(),
   scrollToHighlightedElement: vi.fn(),
+  HIGHLIGHT_SCROLL_DELAY_MS: 10,
 }));
 
 import { findCharacterOnlyMatch, scrollToHighlightedElement } from '../../utils/highlighting';

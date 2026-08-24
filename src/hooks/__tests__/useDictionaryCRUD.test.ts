@@ -27,13 +27,11 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('../../utils/dictionary/PersistTimeValidator', () => ({
   validatePersistEntry: vi.fn().mockReturnValue(null),
 }));
-vi.mock('../../utils/text', () => ({
+vi.mock('../../utils/dictionary', () => ({
   sanitizeDictionaryEntry: vi.fn().mockImplementation((s: string, t: string) => ({
     source: s,
     translation: t,
   })),
-}));
-vi.mock('../../utils/dictionary', () => ({
   sortDictionaryEntries: vi.fn().mockImplementation((dict: DictionaryData) => ({ ...dict })),
 }));
 

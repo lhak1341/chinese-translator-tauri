@@ -1,6 +1,10 @@
 import { useEffect } from 'react';
 import type { RefObject } from 'react';
-import { findCharacterOnlyMatch, scrollToHighlightedElement } from '../utils/highlighting';
+import {
+  findCharacterOnlyMatch,
+  scrollToHighlightedElement,
+  HIGHLIGHT_SCROLL_DELAY_MS,
+} from '../utils/highlighting';
 import type { SemanticArrays } from '../utils/highlighting';
 import { logger } from '../utils/logger';
 
@@ -99,7 +103,7 @@ export function useCharacterOnlyBridge({
         // scrollToHighlightedElement guards containerRef.current internally.
         scrollToHighlightedElement(characterOnlyTextRef as RefObject<HTMLElement>, firstIndex);
       }
-    }, 10);
+    }, HIGHLIGHT_SCROLL_DELAY_MS);
 
     return () => clearTimeout(timeoutId);
   }, [characterOnlyUnitIndex, characterOnlyTextRef]);

@@ -116,8 +116,6 @@ describe('ClickableOriginalSemantic', () => {
     expect(onSegmentClick).toHaveBeenCalledWith(
       expect.objectContaining({
         unitIndex: 1,
-        originalText: '好',
-        translatedText: 'Hello',
         direction: 'original-to-translation',
       })
     );

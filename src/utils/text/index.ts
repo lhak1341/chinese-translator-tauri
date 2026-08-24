@@ -4,7 +4,6 @@
  * Primary entry points:
  *   - new TextTokenizer() — character-level tokenization
  *   - new TextChunker() — punctuation-based text segmentation
- *   - sanitizeDictionaryEntry() — user input sanitization
  */
 
 // --- Tokenization ---
@@ -36,9 +35,6 @@ export {
   isNFC,
   getNormalizationStats,
 } from './TextNormalizationHelpers';
-
-// --- Sanitization ---
-export { sanitizeDictionaryEntry } from './TextSanitization';
 
 // --- Paragraph grouping ---
 export type { Segment } from './ParagraphGrouping';

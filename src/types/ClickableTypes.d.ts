@@ -86,35 +86,14 @@ export interface PrebuiltSegment extends ClickableSegment {
 export interface SegmentClickPayload {
   /** Index of the clicked unit in semantic arrays */
   unitIndex: number;
-  /** Original Chinese text of the unit */
-  originalText: string;
-  /** Translated Vietnamese text of the unit */
-  translatedText: string;
-  /** Translation source (pattern, phrase, character, etc.) */
-  source: string;
-  /** Full semantic metadata */
-  metadata: SemanticMetadata;
   /** Direction of the click interaction */
   direction: ClickDirection;
 }
 
 /**
- * Click handler function type (full payload version)
+ * Click handler function type
  */
 export type SegmentClickHandler = (payload: SegmentClickPayload) => void;
-
-/**
- * Simple click handler function type (legacy/simplified version)
- * Used in some components that only need index and direction
- */
-export type SimpleClickHandler = (index: number, direction: string) => void;
-
-/**
- * Flexible click handler that supports both formats
- * Note: Due to TypeScript structural typing, functions are checked for parameter compatibility.
- * The union allows either the full payload or the simple (index, direction) signature.
- */
-export type FlexibleClickHandler = SegmentClickHandler | SimpleClickHandler;
 
 // =============================================================================
 // Component Props - Basic Semantic Components
@@ -136,7 +115,7 @@ export interface ClickableOriginalSemanticProps {
   /** Currently highlighted unit index (from clicking translation) */
   highlightedTranslationUnitIndex?: number;
   /** Click handler for segment interactions */
-  onSegmentClick?: FlexibleClickHandler;
+  onSegmentClick?: SegmentClickHandler;
 }
 
 /**
@@ -151,7 +130,7 @@ export interface ClickableTranslationSemanticProps {
   /** Semantic arrays with translation metadata */
   semanticArrays?: SemanticArrays;
   /** Click handler for segment interactions */
-  onSegmentClick?: FlexibleClickHandler;
+  onSegmentClick?: SegmentClickHandler;
   /** Currently highlighted unit index */
   highlightedTranslationUnitIndex?: number | number[];
 }
@@ -176,7 +155,7 @@ export interface ClickableTranslationOptimizedProps {
   /** Prebuilt segments for instant rendering (recommended) */
   prebuiltSegments?: PrebuiltSegment[];
   /** Click handler for segment interactions */
-  onSegmentClick?: FlexibleClickHandler;
+  onSegmentClick?: SegmentClickHandler;
   /** Currently highlighted unit index */
   highlightedTranslationUnitIndex?: number;
 }

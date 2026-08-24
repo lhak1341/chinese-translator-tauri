@@ -221,16 +221,6 @@ describe('ClickableTranslationOptimized — click handler', () => {
     expect(payload.unitIndex).toBe(0);
   });
 
-  test('click payload includes originalText', () => {
-    const handler = vi.fn();
-    const { container } = render(
-      <ClickableTranslationOptimized {...makeProps({ onSegmentClick: handler })} />
-    );
-    fireEvent.click(container.querySelector('[data-unit-index="0"]')!);
-    const payload = handler.mock.calls[0][0];
-    expect(payload.originalText).toBe('你');
-  });
-
   test('click payload direction is translation-to-original', () => {
     const handler = vi.fn();
     const { container } = render(

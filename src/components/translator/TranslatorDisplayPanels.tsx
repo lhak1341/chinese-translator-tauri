@@ -6,6 +6,7 @@ import ClickableTranslationOptimized from '../full-translation/ClickableTranslat
 import StreamingTranslationDisplay from '../StreamingTranslationDisplay';
 import type { SemanticArrays } from '../../types/SemanticTypes';
 import type { ThrottledStreamingState } from '../../types/UITypes';
+import type { SegmentClickHandler } from '../../types/ClickableTypes';
 import { logger } from '../../utils/logger';
 import styles from '../../styles/TranslatorDisplayPanels.module.css';
 
@@ -32,7 +33,7 @@ interface TranslatorDisplayPanelsProps {
   highlightedTranslationUnitIndex: number | null;
   highlightedCharacterOnlyUnitIndex: number | null;
   throttledStreamingState: ThrottledStreamingState;
-  handleSemanticSegmentClick: (index: number, direction: string) => void;
+  handleSemanticSegmentClick: SegmentClickHandler;
   inputTextStyle: React.CSSProperties;
   outputTextStyle: React.CSSProperties;
   characterOnlyTextStyle: React.CSSProperties;

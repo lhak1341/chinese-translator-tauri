@@ -565,22 +565,6 @@ export interface SavedScrollPositions {
   characterOnly: ScrollPosition;
 }
 
-/**
- * Segment click payload for interactive highlighting
- */
-export interface SegmentClickPayload {
-  /** Unit index in semantic arrays */
-  unitIndex: number;
-  /** Click direction */
-  direction: 'original-to-translation' | 'translation-to-original' | 'character-only-to-original';
-  /** Original text segment */
-  originalText: string;
-  /** Translated text segment */
-  translatedText: string;
-  /** Translation source (phase name) */
-  source?: string;
-}
-
 // ============================================================================
 // Streaming Translation State
 // ============================================================================

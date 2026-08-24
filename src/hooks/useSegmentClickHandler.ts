@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import type {
   ClickDirection,
-  FlexibleClickHandler,
   SegmentClickHandler,
   SegmentClickPayload,
 } from '../types/ClickableTypes';
@@ -12,13 +11,12 @@ import { logger } from '../utils/logger';
  * Returns a stable click handler that validates bounds, constructs a
  * SegmentClickPayload, and dispatches it via onSegmentClick.
  *
- * Owns the FlexibleClickHandler → SegmentClickHandler cast so callers
- * don't repeat it. Payload construction lives at one seam: add a new
- * SegmentClickPayload field here, not in each component.
+ * Payload construction lives at one seam: add a new SegmentClickPayload
+ * field here, not in each component.
  */
 export function useSegmentClickHandler(
   semanticArrays: SemanticArrays | undefined,
-  onSegmentClick: FlexibleClickHandler | undefined,
+  onSegmentClick: SegmentClickHandler | undefined,
   direction: ClickDirection
 ): (unitIndex: number) => void {
   return useCallback(
@@ -35,28 +33,17 @@ export function useSegmentClickHandler(
         return;
       }
 
-      const originalText = semanticArrays.original[unitIndex];
-      const translatedText = semanticArrays.translated[unitIndex];
-      const metadata = semanticArrays.metadata[unitIndex];
-
       if (process.env.NODE_ENV === 'development') {
         logger.log(`🎯 useSegmentClickHandler (${direction}) handling click:`, {
           unitIndex,
-          originalText,
-          translatedText,
+          originalText: semanticArrays.original[unitIndex],
+          translatedText: semanticArrays.translated[unitIndex],
         });
       }
 
       if (onSegmentClick) {
-        const payload: SegmentClickPayload = {
-          unitIndex,
-          originalText,
-          translatedText,
-          source: metadata.source,
-          metadata,
-          direction,
-        };
-        (onSegmentClick as SegmentClickHandler)(payload);
+        const payload: SegmentClickPayload = { unitIndex, direction };
+        onSegmentClick(payload);
       }
     },
     [semanticArrays, onSegmentClick, direction]

@@ -55,6 +55,10 @@ TypeScript does not narrow optional property accesses through `&&` spreads — `
 - `validateApiResult` (was `validateElectronResult`) in `configValidation.ts`
 - `validateRawDictionaryEntry` (was `validateDictionaryEntry`) in `configValidation.ts` — renamed to avoid collision with same-named function in `DictionaryTypes.ts` (different signature). Do NOT revert.
 
+## `.tsx` Prop Types for `.jsx` Callbacks Can Silently Drift
+
+A `.tsx` file's locally-declared prop type for a value that's really a `.jsx` function (e.g. `Translator.jsx`'s handlers) isn't checked against the real implementation — `checkJs: false` means only a `.jsx`-side JSDoc mismatch is invisible too. These drift silently until something removes whatever permissive type was tolerating the mismatch (e.g. narrowing a union). After narrowing any handler/callback type, run `pnpm type-check` and expect to find stale declarations in `.tsx` callers, not just the type's own definition site.
+
 ## Engine Lifecycle — `useTranslatorEngine` Hook
 
 Engine init, config load, and reinit are owned by `src/hooks/useTranslatorEngine.js`. Do NOT inline these back into `Translator.jsx`.

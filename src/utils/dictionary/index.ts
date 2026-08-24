@@ -57,6 +57,7 @@ export {
   validateDictionaryEntry,
 } from './DictionaryEntryValidator';
 export { validatePersistEntry } from './PersistTimeValidator';
+export { sanitizeDictionaryEntry } from './DictionaryEntrySanitizer';
 
 // --- Backend IO ---
 export type { BatchLoadResult } from './DictionaryBackend';

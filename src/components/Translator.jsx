@@ -62,7 +62,6 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
  *   HighlightingAction,
  *   VirtualizationThresholds,
  *   TextSizeCategory,
- *   SegmentClickPayload,
  *   ScrollPosition,
  *   SavedScrollPositions,
  *   StreamingTranslationState,
@@ -71,6 +70,10 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
  *   RegressionHealthStatus,
  *   AdvancedPerformanceStats
  * } from '../types/TranslationEngineTypes'
+ */
+
+/**
+ * @import { SegmentClickPayload } from '../types/ClickableTypes'
  */
 
 // ============================================================================
@@ -345,7 +348,6 @@ const Translator = ({ isActive = true }) => {
    * @param {SegmentClickPayload} segmentInfo - Click payload with direction and position
    * @param {string} segmentInfo.direction - Click direction (translation-to-original, original-to-translation, character-only-to-original)
    * @param {number} segmentInfo.unitIndex - Index in source semantic array
-   * @param {string} [segmentInfo.originalText] - Text content (for character-only clicks)
    * @returns {void}
    *
    * @example
@@ -358,8 +360,7 @@ const Translator = ({ isActive = true }) => {
    * // Character-only panel click (highlights both original and translation)
    * handleSemanticSegmentClick({
    *   direction: 'character-only-to-original',
-   *   unitIndex: 10,
-   *   originalText: '你'
+   *   unitIndex: 10
    * });
    */
   const handleSemanticSegmentClick = useCallback(
