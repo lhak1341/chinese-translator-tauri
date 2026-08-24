@@ -1,9 +1,8 @@
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
-/** Relocate/in-place toggle for `moveWords` — same chip styling/shape as `MatchKindToggle`,
+/** Relocate/in-place toggle for `relocate` — same chip styling/shape as `MatchKindToggle`,
  * for the same reason (a `<select>` or a bare numeric input crops/misleads in a narrow
- * table cell). `moveWords` is always a boolean flag (see `applyRule`'s doc comment in
- * `TransformRuleEngine.ts`): MOVE relocates the key's words (or, with `moveReplacement`
+ * table cell). MOVE relocates the key's words (or, with `moveReplacement`
  * set, the replacement text) to the opposite end; STAY leaves them in the key's own
  * position. */
 function MoveModeToggle({

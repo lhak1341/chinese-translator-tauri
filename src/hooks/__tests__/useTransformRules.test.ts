@@ -21,7 +21,7 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
     id: 'r1',
     matchKind: 'suffix',
     key: '城',
-    moveWords: 1,
+    relocate: true,
     capitalizeExceptN: 1,
     semanticType: 'location',
     enabled: true,
@@ -55,7 +55,7 @@ describe('useTransformRules', () => {
       await result.current.addRule({
         matchKind: 'suffix',
         key: '城',
-        moveWords: 1,
+        relocate: true,
         capitalizeExceptN: 1,
         semanticType: 'location',
         enabled: true,
@@ -133,7 +133,7 @@ describe('useTransformRules', () => {
       result.current.addRule({
         matchKind: 'suffix',
         key: '城',
-        moveWords: 1,
+        relocate: true,
         capitalizeExceptN: 1,
         semanticType: 'location',
         enabled: true,

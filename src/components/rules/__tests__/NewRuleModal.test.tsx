@@ -7,7 +7,7 @@ import type { TransformRule } from '../../../types/TransformRuleTypes';
 const EMPTY_DRAFT: Omit<TransformRule, 'id'> = {
   matchKind: 'suffix',
   key: '',
-  moveWords: 0,
+  relocate: false,
   moveReplacement: undefined,
   capitalizeExceptN: 0,
   semanticType: 'location',
@@ -108,16 +108,16 @@ describe('NewRuleModal', () => {
     expect(screen.getByLabelText('Relocate to opposite end')).toHaveAttribute('type', 'checkbox');
   });
 
-  test('checkbox reflects moveWords > 0 as checked', () => {
-    renderModal({ ...EMPTY_DRAFT, key: '城', moveWords: 1 }, null);
+  test('checkbox reflects relocate: true as checked', () => {
+    renderModal({ ...EMPTY_DRAFT, key: '城', relocate: true }, null);
     expect(screen.getByLabelText('Relocate to opposite end')).toBeChecked();
   });
 
-  test('checking the box calls setDraft with moveWords: 1', () => {
+  test('checking the box calls setDraft with relocate: true', () => {
     const setDraft = vi.fn();
     render(
       <NewRuleModal
-        draft={{ ...EMPTY_DRAFT, key: '城', moveWords: 0 }}
+        draft={{ ...EMPTY_DRAFT, key: '城', relocate: false }}
         setDraft={setDraft}
         conflictLabel={null}
         onSave={onSave}
@@ -125,14 +125,14 @@ describe('NewRuleModal', () => {
       />
     );
     fireEvent.click(screen.getByLabelText('Relocate to opposite end'));
-    expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 1 }));
+    expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ relocate: true }));
   });
 
-  test('unchecking the box calls setDraft with moveWords: 0', () => {
+  test('unchecking the box calls setDraft with relocate: false', () => {
     const setDraft = vi.fn();
     render(
       <NewRuleModal
-        draft={{ ...EMPTY_DRAFT, key: '城', moveWords: 1 }}
+        draft={{ ...EMPTY_DRAFT, key: '城', relocate: true }}
         setDraft={setDraft}
         conflictLabel={null}
         onSave={onSave}
@@ -140,6 +140,59 @@ describe('NewRuleModal', () => {
       />
     );
     fireEvent.click(screen.getByLabelText('Relocate to opposite end'));
-    expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 0 }));
+    expect(setDraft).toHaveBeenCalledWith(expect.objectContaining({ relocate: false }));
+  });
+
+  test('typing the first character of a key re-derives capitalizeExceptN from empty (creation path)', () => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={{ ...EMPTY_DRAFT, key: '', capitalizeExceptN: 0 }}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Key (1-4 Chinese chars)'), { target: { value: '城' } });
+    expect(setDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ key: '城', capitalizeExceptN: 1 })
+    );
+  });
+
+  test('editing a key to a same-length key preserves a manually-tuned capitalizeExceptN', () => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={{ ...EMPTY_DRAFT, key: '城', capitalizeExceptN: 3 }}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Key (1-4 Chinese chars)'), { target: { value: '巿' } });
+    expect(setDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ key: '巿', capitalizeExceptN: 3 })
+    );
+  });
+
+  test('editing a key to a different-length key re-derives capitalizeExceptN to the new length', () => {
+    const setDraft = vi.fn();
+    render(
+      <NewRuleModal
+        draft={{ ...EMPTY_DRAFT, key: '城', capitalizeExceptN: 1 }}
+        setDraft={setDraft}
+        conflictLabel={null}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Key (1-4 Chinese chars)'), {
+      target: { value: '紫禁城' },
+    });
+    expect(setDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ key: '紫禁城', capitalizeExceptN: 3 })
+    );
   });
 });

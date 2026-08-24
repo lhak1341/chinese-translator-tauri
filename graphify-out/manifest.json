@@ -50,14 +50,14 @@
     "semantic_hash": "1be34a5c61c2c35365de3dab14298f0b"
   },
   "src-tauri/src/lookup_index_engine.rs": {
-    "mtime": 1779465267.1769485,
+    "mtime": 1787185626.431229,
     "ast_hash": "345509c49afc689787e77f1af75c7b00",
     "semantic_hash": "345509c49afc689787e77f1af75c7b00"
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1786177689.5488737,
-    "ast_hash": "a211d6018abf0233bfc089b10498b8fc",
-    "semantic_hash": "a211d6018abf0233bfc089b10498b8fc"
+    "mtime": 1787158462.1899614,
+    "ast_hash": "b2c882df13239708b2cb4b764b47cca2",
+    "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
     "mtime": 1764426862.2889118,
@@ -70,14 +70,14 @@
     "semantic_hash": "6697797947d8b7d54f9795dc07eb08d6"
   },
   "wasm-core/benches/pattern_matching.rs": {
-    "mtime": 1772215045.227447,
-    "ast_hash": "ce963de23cc1410b4ca7328ce84d7889",
-    "semantic_hash": "ce963de23cc1410b4ca7328ce84d7889"
+    "mtime": 1787186490.395185,
+    "ast_hash": "d216fbbc5178b23e6adbd8d014e80401",
+    "semantic_hash": ""
   },
   "wasm-core/src/lib.rs": {
-    "mtime": 1786015506.8011932,
-    "ast_hash": "185d511cd55d0499d41a0dafa3fb057a",
-    "semantic_hash": "185d511cd55d0499d41a0dafa3fb057a"
+    "mtime": 1787157745.9349737,
+    "ast_hash": "703fad3ebe2c5b851af149e13976db65",
+    "semantic_hash": ""
   },
   "wasm-core/src/conflict_resolution.rs": {
     "mtime": 1779812025.7709694,
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1787015878.8008914,
-    "ast_hash": "5580dc3cca62d6898cd16c897a7d5f7f",
+    "mtime": 1787016845.0288324,
+    "ast_hash": "b909fca9b2859e8ecff98a8ec26576ff",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -920,8 +920,8 @@
     "semantic_hash": "e07c8f7bb37d220f15d204911ddb4728"
   },
   "src/components/dictionary/VirtualRowComponent.tsx": {
-    "mtime": 1786787632.3590922,
-    "ast_hash": "7805310e6bcf44d54548bbd9ec2809c4",
+    "mtime": 1787585154.9974725,
+    "ast_hash": "7c7c9bd073644a31124ce2c49326ae4f",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveEntryDialog.tsx": {
@@ -930,9 +930,9 @@
     "semantic_hash": "c197063f49008439de99baebc90b2f99"
   },
   "src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx": {
-    "mtime": 1786757570.5825346,
-    "ast_hash": "bb77661bc8db26cbc9905c8f068be1bd",
-    "semantic_hash": "bb77661bc8db26cbc9905c8f068be1bd"
+    "mtime": 1787585190.6664834,
+    "ast_hash": "e1bafd524ba8a8b7f5db67800d43ecf2",
+    "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryManager.tsx": {
     "mtime": 1785257178.5853198,
@@ -1135,8 +1135,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1787013649.4592326,
-    "ast_hash": "23411691c3cd6bf09f1ae27e2084adfc",
+    "mtime": 1787584631.0831096,
+    "ast_hash": "97546e7882f380d4a1fac87e14269658",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1585,18 +1585,18 @@
     "semantic_hash": "361e2be5aa5ed1ccb80a772d8fa22b28"
   },
   "docs/guides/development.md": {
-    "mtime": 1786986088.0253806,
-    "ast_hash": "7c04b28342bd90184b0c827f127d3646",
+    "mtime": 1787186985.3030305,
+    "ast_hash": "411eb1c991bbf1eceb17c7a754c4d60d",
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
-    "mtime": 1786183178.3181665,
-    "ast_hash": "459982a8a5a2a3b280fc09bab0a04260",
-    "semantic_hash": "459982a8a5a2a3b280fc09bab0a04260"
+    "mtime": 1787187012.8787658,
+    "ast_hash": "a9bcfcc580ce0cdc5f01b4b46aea8411",
+    "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1786961958.111729,
-    "ast_hash": "b9bc67650447923a9b92abf04f8a2ecd",
+    "mtime": 1787187092.6133687,
+    "ast_hash": "e22afb7cf14d768280a8719c8db7104c",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1620,9 +1620,9 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1786725031.5349054,
-    "ast_hash": "5785c6f809386f0b9372fa94ad3e5279",
-    "semantic_hash": "5785c6f809386f0b9372fa94ad3e5279"
+    "mtime": 1787585222.8957014,
+    "ast_hash": "a5a6cc8032ce2c46deacefc288ba1c50",
+    "semantic_hash": ""
   },
   "public/vite.svg": {
     "mtime": 1764427112.8323097,
@@ -1725,9 +1725,9 @@
     "semantic_hash": "6786123685bc3cbadc7101541a02dffb"
   },
   "package.json": {
-    "mtime": 1784247800.1629255,
-    "ast_hash": "eab6c3f7994d00794097645dc5ceffa1",
-    "semantic_hash": "eab6c3f7994d00794097645dc5ceffa1"
+    "mtime": 1787157004.0001717,
+    "ast_hash": "4e3096ca7548b59e5a8b22423a07ced5",
+    "semantic_hash": ""
   },
   "src-tauri/capabilities/default.json": {
     "mtime": 1764481286.7094264,
@@ -1760,8 +1760,8 @@
     "semantic_hash": "a6ff6be876d58ca61afccf81f9be5df5"
   },
   "src/components/rules/NewRuleModal.tsx": {
-    "mtime": 1786783671.081971,
-    "ast_hash": "9b9b6919a409a84f00e67b03075a231a",
+    "mtime": 1787584606.2656448,
+    "ast_hash": "b0dcbc33c9931c641fda8c20f73e909e",
     "semantic_hash": ""
   },
   "src/components/rules/RuleFieldValidation.ts": {
@@ -1775,14 +1775,14 @@
     "semantic_hash": "fd43c671da67f767d7d7d399ec4d3c96"
   },
   "src/components/rules/RuleRow.tsx": {
-    "mtime": 1786783659.736411,
-    "ast_hash": "5f78913ab7cd8eca9c545a46bb3294f5",
+    "mtime": 1787584450.812028,
+    "ast_hash": "416c0d729ef387b9f338d67fbcac76c2",
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
-    "mtime": 1786757461.970885,
-    "ast_hash": "60795ecbccbb311727ab72a48fb39ca2",
-    "semantic_hash": "60795ecbccbb311727ab72a48fb39ca2"
+    "mtime": 1787584448.0803022,
+    "ast_hash": "a5d5575c6a3c965d614d8cfdda5da494",
+    "semantic_hash": ""
   },
   "src/dictionaries/characters.json": {
     "mtime": 1764427110.221662,
@@ -1840,9 +1840,9 @@
     "semantic_hash": "a7f47734de59b6de7dab81960af5dfc4"
   },
   "src/types/TransformRuleTypes.ts": {
-    "mtime": 1786721708.3016322,
-    "ast_hash": "b61537c3058891e8668914580a37cd26",
-    "semantic_hash": "b61537c3058891e8668914580a37cd26"
+    "mtime": 1787584431.8805487,
+    "ast_hash": "bbd02b92728e1172adc7bde57b093cf7",
+    "semantic_hash": ""
   },
   "src/utils/appearanceConfig.ts": {
     "mtime": 1784347520.6156368,
@@ -1890,13 +1890,13 @@
     "semantic_hash": "4860ab5eda3a1752134832fd421870f0"
   },
   "src/utils/dictionary/TransformRuleBackend.ts": {
-    "mtime": 1786177763.585707,
-    "ast_hash": "57f8bfa8c605c32a3597bd9977cd8c0f",
-    "semantic_hash": "57f8bfa8c605c32a3597bd9977cd8c0f"
+    "mtime": 1787584463.6697779,
+    "ast_hash": "3ac2f8799da33fe1aa84023a91493d52",
+    "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
-    "mtime": 1786783647.761399,
-    "ast_hash": "ef7e47c6c0a4f1910b6b57c839fb3262",
+    "mtime": 1787584443.97942,
+    "ast_hash": "a721e4dc36e02a869d065dea505089a9",
     "semantic_hash": ""
   },
   "src/utils/highlighting/UnitHighlightPredicate.ts": {
@@ -2000,14 +2000,14 @@
     "semantic_hash": "cd01a757867adf6d75735d2bbf94cf36"
   },
   "src/components/rules/MoveModeToggle.tsx": {
-    "mtime": 1786783676.361977,
-    "ast_hash": "e332c469f0e7215abccbce1bab3c29aa",
+    "mtime": 1787584456.6550648,
+    "ast_hash": "12b10f88de22d2014eadf363693bd0fe",
     "semantic_hash": ""
   },
   "src/components/rules/CLAUDE.md": {
-    "mtime": 1786759177.4034076,
-    "ast_hash": "4299138179448fb2a192e25ef9fcb4c0",
-    "semantic_hash": "4299138179448fb2a192e25ef9fcb4c0"
+    "mtime": 1787585573.9333322,
+    "ast_hash": "af722476f82fd288e74c908ce9b7537a",
+    "semantic_hash": ""
   },
   "src/components/SearchFilterHeader.tsx": {
     "mtime": 1786757494.3731174,
@@ -2022,6 +2022,26 @@
   "src/utils/highlighting/PositionBasedSegmentBuilder.ts": {
     "mtime": 1786959776.4938092,
     "ast_hash": "3f2182b76d7373210ce1448fd01610d4",
+    "semantic_hash": ""
+  },
+  "src-tauri/benches/trie_matching.rs": {
+    "mtime": 1787185650.1156807,
+    "ast_hash": "6fcb26a212f5a98d897c489061f780e3",
+    "semantic_hash": ""
+  },
+  "wasm-core/benches/trie_matching.rs": {
+    "mtime": 1787157796.442143,
+    "ast_hash": "cca527b87d9d44143275f1bc442a4d96",
+    "semantic_hash": ""
+  },
+  "docs/adr/ADR-040-reject-aho-corasick-lookup-index-swap.md": {
+    "mtime": 1787187092.3719244,
+    "ast_hash": "9d846e28bc6320baf4492685528d28df",
+    "semantic_hash": ""
+  },
+  "pnpm-workspace.yaml": {
+    "mtime": 1787156497.6058493,
+    "ast_hash": "cc4b5938f612299f2f74a1da184374b1",
     "semantic_hash": ""
   }
 }

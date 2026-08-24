@@ -54,6 +54,50 @@ export const MetadataBadge: React.FC<BadgeProps> = ({ active, onClick }) => {
   );
 };
 
+interface FilterChipButtonProps {
+  active: boolean;
+  activeColor: string;
+  inactiveColor?: string;
+  label: string;
+  onClick: () => void;
+  ariaLabel?: string;
+  style?: React.CSSProperties;
+}
+
+/** Active/inactive toggle-chip button for filter bars — the shape `SemanticTypeFilterChips`
+ * below and `EnhancedVirtualizedDictionaryTable`'s FilterPanel buttons were each hand-rolling
+ * independently (architecture review 2026-08-24, candidate #3 grilling). `style` is an escape
+ * hatch for one-off per-instance overrides (e.g. Clear-filters' `marginLeft: 'auto'`, or a
+ * chip that stays bold regardless of active state) — spread last, wins over the computed
+ * defaults. */
+export const FilterChipButton: React.FC<FilterChipButtonProps> = ({
+  active,
+  activeColor,
+  inactiveColor = 'var(--text-color)',
+  label,
+  onClick,
+  ariaLabel,
+  style,
+}) => (
+  <button
+    onClick={onClick}
+    aria-label={ariaLabel}
+    style={{
+      padding: '0.2rem 0.5rem',
+      fontSize: '0.75rem',
+      borderRadius: '4px',
+      border: `1px solid ${active ? activeColor : 'var(--border-color)'}`,
+      cursor: 'pointer',
+      backgroundColor: active ? activeColor : 'transparent',
+      color: active ? 'white' : inactiveColor,
+      fontWeight: active ? 600 : 400,
+      ...style,
+    }}
+  >
+    {label}
+  </button>
+);
+
 const TypeToggleCell: React.FC<{
   varName: string;
   hasVariable: boolean;
@@ -246,28 +290,17 @@ export const SemanticTypeFilterChips: React.FC<{
   onToggle: (type: SemanticType) => void;
 }> = ({ activeTypes, onToggle }) => (
   <>
-    {SEMANTIC_TYPE_LIST.map((type) => {
-      const isActive = activeTypes.has(type);
-      return (
-        <button
-          key={type}
-          onClick={() => onToggle(type)}
-          aria-label={`Filter by ${SEMANTIC_TYPE_LABELS[type]}`}
-          style={{
-            padding: '0.2rem 0.5rem',
-            fontSize: '0.75rem',
-            borderRadius: '4px',
-            border: `1px solid ${isActive ? SEMANTIC_TYPE_COLORS[type] : 'var(--border-color)'}`,
-            cursor: 'pointer',
-            backgroundColor: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
-            color: isActive ? 'white' : 'var(--text-color)',
-            fontWeight: 600,
-          }}
-        >
-          {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-        </button>
-      );
-    })}
+    {SEMANTIC_TYPE_LIST.map((type) => (
+      <FilterChipButton
+        key={type}
+        active={activeTypes.has(type)}
+        activeColor={SEMANTIC_TYPE_COLORS[type]}
+        label={SEMANTIC_TYPE_ABBREVIATIONS[type]}
+        onClick={() => onToggle(type)}
+        ariaLabel={`Filter by ${SEMANTIC_TYPE_LABELS[type]}`}
+        style={{ fontWeight: 600 }}
+      />
+    ))}
   </>
 );
 

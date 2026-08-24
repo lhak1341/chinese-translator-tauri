@@ -77,9 +77,9 @@ function RuleRow({
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colMove}`}>
         <MoveModeToggle
-          isRelocate={rule.moveWords > 0}
+          isRelocate={rule.relocate}
           label={rule.label || rule.key}
-          onToggle={(isRelocate) => updateRule({ ...rule, moveWords: isRelocate ? 1 : 0 })}
+          onToggle={(isRelocate) => updateRule({ ...rule, relocate: isRelocate })}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colCap}`}>

@@ -11,7 +11,7 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
     id: 'r1',
     matchKind: 'suffix',
     key: '城',
-    moveWords: 1,
+    relocate: true,
     capitalizeExceptN: 1,
     semanticType: 'location',
     enabled: true,
@@ -52,6 +52,31 @@ describe('loadTransformRules', () => {
     await loadTransformRules();
 
     expect(loadFn).toHaveBeenCalledTimes(1);
+  });
+
+  test('migrates a legacy moveWords: 1 rule to relocate: true', async () => {
+    const legacyRule = { ...makeRule(), relocate: undefined, moveWords: 1 };
+    delete (legacyRule as { relocate?: boolean }).relocate;
+    window.electronAPI.loadTransformRules = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [legacyRule] });
+
+    const result = await loadTransformRules();
+
+    expect(result).toEqual([makeRule({ relocate: true })]);
+    expect(result[0]).not.toHaveProperty('moveWords');
+  });
+
+  test('migrates a legacy moveWords: 0 rule to relocate: false', async () => {
+    const legacyRule = { ...makeRule(), relocate: undefined, moveWords: 0 };
+    delete (legacyRule as { relocate?: boolean }).relocate;
+    window.electronAPI.loadTransformRules = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [legacyRule] });
+
+    const result = await loadTransformRules();
+
+    expect(result).toEqual([makeRule({ relocate: false })]);
   });
 });
 

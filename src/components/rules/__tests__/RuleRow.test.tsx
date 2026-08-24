@@ -9,7 +9,7 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
     id: 'r1',
     matchKind: 'suffix',
     key: '城',
-    moveWords: 1,
+    relocate: true,
     capitalizeExceptN: 1,
     semanticType: 'location',
     enabled: true,
@@ -126,20 +126,20 @@ describe('RuleRow', () => {
     expect(screen.getByText('STAY')).toBeInTheDocument();
   });
 
-  test('clicking MOVE calls updateRule with moveWords: 1', () => {
-    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 0 }));
+  test('clicking MOVE calls updateRule with relocate: true', () => {
+    renderRow(makeRule({ moveReplacement: 'thanh pho', relocate: false }));
     fireEvent.click(screen.getByLabelText('Set Relocate to opposite end for City suffix'));
-    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 1 }));
+    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ relocate: true }));
   });
 
-  test('clicking STAY calls updateRule with moveWords: 0', () => {
-    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 1 }));
+  test('clicking STAY calls updateRule with relocate: false', () => {
+    renderRow(makeRule({ moveReplacement: 'thanh pho', relocate: true }));
     fireEvent.click(screen.getByLabelText('Set Stay in place for City suffix'));
-    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ moveWords: 0 }));
+    expect(updateRule).toHaveBeenCalledWith(expect.objectContaining({ relocate: false }));
   });
 
   test('clicking the already-active MOVE/STAY option is a no-op', () => {
-    renderRow(makeRule({ moveReplacement: 'thanh pho', moveWords: 1 }));
+    renderRow(makeRule({ moveReplacement: 'thanh pho', relocate: true }));
     fireEvent.click(screen.getByLabelText('Set Relocate to opposite end for City suffix'));
     expect(updateRule).not.toHaveBeenCalled();
   });

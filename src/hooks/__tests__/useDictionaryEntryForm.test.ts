@@ -187,7 +187,7 @@ describe('auto-populate — Transform Rule application', () => {
     id: 'r1',
     matchKind: 'suffix' as const,
     key: '好',
-    moveWords: 1,
+    relocate: true,
     capitalizeExceptN: 1,
     semanticType: 'location' as const,
     enabled: true,

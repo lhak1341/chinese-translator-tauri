@@ -22,7 +22,7 @@ function NewRuleModal({
 }) {
   const handleKeyChange = (key: string) => {
     // Default Capitalize-except-N to the key's own length as the user types —
-    // a reasonable starting point (see the worked "城"/moveWords=1,capitalizeExceptN=1
+    // a reasonable starting point (see the worked "城"/relocate=true,capitalizeExceptN=1
     // example) that the user can still override before saving. Only re-derives on a
     // length change, so an override survives a same-length typo-fix.
     setDraft({
@@ -93,12 +93,12 @@ function NewRuleModal({
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
-              <label htmlFor="rule-moveWords-relocate">Relocate to opposite end</label>
+              <label htmlFor="rule-relocate">Relocate to opposite end</label>
               <input
-                id="rule-moveWords-relocate"
+                id="rule-relocate"
                 type="checkbox"
-                checked={draft.moveWords > 0}
-                onChange={(e) => setDraft({ ...draft, moveWords: e.target.checked ? 1 : 0 })}
+                checked={draft.relocate}
+                onChange={(e) => setDraft({ ...draft, relocate: e.target.checked })}
               />
             </div>
             <div className={styles.formGroup}>

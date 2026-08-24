@@ -15,7 +15,7 @@ function rule(overrides: Partial<TransformRule>): TransformRule {
     id: 'id',
     matchKind: 'suffix',
     key: '城',
-    moveWords: 1,
+    relocate: true,
     capitalizeExceptN: 1,
     semanticType: 'location',
     enabled: true,
@@ -112,20 +112,20 @@ describe('compareRulePrecedence', () => {
 
 describe('applyRule', () => {
   test('suffix rule: capitalize-except-last-N runs before move-last-N-to-front (canonical worked example)', () => {
-    const r = rule({ matchKind: 'suffix', key: '城', moveWords: 1, capitalizeExceptN: 1 });
+    const r = rule({ matchKind: 'suffix', key: '城', relocate: true, capitalizeExceptN: 1 });
     expect(applyRule(r, '南京城', glossFn)).toBe('thanh Nam Kinh');
   });
 
   test('prefix rule: capitalize-except-first-N runs before move-first-N-to-end (mirrored)', () => {
-    const r = rule({ matchKind: 'prefix', key: '南', moveWords: 1, capitalizeExceptN: 1 });
+    const r = rule({ matchKind: 'prefix', key: '南', relocate: true, capitalizeExceptN: 1 });
     // Source "南京城" glosses to "nam kinh thanh"; capitalizeExceptFirstN(_,1) keeps "nam"
     // lowercase and title-cases the rest -> "nam Kinh Thanh"; moveFirstNWordsToEnd(_,1)
     // moves "nam" to the end -> "Kinh Thanh nam".
     expect(applyRule(r, '南京城', glossFn)).toBe('Kinh Thanh nam');
   });
 
-  test('moveWords=0, capitalizeExceptN=0 title-cases every word and does not reorder', () => {
-    const r = rule({ matchKind: 'suffix', key: '城', moveWords: 0, capitalizeExceptN: 0 });
+  test('relocate=false, capitalizeExceptN=0 title-cases every word and does not reorder', () => {
+    const r = rule({ matchKind: 'suffix', key: '城', relocate: false, capitalizeExceptN: 0 });
     expect(applyRule(r, '南京城', glossFn)).toBe('Nam Kinh Thanh');
   });
 
@@ -133,7 +133,7 @@ describe('applyRule', () => {
     const r = rule({
       matchKind: 'suffix',
       key: '城',
-      moveWords: 1,
+      relocate: true,
       capitalizeExceptN: 1,
       moveReplacement: 'thanh pho',
     });
@@ -144,44 +144,33 @@ describe('applyRule', () => {
     const r = rule({
       matchKind: 'prefix',
       key: '南',
-      moveWords: 1,
+      relocate: true,
       capitalizeExceptN: 1,
       moveReplacement: 'mien nam',
     });
     expect(applyRule(r, '南京城', glossFn)).toBe('Kinh Thanh mien nam');
   });
 
-  test('suffix rule with moveReplacement and moveWords=0 replaces the key words in place — no relocation', () => {
+  test('suffix rule with moveReplacement and relocate=false replaces the key words in place — no relocation', () => {
     const r = rule({
       matchKind: 'suffix',
       key: '京城', // 2 chars
-      moveWords: 0,
+      relocate: false,
       capitalizeExceptN: 1,
       moveReplacement: 'thanh pho',
     });
     expect(applyRule(r, '南京城', glossFn)).toBe('Nam thanh pho');
   });
 
-  test('prefix rule with moveReplacement and moveWords=0 replaces the key words in place — no relocation', () => {
+  test('prefix rule with moveReplacement and relocate=false replaces the key words in place — no relocation', () => {
     const r = rule({
       matchKind: 'prefix',
       key: '南',
-      moveWords: 0,
+      relocate: false,
       capitalizeExceptN: 1,
       moveReplacement: 'mien nam',
     });
     expect(applyRule(r, '南京城', glossFn)).toBe('mien nam Kinh Thanh');
-  });
-
-  test('replace-word-count always derives from the key length, not moveWords, even when moveWords is relocating', () => {
-    const r = rule({
-      matchKind: 'suffix',
-      key: '城', // 1 char
-      moveWords: 5, // ignored as a count now — only relocate-or-not (>0) matters
-      capitalizeExceptN: 1,
-      moveReplacement: 'thanh pho',
-    });
-    expect(applyRule(r, '南京城', glossFn)).toBe('thanh pho Nam Kinh');
   });
 });
 

@@ -7,7 +7,12 @@ import BulkMoveDialog from './BulkMoveDialog';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { classifyDictionaryId } from '../../utils/dictionary';
-import { VirtualRowComponent, ITEM_HEIGHT, SemanticTypeFilterChips } from './VirtualRowComponent';
+import {
+  VirtualRowComponent,
+  ITEM_HEIGHT,
+  SemanticTypeFilterChips,
+  FilterChipButton,
+} from './VirtualRowComponent';
 import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
@@ -320,27 +325,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   ['x-only', 'X only'],
                   ['x-y', 'X–Y'],
                 ] as const
-              ).map(([key, label]) => {
-                const isActive = filterPatternType.has(key);
-                return (
-                  <button
-                    key={key}
-                    onClick={() => togglePatternType(key)}
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      fontSize: '0.75rem',
-                      borderRadius: '4px',
-                      border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                      cursor: 'pointer',
-                      backgroundColor: isActive ? 'var(--accent-color)' : 'transparent',
-                      color: isActive ? 'white' : 'var(--text-color)',
-                      fontWeight: isActive ? 600 : 400,
-                    }}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+              ).map(([key, label]) => (
+                <FilterChipButton
+                  key={key}
+                  active={filterPatternType.has(key)}
+                  activeColor="var(--accent-color)"
+                  label={label}
+                  onClick={() => togglePatternType(key)}
+                />
+              ))}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
@@ -351,22 +344,13 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
                 ] as const
               ).map(([isActive, flag, label, color]) => (
-                <button
+                <FilterChipButton
                   key={label}
+                  active={isActive}
+                  activeColor={color}
+                  label={label}
                   onClick={() => toggleFlag(flag)}
-                  style={{
-                    padding: '0.2rem 0.5rem',
-                    fontSize: '0.75rem',
-                    borderRadius: '4px',
-                    border: `1px solid ${isActive ? color : 'var(--border-color)'}`,
-                    cursor: 'pointer',
-                    backgroundColor: isActive ? color : 'transparent',
-                    color: isActive ? 'white' : 'var(--text-color)',
-                    fontWeight: isActive ? 600 : 400,
-                  }}
-                >
-                  {label}
-                </button>
+                />
               ))}
             </div>
           </>
@@ -377,22 +361,13 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               Variable:
             </span>
             {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
-              <button
+              <FilterChipButton
                 key={opt}
+                active={filterVariable === opt}
+                activeColor="var(--accent-color)"
+                label={opt === 'all' ? 'All' : opt === 'allowed' ? 'Allowed' : 'Not Allowed'}
                 onClick={() => setVariable(opt)}
-                style={{
-                  padding: '0.2rem 0.5rem',
-                  fontSize: '0.75rem',
-                  borderRadius: '4px',
-                  border: `1px solid ${filterVariable === opt ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                  cursor: 'pointer',
-                  backgroundColor: filterVariable === opt ? 'var(--accent-color)' : 'transparent',
-                  color: filterVariable === opt ? 'white' : 'var(--text-color)',
-                  fontWeight: filterVariable === opt ? 600 : 400,
-                }}
-              >
-                {opt === 'all' ? 'All' : opt === 'allowed' ? 'Allowed' : 'Not Allowed'}
-              </button>
+              />
             ))}
           </div>
         )}
@@ -405,40 +380,23 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               activeTypes={filterSemanticTypes}
               onToggle={toggleSemanticType}
             />
-            <button
+            <FilterChipButton
+              active={filterSemanticTypes.has('none')}
+              activeColor="var(--accent-color)"
+              label="No Type"
               onClick={() => toggleSemanticType('none')}
-              style={{
-                padding: '0.2rem 0.5rem',
-                fontSize: '0.75rem',
-                borderRadius: '4px',
-                border: `1px solid ${filterSemanticTypes.has('none') ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                cursor: 'pointer',
-                backgroundColor: filterSemanticTypes.has('none')
-                  ? 'var(--accent-color)'
-                  : 'transparent',
-                color: filterSemanticTypes.has('none') ? 'white' : 'var(--text-color)',
-              }}
-            >
-              No Type
-            </button>
+            />
           </div>
         )}
         {hasActiveFilter && (
-          <button
+          <FilterChipButton
+            active={false}
+            activeColor="var(--accent-color)"
+            inactiveColor="var(--muted-text)"
+            label="Clear filters"
             onClick={clearFilters}
-            style={{
-              padding: '0.2rem 0.5rem',
-              fontSize: '0.75rem',
-              borderRadius: '4px',
-              border: '1px solid var(--border-color)',
-              cursor: 'pointer',
-              backgroundColor: 'transparent',
-              color: 'var(--muted-text)',
-              marginLeft: 'auto',
-            }}
-          >
-            Clear filters
-          </button>
+            style={{ marginLeft: 'auto' }}
+          />
         )}
       </FilterPanel>
 

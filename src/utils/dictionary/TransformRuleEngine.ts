@@ -59,9 +59,9 @@ export function findBestMatch(rules: TransformRule[], source: string): Transform
  * Capitalize always runs before move/replace, on the pre-move word order — see
  * CONTEXT.md for why order isn't configurable.
  *
- * `moveWords` is always a boolean relocate/stay flag, never a literal word count — the
+ * `relocate` is always a boolean relocate/stay flag, never a literal word count — the
  * number of words moved (or replaced) is always the key's own character count
- * (`rule.key.length`). `moveWords > 0` relocates to the opposite end; `moveWords === 0`
+ * (`rule.key.length`). `relocate: true` moves to the opposite end; `relocate: false`
  * leaves the words (or, with `moveReplacement` set, the replacement text) in the key's
  * own position.
  */
@@ -75,19 +75,17 @@ export function applyRule(
   if (rule.matchKind === 'suffix') {
     const capitalized = titleCaseExceptLastN(gloss, rule.capitalizeExceptN);
     if (rule.moveReplacement === undefined) {
-      return rule.moveWords > 0
-        ? moveLastNWordsToBeginning(capitalized, replaceCount)
-        : capitalized;
+      return rule.relocate ? moveLastNWordsToBeginning(capitalized, replaceCount) : capitalized;
     }
-    return rule.moveWords > 0
+    return rule.relocate
       ? replaceLastNWordsWithText(capitalized, replaceCount, rule.moveReplacement)
       : replaceLastNWordsInPlace(capitalized, replaceCount, rule.moveReplacement);
   }
   const capitalized = capitalizeExceptFirstN(gloss, rule.capitalizeExceptN);
   if (rule.moveReplacement === undefined) {
-    return rule.moveWords > 0 ? moveFirstNWordsToEnd(capitalized, replaceCount) : capitalized;
+    return rule.relocate ? moveFirstNWordsToEnd(capitalized, replaceCount) : capitalized;
   }
-  return rule.moveWords > 0
+  return rule.relocate
     ? replaceFirstNWordsWithText(capitalized, replaceCount, rule.moveReplacement)
     : replaceFirstNWordsInPlace(capitalized, replaceCount, rule.moveReplacement);
 }

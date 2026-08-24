@@ -30,7 +30,7 @@ export interface RulesManagerHandle {
 const EMPTY_DRAFT: Omit<TransformRule, 'id'> = {
   matchKind: 'suffix',
   key: '',
-  moveWords: 0,
+  relocate: false,
   moveReplacement: undefined,
   capitalizeExceptN: 0,
   semanticType: 'location',

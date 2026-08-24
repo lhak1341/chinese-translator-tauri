@@ -20,7 +20,7 @@ import type { TransformRule } from '../../../types/TransformRuleTypes';
 const DRAFT: Omit<TransformRule, 'id'> = {
   matchKind: 'prefix',
   key: '城',
-  moveWords: 1,
+  relocate: true,
   moveReplacement: undefined,
   capitalizeExceptN: 1,
   semanticType: 'location',
@@ -76,7 +76,7 @@ const FIELD_QUERIES: Record<
     modal: (s) => s.getAllByLabelText(/^Key \(1-4/),
     row: (s) => s.getAllByLabelText('Key for City suffix'),
   },
-  moveWords: {
+  relocate: {
     modal: (s) => s.getAllByLabelText('Relocate to opposite end'),
     row: (s) =>
       s.getAllByLabelText(/^Set (Stay in place|Relocate to opposite end) for City suffix$/),

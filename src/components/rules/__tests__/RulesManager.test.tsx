@@ -33,7 +33,7 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
     id: 'r1',
     matchKind: 'suffix',
     key: '城',
-    moveWords: 1,
+    relocate: true,
     capitalizeExceptN: 1,
     semanticType: 'location',
     enabled: true,
@@ -272,14 +272,14 @@ describe('RulesManager', () => {
   });
 
   test('clicking the Move toggle commits immediately, no click-to-edit needed', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ moveWords: 0 })]);
+    loadTransformRules.mockResolvedValue([makeRule({ relocate: false })]);
     render(<RulesManager />);
     const moveToggle = await screen.findByLabelText('Set Relocate to opposite end for City suffix');
 
     fireEvent.click(moveToggle);
 
     await waitFor(() =>
-      expect(saveTransformRules).toHaveBeenCalledWith([expect.objectContaining({ moveWords: 1 })])
+      expect(saveTransformRules).toHaveBeenCalledWith([expect.objectContaining({ relocate: true })])
     );
   });
 
