@@ -43,7 +43,8 @@ pnpm type-check  # 0 errors expected
 
 This file stays short on purpose — everything task-scoped moved to where it's discoverable when you actually need it:
 
-- **Tooling/environment gotchas** (RTK proxy quirks, Edit tool limits, test placement, regex Unicode traps, etc.) and the **full deleted-symbols history** (what's already been removed — check before recreating anything that looks missing) → [`docs/guides/development.md`](docs/guides/development.md), especially its [Gotchas Reference](docs/guides/development.md#gotchas-reference) and [deleted-symbols](docs/guides/development.md#deleted-symbols) sections.
+- **Tooling/environment gotchas** (RTK proxy output is lossy, Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
+- **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing → [`docs/guides/development.md#deleted-symbols`](docs/guides/development.md#deleted-symbols).
 - **Debugging steps, resolved bug postmortems, and the "verify claims before acting" discipline** (Explore subagents and architecture-review reports both fabricate/overstate specifics — always re-verify with `Grep`/`Read` before deleting or citing) → [`docs/guides/troubleshooting.md`](docs/guides/troubleshooting.md).
 - **`TranslationEngine.js`/`src/utils/` internal contracts** (phase ordering, position tracking, WASM lifecycle) → `src/utils/CLAUDE.md`.
 - **`Translator.jsx`/hooks/component contracts** (engine lifecycle, hotkeys, highlighting state) → `src/components/CLAUDE.md` (and nested `src/components/*/CLAUDE.md` for dictionary/rules).

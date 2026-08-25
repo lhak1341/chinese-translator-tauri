@@ -1159,100 +1159,20 @@
     "ast_hash": "070c37ebb43842d29d32b02708eb138e",
     "semantic_hash": "070c37ebb43842d29d32b02708eb138e"
   },
-  "docs/TEST_COVERAGE_IMPROVEMENTS.md": {
-    "mtime": 1767810612.3837318,
-    "ast_hash": "7483544f7a5441e6db3ed3b400c8773b",
-    "semantic_hash": "7483544f7a5441e6db3ed3b400c8773b"
-  },
-  "docs/HANDOFF_WASM_PANIC_CASCADE_2026-05-23.md": {
-    "mtime": 1780723103.0906239,
-    "ast_hash": "37fa376698789e920e4456c520b63289",
-    "semantic_hash": "37fa376698789e920e4456c520b63289"
-  },
-  "docs/OPTIMIZATION_MASTER_INDEX_2026-01-31.md": {
-    "mtime": 1769906376.693171,
-    "ast_hash": "91368fc91e8593698b456f589f05232a",
-    "semantic_hash": "91368fc91e8593698b456f589f05232a"
-  },
-  "docs/CODE_REVIEW_TYPESCRIPT_RUST_OPTIMIZATION.md": {
-    "mtime": 1769688515.5149834,
-    "ast_hash": "ed32072f81c678124cf3b707868b6f56",
-    "semantic_hash": "ed32072f81c678124cf3b707868b6f56"
-  },
   "docs/CSP_SECURITY.md": {
     "mtime": 1769928734.1983218,
     "ast_hash": "4445788b5416a20c7f060167a6eff6f2",
     "semantic_hash": "4445788b5416a20c7f060167a6eff6f2"
   },
-  "docs/INTEGRATION_PLAN_2026-01-31.md": {
-    "mtime": 1769836283.8162408,
-    "ast_hash": "01100632049aeb149bcb7fd54cbf3807",
-    "semantic_hash": "01100632049aeb149bcb7fd54cbf3807"
-  },
-  "docs/TAURI_SECURITY_AUDIT.md": {
-    "mtime": 1768351302.3208296,
-    "ast_hash": "9ec112f503fee65c96b8186402708f3f",
-    "semantic_hash": "9ec112f503fee65c96b8186402708f3f"
-  },
   "docs/README.md": {
-    "mtime": 1769776422.6208172,
-    "ast_hash": "2b5e75033e6920dc2f239391dbe48da7",
-    "semantic_hash": "2b5e75033e6920dc2f239391dbe48da7"
-  },
-  "docs/WASM_MIGRATION_CODE_REVIEW_2026.md": {
-    "mtime": 1771533584.7015607,
-    "ast_hash": "d13cd71a5db3e11f5ae6e7f74303269d",
-    "semantic_hash": "d13cd71a5db3e11f5ae6e7f74303269d"
-  },
-  "docs/OPTIMIZATION_SUMMARY.md": {
-    "mtime": 1769697135.8350284,
-    "ast_hash": "522acaeda898ab2795814953497108d0",
-    "semantic_hash": "522acaeda898ab2795814953497108d0"
-  },
-  "docs/ai-readiness-2026-06-01.md": {
-    "mtime": 1780322698.853899,
-    "ast_hash": "b507172abe17d8e71e321e11b6a6329a",
-    "semantic_hash": "b507172abe17d8e71e321e11b6a6329a"
-  },
-  "docs/GUI_FRAMEWORK_EVALUATION_2026.md": {
-    "mtime": 1771528561.010165,
-    "ast_hash": "eda208e8addfa9903f07a97e24936db8",
-    "semantic_hash": "eda208e8addfa9903f07a97e24936db8"
-  },
-  "docs/DICTIONARY_TRIE_FINAL_SUMMARY_2026-01-31.md": {
-    "mtime": 1769906376.5911353,
-    "ast_hash": "9262093d62aabbe33d098c953f71b5b2",
-    "semantic_hash": "9262093d62aabbe33d098c953f71b5b2"
-  },
-  "docs/OPTIMIZATION_SESSION_SUMMARY_2026-01-31.md": {
-    "mtime": 1769836283.8780618,
-    "ast_hash": "d6055ef0b7590738c8415d4c4b931af3",
-    "semantic_hash": "d6055ef0b7590738c8415d4c4b931af3"
-  },
-  "docs/WASM_CODE_REVIEW_FIXES.md": {
-    "mtime": 1769529661.2586687,
-    "ast_hash": "984be97c8246c2f09a1cc261e0bc3690",
-    "semantic_hash": "984be97c8246c2f09a1cc261e0bc3690"
+    "mtime": 1787670608.996364,
+    "ast_hash": "b0fc67fc3f52e1be85fce5f569f20781",
+    "semantic_hash": ""
   },
   "docs/HOTKEYS.md": {
     "mtime": 1786205501.1303675,
     "ast_hash": "0ff7761587bdbca4a51b7c3b57fabf56",
     "semantic_hash": "0ff7761587bdbca4a51b7c3b57fabf56"
-  },
-  "docs/DICTIONARY_TRIE_INTEGRATION_SESSION_2026-01-31.md": {
-    "mtime": 1769906376.6278207,
-    "ast_hash": "10bbe0a2ac3eb4893bbe1488f8e78c64",
-    "semantic_hash": "10bbe0a2ac3eb4893bbe1488f8e78c64"
-  },
-  "docs/OPTIMIZATION_PROGRESS_REPORT.md": {
-    "mtime": 1769688971.9572484,
-    "ast_hash": "e01a5c33a1d14078f84bb299f71e85ca",
-    "semantic_hash": "e01a5c33a1d14078f84bb299f71e85ca"
-  },
-  "docs/FUTURE_OPTIMIZATIONS_2026-01-31.md": {
-    "mtime": 1769836283.7831514,
-    "ast_hash": "0cd3b1ceef694f58957d7c64329f8f2a",
-    "semantic_hash": "0cd3b1ceef694f58957d7c64329f8f2a"
   },
   "docs/adr/ADR-026-skip-useDictionaryCRUD-move-to-hooks.md": {
     "mtime": 1782571766.1557722,
@@ -1439,130 +1359,20 @@
     "ast_hash": "e38d3731ddcf5bd4047754991f31951b",
     "semantic_hash": "e38d3731ddcf5bd4047754991f31951b"
   },
-  "docs/code-review/CODE_REVIEW_FIXES_2026-02-01_SECOND_REVIEW.md": {
-    "mtime": 1769950071.7686017,
-    "ast_hash": "5a287f9bc3c9b589adf25cf6980935ae",
-    "semantic_hash": "5a287f9bc3c9b589adf25cf6980935ae"
-  },
   "docs/code-review/PUNCTUATION_SPACING_DEBUG_2026-02-02.md": {
     "mtime": 1770009480.470948,
     "ast_hash": "7ebbd9fe73a7c7a92938eb3ade687c61",
     "semantic_hash": "7ebbd9fe73a7c7a92938eb3ade687c61"
-  },
-  "docs/code-review/DICTIONARY_MEMORY_REVIEW_2026-02-02.md": {
-    "mtime": 1770048054.5395525,
-    "ast_hash": "0439bd73911ebe531871baddb8e64300",
-    "semantic_hash": "0439bd73911ebe531871baddb8e64300"
-  },
-  "docs/code-review/RUST_TRIE_DICTIONARY_PLAN.md": {
-    "mtime": 1769819958.7057972,
-    "ast_hash": "043e9e7de22e6beb3eeb1b97a78a53d6",
-    "semantic_hash": "043e9e7de22e6beb3eeb1b97a78a53d6"
-  },
-  "docs/code-review/WASM_SERIALIZATION_OPTIMIZATION_PLAN.md": {
-    "mtime": 1769819090.5808635,
-    "ast_hash": "737c60a0cddebab52090f90de492ff2f",
-    "semantic_hash": "737c60a0cddebab52090f90de492ff2f"
-  },
-  "docs/code-review/TRANSLATION_PATHS_EFFICIENCY_2026-02-07.md": {
-    "mtime": 1770481317.6147718,
-    "ast_hash": "4a540bdcf493a7fca59933837d5cd580",
-    "semantic_hash": "4a540bdcf493a7fca59933837d5cd580"
-  },
-  "docs/code-review/REFACTORING_EXTRACTION_2026-01-30.md": {
-    "mtime": 1769772529.8440506,
-    "ast_hash": "b7dae7505c7a9a6a13d6b6877bf1155a",
-    "semantic_hash": "b7dae7505c7a9a6a13d6b6877bf1155a"
-  },
-  "docs/code-review/CODE_REVIEW_FIXES_IMPLEMENTED.md": {
-    "mtime": 1769532128.0812373,
-    "ast_hash": "c775fb76a0b44e9f6a11a2f7d65fc07e",
-    "semantic_hash": "c775fb76a0b44e9f6a11a2f7d65fc07e"
-  },
-  "docs/code-review/PERFORMANCE_OPTIMIZATION_2026-02-04.md": {
-    "mtime": 1770254458.0296998,
-    "ast_hash": "8a3c24a072827791476ab273e4898dcc",
-    "semantic_hash": "8a3c24a072827791476ab273e4898dcc"
   },
   "docs/code-review/DICTIONARY_MEMORY_FIXES_2026-02-03.md": {
     "mtime": 1770080477.6469088,
     "ast_hash": "fe35b1e33d276eb30b93fbf2c3155599",
     "semantic_hash": "fe35b1e33d276eb30b93fbf2c3155599"
   },
-  "docs/code-review/LARGE_FILES_REFACTORING_REVIEW_2026-01-30.md": {
-    "mtime": 1769792658.4890037,
-    "ast_hash": "02c9a34b4e02b0af2f582f6a75cae1da",
-    "semantic_hash": "02c9a34b4e02b0af2f582f6a75cae1da"
-  },
-  "docs/code-review/PATTERN_PROCESSING_FIXES_2026-01-27.md": {
-    "mtime": 1769511979.4241374,
-    "ast_hash": "1d3ff5a06c6d081f84ce6acd653652d1",
-    "semantic_hash": "1d3ff5a06c6d081f84ce6acd653652d1"
-  },
-  "docs/code-review/WASM_CODE_REVIEW_2026_01_28.md": {
-    "mtime": 1769576542.8511035,
-    "ast_hash": "182ff3b7afd692c3a67eed14caa286da",
-    "semantic_hash": "182ff3b7afd692c3a67eed14caa286da"
-  },
-  "docs/code-review/CODE_REVIEW_FIXES_SUMMARY.md": {
-    "mtime": 1769145178.905384,
-    "ast_hash": "221eb2a9a5e40afe62fc9e165bf9fe53",
-    "semantic_hash": "221eb2a9a5e40afe62fc9e165bf9fe53"
-  },
-  "docs/code-review/CODE_REVIEW_FIXES.md": {
-    "mtime": 1769443980.2218122,
-    "ast_hash": "0230fafa4fc7b2650ff11fa5721f473b",
-    "semantic_hash": "0230fafa4fc7b2650ff11fa5721f473b"
-  },
-  "docs/code-review/HOTFIX_2026-01-27.md": {
-    "mtime": 1769511979.3674424,
-    "ast_hash": "a47d8c3ef63c4d88a6b3cd22b4195587",
-    "semantic_hash": "a47d8c3ef63c4d88a6b3cd22b4195587"
-  },
   "docs/code-review/TYPESCRIPT_RUST_OPTIMIZATION_2026-01-31.md": {
     "mtime": 1769832777.450833,
     "ast_hash": "6aea4de30579922d680b214ba44ff4ad",
     "semantic_hash": "6aea4de30579922d680b214ba44ff4ad"
-  },
-  "docs/code-review/CLICKABLE_HIGHLIGHTING_REVIEW_2026-01-30.md": {
-    "mtime": 1769792658.3484318,
-    "ast_hash": "f75ec94f2cf8afd0c6750c3221ebf715",
-    "semantic_hash": "f75ec94f2cf8afd0c6750c3221ebf715"
-  },
-  "docs/code-review/NUMBER_PROCESSING_CODE_REVIEW_FIXES.md": {
-    "mtime": 1769491767.5657396,
-    "ast_hash": "05c7ed83c09708340ed33e1272dc4212",
-    "semantic_hash": "05c7ed83c09708340ed33e1272dc4212"
-  },
-  "docs/code-review/CODE_REVIEW_FIXES_2026-02-01.md": {
-    "mtime": 1769922078.0049255,
-    "ast_hash": "0a8e48a41fd1e0a84046be5181012a97",
-    "semantic_hash": "0a8e48a41fd1e0a84046be5181012a97"
-  },
-  "docs/code-review/CSP_HARDENING_MIGRATION.md": {
-    "mtime": 1768697007.9236557,
-    "ast_hash": "db5ef817870611af5f998ce6e727e6b6",
-    "semantic_hash": "db5ef817870611af5f998ce6e727e6b6"
-  },
-  "docs/code-review/CODE_REVIEW_SUMMARY.md": {
-    "mtime": 1769532128.0987475,
-    "ast_hash": "ac387e8e4a239bb658cf7349070262fb",
-    "semantic_hash": "ac387e8e4a239bb658cf7349070262fb"
-  },
-  "docs/code-review/CODE_REVIEW_5_PHASE_PROCESSING.md": {
-    "mtime": 1769532128.0432813,
-    "ast_hash": "3bb30dbb55a89a52b2a68349e257ed8d",
-    "semantic_hash": "3bb30dbb55a89a52b2a68349e257ed8d"
-  },
-  "docs/code-review/STRING_OPERATIONS_RUST_PLAN.md": {
-    "mtime": 1769819958.7392912,
-    "ast_hash": "1123a882de14a8f0d7d85226908cdbab",
-    "semantic_hash": "1123a882de14a8f0d7d85226908cdbab"
-  },
-  "docs/code-review/FUTURE_IMPROVEMENTS_2026-02-01.md": {
-    "mtime": 1769963637.8718894,
-    "ast_hash": "8a5755f21e12113889b35684ca10ebad",
-    "semantic_hash": "8a5755f21e12113889b35684ca10ebad"
   },
   "docs/guides/architecture.md": {
     "mtime": 1786160346.407056,
@@ -1580,8 +1390,8 @@
     "semantic_hash": "361e2be5aa5ed1ccb80a772d8fa22b28"
   },
   "docs/guides/development.md": {
-    "mtime": 1787621008.7769852,
-    "ast_hash": "06942494bf010b29d8e77ebe20471757",
+    "mtime": 1787670895.8195868,
+    "ast_hash": "0614dffb3a7ad52c0b37a954f8e945c2",
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
@@ -1600,8 +1410,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1787593750.0429835,
-    "ast_hash": "2cef19f379ffc4b1b7936321142e39a6",
+    "mtime": 1787670969.444962,
+    "ast_hash": "fffc683f84051137a4ca78d73d84f14e",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
