@@ -88,6 +88,19 @@ fn pattern(label: &'static str, start_index: usize, end_index: usize) -> Conflic
     }
 }
 
+/// Any match whose `type` is neither `'phrase'` nor `'pattern'` — the else-branch of the JS
+/// ternary at `WasmConflictResolution.js:74`. Reachable in production: `literal`, `semantic`,
+/// `structural_pattern`, and `composite` all land here.
+fn other(label: &'static str, start_index: usize, end_index: usize) -> ConflictCandidate {
+    ConflictCandidate {
+        start_index,
+        end_index,
+        length: end_index - start_index + 1,
+        match_type: MatchType::Other,
+        label,
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Algorithm — exact Rust port of TranslationEngine.js::resolveGlobalConflicts()
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +207,45 @@ fn test_same_length_phrase_beats_pattern() {
     let result = resolve_global_conflicts(&candidates);
     assert_eq!(result.len(), 1);
     assert_eq!(candidates[result[0]].match_type, MatchType::Phrase);
+}
+
+#[test]
+fn test_same_length_pattern_beats_other() {
+    // Third tier of the JS type priority: phrase(1) < pattern(2) < other(3).
+    let candidates = vec![
+        other("literal-match", 0, 2),   // length 3, type=Other
+        pattern("在X中", 0, 2),         // length 3, type=Pattern — lower number, wins
+    ];
+    let result = resolve_global_conflicts(&candidates);
+    assert_eq!(result.len(), 1);
+    assert_eq!(candidates[result[0]].match_type, MatchType::Pattern);
+}
+
+#[test]
+fn test_same_length_full_type_priority_order() {
+    // All three tiers overlapping at equal length — phrase wins outright, and the
+    // losers confirm Other sorts last rather than merely tying with Pattern.
+    let candidates = vec![
+        other("literal-match", 0, 2),
+        pattern("在X中", 0, 2),
+        phrase("在一起", 0, 2),
+    ];
+    let result = resolve_global_conflicts(&candidates);
+    assert_eq!(result.len(), 1);
+    assert_eq!(candidates[result[0]].match_type, MatchType::Phrase);
+
+    // Non-overlapping copies of the same three types must all survive, proving the
+    // sort orders them without dropping the lowest-priority tier.
+    let spread = vec![
+        other("o", 6, 8),
+        pattern("p", 3, 5),
+        phrase("f", 0, 2),
+    ];
+    let all = resolve_global_conflicts(&spread);
+    assert_eq!(all.len(), 3);
+    assert_eq!(spread[all[0]].match_type, MatchType::Phrase);
+    assert_eq!(spread[all[1]].match_type, MatchType::Pattern);
+    assert_eq!(spread[all[2]].match_type, MatchType::Other);
 }
 
 #[test]

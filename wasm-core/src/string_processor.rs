@@ -155,7 +155,7 @@ mod tests {
 
     #[test]
     fn test_string_processor_basic() {
-        let mut processor = StringProcessor::new(10);
+        let processor = StringProcessor::new(10);
         assert_eq!(processor.token_values.len(), 0);
         assert_eq!(processor.cache.len(), 0);
     }
