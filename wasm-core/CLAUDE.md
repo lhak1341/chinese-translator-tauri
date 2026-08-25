@@ -87,7 +87,9 @@ For any real translation text ≥50 chars (essentially all real usage), dictiona
 
 ## `number_processor.rs` Is Rust Spec Only — No WASM Export
 
-`#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (155 tests validate parity). Do NOT add `#[wasm_bindgen]` back.
+`#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (37 tests as of 2026-08-25 — previous "155" figure here was stale). Do NOT add `#[wasm_bindgen]` back.
+
+**Not run in CI until 2026-08-25.** `wasm-core`'s `cargo test` was never wired into `.github/workflows/ci.yml` — only `pnpm test -- --run` (JS/Vitest) ran. A drift check that date found `b1dd912`'s 一千零六→1,006 fix had been correctly mirrored to Rust, but two other JS regression cases had no Rust equivalent (`二零二四年→năm 2024`, `百分之两百→200%`), and the existing percentage test discarded its result (`let _ = ...`) instead of asserting on it — structurally unable to fail. All three fixed same date; `cargo test --manifest-path wasm-core/Cargo.toml` now runs in CI. Independently-written parity tests (this codebase's general convention, see ADR-033) only hold if something actually runs them — treat this as the standing reminder to re-check for silent no-op assertions (`let _ = ...` on an assertion-shaped call) when adding to any Rust "spec/parity" test file.
 
 ## Checking Module Liveness Before a Deep Call-Site Grep
 

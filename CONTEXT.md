@@ -80,13 +80,13 @@ Interface: `compareMatchesBySpecificityThenPriority(a, b): number`, taking `{ wo
 
 Entry point: `src/utils/dictionary/MatchComparator.ts`. Not barrel-exported — all 4 callers live inside `src/utils/dictionary/`. Called from `DictionaryManager.findAllMatchesParallel`/`findAllMatchesSequential`, `DictionaryWasmLookup.findAllMatches`, and `LookupIndexUtils.sortMatchesByPrecedence`.
 
-## NumberProcessingAdapter
+## NumberProcessor
 
-The single adapter for Phase 3 number conversion. Provides one export: `processNumbers(tokens, options)` — always returns processed tokens. Internally tries WASM first (`WasmNumberProcessor`); if WASM is unavailable before the call or retires mid-call (panic → `lifecycle.reset()` clears `isReady`), falls back to the JS `NumberProcessor`. Callers receive a guarantee: numbers are always converted; WASM-vs-JS is invisible.
+Phase 3 number conversion — pure JS, no WASM path. `TranslationEngine.js:348` instantiates `this.numberProcessor = new NumberProcessor()` once at construction; the Phase 3 call site (`TranslationEngine.js:6317`, inside a try/catch at `:6306-6353` that logs and continues on failure) calls `processTokens(tokens, options)`, the class's one public entry point. ~22 internal conversion helpers (`convertFourDigitYear`, `convertHundreds`, `convertThousands`, `convertPercentage`, `parseChineseNumber`, etc.) plus two debug helpers (`getDebugInfo`, `testConversion`).
 
-The JS fallback deliberately omits `semanticArrayBuilder` from options — the engine's post-WASM loop scans for `number_conversion` sources and adds semantic array entries for both paths, so forwarding it would double-add entries.
+**Was previously dual-path.** Commit `b1dd912` (2026-06-20, "fix(numbers): fix 一千零六→1,006; remove WASM NumberProcessor (pure JS now)") deleted `src/utils/wasm/NumberProcessingAdapter.js` and `src/utils/wasm/WasmNumberProcessor.js` outright — the WASM-first/JS-fallback seam this entry used to describe no longer exists. `wasm-core/src/number_processor.rs` still compiles (kept as a spec/parity test suite per `wasm-core/CLAUDE.md`) but carries no `#[wasm_bindgen]` export and has zero runtime callers — do not confuse it with this module when debugging a number-conversion bug; the real behavior is entirely in this file.
 
-Entry point: `src/utils/wasm/NumberProcessingAdapter.js`. Called exclusively from `TranslationEngine.js` Phase 3 block (replaces the old direct `processNumbersWasm` call).
+Entry point: `src/utils/NumberProcessor.js`. Called exclusively from `TranslationEngine.js` Phase 3 block.
 
 ## AppConfig
 

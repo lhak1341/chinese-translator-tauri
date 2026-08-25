@@ -828,6 +828,18 @@ mod tests {
     }
 
     #[test]
+    fn test_find_longest_number_match_year_with_zeros() {
+        let p = NumberProcessor::new();
+        // 二零二四年 → năm 2024 — mirrors JS NumberProcessor.test.js's
+        // "converts four-digit year with zeros" regression case (embedded-零 4-digit year).
+        let tokens = vec![tok("二"), tok("零"), tok("二"), tok("四"), tok("年")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some(), "Pattern should match");
+        let m = m.unwrap();
+        assert_eq!(m.result, "năm 2024");
+    }
+
+    #[test]
     fn test_find_longest_number_match_thousands() {
         let p = NumberProcessor::new();
         let tokens = vec![tok("三"), tok("千"), tok("七"), tok("百")];
@@ -909,9 +921,21 @@ mod tests {
         let p = NumberProcessor::new();
         // 百分之五六十 → 50-60%
         let tokens = vec![tok("百"), tok("分"), tok("之"), tok("五"), tok("六"), tok("十")];
-        for i in 0..tokens.len() {
-            let _ = p.find_longest_number_match(&tokens, i);
-        }
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some(), "Pattern should match");
+        let m = m.unwrap();
+        assert_eq!(m.result, "50-60%");
+    }
+
+    #[test]
+    fn test_converter_percentage_large() {
+        let p = NumberProcessor::new();
+        // 百分之两百 → 200% — mirrors JS NumberProcessor.test.js's "converts large percentage" case.
+        let tokens = vec![tok("百"), tok("分"), tok("之"), tok("两"), tok("百")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some(), "Pattern should match");
+        let m = m.unwrap();
+        assert_eq!(m.result, "200%");
     }
 
     #[test]

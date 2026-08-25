@@ -8,7 +8,9 @@
  * NOTE (2026-02-14): Integrated into WasmPatternProcessor.js:processTokensWasm() for the
  * highest-risk WASM call path. Because processTokens() is synchronous WASM, the timeout
  * cannot interrupt a truly hung call — it fires only after WASM returns. Protection against
- * truly blocking WASM would require a Web Worker. WasmNumberProcessor.js remains unwired.
+ * truly blocking WASM would require a Web Worker. WasmPatternProcessor.js is the sole live
+ * caller of this file today (number processing has been pure JS since commit b1dd912,
+ * 2026-06-20 — see CONTEXT.md's NumberProcessor entry).
  *
  * CODE REVIEW FIX (MEDIUM-8): Add timeout protection for WASM operations
  *

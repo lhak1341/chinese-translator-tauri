@@ -358,7 +358,7 @@ impl<'a> PatternMatcher<'a> {
                         // Literal grouping fallback: consecutive literal pattern tokens may
                         // combine to match a single multi-char semantic token.
                         // Example: pattern 身+体 (two 1-char literals) vs. one 身体 word token.
-                        // Mirrors the JS testPatternMatch grouping at lines 1217-1239.
+                        // Mirrors the JS testPatternMatch grouping at lines 905-943.
                         let mut combined_literal = literal_value.clone();
                         let mut pattern_lookahead = i + 1;
                         while pattern_lookahead < pattern.tokens.len()

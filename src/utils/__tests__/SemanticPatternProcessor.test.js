@@ -178,6 +178,88 @@ describe('SemanticPatternProcessor — processTokens()', () => {
   });
 });
 
+describe('SemanticPatternProcessor — testPatternMatch() / findBestPatternMatch() (fixture-based)', () => {
+  // ADR-033 named these 3 scenarios as the minimum fixture oracle needed before a real
+  // cross-language parity test can exist. The first two reuse the exact pattern/token/
+  // variable-cache values from wasm-core/tests/pattern_matching_test.rs
+  // (test_single_variable_pattern_match, test_pattern_competition_higher_priority_wins)
+  // so a future parity test can diff against these almost directly.
+
+  test('simple single-variable match: 这些X → những người này', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({ 这些X: 'những X này' });
+    proc.variableCache = new Map([['人', { translation: 'người' }]]);
+
+    const tokens = [
+      makeToken('chinese_char', '这'),
+      makeToken('chinese_char', '些'),
+      makeToken('chinese_char', '人'),
+    ];
+    const pattern = proc.patterns.find((p) => p.originalPattern === '这些X');
+
+    const result = proc.testPatternMatch(pattern, tokens, 0, {});
+
+    expect(result.success).toBe(true);
+    expect(result.result).toBe('những người này');
+    expect(result.matchedTokens).toHaveLength(3);
+    expect(result.variables.X).toBe('người');
+  });
+
+  test('overlapping-pattern priority resolution: longer 这些XY beats shorter 这些X', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({
+      这些X: 'những X này',
+      这些XY: 'những X Y này',
+    });
+    proc.variableCache = new Map([
+      ['人', { translation: 'người' }],
+      ['强大', { translation: 'mạnh mẽ' }],
+    ]);
+
+    const tokens = [
+      makeToken('chinese_char', '这'),
+      makeToken('chinese_char', '些'),
+      makeToken('chinese_char', '人'),
+      makeToken('chinese_word', '强大'),
+    ];
+
+    const result = proc.findBestPatternMatch(tokens, 0, {});
+
+    expect(result).not.toBeNull();
+    expect(result.pattern.originalPattern).toBe('这些XY');
+    expect(result.result).toBe('những người mạnh mẽ này');
+  });
+
+  test('hierarchical composition: longer Phase B pattern absorbs a shorter Phase A-protected span', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({ X的Y: 'Y của X' });
+    proc.variableCache = new Map([
+      ['张三', { translation: 'Trương Tam' }],
+      ['手', { translation: 'tay' }],
+    ]);
+
+    // '张三' was already translated by a Phase A pattern (2-char match). The Phase B
+    // pattern X的Y matches all 3 tokens (4 chars total: 张三的手) — longer than Phase A's
+    // 2-char span, so the override is allowed (matcher.rs:603-615 — "Phase B Protection
+    // Blocks Shorter-or-Equal Matches").
+    const tokens = [
+      makeToken('chinese_word', '张三', {
+        protectedByPhaseA: true,
+        phaseAResult: { originalText: '张三' },
+      }),
+      makeToken('chinese_char', '的'),
+      makeToken('chinese_char', '手'),
+    ];
+    const pattern = proc.patterns.find((p) => p.originalPattern === 'X的Y');
+
+    const result = proc.testPatternMatch(pattern, tokens, 0, {});
+
+    expect(result.success).toBe(true);
+    expect(result.result).toBe('tay của Trương Tam');
+    expect(result.matchedTokens).toHaveLength(3);
+  });
+});
+
 describe('SemanticPatternProcessor — getPerformanceStats()', () => {
   test('returns stats before initialization', () => {
     const proc = new SemanticPatternProcessor();

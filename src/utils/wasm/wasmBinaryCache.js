@@ -4,9 +4,12 @@
  *
  * CODE REVIEW FIX 2026-02-01 (HIGH-1): Cache WASM binaries to avoid duplicate fetches
  *
- * Problem: WasmPatternProcessor and WasmNumberProcessor both fetch the same
- * translation_wasm_core_bg.wasm binary (~2MB), resulting in 2 network requests
- * for the same data during initialization.
+ * Problem (as of 2026-02-01): multiple WASM wrappers fetching the same
+ * translation_wasm_core_bg.wasm binary (~2MB) independently resulted in redundant
+ * network requests for the same data during initialization. (WasmNumberProcessor,
+ * one of the original wrappers this was written against, was deleted 2026-06-20,
+ * commit b1dd912 — number processing is pure JS now. WasmPatternProcessor, via
+ * WasmProcessorLifecycle, is the sole live caller of this cache today.)
  *
  * Solution: Cache fetched WASM binaries in memory so they can be reused across
  * different WASM modules.

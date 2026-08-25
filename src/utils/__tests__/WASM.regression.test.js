@@ -2,106 +2,12 @@
  * Regression tests for WASM bug fixes
  *
  * Tests prevent regressions for:
- * - Unhandled promise rejection in WASM number processor
  * - WASM batch loading stats not updated during fallback
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('WASM Regression Tests', () => {
-  describe('Bug Fix: Unhandled Promise Rejection in WASM Number Processor', () => {
-    let initializationFailed;
-    let wasmNumberProcessor;
-    let initializationPromise;
-
-    beforeEach(() => {
-      initializationFailed = false;
-      wasmNumberProcessor = null;
-      initializationPromise = null;
-    });
-
-    it('should set initializationFailed flag on promise rejection', async () => {
-      // Simulate WASM initialization function that fails
-      const initializeWasmNumberProcessor = async () => {
-        initializationPromise = Promise.reject(new Error('WASM module not found'));
-        await initializationPromise;
-      };
-
-      // Simulate the fixed auto-initialization with error handling
-      try {
-        await initializeWasmNumberProcessor();
-      } catch (err) {
-        // Bug fix: Set flag on rejection
-        initializationFailed = true;
-      }
-
-      expect(initializationFailed).toBe(true);
-    });
-
-    it('should prevent retry when initializationFailed flag is set', async () => {
-      initializationFailed = true;
-      let retryAttempted = false;
-
-      const processNumbersWasm = async (tokens) => {
-        // Check flag before attempting initialization
-        if (initializationFailed) {
-          // Don't retry, use fallback immediately
-          return null;
-        }
-
-        // This should not be reached
-        retryAttempted = true;
-        return null;
-      };
-
-      await processNumbersWasm([{ value: '三十五' }]);
-
-      expect(retryAttempted).toBe(false);
-    });
-
-    it('should handle network failures during WASM fetch', async () => {
-      const fetchError = new Error('Network request failed');
-      let errorCaught = false;
-
-      const initializeWasm = async () => {
-        throw fetchError;
-      };
-
-      // Simulate auto-initialization with proper error handling
-      try {
-        await initializeWasm();
-      } catch (err) {
-        errorCaught = true;
-        initializationFailed = true;
-      }
-
-      expect(errorCaught).toBe(true);
-      expect(initializationFailed).toBe(true);
-    });
-
-    it('should log warning and continue on background init failure', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      const initializeWasm = async () => {
-        throw new Error('Background initialization failed');
-      };
-
-      // Simulate non-blocking background initialization
-      initializeWasm().catch((err) => {
-        console.warn('Background WASM NumberProcessor initialization failed:', err);
-        initializationFailed = true;
-      });
-
-      // Wait for promise to settle
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
-      expect(consoleWarnSpy).toHaveBeenCalled();
-      expect(initializationFailed).toBe(true);
-
-      consoleWarnSpy.mockRestore();
-    });
-  });
-
   describe('Bug Fix: WASM Batch Loading Stats Update', () => {
     let performanceStats;
     let memoryPool;

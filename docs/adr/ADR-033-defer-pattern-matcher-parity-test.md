@@ -3,6 +3,12 @@
 **Status:** Decided
 **Date:** 2026-07-28
 
+## Update (2026-08-25)
+
+The JS-side fixture oracle this ADR's Consequence section named as the blocking prerequisite now exists: `src/utils/__tests__/SemanticPatternProcessor.test.js`'s `testPatternMatch() / findBestPatternMatch() (fixture-based)` describe block covers the three named minimum scenarios — simple single-variable match, overlapping-pattern priority resolution, and hierarchical composition (Phase A result absorbed into a Phase B pattern) — asserting exact `translation`/`variables`/`matchedTokens` output directly against `testPatternMatch`/`findBestPatternMatch`, not just `processTokens()` shape. The first two reuse the exact pattern/token/variable-cache values from `wasm-core/tests/pattern_matching_test.rs`'s `test_single_variable_pattern_match`/`test_pattern_competition_higher_priority_wins` so a future cross-language parity test has a near-trivial diff to build from. The hierarchical-composition scenario has no Rust counterpart in `pattern_matching_test.rs` (that coverage lives in `wasm-core/tests/two_phase_test.rs`, a different scope — `TwoPhasePatternProcessor`'s two-phase logic, not `matcher.rs`'s plain functions) and was written JS-native.
+
+A real cross-language parity test (Rust calling the same fixtures via `matcher.rs`'s plain `pub fn`s) is still not built — this update closes the prerequisite, not the ADR's original decision.
+
 ## Context
 
 A 2026-07-27 architecture review flagged the lack of a parity test between the two production implementations of pattern matching: `SemanticPatternProcessor.testPatternMatch()` (JS) and `wasm-core/src/pattern_processor/matcher.rs` (Rust). Per ADR-007, these are real production adapters — `applyPatterns()` switches from the WASM adapter to `SemanticPatternProcessor` after 3 consecutive WASM failures within 5 minutes — so divergence between them is a real, production-reachable risk, not hypothetical. This codebase has already shipped one confirmed production bug from exactly this failure class (`TextTokenizer`'s Rust punctuation classifier silently missing 20 of 41 characters JS classified correctly — see CLAUDE.md).

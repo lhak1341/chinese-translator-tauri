@@ -351,15 +351,16 @@ pnpm tauri:build    # Build production Tauri app
 
 **Automated Checks** (runs on push and PR):
 
-1. Type checking (`pnpm type-check`)
-2. Linting (`pnpm lint`)
-3. Tests (`pnpm test -- --run`)
+1. wasm-core Rust tests (`cargo test --manifest-path wasm-core/Cargo.toml`) — added 2026-08-25; previously wasm-core had zero CI coverage despite 35+ passing local tests
+2. WASM dev build (`pnpm build-wasm-dev`, via wasm-pack) — needed before the JS test suite can run
+3. Type checking (`pnpm type-check`)
+4. Linting (`pnpm lint`)
+5. Tests (`pnpm test -- --run`)
 
 **Pragmatic CI Philosophy**:
 
-- CI focuses on catching development errors (types, lint, tests)
-- Production builds verified locally before releases (`pnpm tauri:build`)
-- No build step in CI - avoids WASM/environment issues, faster runs
+- CI focuses on catching development errors (types, lint, wasm-core tests, JS tests)
+- Full production app builds (`pnpm tauri:build`) are still verified locally before releases, not in CI
 - Build works locally; that's what matters for releases
 
 **Pre-commit Hooks**: Husky + lint-staged
@@ -510,6 +511,8 @@ Accumulated pitfalls confirmed across development sessions. Organized by area.
 **`cargo-outdated` isn't installed** (installing it costs several minutes to compile) — for a quick "what would update" signal instead, use `cargo update --dry-run --manifest-path <crate>/Cargo.toml`; this repo's `Cargo.toml`s use loose version constraints, so the dry-run's semver-compatible bumps usually cover what you need.
 
 **`pnpm update --latest`/`pnpm add pkg@latest` silently skip very-recently-published versions** (pnpm's built-in release-age cooldown) — bypassing it via an explicit version pin (`pnpm add pkg@x.y.z`) writes an exclude entry into `pnpm-workspace.yaml`, a shared repo-config change, not just a lockfile bump. Run `pnpm peers check` after any bulk dependency update — it catches peer-range breaks (e.g. a major bump outrunning a plugin's supported range) that a plain `pnpm add`/`update` won't warn about at all.
+
+**`temp/` (repo root, gitignored) is this project's scratch/report-output directory** — prefer it over OS `$TMPDIR` when a skill or task generates a report/artifact file for this project (e.g. `/improve-codebase-architecture`'s saved HTML report), rather than defaulting to the skill's own OS-temp instructions unasked.
 
 ### JavaScript / TypeScript
 

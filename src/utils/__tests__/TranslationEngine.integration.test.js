@@ -124,7 +124,6 @@ describe.skip('TranslationEngine - 5-Phase Pipeline Integration', () => {
     });
     await engine.initialize(mockDictionaries, {
       useWasmPatternProcessor: false, // Disable WASM for simpler testing
-      useWasmNumberProcessor: false,
       useRustLookupIndex: false,
     });
   });
@@ -506,7 +505,6 @@ describe.skip('TranslationEngine - 5-Phase Pipeline Integration', () => {
         },
         {
           useWasmPatternProcessor: false,
-          useWasmNumberProcessor: false,
           useRustLookupIndex: false,
         }
       );

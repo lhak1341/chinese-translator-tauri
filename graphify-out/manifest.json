@@ -105,9 +105,9 @@
     "semantic_hash": "e989bd29e532f820c18e14b0a17bd658"
   },
   "wasm-core/src/number_processor.rs": {
-    "mtime": 1781948433.7785428,
-    "ast_hash": "a4ceaad31ada27d3f9cc23f51cb2152a",
-    "semantic_hash": "a4ceaad31ada27d3f9cc23f51cb2152a"
+    "mtime": 1787619268.414314,
+    "ast_hash": "713c6eca6e20a7d409f7c136b4be73de",
+    "semantic_hash": ""
   },
   "wasm-core/src/text_assembly.rs": {
     "mtime": 1784246804.6521468,
@@ -135,9 +135,9 @@
     "semantic_hash": "eae399340afb410076ea1d3af90dcb26"
   },
   "wasm-core/src/pattern_processor/matcher.rs": {
-    "mtime": 1786379553.6359937,
-    "ast_hash": "f1b5f7368cb452af78a5878f8ec3b9a7",
-    "semantic_hash": "f1b5f7368cb452af78a5878f8ec3b9a7"
+    "mtime": 1787618573.6860964,
+    "ast_hash": "4cc91c67e6c10de991c1f9b56cc10005",
+    "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/index.rs": {
     "mtime": 1786380075.974124,
@@ -485,9 +485,9 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/wasmOperationTimeout.js": {
-    "mtime": 1772897608.5481784,
-    "ast_hash": "2716ad2244291d8b53857abd246e63b6",
-    "semantic_hash": "2716ad2244291d8b53857abd246e63b6"
+    "mtime": 1787618790.3784366,
+    "ast_hash": "0fa21f8e57a0b91a7b41c3253c525976",
+    "semantic_hash": ""
   },
   "src/utils/wasm/WasmTextTokenizer.js": {
     "mtime": 1786546178.3762283,
@@ -530,9 +530,9 @@
     "semantic_hash": "65e5f32b338fa5416767256b1a3048c8"
   },
   "src/utils/wasm/wasmBinaryCache.js": {
-    "mtime": 1774737750.7887187,
-    "ast_hash": "552aa752097cc6fe32780c7ff38d2bfe",
-    "semantic_hash": "552aa752097cc6fe32780c7ff38d2bfe"
+    "mtime": 1787618794.8105056,
+    "ast_hash": "cbc07188f84962e3a2f490bcc83ef522",
+    "semantic_hash": ""
   },
   "src/utils/wasm/WasmTextAssembler.js": {
     "mtime": 1780661596.040691,
@@ -1130,8 +1130,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1787594064.6177073,
-    "ast_hash": "7ab8b162c9dd630d6bdac9f33a26c552",
+    "mtime": 1787618782.3965101,
+    "ast_hash": "a2591d9a7e8317961da64f48caf1a693",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": "ffe3070521c171ce32058444c7f3a4a3"
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1787617363.6507273,
-    "ast_hash": "de66c2379dbd9c47eae2ba1e3a63f148",
+    "mtime": 1787621017.3473954,
+    "ast_hash": "6440ea997c97fd18e0614a2f806bfe8e",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1580,8 +1580,8 @@
     "semantic_hash": "361e2be5aa5ed1ccb80a772d8fa22b28"
   },
   "docs/guides/development.md": {
-    "mtime": 1787186985.3030305,
-    "ast_hash": "411eb1c991bbf1eceb17c7a754c4d60d",
+    "mtime": 1787621008.7769852,
+    "ast_hash": "06942494bf010b29d8e77ebe20471757",
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
@@ -1590,8 +1590,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1787187092.6133687,
-    "ast_hash": "e22afb7cf14d768280a8719c8db7104c",
+    "mtime": 1787619291.484212,
+    "ast_hash": "344e40d6ff1aeb00dbe0cc30c2312101",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1940,9 +1940,9 @@
     "semantic_hash": "767b2e9abe6452170cdc399ca052cfbc"
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1780190161.4564686,
-    "ast_hash": "bac9557154f83f5a2ca975b0b5f1b569",
-    "semantic_hash": "bac9557154f83f5a2ca975b0b5f1b569"
+    "mtime": 1787619282.5729468,
+    "ast_hash": "edf9f8a73decb3652228283979f7f7fb",
+    "semantic_hash": ""
   },
   "docs/adr/ADR-013-skip-precomputed-token-strings-extraction.md": {
     "mtime": 1785197849.5615015,
@@ -1960,9 +1960,9 @@
     "semantic_hash": "84dd6c202e1136b48066484154ca4803"
   },
   "docs/adr/ADR-033-defer-pattern-matcher-parity-test.md": {
-    "mtime": 1785196988.941402,
-    "ast_hash": "7f0c6874ae8aec1e690fcd99e53b793f",
-    "semantic_hash": "7f0c6874ae8aec1e690fcd99e53b793f"
+    "mtime": 1787618616.976848,
+    "ast_hash": "2838021b2217f184d702fd9ba8ed70f7",
+    "semantic_hash": ""
   },
   "docs/adr/ADR-034-skip-dictionarymanager-validateintegrity.md": {
     "mtime": 1786016276.2892263,
@@ -1975,8 +1975,8 @@
     "semantic_hash": "0c8075327e6d7805b630c9d35809a032"
   },
   "docs/adr/ADR-036-skip-segmentprecomputer-scan-unification.md": {
-    "mtime": 1787593742.2891097,
-    "ast_hash": "c3e9e242e75229679ee2076861bf15a4",
+    "mtime": 1787617577.530414,
+    "ast_hash": "e024cb5df81fdc0e41788111631589b7",
     "semantic_hash": ""
   },
   "docs/adr/ADR-037-delete-orphaned-wasm-boundary-validators.md": {
