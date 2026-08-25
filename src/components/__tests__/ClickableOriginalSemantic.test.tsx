@@ -161,4 +161,35 @@ describe('ClickableOriginalSemantic', () => {
     expect(container.textContent).toBe('Chinese text');
     expect(container.querySelectorAll('[data-unit-index]')).toHaveLength(0);
   });
+
+  test('title attribute strips control characters and caps length (architecture review 2026-08-25, candidate 3)', () => {
+    const controlChar = '\x01';
+    const dirtyOriginal = `${controlChar}你`;
+    const longTranslation = 'a'.repeat(150);
+    const arrays = {
+      original: [dirtyOriginal],
+      translated: [longTranslation],
+      metadata: [{ originalStart: 0, originalEnd: dirtyOriginal.length, source: 'dictionary' }],
+    };
+
+    const { container } = render(
+      <ClickableOriginalSemantic
+        originalText={dirtyOriginal}
+        semanticArrays={arrays}
+        onSegmentClick={vi.fn()}
+      />
+    );
+
+    const segment = container.querySelector('[data-unit-index]') as HTMLElement;
+    const title = segment.getAttribute('title')!;
+
+    // originalText/translatedText are each sanitized (control chars stripped, capped
+    // at 100 chars); source is left as-is — a fixed internal discriminator string,
+    // not free text, matching both sibling Clickable* components' treatment of `source`.
+    expect(title).not.toContain(controlChar);
+    expect(title).toContain('你');
+    expect(title).toContain('a'.repeat(100));
+    expect(title).not.toContain('a'.repeat(101));
+    expect(title).toContain('(dictionary)');
+  });
 });

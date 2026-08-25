@@ -460,8 +460,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/CharacterOnlyBridge.ts": {
-    "mtime": 1786981975.8695135,
-    "ast_hash": "34879141ca62e9eec116ba38eae89b3f",
+    "mtime": 1787594937.158002,
+    "ast_hash": "9837b01d52b77afddfb9f4ffac252454",
     "semantic_hash": ""
   },
   "src/utils/highlighting/ScrollHelpers.ts": {
@@ -875,9 +875,9 @@
     "semantic_hash": "f2f35a8d8c011090a710d514c1e26fc7"
   },
   "src/components/char-only/ClickableOriginalSemantic.tsx": {
-    "mtime": 1785305614.2374196,
-    "ast_hash": "d17803bc76b9d320ed2bdd604843364a",
-    "semantic_hash": "d17803bc76b9d320ed2bdd604843364a"
+    "mtime": 1787594320.2280006,
+    "ast_hash": "d3611f22b533d165ea3c72a0212ee61b",
+    "semantic_hash": ""
   },
   "src/components/char-only/HighlightableSegment.tsx": {
     "mtime": 1786959788.710865,
@@ -895,8 +895,8 @@
     "semantic_hash": "7af735b96f88f0cb5c059fce290b22c2"
   },
   "src/components/full-translation/ClickableTranslationOptimized.tsx": {
-    "mtime": 1787013601.6748974,
-    "ast_hash": "9269d42053919853e7751148769b6f47",
+    "mtime": 1787594070.9580195,
+    "ast_hash": "5f8c0e584b68e06074032babf18d12b6",
     "semantic_hash": ""
   },
   "src/components/translator/TranslatorDisplayPanels.tsx": {
@@ -1130,8 +1130,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1787584631.0831096,
-    "ast_hash": "97546e7882f380d4a1fac87e14269658",
+    "mtime": 1787594064.6177073,
+    "ast_hash": "7ab8b162c9dd630d6bdac9f33a26c552",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": "ffe3070521c171ce32058444c7f3a4a3"
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1786985874.978317,
-    "ast_hash": "cfbbdfd5ec7999781b9bb7355bb5f8b2",
+    "mtime": 1787617363.6507273,
+    "ast_hash": "de66c2379dbd9c47eae2ba1e3a63f148",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1600,8 +1600,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1787592338.6191888,
-    "ast_hash": "657a8a2927bbf5f771fe3fb3a6ce6af1",
+    "mtime": 1787593750.0429835,
+    "ast_hash": "2cef19f379ffc4b1b7936321142e39a6",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1975,9 +1975,9 @@
     "semantic_hash": "0c8075327e6d7805b630c9d35809a032"
   },
   "docs/adr/ADR-036-skip-segmentprecomputer-scan-unification.md": {
-    "mtime": 1786131228.7975297,
-    "ast_hash": "5047ade99e26e4992c19da8c1514f2c0",
-    "semantic_hash": "5047ade99e26e4992c19da8c1514f2c0"
+    "mtime": 1787593742.2891097,
+    "ast_hash": "c3e9e242e75229679ee2076861bf15a4",
+    "semantic_hash": ""
   },
   "docs/adr/ADR-037-delete-orphaned-wasm-boundary-validators.md": {
     "mtime": 1786160244.438659,

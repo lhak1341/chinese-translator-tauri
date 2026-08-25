@@ -135,12 +135,9 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
 
   // Routes through the shared click-payload seam (useSegmentClickHandler) instead of
   // hand-building SegmentClickPayload here — recovers the bounds guard the other two
-  // Clickable* components already get, and drops to 3 handleClick deps instead of 6
-  // (originalText/translatedText/source/metadata come from semanticArrays[unitIndex]
-  // inside the hook, not from segment fields — those segment fields can diverge slightly
-  // from semanticArrays' raw values since WordSegmentMatcher slices translatedText from
-  // the final assembled output; no consumer reads those payload fields today, only
-  // unitIndex + direction).
+  // Clickable* components already get, and drops to 3 handleClick deps instead of 6.
+  // SegmentClickPayload carries only unitIndex + direction (trimmed 2026-08-24) — no
+  // consumer reads more than that.
   const handleSegmentClick = useSegmentClickHandler(
     semanticArrays,
     onSegmentClick,

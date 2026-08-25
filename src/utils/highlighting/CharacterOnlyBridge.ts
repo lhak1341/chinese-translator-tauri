@@ -111,6 +111,20 @@ export function findCharacterOnlyMatch(
       clickedTokenIndex >= 0 && meta?.tokenIndex >= 0
         ? meta.tokenIndex < clickedTokenIndex
         : i < sourceIndex;
+    // .includes(), not just ===, because sourceArrays units are variable-length (a
+    // matched proper noun/phrase/pattern spans multiple original characters as one
+    // unit) while targetArrays is typically char-level — an earlier merged unit can
+    // textually embed targetSegment without being equal to it (e.g. source "你好吗"
+    // embeds a later-clicked standalone "你好"). Exact-equality alone would undercount
+    // and misalign with targetArrays' char-level scan, which finds embedded occurrences
+    // regardless of how sourceArrays grouped them. Confirmed via worked example,
+    // architecture review 2026-08-25 candidate #4 grilling — do not remove.
+    //
+    // Known accepted limitation: increments by at most 1 per source unit even if a
+    // unit embeds targetSegment more than once inside itself (e.g. a reduplicated
+    // nickname like "多多" embedding a clicked standalone "多" twice) — undercounts
+    // in that narrow case. Left as-is: rare, and the context-window/first-occurrence
+    // fallback below degrades gracefully rather than mismatching outright.
     if (
       appearsBeforeInText &&
       (sourceArrays.original[i] === targetSegment ||

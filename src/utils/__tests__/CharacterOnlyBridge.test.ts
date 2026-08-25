@@ -128,3 +128,30 @@ describe('findCharacterOnlyMatch — multi-char segment, multiple occurrences', 
     expect(result).toEqual([3, 4]);
   });
 });
+
+describe('findCharacterOnlyMatch — mixed-granularity source units (architecture review 2026-08-25, candidate 4)', () => {
+  test('counts an earlier merged unit that textually embeds targetSegment, not just exact-equal units', () => {
+    // text: "他你好吗你好" — source groups "你好吗" as one merged unit (e.g. a matched
+    // phrase), embedding an earlier textual occurrence of "你好" that has no standalone
+    // source entry of its own. target is char-level and finds both occurrences regardless.
+    // Without the .includes() branch, occurrenceInSource would be 0 (no source unit
+    // exactly equals "你好" before index 2) and the wrong (embedded) match would win.
+    const source = makeArrays(['他', '你好吗', '你好'], [0, 1, 2]);
+    const target = makeArrays(['他', '你', '好', '吗', '你', '好']);
+    // targetSegment = "你好" (sourceIndex=2). Target-side scan finds it embedded at [1,2]
+    // (inside where "你好吗" sits) and standalone at [4,5]. occurrenceInSource must be 1
+    // (counting the embedded occurrence via .includes()) to correctly pick matchIndex=1 → [4,5].
+    const result = findCharacterOnlyMatch(2, source, target);
+    expect(result).toEqual([4, 5]);
+  });
+
+  test('single-char target: earlier merged unit embedding it counts as one prior occurrence', () => {
+    // text: "你好吗你" — source: "你好吗" merged (embeds one "你"), then standalone "你".
+    const source = makeArrays(['你好吗', '你'], [0, 1]);
+    const target = makeArrays(['你', '好', '吗', '你']);
+    // targetSegment = "你" (sourceIndex=1). Target scan finds "你" at [0] (embedded) and [3]
+    // (standalone, the one actually clicked). occurrenceInSource=1 via .includes() → picks [3].
+    const result = findCharacterOnlyMatch(1, source, target);
+    expect(result).toEqual([3]);
+  });
+});

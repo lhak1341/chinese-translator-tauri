@@ -8,6 +8,7 @@ import { precomputeOriginalSegments, isUnitHighlighted } from '../../utils/highl
 import { useSegmentClickHandler } from '../../hooks/useSegmentClickHandler';
 import { renderSegmentedContent } from './SegmentedParagraphs';
 import { groupSegmentsIntoParagraphs } from '../../utils/text';
+import { sanitizeString } from '../../utils/configValidation';
 import styles from '../../styles/ClickableOriginalSemantic.module.css';
 
 const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
@@ -46,7 +47,7 @@ const ClickableOriginalSemantic: React.FC<ClickableOriginalSemanticProps> = ({
     segments,
     paragraphs,
     getTitle: (segment: any) =>
-      `"${segment.originalText}" → "${segment.translatedText}" (${segment.source})`,
+      `"${sanitizeString(segment.originalText || '', 100)}" → "${sanitizeString(segment.translatedText || '', 100)}" (${segment.source})`,
     isHighlighted: (segment: any) =>
       isUnitHighlighted(segment.unitIndex, highlightedUnitIndex, highlightedTranslationUnitIndex),
     onUnitClick: handleUnitClick,
