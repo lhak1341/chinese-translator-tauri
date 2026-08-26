@@ -22,7 +22,13 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// A single dictionary match result
+///
+/// `rename_all = "camelCase"` matches `LookupIndexOptions`/`LookupIndexResponse` in
+/// dictionary_commands.rs — without it, `end_pos` was the one field that silently
+/// diverged from the rest of this IPC contract's wire format (nested structs don't
+/// inherit an outer struct's `rename_all`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DictionaryMatch {
     pub word: String,
     pub translation: String,
@@ -34,6 +40,7 @@ pub struct DictionaryMatch {
 
 /// Categorized matches at a position
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct CategorizedMatches {
     pub patterns: Vec<DictionaryMatch>,
     pub proper_nouns: Vec<DictionaryMatch>,
@@ -326,6 +333,48 @@ fn categorize_matches(matches: Vec<DictionaryMatch>) -> CategorizedMatches {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // -----------------------------------------------------------------------
+    // Wire format — proves rename_all = "camelCase" actually applies to the
+    // nested structs, not just the outer LookupIndexResponse/LookupIndexOptions
+    // in dictionary_commands.rs. Nothing else locks this in; the previous drift
+    // (end_pos left snake_case while proper_nouns got a JS-side bridge) shipped
+    // silently for exactly that reason.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_dictionary_match_serializes_to_camel_case_json() {
+        let m = DictionaryMatch {
+            word: "你".to_string(),
+            translation: "bạn".to_string(),
+            end_pos: 1,
+            metadata: None,
+            dictionary: "characters".to_string(),
+            priority: 1,
+        };
+        let json = serde_json::to_string(&m).unwrap();
+        assert!(json.contains("\"endPos\""), "expected camelCase endPos, got: {}", json);
+        assert!(!json.contains("\"end_pos\""), "snake_case end_pos leaked into wire format: {}", json);
+    }
+
+    #[test]
+    fn test_categorized_matches_serializes_proper_nouns_key_as_camel_case() {
+        let m = DictionaryMatch {
+            word: "李".to_string(),
+            translation: "Ly".to_string(),
+            end_pos: 1,
+            metadata: None,
+            dictionary: "properNouns".to_string(),
+            priority: 1,
+        };
+        let categorized = CategorizedMatches {
+            proper_nouns: vec![m],
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&categorized).unwrap();
+        assert!(json.contains("\"properNouns\""), "expected camelCase properNouns key, got: {}", json);
+        assert!(!json.contains("\"proper_nouns\""), "snake_case proper_nouns key leaked into wire format: {}", json);
+    }
 
     // -----------------------------------------------------------------------
     // Trie helpers

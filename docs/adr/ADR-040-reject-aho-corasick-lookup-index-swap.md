@@ -40,3 +40,11 @@ What remains: `src-tauri/benches/trie_matching.rs` and `wasm-core/benches/trie_m
 ## Consequence
 
 Future performance work on dictionary lookup should start from `lookup_index_engine::TrieNode` (native, rayon-parallel) as the known hot path for real translations, not `wasm-core::trie` (see the corresponding notes added to both crates' `CLAUDE.md`). If aho-corasick (or any other matching algorithm) is reconsidered later, benchmark it against the _parallel_ trie baseline from the start, and construct any "build once" structure outside the timed loop from the first benchmark, not after a misleading result forces a correction.
+
+## Addendum — 2026-08-26: "Production builds its trie once and reuses it" was false
+
+The Fourth-step comparison above states the trie side "is already built once and reused," mirroring `Dictionary { trie: Arc<TrieNode> }`. That's true of this ADR's own benchmark harness — it isn't true of the shipped `build_lookup_index` command. `build_lookup_index_impl` rebuilt a fresh `TrieNode` from the JS-sent entries on every single IPC call (no persistence across calls, no cache, `lib.rs` managed no such state) — i.e. every translation, not once per dictionary load.
+
+Measured in isolation (scratch bench, not committed): building ~26,500 entries across 7 dictionaries costs ~7–10ms warm, against the 781µs matching cost this ADR's own table cites — construction dominated the real per-call cost by roughly an order of magnitude. This doesn't change the ADR's Aho-Corasick conclusion (that comparison used correctly-isolated one-time construction on both sides), but the "actual production" framing of the 781µs figure was inaccurate about what production actually paid per call.
+
+Fixed by adding `TrieCache` (`dictionary_commands.rs`, content-hash-keyed per dictionary's own entries — not by dictionary_id, so there is no invalidation path to wire or forget) alongside `DictionaryCache`. `build_lookup_index_impl` now checks the cache before calling `build_trie_from_entries`, only paying construction cost when a dictionary's content hash hasn't been seen before.

@@ -50,13 +50,13 @@
     "semantic_hash": "1be34a5c61c2c35365de3dab14298f0b"
   },
   "src-tauri/src/lookup_index_engine.rs": {
-    "mtime": 1787185626.431229,
-    "ast_hash": "345509c49afc689787e77f1af75c7b00",
-    "semantic_hash": "345509c49afc689787e77f1af75c7b00"
+    "mtime": 1787756112.699775,
+    "ast_hash": "0b5274ad299461d5609bb866110da43d",
+    "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1787158462.1899614,
-    "ast_hash": "b2c882df13239708b2cb4b764b47cca2",
+    "mtime": 1787755552.2154381,
+    "ast_hash": "2bdfdf30b4a6fb62cd8b23ce7f3badec",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -65,9 +65,9 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1786177681.8805158,
-    "ast_hash": "6697797947d8b7d54f9795dc07eb08d6",
-    "semantic_hash": "6697797947d8b7d54f9795dc07eb08d6"
+    "mtime": 1787755904.4679685,
+    "ast_hash": "dd0d274eb14d2cdd784e59b7ef3d728b",
+    "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
     "mtime": 1787186490.395185,
@@ -635,9 +635,9 @@
     "semantic_hash": "f99102af7ef903babbf1d95641798630"
   },
   "src/utils/dictionary/LookupIndexUtils.ts": {
-    "mtime": 1784211508.6459465,
-    "ast_hash": "aca573dc25af645ad2c4813da546d698",
-    "semantic_hash": "aca573dc25af645ad2c4813da546d698"
+    "mtime": 1787756144.526532,
+    "ast_hash": "540a293766931602d66c40467a33cdf3",
+    "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryOperationReverter.ts": {
     "mtime": 1780805351.0950696,
@@ -1395,8 +1395,8 @@
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
-    "mtime": 1787187012.8787658,
-    "ast_hash": "a9bcfcc580ce0cdc5f01b4b46aea8411",
+    "mtime": 1787756464.6338506,
+    "ast_hash": "23c43d9d36f053c3870ab7d92c13fb7b",
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
@@ -1830,7 +1830,7 @@
     "semantic_hash": ""
   },
   "src-tauri/benches/trie_matching.rs": {
-    "mtime": 1787185650.1156807,
+    "mtime": 1787755306.9359615,
     "ast_hash": "6fcb26a212f5a98d897c489061f780e3",
     "semantic_hash": ""
   },
@@ -1840,8 +1840,8 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-040-reject-aho-corasick-lookup-index-swap.md": {
-    "mtime": 1787187092.3719244,
-    "ast_hash": "9d846e28bc6320baf4492685528d28df",
+    "mtime": 1787755696.6238732,
+    "ast_hash": "ba8ae37f40d2d2d7e173bcdd1cd958b4",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {

@@ -94,26 +94,10 @@ describe('getIndexedMatches', () => {
     expect(getIndexedMatches(index, 0, 'properNouns')).toEqual([]);
   });
 
-  test('JS-built index (camelCase key): properNouns', () => {
+  test('properNouns key (both JS-built and Rust-built indexes use camelCase)', () => {
     const m: Match = { word: '天道', priority: 1 };
     const index = makeIndex(0, { properNouns: [m] });
     expect(getIndexedMatches(index, 0, 'properNouns')).toEqual([m]);
-  });
-
-  test('Rust-built index (snake_case key proper_nouns)', () => {
-    const m: Match = { word: '天道', priority: 1 };
-    const index = makeIndex(0, { proper_nouns: [m] } as Record<string, Match[]>);
-    expect(getIndexedMatches(index, 0, 'properNouns')).toEqual([m]);
-  });
-
-  test('JS key takes precedence over Rust key when both present', () => {
-    const jsMatch: Match = { word: 'js', priority: 1 };
-    const rustMatch: Match = { word: 'rust', priority: 1 };
-    const index = makeIndex(0, {
-      properNouns: [jsMatch],
-      proper_nouns: [rustMatch],
-    } as Record<string, Match[]>);
-    expect(getIndexedMatches(index, 0, 'properNouns')).toEqual([jsMatch]);
   });
 
   test('single match returned without copying', () => {

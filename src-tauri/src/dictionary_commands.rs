@@ -474,6 +474,127 @@ impl DictionaryCache {
 }
 
 // ============================================================================
+// PERFORMANCE: Trie Cache for build_lookup_index
+// ============================================================================
+//
+// `build_lookup_index_impl` previously rebuilt a `TrieNode` from scratch for every
+// dictionary on every call — JS re-sends the full flat entries over IPC each
+// translation, and Rust re-inserted them all. Measured (2026-08-26, scratch bench):
+// ~7-10ms to rebuild ~26,500 entries across 7 dictionaries, vs. ~781µs for the
+// actual rayon-parallel matching that consumes the result — construction dominated
+// the operation. See ADR-040's corrected note.
+//
+// Keyed by a content hash of the dictionary's own `entries`, NOT by dictionary_id —
+// self-correcting: if entries differ (any edit, saved or not), the hash differs and
+// the cache misses, so there is no invalidation path to wire and nothing to forget.
+// This is deliberately simpler than `DictionaryCache` above (no `invalidate()`, no
+// TOCTOU-safe eviction dance) because content-hash keys can never go stale.
+
+/// Cap chosen larger than `DictionaryCache`'s `MAX_CACHE_ENTRIES` (5) — a trie-cache
+/// entry is per dictionary *content version*, not per dictionary id, so a session
+/// bouncing between a few recent edits of the same dictionary needs more headroom.
+const MAX_TRIE_CACHE_ENTRIES: usize = 20;
+
+/// Hashes a dictionary's flat entries into a cache key. `DictionaryEntry` derives
+/// `Hash` (see below) so this is just `entries.hash(&mut hasher)` — order-sensitive,
+/// which is correct: JS always sends entries in a stable order per dictionary, and a
+/// reordering would only ever come from a real content change upstream.
+fn hash_dictionary_entries(entries: &[DictionaryEntry]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    entries.hash(&mut hasher);
+    hasher.finish()
+}
+
+pub struct TrieCache {
+    cache: Mutex<HashMap<u64, Arc<TrieNode>>>,
+    access_order: Mutex<HashMap<u64, u64>>,
+}
+
+impl TrieCache {
+    pub fn new() -> Self {
+        Self {
+            cache: Mutex::new(HashMap::new()),
+            access_order: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Returns the cached trie for `key`, if present, and refreshes its LRU timestamp.
+    /// Same mutex-poisoning graceful-degradation pattern as `DictionaryCache::get`.
+    pub fn get(&self, key: u64) -> Option<Arc<TrieNode>> {
+        let value = match self.cache.lock() {
+            Ok(cache) => cache.get(&key).cloned(),
+            Err(poisoned) => {
+                record_mutex_poisoning();
+                eprintln!("WARNING: Trie cache mutex poisoned during get - continuing with degraded reliability");
+                poisoned.into_inner().get(&key).cloned()
+            }
+        };
+
+        if value.is_some() {
+            if let Ok(mut access_order) = self.access_order.lock() {
+                access_order.insert(key, now_ms());
+            }
+        }
+
+        value
+    }
+
+    /// Inserts `value` under `key`, evicting the LRU entry first if the cache is full.
+    /// Same TOCTOU-safe single-critical-section eviction as `DictionaryCache::set`.
+    pub fn set(&self, key: u64, value: Arc<TrieNode>) {
+        let lru_candidates: Vec<u64> = if let Ok(access_order) = self.access_order.lock() {
+            let mut entries: Vec<(u64, u64)> = access_order.iter().map(|(&k, &v)| (k, v)).collect();
+            entries.sort_by_key(|(_, ts)| *ts);
+            entries.into_iter().map(|(k, _)| k).collect()
+        } else {
+            Vec::new()
+        };
+
+        match self.cache.lock() {
+            Ok(mut cache) => {
+                let mut evicted_key: Option<u64> = None;
+                if cache.len() >= MAX_TRIE_CACHE_ENTRIES && !cache.contains_key(&key) {
+                    for candidate in &lru_candidates {
+                        if cache.remove(candidate).is_some() {
+                            evicted_key = Some(*candidate);
+                            break;
+                        }
+                    }
+                    if evicted_key.is_none() {
+                        if let Some(&fallback_key) = cache.keys().min() {
+                            cache.remove(&fallback_key);
+                            evicted_key = Some(fallback_key);
+                        }
+                    }
+                }
+
+                cache.insert(key, value);
+
+                drop(cache);
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    access_order.insert(key, now_ms());
+                    if let Some(evicted) = evicted_key {
+                        access_order.remove(&evicted);
+                    }
+                }
+            }
+            Err(poisoned) => {
+                record_mutex_poisoning();
+                eprintln!("WARNING: Trie cache mutex poisoned during set - continuing with degraded reliability");
+                let mut cache = poisoned.into_inner();
+                cache.clear();
+                cache.insert(key, value);
+                if let Ok(mut access_order) = self.access_order.lock() {
+                    access_order.clear();
+                    access_order.insert(key, now_ms());
+                }
+            }
+        }
+    }
+}
+
+// ============================================================================
 // SECURITY: Rate Limiters
 // ============================================================================
 
@@ -597,20 +718,23 @@ pub async fn open_dictionary_folder(app_handle: tauri::AppHandle) -> Result<Dict
     Ok(DictionaryResponse::ok())
 }
 
-#[tauri::command]
-pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
-
-    let entries = fs::read_dir(&dictionary_path)
+/// Lists `.json` dictionary files in `dictionary_path` whose name starts with `prefix`,
+/// excluding `.trie.json` cache files and any name failing `validate_dictionary_id`
+/// (SECURITY: strip suffix then validate before returning to frontend — a failing
+/// entry is silently dropped from the list, not surfaced as an error).
+/// Pure filesystem function — no `AppHandle` — directly unit-testable against a temp
+/// directory. Shared by `list_proper_nouns_dictionaries_impl`/`list_fiction_pattern_dictionaries_impl`,
+/// which differ only in the prefix they filter on.
+fn list_dictionaries_with_prefix(dictionary_path: &PathBuf, prefix: &str) -> Result<Vec<String>, String> {
+    let entries = fs::read_dir(dictionary_path)
         .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
 
-    let proper_nouns_dicts: Vec<String> = entries
+    let dicts: Vec<String> = entries
         .filter_map(|entry| {
             entry.ok().and_then(|e| {
                 let file_name = e.file_name();
                 let file_str = file_name.to_str()?;
-                if file_str.starts_with("properNouns") && file_str.ends_with(".json") && !file_str.ends_with(".trie.json") {
-                    // SECURITY: strip suffix then validate before returning to frontend
+                if file_str.starts_with(prefix) && file_str.ends_with(".json") && !file_str.ends_with(".trie.json") {
                     let base_name = file_str.strip_suffix(".json")?;
                     validate_dictionary_id(base_name).ok()?;
                     Some(base_name.to_string())
@@ -621,33 +745,29 @@ pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Res
         })
         .collect();
 
-    Ok(DictionaryResponse::ok_with_dicts(proper_nouns_dicts))
+    Ok(dicts)
+}
+
+fn list_proper_nouns_dictionaries_impl(dictionary_path: &PathBuf) -> Result<Vec<String>, String> {
+    list_dictionaries_with_prefix(dictionary_path, "properNouns")
+}
+
+fn list_fiction_pattern_dictionaries_impl(dictionary_path: &PathBuf) -> Result<Vec<String>, String> {
+    list_dictionaries_with_prefix(dictionary_path, "patterns-")
+}
+
+#[tauri::command]
+pub async fn list_proper_nouns_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+    let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
+    let dicts = list_proper_nouns_dictionaries_impl(&dictionary_path)?;
+    Ok(DictionaryResponse::ok_with_dicts(dicts))
 }
 
 #[tauri::command]
 pub async fn list_fiction_pattern_dictionaries(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
     let dictionary_path = get_or_create_dictionary_dir(&app_handle)?;
-
-    let entries = fs::read_dir(&dictionary_path)
-        .map_err(|e| sanitize_io_error(e, "dictionary directory"))?;
-
-    let pattern_dicts: Vec<String> = entries
-        .filter_map(|entry| {
-            entry.ok().and_then(|e| {
-                let file_name = e.file_name();
-                let file_str = file_name.to_str()?;
-                if file_str.starts_with("patterns-") && file_str.ends_with(".json") && !file_str.ends_with(".trie.json") {
-                    let base_name = file_str.strip_suffix(".json")?;
-                    validate_dictionary_id(base_name).ok()?;
-                    Some(base_name.to_string())
-                } else {
-                    None
-                }
-            })
-        })
-        .collect();
-
-    Ok(DictionaryResponse::ok_with_dicts(pattern_dicts))
+    let dicts = list_fiction_pattern_dictionaries_impl(&dictionary_path)?;
+    Ok(DictionaryResponse::ok_with_dicts(dicts))
 }
 
 #[tauri::command]
@@ -1593,32 +1713,12 @@ fn load_dictionaries_parallel_impl(
                 Ok(contents) => {
                     match serde_json::from_str::<serde_json::Value>(&contents) {
                         Ok(data) => {
-                            // SECURITY: Enforce object-type check and entry-count cap (mirrors serial load path).
-                            match data.as_object() {
-                                None => {
-                                    return BatchDictionaryResult::err(
-                                        dictionary_id,
-                                        format!("Dictionary '{}' has invalid format: expected a JSON object", dictionary_id),
-                                    );
-                                }
-                                Some(obj) => {
-                                    if obj.len() > MAX_DICTIONARY_ENTRIES {
-                                        return BatchDictionaryResult::err(
-                                            dictionary_id,
-                                            format!(
-                                                "Dictionary '{}' has too many entries ({}, max: {})",
-                                                dictionary_id,
-                                                obj.len(),
-                                                MAX_DICTIONARY_ENTRIES
-                                            ),
-                                        );
-                                    }
-                                }
-                            }
-
-                            // SECURITY: Depth guard — mirrors load_dictionary and import_dictionaries.
-                            if let Err(e) = check_json_depth(&data, 50) {
-                                return BatchDictionaryResult::err(dictionary_id, e);
+                            // SECURITY: Single guard sequence — mirrors save_dictionary/import_dictionaries/load_dictionary.
+                            if let Err(e) = validate_dictionary_payload(&data) {
+                                return BatchDictionaryResult::err(
+                                    dictionary_id,
+                                    format!("Dictionary '{}': {}", dictionary_id, e),
+                                );
                             }
 
                             // Cache the result (thread-safe)
@@ -1812,7 +1912,7 @@ fn rename_proper_nouns_dictionary_impl(
 // ============================================================================
 
 /// Dictionary entry from JavaScript
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone, Hash)]
 pub struct DictionaryEntry {
     pub chinese: String,
     pub vietnamese: String,
@@ -1865,6 +1965,7 @@ fn build_trie_from_entries(entries: &[DictionaryEntry]) -> TrieNode {
 #[tauri::command]
 pub async fn build_lookup_index(
     limiters: State<'_, RateLimiters>,
+    trie_cache: State<'_, TrieCache>,
     text: String,
     dictionaries: Vec<DictionaryData>,
     dictionary_order: Vec<String>,
@@ -1882,13 +1983,15 @@ pub async fn build_lookup_index(
         ));
     }
 
-    Ok(build_lookup_index_impl(&text, &dictionaries, &dictionary_order, options))
+    Ok(build_lookup_index_impl(&trie_cache, &text, &dictionaries, &dictionary_order, options))
 }
 
 /// Builds the lookup index from already-security-checked inputs. Pure computation —
 /// no `AppHandle`, no `State`, can't fail — the command wrapper owns the rate-limit
-/// and DoS-size checks, so this is directly unit-testable with no Tauri context needed.
+/// and DoS-size checks, so this is directly unit-testable with no Tauri context needed
+/// (a bare `TrieCache::new()` stands in for the managed state).
 fn build_lookup_index_impl(
+    trie_cache: &TrieCache,
     text: &str,
     dictionaries: &[DictionaryData],
     dictionary_order: &[String],
@@ -1925,18 +2028,27 @@ fn build_lookup_index_impl(
         };
     }
 
-    // Convert JavaScript dictionaries to Rust Dictionary format
+    // Convert JavaScript dictionaries to Rust Dictionary format. Trie construction is
+    // cached by a content hash of each dictionary's own entries — see TrieCache above.
     let rust_dictionaries: Vec<Dictionary> = dictionaries
         .iter()
         .enumerate()
         .map(|(idx, dict_data)| {
-            let trie = build_trie_from_entries(&dict_data.entries);
+            let cache_key = hash_dictionary_entries(&dict_data.entries);
+            let trie = match trie_cache.get(cache_key) {
+                Some(cached) => cached,
+                None => {
+                    let built = Arc::new(build_trie_from_entries(&dict_data.entries));
+                    trie_cache.set(cache_key, built.clone());
+                    built
+                }
+            };
             let dict_type = DictionaryType::from_name(&dict_data.name);
             let priority = dict_data.priority.unwrap_or(idx as u32);
 
             Dictionary {
                 name: dict_data.name.clone(),
-                trie: Arc::new(trie),
+                trie,
                 priority,
                 dict_type,
             }
@@ -2997,7 +3109,37 @@ mod tests {
         let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
 
         assert_eq!(response.failed, 1);
-        assert!(response.results[0].error.as_ref().unwrap().contains("expected a JSON object"));
+        assert!(response.results[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("Dictionary data must be a JSON object"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_parallel_reports_too_many_entries() {
+        let dir = temp_test_dir("load_parallel_too_many_entries");
+        let mut obj = serde_json::Map::new();
+        for i in 0..(MAX_DICTIONARY_ENTRIES + 1) {
+            obj.insert(format!("key{}", i), serde_json::json!("value"));
+        }
+        fs::write(
+            dir.join("phrases.json"),
+            serde_json::to_string(&serde_json::Value::Object(obj)).unwrap(),
+        )
+        .unwrap();
+        let cache = make_cache();
+
+        let response = load_dictionaries_parallel_impl(&dir, &cache, &["phrases".to_string()]);
+
+        assert_eq!(response.failed, 1);
+        assert!(response.results[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("Dictionary too large"));
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -3447,7 +3589,7 @@ mod tests {
         let order = vec!["characters".to_string()];
 
         // "你好" is 2 chars — below the default min_text_length of 50.
-        let response = build_lookup_index_impl("你好", &dictionaries, &order, None);
+        let response = build_lookup_index_impl(&TrieCache::new(), "你好", &dictionaries, &order, None);
 
         assert!(!response.success);
         assert_eq!(response.positions_indexed, 0);
@@ -3464,11 +3606,11 @@ mod tests {
         // 49 chars — one below the default min_text_length of 50 — must still be skipped,
         // proving `None` really does apply min_text_length: 50 (not e.g. 0 or unset).
         let text_49_chars: String = "你".repeat(49);
-        let response = build_lookup_index_impl(&text_49_chars, &dictionaries, &order, None);
+        let response = build_lookup_index_impl(&TrieCache::new(), &text_49_chars, &dictionaries, &order, None);
         assert!(!response.success, "49 chars should still be below the default 50-char minimum");
 
         let text_50_chars: String = "你".repeat(50);
-        let response = build_lookup_index_impl(&text_50_chars, &dictionaries, &order, None);
+        let response = build_lookup_index_impl(&TrieCache::new(), &text_50_chars, &dictionaries, &order, None);
         assert!(response.success, "50 chars should meet the default minimum and build normally");
     }
 
@@ -3483,7 +3625,7 @@ mod tests {
         let order = vec!["phrases".to_string(), "characters".to_string()];
         let text: String = "你好".repeat(30); // well above the 50-char minimum
 
-        let response = build_lookup_index_impl(&text, &dictionaries, &order, None);
+        let response = build_lookup_index_impl(&TrieCache::new(), &text, &dictionaries, &order, None);
 
         assert!(response.success);
         // "你好" matches the phrases dict (priority 0) at every occurrence; if priority
@@ -3500,7 +3642,7 @@ mod tests {
         let order = vec!["characters".to_string()];
         let text: String = "你好".repeat(30); // 60 chars, above the 50-char minimum
 
-        let response = build_lookup_index_impl(&text, &dictionaries, &order, None);
+        let response = build_lookup_index_impl(&TrieCache::new(), &text, &dictionaries, &order, None);
 
         assert!(response.success);
         assert!(response.error.is_none());
@@ -3514,5 +3656,197 @@ mod tests {
             .values()
             .any(|categorized| !categorized.characters.is_empty());
         assert!(has_character_match, "expected at least one 'characters' category match");
+    }
+
+    // ── TrieCache ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_trie_cache_returns_none_on_miss_then_hit_after_set() {
+        let cache = TrieCache::new();
+        let entries = vec![DictionaryEntry {
+            chinese: "你".to_string(),
+            vietnamese: "bạn".to_string(),
+            metadata: None,
+        }];
+        let key = hash_dictionary_entries(&entries);
+
+        assert!(cache.get(key).is_none());
+
+        let trie = Arc::new(build_trie_from_entries(&entries));
+        cache.set(key, trie.clone());
+
+        assert!(cache.get(key).is_some());
+    }
+
+    #[test]
+    fn test_trie_cache_key_changes_with_content_no_invalidation_needed() {
+        // The whole point of content-hash keying: editing a dictionary produces a
+        // different key automatically, with no invalidate() call required anywhere.
+        let original = vec![DictionaryEntry {
+            chinese: "你".to_string(),
+            vietnamese: "bạn".to_string(),
+            metadata: None,
+        }];
+        let edited = vec![DictionaryEntry {
+            chinese: "你".to_string(),
+            vietnamese: "ban".to_string(), // translation edited
+            metadata: None,
+        }];
+
+        assert_ne!(hash_dictionary_entries(&original), hash_dictionary_entries(&edited));
+    }
+
+    #[test]
+    fn test_trie_cache_evicts_past_capacity_and_keeps_newest() {
+        // Matches DictionaryCache's own LRU test convention (see
+        // test_newly_inserted_key_is_retrievable_after_eviction above) — same-millisecond
+        // timestamps in a tight loop make asserting exactly *which* key was evicted
+        // unreliable; size-cap + newest-survives is the stable, real invariant.
+        let cache = TrieCache::new();
+        let make_trie = |n: u64| Arc::new(build_trie_from_entries(&[DictionaryEntry {
+            chinese: format!("字{}", n),
+            vietnamese: format!("tu{}", n),
+            metadata: None,
+        }]));
+
+        for i in 0..MAX_TRIE_CACHE_ENTRIES as u64 {
+            cache.set(i, make_trie(i));
+        }
+        cache.set(MAX_TRIE_CACHE_ENTRIES as u64, make_trie(MAX_TRIE_CACHE_ENTRIES as u64));
+
+        let cache_guard = cache.cache.lock().unwrap();
+        assert_eq!(cache_guard.len(), MAX_TRIE_CACHE_ENTRIES,
+            "cache size should not exceed MAX_TRIE_CACHE_ENTRIES after LRU eviction");
+        drop(cache_guard);
+
+        assert!(cache.get(MAX_TRIE_CACHE_ENTRIES as u64).is_some(),
+            "the most recently inserted entry should survive LRU eviction");
+    }
+
+    #[test]
+    fn test_build_lookup_index_impl_reuses_cached_trie_across_calls() {
+        let dictionaries = vec![make_dict("characters", Some(0), vec![("你", "bạn")])];
+        let order = vec!["characters".to_string()];
+        let text: String = "你好".repeat(30);
+        let trie_cache = TrieCache::new();
+
+        let first = build_lookup_index_impl(&trie_cache, &text, &dictionaries, &order, None);
+        let second = build_lookup_index_impl(&trie_cache, &text, &dictionaries, &order, None);
+
+        // Cache hit on the second call must produce the same matches as the fresh build.
+        assert_eq!(first.positions_indexed, second.positions_indexed);
+        assert_eq!(first.index_size, second.index_size);
+    }
+
+    #[test]
+    fn test_build_lookup_index_impl_sees_edited_entries_immediately() {
+        // Proves content-hash keying never serves a stale trie: editing a dictionary's
+        // entries between two calls on the SAME TrieCache must change the match output
+        // on the very next call, with no explicit invalidation step.
+        let order = vec!["characters".to_string()];
+        let text: String = "你好".repeat(30);
+        let trie_cache = TrieCache::new();
+
+        let before = vec![make_dict("characters", Some(0), vec![("你", "bạn")])];
+        let response_before = build_lookup_index_impl(&trie_cache, &text, &before, &order, None);
+        let has_ban_before = response_before
+            .index
+            .values()
+            .any(|c| c.characters.iter().any(|m| m.translation == "ban"));
+        assert!(!has_ban_before);
+
+        let after = vec![make_dict("characters", Some(0), vec![("你", "ban")])];
+        let response_after = build_lookup_index_impl(&trie_cache, &text, &after, &order, None);
+        let has_ban_after = response_after
+            .index
+            .values()
+            .any(|c| c.characters.iter().any(|m| m.translation == "ban"));
+        assert!(has_ban_after, "edited entry must be reflected immediately, not served stale");
+    }
+
+    // ── list_dictionaries_with_prefix ────────────────────────────────────────
+
+    #[test]
+    fn test_list_dictionaries_with_prefix_excludes_trie_json_cache_files() {
+        let dir = temp_test_dir("list_prefix_trie_json");
+        fs::write(dir.join("properNouns.json"), "{}").unwrap();
+        fs::write(dir.join("properNouns.trie.json"), "{}").unwrap();
+
+        let result = list_dictionaries_with_prefix(&dir, "properNouns").unwrap();
+
+        assert_eq!(result, vec!["properNouns".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_list_dictionaries_with_prefix_silently_drops_invalid_id() {
+        let dir = temp_test_dir("list_prefix_invalid_id");
+        // Starts with the prefix and ends with .json, but the stripped base name
+        // contains ".." — fails validate_dictionary_id's path-traversal check.
+        fs::write(dir.join("properNouns..evil.json"), "{}").unwrap();
+        fs::write(dir.join("properNouns-Valid.json"), "{}").unwrap();
+
+        let result = list_dictionaries_with_prefix(&dir, "properNouns").unwrap();
+
+        assert_eq!(result, vec!["properNouns-Valid".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_list_dictionaries_with_prefix_empty_dir_returns_empty_vec() {
+        let dir = temp_test_dir("list_prefix_empty");
+
+        let result = list_dictionaries_with_prefix(&dir, "properNouns").unwrap();
+
+        assert!(result.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_list_dictionaries_with_prefix_ignores_non_matching_and_non_json_files() {
+        let dir = temp_test_dir("list_prefix_mixed");
+        fs::write(dir.join("properNouns-MyNovel.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-MyNovel.json"), "{}").unwrap(); // different prefix
+        fs::write(dir.join("properNouns-MyNovel.txt"), "{}").unwrap(); // wrong extension
+        fs::write(dir.join("README.md"), "notes").unwrap();
+
+        let result = list_dictionaries_with_prefix(&dir, "properNouns").unwrap();
+
+        assert_eq!(result, vec!["properNouns-MyNovel".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_list_dictionaries_with_prefix_propagates_read_dir_error() {
+        let missing_dir = std::env::temp_dir().join("dictionary_commands_test_does_not_exist_12345");
+        let _ = fs::remove_dir_all(&missing_dir); // ensure it really doesn't exist
+
+        let result = list_dictionaries_with_prefix(&missing_dir, "properNouns");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_list_proper_nouns_dictionaries_impl_uses_proper_nouns_prefix() {
+        let dir = temp_test_dir("list_proper_nouns_impl_smoke");
+        fs::write(dir.join("properNouns-MyNovel.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-MyNovel.json"), "{}").unwrap();
+
+        let result = list_proper_nouns_dictionaries_impl(&dir).unwrap();
+
+        assert_eq!(result, vec!["properNouns-MyNovel".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_list_fiction_pattern_dictionaries_impl_uses_patterns_dash_prefix() {
+        let dir = temp_test_dir("list_fiction_pattern_impl_smoke");
+        fs::write(dir.join("properNouns-MyNovel.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-MyNovel.json"), "{}").unwrap();
+
+        let result = list_fiction_pattern_dictionaries_impl(&dir).unwrap();
+
+        assert_eq!(result, vec!["patterns-MyNovel".to_string()]);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

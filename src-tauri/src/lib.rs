@@ -2,7 +2,7 @@
 mod dictionary_commands;
 pub mod lookup_index_engine;
 
-use dictionary_commands::{DictionaryCache, RateLimiters};
+use dictionary_commands::{DictionaryCache, RateLimiters, TrieCache};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Clipboard command - read text from clipboard
@@ -24,6 +24,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         // Manage dictionary cache state
         .manage(DictionaryCache::new())
+        // PERFORMANCE: Manage trie cache for build_lookup_index (see dictionary_commands.rs)
+        .manage(TrieCache::new())
         // SECURITY: Manage rate limiters for DoS prevention
         .manage(RateLimiters::new())
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
