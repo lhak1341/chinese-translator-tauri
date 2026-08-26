@@ -118,7 +118,7 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 **Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import — not the test file's directory. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'`; test in `src/utils/__tests__/` uses `'../../wasm/translation_wasm_core.js'` (both → `src/wasm/`).
 
-**Vitest matchers — no `toEndWith`/`toStartWith`** (2026-02-13): Vitest uses Chai, not jest-extended. Use `.endsWith(' ')` + `.toBe(true)`, or `toMatch(/ $/)`.
+**Vitest API — Jest-only names don't carry over silently** (2026-02-13, 2026-08-26): Vitest uses Chai, not jest-extended, for matchers — no `toEndWith`/`toStartWith`; use `.endsWith(' ')` + `.toBe(true)`, or `toMatch(/ $/)`. Same trap on the test-block API: Jest's known-broken-test marker is `test.failing(...)`; Vitest's is `test.fails(...)` — the wrong name throws `TypeError: test.failing is not a function` at collection time, not a helpful error.
 
 **`SegmentPrecomputer.findUnitMatch` space-absorption** (2026-02-13): `normalizeText` trims leading whitespace, so `findUnitMatch(' tốt', 'tốt')` returns `{found:true, offset:0}`. Test text-reconstruction (`segments.map(s=>s.text).join('')`) rather than individual `.text` values when units follow spaces.
 

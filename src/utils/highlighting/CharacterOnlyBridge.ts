@@ -1,4 +1,5 @@
 import { logger } from '../logger';
+import { compareByTokenIndex } from './TextPositionMapper';
 import type { SemanticArrays } from './SegmentPrecomputer';
 
 /**
@@ -84,14 +85,21 @@ export function findCharacterOnlyMatch(
 
   // --- 2. Multiple occurrences: score by context + sequential position ---
 
-  const segmentsBefore = sourceArrays.original.slice(
-    Math.max(0, sourceIndex - CONTEXT_WINDOW),
-    sourceIndex
-  );
-  const segmentsAfter = sourceArrays.original.slice(
-    sourceIndex + 1,
-    Math.min(sourceArrays.original.length, sourceIndex + 1 + CONTEXT_WINDOW)
-  );
+  // sourceArrays.original is insertion-order (chunk COMPLETION order under parallel
+  // chunking), not text order — array-index adjacency to sourceIndex is not the same as
+  // textual adjacency. Sort by tokenIndex first so "before"/"after" reflect real neighbors
+  // in the Chinese text, matching the tokenIndex-aware occurrenceInSource logic below.
+  const sortedByPosition = sourceArrays.original
+    .map((text, i) => ({ i, text, tokenIndex: (sourceArrays.metadata as any[])?.[i]?.tokenIndex }))
+    .sort((a, b) => compareByTokenIndex(a.tokenIndex, b.tokenIndex));
+  const posInSorted = sortedByPosition.findIndex((entry) => entry.i === sourceIndex);
+
+  const segmentsBefore = sortedByPosition
+    .slice(Math.max(0, posInSorted - CONTEXT_WINDOW), posInSorted)
+    .map((entry) => entry.text);
+  const segmentsAfter = sortedByPosition
+    .slice(posInSorted + 1, posInSorted + 1 + CONTEXT_WINDOW)
+    .map((entry) => entry.text);
 
   const immediateContextStr =
     segmentsBefore.slice(-2).join('') + segmentsAfter.slice(0, 2).join('');

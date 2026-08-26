@@ -126,6 +126,7 @@
   "124": "SegmentedParagraphs.tsx",
   "125": "PatternFailureTracker",
   "126": "lint-staged",
+  "127": "eslint-plugin-react-refresh",
   "128": "SemanticArrayBuilder.ts",
   "129": "ADR-009: WasmProcessorLifecycle — Shared Init Contract for All WASM Processors",
   "130": "Design",

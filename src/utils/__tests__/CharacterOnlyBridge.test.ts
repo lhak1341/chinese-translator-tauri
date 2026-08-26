@@ -129,6 +129,49 @@ describe('findCharacterOnlyMatch — multi-char segment, multiple occurrences', 
   });
 });
 
+describe('findCharacterOnlyMatch — context window survives chunk-scrambled array order', () => {
+  test('real tokenIndex-adjacent neighbors "P"/"Q" win over array-adjacent decoys "R"/"S"', () => {
+    // processChunksInParallel assigns semantic array indices by chunk COMPLETION order, not
+    // text order (src/utils/CLAUDE.md, "Ordering matters here" note). occurrenceInSource
+    // compensates for this via tokenIndex comparisons (see the "cross-chunk scrambling"
+    // describe block above); segmentsBefore/segmentsAfter must do the same — sort by
+    // tokenIndex before taking neighbors, not slice by raw array index (fixed 2026-08-26,
+    // see CharacterOnlyBridge.ts's sortedByPosition). This fixture places decoys 'R'/'S'
+    // directly array-adjacent to the clicked '在', while its real textual neighbors 'P'/'Q'
+    // (tokenIndex 20/22, either side of the clicked token's 21) sit far away in the array —
+    // a naive array-index slice would find R/S as "immediate context" instead of P/Q.
+    //
+    // Character-Only (target) is built by a single sequential un-chunked loop
+    // (TranslationEngine.js's translateCharacterOnly), so its array order is always true
+    // text order — that's what makes it trustworthy ground truth here. It holds two '在'
+    // occurrences: a decoy flanked by R/S, and the true one flanked by P/Q.
+    const source = makeArrays(
+      [
+        /* 0 */ 'P', // true neighbor BEFORE clicked (tokenIndex 20) — real text-adjacent
+        /* 1 */ 'pad1',
+        /* 2 */ 'pad2',
+        /* 3 */ '在', // decoy earlier occurrence #1 — inflates occurrenceInSource out of range
+        /* 4 */ '在', // decoy earlier occurrence #2
+        /* 5 */ 'R', // array-adjacent-before clicked, but textually unrelated (tokenIndex 50)
+        /* 6 */ '在', // CLICKED — sourceIndex=6, tokenIndex 21
+        /* 7 */ 'S', // array-adjacent-after clicked, but textually unrelated (tokenIndex 51)
+        /* 8 */ 'pad3',
+        /* 9 */ 'pad4',
+        /* 10 */ 'Q', // true neighbor AFTER clicked (tokenIndex 22) — real text-adjacent
+      ],
+      [20, 100, 101, 10, 11, 50, 21, 51, 102, 103, 22]
+    );
+    const target = makeArrays(['R', '在', 'S', 'P', '在', 'Q']);
+
+    // occurrenceInSource resolves to 2 (two earlier '在' at tokenIndex 10, 11 — both < 21),
+    // out of range for the 2 real target occurrences (matchIndex 0 or 1), so sequential
+    // scoring is neutralized and context scoring alone decides. Real neighbors 'P'/'Q' →
+    // picks the [P,在,Q] occurrence at target index 4.
+    const result = findCharacterOnlyMatch(6, source, target);
+    expect(result).toEqual([4]);
+  });
+});
+
 describe('findCharacterOnlyMatch — mixed-granularity source units (architecture review 2026-08-25, candidate 4)', () => {
   test('counts an earlier merged unit that textually embeds targetSegment, not just exact-equal units', () => {
     // text: "他你好吗你好" — source groups "你好吗" as one merged unit (e.g. a matched

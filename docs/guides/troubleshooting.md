@@ -78,6 +78,8 @@ console.log(
 
 **Common symptom**: a word split into clickable + non-clickable parts (e.g. "màu" → clickable "mà" + stray "u") — usually a shorter candidate matching inside a longer one; see the "màu" postmortem below for the resolved instance and the current fix location.
 
+**Common symptom**: same character highlights a _different_ instance across panels — check `CharacterOnlyBridge.ts`'s `findCharacterOnlyMatch` for array-index slicing instead of tokenIndex-sorted order (array index reflects chunk _completion_ order, not text order). See the 2026-08-26 postmortem below.
+
 ---
 
 ## Development Process Lessons
@@ -197,6 +199,10 @@ Found via architecture review candidate #3 grilling — unskipping a stale `Tran
 ### Shipped and reverted same-session, 2026-08-16: `semanticArrayValidator` wired into `checkSemanticArrayCorruption`
 
 Wired `semanticArrayValidator.validateAllPositions()` (checks `translatedStart`/`translatedEnd`) into `TranslationEngine.js`'s per-phase `checkSemanticArrayCorruption` — broken on two independent counts: those fields stay `-1` until `postProcess` sets them _after_ all 5 phases finish (so the check read not-yet-computed data on every one of its 5 call sites, 100% false-positive toast on every translation), and even once set they're documented as char-only-exclusive — never read by the full-translation highlighting path this engine serves. Reverted; see `src/utils/CLAUDE.md`'s `checkSemanticArrayCorruption` entry for the field-timing detail. `hasValidPositions`/`validateAllPositions` are dead again with no known safe integration point on the full-translation path.
+
+### Cross-panel highlight picks wrong duplicate-char instance, 2026-08-26
+
+`findCharacterOnlyMatch`'s context-window scoring (`segmentsBefore`/`segmentsAfter`) sliced `sourceArrays.original` by raw array index around `sourceIndex`, assuming array-adjacent meant text-adjacent — false under `processChunksInParallel`'s completion-order scrambling. The sibling `occurrenceInSource` count already guarded against this via `tokenIndex` comparison; the context window didn't, so it could feed scoring the neighbors of a physically-adjacent-but-textually-unrelated chunk, sometimes outscoring the true neighbors — intermittent, timing-dependent. Reproduced with a synthetic scrambled fixture (pure function, no real chunking) in `CharacterOnlyBridge.test.ts`. Fixed: sort by `tokenIndex` before slicing, matching `WordSegmentMatcher.ts`/`SegmentPrecomputer.ts`'s existing pattern.
 
 ## Verifying Claims Before Acting
 
