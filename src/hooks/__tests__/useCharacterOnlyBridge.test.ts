@@ -190,6 +190,15 @@ describe('scroll effect', () => {
     expect(mockScroll).toHaveBeenCalledWith(charOnlyRef, 2);
   });
 
+  test('characterOnlyUnitIndex = 0 → scrolls to first unit (falsy-zero regression)', async () => {
+    renderHook(() => useCharacterOnlyBridge({ ...BASE, characterOnlyUnitIndex: 0 }));
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    expect(mockScroll).toHaveBeenCalledOnce();
+    expect(mockScroll).toHaveBeenCalledWith(charOnlyRef, 0);
+  });
+
   test('array of indices → uses first index', async () => {
     renderHook(() => useCharacterOnlyBridge({ ...BASE, characterOnlyUnitIndex: [3, 5] }));
     await act(async () => {

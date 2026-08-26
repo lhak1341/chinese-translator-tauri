@@ -104,7 +104,7 @@ Each of these was previously duplicated on the engine or a caller, and the copie
 
 Adapter-specific logic that legitimately stays split: Semantic's Phase A result injection (seeded as lowest-priority `initialCache`); TwoPhase's step-1b pattern-translated tokens (`patternSemanticType`, runs after the shared stages so it overrides stage-1 proper-noun entries for the same word); and type resolution (Semantic imports `classifyVariableType` from `VariableTypeClassifier.ts`, TwoPhase uses `metadata?.semanticType` with an inline fallback). Canonical phrase type fallback is `metadata?.semanticType || 'concept'`, **not** `'phrase'`.
 
-Ordering matters here because `processChunksInParallel` assigns semantic array indices by chunk **completion** order, not text order. Two sites sort through `compareByTokenIndex`: the Full Translation word-level builder (`TranslationEngine.js`, `candidateWords.sort` — tiebreak for same-length candidates) and the Original Chinese panel (`SegmentPrecomputer.ts`, `precomputeOriginalSegments` — sorts `firstCharIndex` candidate lists, and the word-level `filteredUnits` sort earlier in the same file). **`CharacterOnlyBridge.ts`'s `occurrenceInSource` count is not a sort** — it is a linear scan with its own dual-sided fallback (`i < sourceIndex` when `tokenIndex` is missing on either side). Different shape; do not force it through the shared comparator.
+Ordering matters here because `processChunksInParallel` assigns semantic array indices by chunk **completion** order, not text order. Two sites sort through `compareByTokenIndex`: the Full Translation word-level builder (`WordSegmentMatcher.ts` — tiebreak for same-length candidates; moved here from a `TranslationEngine.js`-local `candidateWords.sort` as part of the comparator unification, verify current call site before citing a line number) and the Original Chinese panel (`SegmentPrecomputer.ts`, `precomputeOriginalSegments` — sorts `firstCharIndex` candidate lists, and the word-level `filteredUnits` sort earlier in the same file). **`CharacterOnlyBridge.ts`'s `occurrenceInSource` count is not a sort** — it is a linear scan with its own dual-sided fallback (`i < sourceIndex` when `tokenIndex` is missing on either side). Different shape; do not force it through the shared comparator.
 
 Dev console commands are never automatically tested and rot silently — confirmed twice, once via a guard property that stopped existing (ADR-019) and once via `window.runPatternParityTests` referencing a property that never existed at all. Invoke any new command manually once to confirm its guard passes.
 
@@ -144,22 +144,6 @@ Dev console commands are never automatically tested and rot silently — confirm
 
 ---
 
-## `// @ts-check` coverage
-
-26 files have `// @ts-check` active (grep the comment to find them); they were explicitly fixed to 0 errors, so do not remove it without understanding that. 18 utils remain deferred at 25–69 errors each.
-
-Patterns required when adding it to a new file:
-
-- `@returns {Array}` needs a type arg: `{Array<*>}` (TS2314)
-- `// @ts-ignore` suppresses only the next single line — collapse multi-line imports to one line first
-- Catch bindings: `} catch (/** @type {any} */ error) {`
-- `window.customProp = x` needs `// @ts-ignore` above
-- `@param {Object} options` with sub-property docs → inline type `@param {{ x: string }} [options]`
-- `constructor(options = {})` where the type has required props → `// @ts-ignore` above the constructor
-- Module-level `let x = null` → `/** @type {Function|null} */` above
-- `const arr = []` → `const arr = /** @type {Array<{...}>} */ ([])`
-- Tightening a shared utility's `@param` can break callers — grep them after narrowing
-
 ---
 
-📖 Testing gotchas for this directory live in [`docs/guides/gotchas.md#testing-gotchas`](../../docs/guides/gotchas.md#testing-gotchas).
+📖 `// @ts-check` JSDoc patterns and testing gotchas for this directory live in [`docs/guides/gotchas.md`](../../docs/guides/gotchas.md#ts-check-coverage) ([testing](../../docs/guides/gotchas.md#testing-gotchas)).

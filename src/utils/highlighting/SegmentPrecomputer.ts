@@ -164,19 +164,6 @@ export function precomputeOriginalSegments(
     }
 
     if (bestMatch && bestStartPos >= currentPosition) {
-      // Add any skipped characters as non-clickable text
-      if (bestStartPos > currentPosition) {
-        const skippedText = text.substring(currentPosition, bestStartPos);
-        segments.push({
-          type: 'text',
-          text: skippedText,
-          start: currentPosition,
-          end: bestStartPos,
-          unitIndex: -1,
-          isClickable: false,
-        });
-      }
-
       // Add the semantic unit
       segments.push({
         type: 'semantic',

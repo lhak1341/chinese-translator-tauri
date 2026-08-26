@@ -59,78 +59,73 @@ export class ChunkPostProcessor {
 
       const fullChunkText = openingPunctuation + content + processedPunctuation + lineBreaks;
 
-      // Build segments if semantic arrays are provided
-      if (segments !== null) {
-        // Add opening punctuation segment if it exists
-        if (openingPunctuation) {
+      // Add opening punctuation segment if it exists
+      if (openingPunctuation) {
+        segments.push({
+          type: 'punctuation',
+          start: currentPosition,
+          end: currentPosition + openingPunctuation.length,
+          text: openingPunctuation,
+          isClickable: false,
+          chunkIndex: index,
+        });
+        currentPosition += openingPunctuation.length;
+      }
+
+      // Add content segment
+      if (content) {
+        if (chunk.semanticIndex !== undefined && semanticArrays) {
+          // Semantic (translated) content
           segments.push({
-            type: 'punctuation',
+            type: 'semantic',
+            unitIndex: chunk.semanticIndex,
             start: currentPosition,
-            end: currentPosition + openingPunctuation.length,
-            text: openingPunctuation,
+            end: currentPosition + content.length,
+            originalText: semanticArrays.original[chunk.semanticIndex],
+            translatedText: content,
+            source: semanticArrays.metadata[chunk.semanticIndex]?.source || 'unknown',
+            metadata: semanticArrays.metadata[chunk.semanticIndex],
+            isClickable: true,
+            chunkIndex: index,
+          });
+        } else {
+          // Untranslated content (Latin/numbers)
+          segments.push({
+            type: 'untranslated',
+            start: currentPosition,
+            end: currentPosition + content.length,
+            text: content,
             isClickable: false,
             chunkIndex: index,
           });
-          currentPosition += openingPunctuation.length;
         }
+        currentPosition += content.length;
+      }
 
-        // Add content segment
-        if (content) {
-          if (chunk.semanticIndex !== undefined && semanticArrays) {
-            // Semantic (translated) content
-            segments.push({
-              type: 'semantic',
-              unitIndex: chunk.semanticIndex,
-              start: currentPosition,
-              end: currentPosition + content.length,
-              originalText: semanticArrays.original[chunk.semanticIndex],
-              translatedText: content,
-              source: semanticArrays.metadata[chunk.semanticIndex]?.source || 'unknown',
-              metadata: semanticArrays.metadata[chunk.semanticIndex],
-              isClickable: true,
-              chunkIndex: index,
-            });
-          } else {
-            // Untranslated content (Latin/numbers)
-            segments.push({
-              type: 'untranslated',
-              start: currentPosition,
-              end: currentPosition + content.length,
-              text: content,
-              isClickable: false,
-              chunkIndex: index,
-            });
-          }
-          currentPosition += content.length;
-        }
+      // Add punctuation segment
+      if (processedPunctuation) {
+        segments.push({
+          type: 'punctuation',
+          start: currentPosition,
+          end: currentPosition + processedPunctuation.length,
+          text: processedPunctuation,
+          isClickable: false,
+          chunkIndex: index,
+        });
+        currentPosition += processedPunctuation.length;
+      }
 
-        // Add punctuation segment
-        if (processedPunctuation) {
-          segments.push({
-            type: 'punctuation',
-            start: currentPosition,
-            end: currentPosition + processedPunctuation.length,
-            text: processedPunctuation,
-            isClickable: false,
-            chunkIndex: index,
-          });
-          currentPosition += processedPunctuation.length;
-        }
-
-        // Add line breaks segment
-        if (lineBreaks) {
-          segments.push({
-            type: 'linebreak',
-            start: currentPosition,
-            end: currentPosition + lineBreaks.length,
-            text: lineBreaks,
-            isClickable: false,
-            chunkIndex: index,
-          });
-          currentPosition += lineBreaks.length;
-        }
-      } else {
-        currentPosition += fullChunkText.length;
+      // Add line breaks segment
+      if (lineBreaks) {
+        segments.push({
+          type: 'linebreak',
+          start: currentPosition,
+          end: currentPosition + lineBreaks.length,
+          text: lineBreaks,
+          isClickable: false,
+          chunkIndex: index,
+        });
+        currentPosition += lineBreaks.length;
       }
 
       return fullChunkText;

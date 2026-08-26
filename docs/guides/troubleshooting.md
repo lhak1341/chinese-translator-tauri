@@ -8,13 +8,13 @@ This guide provides systematic diagnosis frameworks for common translation issue
 
 **Systematic diagnosis framework:**
 
-### Step 1: Check Translation Cache
+### Step 1: Rule Out Stale Dictionary/Config State
 
 ```bash
-# Click "Reload Dictionary" button (clears cache + reloads dictionaries)
+# Click "Reload Dictionary" button (reloads dictionaries + engine config)
 ```
 
-**Why first**: `TranslationSegmentCache` stores results in localStorage, persists across restarts, can serve stale/corrupted translations despite code fixes.
+**Why first**: no translation result is cached anywhere — `TranslationSegmentCache`/`SemanticTranslationCache` have both since been removed from the codebase — but a reload is still the cheapest way to rule out stale in-memory dictionary/config state before debugging logic.
 
 ### Step 2: Verify Execution Path
 
@@ -72,109 +72,11 @@ console.log(
 
 ## When Clickable Highlighting Is Wrong
 
-**Systematic diagnosis framework:**
+**Which mode, which file**: see ADR-002's Debugging Pattern (`docs/adr/ADR-002-dual-path-clickable-highlighting.md`) — character-only and full-translation are separate implementations. Check `TranslatorDisplayPanels.tsx` first to confirm which panel actually renders the bug, then debug `SegmentPrecomputer.ts` (character-only) or the full-translation segment-building path (`TranslationEngine.js` / `WordSegmentMatcher.ts`) accordingly.
 
-### Step 1: Identify Which Mode Has the Bug
+**Diagnostic technique**: add `logger.warn` at segment/unit _creation_ (not at matching) — log the translated text, its length, the position being extracted, and the text actually found at that position in the output. A mismatch between what the semantic array says and what gets extracted is a substring collision or encoding issue.
 
-- Character-only (bottom-left panel): Debug `SegmentPrecomputer.js`
-- Full Translation (right panel): Debug `TranslationEngine.js:5184-5350`
-
-**Common symptom**: Word split into clickable + non-clickable parts (e.g., "màu" → "mà" + "u")
-
-### Step 2: Add Diagnostic Logging to Verify Segment Creation
-
-```javascript
-// For Full Translation, add in TranslationEngine.js around line 5280:
-if (position >= 0) {
-  if (wordInfo.translated.includes('problematic-word')) {
-    logger.warn('🔍 Creating segment:', {
-      translated: wordInfo.translated,
-      translatedLength: wordInfo.translated.length,
-      position,
-      currentPosition,
-      textAtPosition: cleanedFinalResult.substring(position, position + 10),
-      extractedText: cleanedFinalResult.substring(position, position + wordInfo.translated.length),
-    });
-  }
-}
-```
-
-**What to check**:
-
-- `translated`: What's in the semantic array
-- `extractedText`: What's being extracted from the output
-- Mismatch = substring collision or encoding issue
-
-### Step 3: Check Semantic Array Contents
-
-```javascript
-// Add in SemanticArrayBuilder.js or OptimizedSemanticArrayBuilder.js addUnit():
-if (translatedText && translatedText.includes('problematic-word')) {
-  logger.warn('🔍 addUnit() called:', {
-    originalText,
-    translatedText,
-    translatedLength: translatedText.length,
-    source,
-  });
-}
-```
-
-**What to check**:
-
-- Is the semantic array being populated with the correct value?
-- Multiple entries for similar words? (e.g., "mà" and "màu trắng")
-
-### Real Bug Example (Jan 2025): "màu" split into "mà" + "u"
-
-**Root cause**: Semantic array had TWO entries:
-
-- "而" → "mà" (2 chars)
-- "白色" → "màu trắng" (9 chars)
-
-When searching the output text, "mà" matched first (inside "màu trắng"), blocking the correct match.
-
-**Fix**: Sort candidate words by length (longest first) before matching:
-
-```javascript
-// TranslationEngine.js:5214
-candidateWords.sort((a, b) => b.translated.length - a.translated.length);
-```
-
-**Pattern**: Always match longer words before shorter words to prevent substring collisions.
-
----
-
-## When Cache Serves Wrong Translation
-
-**Pattern**: Semantic cache returns character-level translations instead of proper noun translations, violating 5-phase priority.
-
-**Symptoms:**
-
-- Dictionary entry exists but not translating (character fallback used)
-- Mixed translation quality (some proper nouns work, others don't)
-- Cache hit rate looks good but accuracy degraded
-
-**Root cause**: `SemanticTranslationCache` served cached results without respecting phase priority.
-
-**Diagnostic steps:**
-
-1. Check cache vs dictionary: Verify entry exists but cache serves different result
-2. Phase priority analysis: Lower phases (proper nouns=2) must override higher phases (characters=5)
-3. Cache metadata inspection: Check if cached result includes `phasePriority` metadata
-
-**Solution pattern**: Phase-aware caching with priority validation
-
-```javascript
-// CORRECT: Check phase priority before serving cache
-const cacheResult = semanticTranslationCache.get(text, source);
-if (cacheResult && cacheResult.metadata.phasePriority <= currentPhasePriority) {
-  return cacheResult.result; // Safe to use
-}
-```
-
-**Implementation**: `TranslationEngine.js:567-636` validates phase priority before serving cached results.
-
-**Resolution**: Click "Reload Dictionary" button - clears all caches including semantic cache.
+**Common symptom**: a word split into clickable + non-clickable parts (e.g. "màu" → clickable "mà" + stray "u") — usually a shorter candidate matching inside a longer one; see the "màu" postmortem below for the resolved instance and the current fix location.
 
 ---
 
@@ -263,241 +165,23 @@ function validateWasmToken(token: unknown): WasmToken {
 
 ## Error Handling Patterns
 
-### React Async Error Boundaries Pattern
+Principles only — the code samples and file/line citations previously here (`LazyDictionaryContext.tsx`, old `configValidation.ts` export names, hardcoded WASM return shapes) had drifted from the real implementations across multiple renames/refactors and were removed rather than re-verified line-by-line (2026-08-26 hygiene pass). Read the real current file for the exact shape when applying one of these.
 
-Error boundaries don't catch errors in async callbacks. Wrap all async operations in try-catch with toast notifications.
-
-```typescript
-// CRITICAL-1: React async operations
-const addEntry = useCallback(
-  async (dictionaryId: string, source: string, translation: string) => {
-    try {
-      // Validation
-      const validationError = validateDictionaryEntry(dictionaryId, source, translation);
-      if (validationError) {
-        toast.error(`Invalid entry: ${validationError}`);
-        throw new Error(validationError);
-      }
-
-      // Optimistic update
-      const oldData = { ...dictionaries[dictionaryId] };
-      setDictionaries((prev) => ({ ...prev, [dictionaryId]: newData }));
-
-      // Persist to backend
-      const result = await window.electronAPI.saveDictionary(dictionaryId, newData);
-
-      if (result.success) {
-        toast.success('Entry added successfully');
-      } else {
-        // Rollback on failure
-        setDictionaries((prev) => ({ ...prev, [dictionaryId]: oldData }));
-        toast.error(`Save failed: ${result.error}. Changes reverted.`);
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      console.error('Error adding dictionary entry:', error);
-      if (!(error instanceof Error && error.message.includes('Invalid entry'))) {
-        toast.error(`Could not add entry: ${error.message}`);
-      }
-      throw error;
-    }
-  },
-  [dictionaries]
-);
-```
-
-**Key principles:**
-
-- Try-catch wraps entire async operation
-- Optimistic updates with rollback on failure
-- Toast notifications for all outcomes (success, validation, failure)
-- Don't re-toast validation errors (already shown)
-
-**Implementation**: `LazyDictionaryContext.tsx:addEntry()`, `updateEntry()`, `deleteEntry()`, `undo()`, `redo()`
-
-### WASM Graceful Degradation Pattern
-
-WASM modules may fail to initialize. Return empty results instead of throwing to allow app to continue with reduced functionality.
-
-```javascript
-// CRITICAL-2: WASM pattern processor
-export async function processTokensWasm(semanticTokens, variableCache) {
-  if (!wasmPatternProcessor) {
-    console.warn('⚠️ WASM Pattern Processor not initialized - skipping pattern processing');
-    console.warn('Translation will continue with lower quality (no pattern matching)');
-    return []; // Graceful degradation, don't block translation
-  }
-
-  try {
-    return wasmPatternProcessor.processTokens(semanticTokens, variableCache);
-  } catch (error) {
-    console.error('❌ Error in WASM pattern processing, skipping patterns:', error);
-    return []; // Don't propagate error, allow translation to continue
-  }
-}
-```
-
-**Key principles:**
-
-- Check initialization before use
-- Warn user about degraded functionality
-- Return empty results (not null/undefined)
-- Catch and log errors without propagating
-
-**Implementation**: `WasmPatternProcessor.js:processTokensWasm()`, `WasmDictionaryManager.js:findMatches()`
-
-### Initialization Error Recovery Pattern
-
-Critical initialization failures need user-visible errors with recovery options.
-
-```javascript
-// CRITICAL-3: Translation engine initialization
-const [initializationError, setInitializationError] = useState(null);
-
-useEffect(() => {
-  async function initializeEngine() {
-    try {
-      engineRef.current = createTranslationEngine();
-      await engineRef.current.initialize(filteredDictionaries, {...});
-      setEngineInitialized(true);
-      setInitializationError(null);
-    } catch (error) {
-      console.error('Failed to initialize engine:', error);
-      setEngineInitialized(false);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown initialization error';
-      setInitializationError(errorMsg);
-      toast.error(`Engine initialization failed: ${errorMsg}. Try reloading dictionaries.`, {
-        duration: 10000,
-      });
-    }
-  }
-  initializeEngine();
-}, [filteredDictionaries]);
-
-// In render:
-{initializationError && (
-  <div style={{ backgroundColor: '#fef2f2', borderLeft: '4px solid #dc2626', padding: '1rem' }}>
-    <strong style={{ color: '#dc2626' }}>⚠️ Translation Engine Error</strong>
-    <div style={{ color: '#991b1b' }}>{initializationError}</div>
-    <div style={{ display: 'flex', gap: '0.5rem' }}>
-      <button onClick={handleForceReload}>Reload Dictionaries</button>
-      <button onClick={() => window.location.reload()}>Reload App</button>
-    </div>
-  </div>
-)}
-```
-
-**Key principles:**
-
-- State tracks initialization errors
-- Error banner visible to user
-- Provide recovery actions (reload dictionaries, reload app)
-- Long toast duration (10s) for critical errors
-
-**Implementation**: `Translator.jsx:initializationError state`
-
-### Fallback Mode Notification Pattern
-
-When performance-critical systems degrade to slower fallbacks, notify users once.
-
-```javascript
-// HIGH-2: Rust lookup index fallback
-handleFailure(error) {
-  this.consecutiveFailures++;
-
-  if (this.consecutiveFailures >= this.maxFailuresBeforeFallback) {
-    console.warn('🚨 Too many Rust lookup index failures, disabling Rust implementation');
-    this.enabled = false;
-
-    // One-time notification
-    if (!this.showedFallbackWarning) {
-      toast.warning(
-        'High-performance indexing unavailable. Large texts may translate slower.',
-        { duration: 5000 }
-      );
-      this.showedFallbackWarning = true;
-    }
-  }
-}
-```
-
-**Key principles:**
-
-- Track consecutive failures (not total)
-- One-time notification (boolean flag prevents spam)
-- Warn about performance impact
-- Clear, actionable message
-
-**Implementation**: `RustLookupIndexManager.js:handleFailure()`, `WasmDictionaryManager.js:handleFailure()`
-
-### Configuration Validation Pattern
-
-All external data (configuration files, dictionaries) must be validated before use to prevent crashes from corrupted or malicious input.
-
-```typescript
-// CRITICAL: Configuration loading with validation (January 2026)
-import {
-  validateElectronResult,
-  validateConfiguration,
-  validateDictionary,
-  type AppConfiguration,
-  type Dictionary,
-} from '../utils/configValidation';
-
-// Step 1: Validate ElectronAPI result structure
-const rawResult = await window.electronAPI.loadConfiguration();
-const configResult = validateElectronResult<AppConfiguration>(rawResult, 'loadConfiguration');
-
-// Step 2: Validate configuration data with safe defaults
-if (configResult.success && configResult.data) {
-  const validatedConfig = validateConfiguration(configResult.data);
-
-  // Use validated data (guaranteed safe types, defaults for invalid fields)
-  const selectedDictionary = validatedConfig.defaultQuickAddDictionary;
-} else {
-  // Handle load failure
-  logger.warn(`Configuration load failed: ${configResult.error}`);
-  // Use fallback logic
-}
-
-// Dictionary validation
-const rawDict = await window.electronAPI.loadDictionary(dictId);
-const dictResult = validateElectronResult<Dictionary>(rawDict, `loadDictionary(${dictId})`);
-
-if (dictResult.success && dictResult.data) {
-  const validatedDict = validateDictionary(dictResult.data, dictId);
-  // Use validatedDict (invalid entries omitted, valid entries preserved)
-}
-```
-
-**Key principles:**
-
-- **Two-phase validation**: Validate result structure first, then data contents
-- **Safe defaults**: Invalid fields get sensible defaults instead of crashing
-- **Type safety**: TypeScript interfaces enforce expected structure
-- **Graceful degradation**: Invalid entries skipped, valid entries preserved
-- **Security**: Prevents type confusion, injection attacks, malformed data crashes
-
-**Validation functions:**
-
-- `validateElectronResult()` - Validates result structure (success/data/error fields)
-- `validateConfiguration()` - Validates app config with defaults for invalid fields
-- `validateDictionary()` - Validates entire dictionary, skips invalid entries
-- `validateDictionaryEntry()` - Validates single entry (string or complex metadata)
-- `validateDictionaryList()` - Validates array of dictionary IDs
-- `sanitizeString()` - Removes control characters, limits length
-
-**Implementation**: `configValidation.ts` (validation functions), `useDictionaryConfig.js:90-115` (config loading), `Translator.jsx:1938-1969` (dictionary loading)
-
-**Test Coverage**: 41 tests in `configValidation.test.ts` verify all validation patterns, including security edge cases.
-
-**Test Coverage**: 84 tests across 5 test files verify all error handling patterns.
+- **Async error boundaries**: React error boundaries don't catch errors in async callbacks — wrap async mutations in try/catch, optimistic-update-then-rollback-on-failure, toast on every outcome, don't re-toast a validation error already shown.
+- **WASM graceful degradation**: a WASM processor that fails to init or throws mid-call should return an empty/neutral result, not propagate — translation continues at reduced quality rather than blocking.
+- **Init error recovery**: surface critical initialization failures as a visible, dismissible error state with recovery actions (reload dictionaries / reload app), not a silent crash.
+- **Fallback notification**: track _consecutive_ failures (not total) before falling back to a slower path, warn the user exactly once via a boolean flag — a toast on every failure is spam.
+- **External data validation**: validate config/dictionary data at the IPC boundary with safe per-field defaults instead of trusting a raw Electron/Tauri result — invalid entries get skipped, not a crash.
 
 ---
 
 ## Resolved Bug Postmortems
 
 Moved out of root `CLAUDE.md` 2026-08-13 (agent-config-hygiene audit) — the one-line actionable rule stays in `CLAUDE.md`, full narrative lives here.
+
+### "màu" split into "mà" + "u" (Jan 2025)
+
+Semantic array had two entries — "而" → "mà" (2 chars) and "白色" → "màu trắng" (9 chars) — and matching by first-occurrence-in-text let the shorter "mà" match inside "màu trắng" first, splitting one clickable unit into a clickable "mà" plus a stray non-clickable "u". Fixed by sorting candidates longest-first before matching. The original ad-hoc `candidateWords.sort((a, b) => b.translated.length - a.translated.length)` no longer exists at its originally-reported `TranslationEngine.js` location — length-based tie-breaking for same-position candidates is now handled by the unified `compareByTokenIndex` comparator (`src/utils/highlighting/TextPositionMapper.ts`, called from `WordSegmentMatcher.ts` and `SegmentPrecomputer.ts`; see `src/utils/CLAUDE.md`'s "Token ordering by text position" entry). The general pattern still holds: always match longer candidates before shorter ones to avoid substring collisions.
 
 ### `useEngineReinitializer.js` WASM-sync-validation status check
 

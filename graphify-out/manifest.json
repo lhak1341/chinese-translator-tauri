@@ -95,9 +95,9 @@
     "semantic_hash": ""
   },
   "wasm-core/src/string_processor.rs": {
-    "mtime": 1780131812.0031517,
-    "ast_hash": "9e2c05031434c2111e92c589cb0bb361",
-    "semantic_hash": "9e2c05031434c2111e92c589cb0bb361"
+    "mtime": 1787680452.8750203,
+    "ast_hash": "255801569f845cd0b38129616cf27522",
+    "semantic_hash": ""
   },
   "wasm-core/src/text_tokenizer.rs": {
     "mtime": 1785345743.0591962,
@@ -455,8 +455,8 @@
     "semantic_hash": ""
   },
   "src/utils/highlighting/SegmentPrecomputer.ts": {
-    "mtime": 1786962098.1285934,
-    "ast_hash": "8fd98a9e64b08c78e867d836d24251cb",
+    "mtime": 1787707210.6339824,
+    "ast_hash": "db4dbf1f4372a415240ba36ad0aec374",
     "semantic_hash": ""
   },
   "src/utils/highlighting/CharacterOnlyBridge.ts": {
@@ -680,8 +680,8 @@
     "semantic_hash": "ed5d1bb5f6f661f911d08d7db4a327aa"
   },
   "src/utils/text/ChunkPostProcessor.js": {
-    "mtime": 1786981537.2988389,
-    "ast_hash": "071deba6bf6d292df96735fd1c6ab840",
+    "mtime": 1787707221.0525208,
+    "ast_hash": "a6a6f2f9f4e54d3c4a399191f871c1be",
     "semantic_hash": ""
   },
   "src/utils/text/ProperNounCapitalizationMap.ts": {
@@ -895,8 +895,8 @@
     "semantic_hash": "7af735b96f88f0cb5c059fce290b22c2"
   },
   "src/components/full-translation/ClickableTranslationOptimized.tsx": {
-    "mtime": 1787594070.9580195,
-    "ast_hash": "5f8c0e584b68e06074032babf18d12b6",
+    "mtime": 1787707208.490989,
+    "ast_hash": "05a0060edb4286fcc71f13042c2aef21",
     "semantic_hash": ""
   },
   "src/components/translator/TranslatorDisplayPanels.tsx": {
@@ -975,8 +975,8 @@
     "semantic_hash": "18da3c565aa14201158b081eb3e54ff9"
   },
   "src/hooks/useCharacterOnlyBridge.ts": {
-    "mtime": 1787591785.6156888,
-    "ast_hash": "7b56844123e0c56e35262b945ade3de7",
+    "mtime": 1787707421.034148,
+    "ast_hash": "ee68901b96de69c5ff16b5c8622758e9",
     "semantic_hash": ""
   },
   "src/hooks/usePerformanceMonitoring.js": {
@@ -1135,8 +1135,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1786985974.499214,
-    "ast_hash": "0a75005200eba3599cf89361013cf1aa",
+    "mtime": 1787679085.879467,
+    "ast_hash": "a1f4bdcb5598150a02450f42ef3ff944",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1145,8 +1145,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1786985974.499214,
-    "ast_hash": "0a75005200eba3599cf89361013cf1aa",
+    "mtime": 1787679085.879467,
+    "ast_hash": "a1f4bdcb5598150a02450f42ef3ff944",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1165,8 +1165,8 @@
     "semantic_hash": "4445788b5416a20c7f060167a6eff6f2"
   },
   "docs/README.md": {
-    "mtime": 1787670608.996364,
-    "ast_hash": "b0fc67fc3f52e1be85fce5f569f20781",
+    "mtime": 1787679934.8461301,
+    "ast_hash": "1e061205ea9dec0cd3d50bb27bc277e1",
     "semantic_hash": ""
   },
   "docs/HOTKEYS.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": "ffe3070521c171ce32058444c7f3a4a3"
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1787621017.3473954,
-    "ast_hash": "6440ea997c97fd18e0614a2f806bfe8e",
+    "mtime": 1787707980.8016882,
+    "ast_hash": "b4cdca44ea98e743cf2385196bec92f0",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": "361e2be5aa5ed1ccb80a772d8fa22b28"
   },
   "docs/guides/development.md": {
-    "mtime": 1787670895.8195868,
-    "ast_hash": "0614dffb3a7ad52c0b37a954f8e945c2",
+    "mtime": 1787679076.4040048,
+    "ast_hash": "cb0ab85e73a97cbf023bdaf2c44e037f",
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1787619291.484212,
-    "ast_hash": "344e40d6ff1aeb00dbe0cc30c2312101",
+    "mtime": 1787680512.911446,
+    "ast_hash": "3e9afff1d4b8614b9fea23e9921202bb",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1410,8 +1410,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1787670969.444962,
-    "ast_hash": "fffc683f84051137a4ca78d73d84f14e",
+    "mtime": 1787707999.2692327,
+    "ast_hash": "7ef422a1f2c62fb30a7e4a051bb788fb",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1852,6 +1852,11 @@
   "src/utils/dictionary/DictionaryEntrySanitizer.ts": {
     "mtime": 1787590484.3287342,
     "ast_hash": "fd4dfb11f2c3f19166ec032a04a7afdf",
+    "semantic_hash": ""
+  },
+  "docs/guides/gotchas.md": {
+    "mtime": 1787708008.2620673,
+    "ast_hash": "8d38f0a21c81427b5adb6c68249968c4",
     "semantic_hash": ""
   }
 }

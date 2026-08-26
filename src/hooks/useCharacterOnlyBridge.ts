@@ -92,7 +92,7 @@ export function useCharacterOnlyBridge({
 
   // Scroll effect: after Character Only index is set, scroll the panel to the element.
   useEffect(() => {
-    if (!characterOnlyUnitIndex || characterOnlyUnitIndex === -1) return;
+    if (characterOnlyUnitIndex === -1) return;
 
     const timeoutId = setTimeout(() => {
       const firstIndex = Array.isArray(characterOnlyUnitIndex)

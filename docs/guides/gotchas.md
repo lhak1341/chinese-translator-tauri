@@ -256,6 +256,22 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Temporary debug instrumentation in huge files (`TranslationEngine.js`, `SemanticPatternProcessor.js`) is easy to leave behind** — grep for `console.error`/`console.log`/whatever debug tag you added before considering a bug hunt finished. File size makes a stray line easy to miss on a final read-through.
 
+## `// @ts-check` Coverage
+
+26 files under `src/utils/` have `// @ts-check` active (grep the comment to find them); they were explicitly fixed to 0 errors, so do not remove it without understanding that. 18 utils remain deferred at 25–69 errors each.
+
+Patterns required when adding it to a new file:
+
+- `@returns {Array}` needs a type arg: `{Array<*>}` (TS2314)
+- `// @ts-ignore` suppresses only the next single line — collapse multi-line imports to one line first
+- Catch bindings: `} catch (/** @type {any} */ error) {`
+- `window.customProp = x` needs `// @ts-ignore` above
+- `@param {Object} options` with sub-property docs → inline type `@param {{ x: string }} [options]`
+- `constructor(options = {})` where the type has required props → `// @ts-ignore` above the constructor
+- Module-level `let x = null` → `/** @type {Function|null} */` above
+- `const arr = []` → `const arr = /** @type {Array<{...}>} */ ([])`
+- Tightening a shared utility's `@param` can break callers — grep them after narrowing
+
 ## CSS / UI Components
 
 **`DictionaryEntry` modal layout is intentionally center-aligned**: `.modal` has `text-align: center` and `.formGroup` has `align-items: center` — labels render centered. Utility buttons (`---a`, `-aaa` etc.) require `white-space: nowrap` or they break across lines when `flex: 1` is applied.

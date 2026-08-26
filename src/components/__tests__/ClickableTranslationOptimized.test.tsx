@@ -14,7 +14,6 @@
  * - Click handler called with correct payload
  * - Paragraph splitting on newlines
  * - Non-clickable segments rendered without onClick behaviour
- * - Null / loading state (prebuiltSegments === undefined → null state)
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';

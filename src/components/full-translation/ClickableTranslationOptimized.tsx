@@ -66,23 +66,10 @@ const ClickableTranslationOptimized: React.FC<ClickableTranslationOptimizedProps
   highlightedTranslationUnitIndex = -1,
 }) => {
   // Use prebuilt segments for instant clickable highlighting (no computation needed!)
-  const precomputedSegments = useMemo(() => {
-    if (prebuiltSegments && prebuiltSegments.length > 0) {
-      return prebuiltSegments;
-    }
-
-    // HIGH-4 FIX: Return null (not empty array) to distinguish "no segments yet" from "no segments available"
-    // This prevents flash of blank content while segments are being computed
-    // LOW-3 ANALYSIS: This distinction IS used - null means "loading", [] means "no segments"
-    // The fallback check `renderSegments.length === 0` happens AFTER segments are computed
-    return prebuiltSegments === undefined ? null : [];
-  }, [prebuiltSegments]);
+  const precomputedSegments = prebuiltSegments;
 
   // Create render segments only when highlight changes
   const renderSegments = useMemo(() => {
-    // HIGH-4 FIX: Handle null precomputedSegments (still loading)
-    if (!precomputedSegments) return [];
-
     return precomputedSegments.map((segment, index) => ({
       ...segment,
       key: `segment-${index}-${segment.unitIndex || 'na'}`,
