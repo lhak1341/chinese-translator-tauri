@@ -18,7 +18,16 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import ConfigurationManager from '../ConfigurationManager';
 
-const { invalidateAppConfig } = vi.hoisted(() => ({ invalidateAppConfig: vi.fn() }));
+const { invalidateAppConfig, callRustConfigWrite } = vi.hoisted(() => {
+  const invalidateAppConfig = vi.fn();
+  // Mirrors the real callRustConfigWrite: run fn, invalidate only on success.
+  const callRustConfigWrite = vi.fn(async (fn: () => Promise<{ success: boolean }>) => {
+    const result = await fn();
+    if (result.success) invalidateAppConfig();
+    return result;
+  });
+  return { invalidateAppConfig, callRustConfigWrite };
+});
 vi.mock('../../../utils/appConfig', () => ({
   loadAppConfig: vi.fn().mockResolvedValue({
     engine: { activeProperNouns: [] },
@@ -27,6 +36,7 @@ vi.mock('../../../utils/appConfig', () => ({
   }),
   saveAppConfig: vi.fn().mockResolvedValue(undefined),
   invalidateAppConfig,
+  callRustConfigWrite,
 }));
 
 const loadDictionary = vi.fn();

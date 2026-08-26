@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
-import { loadAppConfig, saveAppConfig, invalidateAppConfig } from '../../utils/appConfig';
+import { loadAppConfig, saveAppConfig, callRustConfigWrite } from '../../utils/appConfig';
 import { toPatternsId, isFictionProperNounsId } from '../../utils/dictionary';
 import {
   sortDictionaries,
@@ -118,9 +118,11 @@ export function useDictionaryConfigManagement() {
 
       // Fiction dicts create their paired patterns-f_* dictionary atomically (ADR-027) —
       // either both files exist afterward, or neither does.
-      const result = isFictionProperNounsId(dictionaryId)
-        ? await window.electronAPI.createFictionDictionaryPair(dictionaryId)
-        : await window.electronAPI.createProperNounsDictionary(dictionaryId);
+      const result = await callRustConfigWrite(() =>
+        isFictionProperNounsId(dictionaryId)
+          ? window.electronAPI.createFictionDictionaryPair(dictionaryId)
+          : window.electronAPI.createProperNounsDictionary(dictionaryId)
+      );
 
       if (result.success) {
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
@@ -129,7 +131,6 @@ export function useDictionaryConfigManagement() {
         if (result.dictionaries) {
           setActiveDictionaries(result.dictionaries);
         }
-        invalidateAppConfig();
         closeCreateModal();
 
         await loadDictionary(dictionaryId);
@@ -168,9 +169,8 @@ export function useDictionaryConfigManagement() {
         return;
       }
 
-      const result = await window.electronAPI.renameProperNounsDictionary(
-        renamingDictionaryId,
-        newDictionaryId
+      const result = await callRustConfigWrite(() =>
+        window.electronAPI.renameProperNounsDictionary(renamingDictionaryId, newDictionaryId)
       );
 
       if (result.success) {
@@ -195,11 +195,6 @@ export function useDictionaryConfigManagement() {
         if (defaultQuickAddDictionary === renamingDictionaryId) {
           setDefaultQuickAddDictionary(newDictionaryId);
         }
-
-        // Rust wrote activeProperNouns/lastSelectedDictionary/defaultQuickAddDictionary
-        // straight to config.json — invalidate so the next loadAppConfig/saveAppConfig
-        // doesn't work from a stale pre-rename cache (see CONTEXT.md's AppConfig entry).
-        invalidateAppConfig();
 
         handleCancelRename();
       } else {

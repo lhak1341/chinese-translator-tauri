@@ -15,6 +15,7 @@ pnpm build-wasm-dev  # after any wasm-core change — binary is gitignored, stay
 pnpm tauri:dev
 pnpm test -- --run  # default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall
 pnpm type-check  # 0 errors expected
+pnpm exec eslint <file>  # NOT `pnpm lint`/`--quiet` — quiet mode drops every warn-severity rule, see gotchas.md
 ```
 
 ---

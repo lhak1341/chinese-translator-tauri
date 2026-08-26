@@ -276,13 +276,10 @@ export class PerformanceBaselineTracker {
       if (alert.level === 'critical') {
         logger.error('🚨 CRITICAL Performance Regression:', alert.message);
 
-        // ENHANCED DEBUG: Show detailed memory breakdown for critical alerts
-        if (process.env.NODE_ENV === 'development') {
-          if (window.systemPerformanceMonitor) {
-            window.systemPerformanceMonitor.logDetailedMemoryDebug(operationType, alert);
-          } else {
-            this.logBasicMemoryDebug(operationType, alert);
-          }
+        // ENHANCED DEBUG: owner injects onCriticalAlert (dev-only) for the detailed
+        // breakdown; falls back to the basic debug log when no callback was injected.
+        if (this.options.onCriticalAlert) {
+          this.options.onCriticalAlert(alert);
         } else {
           this.logBasicMemoryDebug(operationType, alert);
         }

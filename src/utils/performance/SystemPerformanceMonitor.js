@@ -10,7 +10,14 @@ import { PerformanceBaselineTracker } from './PerformanceBaselineTracker.js';
  */
 export class SystemPerformanceMonitor {
   constructor() {
-    this.baselineTracker = new PerformanceBaselineTracker();
+    this.baselineTracker = new PerformanceBaselineTracker({
+      // Dev-only: gives the tracker a callback for the detailed memory breakdown on a
+      // critical alert instead of it reaching for `window.systemPerformanceMonitor` itself.
+      onCriticalAlert:
+        process.env.NODE_ENV === 'development'
+          ? (alert) => this.logDetailedMemoryDebug(alert.operationType, alert)
+          : undefined,
+    });
     this.integrations = new Map();
     this.isActive = true;
 
@@ -139,6 +146,23 @@ export class SystemPerformanceMonitor {
   }
 
   /**
+   * Shared memory-pressure tier boundaries (ratio of used/limit, 0-1 scale — matches
+   * getMemoryMetrics().pressure). Single source of truth for both checkRealMemory's
+   * dev-console status and generateRecommendations' warning trigger — previously two
+   * independently-tuned ladders (20/30/50% vs 80%) that silently disagreed.
+   */
+  static MEMORY_PRESSURE_THRESHOLDS = { WATCH: 0.5, ELEVATED: 0.65, CRITICAL: 0.8 };
+
+  /** Classifies a used/limit ratio into a status tier using MEMORY_PRESSURE_THRESHOLDS. */
+  static classifyMemoryPressure(ratio) {
+    const t = SystemPerformanceMonitor.MEMORY_PRESSURE_THRESHOLDS;
+    if (ratio < t.WATCH) return 'HEALTHY';
+    if (ratio < t.ELEVATED) return 'WATCH';
+    if (ratio < t.CRITICAL) return 'ELEVATED';
+    return 'CRITICAL';
+  }
+
+  /**
    * Check real memory usage with detailed analysis
    * Helps distinguish false positive alerts from actual memory issues
    */
@@ -148,28 +172,24 @@ export class SystemPerformanceMonitor {
       return null;
     }
 
-    const used = performance.memory.usedJSHeapSize;
-    const total = performance.memory.totalJSHeapSize;
-    const limit = performance.memory.jsHeapSizeLimit;
-
-    const usagePercent = ((used / limit) * 100).toFixed(1);
-    const usedMB = (used / 1024 / 1024).toFixed(1);
-    const totalMB = (total / 1024 / 1024).toFixed(1);
-    const limitMB = (limit / 1024 / 1024).toFixed(1);
+    const metrics = this.getMemoryMetrics();
+    const usagePercent = (metrics.pressure * 100).toFixed(1);
+    const usedMB = (metrics.used / 1024 / 1024).toFixed(1);
+    const totalMB = (metrics.total / 1024 / 1024).toFixed(1);
+    const limitMB = (metrics.limit / 1024 / 1024).toFixed(1);
+    const status = SystemPerformanceMonitor.classifyMemoryPressure(metrics.pressure);
 
     logger.log('📊 Real Memory Usage Analysis:');
     logger.log(`   Heap Used: ${usedMB} MB / ${limitMB} MB (${usagePercent}%)`);
     logger.log(`   Heap Total: ${totalMB} MB`);
 
-    if (usagePercent < 20) {
-      logger.log('   ✅ Status: HEALTHY - Memory usage is low');
-    } else if (usagePercent < 30) {
-      logger.log('   ⚠️  Status: WATCH - Memory usage is moderate');
-    } else if (usagePercent < 50) {
-      logger.log('   ⚠️  Status: ELEVATED - Memory usage is getting high');
-    } else {
-      logger.log('   🔴 Status: CRITICAL - Memory usage is very high');
-    }
+    const STATUS_LOG_LINE = {
+      HEALTHY: '   ✅ Status: HEALTHY - Memory usage is low',
+      WATCH: '   ⚠️  Status: WATCH - Memory usage is moderate',
+      ELEVATED: '   ⚠️  Status: ELEVATED - Memory usage is getting high',
+      CRITICAL: '   🔴 Status: CRITICAL - Memory usage is very high',
+    };
+    logger.log(STATUS_LOG_LINE[status]);
 
     // Translation segment count analysis
     if (process.env.NODE_ENV === 'development') {
@@ -192,14 +212,7 @@ export class SystemPerformanceMonitor {
       totalMB: parseFloat(totalMB),
       limitMB: parseFloat(limitMB),
       usagePercent: parseFloat(usagePercent),
-      status:
-        usagePercent < 20
-          ? 'HEALTHY'
-          : usagePercent < 30
-            ? 'WATCH'
-            : usagePercent < 50
-              ? 'ELEVATED'
-              : 'CRITICAL',
+      status,
     };
   }
 
@@ -279,7 +292,9 @@ export class SystemPerformanceMonitor {
     const recommendations = [];
 
     // Memory pressure recommendations
-    if (systemMetrics.memory.pressure > 0.8) {
+    if (
+      SystemPerformanceMonitor.classifyMemoryPressure(systemMetrics.memory.pressure) === 'CRITICAL'
+    ) {
       recommendations.push({
         level: 'warning',
         type: 'memory',

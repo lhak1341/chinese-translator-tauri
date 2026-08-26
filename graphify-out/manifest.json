@@ -340,9 +340,9 @@
     "semantic_hash": "dd92413469d5de831312b3275c00d653"
   },
   "src/utils/appConfig.ts": {
-    "mtime": 1778865568.9447718,
-    "ast_hash": "32759ab14e502c84d5c547be0c3e2f90",
-    "semantic_hash": "32759ab14e502c84d5c547be0c3e2f90"
+    "mtime": 1787719568.3368244,
+    "ast_hash": "a6dc130e688df75c33e622b35acd1491",
+    "semantic_hash": ""
   },
   "src/utils/TokenHelpers.ts": {
     "mtime": 1780222641.5418553,
@@ -790,14 +790,14 @@
     "semantic_hash": "091b32d02d211c721b7d107bef81d91f"
   },
   "src/utils/performance/SystemPerformanceMonitor.js": {
-    "mtime": 1784871874.2552109,
-    "ast_hash": "360bef4095ae3f6c4d04b1d75353b3ed",
-    "semantic_hash": "360bef4095ae3f6c4d04b1d75353b3ed"
+    "mtime": 1787721016.6998253,
+    "ast_hash": "de7052262dc71d0684c4373bb815cc50",
+    "semantic_hash": ""
   },
   "src/utils/performance/PerformanceBaselineTracker.js": {
-    "mtime": 1784871578.4188137,
-    "ast_hash": "83471aa89fbd337aceef4d676d15b911",
-    "semantic_hash": "83471aa89fbd337aceef4d676d15b911"
+    "mtime": 1787721011.2344944,
+    "ast_hash": "ccb715a726da29cc0229c0b021985d19",
+    "semantic_hash": ""
   },
   "src/utils/performance/PerformanceHealth.js": {
     "mtime": 1784871861.4108517,
@@ -1130,13 +1130,13 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1787618782.3965101,
-    "ast_hash": "a2591d9a7e8317961da64f48caf1a693",
+    "mtime": 1787721079.1564639,
+    "ast_hash": "d131fd34bef643230dc24a177556bf23",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787679085.879467,
-    "ast_hash": "a1f4bdcb5598150a02450f42ef3ff944",
+    "mtime": 1787721528.9440684,
+    "ast_hash": "df0ce0c88e185e472e825a5e794e6532",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1145,8 +1145,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1787679085.879467,
-    "ast_hash": "a1f4bdcb5598150a02450f42ef3ff944",
+    "mtime": 1787721528.9440684,
+    "ast_hash": "df0ce0c88e185e472e825a5e794e6532",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": "ffe3070521c171ce32058444c7f3a4a3"
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1787707980.8016882,
-    "ast_hash": "b4cdca44ea98e743cf2385196bec92f0",
+    "mtime": 1787708500.5571454,
+    "ast_hash": "a9005582a8f4450ac5bb06ce34edf8af",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1550,9 +1550,9 @@
     "semantic_hash": ""
   },
   "src/components/configuration/useDictionaryConfigManagement.ts": {
-    "mtime": 1786548138.2050598,
-    "ast_hash": "b5b7766e0cd6cd99887da43823bcc000",
-    "semantic_hash": "b5b7766e0cd6cd99887da43823bcc000"
+    "mtime": 1787719585.5569382,
+    "ast_hash": "9cf1dff7173fffbb8b8ee17f519d0633",
+    "semantic_hash": ""
   },
   "src/components/rules/EditableCell.tsx": {
     "mtime": 1786721757.2319221,
@@ -1855,8 +1855,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1787708008.2620673,
-    "ast_hash": "8d38f0a21c81427b5adb6c68249968c4",
+    "mtime": 1787721535.7152543,
+    "ast_hash": "d7d76351ad240b2e2cc39b9979be77bd",
     "semantic_hash": ""
   }
 }

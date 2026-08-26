@@ -25,6 +25,20 @@ const ENGINE_DEFAULTS: EngineConfig = {
 
 let cache: AppConfig | null = null;
 
+// Serializes every config-disk write — plain saveAppConfig() calls and Rust-direct
+// config.json writes (via callRustConfigWrite) alike — so a write started while another
+// is still in flight queues instead of racing on the shared in-memory cache.
+let configWriteQueue: Promise<unknown> = Promise.resolve();
+
+function withConfigLock<T>(fn: () => Promise<T>): Promise<T> {
+  const result = configWriteQueue.then(fn, fn);
+  configWriteQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+  return result;
+}
+
 function fromRaw(raw: Record<string, unknown>): AppConfig {
   return {
     engine: {
@@ -61,25 +75,47 @@ export async function loadAppConfig(): Promise<AppConfig> {
   return cache;
 }
 
-export async function saveAppConfig(patch: {
+export function saveAppConfig(patch: {
   engine?: Partial<EngineConfig>;
   ui?: Partial<UIConfig>;
   session?: Partial<SessionConfig>;
 }): Promise<void> {
-  const current = cache ?? (await loadAppConfig());
-  const merged: AppConfig = {
-    engine: { ...current.engine, ...patch.engine },
-    ui: { ...current.ui, ...patch.ui },
-    session: { ...current.session, ...patch.session },
-  };
-  const rawResult = await window.electronAPI.saveConfiguration(toRaw(merged));
-  const result = validateApiResult(rawResult, 'saveConfiguration');
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to save configuration');
-  }
-  cache = merged;
+  return withConfigLock(async () => {
+    const current = cache ?? (await loadAppConfig());
+    const merged: AppConfig = {
+      engine: { ...current.engine, ...patch.engine },
+      ui: { ...current.ui, ...patch.ui },
+      session: { ...current.session, ...patch.session },
+    };
+    const rawResult = await window.electronAPI.saveConfiguration(toRaw(merged));
+    const result = validateApiResult(rawResult, 'saveConfiguration');
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to save configuration');
+    }
+    cache = merged;
+  });
 }
 
 export function invalidateAppConfig(): void {
   cache = null;
+}
+
+/**
+ * The seam for Tauri commands that write `config.json` directly (bypassing
+ * saveAppConfig's read-modify-write — see the AppConfig entry in CONTEXT.md).
+ * Serializes on the same lock as saveAppConfig so no plain config write can start
+ * while a Rust-side write is in flight, calls `fn`, and invalidates the cache
+ * immediately on success — before releasing the lock — so the very next queued
+ * write (or the caller's own follow-up reads) never sees the pre-write cache.
+ */
+export function callRustConfigWrite<T extends { success: boolean }>(
+  fn: () => Promise<T>
+): Promise<T> {
+  return withConfigLock(async () => {
+    const result = await fn();
+    if (result.success) {
+      invalidateAppConfig();
+    }
+    return result;
+  });
 }
