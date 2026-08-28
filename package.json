@@ -22,7 +22,8 @@
     "tauri": "tauri",
     "tauri:dev": "pnpm run build-wasm-dev && tauri dev",
     "tauri:build": "pnpm run build-wasm && tauri build",
-    "tauri:deploy": "pnpm run tauri:build && cp -r 'src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app' /Applications/",
+    "tauri:deploy": "pnpm run tauri:build && cp -r 'src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app' /Applications/ && pnpm run sweep-targets",
+    "sweep-targets": "cargo sweep --time 7 src-tauri && cargo sweep --time 7 wasm-core",
     "precompute-dictionaries": "node scripts/precompute-dictionaries.js",
     "prepare": "husky"
   },

@@ -18,6 +18,8 @@ pnpm type-check  # 0 errors expected
 pnpm exec eslint <file>  # NOT `pnpm lint`/`--quiet` — quiet mode drops every warn-severity rule, see gotchas.md
 ```
 
+`pnpm tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
+
 ---
 
 ## Architecture
