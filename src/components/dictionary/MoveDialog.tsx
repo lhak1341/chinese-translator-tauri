@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDictionary } from './DictionaryContext';
-import { X, AlertTriangle, Info } from 'lucide-react';
-import styles from '../../styles/MoveEntryDialog.module.css';
+import { X, AlertTriangle, Info, Loader } from 'lucide-react';
+import styles from '../../styles/MoveDialog.module.css';
 import { logger } from '../../utils/logger';
 import { useMoveTargetDictionaries } from '../../hooks/useMoveTargetDictionaries';
-import type { MoveEntryData, DictionaryEntryMetadata } from '../../types/DictionaryTypes';
+import type { DictionaryEntryMetadata } from '../../types/DictionaryTypes';
 import { SEMANTIC_TYPE_LABELS } from '../../constants/SemanticTypes';
 import type { SemanticType } from '../../constants/SemanticTypes';
 
@@ -17,124 +17,138 @@ interface FullEntryData {
   metadata?: DictionaryEntryMetadata;
 }
 
-/**
- * Props for MoveEntryDialog component
- */
-interface MoveEntryDialogProps {
-  entry: MoveEntryData;
-  onClose: () => void;
+export interface MoveDialogProps {
+  entries: string[];
   currentDictionary: string;
+  onClose: () => void;
+  onSuccess?: () => void;
 }
 
-const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, currentDictionary }) => {
+function hasMetadata(metadata: DictionaryEntryMetadata | undefined): boolean {
+  if (!metadata) return false;
+  return Boolean(
+    metadata.allowAsPatternVariable ||
+    metadata.semanticType ||
+    (metadata.allowedVariableTypes && Object.keys(metadata.allowedVariableTypes).length > 0)
+  );
+}
+
+function metadataFlags(metadata: DictionaryEntryMetadata): string[] {
+  const flags: string[] = [];
+  if (metadata.allowAsPatternVariable) flags.push('allowAsPatternVariable');
+  if (metadata.semanticType) flags.push(`semanticType (${metadata.semanticType})`);
+  if (metadata.allowedVariableTypes && Object.keys(metadata.allowedVariableTypes).length > 0)
+    flags.push('allowedVariableTypes');
+  return flags;
+}
+
+const MoveDialog: React.FC<MoveDialogProps> = ({
+  entries,
+  currentDictionary,
+  onClose,
+  onSuccess,
+}) => {
   const [selectedDictionary, setSelectedDictionary] = useState<string>('');
   const [isMoving, setIsMoving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [fullEntry, setFullEntry] = useState<FullEntryData | null>(null);
 
-  const { moveEntry, dictionaries } = useDictionary();
+  const { moveEntry, bulkMoveEntries, dictionaries } = useDictionary();
   const { availableDictionaries, sourceLabel: sourceDictionaryLabel } = useMoveTargetDictionaries(
     currentDictionary,
     setError
   );
 
-  // Extract full entry data with ALL metadata from current dictionary
-  useEffect(() => {
-    const extractFullEntry = (): void => {
-      if (!dictionaries || !dictionaries[currentDictionary]) {
-        setFullEntry({ source: entry.source, translation: entry.translation });
-        return;
+  const isSingle = entries.length === 1;
+
+  // Full entry data (with metadata) for every entry being moved, read from current dictionary state.
+  const fullEntries = useMemo<FullEntryData[]>(() => {
+    const currentDict = dictionaries?.[currentDictionary];
+    return entries.map((source) => {
+      const value = currentDict?.[source];
+      if (value === undefined) {
+        logger.warn('Entry not found in dictionary:', source);
+        return { source, translation: source };
       }
-
-      const value = dictionaries[currentDictionary][entry.source];
-
-      if (!value) {
-        logger.warn('Entry not found in dictionary:', entry.source);
-        setFullEntry({ source: entry.source, translation: entry.translation });
-        return;
-      }
-
       if (typeof value === 'object') {
-        setFullEntry({
-          source: entry.source,
+        return {
+          source,
           translation: value.translation,
           metadata: {
             allowAsPatternVariable: value.allowAsPatternVariable,
             semanticType: value.semanticType,
             allowedVariableTypes: value.allowedVariableTypes,
           },
-        });
-      } else {
-        setFullEntry({ source: entry.source, translation: value });
+        };
       }
-    };
+      return { source, translation: value };
+    });
+  }, [entries, dictionaries, currentDictionary]);
 
-    extractFullEntry();
-  }, [entry, currentDictionary, dictionaries]);
-
-  // Check for existing entry in selected target dictionary
+  // Check for existing entries in the selected target dictionary.
   useEffect(() => {
-    if (!selectedDictionary || !dictionaries || !fullEntry) {
+    if (!selectedDictionary || !dictionaries) {
       setWarning(null);
-      setInfo(null);
       return;
     }
-
     const targetDict = dictionaries[selectedDictionary];
     if (!targetDict) {
       setWarning(null);
-      setInfo(null);
       return;
     }
 
-    const existingEntry = targetDict[fullEntry.source];
-    if (existingEntry) {
+    const existing = fullEntries.filter((e) => targetDict[e.source] !== undefined);
+    if (existing.length === 0) {
+      setWarning(null);
+      return;
+    }
+
+    if (isSingle) {
+      const existingEntry = targetDict[existing[0].source];
       const existingTranslation =
         typeof existingEntry === 'string' ? existingEntry : existingEntry.translation;
       setWarning(
-        `Entry "${fullEntry.source}" already exists in target dictionary with translation "${existingTranslation}". Moving will overwrite it.`
+        `Entry "${existing[0].source}" already exists in target dictionary with translation "${existingTranslation}". Moving will overwrite it.`
       );
     } else {
-      setWarning(null);
+      setWarning(
+        `${existing.length} ${existing.length === 1 ? 'entry' : 'entries'} already exist in target and will be overwritten.`
+      );
     }
-  }, [selectedDictionary, dictionaries, fullEntry]);
+  }, [selectedDictionary, dictionaries, fullEntries, isSingle]);
 
-  // Warn about metadata loss when moving to a dictionary that doesn't support it
+  // Warn about metadata loss when moving to a dictionary that doesn't support it.
   useEffect(() => {
-    if (!selectedDictionary || !fullEntry?.metadata) {
-      setInfo(null);
-      return;
-    }
-
-    const { allowAsPatternVariable, semanticType, allowedVariableTypes } = fullEntry.metadata;
-    const hasMetadata =
-      allowAsPatternVariable ||
-      semanticType ||
-      (allowedVariableTypes && Object.keys(allowedVariableTypes).length > 0);
-
-    if (!hasMetadata) {
+    if (!selectedDictionary) {
       setInfo(null);
       return;
     }
 
     const supportsMetadata =
       selectedDictionary === 'phrases' || selectedDictionary.startsWith('patterns');
-    if (!supportsMetadata) {
-      const flags: string[] = [];
-      if (allowAsPatternVariable) flags.push('allowAsPatternVariable');
-      if (semanticType) flags.push(`semanticType (${semanticType})`);
-      if (allowedVariableTypes && Object.keys(allowedVariableTypes).length > 0)
-        flags.push('allowedVariableTypes');
+    if (supportsMetadata) {
+      setInfo(null);
+      return;
+    }
 
+    const withMetadata = fullEntries.filter((e) => hasMetadata(e.metadata));
+    if (withMetadata.length === 0) {
+      setInfo(null);
+      return;
+    }
+
+    if (isSingle) {
+      const flags = metadataFlags(withMetadata[0].metadata as DictionaryEntryMetadata);
       setInfo(
         `Moving to ${selectedDictionary} will lose metadata: ${flags.join(', ')}. Only phrases and patterns dictionaries preserve metadata.`
       );
     } else {
-      setInfo(null);
+      setInfo(
+        `${withMetadata.length} ${withMetadata.length === 1 ? 'entry has' : 'entries have'} metadata that will be lost. Only phrases and patterns dictionaries preserve metadata.`
+      );
     }
-  }, [selectedDictionary, fullEntry]);
+  }, [selectedDictionary, fullEntries, isSingle]);
 
   const getSelectedLabel = useCallback((): string => {
     return (
@@ -143,21 +157,46 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
   }, [availableDictionaries, selectedDictionary]);
 
   const handleMove = useCallback(async (): Promise<void> => {
-    if (!selectedDictionary || !fullEntry) return;
+    if (!selectedDictionary || fullEntries.length === 0) return;
 
     setIsMoving(true);
     setError(null);
 
     try {
-      await moveEntry(currentDictionary, selectedDictionary, fullEntry.source, getSelectedLabel());
+      if (isSingle) {
+        await moveEntry(
+          currentDictionary,
+          selectedDictionary,
+          fullEntries[0].source,
+          getSelectedLabel()
+        );
+      } else {
+        await bulkMoveEntries(
+          currentDictionary,
+          selectedDictionary,
+          fullEntries.map((e) => e.source),
+          getSelectedLabel()
+        );
+      }
       onClose();
+      onSuccess?.();
     } catch (err) {
       logger.error('Move operation failed:', err);
       const message = (err as Error)?.message || 'Unknown error';
-      setError(`Failed to move entry: ${message}`);
+      setError(`Failed to move ${isSingle ? 'entry' : 'entries'}: ${message}`);
       setIsMoving(false);
     }
-  }, [selectedDictionary, fullEntry, moveEntry, currentDictionary, getSelectedLabel, onClose]);
+  }, [
+    selectedDictionary,
+    fullEntries,
+    isSingle,
+    moveEntry,
+    bulkMoveEntries,
+    currentDictionary,
+    getSelectedLabel,
+    onClose,
+    onSuccess,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent): void => {
@@ -171,13 +210,18 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
     [selectedDictionary, isMoving, handleMove, onClose]
   );
 
+  const previewEntries = fullEntries.slice(0, 3);
+  const hasMorePreview = fullEntries.length > 3;
+  const title = isSingle ? 'Move Entry' : `Move ${fullEntries.length} Entries`;
+  const buttonLabel = isSingle ? 'Move Entry' : `Move ${fullEntries.length} Entries`;
+
   return (
     <div className={styles.overlay} onClick={isMoving ? undefined : onClose}>
       <div
         className={styles.modal}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="move-entry-dialog-title"
+        aria-labelledby="move-dialog-title"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
         tabIndex={-1}
@@ -185,8 +229,8 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
       >
         {/* Header */}
         <div className={styles.header}>
-          <h2 id="move-entry-dialog-title" className={styles.title}>
-            Move Entry
+          <h2 id="move-dialog-title" className={styles.title}>
+            {title}
           </h2>
           <button
             onClick={onClose}
@@ -200,31 +244,48 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
 
         {/* Entry context display */}
         <div className={styles.content}>
-          {fullEntry && (
+          {isSingle && fullEntries[0] && (
             <div className={styles.entryPreview}>
               <div className={styles.previewLabel}>Moving:</div>
               <div className={styles.previewText}>
-                <span className={styles.previewSource}>"{fullEntry.source}"</span>
+                <span className={styles.previewSource}>"{fullEntries[0].source}"</span>
                 <span className={styles.previewArrow}>→</span>
-                <span className={styles.previewTranslation}>"{fullEntry.translation}"</span>
+                <span className={styles.previewTranslation}>"{fullEntries[0].translation}"</span>
               </div>
-              {fullEntry.metadata &&
-                (fullEntry.metadata.allowAsPatternVariable ||
-                  fullEntry.metadata.semanticType ||
-                  (fullEntry.metadata.allowedVariableTypes &&
-                    Object.keys(fullEntry.metadata.allowedVariableTypes).length > 0)) && (
-                  <div className={styles.previewMetadata}>
-                    {fullEntry.metadata.allowAsPatternVariable && (
-                      <span className={styles.metadataTag}>Variable</span>
-                    )}
-                    {fullEntry.metadata.semanticType && (
-                      <span className={styles.metadataTag}>
-                        {SEMANTIC_TYPE_LABELS[fullEntry.metadata.semanticType as SemanticType] ??
-                          fullEntry.metadata.semanticType}
-                      </span>
-                    )}
+              {hasMetadata(fullEntries[0].metadata) && (
+                <div className={styles.previewMetadata}>
+                  {fullEntries[0].metadata?.allowAsPatternVariable && (
+                    <span className={styles.metadataTag}>Variable</span>
+                  )}
+                  {fullEntries[0].metadata?.semanticType && (
+                    <span className={styles.metadataTag}>
+                      {SEMANTIC_TYPE_LABELS[fullEntries[0].metadata.semanticType as SemanticType] ??
+                        fullEntries[0].metadata.semanticType}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isSingle && (
+            <div className={styles.entryPreview}>
+              <div className={styles.previewLabel}>Moving:</div>
+              <div className={styles.previewList}>
+                {previewEntries.map((e) => (
+                  <div key={e.source} className={styles.previewListItem}>
+                    <span className={styles.previewSource}>"{e.source}"</span>
+                    <span className={styles.previewArrow}>→</span>
+                    <span className={styles.previewTranslation}>"{e.translation}"</span>
                   </div>
-                )}
+                ))}
+              </div>
+              {hasMorePreview && (
+                <div className={styles.previewMore}>
+                  ...and {fullEntries.length - 3} more{' '}
+                  {fullEntries.length - 3 === 1 ? 'entry' : 'entries'}
+                </div>
+              )}
             </div>
           )}
 
@@ -297,7 +358,14 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
             disabled={isMoving || !selectedDictionary || availableDictionaries.length === 0}
             title={!selectedDictionary ? 'Select a destination dictionary first' : undefined}
           >
-            {isMoving ? 'Moving...' : 'Move Entry'}
+            {isMoving ? (
+              <>
+                <Loader size={16} className="animate-spin" />
+                <span>Moving...</span>
+              </>
+            ) : (
+              buttonLabel
+            )}
           </button>
         </div>
       </div>
@@ -305,4 +373,4 @@ const MoveEntryDialog: React.FC<MoveEntryDialogProps> = ({ entry, onClose, curre
   );
 };
 
-export default MoveEntryDialog;
+export default MoveDialog;

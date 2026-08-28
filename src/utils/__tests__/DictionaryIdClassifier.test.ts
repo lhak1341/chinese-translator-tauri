@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'vitest';
-import { toPatternsId, toProperNounsId } from '../dictionary/DictionaryIdClassifier';
+import {
+  toPatternsId,
+  toProperNounsId,
+  toProperNounsDictionaryId,
+} from '../dictionary/DictionaryIdClassifier';
 
 describe('toPatternsId', () => {
   test('derives paired patterns id from a fiction proper-nouns id', () => {
@@ -10,6 +14,24 @@ describe('toPatternsId', () => {
 describe('toProperNounsId', () => {
   test('derives paired proper-nouns id from a fiction patterns id', () => {
     expect(toProperNounsId('patterns-f_DuongThan')).toBe('properNouns-f_DuongThan');
+  });
+});
+
+describe('toProperNounsDictionaryId', () => {
+  test('prefixes the raw name with properNouns-', () => {
+    expect(toProperNounsDictionaryId('HarryPotter')).toBe('properNouns-HarryPotter');
+  });
+
+  test('strips internal whitespace', () => {
+    expect(toProperNounsDictionaryId('Harry Potter')).toBe('properNouns-HarryPotter');
+  });
+
+  test('trims leading/trailing whitespace', () => {
+    expect(toProperNounsDictionaryId('  Harry Potter  ')).toBe('properNouns-HarryPotter');
+  });
+
+  test('produces a fiction id when the raw name already carries the f_ convention', () => {
+    expect(toProperNounsDictionaryId('f_HarryPotter')).toBe('properNouns-f_HarryPotter');
   });
 });
 

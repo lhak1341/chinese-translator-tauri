@@ -2,7 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { formatErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import { loadAppConfig, saveAppConfig, callRustConfigWrite } from '../../utils/appConfig';
-import { toPatternsId, isFictionProperNounsId } from '../../utils/dictionary';
+import {
+  toPatternsId,
+  toProperNounsDictionaryId,
+  isFictionProperNounsId,
+} from '../../utils/dictionary';
 import {
   sortDictionaries,
   categorizeDictionaries,
@@ -114,7 +118,7 @@ export function useDictionaryConfigManagement() {
     if (!newDictionaryName.trim()) return;
 
     try {
-      const dictionaryId = `properNouns-${newDictionaryName.trim().replace(/\s+/g, '')}`;
+      const dictionaryId = toProperNounsDictionaryId(newDictionaryName);
 
       // Fiction dicts create their paired patterns-f_* dictionary atomically (ADR-027) —
       // either both files exist afterward, or neither does.
@@ -162,7 +166,7 @@ export function useDictionaryConfigManagement() {
     if (!renamingDictionaryId || !renameValue.trim()) return;
 
     try {
-      const newDictionaryId = `properNouns-${renameValue.trim().replace(/\s+/g, '')}`;
+      const newDictionaryId = toProperNounsDictionaryId(renameValue);
 
       if (newDictionaryId === renamingDictionaryId) {
         handleCancelRename();

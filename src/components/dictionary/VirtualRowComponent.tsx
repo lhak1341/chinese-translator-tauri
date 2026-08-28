@@ -1,5 +1,5 @@
 import React from 'react';
-import { classifyDictionaryId } from '../../utils/dictionary';
+import { classifyDictionaryId, buildEntryMetadata } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import type { InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
@@ -17,6 +17,13 @@ import { highlightPatternVariables } from '../../utils/text';
 
 /** Height of each table row in pixels. Exported so the table can compute totalHeight. */
 export const ITEM_HEIGHT = 40;
+
+/** Width of the per-row Semantic-type column (patterns/phrases/properNouns). Shared constant
+ * rather than a CSS class because `SemanticTypeToggleCell`'s width is a JS prop — it's reused
+ * outside Dictionary (Rules tab) with its own widths, so the column-width mechanism here can't
+ * be a className the way Source/Translation are (architecture review 2026-08-28, candidate #2
+ * grilling). */
+export const DICTIONARY_SEMANTIC_COLUMN_WIDTH = '15%';
 
 interface BadgeProps {
   type: 'variable';
@@ -107,8 +114,8 @@ const TypeToggleCell: React.FC<{
   if (!hasVariable) {
     return (
       <div
+        className={styles.patternsTypeCol}
         style={{
-          width: '13%',
           padding: '0 0.25rem',
           display: 'flex',
           alignItems: 'center',
@@ -121,8 +128,8 @@ const TypeToggleCell: React.FC<{
   }
   return (
     <div
+      className={styles.patternsTypeCol}
       style={{
-        width: '13%',
         padding: '0 0.25rem',
         display: 'flex',
         alignItems: 'center',
@@ -306,14 +313,26 @@ export const SemanticTypeFilterChips: React.FC<{
 
 /** Fixed-height flex row shell — the canonical Dictionary row rhythm (`ITEM_HEIGHT`,
  * flex/align-center, bottom-border-only). Exported so any other table-shaped view
- * (e.g. Rules tab) can reuse the exact same row metrics instead of re-deriving them. */
+ * (e.g. Rules tab, `DuplicateDictionaryTableView`) can reuse the exact same row metrics
+ * instead of re-deriving them. `backgroundColor` is an unselected-state override (falls
+ * back to `'transparent'`) — added for `DuplicateDictionaryTableView`'s alternating
+ * group-background color, which `isSelected`'s own highlight still takes priority over
+ * (architecture review 2026-08-28, candidate #2 grilling). */
 export const RowShell: React.FC<{
   onContextMenu?: (e: React.MouseEvent) => void;
   isSelected?: boolean;
   isScrolling?: boolean;
+  backgroundColor?: string;
   role?: string;
   children: React.ReactNode;
-}> = ({ onContextMenu, isSelected = false, isScrolling = false, role, children }) => (
+}> = ({
+  onContextMenu,
+  isSelected = false,
+  isScrolling = false,
+  backgroundColor,
+  role,
+  children,
+}) => (
   <div
     onContextMenu={onContextMenu}
     role={role}
@@ -322,7 +341,7 @@ export const RowShell: React.FC<{
       display: 'flex',
       alignItems: 'center',
       borderBottom: '1px solid var(--border-color)',
-      backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : 'transparent',
+      backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : (backgroundColor ?? 'transparent'),
       willChange: isScrolling ? 'transform' : 'auto',
     }}
   >
@@ -330,14 +349,19 @@ export const RowShell: React.FC<{
   </div>
 );
 
-/** Row-selection checkbox cell — identical across all 3 row layouts below, no per-type
- * variation. Not exported: unlike RowShell/MetadataBadge/etc., no other table-shaped view
- * (Rules tab) has a bulk-select column today — add an export only when a second real
- * caller shows up. */
-const CheckboxCell: React.FC<{ checked: boolean; onChange: (checked: boolean) => void }> = ({
-  checked,
-  onChange,
-}) => (
+/** Row-selection checkbox cell — identical across all row layouts, no per-type variation.
+ * Exported now that `DuplicateDictionaryTableView` is a second real caller (architecture
+ * review 2026-08-28, candidate #2 grilling) — the original "add an export only when a second
+ * real caller shows up" note was scoped to external (Rules tab) reuse; this is dictionary-
+ * internal. `ariaLabel` overrides the default static title/accessible-name for callers that
+ * render many rows of this cell at once and need a per-row label to disambiguate them (same
+ * reasoning as `SemanticTypeToggleCell`'s `rowLabel`) — omit it to keep this component's own
+ * original single-label behavior. */
+export const CheckboxCell: React.FC<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  ariaLabel?: string;
+}> = ({ checked, onChange, ariaLabel }) => (
   <div className={styles.checkboxCell}>
     <input
       type="checkbox"
@@ -345,6 +369,7 @@ const CheckboxCell: React.FC<{ checked: boolean; onChange: (checked: boolean) =>
       onChange={(e) => onChange(e.target.checked)}
       className={styles.checkboxInput}
       title="Select for deletion"
+      {...(ariaLabel && { 'aria-label': ariaLabel })}
     />
   </div>
 );
@@ -408,14 +433,6 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       (typeof translation === 'object' && translation.allowedVariableTypes) || {};
 
     const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(selectedDictionary);
-    const buildTextSaveMetadata = () =>
-      isPatterns || isPhrases || isProperNouns
-        ? {
-            allowAsPatternVariable,
-            ...(semanticType && { semanticType }),
-            ...(Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
-          }
-        : {};
 
     const sourceEdit = useInlineFieldEdit(source, async (newSource) => {
       await onUpdateEntry(
@@ -423,7 +440,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
         source,
         newSource,
         translationText,
-        buildTextSaveMetadata()
+        buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes })
       );
     });
 
@@ -433,7 +450,7 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
         source,
         source,
         newTranslation,
-        buildTextSaveMetadata()
+        buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes })
       );
     });
 
@@ -448,7 +465,8 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
         onUpdateEntry,
       });
 
-    // Patterns layout: checkbox | source (25%) | translation+badges (34%) | semantic (15%) | X types (13%) | Y types (13%)
+    // Patterns layout — see EnhancedVirtualizedDictionaryTable.module.css's "Column widths"
+    // comment block for the full column-by-column layout this shares with the header.
     if (isPatterns) {
       const hasX = source.includes('X');
       const hasY = source.includes('Y');
@@ -463,14 +481,14 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             onChange={(checked) => onSelectEntry(source, checked)}
           />
 
-          <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
+          <div className={`${styles.cell} ${styles.patternsSourceCol}`}>
             <EditableCell
               edit={sourceEdit}
               renderDisplay={() => highlightPatternVariables(source)}
             />
           </div>
 
-          <div className={styles.cellEditable} style={{ width: '34%' }}>
+          <div className={`${styles.cellEditable} ${styles.patternsTranslationCol}`}>
             <EditableCell edit={translEdit} renderDisplay={() => translationText} />
             {!translEdit.editing && (
               <div className={styles.badgeContainer}>
@@ -489,11 +507,16 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             <SemanticTypeToggleCell
               activeType={semanticType}
               onSelect={handleSetSemanticType}
-              width="15%"
+              width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
               patternSource={source}
             />
           ) : (
-            <div style={{ width: '15%', minWidth: '15%' }} />
+            <div
+              style={{
+                width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
+                minWidth: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
+              }}
+            />
           )}
 
           <TypeToggleCell
@@ -513,8 +536,9 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       );
     }
 
-    // Phrases layout: 3-column (checkbox | source | translation+VAR badge | semantic)
-    if (selectedDictionary === 'phrases') {
+    // Phrases layout — see EnhancedVirtualizedDictionaryTable.module.css's "Column widths"
+    // comment block for the full column-by-column layout this shares with the header.
+    if (isPhrases) {
       return (
         <RowShell
           onContextMenu={(e) => onContextMenu(e, source, translationText)}
@@ -526,11 +550,11 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             onChange={(checked) => onSelectEntry(source, checked)}
           />
 
-          <div className={styles.cell} style={{ width: 'calc(25% - 20px)' }}>
+          <div className={`${styles.cell} ${styles.phrasesSourceCol}`}>
             <EditableCell edit={sourceEdit} renderDisplay={() => source} />
           </div>
 
-          <div className={styles.cellEditable} style={{ width: 'calc(60% - 20px)' }}>
+          <div className={`${styles.cellEditable} ${styles.phrasesTranslationCol}`}>
             <EditableCell edit={translEdit} renderDisplay={() => translationText} />
             {!translEdit.editing && (
               <div className={styles.badgeContainer}>
@@ -549,19 +573,26 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
             <SemanticTypeToggleCell
               activeType={semanticType}
               onSelect={handleSetSemanticType}
-              width="15%"
+              width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
             />
           ) : (
-            <div style={{ width: '15%', minWidth: '15%' }} />
+            <div
+              style={{
+                width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
+                minWidth: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
+              }}
+            />
           )}
         </RowShell>
       );
     }
 
-    // Simple dictionaries (characters, properNouns, etc.)
-    const isProperNoun = selectedDictionary.startsWith('properNouns');
-    const sourceWidth = isProperNoun ? 'calc(25% - 20px)' : 'calc(35% - 20px)';
-    const translationWidth = isProperNoun ? 'calc(60% - 20px)' : 'calc(65% - 20px)';
+    // Simple dictionaries (characters, properNouns, etc.) — see
+    // EnhancedVirtualizedDictionaryTable.module.css's "Column widths" comment block.
+    const sourceColClass = isProperNouns ? styles.properNounsSourceCol : styles.simpleSourceCol;
+    const translationColClass = isProperNouns
+      ? styles.properNounsTranslationCol
+      : styles.simpleTranslationCol;
 
     return (
       <RowShell
@@ -571,19 +602,19 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       >
         <CheckboxCell checked={isSelected} onChange={(checked) => onSelectEntry(source, checked)} />
 
-        <div className={styles.cell} style={{ width: sourceWidth }}>
+        <div className={`${styles.cell} ${sourceColClass}`}>
           <EditableCell edit={sourceEdit} renderDisplay={() => source} />
         </div>
 
-        <div className={styles.cellEditable} style={{ width: translationWidth }}>
+        <div className={`${styles.cellEditable} ${translationColClass}`}>
           <EditableCell edit={translEdit} renderDisplay={() => translationText} />
         </div>
 
-        {isProperNoun && (
+        {isProperNouns && (
           <SemanticTypeToggleCell
             activeType={semanticType}
             onSelect={handleSetSemanticType}
-            width="15%"
+            width={DICTIONARY_SEMANTIC_COLUMN_WIDTH}
           />
         )}
       </RowShell>

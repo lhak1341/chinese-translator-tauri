@@ -72,6 +72,14 @@ Three exports:
 
 Entry point: `src/utils/dictionary/PersistTimeValidator.ts`, re-exported from `src/utils/dictionary/index.ts`.
 
+## EntryMetadataBuilder
+
+The single "build a dictionary entry's metadata object" function — `buildEntryMetadata({allowAsPatternVariable, semanticType?, allowedVariableTypes?}) → DictionaryEntryMetadata`. Was independently reimplemented 3x before being unified (architecture review 2026-08-28, candidate #3 grilling): `VirtualRowComponent.buildTextSaveMetadata` (gated the whole shape behind `isPatterns||isPhrases||isProperNouns`), `useEntryMetadataEdit.buildBaseMetadata` (no gate), and an inline builder in `useDictionaryEntryForm` (gated on a raw dict-type string check, plus an extra patterns-only restriction on `allowedVariableTypes` neither of the other two had).
+
+**No dictionary-type gate, by design.** `prepareMutationEntry` (`useDictionaryCRUD.ts`) is the sole real authority on whether metadata is kept — it decides object-vs-string storage purely from `dictionaryId`, discarding whatever this function returns for pure lookup-table dicts (`characters`/`conversion`/`punctuation`) regardless of shape. The three old gates were redundant with that, not competing sources of truth — no live bug existed before unification (unlike `MoveDialog`'s candidate #1), just three reimplementations of something a fourth place already owned. The dropped `allowedVariableTypes` patterns-only restriction was similarly dead in practice: the only UI that ever mutates `allowedVariableTypes` (`TypeToggleCell` in `VirtualRowComponent`, `SemanticTypePicker`'s X/Y toggle block) is itself patterns-gated, so the field structurally can never be non-empty for phrases/properNouns regardless of whether this function re-checks it.
+
+Entry point: `src/utils/dictionary/EntryMetadataBuilder.ts`, barrel-exported from `src/utils/dictionary/index.ts`. Called from `VirtualRowComponent.tsx`'s inline text-edit commit handlers, `useEntryMetadataEdit.ts`'s three badge/toggle handlers, and `useDictionaryEntryForm.ts`'s submit handler.
+
 ## MatchComparator
 
 The single dictionary match ordering rule (ADR-010: specificity over provenance). Longer match wins; equal-length matches tie-break on lower priority number. Was independently reimplemented at 4 sites (JS sequential, JS parallel, WASM lookup, lookup-index post-fetch sort) before being unified — one of the 4 sites carried a `?? 0` undefined-priority guard the other 3 didn't need.
@@ -298,6 +306,35 @@ Entry point: `src/utils/dictionary/DictionaryOperationReverter.ts`. Called exclu
 The two write-to-disk protocols used by dictionary CRUD. `persistDictionaryMutation` — single-dict: optimistic `setDictionaries` → `saveDictionary` → rollback on failure. `commitMoveOp` — two-dict: optimistic `setDictionaries` → parallel save → partial revert (if one save succeeds and the other fails, the successful write is reverted to disk). Both returned callbacks are stable (no deps beyond `setDictionaries`).
 
 Entry point: `src/components/dictionary/useDictionaryPersistence.ts`. Injected into `useDictionaryCRUD` by `DictionaryProvider` via `const { persistDictionaryMutation, commitMoveOp } = useDictionaryPersistence(setDictionaries)`.
+
+## MoveDialog
+
+The single dialog for moving dictionary entries to another dictionary — covers both the single-entry (right-click context menu) and bulk (checkbox multi-select) cases via one `entries: string[]` prop, replacing the former `MoveEntryDialog.tsx`/`BulkMoveDialog.tsx` pair (architecture review 2026-08-28, candidate #1 grilling). The two had already drifted: bulk move was silently missing the metadata-loss warning single-entry move had.
+
+`entries.length === 1` drives the single-entry code paths: named overwrite detail (`Entry "X" already exists ... with translation "Y"`), named metadata-loss detail (lists the specific fields), and an entry preview with metadata tags (Variable/semantic-type chips). `entries.length > 1` drives the bulk paths: aggregate-count warnings (`N entries already exist...`, `N entries have metadata that will be lost`) and a plain first-3-preview with "...and N more" — no per-item metadata tags, kept simple since the aggregate warning already covers the concern.
+
+Backend call is chosen by count, not unified — `moveEntry(...)` for `entries.length === 1`, `bulkMoveEntries(...)` otherwise — because `DictionaryOperationHistory`/`DictionaryOperationReverter` still model `move`/`bulk_move` as separate `HistoryOperationType`s with separate undo/redo reversal logic; that split was left alone as out of scope for this deepening.
+
+The dialog owns its own close-on-success (calls `onClose()` itself, then `onSuccess?.()` for parent-side cleanup like `resetSelection()`) — the old `BulkMoveDialog` didn't call `onClose` itself and instead relied on the parent's `onMoveSuccess` callback incidentally also flipping `showBulkMoveDialog` false.
+
+Trigger hooks stayed untouched: `useEntryEditAndMove` (single, context-menu — `moveEntry`/`closeMove`) and `useEntrySelection` (bulk, multi-select — `selectedEntries`/`showBulkMoveDialog`) are still two separate hooks with their own state. `EnhancedVirtualizedDictionaryTable.tsx` converges them at the render site only: `entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}`, rendering exactly one `<MoveDialog>`.
+
+Entry point: `src/components/dictionary/MoveDialog.tsx`, styled by `src/styles/MoveDialog.module.css` (unprefixed class names — the old `bulkMove*`-prefixed classes that lived inside `EnhancedVirtualizedDictionaryTable.module.css` were deleted, not migrated).
+
+## DictionaryColumnSchema
+
+Not a module — the column-width contract now shared by the dictionary table's header (`EnhancedVirtualizedDictionaryTable.tsx`) and row (`VirtualRowComponent.tsx`, `DuplicateDictionaryTableView.tsx`) renderers (architecture review 2026-08-28, candidate #2 grilling). Before this, "which columns exist, at what width, for dictionary type X" was defined independently in each of those 3 files with no shared source of truth — the same failure class `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks entry already names 5 prior instances of at the row/badge layer, this being a 6th, one level up.
+
+There are 4 distinct column sets (patterns=6 columns, phrases/properNouns=4, simple dictionaries=3) plus `DuplicateDictionaryTableView`'s own fixed 4-column layout — not a 5th type variant, since it shows the same columns regardless of dictionary type. Two mechanisms, chosen per-column by what actually constrains it:
+
+- **CSS-module classes** (`src/styles/EnhancedVirtualizedDictionaryTable.module.css`) for Source/Translation/checkbox/X-Y-types — one class per (dictionary type, column) pair, even where two types currently share a value (e.g. patterns/phrases/properNouns all have a 25%-wide Source column today) — kept separate so each type's column set stays independently editable without hunting who else reuses a class. Applied to both the header `<div>` and the matching row `<div>` via the same className, composed with a role class (`.headerCell` for header chrome — bold + padding; `.cell`/`.cellEditable` for row chrome, pre-existing). The checkbox column doesn't compose cleanly across header/row (different padding) so it gets two independent classes instead of one shared class fighting over `padding`: `.checkboxCell` (rows, pre-existing) and `.headerCheckboxCol` (header).
+- **A JS constant** (`DICTIONARY_SEMANTIC_COLUMN_WIDTH`, exported from `VirtualRowComponent.tsx`) for the Semantic-type column specifically — `SemanticTypeToggleCell`'s `width` is a JS prop, not a className, because that component is reused outside Dictionary entirely (`RuleRow.tsx`, `NewRuleModal.tsx`, `RuleMatchesModal.tsx`) with its own widths for Rules-tab layouts, so the column-width mechanism there can't cross into a CSS class without touching those unrelated callers.
+
+Fixed alongside (same branches were being touched anyway): `VirtualRowComponent.tsx`'s row-layout branches were using raw `selectedDictionary === 'phrases'` / `.startsWith('properNouns')` instead of the `isPhrases`/`isProperNouns` flags already destructured from `classifyDictionaryId` in the same function — the exact "raw string despite already having the classified flag in scope" pattern `dictionary/CLAUDE.md` names as a repeat offender. Harmless today (no fiction-phrases dictionaries exist) but now closed.
+
+`DuplicateDictionaryTableView.tsx` also switched from hand-rolling its own row div to reusing `RowShell`/`CheckboxCell` (see those entries in `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks) — the only friction was `RowShell` having no way to express Duplicate view's alternating group-background color, resolved by adding `RowShell`'s `backgroundColor` prop (see that entry).
+
+Per-type column-layout narrative (which columns, what widths) lives as block comments in `EnhancedVirtualizedDictionaryTable.module.css` next to the actual width classes — not in `VirtualRowComponent.tsx`'s JSX, where a comment describing literal numbers that had since moved elsewhere would go stale silently.
 
 ## DictionaryMatchLookup
 

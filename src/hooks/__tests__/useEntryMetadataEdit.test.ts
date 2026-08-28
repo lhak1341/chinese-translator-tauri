@@ -21,7 +21,7 @@ function setup(overrides: Partial<typeof BASE_OPTS> = {}) {
 }
 
 describe('useEntryMetadataEdit', () => {
-  describe('buildBaseMetadata invariant', () => {
+  describe('buildEntryMetadata invariant (shared with VirtualRowComponent, useDictionaryEntryForm)', () => {
     it('omits semanticType when empty', async () => {
       const { result, onUpdateEntry } = setup({ semanticType: '' });
       await result.current.handleCheckboxChange('allowAsPatternVariable', true);

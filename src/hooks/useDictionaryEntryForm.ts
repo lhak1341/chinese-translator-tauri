@@ -18,6 +18,7 @@ import {
   isPatternValid,
   validateDictionaryEntry,
   toProperNounsId,
+  buildEntryMetadata,
 } from '../utils/dictionary';
 import { useTransformRules } from './useTransformRules';
 import {
@@ -400,17 +401,11 @@ export function useDictionaryEntryForm(
         isUpdate: !!entry,
       });
 
-      const metadata: DictionaryEntryMetadata =
-        activeDictionary === 'phrases' ||
-        activeDictionary.startsWith('patterns') ||
-        activeDictionary.startsWith('properNouns')
-          ? {
-              allowAsPatternVariable,
-              ...(semanticType && { semanticType }),
-              ...(activeDictionary.startsWith('patterns') &&
-                Object.keys(allowedVariableTypes).length > 0 && { allowedVariableTypes }),
-            }
-          : {};
+      const metadata: DictionaryEntryMetadata = buildEntryMetadata({
+        allowAsPatternVariable,
+        semanticType,
+        allowedVariableTypes,
+      });
 
       logger.log('🔍 DictionaryEntry: Saving with metadata:', {
         activeDictionary,

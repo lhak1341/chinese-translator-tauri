@@ -58,6 +58,8 @@ export {
 } from './DictionaryEntryValidator';
 export { validatePersistEntry } from './PersistTimeValidator';
 export { sanitizeDictionaryEntry } from './DictionaryEntrySanitizer';
+export type { EntryMetadataFields } from './EntryMetadataBuilder';
+export { buildEntryMetadata } from './EntryMetadataBuilder';
 
 // --- Backend IO ---
 export type { BatchLoadResult } from './DictionaryBackend';
@@ -73,6 +75,7 @@ export {
   classifyDictionaryId,
   toPatternsId,
   toProperNounsId,
+  toProperNounsDictionaryId,
   isFictionProperNounsId,
   isFictionPatternsId,
 } from './DictionaryIdClassifier';

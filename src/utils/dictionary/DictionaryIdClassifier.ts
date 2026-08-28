@@ -40,3 +40,15 @@ export function toPatternsId(properNounsId: string): string {
 export function toProperNounsId(patternsId: string): string {
   return 'properNouns-' + patternsId.slice('patterns-'.length);
 }
+
+/**
+ * Derives a properNouns dictionary ID from a raw user-typed name (create/rename forms) —
+ * strips whitespace, prefixes `properNouns-`. Was independently reimplemented at 2 call sites
+ * (`handleCreateDictionary`, `handleConfirmRename` in `useDictionaryConfigManagement.ts`)
+ * before being unified (architecture review 2026-08-28, candidate #4 grilling). Pure
+ * transform only — the Rust side (`validate_dictionary_id`) is the real authority on ID
+ * safety (path traversal, prefix enforcement), independent of whatever this function returns.
+ */
+export function toProperNounsDictionaryId(rawName: string): string {
+  return `properNouns-${rawName.trim().replace(/\s+/g, '')}`;
+}

@@ -244,6 +244,10 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Testing a plain (non-component) function that returns `ReactNode`**: `render(<>{someFn(...)}</>)` — wrap the call in a fragment rather than forcing it into a component. This codebase deliberately prefers plain functions over components for small JSX-returning utils (`PatternTextFormatter.tsx`, `SegmentedParagraphs.tsx`) to avoid new reconciliation boundaries.
 
+**CSS Modules resolve to real hashed class names in vitest+jsdom (not stubbed)** — `container.getElementsByClassName(styles.someClass)` works for asserting two elements share one class (e.g. header/row column-width parity), stronger than an inline-style snapshot since it fails the moment either side's className changes independently.
+
+**Mutating a mock/fixture object in place after `render()` does not retrigger `useMemo`/derived state keyed on that object's reference** — the dependency array sees the same reference, so the mutation is invisible until a real re-render happens. Set the fixture's final state before calling `render()`, not by mutating it mid-test.
+
 ### Imports and naming traps
 
 - Anything calling `loadAppConfig()`: mock `../../utils/appConfig` directly (`vi.mock(..., () => ({ loadAppConfig: vi.fn() }))`), not raw `window.electronAPI.loadConfiguration`. The module-level `cache` in `appConfig.ts` is not reset between tests in the same file (no `resetModules` config), so mocking only the IPC call can leak a stale cached value forward.

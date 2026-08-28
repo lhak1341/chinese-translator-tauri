@@ -8,7 +8,10 @@
  * rendered interface; only DictionaryContext (already covered by DictionaryContext.test.tsx
  * and useDictionaryCRUD.test.ts) and the 3 modal components (DictionaryEntry, MoveEntryDialog,
  * BulkMoveDialog — each gets its own dedicated test file, matching MoveEntryDialog.test.tsx)
- * are mocked.
+ * are mocked. MoveDialog is the single unified dialog for both single-entry (context menu)
+ * and bulk (checkbox multi-select) moves — see MoveDialog.test.tsx for its own dedicated
+ * coverage; here only the EVDT-level wiring (which trigger produces which `entries` array) is
+ * exercised.
  */
 
 import { describe, test, expect, vi, beforeEach } from 'vitest';
@@ -98,23 +101,20 @@ vi.mock('../DictionaryEntry', () => ({
   ),
 }));
 
-vi.mock('../MoveEntryDialog', () => ({
-  default: ({ onClose, entry, currentDictionary }: any) => (
-    <div data-testid="move-entry-dialog">
-      <span data-testid="move-entry-source">{entry.source}</span>
-      <span data-testid="move-entry-current-dict">{currentDictionary}</span>
-      <button onClick={onClose}>close-move-modal</button>
-    </div>
-  ),
-}));
-
-vi.mock('../BulkMoveDialog', () => ({
-  default: ({ selectedDictionary, selectedEntries, onClose, onMoveSuccess }: any) => (
-    <div data-testid="bulk-move-dialog">
-      <span data-testid="bulk-move-count">{selectedEntries.size}</span>
-      <span data-testid="bulk-move-dict">{selectedDictionary}</span>
-      <button onClick={onMoveSuccess}>confirm-bulk-move</button>
-      <button onClick={onClose}>close-bulk-move</button>
+vi.mock('../MoveDialog', () => ({
+  default: ({ entries, currentDictionary, onClose, onSuccess }: any) => (
+    <div data-testid="move-dialog">
+      <span data-testid="move-dialog-entries">{entries.join(',')}</span>
+      <span data-testid="move-dialog-current-dict">{currentDictionary}</span>
+      <button
+        onClick={() => {
+          onClose();
+          onSuccess?.();
+        }}
+      >
+        confirm-move
+      </button>
+      <button onClick={onClose}>close-move-dialog</button>
     </div>
   ),
 }));
@@ -201,12 +201,12 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     });
     fireEvent.click(screen.getByRole('button', { name: /Move \(1\)/ }));
 
-    expect(screen.getByTestId('bulk-move-count')).toHaveTextContent('1');
-    expect(screen.getByTestId('bulk-move-dict')).toHaveTextContent('properNouns-Test');
+    expect(screen.getByTestId('move-dialog-entries')).toHaveTextContent('你好');
+    expect(screen.getByTestId('move-dialog-current-dict')).toHaveTextContent('properNouns-Test');
 
-    fireEvent.click(screen.getByText('confirm-bulk-move'));
+    fireEvent.click(screen.getByText('confirm-move'));
 
-    expect(screen.queryByTestId('bulk-move-dialog')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('move-dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete \(/ })).not.toBeInTheDocument();
   });
 
@@ -224,18 +224,18 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     expect(screen.queryByTestId('dictionary-entry-modal')).not.toBeInTheDocument();
   });
 
-  test('context menu -> Move to... opens MoveEntryDialog with the right entry', async () => {
+  test('context menu -> Move to... opens MoveDialog with a single-element entries array', async () => {
     render(<DictionaryManager />);
     await screen.findByText('Xin chào');
 
     fireEvent.contextMenu(screen.getByText('你好'));
     fireEvent.click(screen.getByText('Move to...'));
 
-    expect(screen.getByTestId('move-entry-source')).toHaveTextContent('你好');
-    expect(screen.getByTestId('move-entry-current-dict')).toHaveTextContent('properNouns-Test');
+    expect(screen.getByTestId('move-dialog-entries')).toHaveTextContent('你好');
+    expect(screen.getByTestId('move-dialog-current-dict')).toHaveTextContent('properNouns-Test');
 
-    fireEvent.click(screen.getByText('close-move-modal'));
-    expect(screen.queryByTestId('move-entry-dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('close-move-dialog'));
+    expect(screen.queryByTestId('move-dialog')).not.toBeInTheDocument();
   });
 
   test('context menu -> Delete Entry calls deleteEntry directly (no confirm step)', async () => {

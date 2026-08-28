@@ -2,14 +2,14 @@ import React, { useEffect, useMemo, useRef, useCallback } from 'react';
 import { Edit2, Trash2, Loader, ChevronsUp, ChevronsDown } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
-import MoveEntryDialog from './MoveEntryDialog';
-import BulkMoveDialog from './BulkMoveDialog';
+import MoveDialog from './MoveDialog';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { classifyDictionaryId } from '../../utils/dictionary';
 import {
   VirtualRowComponent,
   ITEM_HEIGHT,
+  DICTIONARY_SEMANTIC_COLUMN_WIDTH,
   SemanticTypeFilterChips,
   FilterChipButton,
 } from './VirtualRowComponent';
@@ -507,16 +507,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             >
               {isPatternsDictionary ? (
                 <>
-                  <div
-                    style={{
-                      width: '40px',
-                      minWidth: '40px',
-                      maxWidth: '40px',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                  >
+                  <div className={styles.headerCheckboxCol}>
                     <input
                       type="checkbox"
                       checked={
@@ -529,28 +520,20 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     />
                   </div>
                   <div
-                    style={{
-                      width: 'calc(25% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
+                    className={`${styles.patternsSourceCol} ${styles.headerCell}`}
                     title="Pattern with highlighted variables"
                   >
                     Source
                   </div>
                   <div
-                    style={{
-                      width: '34%',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
+                    className={`${styles.patternsTranslationCol} ${styles.headerCell}`}
                     title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)"
                   >
                     Translation
                   </div>
                   <div
                     style={{
-                      width: '15%',
+                      width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       textAlign: 'center',
@@ -560,8 +543,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     Semantic
                   </div>
                   <div
+                    className={styles.patternsTypeCol}
                     style={{
-                      width: '13%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       textAlign: 'center',
@@ -571,8 +554,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                     X types
                   </div>
                   <div
+                    className={styles.patternsTypeCol}
                     style={{
-                      width: '13%',
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       textAlign: 'center',
@@ -584,16 +567,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </>
               ) : isPhrasesDictionary ? (
                 <>
-                  <div
-                    style={{
-                      width: '40px',
-                      minWidth: '40px',
-                      maxWidth: '40px',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                  >
+                  <div className={styles.headerCheckboxCol}>
                     <input
                       type="checkbox"
                       checked={
@@ -605,28 +579,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       aria-label="Select all entries"
                     />
                   </div>
+                  <div className={`${styles.phrasesSourceCol} ${styles.headerCell}`}>Source</div>
                   <div
-                    style={{
-                      width: 'calc(25% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
-                  >
-                    Source
-                  </div>
-                  <div
-                    style={{
-                      width: 'calc(60% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
+                    className={`${styles.phrasesTranslationCol} ${styles.headerCell}`}
                     title="Translation with metadata badge (VAR = Allow as variable)"
                   >
                     Translation
                   </div>
                   <div
                     style={{
-                      width: '15%',
+                      width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       textAlign: 'center',
@@ -638,16 +600,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </>
               ) : isProperNounsDictionary ? (
                 <>
-                  <div
-                    style={{
-                      width: '40px',
-                      minWidth: '40px',
-                      maxWidth: '40px',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                  >
+                  <div className={styles.headerCheckboxCol}>
                     <input
                       type="checkbox"
                       checked={
@@ -659,27 +612,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       aria-label="Select all entries"
                     />
                   </div>
-                  <div
-                    style={{
-                      width: 'calc(25% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
-                  >
+                  <div className={`${styles.properNounsSourceCol} ${styles.headerCell}`}>
                     Source
                   </div>
-                  <div
-                    style={{
-                      width: 'calc(60% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
-                  >
+                  <div className={`${styles.properNounsTranslationCol} ${styles.headerCell}`}>
                     Translation
                   </div>
                   <div
                     style={{
-                      width: '15%',
+                      width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       textAlign: 'center',
@@ -691,16 +632,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </>
               ) : (
                 <>
-                  <div
-                    style={{
-                      width: '40px',
-                      minWidth: '40px',
-                      maxWidth: '40px',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                  >
+                  <div className={styles.headerCheckboxCol}>
                     <input
                       type="checkbox"
                       checked={
@@ -712,22 +644,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                       aria-label="Select all entries"
                     />
                   </div>
-                  <div
-                    style={{
-                      width: 'calc(35% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
-                  >
+                  <div className={`${styles.simpleSourceCol} ${styles.headerCell}`}>
                     Source Text
                   </div>
-                  <div
-                    style={{
-                      width: 'calc(65% - 20px)',
-                      padding: '0.5rem 0.75rem',
-                      fontWeight: 'bold',
-                    }}
-                  >
+                  <div className={`${styles.simpleTranslationCol} ${styles.headerCell}`}>
                     Translation
                   </div>
                 </>
@@ -803,15 +723,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         />
       )}
 
-      {/* Move entry dialog */}
-      {moveEntry && (
-        <MoveEntryDialog
-          onClose={closeMove}
-          entry={moveEntry}
-          currentDictionary={selectedDictionary}
-        />
-      )}
-
       {/* Context menu */}
       {contextMenu.visible && contextMenu.entry && (
         <div
@@ -870,13 +781,16 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         </div>
       )}
 
-      {/* Bulk move dialog */}
-      {showBulkMoveDialog && (
-        <BulkMoveDialog
-          selectedDictionary={selectedDictionary}
-          selectedEntries={selectedEntries}
-          onClose={() => setShowBulkMoveDialog(false)}
-          onMoveSuccess={() => resetSelection()}
+      {/* Move dialog — single entry (context menu) or bulk (multi-select) */}
+      {(moveEntry || showBulkMoveDialog) && (
+        <MoveDialog
+          entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}
+          currentDictionary={selectedDictionary}
+          onClose={() => {
+            closeMove();
+            setShowBulkMoveDialog(false);
+          }}
+          onSuccess={() => resetSelection()}
         />
       )}
     </div>

@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger';
+import { buildEntryMetadata } from '../utils/dictionary';
 
 export interface EntryMetadataEditOptions {
   source: string;
@@ -24,9 +25,10 @@ export interface EntryMetadataEditResult {
 
 /**
  * Owns the three metadata-mutation handlers for a single dictionary entry row.
- * Invariant: every handler snapshots all existing metadata first (buildBaseMetadata),
- * then patches exactly one field, so concurrent field updates never silently drop
- * other fields.
+ * Invariant: every handler snapshots all existing metadata first (buildEntryMetadata,
+ * shared with VirtualRowComponent's text-edit path and useDictionaryEntryForm — see
+ * `src/utils/dictionary/EntryMetadataBuilder.ts`), then patches exactly one field, so
+ * concurrent field updates never silently drop other fields.
  */
 export function useEntryMetadataEdit({
   source,
@@ -37,16 +39,11 @@ export function useEntryMetadataEdit({
   selectedDictionary,
   onUpdateEntry,
 }: EntryMetadataEditOptions): EntryMetadataEditResult {
-  const buildBaseMetadata = (): Record<string, unknown> => {
-    const m: Record<string, unknown> = { allowAsPatternVariable };
-    if (semanticType) m.semanticType = semanticType;
-    if (Object.keys(allowedVariableTypes).length > 0) m.allowedVariableTypes = allowedVariableTypes;
-    return m;
-  };
-
   const handleCheckboxChange = async (field: string, value: boolean): Promise<void> => {
     try {
-      const metadata = buildBaseMetadata();
+      const metadata: Record<string, unknown> = {
+        ...buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes }),
+      };
       metadata[field] = value;
       await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);
     } catch (error) {
@@ -71,7 +68,9 @@ export function useEntryMetadataEdit({
         newAllowedTypes[varName] = [...current, type];
       }
 
-      const metadata = buildBaseMetadata();
+      const metadata: Record<string, unknown> = {
+        ...buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes }),
+      };
       if (Object.keys(newAllowedTypes).length > 0) metadata.allowedVariableTypes = newAllowedTypes;
       else delete metadata.allowedVariableTypes;
 
@@ -83,7 +82,9 @@ export function useEntryMetadataEdit({
 
   const handleSetSemanticType = async (newType: string): Promise<void> => {
     try {
-      const metadata = buildBaseMetadata();
+      const metadata: Record<string, unknown> = {
+        ...buildEntryMetadata({ allowAsPatternVariable, semanticType, allowedVariableTypes }),
+      };
       if (newType) metadata.semanticType = newType;
       else delete metadata.semanticType;
       await onUpdateEntry(selectedDictionary, source, source, translationText, metadata);

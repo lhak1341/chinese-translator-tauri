@@ -170,7 +170,7 @@ describe('VirtualRowComponent', () => {
     });
   });
 
-  describe('buildTextSaveMetadata via captured onCommit', () => {
+  describe('buildEntryMetadata via captured onCommit', () => {
     it('includes allowAsPatternVariable for a patterns dictionary entry', async () => {
       const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
       render(
@@ -218,7 +218,7 @@ describe('VirtualRowComponent', () => {
       });
     });
 
-    it('sends an empty metadata object for a plain dictionary like characters', async () => {
+    it('sends the base metadata shape for a plain dictionary like characters — prepareMutationEntry (useDictionaryCRUD.ts) discards it into a plain string regardless, so no dict-type gate is needed here', async () => {
       const onUpdateEntry = vi.fn().mockResolvedValue(undefined);
       render(
         <VirtualRowComponent
@@ -233,7 +233,9 @@ describe('VirtualRowComponent', () => {
 
       await sourceOnCommit()('妳');
 
-      expect(onUpdateEntry).toHaveBeenCalledWith('characters', '你', '妳', 'you', {});
+      expect(onUpdateEntry).toHaveBeenCalledWith('characters', '你', '妳', 'you', {
+        allowAsPatternVariable: false,
+      });
     });
 
     it('sends metadata for a phrases dictionary entry', async () => {

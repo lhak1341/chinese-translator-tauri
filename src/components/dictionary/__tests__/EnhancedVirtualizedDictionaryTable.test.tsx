@@ -20,6 +20,7 @@ import React from 'react';
 import EnhancedVirtualizedDictionaryTable from '../EnhancedVirtualizedDictionaryTable';
 import type { DictionaryData } from '../../../types/DictionaryTypes';
 import type { DuplicateRow } from '../../../utils/dictionary/DuplicateAnalyzer';
+import styles from '../../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
 const { dictionariesRef, isLoadingRef, deleteEntry, bulkDeleteEntries, updateEntry } = vi.hoisted(
   () => ({
@@ -44,11 +45,8 @@ vi.mock('../DictionaryContext', () => ({
 vi.mock('../DictionaryEntry', () => ({
   default: () => <div data-testid="dictionary-entry-modal" />,
 }));
-vi.mock('../MoveEntryDialog', () => ({
-  default: () => <div data-testid="move-entry-dialog" />,
-}));
-vi.mock('../BulkMoveDialog', () => ({
-  default: () => <div data-testid="bulk-move-dialog" />,
+vi.mock('../MoveDialog', () => ({
+  default: () => <div data-testid="move-dialog" />,
 }));
 
 const duplicateViewSpy = vi.fn();
@@ -141,6 +139,17 @@ describe('normal mode — headers', () => {
     setDict('characters', { 你: { translation: 'bạn' } });
     render(<EnhancedVirtualizedDictionaryTable selectedDictionary="characters" />);
     expect(screen.getByText('Source Text')).toBeTruthy();
+  });
+
+  test('header and row share the same column width class — no drift between the two (architecture review 2026-08-28, candidate #2)', () => {
+    setDict('phrases', { 你好: { translation: 'Xin chào' } });
+    const { container } = render(
+      <EnhancedVirtualizedDictionaryTable selectedDictionary="phrases" />
+    );
+
+    // Exactly 2 elements should carry each class: the header cell and the one row cell.
+    expect(container.getElementsByClassName(styles.phrasesSourceCol)).toHaveLength(2);
+    expect(container.getElementsByClassName(styles.phrasesTranslationCol)).toHaveLength(2);
   });
 });
 

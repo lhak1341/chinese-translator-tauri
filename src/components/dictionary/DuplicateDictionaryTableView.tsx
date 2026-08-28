@@ -1,8 +1,9 @@
 import React from 'react';
 import type { RefCallback } from 'react';
-import { ITEM_HEIGHT } from './VirtualRowComponent';
+import { RowShell, CheckboxCell } from './VirtualRowComponent';
 import { createDuplicateKey } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
+import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 
 interface DuplicateDictionaryTableViewProps {
   searchRef?: React.RefObject<HTMLInputElement>;
@@ -67,10 +68,12 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
             fontSize: '0.875rem',
           }}
         >
-          <div style={{ width: '40px', padding: '0.5rem 0.75rem', textAlign: 'center' }}>☐</div>
-          <div style={{ width: '20%', padding: '0.5rem 0.75rem' }}>Source Text</div>
-          <div style={{ width: '50%', padding: '0.5rem 0.75rem' }}>Translation</div>
-          <div style={{ width: 'calc(30% - 40px)', padding: '0.5rem 0.75rem' }}>Dictionary</div>
+          <div className={styles.headerCheckboxCol}>☐</div>
+          <div className={`${styles.duplicateSourceCol} ${styles.headerCell}`}>Source Text</div>
+          <div className={`${styles.duplicateTranslationCol} ${styles.headerCell}`}>
+            Translation
+          </div>
+          <div className={`${styles.duplicateDictionaryCol} ${styles.headerCell}`}>Dictionary</div>
         </div>
 
         {/* Rows */}
@@ -99,54 +102,21 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                 const backgroundColor = isSelected ? 'var(--accent-light, #e0f2fe)' : groupBgColor;
 
                 return (
-                  <div
-                    key={key}
-                    style={{
-                      display: 'flex',
-                      borderBottom: '1px solid var(--border-color)',
-                      height: `${ITEM_HEIGHT}px`,
-                      alignItems: 'center',
-                      backgroundColor,
-                    }}
-                  >
-                    <div style={{ width: '40px', padding: '0 0.75rem', textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onSelectEntry(key, !isSelected)}
-                        style={{ cursor: 'pointer' }}
-                        aria-label={`Select ${row.source} from ${row.dictionaryLabel}`}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        width: '20%',
-                        padding: '0 0.75rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                  <RowShell key={key} backgroundColor={backgroundColor}>
+                    <CheckboxCell
+                      checked={isSelected}
+                      onChange={() => onSelectEntry(key, !isSelected)}
+                      ariaLabel={`Select ${row.source} from ${row.dictionaryLabel}`}
+                    />
+                    <div className={`${styles.cell} ${styles.duplicateSourceCol}`}>
                       {row.source}
                     </div>
-                    <div
-                      style={{
-                        width: '50%',
-                        padding: '0 0.75rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <div className={`${styles.cell} ${styles.duplicateTranslationCol}`}>
                       {row.translation}
                     </div>
                     <div
+                      className={`${styles.cell} ${styles.duplicateDictionaryCol}`}
                       style={{
-                        width: 'calc(30% - 40px)',
-                        padding: '0 0.75rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
                         fontSize: '0.8125rem',
                         color: 'var(--text-secondary, #6b7280)',
                         fontWeight:
@@ -158,7 +128,7 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
                     >
                       {row.dictionaryLabel}
                     </div>
-                  </div>
+                  </RowShell>
                 );
               })}
             </div>

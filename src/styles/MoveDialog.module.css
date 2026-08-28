@@ -1,4 +1,4 @@
-/* MoveEntryDialog Component Styles */
+/* MoveDialog Component Styles — shared by single-entry and bulk move */
 /* Enhanced for comprehensive UI polish matching DictionaryEntry */
 
 /* Overlay */
@@ -119,6 +119,29 @@
   gap: 0.5rem;
   margin-top: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* Multi-entry preview list (entries.length > 1) */
+.previewList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.previewListItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.previewMore {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+  margin-top: 0.25rem;
 }
 
 .metadataTag {

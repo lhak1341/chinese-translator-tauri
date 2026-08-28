@@ -37,283 +37,6 @@
   border-color: #dc2626;
 }
 
-/* Bulk Move Dialog - Enhanced to match MoveEntryDialog polish */
-.bulkMoveOverlay {
-  composes: modalOverlay from './shared.module.css';
-  background-color: rgba(0, 0, 0, 0.5);
-  padding: 1rem;
-  animation: fadeIn 0.15s ease-out;
-}
-
-.bulkMoveModal {
-  background-color: var(--background-color);
-  border-radius: 8px;
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 8px 24px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 500px;
-  position: relative;
-  border: 1px solid var(--border-color);
-  animation: slideIn 0.2s ease-out;
-}
-
-.bulkMoveHeader {
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.bulkMoveTitle {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.bulkMoveCloseButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-secondary, #666);
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.bulkMoveCloseButton:hover:not(:disabled) {
-  background-color: var(--surface-elevated, var(--surface-color));
-  color: var(--text-color);
-}
-
-.bulkMoveCloseButton:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.bulkMoveContent {
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-/* Entry Preview Section */
-.bulkMovePreview {
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 1rem;
-  margin-bottom: 0.5rem;
-}
-
-.bulkMovePreviewLabel {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--text-secondary, #666);
-  margin-bottom: 0.5rem;
-  letter-spacing: 0.5px;
-}
-
-.bulkMovePreviewList {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.bulkMovePreviewItem {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.bulkMovePreviewSource {
-  font-weight: 600;
-  color: var(--primary-color, #4a90e2);
-}
-
-.bulkMovePreviewArrow {
-  color: var(--text-secondary, #666);
-}
-
-.bulkMovePreviewTranslation {
-  font-weight: 500;
-  color: var(--text-color);
-}
-
-.bulkMovePreviewMore {
-  font-size: 0.75rem;
-  color: var(--text-secondary, #666);
-  font-style: italic;
-  margin-top: 0.25rem;
-}
-
-/* Form Group */
-.bulkMoveFormGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.bulkMoveLabel {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.bulkMoveReadOnlyField {
-  padding: 0.625rem 0.75rem;
-  border-radius: 6px;
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-color);
-  font-size: 0.9rem;
-}
-
-.bulkMoveSelect {
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background-color: var(--background-color);
-  color: var(--text-color);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.bulkMoveSelect:hover:not(:disabled) {
-  border-color: var(--primary-color, #4a90e2);
-}
-
-.bulkMoveSelect:focus {
-  outline: none;
-  border-color: var(--primary-color, #4a90e2);
-  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
-}
-
-.bulkMoveSelect:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background-color: var(--surface-color);
-}
-
-.bulkMoveSelectWithError {
-  border-color: var(--danger-button-text, #dc2626);
-}
-
-.bulkMoveEmptyState {
-  padding: 0.75rem;
-  border-radius: 6px;
-  background-color: var(--surface-color);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary, #666);
-  font-size: 0.875rem;
-  font-style: italic;
-}
-
-.bulkMoveWarning {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-radius: 6px;
-  background-color: var(--warning-subtle);
-  border: 1px solid var(--warning-color);
-  color: var(--warning-color);
-  font-size: 0.875rem;
-}
-
-.bulkMoveError {
-  color: var(--error-color, var(--danger-button-text));
-  font-size: 0.875rem;
-  padding: 0.75rem;
-  background-color: var(--error-subtle);
-  border: 1px solid var(--error-color, var(--danger-button-text));
-  border-radius: 6px;
-  margin-top: 0.5rem;
-}
-
-.bulkMoveActions {
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--border-color);
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  background-color: var(--surface-color);
-}
-
-.bulkMoveActions button {
-  padding: 0.625rem 1.25rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid transparent;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.bulkMoveActions button:first-child {
-  background-color: transparent;
-  border-color: var(--border-color);
-  color: var(--text-color);
-}
-
-.bulkMoveActions button:first-child:hover:not(:disabled) {
-  background-color: var(--surface-color);
-  border-color: var(--text-muted, #999);
-}
-
-.bulkMoveActions button.primary {
-  background-color: var(--primary-color, #4a90e2);
-  color: white;
-  border-color: var(--primary-color, #4a90e2);
-}
-
-.bulkMoveActions button.primary:hover:not(:disabled) {
-  background-color: var(--primary-hover-color, #3a7bc8);
-  border-color: var(--primary-hover-color, #3a7bc8);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.bulkMoveActions button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* Responsive Design */
-@media (max-width: 600px) {
-  .bulkMoveModal {
-    max-width: 100%;
-    margin: 1rem;
-  }
-
-  .bulkMoveActions {
-    flex-direction: column;
-  }
-
-  .bulkMoveActions button {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
 /* Inline Edit Input */
 .inlineEditInput {
   width: 100%;
@@ -369,6 +92,93 @@
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Header cell chrome — bold + header padding. Composed with a per-column width class below
+   (e.g. `${styles.patternsSourceCol} ${styles.headerCell}`) so header divs get their own
+   role styling while width is the one thing shared with the matching row cell. Row cells use
+   `.cell`/`.cellEditable` (above) for their own role instead. */
+.headerCell {
+  padding: 0.5rem 0.75rem;
+  font-weight: bold;
+}
+
+/* The checkbox column doesn't compose cleanly with `.checkboxCell` (rows) — header needs
+   different padding (0.5rem vs 0.25rem) and no flex-centering (plain text-align), so it gets
+   its own single class instead of fighting a shared one over `padding`. */
+.headerCheckboxCol {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 0.5rem 0.75rem;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* Column widths — dictionary table (EnhancedVirtualizedDictionaryTable + VirtualRowComponent).
+   Single source of truth shared by the header cell and the matching row cell (same className
+   on both) so header/row columns can't drift out of alignment the way independently-set
+   inline widths could (architecture review 2026-08-28, candidate #2 grilling). One class per
+   (dictionary type, column) pair, even where two types currently share the same value —
+   keeps each type's column set independently editable without hunting who else reuses it.
+
+   Patterns: checkbox | source (25%) | translation+badges (34%) | semantic (15%, JS constant —
+   see DICTIONARY_SEMANTIC_COLUMN_WIDTH in VirtualRowComponent.tsx, SemanticTypeToggleCell is
+   reused outside Dictionary with its own widths so its width stays a prop, not a class) |
+   X types (13%) | Y types (13%, same class as X — identical width). */
+.patternsSourceCol {
+  width: calc(25% - 20px);
+}
+
+.patternsTranslationCol {
+  width: 34%;
+}
+
+.patternsTypeCol {
+  width: 13%;
+}
+
+/* Phrases: checkbox | source (25%) | translation+badge (60%) | semantic (15%, JS constant). */
+.phrasesSourceCol {
+  width: calc(25% - 20px);
+}
+
+.phrasesTranslationCol {
+  width: calc(60% - 20px);
+}
+
+/* Proper Nouns: checkbox | source (25%) | translation (60%) | semantic (15%, JS constant). */
+.properNounsSourceCol {
+  width: calc(25% - 20px);
+}
+
+.properNounsTranslationCol {
+  width: calc(60% - 20px);
+}
+
+/* Simple dictionaries (characters, conversion, punctuation, etc.): checkbox | source (35%) |
+   translation (65%) — no semantic column. */
+.simpleSourceCol {
+  width: calc(35% - 20px);
+}
+
+.simpleTranslationCol {
+  width: calc(65% - 20px);
+}
+
+/* Duplicate-mode view (DuplicateDictionaryTableView): checkbox (reuses the row `.checkboxCell`
+   component) | source (20%) | translation (50%) | dictionary label (30%). Fixed regardless of
+   dictionary type — not one of the 4 type-scoped schemas above. */
+.duplicateSourceCol {
+  width: 20%;
+}
+
+.duplicateTranslationCol {
+  width: 50%;
+}
+
+.duplicateDictionaryCol {
+  width: calc(30% - 40px);
 }
 
 /* Badge Container */
