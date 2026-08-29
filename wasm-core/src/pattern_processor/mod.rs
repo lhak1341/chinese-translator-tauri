@@ -117,16 +117,18 @@ mod integration_tests {
     #[test]
     fn test_priority_ordering() {
         let mut dict = HashMap::new();
-        dict.insert("这些X".to_string(), json!("những X này")); // 1 var, 3 tokens, literal first → 1*10 + 3 + 5 = 18
-        dict.insert("这些XY".to_string(), json!("những X Y này")); // 2 vars, 4 tokens, literal first → 2*10 + 4 + 5 = 29
+        dict.insert("这些X".to_string(), json!("những X này")); // 1 var, 3 tokens, literal first → -1*10 + 3 + 5 = -2
+        dict.insert("这些XY".to_string(), json!("những X Y này")); // 2 vars, 4 tokens, literal first → -2*10 + 4 + 5 = -11
 
         let patterns = parse_patterns_dict(dict);
 
         // Find specific patterns
-        let pattern_18 = patterns.iter().find(|p| p.original_pattern == "这些X").unwrap();
-        let pattern_29 = patterns.iter().find(|p| p.original_pattern == "这些XY").unwrap();
+        let pattern_one_var = patterns.iter().find(|p| p.original_pattern == "这些X").unwrap();
+        let pattern_two_var = patterns.iter().find(|p| p.original_pattern == "这些XY").unwrap();
 
-        assert_eq!(pattern_18.priority, 18);
-        assert_eq!(pattern_29.priority, 29);
+        assert_eq!(pattern_one_var.priority, -2);
+        assert_eq!(pattern_two_var.priority, -11);
+        // Fewer variables must still outrank more variables at comparable length.
+        assert!(pattern_one_var.priority > pattern_two_var.priority);
     }
 }

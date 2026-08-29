@@ -68,10 +68,8 @@ describe('validatePatternEntry', () => {
     expect(validatePatternEntry('X给Y的Z', 'Z của Y cho X')).toBeNull();
   });
 
-  test('rejects a pattern with no variables at all', () => {
-    expect(validatePatternEntry('的书', 'sách của')).toBe(
-      'Pattern must contain at least one variable (X, Y, or Z)'
-    );
+  test('accepts a pattern with no variables at all (0-variable literal pattern)', () => {
+    expect(validatePatternEntry('的书', 'sách của')).toBeNull();
   });
 
   test('rejects when translation omits a variable present in source', () => {
@@ -121,14 +119,14 @@ describe('validatePersistEntry', () => {
   });
 
   test('patterns-prefixed fiction dictionary dispatches to validatePatternEntry', () => {
-    expect(validatePersistEntry('patterns-f_Novel', '的书', 'sách của')).toBe(
-      'Pattern must contain at least one variable (X, Y, or Z)'
+    expect(validatePersistEntry('patterns-f_Novel', 'X给Y的书', 'sách của X')).toBe(
+      'Translation must use variable Y from the pattern'
     );
   });
 
   test('bare "patterns" dictionaryId also dispatches to validatePatternEntry (via typeValidators, not the prefix branch)', () => {
-    expect(validatePersistEntry('patterns', '的书', 'sách của')).toBe(
-      'Pattern must contain at least one variable (X, Y, or Z)'
+    expect(validatePersistEntry('patterns', 'X给Y的书', 'sách của X')).toBe(
+      'Translation must use variable Y from the pattern'
     );
   });
 

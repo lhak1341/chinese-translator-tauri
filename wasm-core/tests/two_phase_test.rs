@@ -450,7 +450,7 @@ fn test_phase_b_enhanced_variable_resolution() {
 
 #[test]
 fn test_result_selection_with_overlaps() {
-    // Pattern 1: "这些X" → "những X này" (priority 18)
+    // Pattern 1: "这些X" → "những X này" (priority -2)
     let pattern1 = parse_pattern(
         "这些X".to_string(),
         "những X này".to_string(),
@@ -459,7 +459,7 @@ fn test_result_selection_with_overlaps() {
         None,
     );
 
-    // Pattern 2: "这些XY" → "những X Y này" (priority 29)
+    // Pattern 2: "这些XY" → "những X Y này" (priority -11)
     let pattern2 = parse_pattern(
         "这些XY".to_string(),
         "những X Y này".to_string(),
@@ -1100,4 +1100,102 @@ fn test_phase_a_composite_bonus_wins_over_larger_own_span() {
     let phase_a_component = results[0].phase_a.as_ref().unwrap();
     assert_eq!(phase_a_component.original_text, "这只刍吾");
     assert_eq!(phase_a_component.translation, "con sinh vật này");
+}
+
+#[test]
+fn test_phase_a_priority_tiebreak_lets_inner_wrapper_compose_with_outer_pattern() {
+    // Regression for "这位前辈的丹药" (2026-08-29): unlike the composite-bonus test above,
+    // here BOTH the inner wrapper "这位X" and the outer "X的Y" have
+    // allowAsPatternVariable=true, so they compete directly in Phase A over overlapping
+    // spans, and their composite scores land on an EXACT TIE:
+    //   "这位X"  matches "这位前辈" — own 4 chars + bonus 1 (trailing "的" from "X的Y") = 5
+    //   "X的Y"   matches "前辈的丹药" — own 5 chars + bonus 0 = 5
+    // Before `calculate_priority` was fixed to favor fewer variables, the tie-break
+    // picked "X的Y" (2 vars) over "这位X" (1 var), so "这位" translated standalone and
+    // never composed with the outer pattern. It must now resolve to one 7-char
+    // hierarchical composite: "đan dược của vị tiền bối này".
+    let mut inner_types = HashMap::new();
+    inner_types.insert(
+        "X".to_string(),
+        vec![
+            "character".to_string(),
+            "creature".to_string(),
+            "organization".to_string(),
+        ],
+    );
+    let pattern_inner = parse_pattern(
+        "这位X".to_string(),
+        "vị X này".to_string(),
+        Some(inner_types),
+        true, // allowAsPatternVariable
+        Some("$X".to_string()),
+    );
+
+    let mut outer_types = HashMap::new();
+    outer_types.insert(
+        "X".to_string(),
+        vec!["character".to_string(), "creature".to_string()],
+    );
+    outer_types.insert("Y".to_string(), vec!["object".to_string()]);
+    let pattern_outer = parse_pattern(
+        "X的Y".to_string(),
+        "Y của X".to_string(),
+        Some(outer_types),
+        true, // allowAsPatternVariable — races against "这位X" in Phase A
+        Some("object".to_string()),
+    );
+
+    let mut tokens = vec![
+        create_token("这", 0),
+        create_token("位", 1),
+        create_token("前", 2),
+        create_token("辈", 3),
+        create_token("的", 4),
+        create_token("丹", 5),
+        create_token("药", 6),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "前辈".to_string(),
+        VariableCacheEntry {
+            translation: "tiền bối".to_string(),
+            source: "character".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+    variable_cache.insert(
+        "丹药".to_string(),
+        VariableCacheEntry {
+            translation: "đan dược".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("object".to_string()),
+        },
+    );
+
+    let processor = TwoPhasePatternProcessor::new(vec![pattern_inner, pattern_outer]);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Expected 1 hierarchical composite. Got {} result(s): {:?}",
+        results.len(),
+        results
+            .iter()
+            .map(|r| format!(
+                "[{}-{}] {} \"{}\"",
+                r.start_index, r.end_index, r.source, r.translation
+            ))
+            .collect::<Vec<_>>()
+    );
+
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 6);
+    assert_eq!(results[0].translation, "đan dược của vị tiền bối này");
+
+    let phase_a_component = results[0].phase_a.as_ref().unwrap();
+    assert_eq!(phase_a_component.original_text, "这位前辈");
+    assert_eq!(phase_a_component.translation, "vị tiền bối này");
 }

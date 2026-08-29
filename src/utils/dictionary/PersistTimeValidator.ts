@@ -36,12 +36,13 @@ export const baseValidation = (source: string, translation: string): string | nu
 
 export const validatePatternEntry = (source: string, translation: string): string | null => {
   // LOW-2 FIX: Enhanced pattern validation to catch variable mismatches
+  // A pattern with zero variables (a literal, no-variable pattern) is valid —
+  // it's how a pattern-dictionary entry beats a same-length variable pattern in
+  // find_best_pattern_match's "fewer variables wins" tie-break (see wasm-core
+  // matcher.rs). The symmetry checks below are no-ops on empty sets, so a
+  // 0-variable pattern falls through them and passes.
   const sourceVars = new Set(source.match(/[XYZ]/g) || []);
   const translationVars = new Set(translation.match(/[XYZ]/g) || []);
-
-  if (sourceVars.size === 0) {
-    return 'Pattern must contain at least one variable (X, Y, or Z)';
-  }
 
   for (const variable of sourceVars) {
     if (!translationVars.has(variable)) {

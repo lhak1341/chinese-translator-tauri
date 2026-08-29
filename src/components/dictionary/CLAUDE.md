@@ -61,7 +61,7 @@ Resolution edge cases: `$-ref` to non-existent variable (e.g. `"$Z"` in an X-onl
 
 ## Pattern Variable Contract
 
-X = mandatory 1st variable; Y = optional 2nd. Y-only patterns are intentionally invalid. `validatePatternEntry(sourceText, translationText?)` enforces: source needs exactly one X; translation must contain X; if source has Y, translation must also have Y. Existing-entry suggestion (`handleTranslationFocus` → `checkForExistingEntry`) applies to patterns too (re-enabled 2026-08-10) — was previously suppressed via an `activeDictionary.startsWith('patterns')` guard with no recorded rationale; removed since it left same-dict pattern overwrites completely silent, unlike every other dict type.
+X = optional 1st variable (0 or 1 — a 0-variable pattern is a literal, no-variable entry); Y = optional 2nd, but only meaningful alongside X. Y-only patterns (Y present, X absent) are intentionally invalid. Form-time `isPatternValid` (`DictionaryEntryValidator.ts`) enforces: at most one X; if X is absent, Y must also be absent; translation must contain X only when source has X; if source has Y, translation must also have Y. Persist-time `validatePatternEntry` (`PersistTimeValidator.ts`) is looser — pure X/Y/Z set-symmetry, no X-before-Y ordering — so it does not independently reject a Y-only source; form-time is what actually blocks it in the New Entry modal. A 0-variable pattern is a deliberate, supported shape: it lets a literal pattern entry outrank a same-length variable pattern via `find_best_pattern_match`'s "fewer variables wins" tie-break (`wasm-core/src/pattern_processor/matcher.rs`) — see the 这种马上-vs-这X上 case (2026-08-29). Existing-entry suggestion (`handleTranslationFocus` → `checkForExistingEntry`) applies to patterns too (re-enabled 2026-08-10) — was previously suppressed via an `activeDictionary.startsWith('patterns')` guard with no recorded rationale; removed since it left same-dict pattern overwrites completely silent, unlike every other dict type.
 
 ## Dictionary Type Classification
 
@@ -104,7 +104,7 @@ All filter state lives in `src/hooks/useDictionaryEntryFilter.ts`. Call as `useD
 **Named operations (use these — no raw setters escape the hook):**
 
 - `toggleSemanticType(type: string)` — toggle one semantic type in/out of the active filter set
-- `togglePatternType(type: 'x-only' | 'x-y')` — toggle one pattern shape filter
+- `togglePatternType(type: 'x-only' | 'x-y' | 'no-variable')` — toggle one pattern shape filter (`'no-variable'` added 2026-08-29 alongside 0-variable pattern support)
 - `toggleFlag(flag: 'allowAsVariable')` — toggle a boolean flag filter
 - `setVariable(v: 'all' | 'allowed' | 'not-allowed')` — set the variable filter to an explicit value
 - `clearFilters()` — reset all filter dimensions atomically (used by the "Clear filters" button)

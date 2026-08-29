@@ -7218,13 +7218,17 @@ export class TranslationEngine {
    *
    * WHAT IT DOES:
    *   - Adds space between Vietnamese text and Arabic numerals (Thứ422 → Thứ 422)
-   *   - CRITICAL: Excludes ()/ from spacing to preserve "(23/30)" formatting
+   *   - Matches only letters (\p{L}) next to digits, so punctuation of any kind
+   *     (formatting or sentence-ending) is never spaced away from a number
    *   - Cleans up multiple spaces
    *   - Removes spaces at line boundaries
    *
    * BUG FIX HISTORY:
    *   - 2026-02-02: Added ()/ to exclusion list to fix "(23/30)" → ":( 23 / 30 )" bug
-   *   - Regex now: /([^\s\d,.\-+%()\/])(\d)/g instead of /([^\s\d,.\-+%])(\d)/g
+   *   - 2026-08-29: Exclusion-list regex missed !?:; and closing quotes, so a converted
+   *     number followed by punctuation got a spurious space ("2,700!" → "2,700 !").
+   *     Replaced the exclusion-list approach with a \p{L}-letter match — punctuation is
+   *     never a match target at all, so no punctuation mark can trigger this rule.
    *
    * @param {string} text - Text to clean up
    * @returns {string} Cleaned up text
@@ -7235,12 +7239,12 @@ export class TranslationEngine {
     // Clean up spacing but preserve line breaks
     let cleanedText = text;
 
-    // Add space between Vietnamese text and Arabic numerals (like "Thứ422giới" -> "Thứ 422 giới")
-    // BUT preserve number formatting by excluding number-related characters (comma, period, dash, plus, percent)
-    // ALSO exclude parentheses and slashes to prevent breaking "(23/30)" formatting
-    // ALSO exclude tilde (range/wave operator) to preserve "1992~1996" without spaces
-    cleanedText = cleanedText.replace(/([^\s\d,.\-+%()\/~～])(\d)/g, '$1 $2');
-    cleanedText = cleanedText.replace(/(\d)([^\s\d,.\-+%()\/~～])/g, '$1 $2');
+    // Add space between Vietnamese text and Arabic numerals (like "Thứ422giới" -> "Thứ 422 giới").
+    // Matches only against letters (\p{L}), not "any non-excluded punctuation" — punctuation
+    // (formatting chars like ,.-+%()/~ AND sentence punctuation like !?:;") never gets a forced
+    // space next to a digit, e.g. converted-number output "2,700!" must stay "2,700!" not "2,700 !".
+    cleanedText = cleanedText.replace(/(\p{L})(\d)/gu, '$1 $2');
+    cleanedText = cleanedText.replace(/(\d)(\p{L})/gu, '$1 $2');
 
     // Clean up multiple spaces (but not across line breaks)
     cleanedText = cleanedText.replace(/[^\S\r\n]+/g, ' ');

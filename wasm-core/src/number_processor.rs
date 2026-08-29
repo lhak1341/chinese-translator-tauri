@@ -429,6 +429,17 @@ impl NumberProcessor {
         NUMBER_MAP.get(&ch).copied()
     }
 
+    /// True when `text` is a single bare digit (一-九, excluding 十/零/两) — the short-form
+    /// truncation marker where the next-lower unit is omitted (e.g. 三千三 = 三千三百,
+    /// 三百三 = 三百三十). Mirrors JS NumberProcessor.js's `/^[一二三四五六七八九]$/` check.
+    fn is_bare_truncated_digit(text: &str) -> bool {
+        let mut chars = text.chars();
+        match (chars.next(), chars.next()) {
+            (Some(c), None) => "一二三四五六七八九".contains(c),
+            _ => false,
+        }
+    }
+
     /// Parse complex Chinese number string
     /// CODE REVIEW FIX (CRITICAL-3): Now uses lazy_static regex to prevent memory leaks
     fn parse_chinese_number(&self, text: &str) -> Option<u32> {
@@ -442,8 +453,11 @@ impl NumberProcessor {
                 let thousands_char = caps.get(1)?.as_str().chars().next()?;
                 let thousands_value = self.get_number(thousands_char)? * 1000;
                 let remainder = caps.get(2)?.as_str();
+                // Short-form truncation: 三千三 means 三千三百 (bare trailing digit implies missing 百)
                 let remainder_value = if remainder.is_empty() {
                     0
+                } else if Self::is_bare_truncated_digit(remainder) {
+                    self.get_number(remainder.chars().next()?)? * 100
                 } else {
                     self.parse_chinese_number(remainder)?
                 };
@@ -466,8 +480,11 @@ impl NumberProcessor {
                 let hundreds_char = caps.get(1)?.as_str().chars().next()?;
                 let hundreds_value = self.get_number(hundreds_char)? * 100;
                 let remainder = caps.get(2)?.as_str();
+                // Short-form truncation: 三百三 means 三百三十 (bare trailing digit implies missing 十)
                 let remainder_value = if remainder.is_empty() {
                     0
+                } else if Self::is_bare_truncated_digit(remainder) {
+                    self.get_number(remainder.chars().next()?)? * 10
                 } else {
                     self.parse_chinese_number(remainder)?
                 };
@@ -557,8 +574,13 @@ impl NumberProcessor {
     fn convert_thousands(&self, groups: &[&str]) -> Option<String> {
         if groups.is_empty() { return None; }
         let thousands = self.get_number(groups[0].chars().next()?)?;
+        // Short-form truncation: 三千三 means 三千三百 (bare trailing digit implies missing 百)
         let remainder = if groups.len() > 1 && !groups[1].is_empty() {
-            self.parse_chinese_number(groups[1])?
+            if Self::is_bare_truncated_digit(groups[1]) {
+                self.get_number(groups[1].chars().next()?)? * 100
+            } else {
+                self.parse_chinese_number(groups[1])?
+            }
         } else {
             0
         };
@@ -645,8 +667,13 @@ impl NumberProcessor {
     fn convert_hundreds(&self, groups: &[&str]) -> Option<String> {
         if groups.is_empty() { return None; }
         let hundreds = self.get_number(groups[0].chars().next()?)? * 100;
+        // Short-form truncation: 三百三 means 三百三十 (bare trailing digit implies missing 十)
         let remainder = if groups.len() > 1 && !groups[1].is_empty() {
-            self.parse_chinese_number(groups[1])?
+            if Self::is_bare_truncated_digit(groups[1]) {
+                self.get_number(groups[1].chars().next()?)? * 10
+            } else {
+                self.parse_chinese_number(groups[1])?
+            }
         } else {
             0
         };
@@ -784,6 +811,19 @@ mod tests {
         assert_eq!(p.parse_chinese_number("三百"), Some(300));
         assert_eq!(p.parse_chinese_number("三百五十"), Some(350));
         assert_eq!(p.parse_chinese_number("两百零六"), Some(206));
+    }
+
+    #[test]
+    fn test_parse_chinese_number_truncated_short_form() {
+        let p = NumberProcessor::new();
+        // 三千三 → 3300 (implied 百, not 3003) — mirrors JS NumberProcessor.test.js
+        assert_eq!(p.parse_chinese_number("三千三"), Some(3300));
+        // 三百三 → 330 (implied 十, not 303)
+        assert_eq!(p.parse_chinese_number("三百三"), Some(330));
+        // 三千二百三 → 3230 (implied 十 on the hundreds remainder)
+        assert_eq!(p.parse_chinese_number("三千二百三"), Some(3230));
+        // 三千零三 stays 3003 — explicit 零 means units, not truncation
+        assert_eq!(p.parse_chinese_number("三千零三"), Some(3003));
     }
 
     #[test]
@@ -1026,6 +1066,26 @@ mod tests {
         let m = p.find_longest_number_match(&tokens, 0);
         assert!(m.is_some());
         assert_eq!(m.unwrap().result, "3,000");
+    }
+
+    #[test]
+    fn test_converter_thousands_truncated_short_form() {
+        let p = NumberProcessor::new();
+        // 三千三 → 3,300 (implied 百, not 3,003) — mirrors JS NumberProcessor.test.js
+        let tokens = vec![tok("三"), tok("千"), tok("三")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "3,300");
+    }
+
+    #[test]
+    fn test_converter_hundreds_truncated_short_form() {
+        let p = NumberProcessor::new();
+        // 三百三 → 330 (implied 十, not 303)
+        let tokens = vec![tok("三"), tok("百"), tok("三")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "330");
     }
 
     #[test]

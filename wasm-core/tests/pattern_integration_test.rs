@@ -50,8 +50,8 @@ fn test_parse_real_patterns_json() {
         .find(|p| p.original_pattern == "在XY中")
         .expect("Pattern '在XY中' not found");
     assert_eq!(
-        zai_xy_zhong.priority, 29,
-        "Pattern '在XY中' should have priority 29 (2*10 + 4 + 5)"
+        zai_xy_zhong.priority, -11,
+        "Pattern '在XY中' should have priority -11 (-2*10 + 4 + 5)"
     );
 }
 

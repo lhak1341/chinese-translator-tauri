@@ -324,6 +324,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 [
                   ['x-only', 'X only'],
                   ['x-y', 'X–Y'],
+                  ['no-variable', 'No variable'],
                 ] as const
               ).map(([key, label]) => (
                 <FilterChipButton

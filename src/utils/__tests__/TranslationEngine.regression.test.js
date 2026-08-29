@@ -369,4 +369,27 @@ describe('TranslationEngine Regression Tests', () => {
       expect(adaptiveChunker.performanceHistory).toHaveLength(0);
     });
   });
+
+  describe('Bug Fix: applyFinalCleanup spuriously spacing punctuation off a digit', () => {
+    // applyFinalCleanup is pure (no `this.*` reads) — call it directly off the prototype
+    // rather than constructing a full engine (WASM/dictionary init not needed here).
+    const cleanup = (text) => TranslationEngine.prototype.applyFinalCleanup.call({}, text);
+
+    it('does not insert a space between a converted number and following punctuation', () => {
+      // 两千七！ → "2,700!" via NumberProcessor; previously became "2,700 !"
+      expect(cleanup('“2,700!”')).toBe('“2,700!”');
+      expect(cleanup('2,700?')).toBe('2,700?');
+      expect(cleanup('2,700:')).toBe('2,700:');
+      expect(cleanup('2,700;')).toBe('2,700;');
+    });
+
+    it('still adds a space between Vietnamese text and Arabic numerals', () => {
+      expect(cleanup('Thứ422giới')).toBe('Thứ 422 giới');
+    });
+
+    it('still preserves number-formatting punctuation like slashes and tildes', () => {
+      expect(cleanup('(23/30)')).toBe('(23/30)');
+      expect(cleanup('1992~1996')).toBe('1992~1996');
+    });
+  });
 });

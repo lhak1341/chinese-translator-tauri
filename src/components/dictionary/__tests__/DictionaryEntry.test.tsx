@@ -200,11 +200,15 @@ describe('DictionaryEntry — validation banners', () => {
     formStateRef.current = makeFormState({
       activeDictionary: 'patterns',
       showPatternValidation: true,
-      source: '没有变量',
-      translation: 'không có biến',
+      source: '这Y上',
+      translation: 'trên Y này',
     });
     render(<DictionaryEntry onClose={vi.fn()} selectedDictionary="patterns" />);
-    expect(screen.getByText('Source needs exactly one "X" (found 0).')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Source has "Y" but no "X" — add "X" first, or remove "Y" for a no-variable pattern.'
+      )
+    ).toBeInTheDocument();
   });
 });
 

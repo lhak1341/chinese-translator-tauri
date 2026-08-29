@@ -28,12 +28,20 @@ describe('isCharacterSourceValid', () => {
 });
 
 describe('isPatternValid', () => {
-  it('rejects source with no X', () => {
-    expect(isPatternValid('là người')).toBe(false);
+  it('accepts source with no X or Y (literal, no-variable pattern)', () => {
+    expect(isPatternValid('là người')).toBe(true);
+  });
+
+  it('rejects source with Y but no X (Y-only is invalid)', () => {
+    expect(isPatternValid('là Y người')).toBe(false);
   });
 
   it('rejects source with two X', () => {
     expect(isPatternValid('X và X')).toBe(false);
+  });
+
+  it('ignores translation for a 0-variable source, even if translation lacks X', () => {
+    expect(isPatternValid('là người', 'this is a person')).toBe(true);
   });
 
   it('accepts source with exactly one X, no translation check', () => {
@@ -109,8 +117,13 @@ describe('validateDictionaryEntry', () => {
       expect(result).toEqual({ valid: true, error: null });
     });
 
-    it('rejects pattern with no X in source', () => {
+    it('accepts pattern with no X in source (0-variable literal pattern)', () => {
       const result = validateDictionaryEntry('là người', 'là người', 'patterns');
+      expect(result).toEqual({ valid: true, error: null });
+    });
+
+    it('rejects pattern with Y but no X in source', () => {
+      const result = validateDictionaryEntry('là Y người', 'là Y người', 'patterns');
       expect(result.valid).toBe(false);
       expect(result.error).toContain('Pattern entry invalid');
     });
@@ -150,9 +163,9 @@ describe('validateDictionaryEntry', () => {
     });
 
     it('pattern error message matches exact string expected by DictionaryEntry', () => {
-      const result = validateDictionaryEntry('no-x', 'no-x', 'patterns');
+      const result = validateDictionaryEntry('XX', 'XX', 'patterns');
       expect(result.error).toBe(
-        'Pattern entry invalid — source needs exactly one X, translation must contain X (and Y if source has Y)'
+        'Pattern entry invalid — source needs zero or one X, translation must contain X if source has X (and Y if source has Y)'
       );
     });
   });

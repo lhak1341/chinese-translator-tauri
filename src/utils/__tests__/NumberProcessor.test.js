@@ -102,6 +102,12 @@ describe('NumberProcessor', () => {
       processor.processTokens(tokens, mockOptions);
       expect(getTranslations(tokens)).toEqual(['317']);
     });
+
+    it('converts truncated short-form hundreds: 三百三 → 330 (implied 十, not 303)', () => {
+      const tokens = createTokens('三百三');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['330']);
+    });
   });
 
   describe('Thousands', () => {
@@ -133,6 +139,18 @@ describe('NumberProcessor', () => {
       const tokens = createTokens('一千零六');
       processor.processTokens(tokens, mockOptions);
       expect(getTranslations(tokens)).toEqual(['1,006']);
+    });
+
+    it('converts truncated short-form thousands: 三千三 → 3,300 (implied 百, not 3,003)', () => {
+      const tokens = createTokens('三千三');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['3,300']);
+    });
+
+    it('converts truncated short-form thousands with hundreds remainder: 三千二百三 → 3,230 (implied 十)', () => {
+      const tokens = createTokens('三千二百三');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['3,230']);
     });
 
     it('converts thousand ten-thousand: 五千万 → 50,000,000', () => {

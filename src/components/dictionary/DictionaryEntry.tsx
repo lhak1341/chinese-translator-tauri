@@ -176,14 +176,21 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
                 <div className={`${styles.notificationContent} ${styles.notificationTextError}`}>
                   <XCircle size={16} className={styles.notificationIcon} />
                   <div className={styles.notificationDetailError}>
-                    {(form.source.trim().match(/X/g) || []).length !== 1
-                      ? `Source needs exactly one "X" (found ${(form.source.trim().match(/X/g) || []).length}).`
-                      : !(form.translation.trim().match(/X/g) || []).length
-                        ? 'Translation is missing "X".'
-                        : (form.source.trim().match(/Y/g) || []).length > 0 &&
-                            !(form.translation.trim().match(/Y/g) || []).length
-                          ? 'Translation is missing "Y".'
-                          : 'Source and translation variables don’t match.'}
+                    {(() => {
+                      const xCount = (form.source.trim().match(/X/g) || []).length;
+                      const yCount = (form.source.trim().match(/Y/g) || []).length;
+                      const translationHasX =
+                        (form.translation.trim().match(/X/g) || []).length > 0;
+                      const translationHasY =
+                        (form.translation.trim().match(/Y/g) || []).length > 0;
+
+                      if (xCount > 1) return `Source can have at most one "X" (found ${xCount}).`;
+                      if (xCount === 0 && yCount > 0)
+                        return 'Source has "Y" but no "X" — add "X" first, or remove "Y" for a no-variable pattern.';
+                      if (xCount === 1 && !translationHasX) return 'Translation is missing "X".';
+                      if (yCount > 0 && !translationHasY) return 'Translation is missing "Y".';
+                      return 'Source and translation variables don’t match.';
+                    })()}
                   </div>
                 </div>
               </div>

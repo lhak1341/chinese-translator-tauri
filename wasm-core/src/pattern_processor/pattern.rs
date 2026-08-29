@@ -221,12 +221,24 @@ impl SemanticPattern {
     }
 
     /// Calculate pattern priority
-    /// Formula: (variables.length * 10) + tokens.length + (literal_first ? 5 : 0)
+    /// Formula: -(variables.length * 10) + tokens.length + (literal_first ? 5 : 0)
+    ///
+    /// Fewer variables = higher priority (more literal chars = more specific pattern).
+    /// This must agree with `find_best_pattern_match`'s separate, explicit "fewer
+    /// variables wins" tie-break rule (matcher.rs) — before 2026-08-29 this formula
+    /// scored the opposite direction ("more variables = higher priority"), which was
+    /// harmless there (var_count is already tied whenever priority is consulted) but
+    /// silently wrong in `select_non_overlapping_phase_a`'s Phase A tie-break
+    /// (two_phase.rs), which uses `.priority` directly with no separate var_count
+    /// check — letting a longer, less-specific, multi-variable pattern win a
+    /// same-score Phase A race over a shorter, more-specific one that a Phase B
+    /// pattern was waiting to compose with (e.g. "X的Y" beating "这位X" for
+    /// "这位前辈的丹药", blocking the "đan dược của vị tiền bối này" composite).
     pub fn calculate_priority(tokens: &[PatternToken], variables: &[String]) -> i32 {
         let mut priority = 0;
 
-        // More variables = higher priority (more specific patterns)
-        priority += (variables.len() as i32) * 10;
+        // Fewer variables = higher priority (more specific patterns)
+        priority -= (variables.len() as i32) * 10;
 
         // Longer patterns = higher priority (more context)
         priority += tokens.len() as i32;
@@ -270,8 +282,8 @@ mod tests {
         let variables = vec!["X".to_string(), "Y".to_string()];
 
         let priority = SemanticPattern::calculate_priority(&tokens, &variables);
-        // Expected: 2*10 + 3 + 5 = 28
-        assert_eq!(priority, 28);
+        // Expected: -2*10 + 3 + 5 = -12
+        assert_eq!(priority, -12);
     }
 
     #[test]
@@ -285,7 +297,36 @@ mod tests {
         let variables = vec!["X".to_string(), "Y".to_string()];
 
         let priority = SemanticPattern::calculate_priority(&tokens, &variables);
-        // Expected: 2*10 + 3 + 0 (no literal first) = 23
-        assert_eq!(priority, 23);
+        // Expected: -2*10 + 3 + 0 (no literal first) = -17
+        assert_eq!(priority, -17);
+    }
+
+    #[test]
+    fn test_fewer_variables_wins_priority() {
+        // Regression: fewer-variable pattern must outrank a more-variable pattern of
+        // the same token length, matching find_best_pattern_match's "fewer variables
+        // wins" convention. Mirrors "这位X" (1 var) vs "X的Y" (2 vars), both 3 tokens.
+        let one_var_tokens = vec![
+            PatternToken::literal("这".to_string(), 0),
+            PatternToken::literal("位".to_string(), 1),
+            PatternToken::variable("X".to_string(), 2),
+        ];
+        let one_var = vec!["X".to_string()];
+
+        let two_var_tokens = vec![
+            PatternToken::variable("X".to_string(), 0),
+            PatternToken::literal("的".to_string(), 1),
+            PatternToken::variable("Y".to_string(), 2),
+        ];
+        let two_var = vec!["X".to_string(), "Y".to_string()];
+
+        let one_var_priority = SemanticPattern::calculate_priority(&one_var_tokens, &one_var);
+        let two_var_priority = SemanticPattern::calculate_priority(&two_var_tokens, &two_var);
+
+        assert!(
+            one_var_priority > two_var_priority,
+            "1-variable literal-first pattern ({one_var_priority}) must outrank the \
+             2-variable pattern ({two_var_priority})"
+        );
     }
 }

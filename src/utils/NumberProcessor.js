@@ -336,7 +336,12 @@ export class NumberProcessor {
    */
   convertHundreds(match, hundreds, remainder) {
     const hundredsValue = this.NUMBER_MAP[hundreds] * 100;
-    const remainderValue = remainder ? this.parseChineseNumber(remainder) : 0;
+    // Short-form truncation: 三百三 means 三百三十 (bare trailing digit implies missing 十)
+    const remainderValue = remainder
+      ? /^[一二三四五六七八九]$/.test(remainder)
+        ? this.NUMBER_MAP[remainder] * 10
+        : this.parseChineseNumber(remainder)
+      : 0;
     return (hundredsValue + remainderValue).toString();
   }
 
@@ -462,7 +467,12 @@ export class NumberProcessor {
    */
   convertThousands(match, thousands, remainder) {
     const thousandsValue = this.NUMBER_MAP[thousands] * 1000;
-    const remainderValue = remainder ? this.parseChineseNumber(remainder) : 0;
+    // Short-form truncation: 三千三 means 三千三百 (bare trailing digit implies missing 百)
+    const remainderValue = remainder
+      ? /^[一二三四五六七八九]$/.test(remainder)
+        ? this.NUMBER_MAP[remainder] * 100
+        : this.parseChineseNumber(remainder)
+      : 0;
     return NumberProcessor.formatWithCommas(thousandsValue + remainderValue);
   }
 
@@ -529,7 +539,13 @@ export class NumberProcessor {
       );
       if (thousandsMatch) {
         const thousandsValue = this.NUMBER_MAP[thousandsMatch[1]] * 1000;
-        const remainderValue = thousandsMatch[2] ? this.parseChineseNumber(thousandsMatch[2]) : 0;
+        const remainder = thousandsMatch[2];
+        // Short-form truncation: 三千三 means 三千三百 (bare trailing digit implies missing 百)
+        const remainderValue = remainder
+          ? /^[一二三四五六七八九]$/.test(remainder)
+            ? this.NUMBER_MAP[remainder] * 100
+            : this.parseChineseNumber(remainder)
+          : 0;
         return thousandsValue + remainderValue;
       }
     }
@@ -552,7 +568,13 @@ export class NumberProcessor {
       );
       if (hundredsMatch) {
         const hundredsValue = this.NUMBER_MAP[hundredsMatch[1]] * 100;
-        const remainderValue = hundredsMatch[2] ? this.parseChineseNumber(hundredsMatch[2]) : 0;
+        const remainder = hundredsMatch[2];
+        // Short-form truncation: 三百三 means 三百三十 (bare trailing digit implies missing 十)
+        const remainderValue = remainder
+          ? /^[一二三四五六七八九]$/.test(remainder)
+            ? this.NUMBER_MAP[remainder] * 10
+            : this.parseChineseNumber(remainder)
+          : 0;
         return hundredsValue + remainderValue;
       }
     }

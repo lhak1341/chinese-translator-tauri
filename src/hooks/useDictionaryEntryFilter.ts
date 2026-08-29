@@ -26,7 +26,7 @@ export function useDictionaryEntryFilter(
   filterPatternType: Set<string>;
   filterAllowAsVariable: boolean;
   toggleSemanticType: (type: string) => void;
-  togglePatternType: (type: 'x-only' | 'x-y') => void;
+  togglePatternType: (type: 'x-only' | 'x-y' | 'no-variable') => void;
   toggleFlag: (flag: 'allowAsVariable') => void;
   setVariable: (v: 'all' | 'allowed' | 'not-allowed') => void;
   clearFilters: () => void;
@@ -105,7 +105,8 @@ export function useDictionaryEntryFilter(
         const hasY = source.includes('Y');
         const matchXOnly = filterPatternType.has('x-only') && hasX && !hasY;
         const matchXY = filterPatternType.has('x-y') && hasX && hasY;
-        return matchXOnly || matchXY;
+        const matchNoVariable = filterPatternType.has('no-variable') && !hasX && !hasY;
+        return matchXOnly || matchXY || matchNoVariable;
       });
     }
 
@@ -179,7 +180,7 @@ export function useDictionaryEntryFilter(
     });
   }, []);
 
-  const togglePatternType = useCallback((type: 'x-only' | 'x-y'): void => {
+  const togglePatternType = useCallback((type: 'x-only' | 'x-y' | 'no-variable'): void => {
     setFilterPatternType((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);

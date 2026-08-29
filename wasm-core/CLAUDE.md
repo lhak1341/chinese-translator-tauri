@@ -40,6 +40,11 @@ Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or d
 (trailing after candidate, or leading before it). Shorter candidate wins if it enables a longer composite.
 **Debugging:** if Phase A picks the wrong candidate, check whether the losing candidate's semantic type
 passes `allowedVariableTypes` of the intended wrapping Phase B pattern — that's what the bonus check gates on.
+If scores tie exactly, also check `calculate_priority` (`pattern.rs`) — it tie-breaks fewer-variables-wins
+(matching `find_best_pattern_match`'s rule), but was inverted until 2026-08-29 (silently favored a longer,
+more-variable pattern over a shorter, more-specific one waiting to compose — e.g. `这位X` losing to `X的Y`).
+`.priority`'s only real consumers are `find_best_pattern_match` and this tie-break; `trie.rs` has an unrelated
+same-named field (dictionary trie metadata) — don't let a bare `.priority` grep pull it in.
 
 **Test coverage:** `test_phase_a_composite_bonus_wins_over_larger_own_span` (`tests/two_phase_test.rs`) covers the
 trailing-bonus path (`estimate_trailing_bonus`) end-to-end, via `process_tokens`. `estimate_leading_bonus` has

@@ -322,8 +322,11 @@ fn test_build_result_with_complex_template() {
 #[test]
 fn test_pattern_competition_higher_priority_wins() {
     // Create two patterns with different priorities:
-    // "这些X" (1 var, 3 tokens, literal first) → priority 18
-    // "这些XY" (2 vars, 4 tokens, literal first) → priority 29
+    // "这些X" (1 var, 3 tokens, literal first) → priority -2
+    // "这些XY" (2 vars, 4 tokens, literal first) → priority -11
+    // "这些XY" wins here via match length (rule 1: longer match wins) — its two
+    // variables consume both remaining tokens (人, 强大), while "这些X"'s single
+    // variable only consumes one, so priority (rule 3) is never actually reached.
     let pattern1 = parse_pattern(
         "这些X".to_string(),
         "những X này".to_string(),

@@ -19,6 +19,7 @@ const patterns: DictionaryData = {
   X的弟子: { translation: 'đệ tử của X', allowAsPatternVariable: true },
   X和Y: { translation: 'X và Y' },
   无X: { translation: 'không có X' },
+  这种马上: { translation: 'ngay lúc này' },
 };
 
 const dicts: Record<string, DictionaryData> = { phrases, patterns };
@@ -139,6 +140,14 @@ describe('useDictionaryEntryFilter — filter state', () => {
       result.current.togglePatternType('x-y');
     });
     expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['X和Y']);
+  });
+
+  it('filterPatternType=no-variable shows only literal patterns with neither X nor Y', () => {
+    const { result } = renderHook(() => useDictionaryEntryFilter(dicts, 'patterns', [], false));
+    act(() => {
+      result.current.togglePatternType('no-variable');
+    });
+    expect(result.current.filteredEntries.map(([s]) => s)).toEqual(['这种马上']);
   });
 
   it('filterAllowAsVariable shows only allowAsPatternVariable=true', () => {

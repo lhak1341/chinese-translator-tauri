@@ -15,23 +15,22 @@ export function isCharacterSourceValid(source: string): boolean {
 
 /**
  * Returns true when source/translation satisfy 'patterns' dictionary constraints:
- * - source contains exactly one X
- * - if translation is non-empty, it must contain X
+ * - source contains at most one X (zero is allowed — a literal, no-variable pattern)
+ * - source cannot contain Y without X (Y-only patterns are intentionally invalid)
+ * - if translation is non-empty and source has X, translation must contain X
  * - if source contains Y, translation must also contain Y
  */
 export function isPatternValid(source: string, translation?: string): boolean {
   const trimmedSource = source.trim();
   const xCount = (trimmedSource.match(/X/g) || []).length;
-  if (xCount !== 1) return false;
+  const yCount = (trimmedSource.match(/Y/g) || []).length;
+  if (xCount > 1) return false;
+  if (xCount === 0 && yCount > 0) return false;
 
   if (translation !== undefined && translation.trim().length > 0) {
     const trimmedTranslation = translation.trim();
-    if (!(trimmedTranslation.match(/X/g) || []).length) return false;
-    if (
-      (trimmedSource.match(/Y/g) || []).length > 0 &&
-      !(trimmedTranslation.match(/Y/g) || []).length
-    )
-      return false;
+    if (xCount === 1 && !(trimmedTranslation.match(/X/g) || []).length) return false;
+    if (yCount > 0 && !(trimmedTranslation.match(/Y/g) || []).length) return false;
   }
 
   return true;
@@ -72,7 +71,7 @@ export function validateDictionaryEntry(
     return {
       valid: false,
       error:
-        'Pattern entry invalid — source needs exactly one X, translation must contain X (and Y if source has Y)',
+        'Pattern entry invalid — source needs zero or one X, translation must contain X if source has X (and Y if source has Y)',
     };
   }
 
