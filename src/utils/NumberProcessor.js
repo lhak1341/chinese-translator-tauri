@@ -56,9 +56,10 @@ export class NumberProcessor {
       {
         name: 'percentage',
         regex:
-          /百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)/,
+          /百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|百|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)(?:点([一二三四五六七八九零]+))?/,
         converter: this.convertPercentage.bind(this),
-        description: 'Percentages like 百分之三十 (30%), 百分之十五 (15%), 百分之两百 (200%)',
+        description:
+          'Percentages like 百分之三十 (30%), 百分之十五 (15%), 百分之两百 (200%), 百分之百 (100%, bare 百 with no leading digit), 百分之九十九点九 (99.9%). Decimal digits are read individually (点九九 → ".99", not positional).',
       },
       {
         name: 'tenThousandRange',
@@ -205,10 +206,12 @@ export class NumberProcessor {
     let longestMatch = null;
     let longestMatchLength = 0;
 
-    // Build test sequences of increasing length (max 8 tokens to handle complex numbers like 七千七百七十七)
+    // Build test sequences of increasing length. Base case needs 8 tokens (七千七百七十七);
+    // decimal percentages need more — 百分之一百二十三点四五 is 11 chars (3-char prefix +
+    // up to 4-char integer part + 点 + up to several decimal digits).
     for (
       let endIndex = startIndex;
-      endIndex < tokens.length && endIndex <= startIndex + 7;
+      endIndex < tokens.length && endIndex <= startIndex + 11;
       endIndex++
     ) {
       const token = tokens[endIndex];
@@ -332,85 +335,78 @@ export class NumberProcessor {
   }
 
   /**
-   * Convert hundreds with unified remainder handling (e.g., 三百五十 -> 350)
+   * Convert hundreds (e.g., 三百五十 -> 350). Delegates the whole match to
+   * parseChineseNumber rather than re-deriving hundredsValue/remainder here — safe since
+   * parseChineseNumber's internal hundreds regex now uses the same `(.*)` catch-all
+   * remainder shape as the top-level CONVERSION_PATTERNS 'hundreds' regex that produced
+   * this match (verified equivalent by differential test before this simplification
+   * landed, 2026-08-29).
    */
-  convertHundreds(match, hundreds, remainder) {
-    const hundredsValue = this.NUMBER_MAP[hundreds] * 100;
-    // Short-form truncation: 三百三 means 三百三十 (bare trailing digit implies missing 十)
-    const remainderValue = remainder
-      ? /^[一二三四五六七八九]$/.test(remainder)
-        ? this.NUMBER_MAP[remainder] * 10
-        : this.parseChineseNumber(remainder)
-      : 0;
-    return (hundredsValue + remainderValue).toString();
+  convertHundreds(match) {
+    return this.parseChineseNumber(match).toString();
+  }
+
+  /**
+   * True if a two-digit sequence (e.g. 五六 -> 5,6) is a valid ascending range pair.
+   * Despite the "consecutive" wording in older comments here, this only requires
+   * secondValue > firstValue — any ascending pair renders as a range (三八 -> "30-80"
+   * is accepted same as 五六 -> "50-60"), not just adjacent digits. Shared by every
+   * *Range converter below so the check can't drift between copies.
+   */
+  isAscendingRangePair(firstValue, secondValue) {
+    return secondValue > firstValue;
+  }
+
+  /**
+   * Format a validated ascending pair as a "X-Y" range string, scaling both endpoints
+   * by `multiplier` (e.g. 10 for tens, 100 for hundreds) and appending `suffix`.
+   */
+  formatRangeString(firstValue, secondValue, multiplier = 1, suffix = '') {
+    return `${firstValue * multiplier}-${secondValue * multiplier}${suffix}`;
   }
 
   /**
    * Convert ten thousand ranges (e.g., 七八万 -> 7-8 vạn)
-   * Only converts if the digits form a logical consecutive range
+   * Only converts if the digits form a logical ascending range
    */
   convertTenThousandRange(match, firstDigit, secondDigit) {
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
-
-    // Only allow consecutive digits or logical ranges (difference of 1 or ascending order)
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      // Return null to indicate this pattern should not match
-      return null;
-    }
-
-    return `${firstValue}-${secondValue} vạn`;
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
+    return this.formatRangeString(firstValue, secondValue, 1, ' vạn');
   }
 
   /**
    * Convert thousand ranges (e.g., 七八千 -> 7-8 ngàn)
-   * Only converts if the digits form a logical consecutive range
+   * Only converts if the digits form a logical ascending range
    */
   convertThousandRange(match, firstDigit, secondDigit) {
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
-
-    // Only allow consecutive digits or logical ranges (difference of 1 or ascending order)
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      // Return null to indicate this pattern should not match
-      return null;
-    }
-
-    return `${firstValue}-${secondValue} ngàn`;
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
+    return this.formatRangeString(firstValue, secondValue, 1, ' ngàn');
   }
 
   /**
    * Convert hundreds ranges (e.g., 四五百 -> 400-500)
-   * Only converts if the digits form a logical consecutive range
+   * Only converts if the digits form a logical ascending range
    */
   convertHundredsRange(match, firstDigit, secondDigit) {
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
-
-    // Only allow consecutive digits or logical ranges (difference of 1 or ascending order)
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      // Return null to indicate this pattern should not match
-      return null;
-    }
-
-    const firstHundreds = firstValue * 100;
-    const secondHundreds = secondValue * 100;
-    return `${firstHundreds}-${secondHundreds}`;
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
+    return this.formatRangeString(firstValue, secondValue, 100);
   }
 
   /**
    * Convert hundreds plus tens range (e.g., 一百五六十 -> 150-160)
-   * Only converts if the digits form a logical consecutive range
+   * Only converts if the digits form a logical ascending range
    */
   convertHundredsPlusTensRange(match, hundreds, firstDigit, secondDigit) {
     const hundredsValue = this.NUMBER_MAP[hundreds] * 100;
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
-
-    // Only allow consecutive digits or logical ranges (difference of 1 or ascending order)
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      return null;
-    }
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
 
     const firstTotal = hundredsValue + firstValue * 10;
     const secondTotal = hundredsValue + secondValue * 10;
@@ -419,21 +415,13 @@ export class NumberProcessor {
 
   /**
    * Convert number ranges (e.g., 五六十 -> 50-60)
-   * Only converts if the digits form a logical consecutive range
+   * Only converts if the digits form a logical ascending range
    */
   convertNumberRange(match, firstDigit, secondDigit) {
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
-
-    // Only allow consecutive digits or logical ranges (difference of 1 or ascending order)
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      // Return null to indicate this pattern should not match
-      return null;
-    }
-
-    const firstTens = firstValue * 10;
-    const secondTens = secondValue * 10;
-    return `${firstTens}-${secondTens}`;
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
+    return this.formatRangeString(firstValue, secondValue, 10);
   }
 
   /**
@@ -442,12 +430,7 @@ export class NumberProcessor {
   convertTeenAgeRange(match, firstUnits, secondUnits) {
     const firstValue = 10 + this.NUMBER_MAP[firstUnits];
     const secondValue = 10 + this.NUMBER_MAP[secondUnits];
-
-    // Validate that it's a logical consecutive range
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      return null;
-    }
-
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
     return `${firstValue}-${secondValue}`;
   }
 
@@ -458,22 +441,20 @@ export class NumberProcessor {
     const tensValue = this.NUMBER_MAP[tens] * 10;
     const firstValue = tensValue + this.NUMBER_MAP[firstUnits];
     const secondValue = tensValue + this.NUMBER_MAP[secondUnits];
+    // BUG FIX: every other *Range converter validates ascending order before accepting
+    // the pair; this one didn't, so e.g. 二十八三 (tens=2, units 8 then 3) previously
+    // produced the nonsensical descending "28-23" instead of being rejected.
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
     return `${firstValue}-${secondValue}`;
   }
 
   /**
-   * Convert thousands (e.g., 三千七百 -> 3700, 二千五百三十 -> 2530)
+   * Convert thousands (e.g., 三千七百 -> 3700, 二千五百三十 -> 2530). Delegates to
+   * parseChineseNumber the same way convertHundreds does — see that method's comment.
    * Excludes patterns ending with 两 (e.g., 三千两, 一千零两)
    */
-  convertThousands(match, thousands, remainder) {
-    const thousandsValue = this.NUMBER_MAP[thousands] * 1000;
-    // Short-form truncation: 三千三 means 三千三百 (bare trailing digit implies missing 百)
-    const remainderValue = remainder
-      ? /^[一二三四五六七八九]$/.test(remainder)
-        ? this.NUMBER_MAP[remainder] * 100
-        : this.parseChineseNumber(remainder)
-      : 0;
-    return NumberProcessor.formatWithCommas(thousandsValue + remainderValue);
+  convertThousands(match) {
+    return NumberProcessor.formatWithCommas(this.parseChineseNumber(match));
   }
 
   /**
@@ -496,32 +477,62 @@ export class NumberProcessor {
   convertPercentageRange(match, firstDigit, secondDigit) {
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
-
-    // Validate that it's a logical consecutive range
-    if (secondValue !== firstValue + 1 && secondValue <= firstValue) {
-      return null;
-    }
-
-    return `${firstValue * 10}-${secondValue * 10}%`;
+    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
+    return this.formatRangeString(firstValue, secondValue, 10, '%');
   }
 
   /**
    * Convert percentages with unified number parsing (e.g., 百分之三十 -> 30%)
+   * Optional decimal suffix (e.g., 百分之九十九点九 -> 99.9%). Decimal digits are read
+   * individually in Chinese (点九九 = "point nine nine"), not positionally like the
+   * integer part (十/百/千) — so they're mapped digit-by-digit and string-concatenated,
+   * never passed through parseChineseNumber.
    */
-  convertPercentage(match, number) {
-    // Extract the number part after "百分之"
-    const after_prefix = match.replace('百分之', '');
+  convertPercentage(match, number, decimalDigits) {
+    // Extract the number part after "百分之" (strip any decimal suffix first — parsing
+    // the integer part must not see the raw 点... text)
+    const integerPart = number;
     let value = 0;
 
-    // Handle already converted numbers (digits)
-    if (/^\d+$/.test(after_prefix)) {
-      value = parseInt(after_prefix);
+    if (integerPart === '百') {
+      // Bare 百 has no leading digit for parseChineseNumber to key off (it'd return 0) —
+      // 百分之百 means "(one) hundred percent of" = 100%.
+      value = 100;
+    } else if (/^\d+$/.test(integerPart)) {
+      // Handle already converted numbers (digits)
+      value = parseInt(integerPart);
     } else {
       // Parse Chinese number
-      value = this.parseChineseNumber(after_prefix);
+      value = this.parseChineseNumber(integerPart);
+    }
+
+    if (decimalDigits) {
+      const decimalString = decimalDigits
+        .split('')
+        .map((c) => this.NUMBER_MAP[c])
+        .join('');
+      return `${value}.${decimalString}%`;
     }
 
     return `${value}%`;
+  }
+
+  /**
+   * Resolve a thousands/hundreds remainder capture to its numeric value.
+   * Chinese uses short-form truncation for a bare trailing digit — 三千三 means 三千三百
+   * (missing 百 implied), 三百三 means 三百三十 (missing 十 implied) — so a single-char
+   * remainder is scaled by `shortFormMultiplier` (100 for thousands, 10 for hundreds)
+   * instead of being parsed as a standalone units digit. A multi-char remainder (e.g.
+   * "七百" after 千, "五十" after 百) is spelled out in full and recurses normally.
+   * @param {string|undefined} remainder - Captured remainder text, or falsy for none
+   * @param {number} shortFormMultiplier - 100 after 千, 10 after 百
+   * @returns {number}
+   */
+  resolveRemainderValue(remainder, shortFormMultiplier) {
+    if (!remainder) return 0;
+    return /^[一二三四五六七八九]$/.test(remainder)
+      ? this.NUMBER_MAP[remainder] * shortFormMultiplier
+      : this.parseChineseNumber(remainder);
   }
 
   /**
@@ -533,20 +544,18 @@ export class NumberProcessor {
     if (!chineseNumber) return 0;
 
     // Handle thousands patterns like 一千两百 (1200), 三千五百 (3500), 一千零二十四 (1024)
+    // Remainder is a bare `(.*)` catch-all (mirrors wasm-core/number_processor.rs's
+    // THOUSANDS_RE), not an enumerated alternation — an enumerated list here previously
+    // drifted from the top-level CONVERSION_PATTERNS 'thousands' regex (which is the one
+    // that actually decides how much text to consume) and silently truncated compound
+    // numbers like 三千二百十五 to 3200, dropping the trailing 十五 (see resolveRemainderValue
+    // below, which still handles the short-form-truncation special case on whatever this
+    // captures). Fixed 2026-08-29 — see wasm-core/CLAUDE.md.
     if (chineseNumber.includes('千')) {
-      const thousandsMatch = chineseNumber.match(
-        /([一二两三四五六七八九])千(零[一二两三四五六七八九]十[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二两三四五六七八九]?|[一二两三四五六七八九]百零[一二两三四五六七八九]|[一二两三四五六七八九]百|[一二两三四五六七八九]十[一二三四五六七八九]?|[一二三四五六七八九])?/
-      );
+      const thousandsMatch = chineseNumber.match(/([一二两三四五六七八九])千(.*)/);
       if (thousandsMatch) {
         const thousandsValue = this.NUMBER_MAP[thousandsMatch[1]] * 1000;
-        const remainder = thousandsMatch[2];
-        // Short-form truncation: 三千三 means 三千三百 (bare trailing digit implies missing 百)
-        const remainderValue = remainder
-          ? /^[一二三四五六七八九]$/.test(remainder)
-            ? this.NUMBER_MAP[remainder] * 100
-            : this.parseChineseNumber(remainder)
-          : 0;
-        return thousandsValue + remainderValue;
+        return thousandsValue + this.resolveRemainderValue(thousandsMatch[2], 100);
       }
     }
 
@@ -562,20 +571,12 @@ export class NumberProcessor {
         return hundredsValue + unitsValue;
       }
 
-      // Check for regular hundreds (exclude 两 at final position)
-      const hundredsMatch = chineseNumber.match(
-        /([一二两三四五六七八九])百([一二两三四五六七八九]十[一二两三四五六七八九]?|[一二两三四五六七八九]十|[一二三四五六七八九])?/
-      );
+      // Check for regular hundreds (exclude 两 at final position). Bare `(.*)` remainder —
+      // see the matching comment on the thousands block above for why.
+      const hundredsMatch = chineseNumber.match(/([一二两三四五六七八九])百(.*)/);
       if (hundredsMatch) {
         const hundredsValue = this.NUMBER_MAP[hundredsMatch[1]] * 100;
-        const remainder = hundredsMatch[2];
-        // Short-form truncation: 三百三 means 三百三十 (bare trailing digit implies missing 十)
-        const remainderValue = remainder
-          ? /^[一二三四五六七八九]$/.test(remainder)
-            ? this.NUMBER_MAP[remainder] * 10
-            : this.parseChineseNumber(remainder)
-          : 0;
-        return hundredsValue + remainderValue;
+        return hundredsValue + this.resolveRemainderValue(hundredsMatch[2], 10);
       }
     }
 

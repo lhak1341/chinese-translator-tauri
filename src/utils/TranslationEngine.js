@@ -1127,7 +1127,12 @@ export class TranslationEngine {
             nextToken.type === 'chinese_char' ||
             nextToken.type === 'latin_word' ||
             nextToken.type === TokenType.NUMBER;
-          if (nextIsContent || nextIsOpeningElement) {
+          // A bare non-CJK/non-ASCII letter (Greek "α", Cyrillic, accented Latin) falls
+          // into the tokenizer's punctuation catch-all — mirrors needsSpace() Rule 11
+          // in WasmTextAssembler.js / text_assembly.rs (Full Translation's spacing path).
+          const nextIsForeignLetter =
+            nextToken.type === 'punctuation' && /^\p{L}/u.test(nextToken.value || '');
+          if (nextIsContent || nextIsOpeningElement || nextIsForeignLetter) {
             translatedText += ' ';
           }
         }
@@ -1194,9 +1199,13 @@ export class TranslationEngine {
         /([぀-ゟ゠-ヿ]+)([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])/gi,
         '$1 $2'
       );
+      // \P{L}* on both sides of the mandatory \s so a closing quote sitting between the
+      // sentence-ender and the space (e.g. `!" "xuy`) doesn't block capitalization of the
+      // next dialogue's opening letter. The \s stays mandatory so numbers like "3.5kg" are
+      // never touched (no whitespace between "." and "5kg").
       translatedText = translatedText.replace(
-        /([.!?]\s+\P{L}*)(\p{L})/gu,
-        (match, pre, letter) => pre + letter.toUpperCase()
+        /([.!?])(\P{L}*\s\P{L}*)(\p{L})/gu,
+        (match, punct, sep, letter) => punct + sep + letter.toUpperCase()
       );
 
       if (process.env.NODE_ENV === 'development') {
@@ -4234,9 +4243,14 @@ export class TranslationEngine {
       // Skip remaining spacing rules when called from chunking
       return result;
     } else {
-      // Add space after punctuation (except at end of string or when followed by closing quotes)
+      // Add space after punctuation (except at end of string, before closing quotes, or
+      // before a digit — a "." immediately followed by a digit is a decimal point inside a
+      // converted number's own translated value, e.g. NumberProcessor's "99.9%", not a
+      // sentence-ending period; forcing a space there splits the number into "99. 9%" and,
+      // since positions are recorded against this text before cleanup runs, also corrupts
+      // every subsequent click-to-highlight position by the one inserted char. Fixed 2026-08-29.
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 Before punctuation spacing:', JSON.stringify(result));
-      result = result.replace(/([.!?:;，。！？：；])(?!\s|$|[“”\])}】》）»>])/g, '$1 ');
+      result = result.replace(/([.!?:;，。！？：；])(?!\s|$|[“”\])}】》）»>]|\d)/g, '$1 ');
       // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
       result = result.replace(/,(?!\s|$|[“””\d])/g, ', ');
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 After punctuation spacing:', JSON.stringify(result));
@@ -6959,6 +6973,16 @@ export class TranslationEngine {
       '': false, // After no punctuation - NO capitalization
     };
 
+    // Punctuation chars that trigger capitalization when they appear ANYWHERE inside a
+    // combined multi-char startedBy sequence (e.g. WASM combines "：«" into one string).
+    // Derived from capitalizationRules itself so the two can never drift apart — this used
+    // to be three independently hand-copied arrays (sentenceEnders/colonMarks/ellipsisMarks)
+    // that had already drifted both from each other and from capitalizationRules (the
+    // fallback block further below was missing '．', found during 2026-08-29 review).
+    const capitalizingPunctuation = Object.entries(capitalizationRules)
+      .filter(([key, value]) => value && key !== 'start' && key !== 'linebreak')
+      .map(([key]) => key);
+
     // Apply capitalization rules to each chunk
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
@@ -6969,26 +6993,15 @@ export class TranslationEngine {
 
       // Handle multi-character punctuation sequences
       if (!shouldCapitalize && chunk.startedBy) {
-        // Check if startedBy contains sentence-ending punctuation
-        const sentenceEnders = ['.', '!', '?', '。', '．', '！', '？'];
-        const colonMarks = [':', '：'];
-        const ellipsisMarks = ['…', '……'];
+        const matchedPunct = capitalizingPunctuation.find((punct) =>
+          chunk.startedBy.includes(punct)
+        );
 
-        // Check for sentence-ending punctuation (anywhere in the sequence)
-        const hasSentenceEnder = sentenceEnders.some((punct) => chunk.startedBy.includes(punct));
-
-        // Check for colon (anywhere in the sequence)
-        const hasColon = colonMarks.some((punct) => chunk.startedBy.includes(punct));
-
-        // Check for ellipsis (anywhere in the sequence)
-        const hasEllipsis = ellipsisMarks.some((punct) => chunk.startedBy.includes(punct));
-
-        if (hasSentenceEnder || hasColon || hasEllipsis) {
+        if (matchedPunct) {
           shouldCapitalize = true;
-          const reason = hasSentenceEnder ? 'sentence ender' : hasColon ? 'colon' : 'ellipsis';
           this.log(
             DEBUG_LEVELS.VERBOSE,
-            `📝 Multi-char punctuation capitalization: "${chunk.startedBy}" contains ${reason}`
+            `📝 Multi-char punctuation capitalization: "${chunk.startedBy}" contains "${matchedPunct}"`
           );
         }
       }
@@ -7025,33 +7038,39 @@ export class TranslationEngine {
       // Fallback: WASM chunker creates a separate empty chunk for opening punctuation (e.g. '「'),
       // placing the colon/linebreak/start context in that empty chunk's startedBy rather than here.
       // If the previous chunk is empty (no content) and carries sentence-start context, inherit it.
+      // Reuses capitalizingPunctuation (see above) instead of its own hand-copied punctuation
+      // list — the old inline list was missing '．' and never checked ellipsis at all.
       if (!shouldCapitalize && i > 0) {
         const prevChunk = chunks[i - 1];
         if (prevChunk && !prevChunk.content.trim()) {
           const prevSBy = prevChunk.startedBy || '';
-          const hasColonCtx = prevSBy.includes(':') || prevSBy.includes('：');
-          const hasSentenceCtx = ['.', '!', '?', '。', '！', '？'].some((p) => prevSBy.includes(p));
+          const hasPunctCtx = capitalizingPunctuation.some((p) => prevSBy.includes(p));
           const hasStartCtx =
             prevSBy === 'linebreak' || prevSBy === 'start' || !!prevChunk.lineBreaks;
-          if (hasColonCtx || hasSentenceCtx || hasStartCtx) {
+          if (hasPunctCtx || hasStartCtx) {
             shouldCapitalize = true;
           }
         }
       }
 
       if (shouldCapitalize) {
-        // Check if this chunk is already properly capitalized from dictionary (proper noun)
-        const isAlreadyCapitalized =
-          chunk.translated.charAt(0) === chunk.translated.charAt(0).toUpperCase();
+        // capitalizeFirstLetter is idempotent-safe: if the first letter is already
+        // uppercase (or there's no letter at all, e.g. a bare converted number),
+        // .toUpperCase() returns the same char and the string comes back unchanged — so
+        // there's no need for a separate "is it already capitalized?" pre-check. The old
+        // check compared chunk.translated.charAt(0) directly, which was wrong for any
+        // chunk starting with a non-letter (a digit like NumberProcessor's "99.9%" trivially
+        // passed charAt(0)===charAt(0).toUpperCase(), skipping capitalizeFirstLetter
+        // entirely even when a real word followed later in the same chunk).
+        const oldText = chunk.translated;
+        chunk.translated = this.capitalizeFirstLetter(chunk.translated);
 
         this.log(
           DEBUG_LEVELS.DEBUG,
-          `🔍 Capitalization check: startedBy="${chunk.startedBy}", shouldCapitalize=${shouldCapitalize}, isAlreadyCapitalized=${isAlreadyCapitalized}, text="${chunk.translated}"`
+          `🔍 Capitalization check: startedBy="${chunk.startedBy}", shouldCapitalize=${shouldCapitalize}, text="${oldText}"`
         );
 
-        if (!isAlreadyCapitalized) {
-          const oldText = chunk.translated;
-          chunk.translated = this.capitalizeFirstLetter(chunk.translated);
+        if (chunk.translated !== oldText) {
           this.log(DEBUG_LEVELS.DEBUG, `📝 CAPITALIZED: "${oldText}" → "${chunk.translated}"`);
         } else {
           this.log(DEBUG_LEVELS.DEBUG, `📝 Already capitalized: "${chunk.translated}"`);
@@ -7126,10 +7145,16 @@ export class TranslationEngine {
   capitalizeFirstLetter(text) {
     if (!text) return text;
 
-    // Find the first letter (skip spaces and punctuation)
-    const match = text.match(
-      /^(\s*)([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])/i
-    );
+    // Find the first letter, skipping any leading non-letter run (whitespace, digits,
+    // stray punctuation like a converted number's own "99.9% " prefix) — not just
+    // whitespace. Mirrors the char-only capitalize-after-punctuation fix earlier this
+    // session (translateWithCharactersOnly's \P{L}*\s\P{L}* regex): a chunk that starts
+    // with a number should still capitalize the first real word after it, e.g.
+    // "99.9% something" -> "99.9% Something", not stay untouched. \p{L} (any Unicode
+    // letter) replaces the old hand-enumerated Vietnamese-only char class — a strict
+    // superset, and safe: .toUpperCase() on a script with no case concept (CJK) is a
+    // no-op, and digits aren't \p{L} at all so a bare-digit chunk is still left alone.
+    const match = text.match(/^(\P{L}*)(\p{L})/u);
 
     if (match) {
       const prefix = match[1]; // spaces before the letter

@@ -163,64 +163,16 @@ describe('PunctuationProcessor', () => {
   });
 
   // -------------------------------------------------------------------------
-  // parseComponents
+  // hasOpeningElements
   // -------------------------------------------------------------------------
 
-  describe('parseComponents', () => {
-    test('closing bracket goes into closing array', () => {
-      const components = processor.parseComponents(']');
-      expect(components.closing).toContain(']');
-      expect(components.middle).toHaveLength(0);
-      expect(components.opening).toHaveLength(0);
-    });
-
-    test('comma goes into middle array', () => {
-      const components = processor.parseComponents(',');
-      expect(components.middle).toContain(',');
-    });
-
-    test('opening bracket goes into opening array', () => {
-      const components = processor.parseComponents('[');
-      expect(components.opening).toContain('[');
-    });
-
-    test('],[ is parsed as closing=], middle=empty, opening=[', () => {
-      const components = processor.parseComponents('],[');
-      expect(components.closing).toContain(']');
-      expect(components.opening).toContain('[');
-    });
-
-    test('), is parsed as closing=), middle=,', () => {
-      const components = processor.parseComponents('),');
-      expect(components.closing).toContain(')');
-      expect(components.middle).toContain(',');
-    });
-
-    test('Chinese punctuation is correctly categorised', () => {
-      // 】 is closing, 、 is middle, 【 is opening
-      const components = processor.parseComponents('】、【');
-      expect(components.closing).toContain('】');
-      expect(components.middle).toContain('、');
-      expect(components.opening).toContain('【');
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // hasOpeningElements / hasClosingElements
-  // -------------------------------------------------------------------------
-
-  describe('hasOpeningElements / hasClosingElements', () => {
+  describe('hasOpeningElements', () => {
     test('opening bracket detected', () => {
       expect(processor.hasOpeningElements('[')).toBe(true);
     });
 
-    test('closing bracket detected', () => {
-      expect(processor.hasClosingElements(']')).toBe(true);
-    });
-
-    test('pure middle punctuation has no opening or closing', () => {
+    test('pure middle punctuation has no opening', () => {
       expect(processor.hasOpeningElements(',')).toBe(false);
-      expect(processor.hasClosingElements(',')).toBe(false);
     });
   });
 
@@ -245,55 +197,6 @@ describe('PunctuationProcessor', () => {
       // Single middle punctuation has no spacing information
       expect(processor.isAlreadyProperlySpaced('.')).toBe(false);
       expect(processor.isAlreadyProperlySpaced('!')).toBe(false);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // applySpacingRules
-  // -------------------------------------------------------------------------
-
-  describe('applySpacingRules', () => {
-    test('closing-only adds trailing space when hasNextChunk=true and no middle/opening', () => {
-      const components = { closing: [')'], middle: [], opening: [] };
-      const result = processor.applySpacingRules(components, true);
-      expect(result.endsWith(' ')).toBe(true);
-    });
-
-    test('closing + middle: adds trailing space after middle when no opening follows', () => {
-      const components = { closing: [')'], middle: ['.'], opening: [] };
-      const result = processor.applySpacingRules(components, true);
-      // Standard order: closing, then middle with trailing space
-      expect(result).toContain(')');
-      expect(result).toContain('.');
-    });
-
-    test('opening-only bracket does not get trailing space', () => {
-      const components = { closing: [], middle: [], opening: ['['] };
-      const result = processor.applySpacingRules(components, true);
-      expect(result).not.toMatch(/ $/);
-    });
-
-    test('middle + opening: opening element is included in result', () => {
-      const components = { closing: [], middle: ['.'], opening: ['['] };
-      const result = processor.applySpacingRules(components, true);
-      expect(result).toContain('.');
-      expect(result).toContain('[');
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // getDebugInfo
-  // -------------------------------------------------------------------------
-
-  describe('getDebugInfo', () => {
-    test('returns original, processed, components, and flags', () => {
-      const info = processor.getDebugInfo('].');
-      expect(info.original).toBe('].');
-      expect(info.components.closing).toContain(']');
-      expect(info.components.middle).toContain('.');
-      expect(info.hasClosing).toBe(true);
-      expect(info.hasOpening).toBe(false);
-      expect(typeof info.processed).toBe('string');
     });
   });
 });

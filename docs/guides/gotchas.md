@@ -142,6 +142,10 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 **Single test file:** `pnpm exec vitest run src/path/to/test.ts` — `pnpm test -- --testPathPattern` does not reliably filter to one file.
 
+**Vitest `include` is `src/**/*.{test,spec}.*` only** — a scratch verification test in `/tmp` or the scratchpad dir gets "No test files found," not an error about the path. Drop throwaway tests under `src/utils/__tests__/` and delete after.
+
+**Test a `TranslationEngine.js` method that only reads specific `this.*` fields via `TranslationEngine.prototype.method.call(fakeThis, ...)`, not full `engine.initialize()`.** Skips WASM/dictionary-loader init (no stderr noise, ~3x faster — confirmed 1.4s vs. 4.4s for one file). Check which fields the method reads first: `applyFinalCleanup` is pure (`call({}, text)`); `cleanupFormatting` needs `this.dictionaryManager.translate`/`this.log` stubbed. Precedent: `TranslationEngine.regression.test.js`'s "Bug Fix: ...spuriously spacing..." blocks.
+
 **`pnpm test -- --run` (full suite) previously hung — root-caused and fixed 2026-08-08.** Cause: `EnhancedVirtualizedDictionaryTable.tsx`'s `refreshDuplicatesPreservingScroll` depended on the whole `scroll` object from `useVirtualScrollRange` (which returns a new object every render) instead of the one stable field it used (`scroll.getScrollTop`) — infinite render loop, only triggered by `DictionaryManager.composition.test.tsx` mounting the real composition. Full suite now runs clean in ~30s. If it hangs again, suspect the same shape: a `useCallback`/`useEffect` dep on a whole hook-return-object instead of the specific stable field it reads — check `git log -S getScrollTop -- src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx` for the fix commit.
 
 **Test file placement follows the tree it's under, and the two trees disagree** — so check the sibling convention before creating a file rather than generalizing from the other half of the repo.

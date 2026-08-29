@@ -87,9 +87,11 @@ describe('needsSpace()', () => {
   });
 
   test('Rule 3: Chinese → punctuation NOT starting with digit → no extra space from this rule', () => {
-    // Note: rule 2 may still fire if bracket present; here we test a plain closing punc
+    // Note: rule 2 may still fire if bracket present; here we test a plain closing punc.
+    // Uses non-letter punctuation — a real punctuation-typed token can never start with an
+    // ASCII letter (that's tokenized as latin_word instead); rule 11 covers the letter case.
     expect(needsSpace('chinese_char', 'punctuation', 'foo', '%1')).toBe(false);
-    expect(needsSpace('chinese_char', 'punctuation', 'foo', 'abc')).toBe(false);
+    expect(needsSpace('chinese_char', 'punctuation', 'foo', '@#$')).toBe(false);
   });
 
   test('Rule 4: closing punctuation → Chinese → space', () => {
@@ -140,6 +142,17 @@ describe('needsSpace()', () => {
   test('Rule 10: unknown → Chinese → space', () => {
     expect(needsSpace('unknown', 'chinese_char', 'の', 'foo')).toBe(true);
     expect(needsSpace('unknown', 'chinese_word', 'の', 'bar')).toBe(true);
+  });
+
+  test('Rule 11: Chinese → punctuation-typed foreign letter → space', () => {
+    // Greek/Cyrillic/accented Latin letters land in the punctuation catch-all
+    // (not "latin_word", which is ASCII-only) — see text_tokenizer.rs's is_latin_letter.
+    expect(needsSpace('chinese_char', 'punctuation', '于', 'α')).toBe(true);
+    expect(needsSpace('chinese_word', 'punctuation', '于', 'Ж')).toBe(true);
+  });
+
+  test('No rule: Chinese → real punctuation → no new space from rule 11', () => {
+    expect(needsSpace('chinese_char', 'punctuation', '于', '!')).toBe(false);
   });
 
   test('No rule: latin_word → latin_word → no space', () => {
@@ -232,6 +245,14 @@ describe('jsAssembleWithSpacing()', () => {
   test('Rule 10: unknown then Chinese gets a space', () => {
     const result = jsAssembleWithSpacing([seg('の', 'unknown', 0), seg('xin', 'chinese_char', 1)]);
     expect(result.translatedText).toBe('の xin');
+  });
+
+  test('Rule 11: Chinese then punctuation-typed foreign letter gets a space', () => {
+    const result = jsAssembleWithSpacing([
+      seg('Vu', 'chinese_char', 0),
+      seg('α', 'punctuation', 1),
+    ]);
+    expect(result.translatedText).toBe('Vu α');
   });
 
   test('latin → latin: no space', () => {

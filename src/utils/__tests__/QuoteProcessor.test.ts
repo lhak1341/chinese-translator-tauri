@@ -62,60 +62,6 @@ describe('QuoteProcessor — isQuote', () => {
   });
 });
 
-describe('QuoteProcessor — getQuoteType', () => {
-  test('straight double-quote → straight_double', () => {
-    expect(QuoteProcessor.getQuoteType('"')).toBe('straight_double');
-  });
-
-  test('straight single-quote → straight_single', () => {
-    expect(QuoteProcessor.getQuoteType("'")).toBe('straight_single');
-  });
-
-  test('curly open double → curly_open_double', () => {
-    expect(QuoteProcessor.getQuoteType(QUOTE_TYPES.CURLY_OPEN_DOUBLE)).toBe('curly_open_double');
-  });
-
-  test('curly close double → curly_close_double', () => {
-    expect(QuoteProcessor.getQuoteType(QUOTE_TYPES.CURLY_CLOSE_DOUBLE)).toBe('curly_close_double');
-  });
-
-  test('curly open single → curly_open_single', () => {
-    expect(QuoteProcessor.getQuoteType(QUOTE_TYPES.CURLY_OPEN_SINGLE)).toBe('curly_open_single');
-  });
-
-  test('curly close single → curly_close_single', () => {
-    expect(QuoteProcessor.getQuoteType(QUOTE_TYPES.CURLY_CLOSE_SINGLE)).toBe('curly_close_single');
-  });
-
-  test('non-quote → not_quote', () => {
-    expect(QuoteProcessor.getQuoteType('x')).toBe('not_quote');
-  });
-});
-
-describe('QuoteProcessor — getQuoteInfo', () => {
-  test('returns correct unicode code point string', () => {
-    const info = QuoteProcessor.getQuoteInfo('"');
-    expect(info.unicode).toBe('U+0022');
-  });
-
-  test('isQuote flag is true for quote chars', () => {
-    expect(QuoteProcessor.getQuoteInfo('"').isQuote).toBe(true);
-  });
-
-  test('isQuote flag is false for non-quote chars', () => {
-    expect(QuoteProcessor.getQuoteInfo('a').isQuote).toBe(false);
-  });
-
-  test('isOpening and isClosing are mutually exclusive for curly quotes', () => {
-    const openInfo = QuoteProcessor.getQuoteInfo(QUOTE_TYPES.CURLY_OPEN_DOUBLE);
-    const closeInfo = QuoteProcessor.getQuoteInfo(QUOTE_TYPES.CURLY_CLOSE_DOUBLE);
-    expect(openInfo.isOpening).toBe(true);
-    expect(openInfo.isClosing).toBe(false);
-    expect(closeInfo.isOpening).toBe(false);
-    expect(closeInfo.isClosing).toBe(true);
-  });
-});
-
 describe('QuoteProcessor — createOpeningQuoteRegex', () => {
   test('regex matches ASCII double-quote', () => {
     const re = QuoteProcessor.createOpeningQuoteRegex();
@@ -135,37 +81,6 @@ describe('QuoteProcessor — createOpeningQuoteRegex', () => {
   test('regex does not match non-quote characters', () => {
     const re = QuoteProcessor.createOpeningQuoteRegex();
     expect(re.test('a')).toBe(false);
-  });
-});
-
-describe('QuoteProcessor — createClosingQuoteRegex', () => {
-  test('regex matches curly close double-quote', () => {
-    const re = QuoteProcessor.createClosingQuoteRegex();
-    expect(re.test(QUOTE_TYPES.CURLY_CLOSE_DOUBLE)).toBe(true);
-  });
-
-  test('regex matches curly close single-quote', () => {
-    const re = QuoteProcessor.createClosingQuoteRegex();
-    expect(re.test(QUOTE_TYPES.CURLY_CLOSE_SINGLE)).toBe(true);
-  });
-
-  test('regex does not match ASCII double-quote', () => {
-    const re = QuoteProcessor.createClosingQuoteRegex();
-    expect(re.test('"')).toBe(false);
-  });
-});
-
-describe('QuoteProcessor — createAllQuotesRegex', () => {
-  test('matches every QUOTE_TYPES value', () => {
-    const re = QuoteProcessor.createAllQuotesRegex();
-    for (const q of Object.values(QUOTE_TYPES)) {
-      expect(re.test(q)).toBe(true);
-    }
-  });
-
-  test('does not match non-quote characters', () => {
-    const re = QuoteProcessor.createAllQuotesRegex();
-    expect(re.test('中')).toBe(false);
   });
 });
 
@@ -198,37 +113,6 @@ describe('QuoteProcessor — createPeriodQuoteRegex', () => {
     const re = QuoteProcessor.createPeriodQuoteRegex();
     re.lastIndex = 0;
     expect(re.test(`。${QUOTE_TYPES.CURLY_CLOSE_DOUBLE}`)).toBe(false);
-  });
-});
-
-describe('QuoteProcessor — normalizeQuotes', () => {
-  test('straight to curly: replaces ASCII double-quote with curly open', () => {
-    const result = QuoteProcessor.normalizeQuotes('say "hello"', 'curly');
-    expect(result).toContain(QUOTE_TYPES.CURLY_OPEN_DOUBLE);
-    expect(result).not.toContain('"');
-  });
-
-  test('curly to straight: replaces curly double-quotes with ASCII', () => {
-    const text = `${QUOTE_TYPES.CURLY_OPEN_DOUBLE}hello${QUOTE_TYPES.CURLY_CLOSE_DOUBLE}`;
-    const result = QuoteProcessor.normalizeQuotes(text, 'straight');
-    expect(result).not.toContain(QUOTE_TYPES.CURLY_OPEN_DOUBLE);
-    expect(result).not.toContain(QUOTE_TYPES.CURLY_CLOSE_DOUBLE);
-    expect(result).toContain('"');
-  });
-
-  test('curly to straight: replaces curly single-quotes', () => {
-    const text = `${QUOTE_TYPES.CURLY_OPEN_SINGLE}hi${QUOTE_TYPES.CURLY_CLOSE_SINGLE}`;
-    const result = QuoteProcessor.normalizeQuotes(text, 'straight');
-    expect(result).toContain("'");
-  });
-
-  test('default target is curly', () => {
-    const result = QuoteProcessor.normalizeQuotes('say "hello"');
-    expect(result).toContain(QUOTE_TYPES.CURLY_OPEN_DOUBLE);
-  });
-
-  test('normalizing text with no quotes is a no-op', () => {
-    expect(QuoteProcessor.normalizeQuotes('no quotes here', 'curly')).toBe('no quotes here');
   });
 });
 

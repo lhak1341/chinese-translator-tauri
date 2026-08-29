@@ -49,14 +49,12 @@ export type {
 } from './UnicodePunctuationDetector';
 export { UnicodePunctuationDetector } from './UnicodePunctuationDetector';
 
-export type { PunctuationComponents, PunctuationDebugInfo } from './PunctuationProcessor';
 export { PunctuationProcessor } from './PunctuationProcessor';
 
 // --- Proper noun capitalization ---
 export { buildProperNounCapitalizationMap } from './ProperNounCapitalizationMap';
 
 // --- Quote handling ---
-export type { QuoteTypeName, NormalizeTarget, QuoteInfo } from './QuoteProcessor';
 export { QUOTE_TYPES, QUOTE_CATEGORIES, QuoteProcessor } from './QuoteProcessor';
 
 // --- Pattern variable formatting ---

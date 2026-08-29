@@ -95,6 +95,49 @@ describe('TranslationEngine.applySmartCapitalization', () => {
     expect(chunks[0].translated).toBe('biệt');
   });
 
+  // BUG FIX (2026-08-29 review): the fallback block used to hand-copy its own punctuation
+  // list, independently from the main multi-char block's sentenceEnders array — and had
+  // already drifted, missing '．' (fullwidth middle dot, also used as a period) and never
+  // checking ellipsis at all. Both are unified onto capitalizingPunctuation now.
+  test('BUG FIX: fallback path capitalizes on "．" propagated through an empty chunk', () => {
+    const chunks = [
+      makeChunk({ content: '道', translated: 'Nói', startedBy: 'start' }),
+      makeChunk({ content: '', translated: null, startedBy: '．', punctuation: '「' }),
+      makeChunk({ content: '说', translated: 'thuyết', startedBy: '「' }),
+    ];
+    engine.applySmartCapitalization(chunks);
+    expect(chunks[2].translated).toBe('Thuyết');
+  });
+
+  test('BUG FIX: fallback path capitalizes on ellipsis "……" propagated through an empty chunk', () => {
+    const chunks = [
+      makeChunk({ content: '道', translated: 'Nói', startedBy: 'start' }),
+      makeChunk({ content: '', translated: null, startedBy: '……', punctuation: '「' }),
+      makeChunk({ content: '说', translated: 'thuyết', startedBy: '「' }),
+    ];
+    engine.applySmartCapitalization(chunks);
+    expect(chunks[2].translated).toBe('Thuyết');
+  });
+
+  // IMPROVEMENT (2026-08-29 review): capitalizeFirstLetter used to only skip leading
+  // whitespace before looking for a letter to capitalize, via a hand-enumerated
+  // Vietnamese-only char class. A chunk starting with a converted number (e.g.
+  // NumberProcessor's "99.9%") was silently left untouched even when it should
+  // capitalize the first real word after it. Now skips any leading non-letter run and
+  // uses \p{L} (any Unicode letter) — mirrors the char-only capitalization fix from
+  // earlier this session.
+  test('IMPROVEMENT: capitalizes the first real word after a leading converted number', () => {
+    const chunks = [makeChunk({ content: '', translated: '99.9% something', startedBy: 'start' })];
+    engine.applySmartCapitalization(chunks);
+    expect(chunks[0].translated).toBe('99.9% Something');
+  });
+
+  test('a chunk that is only a number stays unchanged (no letter to capitalize)', () => {
+    const chunks = [makeChunk({ content: '', translated: '99.9%', startedBy: 'start' })];
+    engine.applySmartCapitalization(chunks);
+    expect(chunks[0].translated).toBe('99.9%');
+  });
+
   test('full sequence: 道：「说，别，单 → Thuyết, biệt, đan (JS-style chunks)', () => {
     const chunks = [
       makeChunk({ content: '道', translated: 'Nói', startedBy: 'start' }),

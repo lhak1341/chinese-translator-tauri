@@ -392,4 +392,28 @@ describe('TranslationEngine Regression Tests', () => {
       expect(cleanup('1992~1996')).toBe('1992~1996');
     });
   });
+
+  describe('Bug Fix: cleanupFormatting spuriously spacing a decimal point off its digit', () => {
+    // cleanupFormatting reads this.dictionaryManager/this.log — stub the minimum needed
+    // rather than constructing a full engine (WASM/dictionary init not needed here).
+    const fakeEngine = { dictionaryManager: { translate: () => null }, log: () => {} };
+    const cleanup = (text, options) =>
+      TranslationEngine.prototype.cleanupFormatting.call(fakeEngine, text, options);
+    // options.useChunking: false is the Full Translation per-chunk path (translateDirectly
+    // with isParallelChunk: true) — the branch that adds a space after sentence punctuation.
+    const opts = { useChunking: false, isParallelChunk: true };
+
+    it('does not split a decimal point inside a converted number: "99.9%" stays intact', () => {
+      // 百分之九十九点九 → NumberProcessor's "99.9%"; previously became "99. 9%", which also
+      // corrupted every click-to-highlight position after it (positions are recorded
+      // against this text before cleanupFormatting runs).
+      expect(cleanup('Là 99.9% đích', opts)).toBe('Là 99.9% đích');
+      expect(cleanup('Là 99.99% đích', opts)).toBe('Là 99.99% đích');
+      expect(cleanup('số 3.14 đó', opts)).toBe('số 3.14 đó');
+    });
+
+    it('still adds a space after a genuine sentence-ending period (followed by a letter)', () => {
+      expect(cleanup('Xin chào.Tạm biệt', opts)).toBe('Xin chào. Tạm biệt');
+    });
+  });
 });

@@ -26,15 +26,11 @@ After touching any CRUD function or `addToHistory`, audit for:
 
 **Never `throw` inside a state updater function** (`setState(prev => { throw ... })`): React 18 Concurrent Mode may call updaters multiple times; throws bypass the `await` chain. Do existence checks on the closed-over variable BEFORE `setState`.
 
-**Never assign `let` variables inside an updater for use outside it**: the updater may run twice; always compute from the closed-over snapshot BEFORE `setDictionaries`. For undo/redo, use `dictionariesRef.current` directly.
-
-**`bulkDeleteEntries`** follows the same snapshot-before-updater pattern: compute `oldData`/`sortedDictionary` from the closed-over `dictionaries` snapshot BEFORE `setDictionaries`.
+**Never assign `let` variables inside an updater for use outside it**: the updater may run twice; always compute from the closed-over snapshot BEFORE `setDictionaries`. For undo/redo, use `dictionariesRef.current` directly. `bulkDeleteEntries` follows the same pattern: compute `oldData`/`sortedDictionary` from the closed-over `dictionaries` snapshot BEFORE `setDictionaries`.
 
 ## Error Handling
 
-**`isSaveError` guard alongside `isValidationError` in catch blocks**: if a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast — otherwise the user sees two toasts.
-
-**Pre-`try` existence checks must throw `ValidationError`, not bare `Error`**: dict-not-found checks before the `try` block that use bare `throw new Error(msg)` bypass the `!isValidationError` guard — the outer catch shows a second toast. Always use `throw new ValidationError(msg)`.
+**The double-toast guard depends on throwing the right typed error class every time.** If a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast. Same failure mode from the other direction: pre-`try` existence checks (e.g. dict-not-found) that use bare `throw new Error(msg)` bypass the `!isValidationError` guard entirely — always `throw new ValidationError(msg)` there instead.
 
 ## Dictionary JSON Format: Two Tiers
 
@@ -68,8 +64,6 @@ X = optional 1st variable (0 or 1 — a 0-variable pattern is a literal, no-vari
 Use `classifyDictionaryId(id)` from `DictionaryIdClassifier.ts` for all UI-layer type checks — never compare `=== 'patterns'` or `=== 'phrases'` directly. `isPatterns` is true for both `'patterns'` and `'patterns-f_*'`; raw equality misses fiction variants and silently breaks on every dict-type extension. Even when `isPatterns` is already computed in scope, call sites tend to fall back to raw string — grep `=== 'patterns'` after any dict-type addition.
 
 Same risk for fiction-prefix checks: use `isFictionProperNounsId(id)`/`isFictionPatternsId(id)` (same file) — never hand-roll `id.startsWith('properNouns-f_')`/`'patterns-f_'` again (found duplicated at 10 call sites across 5 files, 2026-07-28).
-
-`onRefreshDuplicates`'s dead `reloadFromBackend?: boolean` param — dropped 2026-08-08 (architecture review round, candidate #5 grilling), alongside `useEntrySelection`'s scroll-interface deepening below.
 
 Use `toPatternsId(properNounsId)`/`toProperNounsId(patternsId)` (same file) for the ADR-027 fiction pairing derivation — never hand-roll `'patterns-' + id.slice('properNouns-'.length)`. For deriving a new properNouns dictionary ID from a raw user-typed name (create/rename forms), use `toProperNounsDictionaryId(rawName)` (same file, added 2026-08-28 architecture review candidate #4 grilling) — never hand-roll `` `properNouns-${name.trim().replace(/\s+/g, '')}` ``. Pure transform only — the Rust side (`validate_dictionary_id`) is the real authority on ID safety.
 

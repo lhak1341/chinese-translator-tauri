@@ -422,6 +422,13 @@ export function needsSpace(currentType, nextType, currentText, nextText) {
   if (isChinese(currentType) && nextType === 'unknown') return true;
   // Rule 10: unknown → Chinese
   if (currentType === 'unknown' && isChinese(nextType)) return true;
+  // Rule 11: Chinese → punctuation-typed token that's actually a non-CJK letter
+  // (e.g. Greek "α", Cyrillic, or an accented Latin char — the tokenizer's punctuation
+  // catch-all types any non-CJK/non-ASCII-letter/non-digit char as "punctuation", so a
+  // bare foreign letter adjacent to a Chinese char never hit rules 1-10). The reverse
+  // direction (punctuation-letter → Chinese) is already covered by rule 4, which returns
+  // true for punctuation → Chinese unless it's a quote or bracket.
+  if (isChinese(currentType) && nextType === 'punctuation' && /^\p{L}/u.test(nextText)) return true;
   return false;
 }
 

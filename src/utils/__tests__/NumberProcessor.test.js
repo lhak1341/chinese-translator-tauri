@@ -153,12 +153,43 @@ describe('NumberProcessor', () => {
       expect(getTranslations(tokens)).toEqual(['3,230']);
     });
 
+    it('BUG FIX: three-magnitude compound 三千二百十五 → 3,215 (previously silently dropped 十五, giving 3,200)', () => {
+      // The thousands remainder ("二百十五") itself contains 百, so parseChineseNumber
+      // recurses into its OWN hundreds block on that remainder. Before the fix,
+      // parseChineseNumber's internal hundreds regex was an enumerated alternation
+      // narrower than the top-level CONVERSION_PATTERNS 'hundreds' regex — it had no
+      // bare-十-with-no-leading-digit branch, so "十五" inside the remainder silently
+      // vanished. Fixed by matching wasm-core/number_processor.rs's `(.*)` catch-all
+      // remainder shape, which was never susceptible to this gap.
+      const tokens = createTokens('三千二百十五');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['3,215']);
+    });
+
     it('converts thousand ten-thousand: 五千万 → 50,000,000', () => {
       const tokens = createTokens('五千万');
       processor.processTokens(tokens, mockOptions);
       // 五千万 = 5 × 1000 × 10000 = 50,000,000 (correct conversion)
       // Note: This is NOT "5,000 vạn" because 千万 together = 10 million
       expect(getTranslations(tokens)).toEqual(['50,000,000']);
+    });
+  });
+
+  describe('parseChineseNumber internal regex matches wasm-core parity', () => {
+    // These call parseChineseNumber directly (not through processTokens) to prove the
+    // INTERNAL hundreds/thousands regex itself — not just the top-level CONVERSION_PATTERNS
+    // regex — now handles a bare 十-with-no-leading-digit remainder, matching
+    // wasm-core/number_processor.rs's `(.*)` catch-all shape.
+    it('parses 一百十五 (bare 十 remainder, no leading digit) → 115', () => {
+      expect(processor.parseChineseNumber('一百十五')).toBe(115);
+    });
+
+    it('parses 一千十五 (bare 十 remainder, no leading digit) → 1015', () => {
+      expect(processor.parseChineseNumber('一千十五')).toBe(1015);
+    });
+
+    it('parses 一千零十五 (零十 remainder branch) → 1015', () => {
+      expect(processor.parseChineseNumber('一千零十五')).toBe(1015);
     });
   });
 
@@ -179,6 +210,12 @@ describe('NumberProcessor', () => {
       const tokens = createTokens('二十八九');
       processor.processTokens(tokens, mockOptions);
       expect(getTranslations(tokens)).toEqual(['28-29']);
+    });
+
+    it('BUG FIX: tens-based range rejects a descending pair instead of "28-23"', () => {
+      // 二十八三 (tens=2, units 8 then 3) has no ascending-order guard before this fix —
+      // every sibling *Range converter validates ascending order except this one did.
+      expect(processor.convertTensBasedRange('二十八三', '二', '八', '三')).toBeNull();
     });
 
     it('converts hundreds range: 四五百 → 400-500', () => {
@@ -247,6 +284,44 @@ describe('NumberProcessor', () => {
       const tokens = createTokens('百分之两百');
       processor.processTokens(tokens, mockOptions);
       expect(getTranslations(tokens)).toEqual(['200%']);
+    });
+
+    it('converts bare 百 (no leading digit): 百分之百 → 100%', () => {
+      const tokens = createTokens('百分之百');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['100%']);
+    });
+
+    it('converts bare 百 with decimal: 百分之百点五 → 100.5%', () => {
+      const tokens = createTokens('百分之百点五');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['100.5%']);
+    });
+
+    it('converts percentage with one decimal digit: 百分之九十九点九 → 99.9%', () => {
+      const tokens = createTokens('百分之九十九点九');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['99.9%']);
+    });
+
+    it('converts percentage with two decimal digits: 百分之九十九点九九 → 99.99%', () => {
+      const tokens = createTokens('百分之九十九点九九');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['99.99%']);
+    });
+
+    it('converts a decimal digit of 零: 百分之一百点零五 → 100.05%', () => {
+      const tokens = createTokens('百分之一百点零五');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['100.05%']);
+    });
+
+    it('decimal percentage does not consume trailing 的: 百分之九十九点九的 → 99.9%, 的 untouched', () => {
+      const tokens = createTokens('百分之九十九点九的');
+      processor.processTokens(tokens, mockOptions);
+      expect(getTranslations(tokens)).toEqual(['99.9%']);
+      expect(tokens[tokens.length - 1].translated).toBeNull();
+      expect(tokens[tokens.length - 1].translationSource).toBeNull();
     });
   });
 

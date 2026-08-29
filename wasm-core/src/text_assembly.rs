@@ -483,6 +483,18 @@ pub fn needs_space(
     if current_type == "unknown" && is_chinese_type(next_type) {
         return true;
     }
+    // Rule 11: Chinese → punctuation-typed token that's actually a non-CJK letter
+    // (e.g. Greek "α", Cyrillic, or an accented Latin char — the tokenizer's punctuation
+    // catch-all types any non-CJK/non-ASCII-letter/non-digit char as "punctuation", so a
+    // bare foreign letter adjacent to a Chinese char never hit rules 1-10). The reverse
+    // direction (punctuation-letter → Chinese) is already covered by rule 4, which returns
+    // true for punctuation → Chinese unless it's a quote or bracket.
+    if is_chinese_type(current_type)
+        && next_type == "punctuation"
+        && next_text.chars().next().map_or(false, |c| c.is_alphabetic())
+    {
+        return true;
+    }
     false
 }
 
@@ -627,6 +639,17 @@ mod tests {
     fn test_needs_space_rule10_unknown_to_chinese() {
         assert!(needs_space("unknown", "chinese_char", "の", "foo"));
         assert!(needs_space("unknown", "chinese_word", "の", "bar"));
+    }
+
+    #[test]
+    fn test_needs_space_rule11_chinese_to_foreign_letter_punctuation() {
+        // Greek, Cyrillic, and accented Latin letters land in the punctuation catch-all
+        // (not "latin_word", which is ASCII-only) — see text_tokenizer.rs's is_latin_letter.
+        assert!(needs_space("chinese_char", "punctuation", "于", "α"));
+        assert!(needs_space("chinese_word", "punctuation", "于", "Ж"));
+        assert!(needs_space("chinese_char", "punctuation", "于", "é"));
+        // Real punctuation (non-letter) must not gain a new space from this rule.
+        assert!(!needs_space("chinese_char", "punctuation", "于", "!"));
     }
 
     #[test]
