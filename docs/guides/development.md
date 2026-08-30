@@ -355,10 +355,11 @@ pnpm tauri:build    # Build production Tauri app
 
 1. wasm-core Rust tests (`cargo test --manifest-path wasm-core/Cargo.toml`) — added 2026-08-25; previously wasm-core had zero CI coverage despite 35+ passing local tests
 2. src-tauri Rust tests (`cargo test --manifest-path src-tauri/Cargo.toml`) — added 2026-08-31; the suite had zero CI coverage while two of its reset tests failed deterministically on every local run
-3. WASM dev build (`pnpm build-wasm-dev`, via wasm-pack) — needed before the JS test suite can run
-4. Type checking (`pnpm type-check`)
-5. Linting (`pnpm lint`) — a real gate since 2026-08-31; before that it ran `eslint . --quiet` against a warn-only rule set and could not fail
-6. Tests (`pnpm test -- --run`) — rebuilds stale WASM first via `scripts/ensure-wasm-fresh.mjs`
+3. Bench compilation (`cargo check --benches`, both crates) — added 2026-08-31; `cargo test` never compiles benches, so they bit-rotted silently between manual runs
+4. WASM dev build (`pnpm build-wasm-dev`, via wasm-pack) — needed before the JS test suite can run
+5. Type checking (`pnpm type-check`)
+6. Linting (`pnpm lint`) — a real gate since 2026-08-31; before that it ran `eslint . --quiet` against a warn-only rule set and could not fail
+7. Tests (`pnpm test -- --run`) — rebuilds stale WASM first via `scripts/ensure-wasm-fresh.mjs`
 
 **Pragmatic CI Philosophy**:
 

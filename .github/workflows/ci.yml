@@ -36,6 +36,13 @@ jobs:
       - name: Run src-tauri Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
+      # cargo test compiles lib, bins and tests, but never benches — a bench referencing a
+      # changed signature bit-rots silently until someone runs it by hand.
+      - name: Compile benches
+        run: |
+          cargo check --benches --manifest-path wasm-core/Cargo.toml
+          cargo check --benches --manifest-path src-tauri/Cargo.toml
+
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 

@@ -155,9 +155,9 @@ fn create_conversion_patterns() -> Vec<ConversionPattern> {
     // Percentage: 百分之三十 → 30%, 百分之十五 → 15%
     add_pattern!(
         "percentage",
-        r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)$",
+        r"^百分之([一二两三四五六七八九]千[一二两三四五六七八九]?百?[一二两三四五六七八九]?十?[一二三四五六七八九]?|[一二两三四五六七八九]百[一二两三四五六七八九]?十?[一二三四五六七八九]?|百|[一二两三四五六七八九]十[一二两三四五六七八九]|[一二两三四五六七八九]十|十[一二两三四五六七八九]|十|[一二两三四五六七八九]|\d+)(?:点([一二三四五六七八九零]+))?$",
         NumberProcessor::convert_percentage,
-        "Percentages like 百分之三十 (30%), 百分之十五 (15%)"
+        "Percentages like 百分之三十 (30%), 百分之十五 (15%), 百分之百 (100%), 百分之九十九点九 (99.9%)"
     );
 
     // Ten thousand range: 七八万 → 7-8 vạn
@@ -380,8 +380,11 @@ impl NumberProcessor {
         let mut longest_match: Option<NumberMatch> = None;
         let mut longest_length = 0;
 
-        // Try sequences of increasing length (max 8 tokens for complex numbers)
-        for end_index in start_index..tokens.len().min(start_index + 8) {
+        // Window must match JS `NumberProcessor.js::findLongestNumberMatch` (`endIndex <= startIndex + 20`,
+        // i.e. 21 tokens). The worst case is the `percentage` pattern: 3-char 百分之 prefix + a 7-char
+        // 千百十 integer + 点 + decimal digits, which the regex does not bound. A shorter window does
+        // not fail — it silently returns a truncated percentage.
+        for end_index in start_index..tokens.len().min(start_index + 21) {
             let token = &tokens[end_index];
 
             // Only consider untranslated Chinese characters
@@ -604,15 +607,30 @@ impl NumberProcessor {
         Some(format!("{}-{}%", first * 10, second * 10))
     }
 
+    /// Mirrors JS `NumberProcessor.js::convertPercentage`. Decimal digits are read
+    /// individually (点九九 → ".99"), not positionally, and a bare 百 with no leading
+    /// digit means 100 — `parse_chinese_number` would return 0 for it.
     fn convert_percentage(&self, groups: &[&str]) -> Option<String> {
         if groups.is_empty() { return None; }
         let number_part = groups[0];
-        let value = if number_part.chars().all(|c| c.is_ascii_digit()) {
+        let value = if number_part == "百" {
+            100
+        } else if number_part.chars().all(|c| c.is_ascii_digit()) {
             number_part.parse::<u32>().ok()?
         } else {
             self.parse_chinese_number(number_part)?
         };
-        Some(format!("{}%", value))
+
+        match groups.get(1) {
+            Some(decimal_digits) if !decimal_digits.is_empty() => {
+                let mut decimals = String::with_capacity(decimal_digits.len());
+                for c in decimal_digits.chars() {
+                    decimals.push_str(&self.get_number(c)?.to_string());
+                }
+                Some(format!("{}.{}%", value, decimals))
+            }
+            _ => Some(format!("{}%", value)),
+        }
     }
 
     fn convert_ten_thousand_range(&self, groups: &[&str]) -> Option<String> {
@@ -976,6 +994,33 @@ mod tests {
         assert!(m.is_some(), "Pattern should match");
         let m = m.unwrap();
         assert_eq!(m.result, "200%");
+    }
+
+    #[test]
+    fn test_converter_bare_hundred_percentage() {
+        let p = NumberProcessor::new();
+        // 百分之百 → 100% — bare 百 has no leading digit, so parse_chinese_number returns 0
+        // and the branch has to special-case it. Mirrors JS NumberProcessor.js.
+        let tokens: Vec<Token> = "百分之百".chars().map(|c| tok(&c.to_string())).collect();
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some(), "Pattern should match");
+        assert_eq!(m.unwrap().result, "100%");
+    }
+
+    #[test]
+    fn test_converter_decimal_percentage_spans_full_window() {
+        let p = NumberProcessor::new();
+        // 百分之一千二百三十四点五六 → 1234.56% — 13 tokens, the worst case for the `percentage`
+        // pattern: 3-char 百分之 prefix + 7-char 千百十 integer + 点 + 2 decimal digits.
+        // Mirrors JS NumberProcessor.js, which returns "1234.56%" with endIndex 12.
+        // A search window shorter than the input silently truncates to a shorter percentage
+        // rather than failing, which is why this asserts the full result and the end index.
+        let tokens: Vec<Token> = "百分之一千二百三十四点五六".chars().map(|c| tok(&c.to_string())).collect();
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some(), "Pattern should match");
+        let m = m.unwrap();
+        assert_eq!(m.result, "1234.56%");
+        assert_eq!(m.end_index, 12, "should consume all 13 tokens");
     }
 
     #[test]

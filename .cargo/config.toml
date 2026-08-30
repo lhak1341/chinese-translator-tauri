@@ -1,2 +1,13 @@
+# CI's actions-rust-lang/setup-rust-toolchain exports RUSTFLAGS="-D warnings" by default, so a
+# warning that never shows up locally is a hard CI failure. Setting it here makes the local build
+# identical to CI instead of leaving the divergence for a doc line to warn about. Registry
+# dependencies are unaffected — cargo passes them --cap-lints allow.
+#
+# Cargo does not merge [build] rustflags with [target.<triple>] rustflags; the target-specific
+# table wins outright. wasm32 builds therefore keep only the stack-size flags below, which is
+# what wasm-pack needs and why -D warnings is not repeated there.
+[build]
+rustflags = ["-D", "warnings"]
+
 [target.wasm32-unknown-unknown]
 rustflags = ["-C", "link-arg=-z", "-C", "link-arg=stack-size=4194304"]
