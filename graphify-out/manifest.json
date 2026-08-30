@@ -110,8 +110,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/text_assembly.rs": {
-    "mtime": 1787976781.8852384,
-    "ast_hash": "2e2bdd9b6f3af94d2e89bfa514eedc06",
+    "mtime": 1788072144.6553874,
+    "ast_hash": "50fc985f7dc18023c002074b5ea820fb",
     "semantic_hash": ""
   },
   "wasm-core/src/wasm/translation_wasm_core.js": {
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1787990102.2118304,
-    "ast_hash": "b7d48ac49956a3786ee29b0eda14792a",
+    "mtime": 1788072096.6226304,
+    "ast_hash": "94ba743f147dd60fec85269e3473af33",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -360,8 +360,8 @@
     "semantic_hash": "177901b733ab7f53e9efde5cf556ce65"
   },
   "src/utils/NumberProcessor.js": {
-    "mtime": 1787986029.032022,
-    "ast_hash": "7217c04c210293d70c1ac9fba70df8f0",
+    "mtime": 1788072055.5359008,
+    "ast_hash": "71c4b6523ac3a19f185769a17a2c533a",
     "semantic_hash": ""
   },
   "src/utils/GraphemeHelper.ts": {
@@ -535,8 +535,8 @@
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmTextAssembler.js": {
-    "mtime": 1787976713.2481472,
-    "ast_hash": "26330d9d81cc2c96cae9cdd3ae90cfe7",
+    "mtime": 1787993590.087193,
+    "ast_hash": "d42d7d7c2d3bc72a790b087eca28636c",
     "semantic_hash": ""
   },
   "src/utils/wasm/WasmPatternProcessor.js": {
@@ -690,8 +690,8 @@
     "semantic_hash": "2bfbf03579af36c73d9739a28dfee3e4"
   },
   "src/utils/text/PunctuationProcessor.ts": {
-    "mtime": 1787990654.378169,
-    "ast_hash": "32a21e8d79100dc697066678e41a6b61",
+    "mtime": 1788072109.594793,
+    "ast_hash": "f823f56dd6288298c7fb51cf0318608a",
     "semantic_hash": ""
   },
   "src/utils/text/QuoteProcessor.ts": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1787986074.1371503,
-    "ast_hash": "6ceb17e1146f5d926c4c2f69fb29a90d",
+    "mtime": 1788083942.8337157,
+    "ast_hash": "960f4026c0e560e529df3b5b4889b1a4",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1787992798.0099638,
-    "ast_hash": "e510f86f6e8afc5f4af1d6735c7cb12f",
+    "mtime": 1788083935.6871276,
+    "ast_hash": "618ac319efcaecf71abbe1766ad2f953",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {

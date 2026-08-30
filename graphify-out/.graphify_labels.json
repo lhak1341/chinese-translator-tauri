@@ -164,6 +164,8 @@
   "162": "ContentAwarePositionCache.ts",
   "163": "Architecture Decision Records (ADRs)",
   "164": "@vitest/ui",
+  "165": ".new",
+  "166": "useDictionaryHistory.ts",
   "167": "CRITICAL-1: DictionaryManager Missing Cleanup Method",
   "168": "High-Priority Issues 🟠",
   "169": "7. Clickable Highlighting Feature Analysis",

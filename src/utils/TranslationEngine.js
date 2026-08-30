@@ -1199,12 +1199,13 @@ export class TranslationEngine {
         /([぀-ゟ゠-ヿ]+)([a-záàảãạăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ])/gi,
         '$1 $2'
       );
-      // \P{L}* on both sides of the mandatory \s so a closing quote sitting between the
-      // sentence-ender and the space (e.g. `!" "xuy`) doesn't block capitalization of the
-      // next dialogue's opening letter. The \s stays mandatory so numbers like "3.5kg" are
-      // never touched (no whitespace between "." and "5kg").
+      // [^\p{L}\d]* (not \P{L}*) on both sides of the mandatory \s so a closing quote sitting
+      // between the sentence-ender and the space (e.g. `!" "xuy`) doesn't block capitalization
+      // of the next dialogue's opening letter, while excluding digits keeps the \s mandatory
+      // right after the punctuation for decimal numbers like "1.75 mét" or "99.9% rồi" — a
+      // digit immediately after "." breaks the match before it can reach a later space.
       translatedText = translatedText.replace(
-        /([.!?])(\P{L}*\s\P{L}*)(\p{L})/gu,
+        /([.!?])([^\p{L}\d]*\s[^\p{L}\d]*)(\p{L})/gu,
         (match, punct, sep, letter) => punct + sep + letter.toUpperCase()
       );
 
@@ -4243,14 +4244,27 @@ export class TranslationEngine {
       // Skip remaining spacing rules when called from chunking
       return result;
     } else {
-      // Add space after punctuation (except at end of string, before closing quotes, or
-      // before a digit — a "." immediately followed by a digit is a decimal point inside a
-      // converted number's own translated value, e.g. NumberProcessor's "99.9%", not a
-      // sentence-ending period; forcing a space there splits the number into "99. 9%" and,
-      // since positions are recorded against this text before cleanup runs, also corrupts
-      // every subsequent click-to-highlight position by the one inserted char. Fixed 2026-08-29.
+      // Add space after punctuation (except at end of string, before closing quotes, or when
+      // it's a decimal point inside a converted number's own translated value, e.g.
+      // NumberProcessor's "99.9%" — digits on BOTH sides. Forcing a space there splits the
+      // number into "99. 9%" and, since positions are recorded against this text before
+      // cleanup runs, also corrupts every subsequent click-to-highlight position by the one
+      // inserted char. Checking only the following digit (fixed 2026-08-29) over-excluded: a
+      // real sentence-ending punct followed by a digit-led new sentence (preceding char NOT a
+      // digit) also lost its space, e.g. "...rồi.5 người" stayed unspaced. Checking both
+      // neighbors distinguishes the two cases.
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 Before punctuation spacing:', JSON.stringify(result));
-      result = result.replace(/([.!?:;，。！？：；])(?!\s|$|[“”\])}】》）»>]|\d)/g, '$1 ');
+      result = result.replace(
+        /([.!?:;，。！？：；])(?!\s|$|[“”\])}】》）»>])/g,
+        (match, punct, offset, string) => {
+          const prevChar = offset > 0 ? string[offset - 1] : '';
+          const nextChar = string[offset + punct.length] || '';
+          if (/\d/.test(prevChar) && /\d/.test(nextChar)) {
+            return punct;
+          }
+          return punct + ' ';
+        }
+      );
       // Comma: add space only when NOT followed by a digit (preserves “1,200” thousands separators)
       result = result.replace(/,(?!\s|$|[“””\d])/g, ', ');
       this.log(DEBUG_LEVELS.VERBOSE, '🔧 After punctuation spacing:', JSON.stringify(result));

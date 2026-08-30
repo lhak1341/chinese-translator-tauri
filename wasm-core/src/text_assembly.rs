@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 use wasm_bindgen::prelude::*;
 
 /// High-performance text assembly using Rust String builders
@@ -489,9 +490,21 @@ pub fn needs_space(
     // bare foreign letter adjacent to a Chinese char never hit rules 1-10). The reverse
     // direction (punctuation-letter → Chinese) is already covered by rule 4, which returns
     // true for punctuation → Chinese unless it's a quote or bracket.
+    // Uses General_Category=Letter (matching JS's `\p{L}`), not `char::is_alphabetic()` —
+    // the latter also covers General_Category=Letter_Number (e.g. Roman numeral "Ⅳ"),
+    // which `\p{L}` does not, and the two wrappers must stay in parity.
     if is_chinese_type(current_type)
         && next_type == "punctuation"
-        && next_text.chars().next().map_or(false, |c| c.is_alphabetic())
+        && next_text.chars().next().map_or(false, |c| {
+            matches!(
+                c.general_category(),
+                GeneralCategory::UppercaseLetter
+                    | GeneralCategory::LowercaseLetter
+                    | GeneralCategory::TitlecaseLetter
+                    | GeneralCategory::ModifierLetter
+                    | GeneralCategory::OtherLetter
+            )
+        })
     {
         return true;
     }

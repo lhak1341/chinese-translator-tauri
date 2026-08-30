@@ -145,7 +145,12 @@ export class PunctuationProcessor {
           splitIdx--;
         }
         const hasPrefixBeforeOpeningQuotes = splitIdx > 0 && result[splitIdx - 1] !== ' ';
-        if (hasPrefixBeforeOpeningQuotes && !isCommaOpeningQuoteCombo) {
+        // An opening bracket immediately before the quote run (e.g. "(«") belongs adjacent to
+        // it, same as needsTrailingSpace's own hasOpeningBracket exclusion above — only split
+        // when the char right before the run isn't itself an opening bracket.
+        const prefixIsOpeningBracket =
+          splitIdx > 0 && this.OPENING_BRACKET_PATTERN.test(result[splitIdx - 1]);
+        if (hasPrefixBeforeOpeningQuotes && !isCommaOpeningQuoteCombo && !prefixIsOpeningBracket) {
           result = result.slice(0, splitIdx) + ' ' + result.slice(splitIdx);
         }
       }

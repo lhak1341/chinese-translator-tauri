@@ -207,11 +207,14 @@ export class NumberProcessor {
     let longestMatchLength = 0;
 
     // Build test sequences of increasing length. Base case needs 8 tokens (七千七百七十七);
-    // decimal percentages need more — 百分之一百二十三点四五 is 11 chars (3-char prefix +
-    // up to 4-char integer part + 点 + up to several decimal digits).
+    // decimal percentages need more — the 'percentage' pattern's integer branch can consume
+    // up to 7 chars (千百十 compound like 一千二百三十四), plus the 3-char 百分之 prefix, plus
+    // 点, plus decimal digits (unbounded by the regex itself, e.g. 百分之一千二百三十四点五六
+    // is 13 chars). Window sized generously past the worst-case integer+prefix+点 (11 chars)
+    // to also leave room for several decimal digits.
     for (
       let endIndex = startIndex;
-      endIndex < tokens.length && endIndex <= startIndex + 11;
+      endIndex < tokens.length && endIndex <= startIndex + 20;
       endIndex++
     ) {
       const token = tokens[endIndex];
