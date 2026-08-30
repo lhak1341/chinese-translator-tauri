@@ -10,12 +10,12 @@
     "build-wasm": "cd wasm-core && wasm-pack build --target web --out-dir ../src/wasm && pnpm run generate-wasm-hashes",
     "build-wasm-dev": "cd wasm-core && wasm-pack build --dev --target web --out-dir ../src/wasm && pnpm run generate-wasm-hashes",
     "generate-wasm-hashes": "node scripts/generate-wasm-hashes.js",
-    "test": "vitest",
+    "test": "node scripts/ensure-wasm-fresh.mjs && vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
+    "test:coverage": "node scripts/ensure-wasm-fresh.mjs && vitest --coverage",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,json,md}\"",
-    "lint": "eslint . --quiet",
+    "lint": "node scripts/lint-ratchet.mjs",
     "lint:full": "eslint .",
     "type-check": "tsc --noEmit",
     "preview": "vite preview",
@@ -25,7 +25,9 @@
     "tauri:deploy": "pnpm run tauri:build && cp -r 'src-tauri/target/release/bundle/macos/Chinese-Vietnamese Translator.app' /Applications/ && pnpm run sweep-targets",
     "sweep-targets": "cargo sweep --time 7 src-tauri && cargo sweep --time 7 wasm-core",
     "precompute-dictionaries": "node scripts/precompute-dictionaries.js",
-    "prepare": "husky"
+    "prepare": "husky",
+    "lint:fix": "eslint . --fix",
+    "lint:baseline": "node scripts/lint-ratchet.mjs --update"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

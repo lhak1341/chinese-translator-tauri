@@ -9,13 +9,12 @@ React/Tauri desktop app translating Chinese novels to Vietnamese via 5-phase tok
 ```bash
 cargo check --manifest-path src-tauri/Cargo.toml  # NOT cd + cargo — zoxide breaks it
 cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check both when touching Rust
-cargo test --manifest-path wasm-core/Cargo.toml -- --test-threads=1
-cargo test --manifest-path src-tauri/Cargo.toml -- --test-threads=1  # test_reset_with_backup_copies_files_then_wipes_and_recreates is flaky under default parallel threads (pre-existing, unrelated to your change if it's the only one failing)
-pnpm build-wasm-dev  # after any wasm-core change — binary is gitignored, stays stale otherwise
+cargo test --manifest-path wasm-core/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
 pnpm tauri:dev
-pnpm test -- --run  # default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall
+pnpm test -- --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall
 pnpm type-check  # 0 errors expected
-pnpm exec eslint <file>  # NOT `pnpm lint`/`--quiet` — quiet mode drops every warn-severity rule, see gotchas.md
+pnpm lint  # enforced warning ceiling (.lint-baseline.json); `pnpm lint:full` for the findings, `pnpm lint:baseline` to lock in a lower count
 ```
 
 `pnpm tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
@@ -24,7 +23,7 @@ pnpm exec eslint <file>  # NOT `pnpm lint`/`--quiet` — quiet mode drops every 
 
 ## Architecture
 
-**5-Phase Pipeline (order is immutable):** Pattern → Proper Noun → Number → Phrase → Character. Each phase's `translationSource` string is the discriminator (`getSourcePriority()` returns 999 for any unrecognized string — silently corrupts output). **Consumed token contract:** `*_consumed` → `translated` must be `null`; non-`*_consumed` → `translated` must NOT be `null`. Validated by `validateConsumedTokenContract()`.
+**5-Phase Pipeline (order is immutable):** Pattern → Proper Noun → Number → Phrase → Character. Each phase's `translationSource` string is the discriminator (`getSourcePriority()` returns 999 for any unrecognized string — silently corrupts output; literal `addUnit()` sources are guarded by `TranslationEngine.addUnitCallSites.test.js`, runtime-computed ones are not). **Consumed token contract:** `*_consumed` → `translated` must be `null`; non-`*_consumed` → `translated` must NOT be `null`. Validated by `validateConsumedTokenContract()`.
 
 **Dual-Path Architecture:** Character-only and Full-Translation are completely separate rendering/highlighting pipelines with separate entry points (`src/components/char-only/` vs `src/components/full-translation/`). Debug the right one — see `CONTEXT.md` for which module belongs to which.
 

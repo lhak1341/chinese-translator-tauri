@@ -2466,6 +2466,19 @@ mod tests {
         dir
     }
 
+    /// Like `temp_test_dir`, but returns a dictionary directory nested one level inside a
+    /// per-test sandbox, so `dictionary_path.parent()` is unique to the test.
+    ///
+    /// `reset_dictionaries_impl` writes its backup to `dictionary_path.parent()/dictionaries_backup`.
+    /// With a flat `temp_test_dir`, that parent is the shared system temp dir, so every reset test
+    /// raced over one global `dictionaries_backup` path. Nesting mirrors production layout, where
+    /// the dictionary dir sits inside the app data dir.
+    fn temp_test_dict_dir(name: &str) -> PathBuf {
+        let dir = temp_test_dir(name).join("dictionaries");
+        fs::create_dir_all(&dir).expect("failed to create temp dictionary dir");
+        dir
+    }
+
     #[test]
     fn test_create_and_activate_creates_file_and_appends_config() {
         let dir = temp_test_dir("create_happy_path");
@@ -2956,7 +2969,7 @@ mod tests {
 
     #[test]
     fn test_reset_with_backup_copies_files_then_wipes_and_recreates() {
-        let dir = temp_test_dir("reset_with_backup");
+        let dir = temp_test_dict_dir("reset_with_backup");
         fs::write(dir.join("phrases.json"), "{}").unwrap();
         let cache = make_cache();
         cache.set("phrases".to_string(), serde_json::json!({"stale": true}));
@@ -2977,13 +2990,12 @@ mod tests {
         assert!(dir.exists(), "dictionary dir should be recreated (empty)");
         assert!(cache.get("phrases").is_none(), "cache should be cleared");
 
-        let _ = fs::remove_dir_all(&dir);
-        let _ = fs::remove_dir_all(&backup_dir);
+        let _ = fs::remove_dir_all(dir.parent().unwrap());
     }
 
     #[test]
     fn test_reset_without_backup_skips_backup_dir() {
-        let dir = temp_test_dir("reset_without_backup");
+        let dir = temp_test_dict_dir("reset_without_backup");
         fs::write(dir.join("phrases.json"), "{}").unwrap();
         let cache = make_cache();
 
@@ -2998,12 +3010,12 @@ mod tests {
         assert!(dir.exists());
         assert!(!dir.join("phrases.json").exists());
 
-        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(dir.parent().unwrap());
     }
 
     #[test]
     fn test_reset_recreates_dir_when_it_did_not_exist_yet() {
-        let dir = temp_test_dir("reset_missing_dir");
+        let dir = temp_test_dict_dir("reset_missing_dir");
         fs::remove_dir_all(&dir).unwrap(); // simulate a dictionary dir that was never created
         let cache = make_cache();
 
@@ -3012,8 +3024,7 @@ mod tests {
         assert!(result.is_ok(), "should succeed even when the dictionary dir did not exist");
         assert!(dir.exists());
 
-        let _ = fs::remove_dir_all(&dir);
-        let _ = fs::remove_dir_all(dir.parent().unwrap().join("dictionaries_backup"));
+        let _ = fs::remove_dir_all(dir.parent().unwrap());
     }
 
     // ── load_dictionaries_parallel_impl ───────────────────────────────────────

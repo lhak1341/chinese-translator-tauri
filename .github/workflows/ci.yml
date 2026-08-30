@@ -33,6 +33,9 @@ jobs:
       - name: Run wasm-core Rust tests
         run: cargo test --manifest-path wasm-core/Cargo.toml
 
+      - name: Run src-tauri Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
