@@ -31,7 +31,7 @@ pnpm lint  # enforced warning ceiling (.lint-baseline.json); `pnpm lint:full` fo
 
 ## Critical Constraints
 
-**DO NOT extract** from `TranslationEngine.js`: `translateSinglePass()` (shared token state across all 5 phases), `findAllMatchesWithSemanticCache()` (timing-sensitive cache invalidation), `postProcess()` (position precision requires exact assembly order).
+**DO NOT extract** from `TranslationEngine.js`: `translateSinglePass()` (shared token state across all 5 phases), `findAllMatchesWithSemanticCache()` (timing-sensitive cache invalidation), `postProcess()` (position precision requires exact assembly order). **Ruled out for mechanization 2026-08-31**: a hook blocking edits to these would enforce the letter, block a legitimate future refactor, and teach none of the three reasons above — which are the actual content. Stays prose deliberately.
 
 **DO NOT modify dictionaries** without permission. Production: `~/Library/Application Support/com.lhak.chinese-translator/dictionaries/`. When permission is given for a bulk edit: back up the target files to the scratchpad dir first; confirm real formatting (indent width, literal-UTF-8 vs `\u` escapes via `grep -c '\\u'`, trailing-newline via `tail -c`) before `JSON.parse`→mutate→`JSON.stringify(obj,null,2)`, so the rewrite is a surgical diff. `.trie.json` caches don't need manual deletion — checksum staleness detection regenerates them. When bulk-matching entries by key-string suffix/prefix, also verify the matched entries' **field shape** (`allowedVariableTypes`/`semanticType`) matches the expected category before mutating — a string match alone can catch unrelated entries.
 
