@@ -4239,8 +4239,15 @@ export class TranslationEngine {
 
     // Skip detailed spacing rules when called from chunking (chunks handle their own spacing)
     if (options.useChunking !== false) {
-      // Fix spacing around punctuation - remove spaces before punctuation
-      result = result.replace(/\s+([.,!?:;，。！？：；\])}】》）])/g, '$1');
+      // Fix spacing around punctuation - remove spaces before punctuation, but keep any line
+      // break inside that whitespace run: bare \s swallows \n, deleting a paragraph break
+      // whenever the next line starts with punctuation. `(\r?\n|)` and `(\r?\n)?` behave
+      // identically here — a non-participating group interpolates as an empty string in a
+      // string replacement, and only yields `undefined` in a replacer function.
+      result = result.replace(
+        /[^\S\r\n]*(\r?\n|)[^\S\r\n]*([.,!?:;，。！？：；\])}】》）])/g,
+        '$1$2'
+      );
       // Skip remaining spacing rules when called from chunking
       return result;
     } else {

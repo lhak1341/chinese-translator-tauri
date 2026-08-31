@@ -1,6 +1,6 @@
 {
   "eslint.config.js": {
-    "mtime": 1788112930.0583727,
+    "mtime": 1788114230.064922,
     "ast_hash": "96268fe1c71e13cd2f46336f40e72946",
     "semantic_hash": ""
   },
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1788110455.906906,
-    "ast_hash": "94ba743f147dd60fec85269e3473af33",
+    "mtime": 1788113999.659666,
+    "ast_hash": "1c1e138fbb73100398739382a785a1f7",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -500,9 +500,9 @@
     "semantic_hash": "7c2f409a055c02e0ab19fe730e89ca7d"
   },
   "src/utils/wasm/WasmCascadeRegistry.js": {
-    "mtime": 1780109257.2141004,
-    "ast_hash": "f1b779fdc50e040b3220b300d6df76ce",
-    "semantic_hash": "f1b779fdc50e040b3220b300d6df76ce"
+    "mtime": 1788114166.913499,
+    "ast_hash": "4b368f30de0e128314b523b24ef20ecb",
+    "semantic_hash": ""
   },
   "src/utils/wasm/WasmDictionaryAdapter.js": {
     "mtime": 1780499136.768108,
@@ -510,7 +510,7 @@
     "semantic_hash": "122983f7628ae3846a650d3e10133518"
   },
   "src/utils/wasm/WasmStringProcessor.js": {
-    "mtime": 1786158494.63924,
+    "mtime": 1788114151.1024237,
     "ast_hash": "bf9bf42167afbfb5ba2165772449ce6d",
     "semantic_hash": "bf9bf42167afbfb5ba2165772449ce6d"
   },
@@ -545,9 +545,9 @@
     "semantic_hash": "559faa5edeb4b51f4671a9b6cf3ae07f"
   },
   "src/utils/wasm/WasmDictionaryManager.js": {
-    "mtime": 1786380236.2477052,
-    "ast_hash": "b3053fdc8c30783b59efb40eaed367c8",
-    "semantic_hash": "b3053fdc8c30783b59efb40eaed367c8"
+    "mtime": 1788114125.171079,
+    "ast_hash": "e1368741d452da9100ee61a7515cf056",
+    "semantic_hash": ""
   },
   "src/utils/wasm/WasmMemoryPoolManager.ts": {
     "mtime": 1784246498.6344929,
@@ -1400,8 +1400,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1788083935.6871276,
-    "ast_hash": "618ac319efcaecf71abbe1766ad2f953",
+    "mtime": 1788114394.1325688,
+    "ast_hash": "32ca77dd7f5fd52f7cefdce7dcb493cd",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1415,8 +1415,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1787993077.847973,
-    "ast_hash": "d91a14b1fa33b8d15a212962562f7e53",
+    "mtime": 1788114411.390422,
+    "ast_hash": "eb2a3773ba10066d3ba5f2393eb2d6de",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1690,7 +1690,7 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
-    "mtime": 1787584443.97942,
+    "mtime": 1788114310.0141995,
     "ast_hash": "a721e4dc36e02a869d065dea505089a9",
     "semantic_hash": ""
   },

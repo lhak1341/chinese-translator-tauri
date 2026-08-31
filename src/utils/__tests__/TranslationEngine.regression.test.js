@@ -416,4 +416,30 @@ describe('TranslationEngine Regression Tests', () => {
       expect(cleanup('Xin chào.Tạm biệt', opts)).toBe('Xin chào. Tạm biệt');
     });
   });
+
+  describe('Bug Fix: cleanupFormatting chunking branch swallowing paragraph breaks', () => {
+    // Same prototype-call setup as the decimal-point block above; the branch under test is
+    // the DEFAULT one (useChunking omitted / not false), which every chunked translation takes.
+    const fakeEngine = { dictionaryManager: { translate: () => null }, log: () => {} };
+    const cleanup = (text) =>
+      TranslationEngine.prototype.cleanupFormatting.call(fakeEngine, text, {});
+
+    it('keeps a line break that precedes line-leading punctuation', () => {
+      // The remove-spaces-before-punctuation rule used bare \s+, which matches \n — so a
+      // paragraph break landing before a line-leading punctuation mark was deleted outright,
+      // silently dropping a blank line from the Vietnamese output.
+      expect(cleanup('Dòng một\n。')).toBe('Dòng một\n。');
+      expect(cleanup('Dòng một\n) tiếp')).toBe('Dòng một\n) tiếp');
+      expect(cleanup('Dòng một\r\n》')).toBe('Dòng một\r\n》');
+    });
+
+    it('still removes spaces and tabs before punctuation', () => {
+      expect(cleanup('Xin chào .')).toBe('Xin chào.');
+      expect(cleanup('Xin chào\t，')).toBe('Xin chào，');
+    });
+
+    it('strips trailing spaces on a line without eating the break itself', () => {
+      expect(cleanup('Dòng một \n。')).toBe('Dòng một\n。');
+    });
+  });
 });

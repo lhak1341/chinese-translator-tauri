@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Shared cascade-retire registry for the 6 WASM wrappers that share one binary.
+ * Shared cascade-retire registry for the 7 WASM wrappers that share one binary.
  *
  * Any WASM panic permanently corrupts the shared dlmalloc allocator. Each wrapper
  * registers a retire callback here at module load time; when any wrapper's catch
@@ -15,7 +15,7 @@ const _handlers = [];
 
 /**
  * Register a callback that retires this wrapper when any sibling WASM panic fires.
- * Called once at module load time by each of the 6 shared-binary wrappers.
+ * Called once at module load time by each of the 7 shared-binary wrappers.
  * @param {() => void} fn
  */
 export function registerCascadeHandler(fn) {

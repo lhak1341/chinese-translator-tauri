@@ -21,7 +21,6 @@ import init, { DictionaryEngine } from '../../wasm/translation_wasm_core.js';
 import { wasmMemoryPoolManager } from './WasmMemoryPoolManager.js';
 /** @import { WasmBufferAllocator } from './WasmMemoryPoolManager.js' */
 import { logger } from '../logger';
-import { wasmTextAssembler } from './WasmTextAssembler';
 import { TOAST_DURATIONS, TOAST_IDS } from '../../constants/toastConfig';
 import { FallbackManager } from '../FallbackManager';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
@@ -249,7 +248,6 @@ export class WasmDictionaryManager {
     } catch (error) {
       logger.error('❌ WASM lookup failed:', error);
       _sharedModuleCorrupted = true;
-      wasmTextAssembler.retireOnSharedModulePanic();
       this.handleFailure();
       fireCascadeRetire();
       return this.fallbackManager?.findMatches?.(dictionaryName, text, startPos) ?? [];
@@ -295,7 +293,6 @@ export class WasmDictionaryManager {
     } catch (error) {
       logger.error('❌ WASM longest match failed:', error);
       _sharedModuleCorrupted = true;
-      wasmTextAssembler.retireOnSharedModulePanic();
       this.handleFailure();
       fireCascadeRetire();
       return this.fallbackManager?.findLongestMatch?.(dictionaryName, text, startPos) ?? null;
