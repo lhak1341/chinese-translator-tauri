@@ -7166,21 +7166,25 @@ export class TranslationEngine {
   capitalizeFirstLetter(text) {
     if (!text) return text;
 
-    // Find the first letter, skipping any leading non-letter run (whitespace, digits,
+    // Find the first letter, skipping any leading non-letter run (whitespace,
     // stray punctuation like a converted number's own "99.9% " prefix) — not just
-    // whitespace. Mirrors the char-only capitalize-after-punctuation fix earlier this
-    // session (translateWithCharactersOnly's \P{L}*\s\P{L}* regex): a chunk that starts
-    // with a number should still capitalize the first real word after it, e.g.
-    // "99.9% something" -> "99.9% Something", not stay untouched. \p{L} (any Unicode
-    // letter) replaces the old hand-enumerated Vietnamese-only char class — a strict
-    // superset, and safe: .toUpperCase() on a script with no case concept (CJK) is a
-    // no-op, and digits aren't \p{L} at all so a bare-digit chunk is still left alone.
+    // whitespace. \p{L} (any Unicode letter) replaces the old hand-enumerated
+    // Vietnamese-only char class — a strict superset, and safe: .toUpperCase() on a
+    // script with no case concept (CJK) is a no-op.
+    // But skip capitalizing when a digit precedes the letter (e.g. "500 năm", "99.9%
+    // something") — a number attaches its unit/following word as part of the same
+    // phrase, not a new sentence, so the word after it must not be force-capitalized.
+    // Mirrors translateWithCharactersOnly's identical `/\d/.test(pre) ? m : ...` guard.
     const match = text.match(/^(\P{L}*)(\p{L})/u);
 
     if (match) {
-      const prefix = match[1]; // spaces before the letter
+      const prefix = match[1]; // spaces/punctuation before the letter
       const letter = match[2]; // the letter to capitalize
       const rest = text.slice(match[0].length); // rest of the text
+
+      if (/\d/.test(prefix)) {
+        return text;
+      }
 
       return prefix + letter.toUpperCase() + rest;
     }

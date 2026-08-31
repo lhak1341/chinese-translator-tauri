@@ -119,17 +119,21 @@ describe('TranslationEngine.applySmartCapitalization', () => {
     expect(chunks[2].translated).toBe('Thuyết');
   });
 
-  // IMPROVEMENT (2026-08-29 review): capitalizeFirstLetter used to only skip leading
-  // whitespace before looking for a letter to capitalize, via a hand-enumerated
-  // Vietnamese-only char class. A chunk starting with a converted number (e.g.
-  // NumberProcessor's "99.9%") was silently left untouched even when it should
-  // capitalize the first real word after it. Now skips any leading non-letter run and
-  // uses \p{L} (any Unicode letter) — mirrors the char-only capitalization fix from
-  // earlier this session.
-  test('IMPROVEMENT: capitalizes the first real word after a leading converted number', () => {
+  // FIX (2026-08-31): a chunk starting with a converted number must NOT force-capitalize
+  // the word right after it — the number's unit/following word is part of the same
+  // phrase, not a new sentence (e.g. "500 năm" must stay lowercase "năm", not "Năm").
+  // Mirrors translateWithCharactersOnly's `/\d/.test(pre) ? m : ...` digit guard, which
+  // capitalizeFirstLetter had drifted from.
+  test('FIX: does not capitalize the word right after a leading converted number', () => {
     const chunks = [makeChunk({ content: '', translated: '99.9% something', startedBy: 'start' })];
     engine.applySmartCapitalization(chunks);
-    expect(chunks[0].translated).toBe('99.9% Something');
+    expect(chunks[0].translated).toBe('99.9% something');
+  });
+
+  test('FIX: "500 năm" stays lowercase after a leading converted number', () => {
+    const chunks = [makeChunk({ content: '', translated: '500 năm', startedBy: 'start' })];
+    engine.applySmartCapitalization(chunks);
+    expect(chunks[0].translated).toBe('500 năm');
   });
 
   test('a chunk that is only a number stays unchanged (no letter to capitalize)', () => {
