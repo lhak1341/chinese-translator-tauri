@@ -15,7 +15,22 @@
  * its type registry, keeping the logic in one place.
  */
 
+import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine.js';
+
 export const MAX_ENTRY_LENGTH = 10000;
+
+// X/Y/Z count as pattern variables only when not fused to a real word (see
+// PatternTemplateEngine.isVariableChar) — otherwise a capital letter inside
+// ordinary text (e.g. the Y in "Yến") is wrongly read as variable Y.
+const extractPatternVars = (str: string): Set<string> => {
+  const vars = new Set<string>();
+  for (let i = 0; i < str.length; i++) {
+    if ('XYZ'.includes(str[i]) && PatternTemplateEngine.isVariableChar(str, i)) {
+      vars.add(str[i]);
+    }
+  }
+  return vars;
+};
 
 export const baseValidation = (source: string, translation: string): string | null => {
   // SECURITY FIX: Prevent DoS via huge dictionary entries
@@ -41,8 +56,8 @@ export const validatePatternEntry = (source: string, translation: string): strin
   // find_best_pattern_match's "fewer variables wins" tie-break (see wasm-core
   // matcher.rs). The symmetry checks below are no-ops on empty sets, so a
   // 0-variable pattern falls through them and passes.
-  const sourceVars = new Set(source.match(/[XYZ]/g) || []);
-  const translationVars = new Set(translation.match(/[XYZ]/g) || []);
+  const sourceVars = extractPatternVars(source);
+  const translationVars = extractPatternVars(translation);
 
   for (const variable of sourceVars) {
     if (!translationVars.has(variable)) {

@@ -48,6 +48,19 @@ describe('isPatternValid', () => {
     expect(isPatternValid('X的')).toBe(true);
   });
 
+  it('accepts a Vietnamese proper noun containing a capital X/Y letter in the translation', () => {
+    // Regression: "Yến" must not be read as variable Y just because it
+    // contains a capital letter.
+    expect(isPatternValid('燕姓X', 'X họ Yến')).toBe(true);
+  });
+
+  it('rejects when the real Y variable is missing even though translation contains a proper noun with a stray capital Y', () => {
+    // Without adjacency-aware detection, "Yến" would be misread as
+    // satisfying the Y requirement, silently accepting a template missing
+    // its actual Y placeholder.
+    expect(isPatternValid('X给Y的', 'cho X và Yến')).toBe(false);
+  });
+
   it('accepts source with one X and valid translation containing X', () => {
     expect(isPatternValid('X的', 'của X')).toBe(true);
   });

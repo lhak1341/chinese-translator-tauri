@@ -138,7 +138,20 @@ describe('PatternTemplateEngine', () => {
     });
 
     test('ignores lowercase letters', () => {
+      const vars = PatternTemplateEngine.extractVariables('abc');
+      expect(vars).toEqual([]);
+    });
+
+    test('does not treat a capital fused to a word as a variable', () => {
+      // "X" glued directly to lowercase letters reads as a real word
+      // (e.g. a capitalized proper noun), not a standalone placeholder.
       const vars = PatternTemplateEngine.extractVariables('Xabc');
+      expect(vars).toEqual([]);
+    });
+
+    test('ignores capitals inside Vietnamese proper nouns in a template', () => {
+      // Regression: "Yến" must not be read as variable Y.
+      const vars = PatternTemplateEngine.extractVariables('X họ Yến');
       expect(vars).toEqual(['X']);
     });
   });

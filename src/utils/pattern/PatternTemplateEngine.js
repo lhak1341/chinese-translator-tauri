@@ -1,6 +1,12 @@
 // @ts-check
 import { logger } from '../logger';
 
+// A run of lowercase letters (incl. Vietnamese diacritics, e.g. "ế") next to an
+// uppercase letter means that letter is part of a real word (proper noun,
+// sentence-initial capital), not a variable placeholder — e.g. the "Y" in
+// "Yến" must not be mistaken for a variable named Y.
+const LOWERCASE_LETTER = /\p{Ll}/u;
+
 /**
  * Pattern Template Engine
  *
@@ -8,7 +14,9 @@ import { logger } from '../logger';
  * Handles pattern syntax like "这些X" → "những X này" where X is a variable.
  *
  * Pattern syntax:
- * - Uppercase letters (A-Z) are variables
+ * - Uppercase letters (A-Z) are variables, UNLESS immediately adjacent
+ *   (before or after) to a lowercase letter — that shape means the letter
+ *   is part of a real word, not a standalone placeholder
  * - Everything else is literal text
  * - Variables in templates are replaced with resolved values
  *
@@ -28,6 +36,25 @@ import { logger } from '../logger';
  */
 export class PatternTemplateEngine {
   /**
+   * Whether the character at index i is a variable placeholder: an
+   * uppercase letter not immediately flanked by a lowercase letter.
+   * Shared by parsePatternToTokens and extractVariables so the two can't
+   * drift on what counts as a variable.
+   *
+   * @param {string} str
+   * @param {number} i
+   * @returns {boolean}
+   */
+  static isVariableChar(str, i) {
+    if (!/[A-Z]/.test(str[i])) return false;
+    const prev = str[i - 1];
+    const next = str[i + 1];
+    if (prev !== undefined && LOWERCASE_LETTER.test(prev)) return false;
+    if (next !== undefined && LOWERCASE_LETTER.test(next)) return false;
+    return true;
+  }
+
+  /**
    * Parse pattern string into semantic tokens
    *
    * @param {string} pattern - Pattern string like "这些X"
@@ -38,7 +65,7 @@ export class PatternTemplateEngine {
     let i = 0;
 
     while (i < pattern.length) {
-      if (pattern[i].match(/[A-Z]/)) {
+      if (this.isVariableChar(pattern, i)) {
         // Variable token
         tokens.push({
           type: 'variable',
@@ -121,17 +148,19 @@ export class PatternTemplateEngine {
    * Extract variable names from pattern
    *
    * @param {string} pattern - Pattern string
-   * @returns {Array<string>} List of variable names (uppercase letters)
+   * @returns {Array<string>} List of variable names (uppercase letters not
+   *   fused to a real word)
    *
    * @example
    * extractVariables("这些X") // Returns: ['X']
    * extractVariables("XYZ") // Returns: ['X', 'Y', 'Z']
    * extractVariables("没有变量") // Returns: []
+   * extractVariables("X họ Yến") // Returns: ['X'] — "Yến"'s Y is part of a word, not a variable
    */
   static extractVariables(pattern) {
     const variables = [];
     for (let i = 0; i < pattern.length; i++) {
-      if (pattern[i].match(/[A-Z]/)) {
+      if (this.isVariableChar(pattern, i)) {
         variables.push(pattern[i]);
       }
     }

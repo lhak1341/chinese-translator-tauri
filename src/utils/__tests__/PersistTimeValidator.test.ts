@@ -72,6 +72,12 @@ describe('validatePatternEntry', () => {
     expect(validatePatternEntry('的书', 'sách của')).toBeNull();
   });
 
+  test('accepts a Vietnamese proper noun containing a capital X/Y/Z letter in the translation', () => {
+    // Regression: "Yến" must not be read as variable Y just because it
+    // contains a capital letter.
+    expect(validatePatternEntry('燕姓X', 'X họ Yến')).toBeNull();
+  });
+
   test('rejects when translation omits a variable present in source', () => {
     expect(validatePatternEntry('X给Y的书', 'sách của X')).toBe(
       'Translation must use variable Y from the pattern'
@@ -85,7 +91,10 @@ describe('validatePatternEntry', () => {
   });
 
   test('delegates to baseValidation for the length/empty check after symmetry passes', () => {
-    const tooLong = 'X' + 'a'.repeat(MAX_ENTRY_LENGTH + 1);
+    // Filler must be Chinese (not lowercase Latin) so X stays a standalone
+    // variable instead of reading as fused to a word — this fixture is
+    // testing length overflow, not variable detection.
+    const tooLong = 'X' + '测'.repeat(MAX_ENTRY_LENGTH + 1);
     expect(validatePatternEntry(tooLong, 'X')).toBe(
       `Source too long (max ${MAX_ENTRY_LENGTH} characters)`
     );

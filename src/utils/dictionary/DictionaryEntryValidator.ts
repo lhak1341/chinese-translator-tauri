@@ -1,4 +1,16 @@
 import { MAX_ENTRY_LENGTH } from './PersistTimeValidator';
+import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine.js';
+
+// Counts `letter` only where it's a standalone variable placeholder, not
+// fused to a real word (see PatternTemplateEngine.isVariableChar) — e.g. the
+// Y in "Yến" must not count as variable Y.
+function countVariableOccurrences(str: string, letter: string): number {
+  let count = 0;
+  for (let i = 0; i < str.length; i++) {
+    if (str[i] === letter && PatternTemplateEngine.isVariableChar(str, i)) count++;
+  }
+  return count;
+}
 
 export interface ValidationResult {
   valid: boolean;
@@ -22,15 +34,15 @@ export function isCharacterSourceValid(source: string): boolean {
  */
 export function isPatternValid(source: string, translation?: string): boolean {
   const trimmedSource = source.trim();
-  const xCount = (trimmedSource.match(/X/g) || []).length;
-  const yCount = (trimmedSource.match(/Y/g) || []).length;
+  const xCount = countVariableOccurrences(trimmedSource, 'X');
+  const yCount = countVariableOccurrences(trimmedSource, 'Y');
   if (xCount > 1) return false;
   if (xCount === 0 && yCount > 0) return false;
 
   if (translation !== undefined && translation.trim().length > 0) {
     const trimmedTranslation = translation.trim();
-    if (xCount === 1 && !(trimmedTranslation.match(/X/g) || []).length) return false;
-    if (yCount > 0 && !(trimmedTranslation.match(/Y/g) || []).length) return false;
+    if (xCount === 1 && countVariableOccurrences(trimmedTranslation, 'X') === 0) return false;
+    if (yCount > 0 && countVariableOccurrences(trimmedTranslation, 'Y') === 0) return false;
   }
 
   return true;

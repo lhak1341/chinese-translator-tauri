@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1788113999.659666,
-    "ast_hash": "1c1e138fbb73100398739382a785a1f7",
+    "mtime": 1788194108.5243661,
+    "ast_hash": "5f06c1bf138225633582d8ea86004a81",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -580,8 +580,8 @@
     "semantic_hash": "f6c9931030ac4450c0973b5eee59f594"
   },
   "src/utils/dictionary/DictionaryEntryValidator.ts": {
-    "mtime": 1787973075.9852822,
-    "ast_hash": "3749860dab1af5ae60110d6ae8d3cb0d",
+    "mtime": 1788793546.1034665,
+    "ast_hash": "12692077c066bd6983122e8cc2c819e4",
     "semantic_hash": ""
   },
   "src/utils/dictionary/DictionaryTrie.js": {
@@ -630,8 +630,8 @@
     "semantic_hash": "9627e48a9fae82eae37aa1101538de8f"
   },
   "src/utils/dictionary/PersistTimeValidator.ts": {
-    "mtime": 1787973082.3959951,
-    "ast_hash": "7ceb399c5b86ea9107ceeb815f21f953",
+    "mtime": 1788793373.3812747,
+    "ast_hash": "93292403231c0813bbb499c83191504f",
     "semantic_hash": ""
   },
   "src/utils/dictionary/LookupIndexUtils.ts": {
@@ -725,9 +725,9 @@
     "semantic_hash": "e2f535669db9f65a34edc71d9bb49366"
   },
   "src/utils/pattern/PatternTemplateEngine.js": {
-    "mtime": 1772897608.5355124,
-    "ast_hash": "df1d04f475e92725a67c45f926e2e2b7",
-    "semantic_hash": "df1d04f475e92725a67c45f926e2e2b7"
+    "mtime": 1788793129.8128214,
+    "ast_hash": "a574fa2f0eac80c10fed02e48ce5ffd1",
+    "semantic_hash": ""
   },
   "src/utils/pattern/PatternVariableCache.js": {
     "mtime": 1779857325.1288528,
@@ -1400,8 +1400,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1788114394.1325688,
-    "ast_hash": "32ca77dd7f5fd52f7cefdce7dcb493cd",
+    "mtime": 1788194146.6011906,
+    "ast_hash": "7593ef2e419a1f6ebece5d1d5a4b7550",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1740,8 +1740,8 @@
     "semantic_hash": "767b2e9abe6452170cdc399ca052cfbc"
   },
   ".github/workflows/ci.yml": {
-    "mtime": 1788112930.056095,
-    "ast_hash": "43f8f9f49d0fe8471be3ef74f71a283e",
+    "mtime": 1788139495.9020624,
+    "ast_hash": "351cb04b0d193ed01f7df2caa56df880",
     "semantic_hash": ""
   },
   "docs/adr/ADR-013-skip-precomputed-token-strings-extraction.md": {
