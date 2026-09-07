@@ -70,6 +70,29 @@ describe('matchWordSegments', () => {
     expect(semanticSegments[1].originalText).toBe('不');
   });
 
+  test('coincidental text collision between differently-sized candidates resolves by tokenIndex, not length', () => {
+    // Occurrence 1 (earlier tokenIndex) is three separate char-tokens whose translations
+    // happen to assemble into the same string as occurrence 2's single combined-word
+    // candidate (later tokenIndex). The combined word is longer, so a length-first sort
+    // would process it first and steal occurrence 1's earlier position via indexOf(text, 0).
+    const semanticArrays = arrays([
+      { original: '呼', translated: 'Hô', tokenIndex: 19 },
+      { original: '老', translated: 'lão', tokenIndex: 20 },
+      { original: '摩', translated: 'ma', tokenIndex: 21 },
+      { original: '呼老魔', translated: 'Hô lão ma', tokenIndex: 50 },
+    ]);
+    const output = 'Hô lão ma này vài vị, Hô lão ma cũng không';
+
+    const segments = matchWordSegments(semanticArrays, output);
+    const semanticSegments = segments.filter((s) => s.type === 'semantic');
+
+    // The three char-tokens (tokenIndex 19-21) must claim the FIRST "Hô lão ma", and the
+    // combined proper-noun token (tokenIndex 50) must claim the SECOND.
+    expect(semanticSegments.map((s) => s.originalText)).toEqual(['呼', '老', '摩', '呼老魔']);
+    expect(semanticSegments[0].start).toBe(0);
+    expect(semanticSegments[3].start).toBe(output.indexOf('Hô lão ma', 1));
+  });
+
   test('appends trailing unmatched text as a remaining, non-clickable segment', () => {
     const semanticArrays = arrays([{ original: 'X', translated: 'X-out', tokenIndex: 0 }]);
     const output = 'X-out and more';

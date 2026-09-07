@@ -54,12 +54,20 @@ const QUOTE_PATTERN = /[“‘”’"']/;
  * Pure function of its inputs — reads `semanticArrays` and `outputText`, writes nothing.
  * No engine state (`this`) touched anywhere in the algorithm.
  *
- * Algorithm (carries forward one already-fixed bug, see the sort comparator below):
+ * Algorithm (carries forward two already-fixed bugs, see the sort comparator below):
  * 1. Build candidate words from semantic-array entries with non-null translations.
- * 2. Sort candidates longest-first (prevents a short word matching inside a longer one),
- *    tie-broken by tokenIndex (Chinese text order) for same-length candidates — this
- *    tie-break must apply to ALL same-length candidates, not just same-translated-text
- *    ones, or the comparator becomes intransitive (see compareByTokenIndex usage below).
+ * 2. Sort candidates by tokenIndex (Chinese text/output order) first, length second.
+ *    tokenIndex primary is what makes step 3's search find the RIGHT occurrence when a
+ *    candidate's text coincidentally appears more than once in the output — e.g. a
+ *    multi-char proper-noun match ("Hô lão ma", one candidate) and an unrelated adjacent
+ *    char-by-char translation that happens to assemble into the identical string ("Hô" +
+ *    "lão" + "ma", three candidates) are different lengths, so the old length-first sort
+ *    processed the longer one first regardless of which physically came first in the
+ *    output, letting it steal the earlier (wrong) occurrence via indexOf(text, 0) — this
+ *    could not happen for same-length duplicates, which already got a correct tokenIndex
+ *    tie-break, only for coincidental collisions between differently-sized candidates.
+ *    Length remains the secondary key (previously the primary one) so a short word still
+ *    can't claim a position inside a longer one when both share a tokenIndex.
  * 3. Find each candidate's first non-overlapping occurrence in the (NFC-normalized,
  *    lowercased) output text, in sorted order. Each found position is validated against
  *    every other candidate's occupied range (not just previously-added ones), so the
@@ -97,9 +105,9 @@ export function matchWordSegments(
   }
 
   candidateWords.sort((a, b) => {
-    const lengthDiff = b.translated.length - a.translated.length;
-    if (lengthDiff !== 0) return lengthDiff;
-    return compareByTokenIndex(a.tokenIndex, b.tokenIndex);
+    const tokenDiff = compareByTokenIndex(a.tokenIndex, b.tokenIndex);
+    if (tokenDiff !== 0) return tokenDiff;
+    return b.translated.length - a.translated.length;
   });
 
   const foundWords: Array<CandidateWord & { position: number }> = [];
