@@ -1,4 +1,4 @@
-import { describe, test, expect, vi } from 'vitest';
+import { describe, test, expect } from 'vitest';
 import {
   resolveDictionaryPriority,
   buildTrieFromDictionary,
@@ -31,19 +31,15 @@ describe('resolveDictionaryPriority', () => {
 });
 
 describe('buildTrieFromDictionary', () => {
-  const estimateFrequency = vi.fn((source: string) => source.length);
-
   test('inserts string-value entries with computed metadata', () => {
-    const result = buildTrieFromDictionary({ 好: 'tốt' }, 'characters', 4, estimateFrequency);
+    const result = buildTrieFromDictionary({ 好: 'tốt' }, 4);
 
     expect(result.entryCount).toBe(1);
     expect(result.invalidSources).toEqual([]);
     const entry = result.trie.getWithMetadata('好');
     expect(entry.translation).toBe('tốt');
     expect(entry.metadata).toMatchObject({
-      dictionary: 'characters',
       priority: 4,
-      frequency: 1,
     });
   });
 
@@ -57,9 +53,7 @@ describe('buildTrieFromDictionary', () => {
           allowedVariableTypes: ['concept'],
         },
       },
-      'phrases',
-      3,
-      estimateFrequency
+      3
     );
 
     const entry = result.trie.getWithMetadata('你好');
@@ -74,9 +68,7 @@ describe('buildTrieFromDictionary', () => {
   test('preserves explicit allowAsPatternVariable: false rather than defaulting it away', () => {
     const result = buildTrieFromDictionary(
       { 大: { translation: 'to', allowAsPatternVariable: false } },
-      'characters',
-      4,
-      estimateFrequency
+      4
     );
 
     expect(result.trie.getWithMetadata('大').metadata.allowAsPatternVariable).toBe(false);
@@ -85,9 +77,7 @@ describe('buildTrieFromDictionary', () => {
   test('collects invalid entries (no translation field) without inserting them', () => {
     const result = buildTrieFromDictionary(
       { good: 'tốt', bad: { note: 'missing translation field' } },
-      'characters',
-      4,
-      estimateFrequency
+      4
     );
 
     expect(result.entryCount).toBe(1);
@@ -96,12 +86,7 @@ describe('buildTrieFromDictionary', () => {
   });
 
   test('same priority value is used for every entry in the dictionary', () => {
-    const result = buildTrieFromDictionary(
-      { 一: '1', 二: '2', 三: '3' },
-      'characters',
-      4,
-      estimateFrequency
-    );
+    const result = buildTrieFromDictionary({ 一: '1', 二: '2', 三: '3' }, 4);
 
     expect(result.trie.getWithMetadata('一').metadata.priority).toBe(4);
     expect(result.trie.getWithMetadata('二').metadata.priority).toBe(4);

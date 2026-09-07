@@ -2,7 +2,7 @@
 
 Pitfalls confirmed across development sessions in this repo, grouped by area. Each entry states a rule; the specific symbols under it are examples that make the rule recognisable, not the rule itself.
 
-Deleted symbols live separately, in [development.md's Historical / Deleted section](development.md#deleted-symbols) — check there before recreating anything that looks missing.
+Deleted symbols live separately, in [deleted-symbols.md](deleted-symbols.md) — check there before recreating anything that looks missing.
 
 ## Architecture / Extraction
 
@@ -43,6 +43,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 **`pnpm update --latest`/`pnpm add pkg@latest` silently skip very-recently-published versions** (pnpm's built-in release-age cooldown) — bypassing it via an explicit version pin (`pnpm add pkg@x.y.z`) writes an exclude entry into `pnpm-workspace.yaml`, a shared repo-config change, not just a lockfile bump. Run `pnpm peers check` after any bulk dependency update — it catches peer-range breaks (e.g. a major bump outrunning a plugin's supported range) that a plain `pnpm add`/`update` won't warn about at all.
 
 **`temp/` (repo root, gitignored) is this project's scratch/report-output directory** — prefer it over OS `$TMPDIR` when a skill or task generates a report/artifact file for this project (e.g. `/improve-codebase-architecture`'s saved HTML report), rather than defaulting to the skill's own OS-temp instructions unasked.
+
+**`sed -i ''` can silently no-op** — ran with no error, changed nothing (confirmed 2026-09-07 on a variable rename across a hook file). Verify with a follow-up `grep`, or just use the Edit tool for renames — it either applies or errors, never silently does neither.
 
 ## JavaScript / TypeScript
 
@@ -253,6 +255,27 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 **CSS Modules resolve to real hashed class names in vitest+jsdom (not stubbed)** — `container.getElementsByClassName(styles.someClass)` works for asserting two elements share one class (e.g. header/row column-width parity), stronger than an inline-style snapshot since it fails the moment either side's className changes independently.
 
 **Mutating a mock/fixture object in place after `render()` does not retrigger `useMemo`/derived state keyed on that object's reference** — the dependency array sees the same reference, so the mutation is invisible until a real re-render happens. Set the fixture's final state before calling `render()`, not by mutating it mid-test.
+
+**`requestAnimationFrame` does not fire in jsdom.** Tests asserting RAF-triggered side effects must mock it:
+
+```ts
+const rafCalls: FrameRequestCallback[] = [];
+vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+  rafCalls.push(cb);
+  return 0;
+});
+// after act():
+act(() => rafCalls.forEach((cb) => cb(0)));
+vi.restoreAllMocks();
+```
+
+Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
+
+**Row-level handlers with no test id** (e.g. `onContextMenu` on a row wrapper div): `fireEvent.contextMenu(someDescendantText)` still bubbles up to trigger it — avoids brittle `.closest()`/`.parentElement` DOM traversal to find the row wrapper.
+
+**Testing a closure passed as a hook argument** (e.g. `useInlineFieldEdit(value, onCommit)` where `onCommit` builds a component-local object): mock the hook, capture the argument in the mock factory, invoke it directly in the test. Skips simulating the hook's own edit/blur state machine (already covered by that hook's own test file) and isolates the assertion to the caller's own logic. See `VirtualRowComponent.test.tsx`.
+
+**Firing scroll/DOM events on a manually-attached `ref` callback** (e.g. a `scrollRefCallback` from a virtual-scroll hook): capture the node via the callback itself (`scrollRefCallback: (node) => { captured = node }`) and call `fireEvent` on it directly — do not hunt for it with a `querySelector('div[style*=...]')` CSS-string match against inline styles; brittle against style-string formatting and unrelated markup changes.
 
 ### Imports and naming traps
 

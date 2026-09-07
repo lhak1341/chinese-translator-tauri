@@ -219,7 +219,8 @@ export class ChunkPostProcessor {
       // BUT NOT when the punctuation sequence starts with closing elements (like ], ), }, etc.)
       // BUT DO add space for opening quotes (they need space before them)
       const startsWithSentencePunct = /^[.,!?:;，。！？：；、]/.test(remainingPunctuation);
-      const startsWithClosingElement = /^[\])}】》）»>]/.test(remainingPunctuation);
+      const startsWithClosingElement =
+        this.punctuationProcessor.startsWithClosingElement(remainingPunctuation);
 
       if (
         content &&

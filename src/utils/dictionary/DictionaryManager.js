@@ -234,12 +234,7 @@ export class DictionaryManager {
       // Fallback: build trie from dictionary if cache didn't work
       const priority = resolveDictionaryPriority(dictionaryName, priorities);
       if (!trie) {
-        const built = buildTrieFromDictionary(
-          dictionary,
-          dictionaryName,
-          priority,
-          this.estimateFrequency
-        );
+        const built = buildTrieFromDictionary(dictionary, priority);
         trie = built.trie;
         entryCount = built.entryCount;
         for (const invalidSource of built.invalidSources) {
@@ -299,26 +294,6 @@ export class DictionaryManager {
         this.log(1, '⚠️ WASM sync failed, continuing with JavaScript only:', error);
       }
     }
-  }
-
-  /**
-   * Estimate frequency for sorting (simple heuristic)
-   * @param {string} source - Source text
-   * @param {string} dictionaryName - Dictionary name
-   * @returns {number} Estimated frequency score
-   */
-  estimateFrequency(source, dictionaryName) {
-    // Simple heuristics for frequency estimation
-    let score = 1;
-
-    // Shorter entries are often more frequent
-    score += Math.max(0, 10 - source.length);
-
-    // Dictionary-specific adjustments
-    if (dictionaryName === 'characters') score += 5;
-    if (dictionaryName === 'phrases' && source.length <= 3) score += 3;
-
-    return score;
   }
 
   /**

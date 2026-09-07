@@ -22,12 +22,6 @@ After touching any CRUD function or `addToHistory`, audit for:
 
 `undo`/`redo` live in `src/components/dictionary/useDictionaryHistory.ts`. Diff-reversal delegates to `computeUndoMutation`/`computeRedoMutation` in `src/utils/dictionary/DictionaryOperationReverter.ts` — pure, no React. Dep arrays: `[history, currentHistoryIndex, commitMutation, invalidateEngine]` — `dictionariesRef` intentionally excluded (stable ref).
 
-## React State Updater Rules
-
-**Never `throw` inside a state updater function** (`setState(prev => { throw ... })`): React 18 Concurrent Mode may call updaters multiple times; throws bypass the `await` chain. Do existence checks on the closed-over variable BEFORE `setState`.
-
-**Never assign `let` variables inside an updater for use outside it**: the updater may run twice; always compute from the closed-over snapshot BEFORE `setDictionaries`. For undo/redo, use `dictionariesRef.current` directly. `bulkDeleteEntries` follows the same pattern: compute `oldData`/`sortedDictionary` from the closed-over `dictionaries` snapshot BEFORE `setDictionaries`.
-
 ## Error Handling
 
 **The double-toast guard depends on throwing the right typed error class every time.** If a code path shows a toast then `throw new SaveError(...)`, the outer `catch` must guard with `!isValidationError(error) && !isSaveError(error)` before showing its own toast. Same failure mode from the other direction: pre-`try` existence checks (e.g. dict-not-found) that use bare `throw new Error(msg)` bypass the `!isValidationError` guard entirely — always `throw new ValidationError(msg)` there instead.
@@ -57,7 +51,7 @@ Resolution edge cases: `$-ref` to non-existent variable (e.g. `"$Z"` in an X-onl
 
 ## Pattern Variable Contract
 
-X = optional 1st variable (0 or 1 — a 0-variable pattern is a literal, no-variable entry); Y = optional 2nd, but only meaningful alongside X. Y-only patterns (Y present, X absent) are intentionally invalid. Form-time `isPatternValid` (`DictionaryEntryValidator.ts`) enforces: at most one X; if X is absent, Y must also be absent; translation must contain X only when source has X; if source has Y, translation must also have Y. Persist-time `validatePatternEntry` (`PersistTimeValidator.ts`) is looser — pure X/Y/Z set-symmetry, no X-before-Y ordering — so it does not independently reject a Y-only source; form-time is what actually blocks it in the New Entry modal. A 0-variable pattern is a deliberate, supported shape: it lets a literal pattern entry outrank a same-length variable pattern via `find_best_pattern_match`'s "fewer variables wins" tie-break (`wasm-core/src/pattern_processor/matcher.rs`) — see the 这种马上-vs-这X上 case (2026-08-29). Existing-entry suggestion (`handleTranslationFocus` → `checkForExistingEntry`) applies to patterns too (re-enabled 2026-08-10) — was previously suppressed via an `activeDictionary.startsWith('patterns')` guard with no recorded rationale; removed since it left same-dict pattern overwrites completely silent, unlike every other dict type.
+X = optional 1st variable (0 or 1 — a 0-variable pattern is a literal, no-variable entry); Y = optional 2nd, but only meaningful alongside X. Y-only patterns (Y present, X absent) are intentionally invalid. Form-time (`DictionaryEntryValidator.ts`) and persist-time (`PersistTimeValidator.ts`) enforce **identical** rules as of 2026-09-07 — both delegate to `PatternEntryRules.ts`: no variable may repeat in source; variables must be introduced in order (Y requires X, Z requires Y); translation and source variable sets must match exactly, both directions. Before 2026-09-07 persist-time was looser (no ordering check, X/Y-only) — that asymmetry let a Z-variable or Y-without-X pattern pass the Quick-Add form's live check, then get rejected only at save. A 0-variable pattern is a deliberate, supported shape: it lets a literal pattern entry outrank a same-length variable pattern via `find_best_pattern_match`'s "fewer variables wins" tie-break (`wasm-core/src/pattern_processor/matcher.rs`) — see the 这种马上-vs-这X上 case (2026-08-29). Existing-entry suggestion (`handleTranslationFocus` → `checkForExistingEntry`) applies to patterns too (re-enabled 2026-08-10) — was previously suppressed via an `activeDictionary.startsWith('patterns')` guard with no recorded rationale; removed since it left same-dict pattern overwrites completely silent, unlike every other dict type.
 
 ## Dictionary Type Classification
 
@@ -75,81 +69,26 @@ You no longer have to remember any of that: `SourceConventionScan.test.js` fails
 
 `DictionaryTypes.ts` has a LOCAL `interface DictionaryInfo { label, description }` — display-only type for dictionary type metadata. NOT the same as `ComponentTypes.d.ts::DictionaryInfo { id, name, path, isActive, ... }` which is the API/IPC type used by `ElectronTypes.d.ts`. Do not re-export the local one, do not merge the two. Import `DictionaryInfo` from `../../types/ComponentTypes` for the API type.
 
-## `useEntryEditAndMove` Hook — Edit/Move State Not in EVDT
+## State Ownership — Not in `EnhancedVirtualizedDictionaryTable` (EVDT) or `VirtualRowComponent`
 
-`editingEntry`, `moveEntry`, `updateEntryWithScrollPreservation`, `onContextMenuEdit`, `onContextMenuMove` live in `src/hooks/useEntryEditAndMove.ts`. EVDT uses `reset: resetEditAndMove` in the dict-switch effect to clear both state fields atomically. Hook takes `withScrollPreservation` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` leak to callers. `updateEntryWithScrollPreservation` delegates directly to `withScrollPreservation(fn)`.
+Each concern below is owned by an extracted hook/component, not re-inlined into the two god-components. Don't hand-roll a second copy of any of these — no raw setters escape any of these hooks except where noted.
 
-**No raw setters escape the hook.** Modal close handlers use `closeEdit()` / `closeMove()` (clear one state field each). `reset()` clears both atomically and is used on dict switch only. Do NOT destructure `setEditingEntry` or `setMoveEntry` — they are not in the return type.
+| Concern                           | Owner                              | Key facts                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edit/move state                   | `useEntryEditAndMove.ts`           | Use `closeEdit()`/`closeMove()`/`reset()` (atomic dict-switch clear) — do not destructure `setEditingEntry`/`setMoveEntry`. Takes `withScrollPreservation` from `useVirtualScrollRange`.                                                                                                                                                                                                                                                                            |
+| Move-target dictionary list       | `useMoveTargetDictionaries.ts`     | Powers `MoveDialog.tsx` (single dialog for single- and bulk-entry moves — see `MoveDialog` in `CONTEXT.md`). `sourceLabel` is a sync derived value, stays correct even if the async list-load fails.                                                                                                                                                                                                                                                                |
+| Selection, bulk-delete, bulk-move | `useEntrySelection.ts`             | EVDT only consumes `selectedEntries`/`showBulkMoveDialog`/`handleSelectEntry`/`handleSelectAll`/`resetSelection` — the bulk-delete confirm dialog renders in the **parent**, not EVDT. Duplicate-mode delete uses one `refreshDuplicatesPreservingScroll(): Promise<void>` callback (not 3 separate scroll params) — EVDT owns capture/refresh/restore itself, since duplicate-mode delete remounts EVDT under a new `key`, wiping `useVirtualScrollRange`'s state. |
+| Filter state                      | `useDictionaryEntryFilter.ts`      | Named ops: `toggleSemanticType`, `togglePatternType`, `toggleFlag`, `setVariable`, `clearFilters`, `resetFilters(newDict)` (smart reset — clears only filters inapplicable to the new dict type). `setSearchTerm`/`setShowFilterPanel` are the only raw setters that legitimately escape (UI-only, no filter logic).                                                                                                                                                |
+| Duplicate-mode 4-column layout    | `DuplicateDictionaryTableView.tsx` | Pure view, no hooks — scroll state passed as props from EVDT (`scrollRefCallback`, `onScroll`, `totalHeight`, `offsetY`).                                                                                                                                                                                                                                                                                                                                           |
+| Metadata-edit handlers            | `useEntryMetadataEdit.ts`          | Every handler snapshots via `buildBaseMetadata` first, then patches one field. `handleToggleVariableType` deletes the key entirely once the last allowed type for a variable is removed.                                                                                                                                                                                                                                                                            |
 
-## `useMoveTargetDictionaries` Hook — Move-Target List Not Duplicated
+## Hook Tests — jsdom Gotchas (Dictionary-Specific)
 
-`availableDictionaries`/`sourceLabel` for `MoveDialog.tsx` (the single dialog for both single-entry and bulk moves — see `MoveDialog` in `CONTEXT.md`) live in `src/hooks/useMoveTargetDictionaries.ts`. Do NOT hand-roll dictionary-list-loading or dropdown-label logic in a new move-style dialog — call the hook, pass your own `setError` as the `onError` callback. `sourceLabel` is a sync derived value (`getDictionaryDropdownLabel(currentDictionaryId)`), not tied to the async list-load — stays correct even if the load fails.
+General jsdom/RTL testing techniques (RAF mocking, event-bubbling for context menus, closure-mocking hook arguments, ref-callback event capture) live in `docs/guides/gotchas.md`'s jsdom section — the two below are dictionary-specific.
 
-## `useEntrySelection` Hook — Selection State Not in EVDT
-
-`showBulkDeleteConfirm`, `isDeleting`, `handleBulkDelete`, `handleBulkMove` live in `src/hooks/useEntrySelection.ts`, NOT rendered in EVDT. EVDT only uses `selectedEntries`, `showBulkMoveDialog`, `handleSelectEntry`, `handleSelectAll`, `resetSelection`. All other selection state flows to the parent via `onSelectionChange` — the confirm-delete dialog is rendered by the **parent**, not EVDT. Hook takes `withScrollPreservation` (from `useVirtualScrollRange`) — no raw `scrollRef`/`setScrollTop` in its interface.
-
-**Duplicate-mode scroll preservation is a single `refreshDuplicatesPreservingScroll: () => Promise<void>` callback (not `getScrollTop`+`onScrollSave`+`onRefreshDuplicates` separately)** — deepened 2026-08-08 (architecture review round, candidate #5 grilling). EVDT owns the capture-refresh-restore mechanic itself (it has `scroll.getScrollTop`, `onScrollSave`, `onRefreshDuplicates` all in scope); `useEntrySelection` just calls the one callback in `handleBulkDelete`'s `showDuplicatesMode` branch without knowing scroll is involved. The mechanic exists because duplicate-mode delete triggers a backend refresh that re-renders EVDT under a new `key` (see `DictionaryManager.tsx`), wiping `useVirtualScrollRange`'s own scroll state — `duplicateScrollRestore` state in `DictionaryManager.tsx` is what survives that remount, not sprawl to clean up. Do NOT re-add `getScrollTop`/`onScrollSave` as separate `useEntrySelection` params.
-
-## `useDictionaryEntryFilter` Hook — Filter State Not in EVDT
-
-All filter state lives in `src/hooks/useDictionaryEntryFilter.ts`. Call as `useDictionaryEntryFilter(dicts, selectedDictionary, duplicateRows, showDuplicatesMode)`.
-
-**Named operations (use these — no raw setters escape the hook):**
-
-- `toggleSemanticType(type: string)` — toggle one semantic type in/out of the active filter set
-- `togglePatternType(type: 'x-only' | 'x-y' | 'no-variable')` — toggle one pattern shape filter (`'no-variable'` added 2026-08-29 alongside 0-variable pattern support)
-- `toggleFlag(flag: 'allowAsVariable')` — toggle a boolean flag filter
-- `setVariable(v: 'all' | 'allowed' | 'not-allowed')` — set the variable filter to an explicit value
-- `clearFilters()` — reset all filter dimensions atomically (used by the "Clear filters" button)
-- `resetFilters(newSelectedDictionary)` — smart reset on dict switch: clears only filters inapplicable to the new dict type. Called from the `selectedDictionary` coordinator effect alongside `resetEditAndMove`/`resetSelection`/`closeContextMenu`/`scroll.resetScroll`.
-
-**Read-only state (for `.has()` / `isActive` checks in JSX):** `filterSemanticTypes`, `filterPatternType`, `filterAllowAsVariable`, `filterVariable`.
-
-**Raw setters that still escape (UI-only, no filter logic):** `setSearchTerm`, `setShowFilterPanel`.
-
-`debouncedSearchTerm` must be destructured — used by EVDT's scroll-reset effect. All named operation callbacks are stable (`useCallback(fn, [])` with functional updaters internally — no Set state in deps).
-
-## Hook Tests — jsdom Gotchas
-
-**`requestAnimationFrame` does not fire in jsdom.** Tests asserting RAF-triggered side effects must mock it:
-
-```ts
-const rafCalls: FrameRequestCallback[] = [];
-vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
-  rafCalls.push(cb);
-  return 0;
-});
-// after act():
-act(() => rafCalls.forEach((cb) => cb(0)));
-vi.restoreAllMocks();
-```
-
-Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
-
-`useVirtualScrollRange`'s `containerHeight` state defaults to `600` (not `0`) — small test datasets (EVDT and siblings) render fully with no ResizeObserver-firing needed; still stub `ResizeObserver` as a class (per above) so `new ResizeObserver()` doesn't throw "not defined" in jsdom.
-
-Row-level handlers with no test id (e.g. `onContextMenu` on a row wrapper div): `fireEvent.contextMenu(someDescendantText)` still bubbles up to trigger it — avoids brittle `.closest()`/`.parentElement` DOM traversal to find the row wrapper.
-
-**Testing a closure passed as a hook argument** (e.g. `useInlineFieldEdit(value, onCommit)` where `onCommit` builds a component-local metadata object): mock the hook, capture the argument in the mock factory, invoke it directly in the test. Skips simulating the hook's own edit/blur state machine (already covered by that hook's own test file) and isolates the assertion to the component's own logic. See `VirtualRowComponent.test.tsx`.
-
-Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefCallback` from `useVirtualScrollRange`): capture the node via the callback itself (`scrollRefCallback: (node) => { captured = node }`) and call `fireEvent` on it directly — do not hunt for it with a `querySelector('div[style*=...]')` CSS-string match against inline styles; brittle against style-string formatting and unrelated markup changes.
+`useVirtualScrollRange`'s `containerHeight` state defaults to `600` (not `0`) — small test datasets (EVDT and siblings) render fully with no ResizeObserver-firing needed; still stub `ResizeObserver` as a class so `new ResizeObserver()` doesn't throw "not defined" in jsdom.
 
 **Patterns-dict source text is not a single text node** — `VirtualRowComponent` renders it through `highlightPatternVariables(source)`, which splits it into styled spans per X/Y variable. `screen.getByText(sourceString)` will fail to match; assert on the (plain-text) translation string instead.
-
-## `DuplicateDictionaryTableView` — Duplicate Rendering Not in EVDT
-
-4-column duplicate layout lives in `DuplicateDictionaryTableView.tsx`. Pure view, no hooks. EVDT passes scroll state as props (`scrollRefCallback`, `onScroll`, `totalHeight`, `offsetY`) — `useVirtualScrollRange` stays in EVDT. When adding duplicate-mode UI, edit `DuplicateDictionaryTableView`, not EVDT.
-
-## `useEntryMetadataEdit` Hook — Metadata Handlers Not in `VirtualRowComponent`
-
-`handleCheckboxChange`, `handleToggleVariableType`, `handleSetSemanticType`, and `buildBaseMetadata` live in `src/hooks/useEntryMetadataEdit.ts`. Invariant: every handler snapshots full metadata via `buildBaseMetadata` first, then patches one field. `handleToggleVariableType` owns the add/remove/delete-key logic for `allowedVariableTypes` — toggling the only type for a variable deletes the key; emptying all keys deletes `allowedVariableTypes` from the metadata object entirely.
-
-## WASM Wrapper Methods
-
-**Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.
-
-**`WasmNumberProcessor` IIFE resolves (not rejects) on failure**: the module-bottom `.catch()` only fires on rejection; the IIFE swallows errors and resolves to `false`. Clearing `initializationPromise` must happen inside the IIFE `catch` block — if omitted, `getWasmNumberProcessorStatus()` permanently reports `{ initializing: true }`.
 
 ## Reusable Row/Badge Building Blocks — `VirtualRowComponent.tsx`
 
@@ -160,3 +99,9 @@ Firing scroll/DOM events on a manually-attached `ref` callback (e.g. `scrollRefC
 **A real `<table>`'s `<tr>` `height` is a minimum, not a cap** — content padding/line-height can still force it taller. To match Dictionary's exact row density, don't build a `<table>`; use `RowShell`'s fixed-height flex-div technique instead (same mechanism `EnhancedVirtualizedDictionaryTable` itself uses). Setting `height: 40px` on a `<tr>` and expecting Dictionary-identical row height is a no-op if the cell content needs more room.
 
 **Testing a `RowShell`-based row directly** (not through its parent table): `RowShell` renders a plain `<div role="row">`, not a real `<tr>` — render the component directly, don't wrap it in `<table><tbody>`. That wrapping is invalid DOM nesting (div inside tbody) and buys nothing; `role="row"`/`role="cell"` ARIA attributes work with `getByRole` without real table markup. Found writing `RuleRow.test.tsx` (2026-08-12).
+
+## WASM Wrapper Methods
+
+**Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.
+
+**`WasmNumberProcessor` IIFE resolves (not rejects) on failure**: the module-bottom `.catch()` only fires on rejection; the IIFE swallows errors and resolves to `false`. Clearing `initializationPromise` must happen inside the IIFE `catch` block — if omitted, `getWasmNumberProcessorStatus()` permanently reports `{ initializing: true }`.

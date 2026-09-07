@@ -101,11 +101,25 @@ describe('validatePatternEntry', () => {
   });
 
   test('symmetry check runs before the baseValidation length check', () => {
-    // Missing-variable error should fire even though translation is otherwise empty-ish —
-    // proves ordering: symmetry check happens first, baseValidation second.
+    // Missing-variable error should fire even though translation is otherwise non-empty —
+    // proves ordering: variable rules happen first, baseValidation second.
     // Set iterates in insertion order, so X (first match in source) is reported first.
-    const result = validatePatternEntry('X给Y的书', '');
+    const result = validatePatternEntry('X给Y的书', 'chỉ có Y');
     expect(result).toBe('Translation must use variable X from the pattern');
+  });
+
+  test('rejects source with Y but no X (structural ordering, now shared with form-time)', () => {
+    expect(validatePatternEntry('是Y的书', 'là Y')).toBe('Pattern cannot use variable Y without X');
+  });
+
+  test('rejects source with Z but no Y (ordering: Z requires Y)', () => {
+    expect(validatePatternEntry('X和Z', 'X và Z')).toBe('Pattern cannot use variable Z without Y');
+  });
+
+  test('rejects a source with a repeated variable (new: previously only enforced at form-time)', () => {
+    expect(validatePatternEntry('X给X', 'X cho X')).toBe(
+      'Pattern cannot use variable X more than once'
+    );
   });
 });
 

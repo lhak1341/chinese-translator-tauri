@@ -77,6 +77,24 @@ describe('isPatternValid', () => {
     expect(isPatternValid('X和Y', 'X và người')).toBe(false);
   });
 
+  it('rejects translation with an extra variable not present in source', () => {
+    // Full bidirectional symmetry: this used to pass under the old X/Y-only,
+    // one-directional check.
+    expect(isPatternValid('X的', 'của X và Y')).toBe(false);
+  });
+
+  it('accepts source with X, Y, and Z introduced in order', () => {
+    expect(isPatternValid('X给Y的Z', 'Z của Y cho X')).toBe(true);
+  });
+
+  it('rejects source with Z but no Y (ordering: Z requires Y)', () => {
+    expect(isPatternValid('X和Z', 'X và Z')).toBe(false);
+  });
+
+  it('rejects source with a repeated variable', () => {
+    expect(isPatternValid('X给X')).toBe(false);
+  });
+
   it('ignores translation when it is empty string', () => {
     expect(isPatternValid('X的', '')).toBe(true);
   });
@@ -95,19 +113,19 @@ describe('validateDictionaryEntry', () => {
     it('rejects empty source', () => {
       const result = validateDictionaryEntry('', 'foo', 'phrases');
       expect(result.valid).toBe(false);
-      expect(result.error).toBe('Both source text and translation are required');
+      expect(result.error).toBe('Both source and translation are required');
     });
 
     it('rejects empty translation', () => {
       const result = validateDictionaryEntry('foo', '', 'phrases');
       expect(result.valid).toBe(false);
-      expect(result.error).toBe('Both source text and translation are required');
+      expect(result.error).toBe('Both source and translation are required');
     });
 
     it('rejects whitespace-only source', () => {
       const result = validateDictionaryEntry('   ', 'foo', 'characters');
       expect(result.valid).toBe(false);
-      expect(result.error).toBe('Both source text and translation are required');
+      expect(result.error).toBe('Both source and translation are required');
     });
   });
 
@@ -178,7 +196,7 @@ describe('validateDictionaryEntry', () => {
     it('pattern error message matches exact string expected by DictionaryEntry', () => {
       const result = validateDictionaryEntry('XX', 'XX', 'patterns');
       expect(result.error).toBe(
-        'Pattern entry invalid — source needs zero or one X, translation must contain X if source has X (and Y if source has Y)'
+        'Pattern entry invalid — variables must be introduced in order (X, then Y, then Z), no repeats, and translation must use exactly the variables in the source'
       );
     });
   });

@@ -46,14 +46,14 @@ pnpm lint  # enforced warning ceiling (.lint-baseline.json); `pnpm lint:full` fo
 This file stays short on purpose — everything task-scoped moved to where it's discoverable when you actually need it:
 
 - **Tooling/environment gotchas** (RTK proxy output is lossy, Edit tool silent-failure modes, test placement, regex Unicode traps, Rust command guards) → [`docs/guides/gotchas.md`](docs/guides/gotchas.md).
-- **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing → [`docs/guides/development.md#deleted-symbols`](docs/guides/development.md#deleted-symbols).
+- **Deleted-symbols history** — what's already been removed; check before recreating anything that looks missing → [`docs/guides/deleted-symbols.md`](docs/guides/deleted-symbols.md).
 - **Debugging steps, resolved bug postmortems, and the "verify claims before acting" discipline** (Explore subagents and architecture-review reports both fabricate/overstate specifics — always re-verify with `Grep`/`Read` before deleting or citing) → [`docs/guides/troubleshooting.md`](docs/guides/troubleshooting.md).
 - **`TranslationEngine.js`/`src/utils/` internal contracts** (phase ordering, position tracking, WASM lifecycle) → `src/utils/CLAUDE.md`.
 - **`Translator.jsx`/hooks/component contracts** (engine lifecycle, hotkeys, highlighting state) → `src/components/CLAUDE.md` (and nested `src/components/*/CLAUDE.md` for dictionary/rules).
 - **Domain glossary** (what a module is, in this codebase's own vocabulary) → `CONTEXT.md`.
 - **Architectural decisions** → `docs/adr/`.
 
-📖 [Architecture](docs/guides/architecture.md) · [Development](docs/guides/development.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Hotkeys](docs/HOTKEYS.md) · [ADRs](docs/adr/)
+📖 [Architecture](docs/guides/architecture.md) · [Development](docs/guides/development.md) · [Troubleshooting](docs/guides/troubleshooting.md) · [Hotkeys](docs/HOTKEYS.md) · [ADRs](docs/adr/) · [CSP Security](docs/CSP_SECURITY.md)
 
 ## graphify
 

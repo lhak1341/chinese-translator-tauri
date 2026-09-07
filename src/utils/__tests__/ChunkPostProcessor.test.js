@@ -267,6 +267,38 @@ describe('ChunkPostProcessor.reconstructText', () => {
     expect(result).toContain(closeQ + ' ' + openQ);
   });
 
+  // Regression 2026-09-07: startsWithClosingElement didn't recognize curly closing quotes
+  // (」→" and 』→' are common production punctuation-dict mappings for closing dialogue),
+  // so a wrong space was inserted before them — same bug shape as 06a5b50, different chars.
+  test('regression 2026-09-07: curly closing quote gets no space before it', () => {
+    const closeQ = QUOTE_TYPES.CURLY_CLOSE_DOUBLE; // " (from 」)
+    const openQ = QUOTE_TYPES.ANGLE_OPEN_DOUBLE; // « (from 《)
+    const chunks = [
+      makeChunk({ content: '说', translated: 'nói nói', translatedPunctuation: closeQ + openQ }),
+      makeChunk({ content: '话', translated: 'lời' }),
+    ];
+    const result = cpp.reconstructText(chunks);
+    // Must NOT have a space before the closing quote itself...
+    expect(result).not.toContain(' ' + closeQ);
+    // ...but the existing closing+opening spacing rule still applies between " and «.
+    expect(result).toContain(closeQ + ' ' + openQ);
+  });
+
+  test('regression 2026-09-07: curly closing single quote (』) gets no space before it', () => {
+    // A lone closing quote with no following opening element never reaches the
+    // startsWithClosingElement check (hasOpeningElements gates it) — pair it with
+    // an opening element, same shape as the double-quote case above, to actually
+    // exercise the fix.
+    const closeQ = QUOTE_TYPES.CURLY_CLOSE_SINGLE; // ' (from 』)
+    const openQ = QUOTE_TYPES.ANGLE_OPEN_SINGLE; // < (from 〈)
+    const chunks = [
+      makeChunk({ content: '说', translated: 'nói nói', translatedPunctuation: closeQ + openQ }),
+      makeChunk({ content: '话', translated: 'lời' }),
+    ];
+    const result = cpp.reconstructText(chunks);
+    expect(result).not.toContain(' ' + closeQ);
+  });
+
   test('reconstructText does NOT NFC-normalize — passes content through as-is', () => {
     // Only reconstructTextWithSegments normalizes. reconstructText is the fast path.
     const nfd = 'ma\u0300u'; // NFD: a + U+0300 combining grave = 'à'

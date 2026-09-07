@@ -1,16 +1,5 @@
-import { MAX_ENTRY_LENGTH } from './PersistTimeValidator';
-import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine.js';
-
-// Counts `letter` only where it's a standalone variable placeholder, not
-// fused to a real word (see PatternTemplateEngine.isVariableChar) — e.g. the
-// Y in "Yến" must not count as variable Y.
-function countVariableOccurrences(str: string, letter: string): number {
-  let count = 0;
-  for (let i = 0; i < str.length; i++) {
-    if (str[i] === letter && PatternTemplateEngine.isVariableChar(str, i)) count++;
-  }
-  return count;
-}
+import { baseValidation } from './PersistTimeValidator';
+import { validatePatternVariables } from './PatternEntryRules';
 
 export interface ValidationResult {
   valid: boolean;
@@ -26,26 +15,16 @@ export function isCharacterSourceValid(source: string): boolean {
 }
 
 /**
- * Returns true when source/translation satisfy 'patterns' dictionary constraints:
- * - source contains at most one X (zero is allowed — a literal, no-variable pattern)
- * - source cannot contain Y without X (Y-only patterns are intentionally invalid)
- * - if translation is non-empty and source has X, translation must contain X
- * - if source contains Y, translation must also contain Y
+ * Returns true when source/translation satisfy 'patterns' dictionary constraints
+ * (see PatternEntryRules.ts — the same rules PersistTimeValidator enforces):
+ * - no X/Y/Z variable repeats within source (zero variables is allowed — a
+ *   literal, no-variable pattern)
+ * - variables must be introduced in order: Y requires X, Z requires Y
+ * - once translation is non-empty, source and translation variable sets must
+ *   match exactly in both directions
  */
 export function isPatternValid(source: string, translation?: string): boolean {
-  const trimmedSource = source.trim();
-  const xCount = countVariableOccurrences(trimmedSource, 'X');
-  const yCount = countVariableOccurrences(trimmedSource, 'Y');
-  if (xCount > 1) return false;
-  if (xCount === 0 && yCount > 0) return false;
-
-  if (translation !== undefined && translation.trim().length > 0) {
-    const trimmedTranslation = translation.trim();
-    if (xCount === 1 && countVariableOccurrences(trimmedTranslation, 'X') === 0) return false;
-    if (yCount > 0 && countVariableOccurrences(trimmedTranslation, 'Y') === 0) return false;
-  }
-
-  return true;
+  return validatePatternVariables(source, translation) === null;
 }
 
 /**
@@ -60,16 +39,9 @@ export function validateDictionaryEntry(
   translation: string,
   dictionaryId: string
 ): ValidationResult {
-  if (!source.trim() || !translation.trim()) {
-    return { valid: false, error: 'Both source text and translation are required' };
-  }
-
-  if (source.length > MAX_ENTRY_LENGTH) {
-    return { valid: false, error: `Source too long (max ${MAX_ENTRY_LENGTH} characters)` };
-  }
-
-  if (translation.length > MAX_ENTRY_LENGTH) {
-    return { valid: false, error: `Translation too long (max ${MAX_ENTRY_LENGTH} characters)` };
+  const baseError = baseValidation(source, translation);
+  if (baseError) {
+    return { valid: false, error: baseError };
   }
 
   if (dictionaryId === 'characters' && !isCharacterSourceValid(source)) {
@@ -83,7 +55,7 @@ export function validateDictionaryEntry(
     return {
       valid: false,
       error:
-        'Pattern entry invalid — source needs zero or one X, translation must contain X if source has X (and Y if source has Y)',
+        'Pattern entry invalid — variables must be introduced in order (X, then Y, then Z), no repeats, and translation must use exactly the variables in the source',
     };
   }
 

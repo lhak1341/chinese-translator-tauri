@@ -38,15 +38,13 @@ export function resolveDictionaryPriority(
  * Build a DictionaryTrie from a raw dictionary JSON object.
  *
  * @param dictionary - Raw `{source: target}` map from dictionary JSON
- * @param dictionaryName - Used for per-entry metadata and frequency estimation
- * @param priority - Pre-resolved via resolveDictionaryPriority (same value for every entry)
- * @param estimateFrequency - Pure `(source, dictionaryName) => number` heuristic
+ * @param priority - Pre-resolved via resolveDictionaryPriority (same value for every entry) —
+ *   the only derived per-entry metadata field with a real reader
+ *   (SemanticPatternProcessor's pattern-priority tie-break)
  */
 export function buildTrieFromDictionary(
   dictionary: Record<string, unknown>,
-  dictionaryName: string,
-  priority: number,
-  estimateFrequency: (source: string, dictionaryName: string) => number
+  priority: number
 ): TrieBuildResult {
   const trie = new DictionaryTrie();
   let entryCount = 0;
@@ -80,9 +78,7 @@ export function buildTrieFromDictionary(
     }
 
     const metadata = {
-      dictionary: dictionaryName,
       priority,
-      frequency: estimateFrequency(source, dictionaryName),
       allowAsPatternVariable,
       ...(semanticType && { semanticType }),
       ...(allowedVariableTypes && { allowedVariableTypes }),

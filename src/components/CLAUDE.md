@@ -33,6 +33,12 @@ Known instances:
 
 **Testing `useHotkeyHandler.ts`'s clipboard quick-add path**: it calls `navigator.clipboard`/`window.getSelection` directly — NOT `window.electronAPI.readClipboard` (that's `useClipboardTranslation`'s path). jsdom has neither by default; stub both with `Object.defineProperty`/`vi.spyOn` before testing the quick-add dispatch cases.
 
+## React State Updater Rules
+
+**Never `throw` inside a state updater function** (`setState(prev => { throw ... })`): React 18 Concurrent Mode may call updaters multiple times; throws bypass the `await` chain. Do existence checks on the closed-over variable BEFORE `setState`.
+
+**Never assign `let` variables inside an updater for use outside it**: the updater may run twice; always compute from the closed-over snapshot BEFORE `setState`. For undo/redo-style history, read a ref's `.current` directly instead of a plain closure variable (e.g. dictionary undo/redo uses `dictionariesRef.current`; `bulkDeleteEntries` computes `oldData`/`sortedDictionary` from the closed-over snapshot before calling `setDictionaries`).
+
 ## `ClickableTranslationOptimized` Paragraph Logic
 
 Uses "break on every `\n`" (inline `useMemo`). Do NOT replace with `groupSegmentsIntoParagraphs` — that utility uses Chinese-indentation detection, incompatible with Vietnamese translated text.

@@ -56,19 +56,33 @@ All returned handlers are stable (`useCallback([], [])`); async handlers read cu
 
 Entry point: `src/hooks/useAppearanceSettings.ts`. Used exclusively by `AppearanceManager` in `src/components/appearance/AppearanceManager.tsx`.
 
+## PatternEntryRules
+
+The canonical home for pattern-entry variable rules — shared by form-time (`DictionaryEntryValidator.ts`) and persist-time (`PersistTimeValidator.ts`) validation so both enforce the same rules instead of each re-deriving them. Consolidated 2026-09-07 after a name collision and drift audit found three independent, inconsistent implementations (see `PersistTimeValidator` below for the surviving split).
+
+Rules, both operating on the `PatternTemplateEngine.isVariableChar`-based extraction (a capital letter fused to a real word, e.g. the `Y` in "Yến", is never read as a variable):
+
+- **Structure** (`checkVariableStructure(source)`) — source-only, so it can run before a translation exists: each of X/Y/Z may appear **at most once**, and variables must be introduced in order — Y requires X, Z requires Y. `X给X` and `是Y的` (Y without X) are both invalid.
+- **Symmetry** (`checkVariableSymmetry(source, translation)`) — full bidirectional check: every variable in source must appear in translation, and every variable in translation must appear in source.
+- `validatePatternVariables(source, translation?)` composes both — runs structure always, symmetry only once `translation` is non-blank (supports form-time's progressive-typing UX, where the translation field may not be filled in yet).
+
+Entry point: `src/utils/dictionary/PatternEntryRules.ts`.
+
 ## PersistTimeValidator
 
-The canonical home for dictionary entry validation at persist time — called by `useDictionaryCRUD`'s `prepareMutationEntry()` the moment an entry is committed to storage. Stricter than form-time validation: enforces the 10 000-char DoS limit (`MAX_ENTRY_LENGTH`) and the full X/Y/Z variable-symmetry rule (every variable in source must appear in translation and vice versa).
+The canonical home for dictionary entry validation at persist time — called by `useDictionaryCRUD`'s `prepareMutationEntry()` the moment an entry is committed to storage. Enforces the 10 000-char DoS limit (`MAX_ENTRY_LENGTH`); pattern entries additionally go through `PatternEntryRules.validatePatternVariables`.
 
 Three exports:
 
-- `baseValidation(source, translation)` — empty check + length limit (SECURITY FIX; shared with `DictionaryEntryValidator.ts` via import of `MAX_ENTRY_LENGTH`)
-- `validatePatternEntry(source, translation)` — X/Y/Z variable-symmetry rule; used by `baseDictionaryTypes.patterns` in `DictionaryTypes.ts`
+- `baseValidation(source, translation)` — empty check + length limit (SECURITY FIX; shared with `DictionaryEntryValidator.ts`, which calls it directly rather than re-deriving the same check)
+- `validatePatternEntry(source, translation)` — delegates to `PatternEntryRules.validatePatternVariables`, then `baseValidation`; used by `baseDictionaryTypes.patterns` in `DictionaryTypes.ts`
 - `validatePersistEntry(dictionaryId, source, translation) → string | null` — dispatches to the per-type validator by ID prefix (`properNouns*`, `patterns-*`) or registry lookup. Renamed from `validateDictionaryEntry` (DictionaryTypes.ts) to resolve the 3-way name collision with `DictionaryEntryValidator.ts` and `configValidation.ts`.
 
-**Form-time vs persist-time distinction:** `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (`(source, translation, dictionaryId) → ValidationResult`) is form-time — fires on each keystroke to drive UI feedback state (`showCharacterValidation`, `showPatternValidation`). `validatePersistEntry` (`(dictionaryId, source, translation) → string | null`) is persist-time — fires exactly once inside `prepareMutationEntry` before the entry is written. Different signatures, different return types, different strictness. Do NOT merge.
+**Form-time vs persist-time distinction:** `validateDictionaryEntry` in `DictionaryEntryValidator.ts` (`(source, translation, dictionaryId) → ValidationResult`) is form-time — fires on each keystroke to drive UI feedback state (`showCharacterValidation`, `showPatternValidation`). `validatePersistEntry` (`(dictionaryId, source, translation) → string | null`) is persist-time — fires exactly once inside `prepareMutationEntry` before the entry is written. Different signatures, different return types. **Do NOT merge these two functions** — but both now enforce identical pattern-entry rules via `PatternEntryRules.ts` underneath (this was NOT true before 2026-09-07: form-time only checked X/Y and allowed a Y-without-X pattern to reach persist-time silently, where it would then fail with a different message than the live UI feedback had shown).
 
 `DictionaryTypes.ts` imports `baseValidation` and `validatePatternEntry` from here so the logic lives in one place. `DictionaryTypes.ts` no longer exports `validateDictionaryEntry` — callers that need persist-time dispatch use `validatePersistEntry` from `utils/dictionary/`.
+
+`useDictionaryEntryForm.ts` has its own local `checkPatternValid` (a `useCallback` wrapping `isPatternValid` to drive `showPatternValidation`) — previously named `validatePatternEntry`, colliding with this file's export of the same name despite doing something unrelated (boolean UI-gate vs `string | null`). Renamed 2026-09-07; do not reuse `validatePatternEntry` as a local name elsewhere in the hook.
 
 Entry point: `src/utils/dictionary/PersistTimeValidator.ts`, re-exported from `src/utils/dictionary/index.ts`.
 
@@ -226,6 +240,8 @@ Converts raw dictionary JSON directly into the flat `{chinese, vietnamese, metad
 Replaces two former trie-walks that independently reverse-engineered this same flat shape by DFS-walking an already-built `DictionaryTrie`: `RustLookupIndexManager.extractEntriesFromTrie` (deleted earlier, carried a `MAX_DEPTH` recursion guard and dev-only cycle detector) and `DictionaryManager._extractAllEntries`/`_extractTrieEntries` (deleted 2026-08-07 architecture-review grill, unguarded — no recursion/cycle protection at all). Both were defensive/undefended machinery that existed only because a live trie was being treated as untrusted structure to walk. `DictionaryManager` now builds flat entries directly from the same raw JSON it reads to build the trie, once at dictionary-load time, and retains them in `this.flatEntries` — no walk, no cycle risk, nothing to guard against, and only one metadata shape to reason about.
 
 Per-entry `metadata` intentionally omits the derived `priority`/`frequency`/`dictionary` fields `DictionaryManager`'s trie-insert loop computes for `DictionaryTrie` nodes — every reader of trie-node metadata was grepped and none read those fields, on either the Rust lookup-index side or the WASM `DictionaryEngine` side (`DictionaryWasmLookup.findAllMatches` supplies per-dictionary priority separately from its own `_priorityByName` map, never from per-entry metadata). Rust/WASM both treat `metadata` as an opaque passthrough string. Only whatever the source dictionary JSON itself provides (e.g. `allowAsPatternVariable`, `semanticType`) is carried through.
+
+`DictionaryTrieBuilder.buildTrieFromDictionary` (the older JS `DictionaryTrie`-node path this section's `priority`/`frequency`/`dictionary` finding was originally about) was brought to the same shape 2026-09-07: `frequency` and `dictionary` deleted (zero readers, confirmed by the same grep), `priority` kept (the one field with a real reader — `SemanticPatternProcessor.js`'s pattern-priority tie-break reads `pattern.metadata.priority` for JS-side Phase 1 pattern matching, a consumer neither the Rust lookup-index nor the WASM `DictionaryEngine` share). `estimateFrequency` (`DictionaryManager.js`) deleted alongside as its only caller. `buildTrieFromDictionary`'s signature shrank from `(dictionary, dictionaryName, priority, estimateFrequency)` to `(dictionary, priority)` — `dictionaryName` had no remaining use once both fields it fed were gone.
 
 **`metadata` is pre-serialized (`string | null`), not a raw object** — `WasmDictionaryManager.loadDictionary` must NOT re-`JSON.stringify` it (fixed 2026-08-07; the old trie-walk path fed a raw object here, so the mapping used to stringify defensively — feeding it an already-stringified `flatEntries` value there would double-encode it). `loadDictionary`'s contract is now "metadata arrives wire-ready."
 

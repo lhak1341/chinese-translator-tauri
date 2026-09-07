@@ -4,13 +4,14 @@ Start at [`CLAUDE.md`](../CLAUDE.md) for critical constraints, then follow which
 
 ## Guides
 
-| Guide                                           | Covers                                                                                            |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| [architecture.md](guides/architecture.md)       | 5-phase pipeline, WASM acceleration, semantic arrays, token contracts                             |
-| [development.md](guides/development.md)         | Safe development zones, extraction criteria, testing, build requirements, deleted-symbols history |
-| [gotchas.md](guides/gotchas.md)                 | Confirmed pitfalls: RTK/Edit tooling, JS/TS, types, Rust/WASM, testing, CSS                       |
-| [performance.md](guides/performance.md)         | Profiling strategy, cache management, memory leak prevention, failed patterns                     |
-| [troubleshooting.md](guides/troubleshooting.md) | Wrong translation, wrong highlighting, stale cache, error handling patterns                       |
+| Guide                                           | Covers                                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [architecture.md](guides/architecture.md)       | 5-phase pipeline, WASM acceleration, semantic arrays, token contracts                     |
+| [development.md](guides/development.md)         | Logging, debugging tools, testing conventions, CI/CD, production build requirements       |
+| [deleted-symbols.md](guides/deleted-symbols.md) | What's already been removed and why — check before recreating anything that looks missing |
+| [gotchas.md](guides/gotchas.md)                 | Confirmed pitfalls: RTK/Edit tooling, JS/TS, types, Rust/WASM, testing, CSS               |
+| [performance.md](guides/performance.md)         | Profiling strategy, cache management, memory leak prevention, failed patterns             |
+| [troubleshooting.md](guides/troubleshooting.md) | Wrong translation, wrong highlighting, stale cache, error handling patterns               |
 
 ## Decisions
 

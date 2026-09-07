@@ -177,6 +177,49 @@ describe('PunctuationProcessor', () => {
   });
 
   // -------------------------------------------------------------------------
+  // startsWithClosingElement
+  // -------------------------------------------------------------------------
+
+  describe('startsWithClosingElement', () => {
+    test('ASCII closing bracket detected', () => {
+      expect(processor.startsWithClosingElement(')')).toBe(true);
+    });
+
+    test('CJK closing bracket detected', () => {
+      expect(processor.startsWithClosingElement('》')).toBe(true);
+    });
+
+    test('angle closing quote detected', () => {
+      expect(processor.startsWithClosingElement(QUOTE_TYPES.ANGLE_CLOSE_DOUBLE)).toBe(true);
+    });
+
+    test('curly closing double quote detected (regression: 」→" was previously missed)', () => {
+      expect(processor.startsWithClosingElement(QUOTE_TYPES.CURLY_CLOSE_DOUBLE)).toBe(true);
+    });
+
+    test("curly closing single quote detected (regression: 』→' was previously missed)", () => {
+      expect(processor.startsWithClosingElement(QUOTE_TYPES.CURLY_CLOSE_SINGLE)).toBe(true);
+    });
+
+    test('opening quote is not a closing element', () => {
+      expect(processor.startsWithClosingElement(QUOTE_TYPES.CURLY_OPEN_DOUBLE)).toBe(false);
+    });
+
+    test('pure middle punctuation is not a closing element', () => {
+      expect(processor.startsWithClosingElement(',')).toBe(false);
+    });
+
+    test('empty string is not a closing element', () => {
+      expect(processor.startsWithClosingElement('')).toBe(false);
+    });
+
+    test('only checks the first character', () => {
+      expect(processor.startsWithClosingElement(')[')).toBe(true);
+      expect(processor.startsWithClosingElement('[)')).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // isAlreadyProperlySpaced
   // -------------------------------------------------------------------------
 

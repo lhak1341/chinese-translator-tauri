@@ -210,7 +210,7 @@ export function useDictionaryEntryForm(
     [activeDictionary]
   );
 
-  const validatePatternEntry = useCallback(
+  const checkPatternValid = useCallback(
     (sourceText: string, translationText?: string): boolean => {
       const valid =
         !activeDictionary.startsWith('patterns') || isPatternValid(sourceText, translationText);
@@ -224,11 +224,11 @@ export function useDictionaryEntryForm(
     const hasSource = source.trim().length > 0;
     const hasTranslation = translation.trim().length > 0;
     const isCharacterValid = validateCharacterEntry(source);
-    const isPatternValid = validatePatternEntry(source, translation);
+    const isPatternValid = checkPatternValid(source, translation);
     const isValid = hasSource && hasTranslation && isCharacterValid && isPatternValid;
     setIsFormValid(isValid);
     return isValid;
-  }, [source, translation, validateCharacterEntry, validatePatternEntry]);
+  }, [source, translation, validateCharacterEntry, checkPatternValid]);
 
   useEffect(() => {
     validateForm();
@@ -363,7 +363,7 @@ export function useDictionaryEntryForm(
     if (debouncedValidateRef.current) clearTimeout(debouncedValidateRef.current);
     debouncedValidateRef.current = setTimeout(() => {
       validateCharacterEntry(newSource);
-      validatePatternEntry(newSource, translation);
+      checkPatternValid(newSource, translation);
     }, 300);
   };
 
@@ -383,7 +383,7 @@ export function useDictionaryEntryForm(
     e.preventDefault();
 
     validateCharacterEntry(source);
-    validatePatternEntry(source, translation);
+    checkPatternValid(source, translation);
     const result = validateDictionaryEntry(source, translation, activeDictionary);
     if (!result.valid) {
       setError(result.error!);

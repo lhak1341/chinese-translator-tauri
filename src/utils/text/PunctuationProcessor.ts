@@ -3,7 +3,7 @@
  * Replaces scattered spacing logic with systematic approach
  *
  * Handles all punctuation sequences by parsing them into components:
- * - Closing elements: ], ), }, 】, 》, ）
+ * - Closing elements: ], ), }, 】, 》, ）, ", ', », >
  * - Middle punctuation: ,, ., !, ?, :, ;, etc.
  * - Opening elements: [, (, {, ", ", etc.
  */
@@ -27,6 +27,7 @@ interface SpecialPattern {
  */
 export class PunctuationProcessor {
   private readonly OPENING_PUNCT: readonly string[];
+  private readonly CLOSING_PUNCT: readonly string[];
   private readonly OPENING_BRACKET_PATTERN: RegExp;
   private readonly SPECIAL_PATTERNS: SpecialPattern[];
   private readonly SPACED_CLOSE_MIDDLE_OPEN: RegExp;
@@ -36,6 +37,7 @@ export class PunctuationProcessor {
   constructor() {
     // Define punctuation categories for systematic processing
     this.OPENING_PUNCT = ['[', '(', '{', '【', '《', '（', ...QUOTE_CATEGORIES.OPENING]; // Opening brackets + quotes
+    this.CLOSING_PUNCT = [']', ')', '}', '】', '》', '）', ...QUOTE_CATEGORIES.CLOSING]; // Closing brackets + quotes
 
     // Common regex pattern for opening brackets (excluding quotes)
     this.OPENING_BRACKET_PATTERN = /[[(（【《{]/;
@@ -166,6 +168,16 @@ export class PunctuationProcessor {
    */
   hasOpeningElements(punctuation: string): boolean {
     return this.OPENING_PUNCT.some((punct) => punctuation.includes(punct));
+  }
+
+  /**
+   * Check if punctuation sequence starts with a closing element (bracket or closing quote,
+   * e.g. ], ), }, 】, 》, ）, or a curly/angle closing quote from QUOTE_CATEGORIES.CLOSING).
+   * @param punctuation - Punctuation to check
+   * @returns True if the sequence starts with a closing element
+   */
+  startsWithClosingElement(punctuation: string): boolean {
+    return punctuation.length > 0 && this.CLOSING_PUNCT.includes(punctuation[0]);
   }
 
   /**
