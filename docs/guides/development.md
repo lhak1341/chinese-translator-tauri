@@ -98,6 +98,8 @@ Fallow reports are a starting point, not a deletion list. Four blind spots:
 
 8. **`fix_apply`/`fix_preview` have no file/name scoping and only cover `unused-exports`, not `unused-types`.** Confirmed false positives: wanted to strip exports from a barrel that real code imports, and delete npm deps wired through Rust, not JS. Not usable for a scoped cleanup — verify every proposed fix manually, or don't use it for `.d.ts`/type pruning at all.
 
+9. **`find_dupes` (structural/`weak` mode) misses small-scale near-duplicates.** Tested against a deliberate ~15-line near-copy of a React component — 0 hits at `top: 200`. Its clone detector needs larger duplicated blocks to fire; don't trust it for component/JSX-level drift detection. Keep `top` modest — very large values (200+) can disconnect the MCP server outright. Full account: `src/components/dictionary/CLAUDE.md`'s "mechanized gate ... investigated and rejected" note.
+
 **Protocol per file:**
 
 - Grep each export (not just fallow-listed ones): `grep -r "ExportName" src/` — confirm zero results outside the definition.

@@ -180,6 +180,7 @@ import { TextChunker } from './text/TextChunker.js';
 import { ChunkPostProcessor } from './text/ChunkPostProcessor.js';
 import { NumberProcessor } from './NumberProcessor.js';
 import { QuoteProcessor } from './text/QuoteProcessor';
+import { needsSpaceCharOnly } from './text/CharOnlySpacing';
 import { SemanticArrayBuilder } from './highlighting/SemanticArrayBuilder.js';
 import { emptySemanticArrays } from './highlighting/SegmentPrecomputer.js';
 import { MAX_SAFE_SEGMENTS } from './highlighting/index.js';
@@ -1107,74 +1108,16 @@ export class TranslationEngine {
         // Add the translated value
         translatedText += translatedValue;
 
-        // Add space after Chinese characters (except before punctuation or if next token is whitespace)
-        // Exception: opening elements (quotes, brackets) still get a space before them
-        // e.g. 着'27'这 → Trứ '27', 吐（s → Thổ (s
-        if (token.type === 'chinese_char' && i < tokens.length - 1) {
-          const nextToken = tokens[i + 1];
-          const nextIsOpeningElement =
-            nextToken.type === 'punctuation' &&
-            this.chunkPostProcessor.punctuationProcessor.hasOpeningElements(nextToken.value || '');
-          // Allowlist: only add space before actual content or opening punctuation.
-          // Denylist (!== 'punctuation' && !== 'whitespace') was too broad — WASM tokenizer
-          // used to give '…' type 'unknown' (finite allowlist in text_tokenizer.rs's
-          // is_punctuation() was missing it and ~19 other dictionary chars), which would
-          // incorrectly add space before ellipsis. Root cause fixed 2026-07-17c (Rust now
-          // uses a catch-all classifier matching JS's regex) — allowlist kept regardless,
-          // since "explicit content list" remains the safer contract than "everything not
-          // punctuation/whitespace" even with the classifier fixed.
-          const nextIsContent =
-            nextToken.type === 'chinese_char' ||
-            nextToken.type === 'latin_word' ||
-            nextToken.type === TokenType.NUMBER;
-          // A bare non-CJK/non-ASCII letter (Greek "α", Cyrillic, accented Latin) falls
-          // into the tokenizer's punctuation catch-all — mirrors needsSpace() Rule 11
-          // in WasmTextAssembler.js / text_assembly.rs (Full Translation's spacing path).
-          const nextIsForeignLetter =
-            nextToken.type === 'punctuation' && /^\p{L}/u.test(nextToken.value || '');
-          if (nextIsContent || nextIsOpeningElement || nextIsForeignLetter) {
-            translatedText += ' ';
-          }
-        }
-
-        // Add space after NUMBER tokens before Chinese characters
-        if (token.type === TokenType.NUMBER && i < tokens.length - 1) {
-          const nextToken = tokens[i + 1];
-          if (nextToken.type === 'chinese_char') {
-            translatedText += ' ';
-          }
-        }
-
-        // Add space after latin_word tokens before Chinese characters (mirrors needsSpace Rule 6)
-        if (token.type === 'latin_word' && i < tokens.length - 1) {
-          const nextToken = tokens[i + 1];
-          if (nextToken.type === 'chinese_char') {
-            translatedText += ' ';
-          }
-        }
-
-        // Add space after closing quote punctuation before the next content token
-        // (e.g. '27' → ' '27' ' so the closing quote gets a trailing space before 这→giá)
-        // Also add space before any opening-element punctuation (e.g. 。"哼 → . "Hừ)
-        if (token.type === 'punctuation' && i < tokens.length - 1) {
-          const nextToken = tokens[i + 1];
-          const lastChar = (translatedValue || '').slice(-1);
-          if (
-            lastChar &&
-            QuoteProcessor.isClosingQuote(lastChar) &&
-            nextToken.type !== 'whitespace' &&
-            !translatedText.endsWith(' ')
-          ) {
-            translatedText += ' ';
-          } else if (
-            nextToken.type === 'punctuation' &&
-            this.chunkPostProcessor.punctuationProcessor.hasOpeningElements(
-              nextToken.value || ''
-            ) &&
-            !translatedText.endsWith(' ')
-          ) {
-            translatedText += ' ';
-          }
+        // Spacing decision for this token → next token. A third, independently
+        // verified copy of the spacing rules alongside needsSpace() (full
+        // translation path) — see needsSpaceCharOnly()'s own doc comment for
+        // why it isn't the same function, and src/utils/CLAUDE.md's
+        // "Spacing (11 rules)" row.
+        if (
+          i < tokens.length - 1 &&
+          needsSpaceCharOnly(token, tokens[i + 1], translatedValue, translatedText.endsWith(' '))
+        ) {
+          translatedText += ' ';
         }
 
         // Debug what we're adding (semantic arrays already populated by processCharacterOnlyTokens)

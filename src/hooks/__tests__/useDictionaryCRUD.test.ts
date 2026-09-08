@@ -1,7 +1,7 @@
 /**
  * Invariant tests for useDictionaryCRUD.
  *
- * Three load-bearing invariants:
+ * Four load-bearing invariants:
  *
  *   I1 (history-on-success): addToHistory fires only when persistDictionaryMutation / commitMoveOp
  *      returns true. On failure (returns false), addToHistory must NOT be called.
@@ -12,10 +12,21 @@
  *
  *   I3 (error-propagates-clean): on persist failure, the hook throws, addToHistory is not called,
  *      and invalidateEngine is not called.
+ *
+ *   I4 (single-toast-on-error): addEntry/updateEntry/deleteEntry/bulkDeleteEntries call toast at
+ *      most once per failure — the catch block's isValidationError/isSaveError guard exists
+ *      specifically to prevent a second toast on top of the one already shown before the throw.
+ *      Does NOT apply to moveEntry/bulkMoveEntries — those have no internal catch/toast at all;
+ *      MoveDialog.tsx owns error display for move ops via its own inline error banner (see
+ *      dictionary/CLAUDE.md's CRUD Audit Checklist item 4). I4's move-op tests assert the inverse:
+ *      zero toast calls on failure, protecting that split from a future toast being added here
+ *      that would double up with MoveDialog's banner.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useDictionaryCRUD } from '../useDictionaryCRUD';
+import toast from '../../utils/toast';
+import { validatePersistEntry } from '../../utils/dictionary/PersistTimeValidator';
 import type { DictionaryData, DictionaryEntryValue } from '../../types/DictionaryTypes';
 
 vi.mock('../../utils/toast', () => ({
@@ -500,5 +511,208 @@ describe('bulkMoveEntries — commitMove failure (I3)', () => {
       ).rejects.toThrow();
     });
     expect(addToHistory).not.toHaveBeenCalled();
+  });
+});
+
+// ─── I4: single-toast-on-error ─────────────────────────────────────────────────
+
+describe('addEntry — single toast per failure (I4)', () => {
+  it('toasts once when the dictionary does not exist', async () => {
+    const { result } = makeHook({});
+    await act(async () => {
+      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once on a validation error', async () => {
+    const { result } = makeHook();
+    vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
+    await act(async () => {
+      await expect(result.current.addEntry(DICT_ID, SOURCE_B, TRANSLATION)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist returns false', async () => {
+    const { result } = makeHook({ [DICT_ID]: {} }, { persist: vi.fn().mockResolvedValue(false) });
+    await act(async () => {
+      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist throws unexpectedly', async () => {
+    const { result } = makeHook(
+      { [DICT_ID]: {} },
+      { persist: vi.fn().mockRejectedValue(new Error('disk full')) }
+    );
+    await act(async () => {
+      await expect(result.current.addEntry(DICT_ID, SOURCE, TRANSLATION)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('updateEntry — single toast per failure (I4)', () => {
+  it('toasts once when the dictionary does not exist', async () => {
+    const { result } = makeHook({});
+    await act(async () => {
+      await expect(
+        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
+      ).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once on a validation error', async () => {
+    const { result } = makeHook();
+    vi.mocked(validatePersistEntry).mockReturnValueOnce('bad entry');
+    await act(async () => {
+      await expect(
+        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
+      ).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist returns false', async () => {
+    const { result } = makeHook(undefined, { persist: vi.fn().mockResolvedValue(false) });
+    await act(async () => {
+      await expect(
+        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
+      ).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist throws unexpectedly', async () => {
+    const { result } = makeHook(undefined, {
+      persist: vi.fn().mockRejectedValue(new Error('disk full')),
+    });
+    await act(async () => {
+      await expect(
+        result.current.updateEntry(DICT_ID, SOURCE, SOURCE, TRANSLATION)
+      ).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('deleteEntry — single toast per failure (I4)', () => {
+  it('toasts once when the dictionary does not exist', async () => {
+    const { result } = makeHook({});
+    await act(async () => {
+      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns once (not error) when the source entry is not found', async () => {
+    const { result } = makeHook();
+    await act(async () => {
+      await expect(result.current.deleteEntry(DICT_ID, SOURCE_B)).rejects.toThrow();
+    });
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('toasts once when persist returns false', async () => {
+    const { result } = makeHook(undefined, { persist: vi.fn().mockResolvedValue(false) });
+    await act(async () => {
+      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist throws unexpectedly', async () => {
+    const { result } = makeHook(undefined, {
+      persist: vi.fn().mockRejectedValue(new Error('disk full')),
+    });
+    await act(async () => {
+      await expect(result.current.deleteEntry(DICT_ID, SOURCE)).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('bulkDeleteEntries — single toast per failure (I4)', () => {
+  it('toasts once when the dictionary does not exist', async () => {
+    const { result } = makeHook({});
+    await act(async () => {
+      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist returns false', async () => {
+    const { result } = makeHook(undefined, { persist: vi.fn().mockResolvedValue(false) });
+    await act(async () => {
+      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it('toasts once when persist throws unexpectedly', async () => {
+    const { result } = makeHook(undefined, {
+      persist: vi.fn().mockRejectedValue(new Error('disk full')),
+    });
+    await act(async () => {
+      await expect(result.current.bulkDeleteEntries(DICT_ID, [SOURCE])).rejects.toThrow();
+    });
+    expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('moveEntry — no internal toast on failure (I4)', () => {
+  it('does not toast when the source entry is not found', async () => {
+    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
+    const { result } = makeHook(refData);
+    await act(async () => {
+      await expect(
+        result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE_B, 'Test')
+      ).rejects.toThrow();
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('does not toast when commitMove returns false', async () => {
+    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
+    const { result } = makeHook(refData, { commitMove: vi.fn().mockResolvedValue(false) });
+    await act(async () => {
+      await expect(result.current.moveEntry(DICT_ID, TARGET_ID, SOURCE, 'Test')).rejects.toThrow();
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});
+
+describe('bulkMoveEntries — no internal toast on failure (I4)', () => {
+  it('does not toast when the source dictionary is missing', async () => {
+    const { result } = makeHook({ [TARGET_ID]: {} });
+    await act(async () => {
+      await expect(
+        result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE], 'Test')
+      ).rejects.toThrow();
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('does not toast when commitMove returns false', async () => {
+    const refData = { [DICT_ID]: { [SOURCE]: phraseEntry }, [TARGET_ID]: {} };
+    const { result } = makeHook(refData, { commitMove: vi.fn().mockResolvedValue(false) });
+    await act(async () => {
+      await expect(
+        result.current.bulkMoveEntries(DICT_ID, TARGET_ID, [SOURCE], 'Test')
+      ).rejects.toThrow();
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.warning).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

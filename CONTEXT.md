@@ -12,6 +12,16 @@ JS/WASM divergence: `fixAngleQuotePositioning` handles the JS chunker's empty-ch
 
 Entry point: `src/utils/text/ChunkPostProcessor.js`, re-exported from `src/utils/text/index.ts`.
 
+## CharOnlySpacing
+
+The character-only mode's spacing decision — `needsSpaceCharOnly(currentToken, nextToken, translatedValue, bufferEndsWithSpace)`, a third adapter alongside `needsSpace()` (`WasmTextAssembler.js`/`text_assembly.rs`, the Full Translation path's spacing rules). Extracted 2026-09-08 (architecture review candidate #1 grilling) from `TranslationEngine.js`'s `translateWithCharactersOnly()`, where it lived as 4 separate inline blocks with no dedicated test coverage — a documented gap in `src/utils/CLAUDE.md`'s "Three implementations must move together" table.
+
+**Deliberately not the same function as `needsSpace()`.** `needsSpace()` decides spacing from already-translated segment text (Full Translation prebuilds segments, then assembles). Character-only mode appends one token's translation at a time and hasn't translated `nextToken` yet when the spacing decision is made — so `needsSpaceCharOnly` decides from the original (untranslated) token stream instead. This input-timing mismatch is why the extraction gives it its own module and its own characterization tests (`CharOnlySpacing.test.ts`) rather than folding it into `TranslationEngine.textAssembly.test.js`'s parity spec — a real shared contract would need the two functions to agree on what "the text" means, which they don't. Reshaping character-only mode to translate-first-then-assemble (enabling literal code reuse) was considered and rejected: it's the same shape of consolidation ADR-002's sibling highlighting system already tried and measured a 63% regression from.
+
+Pure extraction, no behavior change — `bufferEndsWithSpace` (whether the assembled output already ends in a space) is passed in as a scalar so the function stays pure despite depending on accumulated-output state for its punctuation branch.
+
+Entry point: `src/utils/text/CharOnlySpacing.ts`. Not barrel-exported — sole caller is `TranslationEngine.js`'s `translateWithCharactersOnly()`.
+
 ## TextPositionMapper
 
 Owns the single Chinese-text-order comparator: `resolveTokenIndex(tokenIndex)` (missing/negative sorts last, `Number.MAX_SAFE_INTEGER`) and `compareByTokenIndex(a, b)`. Was independently reimplemented with disagreeing missing-tokenIndex fallbacks (`?? 0` vs `?? Number.MAX_SAFE_INTEGER`) at 2 sort sites in `SegmentPrecomputer.ts` and as part of a two-key sort in `TranslationEngine.js`'s word-level builder before being unified. `CharacterOnlyBridge.ts`'s occurrence-counting scan is a different shape (linear scan, not a sort) and does not use this comparator.
@@ -219,7 +229,7 @@ All 6 dictionary mutation operations: `addEntry`, `updateEntry`, `deleteEntry`, 
 
 Injected dependencies: `dictionariesRef` (reads snapshot before mutation — never closes over `dictionaries` state), `persistDictionaryMutation` (single-dict: optimistic update → save → rollback), `commitMoveOp` (two-dict: optimistic update → parallel save → partial revert), `addToHistory`, `invalidateEngine`. All 6 returned callbacks are stable — their dep arrays contain only stable injected functions.
 
-Entry point: `src/components/dictionary/useDictionaryCRUD.ts`. Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`.
+Entry point: `src/hooks/useDictionaryCRUD.ts` (moved from `src/components/dictionary/` in commit `27a42dd`, superseding ADR-026). Used exclusively by `DictionaryProvider` in `DictionaryContext.tsx`. Invariant tests (`useDictionaryCRUD.test.ts`, same directory): I1 history-on-success, I2 snapshot-before-mutate, I3 error-propagates-clean, I4 single-toast-on-error (add/update/delete/bulkDelete only — moveEntry/bulkMoveEntries have no internal catch/toast at all, by design; `MoveDialog.tsx` owns error display for move ops via its own inline error banner).
 
 ## DictionaryTrie
 
