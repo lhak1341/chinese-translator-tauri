@@ -1,7 +1,21 @@
 # ADR-033: Delete Broken Pattern-Matcher Parity Tooling; Defer Building Real Parity Coverage
 
-**Status:** Decided
+**Status:** Resolved (2026-09-08) — see Update below
 **Date:** 2026-07-28
+
+## Update (2026-09-08)
+
+`wasm-core/tests/pattern_matcher_parity_test.rs` now exists — the real cross-language
+parity test this ADR's Consequence section named as still-missing. It calls
+`matcher.rs::test_pattern_match`/`find_best_pattern_match` (plain `pub fn`s, no
+`wasm_bindgen` boundary) directly against the same 3 fixtures the 2026-08-25 update
+named: `fixture_1_simple_single_variable_match`, `fixture_2_overlapping_pattern_priority_resolution`
+(both migrated from `pattern_matching_test.rs`'s `test_single_variable_pattern_match`/
+`test_pattern_competition_higher_priority_wins`, which are now deleted from that file),
+and `fixture_3_hierarchical_composition_absorbs_phase_a_protected_span` (new — the
+hierarchical-composition scenario had no prior Rust counterpart at `matcher.rs`'s level).
+All 3 fixtures passed on first run — Rust and JS agree on all three scenarios named as
+the minimum oracle. This closes the ADR's original decision, not just the prerequisite.
 
 ## Update (2026-08-25)
 

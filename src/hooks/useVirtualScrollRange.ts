@@ -2,6 +2,37 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import type { RefCallback } from 'react';
 import { adaptiveBufferCalculator } from '../utils/ui';
 import { logger } from '../utils/logger';
+import { ScrollPositionRecovery } from '../utils/ui/ScrollPositionRecovery';
+import type { AttemptFn } from '../utils/ui/ScrollPositionRecovery';
+
+/** Total attempts (readiness-gated, then forced) the scroll-restore effect allows. */
+export const SCROLL_RESTORE_MAX_ATTEMPTS = 60;
+
+/**
+ * Builds a fresh AttemptFn for one scroll-restore sequence — tracks its own attempt
+ * count in closure, independent of ScrollPositionRecovery's own retry countdown, so
+ * it mirrors exactly what the readiness heuristic needs: reject the first 3 frames
+ * outright (a freshly remounted virtualized list reports scrollHeight === 0 before
+ * layout settles), then require scrollHeight > 0, then force-write on the final
+ * allowed attempt regardless of readiness so a restore request is never dropped.
+ */
+export function buildScrollRestoreAttempt(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  position: number,
+  setScrollTop: (value: number) => void
+): AttemptFn<number> {
+  let attempts = 0;
+  return () => {
+    attempts++;
+    const container = scrollRef.current;
+    if (!container) return false;
+    const isReady = container.scrollHeight > 0 && attempts > 3;
+    if (!isReady && attempts < SCROLL_RESTORE_MAX_ATTEMPTS) return false;
+    container.scrollTop = position;
+    setScrollTop(position);
+    return true;
+  };
+}
 
 interface UseVirtualScrollRangeOptions {
   itemHeight: number;
@@ -193,31 +224,30 @@ export function useVirtualScrollRange(
 
   // Restore scroll position from parent (survives unmount/remount).
   // RAF-retry waits for the virtualized list to finish rendering before restoring.
+  // Delegates the retry/backoff mechanism to ScrollPositionRecovery (scheduler: 'raf'
+  // preserves this hook's original frame-cadence polling — no exponential backoff).
   useEffect(() => {
     if (scrollRestore == null || !onScrollSave) return;
-    const position = scrollRestore;
-    let rafId: number | null = null;
-    let attempts = 0;
-    const maxAttempts = 60;
 
-    const waitForRender = () => {
-      attempts++;
-      if (!scrollRef.current || !onScrollSave) return;
-      const container = scrollRef.current;
-      const isReady = container.scrollHeight > 0 && attempts > 3;
-      if (isReady || attempts >= maxAttempts) {
-        container.scrollTop = position;
-        setScrollTop(position);
+    const recovery = new ScrollPositionRecovery<number>(
+      buildScrollRestoreAttempt(scrollRef, scrollRestore, setScrollTop)
+    );
+
+    // ScrollPositionRecovery's attemptFn is called maxRetryAttempts + 1 times total
+    // (the initial RAF attempt, then maxRetryAttempts retries) — pass one less than
+    // SCROLL_RESTORE_MAX_ATTEMPTS so the total call count matches exactly, and
+    // buildScrollRestoreAttempt's own force-write on its final permitted call lines
+    // up with ScrollPositionRecovery's own last attempt.
+    recovery
+      .restore(scrollRestore, {
+        maxRetryAttempts: SCROLL_RESTORE_MAX_ATTEMPTS - 1,
+        scheduler: 'raf',
+      })
+      .then(() => {
         onScrollSave(null);
-      } else {
-        rafId = requestAnimationFrame(waitForRender);
-      }
-    };
+      });
 
-    rafId = requestAnimationFrame(waitForRender);
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
+    return () => recovery.cancel();
   }, [scrollRestore, onScrollSave]);
 
   return {

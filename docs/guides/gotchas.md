@@ -169,7 +169,20 @@ Confirm with `ls src/utils/__tests__/ | grep <ModuleName>` before adding one.
 
 **Testing a strict `elapsed > N` (not `>=`) time-window guard**: a fake-timer interval tick fires exactly at its scheduled boundary, not at "total time advanced" — offset the interval by 1ms (or advance one tick past N) so the check crosses the boundary rather than merely reaching it.
 
-**`vi.useFakeTimers()` + `requestAnimationFrame`**: RAF fires at ~16ms, not 0ms — use `vi.advanceTimersByTimeAsync(20)` before asserting retry/cancel behavior.
+**`requestAnimationFrame` in jsdom depends on whether fake timers are active.** Under `vi.useFakeTimers()`, RAF is fake-timer-driven — fires at simulated ~16ms ticks, no manual mock needed; advance via `vi.advanceTimersByTimeAsync(20)`/`vi.runAllTimersAsync()` before asserting retry/cancel behavior. Without fake timers, RAF never fires in jsdom at all — spy and manually invoke the captured callbacks:
+
+```ts
+const rafCalls: FrameRequestCallback[] = [];
+vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
+  rafCalls.push(cb);
+  return 0;
+});
+// after act():
+act(() => rafCalls.forEach((cb) => cb(0)));
+vi.restoreAllMocks();
+```
+
+Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts` (real-timer mock) and `ScrollPositionRecovery.test.ts` (fake-timer mode).
 
 **`vi.useFakeTimers()` + `waitFor`**: `waitFor` polls via internal `setTimeout`, which never fires under fake timers, so the test times out. Use `await act(async () => { vi.advanceTimersByTime(N); })` for timer-driven assertions, and drop fake timers entirely for tests that only need to flush async effects (`await act(async () => {})`).
 
@@ -255,21 +268,6 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 **CSS Modules resolve to real hashed class names in vitest+jsdom (not stubbed)** — `container.getElementsByClassName(styles.someClass)` works for asserting two elements share one class (e.g. header/row column-width parity), stronger than an inline-style snapshot since it fails the moment either side's className changes independently.
 
 **Mutating a mock/fixture object in place after `render()` does not retrigger `useMemo`/derived state keyed on that object's reference** — the dependency array sees the same reference, so the mutation is invisible until a real re-render happens. Set the fixture's final state before calling `render()`, not by mutating it mid-test.
-
-**`requestAnimationFrame` does not fire in jsdom.** Tests asserting RAF-triggered side effects must mock it:
-
-```ts
-const rafCalls: FrameRequestCallback[] = [];
-vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((cb) => {
-  rafCalls.push(cb);
-  return 0;
-});
-// after act():
-act(() => rafCalls.forEach((cb) => cb(0)));
-vi.restoreAllMocks();
-```
-
-Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntryEditAndMove.test.ts`.
 
 **Row-level handlers with no test id** (e.g. `onContextMenu` on a row wrapper div): `fireEvent.contextMenu(someDescendantText)` still bubbles up to trigger it — avoids brittle `.closest()`/`.parentElement` DOM traversal to find the row wrapper.
 

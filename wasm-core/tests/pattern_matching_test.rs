@@ -46,46 +46,10 @@ fn test_simple_literal_pattern_match() {
     assert_eq!(result.matched_tokens.as_ref().unwrap().len(), 2);
 }
 
-#[test]
-fn test_single_variable_pattern_match() {
-    // Pattern: "这些X" → "những X này"
-    let pattern = parse_pattern(
-        "这些X".to_string(),
-        "những X này".to_string(),
-        None,
-        false,
-        None,
-    );
-
-    // Tokens: ["这", "些", "人"]
-    let tokens = vec![
-        create_token("这", 0),
-        create_token("些", 1),
-        create_token("人", 2),
-    ];
-
-    // Variable cache: "人" → "người"
-    let mut variable_cache = HashMap::new();
-    variable_cache.insert(
-        "人".to_string(),
-        VariableCacheEntry {
-            translation: "người".to_string(),
-            source: "character".to_string(),
-            var_type: Some("character".to_string()),
-        },
-    );
-
-    let matcher = PatternMatcher::new(&variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
-    let result = matcher.test_pattern_match(&pattern, &tokens, 0);
-
-    assert!(result.success, "Pattern should match");
-    assert_eq!(result.result.as_ref().unwrap(), "những người này");
-    assert_eq!(result.matched_tokens.as_ref().unwrap().len(), 3);
-
-    // Verify variable resolution
-    let variables = result.variables.as_ref().unwrap();
-    assert_eq!(variables.get("X").unwrap(), "người");
-}
+// test_single_variable_pattern_match moved to
+// wasm-core/tests/pattern_matcher_parity_test.rs (fixture_1_simple_single_variable_match)
+// — it's the Rust half of a JS/Rust parity fixture (ADR-033), not a plain unit test,
+// so it belongs in the file that's discoverable as the parity contract.
 
 #[test]
 fn test_multi_variable_pattern_match() {
@@ -318,65 +282,10 @@ fn test_build_result_with_complex_template() {
     assert_eq!(result, "ở trong sóng âm đáng sợ");
 }
 
-/// Pattern competition tests
-#[test]
-fn test_pattern_competition_higher_priority_wins() {
-    // Create two patterns with different priorities:
-    // "这些X" (1 var, 3 tokens, literal first) → priority -2
-    // "这些XY" (2 vars, 4 tokens, literal first) → priority -11
-    // "这些XY" wins here via match length (rule 1: longer match wins) — its two
-    // variables consume both remaining tokens (人, 强大), while "这些X"'s single
-    // variable only consumes one, so priority (rule 3) is never actually reached.
-    let pattern1 = parse_pattern(
-        "这些X".to_string(),
-        "những X này".to_string(),
-        None,
-        false,
-        None,
-    );
-    let pattern2 = parse_pattern(
-        "这些XY".to_string(),
-        "những X Y này".to_string(),
-        None,
-        false,
-        None,
-    );
-
-    // Tokens: ["这", "些", "人", "强大"]
-    let tokens = vec![
-        create_token("这", 0),
-        create_token("些", 1),
-        create_token("人", 2),
-        create_token("强大", 3),
-    ];
-
-    // Variable cache
-    let mut variable_cache = HashMap::new();
-    variable_cache.insert(
-        "人".to_string(),
-        VariableCacheEntry {
-            translation: "người".to_string(),
-            source: "character".to_string(),
-            var_type: Some("character".to_string()),
-        },
-    );
-    variable_cache.insert(
-        "强大".to_string(),
-        VariableCacheEntry {
-            translation: "mạnh mẽ".to_string(),
-            source: "phrase".to_string(),
-            var_type: Some("phrase".to_string()),
-        },
-    );
-
-    let patterns = vec![pattern1, pattern2];
-    let best_match = find_best_pattern_match(&patterns, &tokens, 0, &variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
-
-    assert!(best_match.is_some(), "Should find a match");
-    let result = best_match.unwrap();
-    assert_eq!(result.pattern_id.as_deref().unwrap(), "这些XY");
-    assert_eq!(result.result.as_ref().unwrap(), "những người mạnh mẽ này");
-}
+// test_pattern_competition_higher_priority_wins moved to
+// wasm-core/tests/pattern_matcher_parity_test.rs
+// (fixture_2_overlapping_pattern_priority_resolution) — same reason as
+// test_single_variable_pattern_match above.
 
 #[test]
 fn test_variable_blocked_by_preceding_punctuation_boundary() {

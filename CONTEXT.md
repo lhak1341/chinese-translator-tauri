@@ -269,13 +269,18 @@ Entry point: `src/utils/dictionary/VocabularyWarmup.js`. Called from `Translatio
 
 ## ScrollPositionRecovery
 
-The retry algorithm for restoring scroll positions after a dictionary reload or translation update. Owns: RAF-first attempt, exponential-backoff retry loop (up to `maxRetryAttempts`, delay doubles each miss, capped at `maxRetryDelay`), timer handle lifecycle (`cancel()`).
+The retry algorithm for restoring scroll positions after a dictionary reload, translation update, or virtualized-list remount. Generic over the positions shape (`ScrollPositionRecovery<T>`) — the class never reads into `positions` itself, it's passed through opaquely to `attemptFn` on every call. Owns: RAF-first attempt, then either exponential-backoff `setTimeout` retries (`scheduler: 'timeout'`, default — up to `maxRetryAttempts`, delay doubles each miss, capped at `maxRetryDelay`) or frame-cadence `requestAnimationFrame` retries with no backoff (`scheduler: 'raf'`), plus timer handle lifecycle (`cancel()`).
 
-Does not touch the DOM. Callers inject an `AttemptFn: (positions) => boolean` — returns `true` when refs were ready and positions were written; `false` to trigger a retry. The hook adapter (`useScrollPositionManager`) supplies the concrete attempt function: DOM readiness check (`scrollHeight > 0`) + bounds-clamped write of `scrollTop`/`scrollLeft`.
+Does not touch the DOM. Callers inject an `AttemptFn<T>: (positions: T) => boolean` — returns `true` when refs were ready and positions were written; `false` to trigger a retry.
 
-Interface: `restore(positions, options?): Promise<void>` — resolves when attempt succeeds or retries are exhausted (never rejects). `cancel()` aborts any pending RAF or setTimeout; second `restore()` call implicitly cancels the first.
+Two adapters, genuinely different shapes (this is what makes the seam real, not just a shared utility waiting for a second caller):
 
-Entry point: `src/utils/ui/ScrollPositionRecovery.ts`, re-exported from `src/utils/ui/index.ts`. Consumed exclusively by `useScrollPositionManager` via a stable `useRef` instance.
+- **`useScrollPositionManager`** (translator's 3-panel restore) — `scheduler: 'timeout'`. Supplies the concrete attempt function via `tryRestoreScrollPositions`: DOM readiness check (`scrollHeight > 0`) across all 3 named panels (`original`/`translation`/`characterOnly`) + bounds-clamped write of `scrollTop`/`scrollLeft` per panel. Constructs one `ScrollPositionRecovery<ScrollPositions>` via a stable `useRef`, "latest ref" pattern for the DOM refs.
+- **`useVirtualScrollRange`** (dictionary table's single-list restore) — `scheduler: 'raf'`, preserving this adapter's pre-unification exact behavior: reject the first 3 frames outright, then require `scrollHeight > 0`, then force-write on the final permitted attempt (`SCROLL_RESTORE_MAX_ATTEMPTS = 60`) regardless of readiness. The readiness/force-write heuristic lives in `buildScrollRestoreAttempt`, a standalone function (mirrors `tryRestoreScrollPositions`'s role) that tracks its own attempt count in closure — `ScrollPositionRecovery`'s `AttemptFn<T>` signature carries no attempt-number itself, so a fresh `ScrollPositionRecovery`/attemptFn pair is constructed per restore sequence (not a stable ref) so the counter resets correctly. `maxRetryAttempts` is passed as `SCROLL_RESTORE_MAX_ATTEMPTS - 1` since the class calls `attemptFn` once per remaining attempt plus the initial RAF call (`maxRetryAttempts + 1` total calls) — off-by-one accounted for so the total call count, and therefore the force-write attempt, land exactly where the pre-unification inline loop's did.
+
+Interface: `restore(positions, options?): Promise<void>` — resolves when attempt succeeds or retries are exhausted (never rejects; a `cancel()`-aborted sequence never resolves either — the returned promise is simply abandoned). `cancel()` aborts any pending RAF or setTimeout; second `restore()` call implicitly cancels the first.
+
+Entry point: `src/utils/ui/ScrollPositionRecovery.ts`, re-exported from `src/utils/ui/index.ts`. Consumed by `useScrollPositionManager.js` and `useVirtualScrollRange.ts` (`buildScrollRestoreAttempt` lives in the latter, not barrel-exported — sole caller in the same file).
 
 ## CharacterOnlyBridge
 

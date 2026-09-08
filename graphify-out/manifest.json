@@ -400,9 +400,9 @@
     "semantic_hash": "6f98d45ffbe9097be77dd087b54d91ae"
   },
   "src/utils/ui/ScrollPositionRecovery.ts": {
-    "mtime": 1780639730.1600733,
-    "ast_hash": "cf6a5cc3904c39ea141dcda17fe734ce",
-    "semantic_hash": "cf6a5cc3904c39ea141dcda17fe734ce"
+    "mtime": 1788847149.3952847,
+    "ast_hash": "3a6e31049c4f9645d7328985ab82c0a6",
+    "semantic_hash": ""
   },
   "src/utils/ui/AppearanceReducer.ts": {
     "mtime": 1785249397.2942607,
@@ -990,9 +990,9 @@
     "semantic_hash": "86bed674f74f27d0dfa7d4101b6e67bd"
   },
   "src/hooks/useVirtualScrollRange.ts": {
-    "mtime": 1781924782.9825618,
-    "ast_hash": "71092000bdc6e5b267b958030978c31a",
-    "semantic_hash": "71092000bdc6e5b267b958030978c31a"
+    "mtime": 1788847167.8145561,
+    "ast_hash": "d7208cfbb4b692cc8ee8f32969344dab",
+    "semantic_hash": ""
   },
   "src/hooks/useHighlightingState.ts": {
     "mtime": 1786787599.7273984,
@@ -1120,8 +1120,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1788838827.9753163,
-    "ast_hash": "84f73a5a3b67a12d5e7d98b797ef1022",
+    "mtime": 1788847255.0325112,
+    "ast_hash": "16795a6df287740178a1d40a7bb98551",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1788830726.7848632,
-    "ast_hash": "bccdfc71549d34bd1f266cdac1ae7b7e",
+    "mtime": 1788839804.649163,
+    "ast_hash": "9603b8b2c6cbea0979b2147ab16b5ca4",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1760,8 +1760,8 @@
     "semantic_hash": "84dd6c202e1136b48066484154ca4803"
   },
   "docs/adr/ADR-033-defer-pattern-matcher-parity-test.md": {
-    "mtime": 1787618616.976848,
-    "ast_hash": "2838021b2217f184d702fd9ba8ed70f7",
+    "mtime": 1788845310.6218894,
+    "ast_hash": "9aac400256e9b88bab4b104f52c14700",
     "semantic_hash": ""
   },
   "docs/adr/ADR-034-skip-dictionarymanager-validateintegrity.md": {
@@ -1845,8 +1845,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1788799627.0516121,
-    "ast_hash": "05e3e7c7115443fe1d73e9ba41a82ff1",
+    "mtime": 1788863339.9899929,
+    "ast_hash": "91ff32df189f7bcc92450948cf50d694",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
