@@ -65,8 +65,8 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1788112930.0614684,
-    "ast_hash": "e1e5937e425670b88829e44f5e40b16d",
+    "mtime": 1788878129.9481926,
+    "ast_hash": "e00706b0379bd376d9e641794a31174f",
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
@@ -1120,8 +1120,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1788847255.0325112,
-    "ast_hash": "16795a6df287740178a1d40a7bb98551",
+    "mtime": 1788878173.516392,
+    "ast_hash": "24fa77064b4b4d40886bd151f7e07175",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1385,8 +1385,8 @@
     "semantic_hash": ""
   },
   "src-tauri/CLAUDE.md": {
-    "mtime": 1788113336.7733717,
-    "ast_hash": "58768cd8e7127541dfa8fc33dcc2eee4",
+    "mtime": 1788877833.6882498,
+    "ast_hash": "a602fc2071a5d835767840203910a13a",
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
@@ -1555,13 +1555,13 @@
     "semantic_hash": "a6ff6be876d58ca61afccf81f9be5df5"
   },
   "src/components/rules/NewRuleModal.tsx": {
-    "mtime": 1787584606.2656448,
-    "ast_hash": "b0dcbc33c9931c641fda8c20f73e909e",
+    "mtime": 1788877315.3587182,
+    "ast_hash": "9151700ad421ea8e9909c9ee36be856f",
     "semantic_hash": ""
   },
   "src/components/rules/RuleFieldValidation.ts": {
-    "mtime": 1786783822.4206848,
-    "ast_hash": "22ff0d22e2bacdac33e34c85646341de",
+    "mtime": 1788877315.3592005,
+    "ast_hash": "12e93998154951e17e343a1dcc9f0f1d",
     "semantic_hash": ""
   },
   "src/components/rules/RuleMatchesModal.tsx": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": "fd43c671da67f767d7d7d399ec4d3c96"
   },
   "src/components/rules/RuleRow.tsx": {
-    "mtime": 1787584450.812028,
-    "ast_hash": "416c0d729ef387b9f338d67fbcac76c2",
+    "mtime": 1788877315.3596356,
+    "ast_hash": "d26e24c2cb7730a7d3adf009c11c5708",
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
@@ -1630,9 +1630,9 @@
     "semantic_hash": "c7a15aed477d67dfa0be02f753bfa852"
   },
   "src/hooks/useTransformRules.ts": {
-    "mtime": 1786182673.6894755,
-    "ast_hash": "a7f47734de59b6de7dab81960af5dfc4",
-    "semantic_hash": "a7f47734de59b6de7dab81960af5dfc4"
+    "mtime": 1788877315.3614657,
+    "ast_hash": "30204ac2a3e41cfed6db58b20ebfc082",
+    "semantic_hash": ""
   },
   "src/types/TransformRuleTypes.ts": {
     "mtime": 1787584431.8805487,
@@ -1685,8 +1685,8 @@
     "semantic_hash": "4860ab5eda3a1752134832fd421870f0"
   },
   "src/utils/dictionary/TransformRuleBackend.ts": {
-    "mtime": 1787584463.6697779,
-    "ast_hash": "3ac2f8799da33fe1aa84023a91493d52",
+    "mtime": 1788877315.3629026,
+    "ast_hash": "ae01668a6a2e16aba19180c7c7733e2e",
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
@@ -1800,8 +1800,8 @@
     "semantic_hash": ""
   },
   "src/components/rules/CLAUDE.md": {
-    "mtime": 1787585573.9333322,
-    "ast_hash": "af722476f82fd288e74c908ce9b7537a",
+    "mtime": 1788877423.4771476,
+    "ast_hash": "d92a85e3141e71aae83f7ca0f9c4ab9a",
     "semantic_hash": ""
   },
   "src/components/SearchFilterHeader.tsx": {
@@ -1845,8 +1845,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1788863339.9899929,
-    "ast_hash": "91ff32df189f7bcc92450948cf50d694",
+    "mtime": 1788878560.735369,
+    "ast_hash": "c9f9e00b6ed6a3a673dc525c01b8002c",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1860,8 +1860,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1788112930.056434,
-    "ast_hash": "a1527e523d0932d0de75a26751784770",
+    "mtime": 1788877506.5847578,
+    "ast_hash": "fd17ddc7847dccf1f5894cd1d6f447ce",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1887,6 +1887,11 @@
   "src/utils/text/CharOnlySpacing.ts": {
     "mtime": 1788830603.716427,
     "ast_hash": "36272132b12c5b43b73f0508aa78f2b0",
+    "semantic_hash": ""
+  },
+  "src/utils/dictionary/TransformRuleValidation.ts": {
+    "mtime": 1788877315.380411,
+    "ast_hash": "83a655c9122fbd3d3461d93919d3409b",
     "semantic_hash": ""
   }
 }

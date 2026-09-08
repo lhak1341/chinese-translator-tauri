@@ -5,7 +5,10 @@ import { RowShell, SemanticTypeToggleCell } from '../dictionary/VirtualRowCompon
 import MatchKindToggle from './MatchKindToggle';
 import MoveModeToggle from './MoveModeToggle';
 import EditableCell from './EditableCell';
-import { parseValidatedNumber, parseValidatedKey } from './RuleFieldValidation';
+import {
+  parseValidatedNumber,
+  parseValidatedKey,
+} from '../../utils/dictionary/TransformRuleValidation';
 import { deriveCapitalizeExceptNForKeyEdit } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';

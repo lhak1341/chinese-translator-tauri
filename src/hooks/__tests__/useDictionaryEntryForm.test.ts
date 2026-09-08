@@ -58,7 +58,7 @@ function stubEmptyClipboard() {
 }
 
 beforeEach(() => {
-  loadTransformRules.mockReset().mockResolvedValue([]);
+  loadTransformRules.mockReset().mockResolvedValue({ rules: [], droppedCount: 0 });
 });
 
 // ─── Initial state ────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ describe('auto-populate — Transform Rule application', () => {
   };
 
   it('a matching rule replaces the naive gloss and stamps semanticType, for a properNouns* target', async () => {
-    loadTransformRules.mockResolvedValue([suffixRule]);
+    loadTransformRules.mockResolvedValue({ rules: [suffixRule], droppedCount: 0 });
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
     );
@@ -209,7 +209,7 @@ describe('auto-populate — Transform Rule application', () => {
   });
 
   it('a matching rule replaces the naive gloss for a phrases target too', async () => {
-    loadTransformRules.mockResolvedValue([suffixRule]);
+    loadTransformRules.mockResolvedValue({ rules: [suffixRule], droppedCount: 0 });
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'phrases', makeDeps({ initialSource: '你好' }))
     );
@@ -218,7 +218,7 @@ describe('auto-populate — Transform Rule application', () => {
   });
 
   it('does not apply a matching rule to a patterns* target', async () => {
-    loadTransformRules.mockResolvedValue([suffixRule]);
+    loadTransformRules.mockResolvedValue({ rules: [suffixRule], droppedCount: 0 });
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'patterns', makeDeps({ initialSource: '你好' }))
     );
@@ -229,7 +229,7 @@ describe('auto-populate — Transform Rule application', () => {
 
   it('falls back to the naive gloss when no rule matches', async () => {
     const nonMatchingRule = { ...suffixRule, key: '市' };
-    loadTransformRules.mockResolvedValue([nonMatchingRule]);
+    loadTransformRules.mockResolvedValue({ rules: [nonMatchingRule], droppedCount: 0 });
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
     );
@@ -238,7 +238,10 @@ describe('auto-populate — Transform Rule application', () => {
   });
 
   it('a disabled rule never matches', async () => {
-    loadTransformRules.mockResolvedValue([{ ...suffixRule, enabled: false }]);
+    loadTransformRules.mockResolvedValue({
+      rules: [{ ...suffixRule, enabled: false }],
+      droppedCount: 0,
+    });
     const { result } = renderHook(() =>
       useDictionaryEntryForm(undefined, 'properNouns-Novel', makeDeps({ initialSource: '你好' }))
     );

@@ -874,6 +874,56 @@ fn rename_structural_patterns_dictionary_impl(
 /// exists and the user can activate it manually. File-creation failure (already exists,
 /// write error) is returned as `Err`. Pure filesystem function — no `AppHandle`, so it is
 /// directly unit-testable against a temp directory.
+/// Shared best-effort `activeProperNouns` mutation for `create_and_activate_proper_noun_file`
+/// / `deactivate_proper_noun_file` (architecture review 2026-09-08, candidate #3 grilling,
+/// narrowed from the original 3-function report — `substitute_dictionary_reference` stayed
+/// out: it's a pure in-memory mutator with no I/O of its own, a genuinely different shape,
+/// part of `rename_proper_nouns_dictionary_impl`'s atomic rollback sequence).
+///
+/// Silently no-ops (no read error, no write) when `config_path` is missing, unparseable, or
+/// not a JSON object — matches both callers' pre-existing non-fatal contract. `create_if_missing`
+/// is the one real asymmetry between the two callers: create needs somewhere to push into
+/// (creates an empty `activeProperNouns` array if the key is absent), deactivate has nothing
+/// to remove from (no-ops if the key is absent) — see each call site's `create_if_missing` arg.
+///
+/// `mutate` returns whether it actually changed the array; the config is only saved back when
+/// it did. Preserves each caller's original save-skip behavior exactly: `create`'s closure
+/// returns `false` when the id was already present (no write, matching the original
+/// `already_present` guard); `deactivate`'s closure always returns `true` once an array is
+/// found, matching the original's unconditional save (it never checked whether `retain`
+/// actually removed anything) — a deliberate bug-for-bug parity choice, not an oversight.
+fn mutate_active_proper_nouns_best_effort(
+    config_path: &PathBuf,
+    create_if_missing: bool,
+    mutate: impl FnOnce(&mut Vec<serde_json::Value>) -> bool,
+) {
+    if !config_path.exists() {
+        return;
+    }
+    let Ok(contents) = fs::read_to_string(config_path) else {
+        return;
+    };
+    let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) else {
+        return;
+    };
+
+    let active_array = if create_if_missing {
+        config.as_object_mut().and_then(|obj| {
+            obj.entry("activeProperNouns")
+                .or_insert_with(|| serde_json::Value::Array(Vec::new()))
+                .as_array_mut()
+        })
+    } else {
+        config.get_mut("activeProperNouns").and_then(|v| v.as_array_mut())
+    };
+
+    if let Some(active_array) = active_array {
+        if mutate(active_array) {
+            let _ = save_json_file(config_path, &config);
+        }
+    }
+}
+
 fn create_and_activate_proper_noun_file(
     dictionary_path: &PathBuf,
     config_path: &PathBuf,
@@ -894,26 +944,15 @@ fn create_and_activate_proper_noun_file(
     // engine picks it up immediately. Mirrors rename_proper_nouns_dictionary's
     // config-side bookkeeping. Failure here is non-fatal — the dictionary file
     // exists, and the user can still activate it manually.
-    if config_path.exists() {
-        if let Ok(contents) = fs::read_to_string(config_path) {
-            if let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) {
-                let active = config
-                    .as_object_mut()
-                    .and_then(|obj| {
-                        obj.entry("activeProperNouns")
-                            .or_insert_with(|| serde_json::Value::Array(Vec::new()))
-                            .as_array_mut()
-                    });
-                if let Some(active_array) = active {
-                    let already_present = active_array.iter().any(|v| v.as_str() == Some(dictionary_id));
-                    if !already_present {
-                        active_array.push(serde_json::Value::String(dictionary_id.to_string()));
-                        let _ = save_json_file(config_path, &config);
-                    }
-                }
-            }
+    mutate_active_proper_nouns_best_effort(config_path, true, |active_array| {
+        let already_present = active_array.iter().any(|v| v.as_str() == Some(dictionary_id));
+        if already_present {
+            false
+        } else {
+            active_array.push(serde_json::Value::String(dictionary_id.to_string()));
+            true
         }
-    }
+    });
 
     Ok(())
 }
@@ -944,18 +983,10 @@ fn read_active_proper_nouns(config_path: &PathBuf) -> Vec<String> {
 /// Best-effort — mirrors the non-fatal contract of the append side. Used to reverse
 /// `create_and_activate_proper_noun_file`'s config bookkeeping when a downstream step fails.
 fn deactivate_proper_noun_file(config_path: &PathBuf, dictionary_id: &str) {
-    if config_path.exists() {
-        if let Ok(contents) = fs::read_to_string(config_path) {
-            if let Ok(mut config) = serde_json::from_str::<serde_json::Value>(&contents) {
-                if let Some(active) = config.get_mut("activeProperNouns") {
-                    if let Some(active_array) = active.as_array_mut() {
-                        active_array.retain(|v| v.as_str() != Some(dictionary_id));
-                        let _ = save_json_file(config_path, &config);
-                    }
-                }
-            }
-        }
-    }
+    mutate_active_proper_nouns_best_effort(config_path, false, |active_array| {
+        active_array.retain(|v| v.as_str() != Some(dictionary_id));
+        true
+    });
 }
 
 #[tauri::command]
@@ -1244,11 +1275,76 @@ fn save_json_file(
     Ok(DictionaryResponse::ok())
 }
 
+/// The 3 single-JSON-blob persistence kinds sharing `load_json_file_with_default`/
+/// `save_json_file` (architecture review 2026-09-08, candidate #2 grilling). Each
+/// `#[tauri::command]` pair below is a 1-line delegation to `load_blob`/`save_blob` —
+/// this enum is the single place that knows about all 3 kinds, so a 4th blob type is
+/// one match arm here instead of 2 new near-duplicate command functions. Kept as an
+/// internal Rust-only enum, never serialized across IPC: the 6 command names and their
+/// `tauriAPI.ts`/`ElectronTypes.d.ts` call sites are unchanged, since collapsing the IPC
+/// surface itself would touch 3 unrelated TS modules for the same organizational win —
+/// see CONTEXT.md's "Transform Rule" entry area / this review round's report for why
+/// that was scoped out.
+enum BlobKind {
+    Config,
+    TransformRules,
+    Appearance,
+}
+
+impl BlobKind {
+    fn filename(&self) -> &'static str {
+        match self {
+            BlobKind::Config => "config.json",
+            BlobKind::TransformRules => "transform-rules.json",
+            BlobKind::Appearance => "appearance.json",
+        }
+    }
+
+    fn default_value(&self) -> serde_json::Value {
+        match self {
+            BlobKind::Config => serde_json::json!({ "activeProperNouns": ["properNouns"] }),
+            BlobKind::TransformRules => serde_json::json!([]),
+            BlobKind::Appearance => serde_json::json!({
+                "chineseText": {
+                    "fontFamily": "\"Noto Sans CJK SC\", SimSun, \"Microsoft YaHei\", Inter, system-ui, Arial, sans-serif",
+                    "fontSize": "1.25rem",
+                    "letterSpacing": "normal"
+                },
+                "fullTranslation": {
+                    "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
+                    "fontSize": "1.25rem",
+                    "letterSpacing": "normal"
+                },
+                "characterOnly": {
+                    "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
+                    "fontSize": "1.25rem",
+                    "letterSpacing": "normal"
+                },
+                "uiFont": {
+                    "fontFamily": "Inter, system-ui, Arial, sans-serif"
+                }
+            }),
+        }
+    }
+}
+
+fn load_blob(app_handle: &tauri::AppHandle, kind: BlobKind) -> Result<DictionaryResponse, String> {
+    let path = get_app_data_dir(app_handle)?.join(kind.filename());
+    load_json_file_with_default(&path, kind.default_value())
+}
+
+fn save_blob(
+    app_handle: &tauri::AppHandle,
+    kind: BlobKind,
+    data: &serde_json::Value,
+) -> Result<DictionaryResponse, String> {
+    let path = get_app_data_dir(app_handle)?.join(kind.filename());
+    save_json_file(&path, data)
+}
+
 #[tauri::command]
 pub async fn load_configuration(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
-    let default_config = serde_json::json!({ "activeProperNouns": ["properNouns"] });
-    load_json_file_with_default(&config_path, default_config)
+    load_blob(&app_handle, BlobKind::Config)
 }
 
 #[tauri::command]
@@ -1256,15 +1352,12 @@ pub async fn save_configuration(
     app_handle: tauri::AppHandle,
     config: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
-    let config_path = get_app_data_dir(&app_handle)?.join("config.json");
-    save_json_file(&config_path, &config)
+    save_blob(&app_handle, BlobKind::Config, &config)
 }
 
 #[tauri::command]
 pub async fn load_transform_rules(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let rules_path = get_app_data_dir(&app_handle)?.join("transform-rules.json");
-    let default_rules = serde_json::json!([]);
-    load_json_file_with_default(&rules_path, default_rules)
+    load_blob(&app_handle, BlobKind::TransformRules)
 }
 
 #[tauri::command]
@@ -1272,34 +1365,12 @@ pub async fn save_transform_rules(
     app_handle: tauri::AppHandle,
     rules: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
-    let rules_path = get_app_data_dir(&app_handle)?.join("transform-rules.json");
-    save_json_file(&rules_path, &rules)
+    save_blob(&app_handle, BlobKind::TransformRules, &rules)
 }
 
 #[tauri::command]
 pub async fn load_appearance_settings(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
-    let appearance_path = get_app_data_dir(&app_handle)?.join("appearance.json");
-    let default_appearance = serde_json::json!({
-        "chineseText": {
-            "fontFamily": "\"Noto Sans CJK SC\", SimSun, \"Microsoft YaHei\", Inter, system-ui, Arial, sans-serif",
-            "fontSize": "1.25rem",
-            "letterSpacing": "normal"
-        },
-        "fullTranslation": {
-            "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
-            "fontSize": "1.25rem",
-            "letterSpacing": "normal"
-        },
-        "characterOnly": {
-            "fontFamily": "Bookerly, Amstelvar, \"Noto Sans CJK SC\", Arial, sans-serif",
-            "fontSize": "1.25rem",
-            "letterSpacing": "normal"
-        },
-        "uiFont": {
-            "fontFamily": "Inter, system-ui, Arial, sans-serif"
-        }
-    });
-    load_json_file_with_default(&appearance_path, default_appearance)
+    load_blob(&app_handle, BlobKind::Appearance)
 }
 
 #[tauri::command]
@@ -1307,8 +1378,7 @@ pub async fn save_appearance_settings(
     app_handle: tauri::AppHandle,
     appearance_settings: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
-    let appearance_path = get_app_data_dir(&app_handle)?.join("appearance.json");
-    save_json_file(&appearance_path, &appearance_settings)
+    save_blob(&app_handle, BlobKind::Appearance, &appearance_settings)
 }
 
 #[tauri::command]
@@ -2480,6 +2550,58 @@ mod tests {
     }
 
     #[test]
+    fn test_blob_kind_filenames_are_distinct() {
+        let filenames = [
+            BlobKind::Config.filename(),
+            BlobKind::TransformRules.filename(),
+            BlobKind::Appearance.filename(),
+        ];
+        assert_eq!(filenames, ["config.json", "transform-rules.json", "appearance.json"]);
+    }
+
+    #[test]
+    fn test_blob_kind_default_values() {
+        assert_eq!(
+            BlobKind::Config.default_value(),
+            serde_json::json!({ "activeProperNouns": ["properNouns"] })
+        );
+        assert_eq!(BlobKind::TransformRules.default_value(), serde_json::json!([]));
+        let appearance_default = BlobKind::Appearance.default_value();
+        assert_eq!(
+            appearance_default["chineseText"]["fontSize"],
+            serde_json::json!("1.25rem")
+        );
+        assert_eq!(
+            appearance_default["uiFont"]["fontFamily"],
+            serde_json::json!("Inter, system-ui, Arial, sans-serif")
+        );
+    }
+
+    /// Exercises the same `load_json_file_with_default`/`save_json_file` round trip
+    /// `load_blob`/`save_blob` delegate to, for all 3 `BlobKind`s — `load_blob`/`save_blob`
+    /// themselves need a real `AppHandle` (path resolution only) so aren't unit-tested
+    /// directly; this covers the part that actually varies per kind.
+    #[test]
+    fn test_blob_load_save_round_trip_for_every_kind() {
+        for kind in [BlobKind::Config, BlobKind::TransformRules, BlobKind::Appearance] {
+            let dir = temp_test_dir(&format!("blob_round_trip_{}", kind.filename()));
+            let path = dir.join(kind.filename());
+
+            // Missing file returns the kind's own default.
+            let loaded = load_json_file_with_default(&path, kind.default_value()).unwrap();
+            assert_eq!(loaded.data, Some(kind.default_value()));
+
+            // Saved data round-trips exactly, independent of the default.
+            let payload = serde_json::json!({ "marker": kind.filename() });
+            save_json_file(&path, &payload).unwrap();
+            let reloaded = load_json_file_with_default(&path, kind.default_value()).unwrap();
+            assert_eq!(reloaded.data, Some(payload));
+
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[test]
     fn test_create_and_activate_creates_file_and_appends_config() {
         let dir = temp_test_dir("create_happy_path");
         let config_path = dir.join("config.json");
@@ -2633,6 +2755,67 @@ mod tests {
         deactivate_proper_noun_file(&config_path, "properNouns-f_Test"); // must not panic
 
         assert!(!config_path.exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ── mutate_active_proper_nouns_best_effort ── shared create/deactivate helper,
+    // architecture review 2026-09-08, candidate #3 grilling (narrowed from a 3-function
+    // report to just these two — substitute_dictionary_reference stayed a separate, pure
+    // in-memory mutator, no shared helper).
+
+    #[test]
+    fn test_mutate_active_proper_nouns_creates_missing_array_when_create_if_missing() {
+        let dir = temp_test_dir("mutate_active_creates_array");
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{}"#).unwrap(); // no activeProperNouns key at all
+
+        mutate_active_proper_nouns_best_effort(&config_path, true, |active_array| {
+            active_array.push(serde_json::Value::String("properNouns-f_New".to_string()));
+            true
+        });
+
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert_eq!(config["activeProperNouns"], serde_json::json!(["properNouns-f_New"]));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_mutate_active_proper_nouns_noops_on_missing_array_when_not_create_if_missing() {
+        let dir = temp_test_dir("mutate_active_noop_missing");
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{}"#).unwrap(); // no activeProperNouns key at all
+
+        let mut mutate_called = false;
+        mutate_active_proper_nouns_best_effort(&config_path, false, |active_array| {
+            mutate_called = true;
+            active_array.push(serde_json::Value::String("unreachable".to_string()));
+            true
+        });
+
+        assert!(!mutate_called, "mutate must not run when the array doesn't exist and create_if_missing is false");
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert!(config.get("activeProperNouns").is_none(), "must not create the key");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_mutate_active_proper_nouns_skips_save_when_mutate_returns_false() {
+        let dir = temp_test_dir("mutate_active_skips_save");
+        let config_path = dir.join("config.json");
+        let original = r#"{"activeProperNouns": ["properNouns-f_Existing"], "otherField": "untouched"}"#;
+        fs::write(&config_path, original).unwrap();
+        let mtime_before = fs::metadata(&config_path).unwrap().modified().unwrap();
+
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        mutate_active_proper_nouns_best_effort(&config_path, true, |_active_array| false);
+
+        let mtime_after = fs::metadata(&config_path).unwrap().modified().unwrap();
+        assert_eq!(mtime_before, mtime_after, "file must not be rewritten when mutate returns false");
 
         let _ = fs::remove_dir_all(&dir);
     }

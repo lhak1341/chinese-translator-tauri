@@ -3,10 +3,11 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { useTransformRules } from '../useTransformRules';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
-const { loadTransformRules, saveTransformRules, toastError } = vi.hoisted(() => ({
+const { loadTransformRules, saveTransformRules, toastError, toastWarning } = vi.hoisted(() => ({
   loadTransformRules: vi.fn(),
   saveTransformRules: vi.fn(),
   toastError: vi.fn(),
+  toastWarning: vi.fn(),
 }));
 
 vi.mock('../../utils/dictionary/TransformRuleBackend', () => ({
@@ -14,7 +15,7 @@ vi.mock('../../utils/dictionary/TransformRuleBackend', () => ({
   saveTransformRules,
 }));
 
-vi.mock('../../utils/toast', () => ({ default: { error: toastError } }));
+vi.mock('../../utils/toast', () => ({ default: { error: toastError, warning: toastWarning } }));
 
 function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
   return {
@@ -29,22 +30,44 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
   };
 }
 
+function loadResult(rules: TransformRule[], droppedCount = 0) {
+  return { rules, droppedCount };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
-  loadTransformRules.mockResolvedValue([]);
+  loadTransformRules.mockResolvedValue(loadResult([]));
   saveTransformRules.mockResolvedValue(undefined);
 });
 
 describe('useTransformRules', () => {
   test('loads persisted rules on mount', async () => {
     const rules = [makeRule()];
-    loadTransformRules.mockResolvedValue(rules);
+    loadTransformRules.mockResolvedValue(loadResult(rules));
 
     const { result } = renderHook(() => useTransformRules());
 
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.rules).toEqual(rules);
+  });
+
+  test('toasts a warning when the backend reports dropped rules', async () => {
+    loadTransformRules.mockResolvedValue(loadResult([makeRule()], 2));
+
+    const { result } = renderHook(() => useTransformRules());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(toastWarning).toHaveBeenCalledWith(expect.stringContaining('2'));
+  });
+
+  test('does not toast when nothing was dropped', async () => {
+    loadTransformRules.mockResolvedValue(loadResult([makeRule()], 0));
+
+    const { result } = renderHook(() => useTransformRules());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(toastWarning).not.toHaveBeenCalled();
   });
 
   test('addRule persists a new rule with a generated id', async () => {
@@ -68,7 +91,7 @@ describe('useTransformRules', () => {
   });
 
   test('updateRule replaces the matching rule', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ label: 'old' })]);
+    loadTransformRules.mockResolvedValue(loadResult([makeRule({ label: 'old' })]));
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -80,7 +103,7 @@ describe('useTransformRules', () => {
   });
 
   test('a save failure rolls back the optimistic update and toasts', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ label: 'original' })]);
+    loadTransformRules.mockResolvedValue(loadResult([makeRule({ label: 'original' })]));
     saveTransformRules.mockRejectedValueOnce(new Error('disk full'));
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -95,7 +118,7 @@ describe('useTransformRules', () => {
   });
 
   test('deleteRule removes the rule', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue(loadResult([makeRule()]));
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -107,10 +130,9 @@ describe('useTransformRules', () => {
   });
 
   test('toggleEnabled flips only the targeted rule', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'r1', enabled: true }),
-      makeRule({ id: 'r2', enabled: true }),
-    ]);
+    loadTransformRules.mockResolvedValue(
+      loadResult([makeRule({ id: 'r1', enabled: true }), makeRule({ id: 'r2', enabled: true })])
+    );
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -123,9 +145,9 @@ describe('useTransformRules', () => {
   });
 
   test('addRule rejects a rule that collides with an existing (matchKind, key)', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'existing', matchKind: 'suffix', key: '城' }),
-    ]);
+    loadTransformRules.mockResolvedValue(
+      loadResult([makeRule({ id: 'existing', matchKind: 'suffix', key: '城' })])
+    );
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -145,10 +167,12 @@ describe('useTransformRules', () => {
   });
 
   test('updateRule rejects a change that collides with a different existing rule', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'r1', matchKind: 'suffix', key: '城' }),
-      makeRule({ id: 'r2', matchKind: 'suffix', key: '市' }),
-    ]);
+    loadTransformRules.mockResolvedValue(
+      loadResult([
+        makeRule({ id: 'r1', matchKind: 'suffix', key: '城' }),
+        makeRule({ id: 'r2', matchKind: 'suffix', key: '市' }),
+      ])
+    );
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -160,7 +184,7 @@ describe('useTransformRules', () => {
   });
 
   test('checkConflict finds a same-(matchKind,key) rule other than itself', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ id: 'existing' })]);
+    loadTransformRules.mockResolvedValue(loadResult([makeRule({ id: 'existing' })]));
     const { result } = renderHook(() => useTransformRules());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 

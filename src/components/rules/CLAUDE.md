@@ -5,11 +5,15 @@
 `NewRuleModal` (create) and `RuleRow` (inline table edit) are two separate UI surfaces for
 the same `TransformRule` fields. Any new field-level policy — validation, a derived
 default, mode-aware rendering — must be wired into BOTH, not just one, or the two forms
-silently diverge. Shared policy lives in `RuleFieldValidation.ts` (raw input parse/reject:
-`parseValidatedNumber`, `parseValidatedKey`, `extractHanChars`) or `TransformRuleEngine.ts`
+silently diverge. Shared policy lives in `src/utils/dictionary/TransformRuleValidation.ts`
+(raw field parse/reject: `parseValidatedNumber`, `parseValidatedKey`, `isValidMatchKind`,
+`isValidSemanticType` — moved here 2026-09-08 architecture review candidate #1 grilling,
+so the load-time validator in the same file, `validateTransformRule`, enforces the
+identical key/number/enum contract instead of redefining it) or `TransformRuleEngine.ts`
 (derived-default/domain policy: `compareRulePrecedence`, `applyRule`,
 `deriveCapitalizeExceptNForKeyEdit`) — never hand-roll the same check/derivation inline in
-just one component.
+just one component. `RuleFieldValidation.ts` (this directory) now holds only
+`extractHanChars`, a UI-only clipboard-prefill helper with no load-time counterpart.
 
 **The derivation-skipped-on-one-path bug class is guarded by the shared functions above**
 (confirmed real: `key`'s `capitalizeExceptN` derivation was missing from one of the 3 call

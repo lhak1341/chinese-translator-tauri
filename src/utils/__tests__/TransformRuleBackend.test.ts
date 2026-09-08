@@ -33,14 +33,14 @@ describe('loadTransformRules', () => {
     window.electronAPI.loadTransformRules = vi
       .fn()
       .mockResolvedValue({ success: true, data: rules });
-    expect(await loadTransformRules()).toEqual(rules);
+    expect(await loadTransformRules()).toEqual({ rules, droppedCount: 0 });
   });
 
   test('returns an empty array when the load fails', async () => {
     window.electronAPI.loadTransformRules = vi
       .fn()
       .mockResolvedValue({ success: false, error: 'boom' });
-    expect(await loadTransformRules()).toEqual([]);
+    expect(await loadTransformRules()).toEqual({ rules: [], droppedCount: 0 });
   });
 
   test('caches after the first successful load — does not call IPC again', async () => {
@@ -61,10 +61,10 @@ describe('loadTransformRules', () => {
       .fn()
       .mockResolvedValue({ success: true, data: [legacyRule] });
 
-    const result = await loadTransformRules();
+    const { rules } = await loadTransformRules();
 
-    expect(result).toEqual([makeRule({ relocate: true })]);
-    expect(result[0]).not.toHaveProperty('moveWords');
+    expect(rules).toEqual([makeRule({ relocate: true })]);
+    expect(rules[0]).not.toHaveProperty('moveWords');
   });
 
   test('migrates a legacy moveWords: 0 rule to relocate: false', async () => {
@@ -74,9 +74,34 @@ describe('loadTransformRules', () => {
       .fn()
       .mockResolvedValue({ success: true, data: [legacyRule] });
 
-    const result = await loadTransformRules();
+    const { rules } = await loadTransformRules();
 
-    expect(result).toEqual([makeRule({ relocate: false })]);
+    expect(rules).toEqual([makeRule({ relocate: false })]);
+  });
+
+  test('drops a malformed rule and reports it in droppedCount, keeping valid siblings', async () => {
+    const badRule = { ...makeRule({ id: 'r2' }), semanticType: 'not-a-real-type' };
+    window.electronAPI.loadTransformRules = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: [makeRule(), badRule] });
+
+    const { rules, droppedCount } = await loadTransformRules();
+
+    expect(rules).toEqual([makeRule()]);
+    expect(droppedCount).toBe(1);
+  });
+
+  test('treats non-array data as zero rules with no drop reported', async () => {
+    window.electronAPI.loadTransformRules = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: 'not-an-array' });
+
+    expect(await loadTransformRules()).toEqual({ rules: [], droppedCount: 0 });
+  });
+
+  test('throws when the IPC result has no boolean success field', async () => {
+    window.electronAPI.loadTransformRules = vi.fn().mockResolvedValue({ data: [] });
+    await expect(loadTransformRules()).rejects.toThrow();
   });
 });
 
@@ -91,7 +116,7 @@ describe('saveTransformRules', () => {
 
     expect(saveFn).toHaveBeenCalledWith(rules);
     // Cache updated — a subsequent load returns the saved rules without hitting IPC again.
-    expect(await loadTransformRules()).toEqual(rules);
+    expect(await loadTransformRules()).toEqual({ rules, droppedCount: 0 });
   });
 
   test('throws when the save fails', async () => {

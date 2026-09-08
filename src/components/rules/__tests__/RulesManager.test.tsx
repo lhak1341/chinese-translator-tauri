@@ -44,7 +44,7 @@ function makeRule(overrides: Partial<TransformRule> = {}): TransformRule {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  loadTransformRules.mockResolvedValue([]);
+  loadTransformRules.mockResolvedValue({ rules: [], droppedCount: 0 });
   saveTransformRules.mockResolvedValue(undefined);
 });
 
@@ -55,7 +55,7 @@ describe('RulesManager', () => {
   });
 
   test('renders existing rules in the table', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);
 
     expect(await screen.findByText('城')).toBeInTheDocument();
@@ -63,12 +63,15 @@ describe('RulesManager', () => {
   });
 
   test('rows are sorted by key, then by semantic type', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'r1', key: '市', semanticType: 'location', label: 'r1' }),
-      makeRule({ id: 'r2', key: '城', semanticType: 'object', label: 'r2' }),
-      makeRule({ id: 'r3', key: '城', semanticType: 'location', label: 'r3' }),
-      makeRule({ id: 'r4', key: '卫城', semanticType: 'location', label: 'r4' }),
-    ]);
+    loadTransformRules.mockResolvedValue({
+      rules: [
+        makeRule({ id: 'r1', key: '市', semanticType: 'location', label: 'r1' }),
+        makeRule({ id: 'r2', key: '城', semanticType: 'object', label: 'r2' }),
+        makeRule({ id: 'r3', key: '城', semanticType: 'location', label: 'r3' }),
+        makeRule({ id: 'r4', key: '卫城', semanticType: 'location', label: 'r4' }),
+      ],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('市');
 
@@ -167,10 +170,13 @@ describe('RulesManager', () => {
   });
 
   test('filter panel filters rows by semantic type, and toggling off clears it', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'r1', key: '城', label: 'City', semanticType: 'location' }),
-      makeRule({ id: 'r2', key: '卫', label: 'Guard', semanticType: 'object' }),
-    ]);
+    loadTransformRules.mockResolvedValue({
+      rules: [
+        makeRule({ id: 'r1', key: '城', label: 'City', semanticType: 'location' }),
+        makeRule({ id: 'r2', key: '卫', label: 'Guard', semanticType: 'object' }),
+      ],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -185,7 +191,7 @@ describe('RulesManager', () => {
   });
 
   test('editing the Replace cell inline commits the new value', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);
     const cell = await screen.findByLabelText('Replace key text for City suffix');
 
@@ -202,9 +208,10 @@ describe('RulesManager', () => {
   });
 
   test('saving a new rule with a colliding matchKind+key shows an inline error and blocks Save', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'existing', key: '城', label: 'City suffix' }),
-    ]);
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ id: 'existing', key: '城', label: 'City suffix' })],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -216,10 +223,13 @@ describe('RulesManager', () => {
   });
 
   test('search filters rows by key or label, and shows a matching-search empty state', async () => {
-    loadTransformRules.mockResolvedValue([
-      makeRule({ id: 'r1', key: '城', label: 'City suffix' }),
-      makeRule({ id: 'r2', key: '卫', label: 'Guard prefix' }),
-    ]);
+    loadTransformRules.mockResolvedValue({
+      rules: [
+        makeRule({ id: 'r1', key: '城', label: 'City suffix' }),
+        makeRule({ id: 'r2', key: '卫', label: 'Guard prefix' }),
+      ],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -233,7 +243,7 @@ describe('RulesManager', () => {
   });
 
   test('deleting a rule removes it from the table', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -244,7 +254,7 @@ describe('RulesManager', () => {
   });
 
   test('toggling the enabled checkbox flips the rule and persists it', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ enabled: true })]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule({ enabled: true })], droppedCount: 0 });
     render(<RulesManager />);
     const checkbox = await screen.findByLabelText(/Toggle City suffix enabled/);
     expect(checkbox).toBeChecked();
@@ -257,7 +267,7 @@ describe('RulesManager', () => {
   });
 
   test('editing the Key inline click-to-edits and commits on blur', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);
     const keyCell = await screen.findByLabelText('Key for City suffix');
 
@@ -272,7 +282,10 @@ describe('RulesManager', () => {
   });
 
   test('clicking the Move toggle commits immediately, no click-to-edit needed', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ relocate: false })]);
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ relocate: false })],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     const moveToggle = await screen.findByLabelText('Set Relocate to opposite end for City suffix');
 
@@ -284,7 +297,10 @@ describe('RulesManager', () => {
   });
 
   test('clicking the Match toggle commits immediately, no click-to-edit needed', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ matchKind: 'suffix' })]);
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ matchKind: 'suffix' })],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     const prefixToggle = await screen.findByLabelText('Set prefix for City suffix');
 
@@ -298,7 +314,7 @@ describe('RulesManager', () => {
   });
 
   test('no Edit button or reorder controls exist — everything is inline', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -308,7 +324,10 @@ describe('RulesManager', () => {
   });
 
   test('clicking a semantic type toggle badge commits the new type', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ semanticType: 'location' })]);
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ semanticType: 'location' })],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -322,7 +341,10 @@ describe('RulesManager', () => {
   });
 
   test('clicking the already-active semantic type badge is a no-op', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ semanticType: 'location' })]);
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ semanticType: 'location' })],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('城');
 
@@ -332,7 +354,7 @@ describe('RulesManager', () => {
   });
 
   test('delete button is an icon (Trash2), not text', async () => {
-    loadTransformRules.mockResolvedValue([makeRule()]);
+    loadTransformRules.mockResolvedValue({ rules: [makeRule()], droppedCount: 0 });
     render(<RulesManager />);
     const deleteButton = await screen.findByLabelText('Delete City suffix');
     expect(deleteButton.querySelector('svg')).toBeInTheDocument();
@@ -340,7 +362,10 @@ describe('RulesManager', () => {
   });
 
   test('clicking the magnifier opens a modal listing matching dictionary entries', async () => {
-    loadTransformRules.mockResolvedValue([makeRule({ matchKind: 'suffix', key: '城' })]);
+    loadTransformRules.mockResolvedValue({
+      rules: [makeRule({ matchKind: 'suffix', key: '城' })],
+      droppedCount: 0,
+    });
     render(<RulesManager />);
     await screen.findByText('城');
 

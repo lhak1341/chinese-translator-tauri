@@ -24,9 +24,12 @@ export function useTransformRules() {
   useEffect(() => {
     let cancelled = false;
     loadTransformRules()
-      .then((loaded) => {
+      .then(({ rules: loaded, droppedCount }) => {
         if (!cancelled) {
           setRules(loaded);
+          if (droppedCount > 0) {
+            toast.warning(`${droppedCount} rule(s) skipped — invalid data`);
+          }
           setIsLoading(false);
         }
       })

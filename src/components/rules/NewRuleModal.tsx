@@ -1,7 +1,10 @@
 import { createPortal } from 'react-dom';
 import styles from '../../styles/RulesManager.module.css';
 import { SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
-import { parseValidatedNumber, parseValidatedKey } from './RuleFieldValidation';
+import {
+  parseValidatedNumber,
+  parseValidatedKey,
+} from '../../utils/dictionary/TransformRuleValidation';
 import { deriveCapitalizeExceptNForKeyEdit } from '../../utils/dictionary/TransformRuleEngine';
 import type { TransformRule, TransformRuleMatchKind } from '../../types/TransformRuleTypes';
 import { MAX_TRANSFORM_RULE_KEY_LENGTH } from '../../types/TransformRuleTypes';
