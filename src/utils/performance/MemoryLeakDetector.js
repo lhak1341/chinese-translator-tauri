@@ -19,7 +19,7 @@
  * const snapshot = detector.recordSnapshot('translation_batch', { batchSize: 100 });
  */
 
-import { batchLog } from '../BatchLogger.js';
+import { logger } from '../logger';
 
 export class MemoryLeakDetector {
   constructor() {
@@ -173,7 +173,7 @@ export class MemoryLeakDetector {
       this.trends.alerts.shift();
     }
 
-    batchLog.warn(`⚠️ Memory usage at ${(alert.ratio * 100).toFixed(1)}%`, {
+    logger.warn(`⚠️ Memory usage at ${(alert.ratio * 100).toFixed(1)}%`, {
       usedMB: (alert.usage / (1024 * 1024)).toFixed(1),
       limitMB: (alert.limit / (1024 * 1024)).toFixed(1),
     });
@@ -195,7 +195,7 @@ export class MemoryLeakDetector {
       this.trends.alerts.shift();
     }
 
-    batchLog.error(`🚨 Critical memory usage at ${(alert.ratio * 100).toFixed(1)}%`, {
+    logger.error(`🚨 Critical memory usage at ${(alert.ratio * 100).toFixed(1)}%`, {
       usedMB: (alert.usage / (1024 * 1024)).toFixed(1),
       limitMB: (alert.limit / (1024 * 1024)).toFixed(1),
     });
@@ -220,7 +220,7 @@ export class MemoryLeakDetector {
       this.trends.alerts.shift();
     }
 
-    batchLog.error(`🆘 Emergency memory cleanup at ${(alert.ratio * 100).toFixed(1)}%`, {
+    logger.error(`🆘 Emergency memory cleanup at ${(alert.ratio * 100).toFixed(1)}%`, {
       usedMB: (alert.usage / (1024 * 1024)).toFixed(1),
       limitMB: (alert.limit / (1024 * 1024)).toFixed(1),
     });
@@ -239,10 +239,10 @@ export class MemoryLeakDetector {
 
   requestGarbageCollection() {
     if (typeof window !== 'undefined' && window.gc) {
-      batchLog.info('🗑️ Triggering manual garbage collection');
+      logger.info('🗑️ Triggering manual garbage collection');
       window.gc();
     } else if (typeof global !== 'undefined' && global.gc) {
-      batchLog.info('🗑️ Triggering manual garbage collection');
+      logger.info('🗑️ Triggering manual garbage collection');
       global.gc();
     }
   }

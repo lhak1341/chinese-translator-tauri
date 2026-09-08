@@ -626,43 +626,4 @@ export class NumberProcessor {
     // Handle single digit
     return this.NUMBER_MAP[chineseNumber] || 0;
   }
-
-  /**
-   * Get debug information about number conversion patterns
-   * @returns {Object} Debug information
-   */
-  getDebugInfo() {
-    return {
-      availablePatterns: this.CONVERSION_PATTERNS.map((p) => ({
-        name: p.name,
-        regex: p.regex.source,
-        description: p.description,
-      })),
-      numberMap: this.NUMBER_MAP,
-      patternCount: this.CONVERSION_PATTERNS.length,
-    };
-  }
-
-  /**
-   * Test number conversion with sample inputs
-   * @param {string} testInput - Chinese number to test
-   * @returns {Object} Test result
-   */
-  testConversion(testInput) {
-    const mockTokens = testInput.split('').map((char) => ({
-      type: 'chinese_char',
-      value: char,
-      translated: null,
-      translationSource: null,
-    }));
-
-    const matchResult = this.findLongestNumberMatch(mockTokens, 0, { debugLevel: 3 });
-
-    return {
-      input: testInput,
-      match: matchResult,
-      result: matchResult ? matchResult.result : null,
-      pattern: matchResult ? matchResult.patternName : null,
-    };
-  }
 }

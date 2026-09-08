@@ -3,7 +3,6 @@
  * Semantic Array Builder — memory-efficient semantic relationship tracking with pre-allocated arrays.
  */
 
-import { batchLog } from '../BatchLogger.js';
 import { logger } from '../logger';
 import { semanticArrayValidator } from './SemanticArrayValidator';
 
@@ -233,7 +232,7 @@ export class SemanticArrayBuilder {
     // CRITICAL FIX: Clear corruption flag on reset (new translation = fresh state)
     this.isCorrupted = false;
 
-    batchLog.hotVerbose('semantic-builder', `Reset with capacity ${this.estimatedCapacity}`);
+    logger.debug('[semantic-builder]', `Reset with capacity ${this.estimatedCapacity}`);
   }
 
   /**
@@ -298,11 +297,6 @@ export class SemanticArrayBuilder {
       logger.error('❌ Optimized semantic arrays corrupted - highlighting will be disabled');
       return false; // Signal failure to caller
     }
-
-    batchLog.hotVerbose(
-      'semantic-add-unit',
-      `Added unit ${index}: "${originalText}" → "${translatedText}" (${source})`
-    );
 
     return true; // Signal success
   }
@@ -414,7 +408,7 @@ export class SemanticArrayBuilder {
     this.metadata = newMetadata;
     this.stats.capacityResizes++;
 
-    batchLog.info('semantic-resize', `Resized semantic arrays to capacity ${newCapacity}`);
+    logger.info('[semantic-resize]', `Resized semantic arrays to capacity ${newCapacity}`);
   }
 
   /**
@@ -660,8 +654,8 @@ export class SemanticArrayBuilder {
     this.translated = compactTranslated;
     this.metadata = compactMetadata;
 
-    batchLog.info(
-      'semantic-compact',
+    logger.info(
+      '[semantic-compact]',
       `Compacted arrays from ${oldCapacity} to ${this.length} capacity`
     );
   }

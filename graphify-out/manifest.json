@@ -330,14 +330,14 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1788830632.9397163,
-    "ast_hash": "f768853caf5102b05976dace5aac5db7",
+    "mtime": 1788879758.438706,
+    "ast_hash": "f45c98a0a74e0b92398d2d2e9792d7dc",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
-    "mtime": 1777743411.8961227,
-    "ast_hash": "dd92413469d5de831312b3275c00d653",
-    "semantic_hash": "dd92413469d5de831312b3275c00d653"
+    "mtime": 1788879735.49474,
+    "ast_hash": "d62073ee6ef6eaaea45298561e4db616",
+    "semantic_hash": ""
   },
   "src/utils/appConfig.ts": {
     "mtime": 1787719568.3368244,
@@ -349,19 +349,14 @@
     "ast_hash": "5fb462b73c004f70409c0709aa111f27",
     "semantic_hash": "5fb462b73c004f70409c0709aa111f27"
   },
-  "src/utils/BatchLogger.js": {
-    "mtime": 1786014975.113058,
-    "ast_hash": "1131326ddfa293df62750dc44fa50034",
-    "semantic_hash": "1131326ddfa293df62750dc44fa50034"
-  },
   "src/utils/ParallelConfig.js": {
     "mtime": 1777771239.180562,
     "ast_hash": "177901b733ab7f53e9efde5cf556ce65",
     "semantic_hash": "177901b733ab7f53e9efde5cf556ce65"
   },
   "src/utils/NumberProcessor.js": {
-    "mtime": 1788072055.5359008,
-    "ast_hash": "71c4b6523ac3a19f185769a17a2c533a",
+    "mtime": 1788880410.1347659,
+    "ast_hash": "b59cbe5ebebdd1a0e2a487fa310213b6",
     "semantic_hash": ""
   },
   "src/utils/GraphemeHelper.ts": {
@@ -440,8 +435,8 @@
     "semantic_hash": "c307b7ea95220a8363f6124c247f7ae1"
   },
   "src/utils/highlighting/SemanticArrayBuilder.ts": {
-    "mtime": 1786983980.3937693,
-    "ast_hash": "363d662db36c0f09971c22cfb72fb38f",
+    "mtime": 1788879773.7487545,
+    "ast_hash": "de4222fb7d8fe1d6e1f8edc7edf8b426",
     "semantic_hash": ""
   },
   "src/utils/highlighting/TextPositionMapper.ts": {
@@ -710,8 +705,8 @@
     "semantic_hash": ""
   },
   "src/utils/text/AdaptiveChunker.js": {
-    "mtime": 1787015509.4131021,
-    "ast_hash": "fe6e9aa54a6a3055b6314e2b7c4a0bb6",
+    "mtime": 1788879782.8934379,
+    "ast_hash": "f0a8bbef899fd18645215b7da68af63c",
     "semantic_hash": ""
   },
   "src/utils/text/UnicodePunctuationDetector.ts": {
@@ -775,9 +770,9 @@
     "semantic_hash": "f0454811e6dcd15fc647b943a18ddd8a"
   },
   "src/utils/performance/MemoryLeakDetector.js": {
-    "mtime": 1773509530.083455,
-    "ast_hash": "614f286e980b5a7347a92b5e832251fe",
-    "semantic_hash": "614f286e980b5a7347a92b5e832251fe"
+    "mtime": 1788879791.5956557,
+    "ast_hash": "692e02adcadbd176ff56de97cd1a1bce",
+    "semantic_hash": ""
   },
   "src/utils/performance/TranslationProfiler.js": {
     "mtime": 1777743628.9763317,
@@ -808,11 +803,6 @@
     "mtime": 1782572473.5633729,
     "ast_hash": "66734b9133a8175c210c761d49781c7b",
     "semantic_hash": "66734b9133a8175c210c761d49781c7b"
-  },
-  "src/utils/performance/DebugObjectPool.js": {
-    "mtime": 1786015028.3553033,
-    "ast_hash": "0e467fa0d7324c9301cdc2cdda7eb034",
-    "semantic_hash": "0e467fa0d7324c9301cdc2cdda7eb034"
   },
   "src/utils/caching/LRUCache.ts": {
     "mtime": 1773509530.080675,
@@ -855,8 +845,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1787586790.4148273,
-    "ast_hash": "71c90521c9cf179951d2cbdac6c4c04c",
+    "mtime": 1788879797.6711113,
+    "ast_hash": "bd670e6663e11f0b4bf5b27ee26798f2",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -1125,8 +1115,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1788799416.3153002,
-    "ast_hash": "337ed3c4008270dd392dc9482df8b077",
+    "mtime": 1788880931.0610962,
+    "ast_hash": "b95264520670029eeed608c46dd91bb1",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1135,8 +1125,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1788799416.3153002,
-    "ast_hash": "337ed3c4008270dd392dc9482df8b077",
+    "mtime": 1788880931.0610962,
+    "ast_hash": "b95264520670029eeed608c46dd91bb1",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1400,8 +1390,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1788839804.649163,
-    "ast_hash": "9603b8b2c6cbea0979b2147ab16b5ca4",
+    "mtime": 1788880415.740033,
+    "ast_hash": "e5ed15c630884db10515217dbc7596e0",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1555,8 +1545,8 @@
     "semantic_hash": "a6ff6be876d58ca61afccf81f9be5df5"
   },
   "src/components/rules/NewRuleModal.tsx": {
-    "mtime": 1788877315.3587182,
-    "ast_hash": "9151700ad421ea8e9909c9ee36be856f",
+    "mtime": 1788878643.089868,
+    "ast_hash": "e192b86f6754b26c3f70e15ab9f5fdd2",
     "semantic_hash": ""
   },
   "src/components/rules/RuleFieldValidation.ts": {
@@ -1570,8 +1560,8 @@
     "semantic_hash": "fd43c671da67f767d7d7d399ec4d3c96"
   },
   "src/components/rules/RuleRow.tsx": {
-    "mtime": 1788877315.3596356,
-    "ast_hash": "d26e24c2cb7730a7d3adf009c11c5708",
+    "mtime": 1788878643.1777556,
+    "ast_hash": "d28fd69e231d91088a43aba23473e4d5",
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
@@ -1845,8 +1835,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1788878560.735369,
-    "ast_hash": "c9f9e00b6ed6a3a673dc525c01b8002c",
+    "mtime": 1788880933.9122965,
+    "ast_hash": "6d5d745a1d8086116d845f9ad6df66a6",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1860,8 +1850,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1788877506.5847578,
-    "ast_hash": "fd17ddc7847dccf1f5894cd1d6f447ce",
+    "mtime": 1788879851.981495,
+    "ast_hash": "a526d5cf8e1effd4764b879669f7bb23",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1880,8 +1870,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1788799342.4376812,
-    "ast_hash": "98ac1c98c09b603255547aa02b6bfaea",
+    "mtime": 1788879963.632284,
+    "ast_hash": "37751d599b971114b189eb3cd6e4cc0d",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {

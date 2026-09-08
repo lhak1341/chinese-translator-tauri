@@ -14,7 +14,6 @@ import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
 import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
 import AppReadinessOverlay from './AppReadinessOverlay';
-import { batchLog } from '../utils/BatchLogger.js';
 import {
   scheduleHighlightScroll,
   findCharacterOnlyMatch,
@@ -505,8 +504,8 @@ const Translator = ({ isActive = true }) => {
    */
   const translateCharacterOnly = useCallback(async (text) => {
     const charOnlyId = `char_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    batchLog.hotInfo(
-      'char-translation',
+    logger.debug(
+      '[char-translation]',
       `CHARACTER ONLY TRANSLATION START: ${charOnlyId} (${text.length} chars)`
     );
 

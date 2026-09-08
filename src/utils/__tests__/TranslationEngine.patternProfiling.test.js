@@ -13,7 +13,7 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../logger.js', () => ({
-  logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  logger: { log: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 import { TranslationEngine } from '../TranslationEngine.js';

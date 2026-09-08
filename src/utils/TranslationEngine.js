@@ -197,7 +197,6 @@ import {
   resolveMatchConflictsWasm,
 } from './wasm/WasmConflictResolution.js';
 
-import { batchLog, logIfSlow } from './BatchLogger.js';
 import { adaptiveChunker } from './text/AdaptiveChunker.js';
 import { MemoryLeakDetector } from './performance/MemoryLeakDetector.js';
 import { getSourcePriority as getSourcePriorityFn } from './TranslationSourcePriority.js';
@@ -1045,9 +1044,7 @@ export class TranslationEngine {
 
     const _operationId = `character_only_translation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    if (process.env.NODE_ENV === 'development') {
-      batchLog.hotInfo('char-engine', `Starting character-only translation: ${text.length} chars`);
-    }
+    logger.debug('[char-engine]', `Starting character-only translation: ${text.length} chars`);
 
     // OPTIMIZATION: Build Rust-powered lookup index for character-only translations (HUGE speedup)
     // Character-only mode benefits even more from pre-computed lookups!
@@ -1070,9 +1067,7 @@ export class TranslationEngine {
       // Tokenize the entire text directly (don't use chunking which removes whitespace/punctuation)
       let tokens = this.tokenizer.tokenize(text);
 
-      if (process.env.NODE_ENV === 'development') {
-        batchLog.hotVerbose('tokenization', `Tokenization completed: ${tokens.length} tokens`);
-      }
+      logger.debug('[tokenization]', `Tokenization completed: ${tokens.length} tokens`);
 
       // Skip number processing in character-only mode - translate each character individually
       // Character-only mode should only apply Phase 5 (character-level translation)
@@ -1152,12 +1147,10 @@ export class TranslationEngine {
         (match, punct, sep, letter) => punct + sep + letter.toUpperCase()
       );
 
-      if (process.env.NODE_ENV === 'development') {
-        batchLog.hotInfo(
-          'char-engine',
-          `Character-only translation completed: ${translatedText.length} chars`
-        );
-      }
+      logger.debug(
+        '[char-engine]',
+        `Character-only translation completed: ${translatedText.length} chars`
+      );
 
       // Add position metadata AFTER all text transformations but BEFORE updateWithCapitalizedText.
       // Order matters: this loop advances searchPosition sequentially, correctly assigning distinct
@@ -1217,12 +1210,10 @@ export class TranslationEngine {
       // Note: getArrays() can be CPU intensive for large translations, but this is isolated so safe to optimize later
       const semanticArrays = characterOnlySemanticBuilder.getArrays();
 
-      if (process.env.NODE_ENV === 'development') {
-        batchLog.hotVerbose(
-          'char-semantics',
-          `Character-only semantic arrays: ${semanticArrays.original.length} original, ${semanticArrays.translated.length} translated`
-        );
-      }
+      logger.debug(
+        '[char-semantics]',
+        `Character-only semantic arrays: ${semanticArrays.original.length} original, ${semanticArrays.translated.length} translated`
+      );
 
       const result = {
         translatedText,
@@ -1488,7 +1479,7 @@ export class TranslationEngine {
     };
 
     // Performance monitoring: check for bottlenecks
-    logIfSlow('translateWithSegments', perfStartTime, {
+    logger.warnIfSlow('translateWithSegments', perfStartTime, {
       textLength: text.length,
       resultLength: result.translatedText.length,
       semanticArrays: result.semanticArrays?.length ?? 0,
@@ -4764,7 +4755,7 @@ export class TranslationEngine {
       throw new Error('Parallel chunk processing failed and sequential fallback is disabled');
     } finally {
       // Performance monitoring: check for bottlenecks regardless of success/failure
-      logIfSlow('processChunksInParallel', startTime, {
+      logger.warnIfSlow('processChunksInParallel', startTime, {
         batchSize: batch.length,
       });
     }
@@ -5144,8 +5135,8 @@ export class TranslationEngine {
 
     currentBatchSize = this._clampInitialBatchSize(chunkConfig, currentBatchSize);
 
-    batchLog.info(
-      'smart-chunk-adaptation',
+    logger.info(
+      '[smart-chunk-adaptation]',
       `📊 Smart chunk sizing: complexity=${contentAnalysis.complexity.toFixed(2)}, ` +
         `strategy=${contentAnalysis.chunkingStrategy}, batch_size=${currentBatchSize}`
     );

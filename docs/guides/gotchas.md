@@ -202,7 +202,7 @@ Applies to any hook with `requestAnimationFrame` in a `useEffect`. See `useEntry
 
 **Browser APIs called with `new` need class syntax** — `vi.fn().mockImplementation(arrow)` is not constructable. Use `class MockRO { constructor(cb) {...} observe = vi.fn(); disconnect = vi.fn(); }` then `global.ResizeObserver = MockRO as unknown as typeof ResizeObserver`.
 
-**Mocking `logger` for any `print*Report()` method: also stub `table`.** `TwoPhasePatternProcessor.printInternalProfilingReport()` and `TranslationProfiler.printReport()` both call `logger.table(...)`; a mock with only `log`/`warn`/`error` throws `TypeError` at call time, not import time.
+**`vi.mock('../logger'...)` factories must cover every method any reachable code path calls, not just what the test asserts on** — a hand-listed subset throws `TypeError: logger.X is not a function` the moment something on the path reaches a missing one. Confirmed twice: `print*Report()` methods (`TwoPhasePatternProcessor`, `TranslationProfiler`) call `logger.table(...)`; `TranslationEngine.patternProfiling.test.js`'s `{log,warn,error}`-only mock broke when `SemanticArrayBuilder`'s constructor started calling `logger.debug` (2026-09-08). Prefer spreading the real module's shape over hand-listing.
 
 **`logger.warn`/`logger.error` always reach `console`** regardless of `NODE_ENV`, while `logger.log`/`.info`/`.debug`/`.group` are dev-only no-ops in the test env. Mock the logger module in any test exercising a warning or error path, or console output gets noisy.
 

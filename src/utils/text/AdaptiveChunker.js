@@ -9,7 +9,7 @@
  * - Text structure analysis
  */
 
-import { batchLog } from '../BatchLogger.js';
+import { logger } from '../logger';
 
 class AdaptiveChunker {
   constructor(options = {}) {
@@ -77,8 +77,8 @@ class AdaptiveChunker {
     // Determine chunking strategy based on analysis
     analysis.chunkingStrategy = this.determineChunkingStrategy(analysis);
 
-    batchLog.verbose(
-      'adaptive-chunker-analysis',
+    logger.debug(
+      '[adaptive-chunker-analysis]',
       `Content analysis complete: complexity=${analysis.complexity.toFixed(2)}, strategy=${analysis.chunkingStrategy}`,
       analysis.factors
     );
@@ -254,8 +254,8 @@ class AdaptiveChunker {
       Math.min(this.options.maxChunkSize, baseSize)
     );
 
-    batchLog.info(
-      'adaptive-chunker-sizing',
+    logger.info(
+      '[adaptive-chunker-sizing]',
       `Optimal chunk size calculated: ${finalSize} (strategy: ${chunkingStrategy}, complexity: ${complexity.toFixed(2)})`
     );
 
@@ -297,8 +297,8 @@ class AdaptiveChunker {
       this.performanceHistory.shift();
     }
 
-    batchLog.hotVerbose(
-      'adaptive-chunker-perf',
+    logger.debug(
+      '[adaptive-chunker-perf]',
       `Performance recorded: size=${record.chunkSize}, throughput=${record.throughput.toFixed(2)}, efficiency=${record.efficiency.toFixed(3)}`
     );
   }

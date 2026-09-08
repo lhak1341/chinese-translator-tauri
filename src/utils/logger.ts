@@ -139,6 +139,29 @@ class Logger {
       console.timeEnd(`⏱️ ${label}`);
     }
   }
+
+  /**
+   * Warn if an operation exceeded a duration threshold.
+   * @param operation - Operation name/description
+   * @param startTime - `performance.now()` value captured at the operation's start
+   * @param context - Additional context data for the log line
+   * @param thresholdMs - Duration threshold in ms above which this warns (default 200)
+   */
+  warnIfSlow(
+    operation: string,
+    startTime: number,
+    context: Record<string, unknown> = {},
+    thresholdMs = 200
+  ): void {
+    const duration = performance.now() - startTime;
+    if (duration > thresholdMs) {
+      this.warn(`🐌 Slow operation detected: ${operation} took ${duration.toFixed(1)}ms`, {
+        duration,
+        context,
+        threshold: thresholdMs,
+      });
+    }
+  }
 }
 
 /**
@@ -183,6 +206,12 @@ export function createScopedLogger(scope: string): Logger {
     table: (data: unknown) => logger.table(data),
     time: (label: string) => logger.time(`[${scope}] ${label}`),
     timeEnd: (label: string) => logger.timeEnd(`[${scope}] ${label}`),
+    warnIfSlow: (
+      operation: string,
+      startTime: number,
+      context?: Record<string, unknown>,
+      thresholdMs?: number
+    ) => logger.warnIfSlow(`[${scope}] ${operation}`, startTime, context, thresholdMs),
   };
 }
 

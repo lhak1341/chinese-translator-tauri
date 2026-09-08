@@ -11,14 +11,15 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MemoryLeakDetector } from '../performance/MemoryLeakDetector.js';
-import { batchLog } from '../BatchLogger.js';
+import { logger } from '../logger';
 
-// Mock BatchLogger
-vi.mock('../BatchLogger.js', () => ({
-  batchLog: {
+// Mock logger
+vi.mock('../logger', () => ({
+  logger: {
     warn: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
+    debug: vi.fn(),
   },
 }));
 
@@ -246,7 +247,7 @@ describe('MemoryLeakDetector', () => {
 
       expect(detector.trends.alerts.length).toBe(1);
       expect(detector.trends.alerts[0].level).toBe('warning');
-      expect(batchLog.warn).toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalled();
     });
 
     test('should trigger critical at 85% usage', () => {
@@ -259,7 +260,7 @@ describe('MemoryLeakDetector', () => {
 
       expect(detector.trends.alerts.length).toBe(1);
       expect(detector.trends.alerts[0].level).toBe('critical');
-      expect(batchLog.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       expect(cleanupSpy).toHaveBeenCalledWith('automatic');
     });
 
@@ -273,7 +274,7 @@ describe('MemoryLeakDetector', () => {
 
       expect(detector.trends.alerts.length).toBe(1);
       expect(detector.trends.alerts[0].level).toBe('emergency');
-      expect(batchLog.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       expect(cleanupSpy).toHaveBeenCalledWith('emergency');
     });
 
