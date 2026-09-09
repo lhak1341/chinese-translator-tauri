@@ -7,8 +7,13 @@ import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { classifyDictionaryId } from '../../utils/dictionary';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
-import { ITEM_HEIGHT, SemanticTypeFilterChips, FilterChipButton } from './TableBuildingBlocks';
-import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
+import {
+  ITEM_HEIGHT,
+  SemanticTypeFilterChips,
+  FilterChipButton,
+  SelectAllCheckboxHeaderCell,
+} from './TableBuildingBlocks';
+import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
 import { useContextMenu } from '../../hooks/useContextMenu';
@@ -134,6 +139,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   } = useEntrySelection({
     selectedDictionary,
     filteredEntries,
+    filteredDuplicateRows,
     dictionaries,
     showDuplicatesMode,
     withScrollPreservation: scroll.withScrollPreservation,
@@ -268,6 +274,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         duplicateGroupIndices={duplicateGroupIndices}
         selectedEntries={selectedEntries}
         onSelectEntry={handleSelectEntry}
+        allSelected={
+          selectedEntries.size > 0 && selectedEntries.size === filteredDuplicateRows.length
+        }
+        onSelectAll={handleSelectAll}
       />
     );
   }
@@ -311,10 +321,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
       <FilterPanel open={showFilterPanel && hasFilterOptions}>
         {showPatternFilter && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-                Pattern:
-              </span>
+            <FilterDimensionRow label="Pattern:">
               {(
                 [
                   ['x-only', 'X only'],
@@ -330,11 +337,8 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   onClick={() => togglePatternType(key)}
                 />
               ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-                Flags:
-              </span>
+            </FilterDimensionRow>
+            <FilterDimensionRow label="Flags:">
               {(
                 [
                   [filterAllowAsVariable, 'allowAsVariable', 'Allow as Variable', '#059669'],
@@ -348,14 +352,11 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   onClick={() => toggleFlag(flag)}
                 />
               ))}
-            </div>
+            </FilterDimensionRow>
           </>
         )}
         {showVariableFilter && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-              Variable:
-            </span>
+          <FilterDimensionRow label="Variable:">
             {(['all', 'allowed', 'not-allowed'] as const).map((opt) => (
               <FilterChipButton
                 key={opt}
@@ -365,13 +366,10 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 onClick={() => setVariable(opt)}
               />
             ))}
-          </div>
+          </FilterDimensionRow>
         )}
         {showSemanticTypeFilter && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-              Type:
-            </span>
+          <FilterDimensionRow label="Type:">
             <SemanticTypeFilterChips
               activeTypes={filterSemanticTypes}
               onToggle={toggleSemanticType}
@@ -382,7 +380,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               label="No Type"
               onClick={() => toggleSemanticType('none')}
             />
-          </div>
+          </FilterDimensionRow>
         )}
         {hasActiveFilter && (
           <FilterChipButton
@@ -503,18 +501,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
             >
               {isPatternsDictionary ? (
                 <>
-                  <div className={styles.headerCheckboxCol}>
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
-                      title="Select all"
-                      aria-label="Select all entries"
-                    />
-                  </div>
+                  <SelectAllCheckboxHeaderCell
+                    checked={
+                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                    }
+                    onChange={handleSelectAll}
+                  />
                   <div
                     className={`${styles.patternsSourceCol} ${styles.headerCell}`}
                     title="Pattern with highlighted variables"
@@ -563,18 +555,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </>
               ) : isPhrasesDictionary ? (
                 <>
-                  <div className={styles.headerCheckboxCol}>
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
-                      title="Select all"
-                      aria-label="Select all entries"
-                    />
-                  </div>
+                  <SelectAllCheckboxHeaderCell
+                    checked={
+                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                    }
+                    onChange={handleSelectAll}
+                  />
                   <div className={`${styles.phrasesSourceCol} ${styles.headerCell}`}>Source</div>
                   <div
                     className={`${styles.phrasesTranslationCol} ${styles.headerCell}`}
@@ -596,18 +582,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </>
               ) : isProperNounsDictionary ? (
                 <>
-                  <div className={styles.headerCheckboxCol}>
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
-                      title="Select all"
-                      aria-label="Select all entries"
-                    />
-                  </div>
+                  <SelectAllCheckboxHeaderCell
+                    checked={
+                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                    }
+                    onChange={handleSelectAll}
+                  />
                   <div className={`${styles.properNounsSourceCol} ${styles.headerCell}`}>
                     Source
                   </div>
@@ -628,18 +608,12 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 </>
               ) : (
                 <>
-                  <div className={styles.headerCheckboxCol}>
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      style={{ cursor: 'pointer' }}
-                      title="Select all"
-                      aria-label="Select all entries"
-                    />
-                  </div>
+                  <SelectAllCheckboxHeaderCell
+                    checked={
+                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                    }
+                    onChange={handleSelectAll}
+                  />
                   <div className={`${styles.simpleSourceCol} ${styles.headerCell}`}>
                     Source Text
                   </div>

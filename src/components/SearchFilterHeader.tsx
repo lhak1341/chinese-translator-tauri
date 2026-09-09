@@ -109,3 +109,26 @@ export function FilterPanel({ open, children }: FilterPanelProps) {
     </div>
   );
 }
+
+interface FilterDimensionRowProps {
+  label: string;
+  children: ReactNode;
+}
+
+/** One labeled filter dimension inside a `FilterPanel` (e.g. "Pattern:", "Type:") — a label
+ * span plus its chips, grouped in their own flex row so `FilterPanel`'s own `flexWrap` never
+ * separates a dimension's label from its chips onto different lines. Was hand-copied 4 times
+ * in `EnhancedVirtualizedDictionaryTable.tsx` and once (label style only, no dimensions to
+ * wrap-group with a single filter) in `RulesManager.tsx` — the 6th confirmed instance of the
+ * table-toolbar duplication this file's own doc comment tracks (architecture review 2026-09-09,
+ * candidate #5 grilling). */
+export function FilterDimensionRow({ label, children }: FilterDimensionRowProps) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+      <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}

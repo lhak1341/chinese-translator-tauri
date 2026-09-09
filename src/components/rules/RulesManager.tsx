@@ -4,7 +4,7 @@ import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
-import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
+import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import RuleMatchesModal from './RuleMatchesModal';
 import NewRuleModal from './NewRuleModal';
 import RuleRow from './RuleRow';
@@ -138,13 +138,12 @@ const RulesManager = forwardRef<RulesManagerHandle>((_props, ref) => {
       />
 
       <FilterPanel open={showFilterPanel}>
-        <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 600 }}>
-          Type:
-        </span>
-        <SemanticTypeFilterChips
-          activeTypes={filterSemanticTypes}
-          onToggle={toggleSemanticTypeFilter}
-        />
+        <FilterDimensionRow label="Type:">
+          <SemanticTypeFilterChips
+            activeTypes={filterSemanticTypes}
+            onToggle={toggleSemanticTypeFilter}
+          />
+        </FilterDimensionRow>
       </FilterPanel>
 
       <div className={styles.tableArea}>

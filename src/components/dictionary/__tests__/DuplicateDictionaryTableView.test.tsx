@@ -26,6 +26,7 @@ function renderView(overrides: Record<string, any> = {}) {
   const onScroll = vi.fn();
   const scrollRefCallback = vi.fn();
   const onSelectEntry = vi.fn();
+  const onSelectAll = vi.fn();
   const props = {
     searchTerm: '',
     onSearchChange,
@@ -38,10 +39,12 @@ function renderView(overrides: Record<string, any> = {}) {
     duplicateGroupIndices: [] as number[],
     selectedEntries: new Set<string>(),
     onSelectEntry,
+    allSelected: false,
+    onSelectAll,
     ...overrides,
   };
   render(<DuplicateDictionaryTableView {...props} />);
-  return { onSearchChange, onScroll, scrollRefCallback, onSelectEntry };
+  return { onSearchChange, onScroll, scrollRefCallback, onSelectEntry, onSelectAll };
 }
 
 describe('DuplicateDictionaryTableView — header', () => {
@@ -50,6 +53,22 @@ describe('DuplicateDictionaryTableView — header', () => {
     expect(screen.getByText('Source Text')).toBeInTheDocument();
     expect(screen.getByText('Translation')).toBeInTheDocument();
     expect(screen.getByText('Dictionary')).toBeInTheDocument();
+  });
+
+  test('select-all checkbox reflects allSelected', () => {
+    renderView({ allSelected: true });
+    expect(screen.getByRole('checkbox', { name: 'Select all entries' })).toBeChecked();
+  });
+
+  test('select-all checkbox unchecked when allSelected is false', () => {
+    renderView({ allSelected: false });
+    expect(screen.getByRole('checkbox', { name: 'Select all entries' })).not.toBeChecked();
+  });
+
+  test('clicking the select-all checkbox calls onSelectAll', () => {
+    const { onSelectAll } = renderView({ allSelected: false });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all entries' }));
+    expect(onSelectAll).toHaveBeenCalledWith(true);
   });
 });
 

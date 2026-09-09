@@ -104,6 +104,32 @@ function requireValidDictionaryIds(
   return { success: false, error: 'Invalid dictionary ID format (no path traversal allowed)' };
 }
 
+// ── IPC seam ──────────────────────────────────────────────────────────────────
+
+/**
+ * Shared invoke/catch shell for the 17 command wrappers whose failure contract is exactly
+ * `{success: false, error: String(error)}` — no custom fallback shape, no success-path logic.
+ * Deliberately excludes: `readClipboard` (rethrows, doesn't return a result object),
+ * `saveDictionary`/`loadDictionary` (real success-path logic — failure logging, one with a
+ * special-cased suppressed error), `loadDictionariesParallel`/`buildLookupIndex` (custom,
+ * multi-field fallback shapes).
+ * ID validation stays at each of those call sites, not folded in here — it's an orthogonal
+ * pre-invoke guard, not part of the invoke/catch shell (architecture review 2026-09-09,
+ * candidate #2 grilling).
+ */
+async function callTauriCommand<T extends ElectronResult>(
+  cmd: string,
+  args: Record<string, unknown> | undefined,
+  context: string
+): Promise<T> {
+  try {
+    return await invoke<T>(cmd, args);
+  } catch (error) {
+    logger.error(`Error in ${context}:`, error);
+    return { success: false, error: String(error) } as T;
+  }
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const tauriAPI = {
@@ -182,68 +208,51 @@ const tauriAPI = {
     }
   },
 
-  openDictionaryFolder: async (): Promise<ElectronResult> => {
-    try {
-      return await invoke<ElectronResult>(CMD.OPEN_DICTIONARY_FOLDER);
-    } catch (error) {
-      logger.error('Error in openDictionaryFolder:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  openDictionaryFolder: async (): Promise<ElectronResult> =>
+    callTauriCommand<ElectronResult>(CMD.OPEN_DICTIONARY_FOLDER, undefined, 'openDictionaryFolder'),
 
-  listProperNounsDictionaries: async (): Promise<ProperNounsListResult> => {
-    try {
-      return await invoke<ProperNounsListResult>(CMD.LIST_PROPER_NOUNS_DICTIONARIES);
-    } catch (error) {
-      logger.error('Error in listProperNounsDictionaries:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  listProperNounsDictionaries: async (): Promise<ProperNounsListResult> =>
+    callTauriCommand<ProperNounsListResult>(
+      CMD.LIST_PROPER_NOUNS_DICTIONARIES,
+      undefined,
+      'listProperNounsDictionaries'
+    ),
 
-  listFictionPatternDictionaries: async (): Promise<ProperNounsListResult> => {
-    try {
-      return await invoke<ProperNounsListResult>(CMD.LIST_FICTION_PATTERN_DICTIONARIES);
-    } catch (error) {
-      logger.error('Error in listFictionPatternDictionaries:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  listFictionPatternDictionaries: async (): Promise<ProperNounsListResult> =>
+    callTauriCommand<ProperNounsListResult>(
+      CMD.LIST_FICTION_PATTERN_DICTIONARIES,
+      undefined,
+      'listFictionPatternDictionaries'
+    ),
 
   createProperNounsDictionary: async (dictionaryId: string): Promise<ProperNounsListResult> => {
     const invalid = requireValidDictionaryIds({ dictionaryId });
     if (invalid) return invalid;
-    try {
-      return await invoke<ProperNounsListResult>(CMD.CREATE_PROPER_NOUNS_DICTIONARY, {
-        dictionaryId,
-      });
-    } catch (error) {
-      logger.error('Error in createProperNounsDictionary:', error);
-      return { success: false, error: String(error) };
-    }
+    return callTauriCommand<ProperNounsListResult>(
+      CMD.CREATE_PROPER_NOUNS_DICTIONARY,
+      { dictionaryId },
+      'createProperNounsDictionary'
+    );
   },
 
   createStructuralPatternsDictionary: async (dictionaryId: string): Promise<SaveResult> => {
     const invalid = requireValidDictionaryIds({ dictionaryId });
     if (invalid) return invalid;
-    try {
-      return await invoke<SaveResult>(CMD.CREATE_STRUCTURAL_PATTERNS_DICTIONARY, { dictionaryId });
-    } catch (error) {
-      logger.error('Error in createStructuralPatternsDictionary:', error);
-      return { success: false, error: String(error) };
-    }
+    return callTauriCommand<SaveResult>(
+      CMD.CREATE_STRUCTURAL_PATTERNS_DICTIONARY,
+      { dictionaryId },
+      'createStructuralPatternsDictionary'
+    );
   },
 
   createFictionDictionaryPair: async (properNounId: string): Promise<ProperNounsListResult> => {
     const invalid = requireValidDictionaryIds({ properNounId });
     if (invalid) return invalid;
-    try {
-      return await invoke<ProperNounsListResult>(CMD.CREATE_FICTION_DICTIONARY_PAIR, {
-        properNounId,
-      });
-    } catch (error) {
-      logger.error('Error in createFictionDictionaryPair:', error);
-      return { success: false, error: String(error) };
-    }
+    return callTauriCommand<ProperNounsListResult>(
+      CMD.CREATE_FICTION_DICTIONARY_PAIR,
+      { properNounId },
+      'createFictionDictionaryPair'
+    );
   },
 
   renameProperNounsDictionary: async (
@@ -252,15 +261,11 @@ const tauriAPI = {
   ): Promise<DictionaryOperationResult> => {
     const invalid = requireValidDictionaryIds({ oldDictionaryId, newDictionaryId });
     if (invalid) return invalid;
-    try {
-      return await invoke<DictionaryOperationResult>(CMD.RENAME_PROPER_NOUNS_DICTIONARY, {
-        oldDictionaryId,
-        newDictionaryId,
-      });
-    } catch (error) {
-      logger.error('Error in renameProperNounsDictionary:', error);
-      return { success: false, error: String(error) };
-    }
+    return callTauriCommand<DictionaryOperationResult>(
+      CMD.RENAME_PROPER_NOUNS_DICTIONARY,
+      { oldDictionaryId, newDictionaryId },
+      'renameProperNounsDictionary'
+    );
   },
 
   renameStructuralPatternsDictionary: async (
@@ -269,106 +274,65 @@ const tauriAPI = {
   ): Promise<DictionaryOperationResult> => {
     const invalid = requireValidDictionaryIds({ oldDictionaryId, newDictionaryId });
     if (invalid) return invalid;
-    try {
-      return await invoke<DictionaryOperationResult>(CMD.RENAME_STRUCTURAL_PATTERNS_DICTIONARY, {
-        oldDictionaryId,
-        newDictionaryId,
-      });
-    } catch (error) {
-      logger.error('Error in renameStructuralPatternsDictionary:', error);
-      return { success: false, error: String(error) };
-    }
+    return callTauriCommand<DictionaryOperationResult>(
+      CMD.RENAME_STRUCTURAL_PATTERNS_DICTIONARY,
+      { oldDictionaryId, newDictionaryId },
+      'renameStructuralPatternsDictionary'
+    );
   },
 
-  loadConfiguration: async (): Promise<ConfigurationResult> => {
-    try {
-      return await invoke<ConfigurationResult>(CMD.LOAD_CONFIGURATION);
-    } catch (error) {
-      logger.error('Error in loadConfiguration:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  loadConfiguration: async (): Promise<ConfigurationResult> =>
+    callTauriCommand<ConfigurationResult>(CMD.LOAD_CONFIGURATION, undefined, 'loadConfiguration'),
 
-  saveConfiguration: async (config: AppConfiguration): Promise<SaveResult> => {
-    try {
-      return await invoke<SaveResult>(CMD.SAVE_CONFIGURATION, { config });
-    } catch (error) {
-      logger.error('Error in saveConfiguration:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  saveConfiguration: async (config: AppConfiguration): Promise<SaveResult> =>
+    callTauriCommand<SaveResult>(CMD.SAVE_CONFIGURATION, { config }, 'saveConfiguration'),
 
-  loadAppearanceSettings: async (): Promise<AppearanceResult> => {
-    try {
-      return await invoke<AppearanceResult>(CMD.LOAD_APPEARANCE_SETTINGS);
-    } catch (error) {
-      logger.error('Error in loadAppearanceSettings:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  loadAppearanceSettings: async (): Promise<AppearanceResult> =>
+    callTauriCommand<AppearanceResult>(
+      CMD.LOAD_APPEARANCE_SETTINGS,
+      undefined,
+      'loadAppearanceSettings'
+    ),
 
-  saveAppearanceSettings: async (settings: AppearanceSettings): Promise<SaveResult> => {
-    try {
-      return await invoke<SaveResult>(CMD.SAVE_APPEARANCE_SETTINGS, {
-        appearanceSettings: settings,
-      });
-    } catch (error) {
-      logger.error('Error in saveAppearanceSettings:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  saveAppearanceSettings: async (settings: AppearanceSettings): Promise<SaveResult> =>
+    callTauriCommand<SaveResult>(
+      CMD.SAVE_APPEARANCE_SETTINGS,
+      { appearanceSettings: settings },
+      'saveAppearanceSettings'
+    ),
 
-  loadTransformRules: async (): Promise<TransformRulesResult> => {
-    try {
-      return await invoke<TransformRulesResult>(CMD.LOAD_TRANSFORM_RULES);
-    } catch (error) {
-      logger.error('Error in loadTransformRules:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  loadTransformRules: async (): Promise<TransformRulesResult> =>
+    callTauriCommand<TransformRulesResult>(
+      CMD.LOAD_TRANSFORM_RULES,
+      undefined,
+      'loadTransformRules'
+    ),
 
-  saveTransformRules: async (rules: TransformRule[]): Promise<SaveResult> => {
-    try {
-      return await invoke<SaveResult>(CMD.SAVE_TRANSFORM_RULES, { rules });
-    } catch (error) {
-      logger.error('Error in saveTransformRules:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  saveTransformRules: async (rules: TransformRule[]): Promise<SaveResult> =>
+    callTauriCommand<SaveResult>(CMD.SAVE_TRANSFORM_RULES, { rules }, 'saveTransformRules'),
 
-  exportDictionaries: async (): Promise<DictionaryOperationResult> => {
-    try {
-      return await invoke<DictionaryOperationResult>(CMD.EXPORT_DICTIONARIES);
-    } catch (error) {
-      logger.error('Error in exportDictionaries:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  exportDictionaries: async (): Promise<DictionaryOperationResult> =>
+    callTauriCommand<DictionaryOperationResult>(
+      CMD.EXPORT_DICTIONARIES,
+      undefined,
+      'exportDictionaries'
+    ),
 
-  importDictionaries: async (): Promise<DictionaryOperationResult> => {
-    try {
-      return await invoke<DictionaryOperationResult>(CMD.IMPORT_DICTIONARIES);
-    } catch (error) {
-      logger.error('Error in importDictionaries:', error);
-      return { success: false, error: String(error) };
-    }
-  },
+  importDictionaries: async (): Promise<DictionaryOperationResult> =>
+    callTauriCommand<DictionaryOperationResult>(
+      CMD.IMPORT_DICTIONARIES,
+      undefined,
+      'importDictionaries'
+    ),
 
   resetDictionaries: async (
     options: ResetDictionariesOptions = {}
-  ): Promise<DictionaryOperationResult> => {
-    try {
-      return await invoke<DictionaryOperationResult>(CMD.RESET_DICTIONARIES, { options });
-    } catch (error) {
-      logger.error('Error in resetDictionaries:', error);
-      return { success: false, error: String(error) };
-    }
-  },
-
-  updateDefaultDictionaries: async (_dictionaries: unknown): Promise<SaveResult> => {
-    logger.warn('updateDefaultDictionaries: Not yet implemented in Tauri version');
-    return { success: false, error: 'Not yet implemented' };
-  },
+  ): Promise<DictionaryOperationResult> =>
+    callTauriCommand<DictionaryOperationResult>(
+      CMD.RESET_DICTIONARIES,
+      { options },
+      'resetDictionaries'
+    ),
 
   buildLookupIndex: async (
     text: string,

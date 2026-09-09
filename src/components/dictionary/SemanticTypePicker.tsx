@@ -27,6 +27,66 @@ const supportsSemanticTypes = (activeDictionary: string): boolean => {
 };
 
 /**
+ * The radio/checkbox badge recipe shared by all 4 selectable-badge groups in this file (the
+ * "None" option, canonical semantic types, `$X`/`$Y` variable refs, per-variable constraints)
+ * — was hand-copied 4 times with identical role/aria-checked/tabIndex/onKeyDown wiring
+ * (architecture review 2026-09-09, candidate #3 grilling). Local, not exported: zero callers
+ * outside this file today, so this stays a private dedup rather than a cross-file seam (one
+ * adapter is a hypothetical seam, two is real — `TableBuildingBlocks.tsx`'s `CheckboxCell`
+ * doc comment states the same policy).
+ *
+ * Deliberately NOT `TableBuildingBlocks.tsx`'s `BadgeChip`: that component's inactive state is
+ * fixed gray (`#9ca3af`/`#d1d5db`) regardless of `activeColor` — every real `BadgeChip` caller
+ * wants that. This component's 4 callers all want the opposite: a colored outline even when
+ * inactive (`activeColor` is the inactive text/border color too, filled only when `checked`).
+ * `disabled` (not on `BadgeChip` at all) drives the `isSaving`-gated opacity/cursor/tabIndex/
+ * click-swallow every caller here needs. `dashed` is the `$X`/`$Y` block's one further
+ * divergence — dashed border when unchecked, solid when checked; the other 3 callers leave it
+ * at its default (always solid).
+ */
+const AccessibleBadgeChip: React.FC<{
+  role: 'radio' | 'checkbox';
+  checked: boolean;
+  activeColor: string;
+  dashed?: boolean;
+  disabled: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}> = ({ role, checked, activeColor, dashed = false, disabled, onClick, title, children }) => (
+  <span
+    role={role}
+    aria-checked={checked}
+    tabIndex={disabled ? -1 : 0}
+    onClick={() => {
+      if (!disabled) onClick();
+    }}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (!disabled) onClick();
+      }
+    }}
+    style={{
+      display: 'inline-block',
+      padding: '2px 6px',
+      fontSize: '0.7rem',
+      fontWeight: 600,
+      borderRadius: '4px',
+      cursor: disabled ? 'default' : 'pointer',
+      userSelect: 'none',
+      opacity: disabled ? 0.5 : 1,
+      background: checked ? activeColor : 'transparent',
+      color: checked ? 'white' : activeColor,
+      border: `1px ${!checked && dashed ? 'dashed' : 'solid'} ${activeColor}`,
+    }}
+    title={title}
+  >
+    {children}
+  </span>
+);
+
+/**
  * Semantic type badge picker and per-variable type constraint toggles.
  * Renders null for dictionary types that don't support semantic metadata.
  */
@@ -43,17 +103,6 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
 
   const { isPatterns } = classifyDictionaryId(activeDictionary);
   const activeVars = (['X', 'Y'] as const).filter((v) => source.includes(v));
-
-  const badgeBase: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 6px',
-    fontSize: '0.7rem',
-    fontWeight: 600,
-    borderRadius: '4px',
-    cursor: isSaving ? 'default' : 'pointer',
-    userSelect: 'none',
-    opacity: isSaving ? 0.5 : 1,
-  };
 
   return (
     <>
@@ -80,59 +129,32 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
           style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'center' }}
         >
           {/* None option */}
-          <span
+          <AccessibleBadgeChip
             role="radio"
-            aria-checked={semanticType === ''}
-            tabIndex={isSaving ? -1 : 0}
-            onClick={() => {
-              if (!isSaving) onSemanticTypeChange('');
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (!isSaving) onSemanticTypeChange('');
-              }
-            }}
-            style={{
-              ...badgeBase,
-              background: semanticType === '' ? 'var(--text-muted, #6b7280)' : 'transparent',
-              color: semanticType === '' ? 'white' : 'var(--text-muted, #6b7280)',
-              border: '1px solid var(--text-muted, #6b7280)',
-            }}
+            checked={semanticType === ''}
+            activeColor="var(--text-muted, #6b7280)"
+            disabled={isSaving}
+            onClick={() => onSemanticTypeChange('')}
             title="No semantic type"
           >
             None
-          </span>
+          </AccessibleBadgeChip>
 
           {/* Canonical semantic type badges */}
           {SEMANTIC_TYPE_LIST.map((type) => {
             const isSelected = semanticType === type;
-            const select = () => {
-              if (!isSaving) onSemanticTypeChange(isSelected ? '' : type);
-            };
             return (
-              <span
+              <AccessibleBadgeChip
                 key={type}
                 role="radio"
-                aria-checked={isSelected}
-                tabIndex={isSaving ? -1 : 0}
-                onClick={select}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    select();
-                  }
-                }}
-                style={{
-                  ...badgeBase,
-                  background: isSelected ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
-                  color: isSelected ? 'white' : SEMANTIC_TYPE_COLORS[type],
-                  border: `1px solid ${SEMANTIC_TYPE_COLORS[type]}`,
-                }}
+                checked={isSelected}
+                activeColor={SEMANTIC_TYPE_COLORS[type]}
+                disabled={isSaving}
+                onClick={() => onSemanticTypeChange(isSelected ? '' : type)}
                 title={`${isSelected ? 'Clear' : 'Set'} semantic type: ${SEMANTIC_TYPE_LABELS[type]}`}
               >
                 {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-              </span>
+              </AccessibleBadgeChip>
             );
           })}
 
@@ -141,32 +163,19 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
             PATTERN_SEMANTIC_TYPE_REF_LIST.filter((r) => source.includes(r[1])).map((typeRef) => {
               const isSelected = semanticType === typeRef;
               const varName = typeRef[1];
-              const select = () => {
-                if (!isSaving) onSemanticTypeChange(isSelected ? '' : typeRef);
-              };
               return (
-                <span
+                <AccessibleBadgeChip
                   key={typeRef}
                   role="radio"
-                  aria-checked={isSelected}
-                  tabIndex={isSaving ? -1 : 0}
-                  onClick={select}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      select();
-                    }
-                  }}
-                  style={{
-                    ...badgeBase,
-                    background: isSelected ? '#8b5cf6' : 'transparent',
-                    color: isSelected ? 'white' : '#8b5cf6',
-                    border: `1px ${isSelected ? 'solid' : 'dashed'} #8b5cf6`,
-                  }}
+                  checked={isSelected}
+                  activeColor="#8b5cf6"
+                  dashed
+                  disabled={isSaving}
+                  onClick={() => onSemanticTypeChange(isSelected ? '' : typeRef)}
                   title={`${isSelected ? 'Clear' : 'Set'} semantic type: inherit from variable ${varName}`}
                 >
                   {typeRef}
-                </span>
+                </AccessibleBadgeChip>
               );
             })}
         </div>
@@ -193,7 +202,6 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
                 {SEMANTIC_TYPE_LIST.map((type) => {
                   const isActive = (allowedVariableTypes[varName] || []).includes(type);
                   const toggle = () => {
-                    if (isSaving) return;
                     const current = allowedVariableTypes[varName] || [];
                     const next = isActive ? current.filter((t) => t !== type) : [...current, type];
                     if (next.length === 0) {
@@ -204,28 +212,17 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
                     }
                   };
                   return (
-                    <span
+                    <AccessibleBadgeChip
                       key={type}
                       role="checkbox"
-                      aria-checked={isActive}
-                      tabIndex={isSaving ? -1 : 0}
+                      checked={isActive}
+                      activeColor={SEMANTIC_TYPE_COLORS[type]}
+                      disabled={isSaving}
                       onClick={toggle}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          toggle();
-                        }
-                      }}
-                      style={{
-                        ...badgeBase,
-                        background: isActive ? SEMANTIC_TYPE_COLORS[type] : 'transparent',
-                        color: isActive ? 'white' : SEMANTIC_TYPE_COLORS[type],
-                        border: `1px solid ${SEMANTIC_TYPE_COLORS[type]}`,
-                      }}
                       title={`${isActive ? 'Remove' : 'Add'} ${SEMANTIC_TYPE_LABELS[type]} constraint for ${varName}`}
                     >
                       {SEMANTIC_TYPE_ABBREVIATIONS[type]}
-                    </span>
+                    </AccessibleBadgeChip>
                   );
                 })}
               </div>

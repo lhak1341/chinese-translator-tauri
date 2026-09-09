@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
-import { parseDuplicateKey } from '../utils/dictionary';
+import { parseDuplicateKey, createDuplicateKey } from '../utils/dictionary';
+import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
 import { toast } from '../components/ToastContext';
 import { logger } from '../utils/logger';
 
@@ -20,6 +21,7 @@ type BulkDeleteResult = { successCount: number; errors: string[] };
 interface UseEntrySelectionDeps {
   selectedDictionary: string;
   filteredEntries: [string, DictionaryEntryValue][];
+  filteredDuplicateRows: DuplicateRow[];
   dictionaries: Record<string, DictionaryData>;
   showDuplicatesMode: boolean;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
@@ -32,6 +34,7 @@ interface UseEntrySelectionDeps {
 export function useEntrySelection({
   selectedDictionary,
   filteredEntries,
+  filteredDuplicateRows,
   dictionaries,
   showDuplicatesMode,
   withScrollPreservation,
@@ -75,14 +78,16 @@ export function useEntrySelection({
     (isSelected: boolean): void => {
       void withScrollPreservation(async () => {
         if (isSelected) {
-          const allSources = filteredEntries.map(([source]) => source);
-          setSelectedEntries(new Set(allSources));
+          const allKeys = showDuplicatesMode
+            ? filteredDuplicateRows.map((row) => createDuplicateKey(row.source, row.dictionaryId))
+            : filteredEntries.map(([source]) => source);
+          setSelectedEntries(new Set(allKeys));
         } else {
           setSelectedEntries(new Set());
         }
       });
     },
-    [filteredEntries, withScrollPreservation]
+    [filteredEntries, filteredDuplicateRows, showDuplicatesMode, withScrollPreservation]
   );
 
   const handleBulkDelete = useCallback(async (): Promise<void> => {

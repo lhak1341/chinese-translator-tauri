@@ -80,6 +80,29 @@ function prepareMutationEntry(
   return { cleanSource, cleanTranslation, targetValue };
 }
 
+// Byte-identical guard hand-copied at the top of addEntry/updateEntry/deleteEntry/
+// bulkDeleteEntries (architecture review 2026-09-09, candidate #4 grilling). Deliberately NOT
+// used by moveEntry/bulkMoveEntries — their own not-found checks throw ValidationError with no
+// toast at all (MoveDialog.tsx owns error display via its own inline banner), a different,
+// deliberate contract this helper doesn't fit.
+function requireDictionaryExists(
+  dictionariesRef: RefObject<Record<string, DictionaryData>>,
+  dictionaryId: string
+): void {
+  if (!dictionariesRef.current[dictionaryId]) {
+    const msg = `Dictionary '${dictionaryId}' does not exist`;
+    toast.error(msg);
+    throw new ValidationError(msg);
+  }
+}
+
+// Byte-identical shape (message text only differs) hand-copied in the same 4 methods' `else`
+// branch after a failed persistDictionaryMutation call.
+function failSave(msg: string): never {
+  toast.error(msg);
+  throw new SaveError(msg);
+}
+
 /**
  * Owns all dictionary CRUD operations: add, update, delete, bulk-delete, move, bulk-move.
  *
@@ -106,11 +129,7 @@ export function useDictionaryCRUD(
       translation: string,
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
-      if (!dictionariesRef.current[dictionaryId]) {
-        const msg = `Dictionary '${dictionaryId}' does not exist`;
-        toast.error(msg);
-        throw new ValidationError(msg);
-      }
+      requireDictionaryExists(dictionariesRef, dictionaryId);
 
       try {
         const { cleanSource, targetValue } = prepareMutationEntry(
@@ -144,8 +163,7 @@ export function useDictionaryCRUD(
           }
           await invalidateEngine(dictionaryId);
         } else {
-          toast.error('Failed to save dictionary changes');
-          throw new SaveError('Failed to save dictionary changes');
+          failSave('Failed to save dictionary changes');
         }
       } catch (error) {
         logger.error('Error adding dictionary entry:', error);
@@ -168,11 +186,7 @@ export function useDictionaryCRUD(
       translation: string,
       metadata: DictionaryEntryMetadata = {}
     ): Promise<void> => {
-      if (!dictionariesRef.current[dictionaryId]) {
-        const msg = `Dictionary '${dictionaryId}' does not exist`;
-        toast.error(msg);
-        throw new ValidationError(msg);
-      }
+      requireDictionaryExists(dictionariesRef, dictionaryId);
 
       try {
         const { cleanSource: cleanNewSource, targetValue } = prepareMutationEntry(
@@ -212,8 +226,7 @@ export function useDictionaryCRUD(
           toast.success('Entry updated successfully');
           await invalidateEngine(dictionaryId);
         } else {
-          toast.error('Failed to save dictionary changes');
-          throw new SaveError('Failed to save dictionary changes');
+          failSave('Failed to save dictionary changes');
         }
       } catch (error) {
         logger.error('Error updating dictionary entry:', error);
@@ -230,11 +243,7 @@ export function useDictionaryCRUD(
 
   const deleteEntry = useCallback(
     async (dictionaryId: string, source: string): Promise<void> => {
-      if (!dictionariesRef.current[dictionaryId]) {
-        const msg = `Dictionary '${dictionaryId}' does not exist`;
-        toast.error(msg);
-        throw new ValidationError(msg);
-      }
+      requireDictionaryExists(dictionariesRef, dictionaryId);
 
       try {
         // Compute from closed-over snapshot before setDictionaries (React Concurrent Mode safe)
@@ -259,8 +268,7 @@ export function useDictionaryCRUD(
           toast.success('Entry deleted successfully');
           await invalidateEngine(dictionaryId);
         } else {
-          toast.error('Failed to delete dictionary entry');
-          throw new SaveError('Failed to delete dictionary entry');
+          failSave('Failed to delete dictionary entry');
         }
       } catch (error) {
         logger.error('Error deleting dictionary entry:', error);
@@ -286,11 +294,7 @@ export function useDictionaryCRUD(
       // React 18 Concurrent Mode calls updaters multiple times; `let` variables assigned
       // inside the updater and read outside reflect whichever invocation ran last —
       // breaking the rollback oldData and the save payload.
-      if (!dictionariesRef.current[dictionaryId]) {
-        const msg = `Dictionary '${dictionaryId}' does not exist`;
-        toast.error(msg);
-        throw new ValidationError(msg);
-      }
+      requireDictionaryExists(dictionariesRef, dictionaryId);
 
       try {
         const oldData = { ...dictionariesRef.current[dictionaryId] };
@@ -324,8 +328,7 @@ export function useDictionaryCRUD(
           }
           await invalidateEngine(dictionaryId);
         } else {
-          toast.error('Failed to save dictionary after bulk delete');
-          throw new SaveError('Failed to save dictionary after bulk delete');
+          failSave('Failed to save dictionary after bulk delete');
         }
 
         return { successCount: deletedEntries.length, errors };

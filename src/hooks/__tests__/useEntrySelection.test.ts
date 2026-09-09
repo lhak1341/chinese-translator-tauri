@@ -15,6 +15,7 @@ vi.mock('../../utils/dictionary', () => ({
     if (!source || !dictionaryId) throw new Error('Invalid key');
     return { source, dictionaryId };
   }),
+  createDuplicateKey: vi.fn((source: string, dictionaryId: string) => `${source}::${dictionaryId}`),
 }));
 
 const phrases: DictionaryData = {
@@ -23,10 +24,21 @@ const phrases: DictionaryData = {
 };
 const dicts: Record<string, DictionaryData> = { phrases };
 
+const duplicateRows = [
+  { source: '龙', translation: 'rồng', dictionaryId: 'phrases', dictionaryLabel: 'Phrases' },
+  {
+    source: '龙',
+    translation: 'con rồng',
+    dictionaryId: 'properNouns',
+    dictionaryLabel: 'Proper Nouns',
+  },
+];
+
 function makeProps(overrides = {}) {
   return {
     selectedDictionary: 'phrases',
     filteredEntries: Object.entries(phrases) as [string, DictionaryEntryValue][],
+    filteredDuplicateRows: duplicateRows,
     dictionaries: dicts,
     showDuplicatesMode: false,
     withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
@@ -85,6 +97,20 @@ describe('useEntrySelection — handleSelectAll', () => {
     act(() => result.current.handleSelectAll(true));
     act(() => result.current.handleSelectAll(false));
     expect(result.current.selectedEntries.size).toBe(0);
+  });
+
+  it('selects filteredDuplicateRows as composite keys when in duplicate mode', () => {
+    const { result } = renderHook(() => useEntrySelection(makeProps({ showDuplicatesMode: true })));
+    act(() => result.current.handleSelectAll(true));
+    expect(result.current.selectedEntries.size).toBe(2);
+    expect(result.current.selectedEntries.has('龙::phrases')).toBe(true);
+    expect(result.current.selectedEntries.has('龙::properNouns')).toBe(true);
+  });
+
+  it('does not select plain source strings when in duplicate mode', () => {
+    const { result } = renderHook(() => useEntrySelection(makeProps({ showDuplicatesMode: true })));
+    act(() => result.current.handleSelectAll(true));
+    expect(result.current.selectedEntries.has('龙')).toBe(false);
   });
 });
 

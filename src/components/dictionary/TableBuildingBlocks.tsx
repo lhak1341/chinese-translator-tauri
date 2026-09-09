@@ -387,3 +387,26 @@ export const CheckboxCell: React.FC<{
     />
   </div>
 );
+
+/** Header select-all checkbox — was byte-identical hand-copied JSX in 4 of
+ * EnhancedVirtualizedDictionaryTable's header branches, plus a 5th, separately hand-rolled
+ * static `☐` glyph in DuplicateDictionaryTableView that had no `onChange` at all (architecture
+ * review 2026-09-09, candidate #1 grilling — closes the 10th recurrence of the badge/cell drift
+ * this file's `CheckboxCell` doc comment tracks). Deliberately not `CheckboxCell`: that
+ * component's title ("Select for deletion") and CSS classes are row-checkbox-specific, wrong
+ * for a header control. */
+export const SelectAllCheckboxHeaderCell: React.FC<{
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}> = ({ checked, onChange }) => (
+  <div className={styles.headerCheckboxCol}>
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      style={{ cursor: 'pointer' }}
+      title="Select all"
+      aria-label="Select all entries"
+    />
+  </div>
+);

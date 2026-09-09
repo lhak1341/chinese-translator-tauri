@@ -1,6 +1,6 @@
 import React from 'react';
 import type { RefCallback } from 'react';
-import { RowShell, CheckboxCell } from './TableBuildingBlocks';
+import { RowShell, CheckboxCell, SelectAllCheckboxHeaderCell } from './TableBuildingBlocks';
 import { createDuplicateKey } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
@@ -18,6 +18,8 @@ interface DuplicateDictionaryTableViewProps {
   duplicateGroupIndices: number[];
   selectedEntries: Set<string>;
   onSelectEntry: (key: string, selected: boolean) => void;
+  allSelected: boolean;
+  onSelectAll: (selected: boolean) => void;
 }
 
 const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> = ({
@@ -33,6 +35,8 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
   duplicateGroupIndices,
   selectedEntries,
   onSelectEntry,
+  allSelected,
+  onSelectAll,
 }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -68,7 +72,7 @@ const DuplicateDictionaryTableView: React.FC<DuplicateDictionaryTableViewProps> 
             fontSize: '0.875rem',
           }}
         >
-          <div className={styles.headerCheckboxCol}>☐</div>
+          <SelectAllCheckboxHeaderCell checked={allSelected} onChange={onSelectAll} />
           <div className={`${styles.duplicateSourceCol} ${styles.headerCell}`}>Source Text</div>
           <div className={`${styles.duplicateTranslationCol} ${styles.headerCell}`}>
             Translation

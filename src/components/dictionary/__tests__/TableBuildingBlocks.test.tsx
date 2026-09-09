@@ -1,6 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SemanticTypeToggleCell, BadgeChip, BinaryToggleChips } from '../TableBuildingBlocks';
+import {
+  SemanticTypeToggleCell,
+  BadgeChip,
+  BinaryToggleChips,
+  SelectAllCheckboxHeaderCell,
+} from '../TableBuildingBlocks';
+
+describe('SelectAllCheckboxHeaderCell', () => {
+  it('reflects the checked prop', () => {
+    const { rerender } = render(<SelectAllCheckboxHeaderCell checked={false} onChange={vi.fn()} />);
+    expect(screen.getByRole('checkbox', { name: 'Select all entries' })).not.toBeChecked();
+
+    rerender(<SelectAllCheckboxHeaderCell checked={true} onChange={vi.fn()} />);
+    expect(screen.getByRole('checkbox', { name: 'Select all entries' })).toBeChecked();
+  });
+
+  it('calls onChange with the new checked value on click', () => {
+    const onChange = vi.fn();
+    render(<SelectAllCheckboxHeaderCell checked={false} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all entries' }));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
 
 describe('SemanticTypeToggleCell', () => {
   it('defaults to clearable: clicking the active chip fires onSelect("")', () => {
