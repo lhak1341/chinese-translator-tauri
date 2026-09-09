@@ -6,13 +6,8 @@ import MoveDialog from './MoveDialog';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import { classifyDictionaryId } from '../../utils/dictionary';
-import {
-  VirtualRowComponent,
-  ITEM_HEIGHT,
-  DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-  SemanticTypeFilterChips,
-  FilterChipButton,
-} from './VirtualRowComponent';
+import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
+import { ITEM_HEIGHT, SemanticTypeFilterChips, FilterChipButton } from './TableBuildingBlocks';
 import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';

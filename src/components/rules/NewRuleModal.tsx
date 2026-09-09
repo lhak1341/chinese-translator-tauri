@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import styles from '../../styles/RulesManager.module.css';
-import { SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
+import { SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import {
   parseValidatedNumber,
   parseValidatedKey,

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { RefCallback } from 'react';
-import { RowShell, CheckboxCell } from './VirtualRowComponent';
+import { RowShell, CheckboxCell } from './TableBuildingBlocks';
 import { createDuplicateKey } from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';

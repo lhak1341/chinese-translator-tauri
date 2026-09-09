@@ -355,8 +355,8 @@
     "semantic_hash": "177901b733ab7f53e9efde5cf556ce65"
   },
   "src/utils/NumberProcessor.js": {
-    "mtime": 1788880410.1347659,
-    "ast_hash": "b59cbe5ebebdd1a0e2a487fa310213b6",
+    "mtime": 1788914983.814625,
+    "ast_hash": "3776a5e56032dcbd547ab97003cb13ce",
     "semantic_hash": ""
   },
   "src/utils/GraphemeHelper.ts": {
@@ -900,13 +900,13 @@
     "semantic_hash": "2e06b5326129e54f0c4004bfc1b5b61d"
   },
   "src/components/dictionary/VirtualRowComponent.tsx": {
-    "mtime": 1787933608.3359504,
-    "ast_hash": "fe0358febd5281dbd99830722e872026",
+    "mtime": 1788914728.943731,
+    "ast_hash": "e4cf0f4b132ce77d36c76bff6be4a09e",
     "semantic_hash": ""
   },
   "src/components/dictionary/EnhancedVirtualizedDictionaryTable.tsx": {
-    "mtime": 1787973109.2853174,
-    "ast_hash": "929556a5d5b5d62d924acaba2aa55819",
+    "mtime": 1788914735.241255,
+    "ast_hash": "ca21c869067847a219a92c7522aa5ac4",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryManager.tsx": {
@@ -945,8 +945,8 @@
     "semantic_hash": "1586dd244011a53dcd14dee74caa2395"
   },
   "src/components/dictionary/DuplicateDictionaryTableView.tsx": {
-    "mtime": 1787930012.6519892,
-    "ast_hash": "476ed4c51f538547d4c008dc332e9a30",
+    "mtime": 1788914743.8230338,
+    "ast_hash": "5f288c51caf0c8ccfb6d143ab70f209b",
     "semantic_hash": ""
   },
   "src/components/dictionary/DictionaryTypes.ts": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1788880415.740033,
-    "ast_hash": "e5ed15c630884db10515217dbc7596e0",
+    "mtime": 1788915280.616143,
+    "ast_hash": "a7f19a5cc56114ea723143cef89d439a",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1405,8 +1405,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1788838836.4213314,
-    "ast_hash": "ba396b9df6c7636e89fed67c7894fdad",
+    "mtime": 1788914789.571797,
+    "ast_hash": "5cfc13f687c1fdc0fe91fca5dc3055bc",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1545,8 +1545,8 @@
     "semantic_hash": "a6ff6be876d58ca61afccf81f9be5df5"
   },
   "src/components/rules/NewRuleModal.tsx": {
-    "mtime": 1788878643.089868,
-    "ast_hash": "e192b86f6754b26c3f70e15ab9f5fdd2",
+    "mtime": 1788914748.8515518,
+    "ast_hash": "0961594a192dc8190714a631a2257a49",
     "semantic_hash": ""
   },
   "src/components/rules/RuleFieldValidation.ts": {
@@ -1555,18 +1555,18 @@
     "semantic_hash": ""
   },
   "src/components/rules/RuleMatchesModal.tsx": {
-    "mtime": 1786718384.3180578,
-    "ast_hash": "fd43c671da67f767d7d7d399ec4d3c96",
-    "semantic_hash": "fd43c671da67f767d7d7d399ec4d3c96"
+    "mtime": 1788914745.2089427,
+    "ast_hash": "9f8bdfc54421e3fbc86c47f131b227a3",
+    "semantic_hash": ""
   },
   "src/components/rules/RuleRow.tsx": {
-    "mtime": 1788878643.1777556,
-    "ast_hash": "d28fd69e231d91088a43aba23473e4d5",
+    "mtime": 1788914747.6771982,
+    "ast_hash": "1f80984fea5a6df1419760a03dd41edb",
     "semantic_hash": ""
   },
   "src/components/rules/RulesManager.tsx": {
-    "mtime": 1787584448.0803022,
-    "ast_hash": "a5d5575c6a3c965d614d8cfdda5da494",
+    "mtime": 1788914746.4609635,
+    "ast_hash": "3d3aa28a9ecf628d72fd72e32d8cb8b7",
     "semantic_hash": ""
   },
   "src/dictionaries/characters.json": {
@@ -1870,8 +1870,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1788879963.632284,
-    "ast_hash": "37751d599b971114b189eb3cd6e4cc0d",
+    "mtime": 1788914809.1523716,
+    "ast_hash": "b8d40df0fdd24be4deba3d2c91b84e26",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1882,6 +1882,11 @@
   "src/utils/dictionary/TransformRuleValidation.ts": {
     "mtime": 1788877315.380411,
     "ast_hash": "83a655c9122fbd3d3461d93919d3409b",
+    "semantic_hash": ""
+  },
+  "src/components/dictionary/TableBuildingBlocks.tsx": {
+    "mtime": 1788914683.9668784,
+    "ast_hash": "0dd7b12e22c1dd932cdbec86d46df25f",
     "semantic_hash": ""
   }
 }

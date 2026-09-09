@@ -1,7 +1,7 @@
 import { Trash2, Search } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { RowShell, SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
+import { RowShell, SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import MatchKindToggle from './MatchKindToggle';
 import MoveModeToggle from './MoveModeToggle';
 import EditableCell from './EditableCell';

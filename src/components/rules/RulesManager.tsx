@@ -3,7 +3,7 @@ import { PlusCircle } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
 import { useDictionary } from '../dictionary/DictionaryContext';
-import { SemanticTypeFilterChips } from '../dictionary/VirtualRowComponent';
+import { SemanticTypeFilterChips } from '../dictionary/TableBuildingBlocks';
 import { SearchFilterHeader, FilterPanel } from '../SearchFilterHeader';
 import RuleMatchesModal from './RuleMatchesModal';
 import NewRuleModal from './NewRuleModal';

@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import styles from '../../styles/RuleMatchesModal.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
 import dmStyles from '../../styles/DictionaryManager.module.css';
-import { RowShell, MetadataBadge, SemanticTypeToggleCell } from '../dictionary/VirtualRowComponent';
+import { RowShell, MetadataBadge, SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { ControlledEditableCell } from './EditableCell';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';

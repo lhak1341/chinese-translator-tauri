@@ -201,7 +201,7 @@ export class NumberProcessor {
    * @returns {Object|null} Match result or null
    */
   findLongestNumberMatch(tokens, startIndex, options = {}) {
-    const { log = () => {}, _debugLevel = 0 } = options;
+    const { log = () => {} } = options;
 
     let longestMatch = null;
     let longestMatchLength = 0;
