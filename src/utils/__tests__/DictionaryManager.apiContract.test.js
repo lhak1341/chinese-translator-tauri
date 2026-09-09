@@ -297,6 +297,42 @@ describe('DictionaryManager eager vs lazy priority parity (ADR-010)', () => {
     expect(manager.metadata.get('properNouns-f_test').priority).toBe(1);
     expect(manager.metadata.get('properNouns-_generic').priority).toBe(2);
   });
+
+  test('lazyLoadDictionary skips a malformed null-value entry instead of throwing', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries(
+      {
+        properNouns: { 王: 'Vương' },
+        'properNouns-f_test': { 李: 'Lý', 坏: null },
+      },
+      { activeProperNouns: ['properNouns'] }
+    );
+
+    await expect(manager.lazyLoadDictionary('properNouns-f_test')).resolves.toBe(true);
+    expect(manager.metadata.get('properNouns-f_test').entryCount).toBe(1);
+    expect(manager.dictionaries.get('properNouns-f_test').get('李')).toBe('Lý');
+    expect(manager.dictionaries.get('properNouns-f_test').get('坏')).toBeNull();
+  });
+
+  test('lazyLoadDictionary trie metadata matches the eager path for entries with pattern-variable fields', async () => {
+    const manager = new DictionaryManager({ enableVerboseLogging: false });
+    await manager.loadDictionaries(
+      {
+        properNouns: { 王: 'Vương' },
+        'properNouns-f_test': {
+          李: { translation: 'Lý', allowAsPatternVariable: true, semanticType: 'name' },
+        },
+      },
+      { activeProperNouns: ['properNouns'] }
+    );
+
+    await manager.lazyLoadDictionary('properNouns-f_test');
+
+    const { metadata } = manager.dictionaries.get('properNouns-f_test').getWithMetadata('李');
+    expect(metadata.priority).toBe(1);
+    expect(metadata.allowAsPatternVariable).toBe(true);
+    expect(metadata.semanticType).toBe('name');
+  });
 });
 
 describe('DictionaryManager translate()/_findInDictionaries cache split (candidate #5 refactor)', () => {

@@ -183,36 +183,4 @@ class Logger {
  */
 export const logger = new Logger();
 
-/**
- * Create a scoped logger with a prefix
- * Useful for component-specific logging
- *
- * @example
- * ```ts
- * const log = createScopedLogger('TranslationEngine');
- * log.info('Initializing...'); // → [timestamp] ℹ️ [TranslationEngine] Initializing...
- * ```
- */
-export function createScopedLogger(scope: string): Logger {
-  return {
-    log: (...args: unknown[]) => logger.log(`[${scope}]`, ...args),
-    info: (...args: unknown[]) => logger.info(`[${scope}]`, ...args),
-    debug: (...args: unknown[]) => logger.debug(`[${scope}]`, ...args),
-    warn: (...args: unknown[]) => logger.warn(`[${scope}]`, ...args),
-    error: (...args: unknown[]) => logger.error(`[${scope}]`, ...args),
-    group: (label: string) => logger.group(`[${scope}] ${label}`),
-    groupCollapsed: (label: string) => logger.groupCollapsed(`[${scope}] ${label}`),
-    groupEnd: () => logger.groupEnd(),
-    table: (data: unknown) => logger.table(data),
-    time: (label: string) => logger.time(`[${scope}] ${label}`),
-    timeEnd: (label: string) => logger.timeEnd(`[${scope}] ${label}`),
-    warnIfSlow: (
-      operation: string,
-      startTime: number,
-      context?: Record<string, unknown>,
-      thresholdMs?: number
-    ) => logger.warnIfSlow(`[${scope}] ${operation}`, startTime, context, thresholdMs),
-  };
-}
-
 export default logger;

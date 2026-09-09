@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SemanticTypeToggleCell } from '../TableBuildingBlocks';
+import { SemanticTypeToggleCell, BadgeChip, BinaryToggleChips } from '../TableBuildingBlocks';
 
 describe('SemanticTypeToggleCell', () => {
   it('defaults to clearable: clicking the active chip fires onSelect("")', () => {
@@ -39,5 +39,86 @@ describe('SemanticTypeToggleCell', () => {
     render(<SemanticTypeToggleCell activeType="location" onSelect={vi.fn()} size="form" />);
 
     expect(screen.getByTitle('Set as object')).toHaveStyle({ fontSize: '0.7rem' });
+  });
+});
+
+describe('BadgeChip', () => {
+  it('active: fills with activeColor, no border', () => {
+    render(<BadgeChip label="X" active activeColor="#059669" onClick={vi.fn()} title="X" />);
+
+    expect(screen.getByTitle('X')).toHaveStyle({ background: '#059669', borderStyle: 'none' });
+  });
+
+  it('inactive: transparent background, fixed inactive text/border colors', () => {
+    render(
+      <BadgeChip label="X" active={false} activeColor="#059669" onClick={vi.fn()} title="X" />
+    );
+
+    expect(screen.getByTitle('X')).toHaveStyle({
+      background: 'transparent',
+      color: '#9ca3af',
+      border: '1px solid #d1d5db',
+    });
+  });
+
+  it('click fires onClick and stops propagation', () => {
+    const onClick = vi.fn();
+    const onParentClick = vi.fn();
+    render(
+      <div onClick={onParentClick}>
+        <BadgeChip label="X" active={false} activeColor="#059669" onClick={onClick} title="X" />
+      </div>
+    );
+
+    fireEvent.click(screen.getByTitle('X'));
+    expect(onClick).toHaveBeenCalled();
+    expect(onParentClick).not.toHaveBeenCalled();
+  });
+
+  it('defaults fontSize/padding to the table scale; a caller can override both', () => {
+    const { rerender } = render(
+      <BadgeChip label="X" active={false} activeColor="#059669" onClick={vi.fn()} title="X" />
+    );
+    expect(screen.getByTitle('X')).toHaveStyle({ fontSize: '0.6rem', padding: '1px 3px' });
+
+    rerender(
+      <BadgeChip
+        label="X"
+        active={false}
+        activeColor="#059669"
+        onClick={vi.fn()}
+        title="X"
+        fontSize="0.7rem"
+        padding="2px 6px"
+      />
+    );
+    expect(screen.getByTitle('X')).toHaveStyle({ fontSize: '0.7rem', padding: '2px 6px' });
+  });
+});
+
+describe('BinaryToggleChips', () => {
+  const options = [
+    { value: 'prefix' as const, abbrev: 'PRE', title: 'prefix' },
+    { value: 'suffix' as const, abbrev: 'SUF', title: 'suffix' },
+  ];
+
+  it('clicking the inactive option fires onSelect with its value', () => {
+    const onSelect = vi.fn();
+    render(
+      <BinaryToggleChips value="suffix" options={options} onSelect={onSelect} label="City suffix" />
+    );
+
+    fireEvent.click(screen.getByLabelText('Set prefix for City suffix'));
+    expect(onSelect).toHaveBeenCalledWith('prefix');
+  });
+
+  it('clicking the already-active option no-ops', () => {
+    const onSelect = vi.fn();
+    render(
+      <BinaryToggleChips value="suffix" options={options} onSelect={onSelect} label="City suffix" />
+    );
+
+    fireEvent.click(screen.getByLabelText('Set suffix for City suffix'));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

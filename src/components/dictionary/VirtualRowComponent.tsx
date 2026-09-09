@@ -17,6 +17,7 @@ import {
   CheckboxCell,
   MetadataBadge,
   SemanticTypeToggleCell,
+  BadgeChip,
 } from './TableBuildingBlocks';
 
 /** Width of the per-row Semantic-type column (patterns/phrases/properNouns). Shared constant
@@ -61,28 +62,15 @@ const TypeToggleCell: React.FC<{
     >
       {SEMANTIC_TYPE_LIST.map((type) => {
         const isActive = activeTypes.includes(type);
-        const label = SEMANTIC_TYPE_ABBREVIATIONS[type];
-        const color = SEMANTIC_TYPE_COLORS[type as SemanticType];
         return (
-          <span
+          <BadgeChip
             key={type}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle(varName, type);
-            }}
-            className={styles.metadataBadge}
+            label={SEMANTIC_TYPE_ABBREVIATIONS[type]}
+            active={isActive}
+            activeColor={SEMANTIC_TYPE_COLORS[type as SemanticType]}
+            onClick={() => onToggle(varName, type)}
             title={`${isActive ? 'Remove' : 'Add'} ${type} for ${varName}`}
-            style={{
-              background: isActive ? color : 'transparent',
-              color: isActive ? 'white' : '#9ca3af',
-              border: isActive ? 'none' : '1px solid #d1d5db',
-              fontSize: '0.6rem',
-              cursor: 'pointer',
-              padding: '1px 3px',
-            }}
-          >
-            {label}
-          </span>
+          />
         );
       })}
     </div>

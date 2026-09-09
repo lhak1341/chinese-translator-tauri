@@ -29,7 +29,6 @@ import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
 import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
-import { DictionaryTrie } from './DictionaryTrie.js';
 import { isDictionaryCategory } from './LookupIndexUtils.js';
 import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
@@ -720,28 +719,25 @@ export class DictionaryManager {
     this.log(DEBUG_LEVELS.DEBUG, `🔄 Lazy loading dictionary: ${dictionaryName}`);
 
     const dictionary = this.pendingDictionaries[dictionaryName];
-    const trie = new DictionaryTrie();
-    let entryCount = 0;
+    const priority = resolveDictionaryPriority(dictionaryName, this.priorities);
+    const built = buildTrieFromDictionary(dictionary, priority);
+    const entryCount = built.entryCount;
 
-    // Insert all entries into the trie
-    for (const [key, value] of Object.entries(dictionary)) {
-      if (typeof value === 'string') {
-        trie.insert(key, value);
-        entryCount++;
-      } else if (typeof value === 'object' && value.translation) {
-        trie.insert(key, value.translation);
-        entryCount++;
-      }
+    for (const invalidSource of built.invalidSources) {
+      this.log(
+        DEBUG_LEVELS.ERROR,
+        `Invalid entry format for "${invalidSource}" in dictionary "${dictionaryName}"`
+      );
     }
 
     // Store dictionary and metadata
-    this.dictionaries.set(dictionaryName, trie);
+    this.dictionaries.set(dictionaryName, built.trie);
     this.flatEntries.set(dictionaryName, flattenDictionaryEntries(dictionary));
     this.metadata.set(dictionaryName, {
       name: dictionaryName,
       entryCount,
-      priority: resolveDictionaryPriority(dictionaryName, this.priorities),
-      stats: trie.getStats(),
+      priority,
+      stats: built.trie.getStats(),
     });
 
     // Remove from pending

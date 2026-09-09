@@ -13,6 +13,8 @@ ADRs prevent repeated investigations of solved problems by documenting:
 
 ## Active ADRs
 
+**This index has not been kept in sync with new ADRs — always run `ls docs/adr/` for the complete, current list before treating this section as exhaustive.**
+
 ### [ADR-001: WASM Batch Loading — Remove Batch Wrapper](./ADR-001-wasm-batch-loading-failure.md)
 
 **Status**: Revised (2026-05-16) — Remove batch attempt, use sequential as primary path

@@ -54,6 +54,8 @@ Do not redeclare these locally:
 
 TypeScript does not narrow optional property accesses through `&&` spreads — `SemanticType` widens to `string`. Extract to a local variable or use imperative assignment (`if (metadata.semanticType) entry.semanticType = metadata.semanticType`).
 
+An inline array literal passed to a generic component's prop (`<Foo<T> options={[{value:'x',...}]} />`) widens narrow-union `value` fields to their base type (e.g. `string`) unless the array carries `as const` — compiles fine standalone, fails only at the generic call site.
+
 ## Renamed Exports — Grep `Translator.jsx` After Any Rename
 
 `Translator.jsx` is JavaScript — `type-check` will not catch stale imports there. Always grep it after renaming exported functions from utilities. Known renames:

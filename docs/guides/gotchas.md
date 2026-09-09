@@ -261,7 +261,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 **Read-only DOM properties (`scrollHeight`, `clientHeight`, `scrollWidth`) cannot be set** via `Object.assign` or direct assignment — use `Object.defineProperty(node, 'scrollHeight', { get: () => 8000 })`.
 
-**jsdom normalizes inline style values on readback**, not just missing ones: hex colors read back as `rgb(r, g, b)` and `marginBottom: '0'` reads back as `'0px'`. Assert the normalized form.
+**jsdom normalizes inline style values on readback**, not just missing ones: hex colors read back as `rgb(r, g, b)`, `marginBottom: '0'` reads back as `'0px'`, and shorthand `border: 'none'` splits into `borderStyle`/`borderWidth`/`borderColor` — assert `toHaveStyle({ borderStyle: 'none' })`, not the shorthand. Assert the normalized form.
 
 **Testing a plain (non-component) function that returns `ReactNode`**: `render(<>{someFn(...)}</>)` — wrap the call in a fragment rather than forcing it into a component. This codebase deliberately prefers plain functions over components for small JSX-returning utils (`PatternTextFormatter.tsx`, `SegmentedParagraphs.tsx`) to avoid new reconciliation boundaries.
 

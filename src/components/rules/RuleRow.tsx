@@ -1,9 +1,11 @@
 import { Trash2, Search } from 'lucide-react';
 import styles from '../../styles/RulesManager.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { RowShell, SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
-import MatchKindToggle from './MatchKindToggle';
-import MoveModeToggle from './MoveModeToggle';
+import {
+  RowShell,
+  SemanticTypeToggleCell,
+  BinaryToggleChips,
+} from '../dictionary/TableBuildingBlocks';
 import EditableCell from './EditableCell';
 import {
   parseValidatedNumber,
@@ -43,9 +45,15 @@ function RuleRow({
         />
       </div>
       <div role="cell" className={styles.colMatch}>
-        <MatchKindToggle
+        <BinaryToggleChips
           value={rule.matchKind}
           label={rule.label || rule.key}
+          options={
+            [
+              { value: 'prefix', abbrev: 'PRE', title: 'prefix' },
+              { value: 'suffix', abbrev: 'SUF', title: 'suffix' },
+            ] as const
+          }
           onSelect={(matchKind) => updateRule({ ...rule, matchKind })}
         />
       </div>
@@ -79,10 +87,14 @@ function RuleRow({
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colMove}`}>
-        <MoveModeToggle
-          isRelocate={rule.relocate}
+        <BinaryToggleChips
+          value={rule.relocate}
           label={rule.label || rule.key}
-          onToggle={(isRelocate) => updateRule({ ...rule, relocate: isRelocate })}
+          options={[
+            { value: false, abbrev: 'STAY', title: 'Stay in place' },
+            { value: true, abbrev: 'MOVE', title: 'Relocate to opposite end' },
+          ]}
+          onSelect={(relocate) => updateRule({ ...rule, relocate })}
         />
       </div>
       <div role="cell" className={`${dictStyles.cellEditable} ${styles.colCap}`}>

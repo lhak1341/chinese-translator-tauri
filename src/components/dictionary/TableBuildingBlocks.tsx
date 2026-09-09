@@ -48,6 +48,102 @@ export const MetadataBadge: React.FC<BadgeProps> = ({ active, onClick }) => {
   );
 };
 
+interface BadgeChipProps {
+  label: string;
+  active: boolean;
+  activeColor: string;
+  onClick: () => void;
+  title?: string;
+  ariaLabel?: string;
+  fontSize?: string;
+  padding?: string;
+}
+
+/** The active/inactive badge-chip recipe (background/color/border/fontSize/padding) shared by
+ * every per-row toggle chip in this codebase — extracted 2026-09-09 (architecture review
+ * candidate #1 grilling) after it was found hand-copied 8 times (`TypeToggleCell`,
+ * `SemanticTypeToggleCell`'s per-type badges, `MatchKindToggle`, `MoveModeToggle` — see
+ * `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks entry for the earlier 7).
+ * Inactive text/border colors (`#9ca3af`/`#d1d5db`) are fixed, not props — every real caller
+ * used the identical pair; only `activeColor` ever varied. Deliberately NOT used for
+ * `MetadataBadge` (a single-purpose VAR toggle with its own identity) or
+ * `SemanticTypeToggleCell`'s dashed `$X`/`$Y` reference chips (a genuinely different visual
+ * language, not a selection state) — both left standalone by design. */
+export const BadgeChip: React.FC<BadgeChipProps> = ({
+  label,
+  active,
+  activeColor,
+  onClick,
+  title,
+  ariaLabel,
+  fontSize = '0.6rem',
+  padding = '1px 3px',
+}) => (
+  <span
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+    className={styles.metadataBadge}
+    title={title}
+    {...(ariaLabel && { 'aria-label': ariaLabel })}
+    style={{
+      background: active ? activeColor : 'transparent',
+      color: active ? 'white' : '#9ca3af',
+      border: active ? 'none' : '1px solid #d1d5db',
+      fontSize,
+      padding,
+      cursor: 'pointer',
+    }}
+  >
+    {label}
+  </span>
+);
+
+interface BinaryToggleOption<T> {
+  value: T;
+  abbrev: string;
+  title: string;
+}
+
+/** A 2-state field rendered as a pair of `BadgeChip`s instead of a `<select>` (which crops in
+ * a narrow table cell) — the shape `MatchKindToggle`/`MoveModeToggle` (Rules tab) each
+ * hand-rolled independently. `title` on each option feeds both the tooltip (`"title"` when
+ * active, `"Set: title"` when inactive) and the aria-label (`"Set {title} for {label}"`);
+ * pass the raw value word (e.g. `'prefix'`) for a terse toggle, a fuller phrase (e.g.
+ * `'Relocate to opposite end'`) for a descriptive one — both existing call sites did one of
+ * each. Clicking the already-active option no-ops. */
+export function BinaryToggleChips<T>({
+  value,
+  options,
+  onSelect,
+  label,
+}: {
+  value: T;
+  options: BinaryToggleOption<T>[];
+  onSelect: (value: T) => void;
+  label: string;
+}) {
+  return (
+    <div style={{ display: 'flex', gap: '2px', alignItems: 'center', justifyContent: 'center' }}>
+      {options.map((option) => {
+        const isActive = value === option.value;
+        return (
+          <BadgeChip
+            key={String(option.value)}
+            label={option.abbrev}
+            active={isActive}
+            activeColor="var(--primary-color, #3b82f6)"
+            onClick={() => !isActive && onSelect(option.value)}
+            title={isActive ? option.title : `Set: ${option.title}`}
+            ariaLabel={`Set ${option.title} for ${label}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 interface FilterChipButtonProps {
   active: boolean;
   activeColor: string;
@@ -141,34 +237,28 @@ export const SemanticTypeToggleCell: React.FC<{
     >
       {SEMANTIC_TYPE_LIST.map((type) => {
         const isActive = activeType === type;
-        const label = SEMANTIC_TYPE_ABBREVIATIONS[type];
-        const color = SEMANTIC_TYPE_COLORS[type as SemanticType];
         return (
-          <span
+          <BadgeChip
             key={type}
-            onClick={(e) => {
-              e.stopPropagation();
+            label={SEMANTIC_TYPE_ABBREVIATIONS[type]}
+            active={isActive}
+            activeColor={SEMANTIC_TYPE_COLORS[type as SemanticType]}
+            onClick={() => {
               if (isActive) {
                 if (clearable) onSelect('');
                 return;
               }
               onSelect(type);
             }}
-            className={styles.metadataBadge}
-            {...(rowLabel && {
-              'aria-label': `Set ${SEMANTIC_TYPE_LABELS[type as SemanticType]} for ${rowLabel}`,
-            })}
             title={isActive ? (clearable ? `${type} (click to remove)` : type) : `Set as ${type}`}
-            style={{
-              background: isActive ? color : 'transparent',
-              color: isActive ? 'white' : '#9ca3af',
-              border: isActive ? 'none' : '1px solid #d1d5db',
-              cursor: 'pointer',
-              ...badgeSize,
-            }}
-          >
-            {label}
-          </span>
+            ariaLabel={
+              rowLabel
+                ? `Set ${SEMANTIC_TYPE_LABELS[type as SemanticType]} for ${rowLabel}`
+                : undefined
+            }
+            fontSize={badgeSize.fontSize}
+            padding={badgeSize.padding}
+          />
         );
       })}
       {patternSource &&

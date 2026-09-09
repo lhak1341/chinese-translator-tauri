@@ -46,7 +46,12 @@ future field change (add/rename/retype) is TS-only, zero Rust changes needed.
 
 ## Compact Toggle-in-a-Table-Cell Pattern
 
-`MatchKindToggle` and `MoveModeToggle` are two instances of the same shape: a `<select>`
-crops in a narrow table cell, so a 2-state field renders as two small chip buttons instead
-(reusing `dictStyles.metadataBadge`). A third narrow-cell 2-state field should follow this
-pattern, not introduce a `<select>` or a bare checkbox that doesn't fit the table's density.
+A `<select>` crops in a narrow table cell, so a 2-state field renders as a pair of small
+chip buttons instead. `MatchKindToggle` and `MoveModeToggle` were two near-byte-identical
+files hand-rolling this shape independently — unified 2026-09-09 (architecture review
+candidate #1 grilling) into `BinaryToggleChips<T>` (`src/components/dictionary/
+TableBuildingBlocks.tsx`), built on the same `BadgeChip` primitive `SemanticTypeToggleCell`/
+`TypeToggleCell` use. A third narrow-cell 2-state field should call `BinaryToggleChips` with
+its own `options` array — do NOT create a new `XyzToggle.tsx` file that re-derives the chip
+styling; that's the exact duplication this unification closed. `RuleRow.tsx`'s `matchKind`/
+`relocate` cells are the reference call sites.
