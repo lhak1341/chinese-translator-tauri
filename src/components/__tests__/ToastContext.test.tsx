@@ -16,7 +16,6 @@ function makeMockToastImpl() {
     error: vi.fn(),
     warning: vi.fn(),
     removeToast: vi.fn(),
-    show: vi.fn(),
   };
 }
 

@@ -107,5 +107,3 @@ General jsdom/RTL testing techniques (RAF mocking, event-bubbling for context me
 ## WASM Wrapper Methods
 
 **Must check `initialize()` return value**: `if (!this.initialized) { const ok = await this.initialize(); if (!ok) return false; }` — skipping `if (!ok)` causes `this.processor.*` to throw TypeError when `this.processor` is null after failed init.
-
-**`WasmNumberProcessor` IIFE resolves (not rejects) on failure**: the module-bottom `.catch()` only fires on rejection; the IIFE swallows errors and resolves to `false`. Clearing `initializationPromise` must happen inside the IIFE `catch` block — if omitted, `getWasmNumberProcessorStatus()` permanently reports `{ initializing: true }`.

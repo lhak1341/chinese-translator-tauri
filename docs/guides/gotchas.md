@@ -116,6 +116,8 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 **Rust tests for `lookup_index_engine.rs`**: Run with `cargo test --manifest-path src-tauri/Cargo.toml lookup_index_engine`. 21 tests cover trie matching, char-vs-byte index correctness, serial/parallel parity, categorization, and `build_comprehensive_lookup_index` guards.
 
+**Benchmark files silently rot to compare against non-representative code** — nothing (test/type-check/lint) catches a benchmark whose baseline diverged from what production actually does now. `OptimizationBenchmarks.js`'s Benchmark #11 (2026-09-09) timed a no-spacing-rules JS loop against a no-spacing-rules WASM method, while production had moved to a spacing-rule-accurate path (`assembleWithSpacing`) months earlier. Before trusting a benchmark's numbers, check its inputs/methods still match the real call path — same discipline as this file's `trie.rs` entry above, generalized past just Rust.
+
 ## Testing Gotchas
 
 **`src/test/setup.ts` MUST NOT be deleted**: It is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). The duplicate test files in `src/test/` were removed (stale copies of `src/utils/__tests__/`), but `setup.ts` was not.

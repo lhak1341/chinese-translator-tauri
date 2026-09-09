@@ -29,7 +29,6 @@ interface ToastContextType {
   error: (message: string, duration?: number, customId?: string) => void;
   warning: (message: string, duration?: number, customId?: string) => void;
   removeToast: (id: string) => void;
-  show: (message: string, type?: ToastType, duration?: number, customId?: string) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -315,7 +314,6 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     error,
     warning,
     removeToast,
-    show: showToast, // Alias for showToast
   };
 
   const internalValue = {
@@ -351,33 +349,23 @@ export const setGlobalToast = (toastFn: ToastContextType) => {
   }
 };
 
+// Calls `invoke` against the wired implementation, or queues it for replay once
+// setGlobalToast wires one — the one queue-or-call branch every toast.* method needs.
+function queueOrCall(invoke: (fn: ToastContextType) => void) {
+  if (globalToastFn) {
+    invoke(globalToastFn);
+  } else {
+    pendingToastCalls.push(() => invoke(globalToastFn!));
+  }
+}
+
 export const toast = {
-  success: (message: string, duration?: number, customId?: string) => {
-    if (globalToastFn) {
-      globalToastFn.success(message, duration, customId);
-    } else {
-      pendingToastCalls.push(() => globalToastFn!.success(message, duration, customId));
-    }
-  },
-  error: (message: string, duration?: number, customId?: string) => {
-    if (globalToastFn) {
-      globalToastFn.error(message, duration, customId);
-    } else {
-      pendingToastCalls.push(() => globalToastFn!.error(message, duration, customId));
-    }
-  },
-  warning: (message: string, duration?: number, customId?: string) => {
-    if (globalToastFn) {
-      globalToastFn.warning(message, duration, customId);
-    } else {
-      pendingToastCalls.push(() => globalToastFn!.warning(message, duration, customId));
-    }
-  },
-  show: (message: string, type?: ToastType, duration?: number, customId?: string) => {
-    if (globalToastFn) {
-      globalToastFn.showToast(message, type, duration, customId);
-    } else {
-      pendingToastCalls.push(() => globalToastFn!.showToast(message, type, duration, customId));
-    }
-  },
+  success: (message: string, duration?: number, customId?: string) =>
+    queueOrCall((fn) => fn.success(message, duration, customId)),
+  error: (message: string, duration?: number, customId?: string) =>
+    queueOrCall((fn) => fn.error(message, duration, customId)),
+  warning: (message: string, duration?: number, customId?: string) =>
+    queueOrCall((fn) => fn.warning(message, duration, customId)),
+  show: (message: string, type?: ToastType, duration?: number, customId?: string) =>
+    queueOrCall((fn) => fn.showToast(message, type, duration, customId)),
 };

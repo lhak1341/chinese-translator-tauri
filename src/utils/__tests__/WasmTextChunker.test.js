@@ -151,7 +151,7 @@ describe('WasmTextChunker', () => {
       expect(wasmTextChunker.chunkText('boom')).toBeNull();
 
       // Even with a healthy mock again, retirement is permanent — no re-init attempt.
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
       expect(wasmTextChunker.chunkText('after panic')).toBeNull();
       expect(mockChunkText).toHaveBeenCalledTimes(1); // the throwing call only — warm-up never reached it
     });
@@ -164,7 +164,7 @@ describe('WasmTextChunker', () => {
       mockChunkText.mockReturnValue('not valid json{{{');
       expect(wasmTextChunker.chunkText('bad json')).toBeNull();
 
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
       expect(wasmTextChunker.chunkText('after')).toBeNull(); // permanently retired, same as a real panic
     });
 
@@ -172,7 +172,7 @@ describe('WasmTextChunker', () => {
       const { wasmTextChunker, fireCascadeRetire } = await importFresh();
       wasmTextChunker.chunkText('warm up');
       await flushMicrotasks();
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
       expect(wasmTextChunker.chunkText('ready')).not.toBeNull();
 
       // Simulates ANOTHER wrapper's catch block firing the cascade — this wrapper never panicked itself.
@@ -191,13 +191,13 @@ describe('WasmTextChunker', () => {
         // Simulates a WASM callback re-entering chunkText while the outer borrow_mut is live —
         // the exact scenario isProcessing exists to prevent a second-borrow panic for.
         nestedResult = wasmTextChunker.chunkText('nested call');
-        return JSON.stringify([{ content: 'outer' }]);
+        return JSON.stringify([{ content: 'outer', startIndex: 0 }]);
       });
 
       const outerResult = wasmTextChunker.chunkText('outer call');
 
       expect(nestedResult).toBeNull();
-      expect(outerResult).toEqual([{ content: 'outer' }]);
+      expect(outerResult).toEqual([{ content: 'outer', startIndex: 0 }]);
     });
   });
 
@@ -210,7 +210,7 @@ describe('WasmTextChunker', () => {
 
     test('getStats merges WASM stats with wasmHits/fallbackHits once ready', async () => {
       const { wasmTextChunker } = await importFresh();
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
       wasmTextChunker.chunkText('warm up');
       await flushMicrotasks();
       wasmTextChunker.chunkText('one'); // wasmHits = 1
@@ -222,7 +222,7 @@ describe('WasmTextChunker', () => {
 
     test('resetStats zeroes hit counters and calls into the WASM instance', async () => {
       const { wasmTextChunker } = await importFresh();
-      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x' }]));
+      mockChunkText.mockReturnValue(JSON.stringify([{ content: 'x', startIndex: 0 }]));
       wasmTextChunker.chunkText('warm up');
       await flushMicrotasks();
       wasmTextChunker.chunkText('one');

@@ -7,6 +7,7 @@ import init, {
 import { logger } from '../logger';
 import { WasmProcessorLifecycle } from './WasmProcessorLifecycle';
 import { registerCascadeHandler, fireCascadeRetire } from './WasmCascadeRegistry';
+import { areChunksInBounds } from './WasmBoundaryValidation';
 
 /**
  * High-performance text chunker using Rust WASM
@@ -124,6 +125,18 @@ export class WasmTextChunker {
       // chunk_text returns a JSON string (pure Rust serde_json) to keep all JS interop
       // outside the &mut self borrow — prevents the Rc debug assertion in Rust 1.84+.
       const chunks = JSON.parse(_chunker.chunkText(text));
+      // Whole-array bounds check — chunks partition the whole text, so a single bad
+      // chunk can't be dropped in isolation without losing content. Any violation
+      // rejects the entire array; returning null here is the same "not ready" signal
+      // this function already returns above, and TextChunker.js's existing
+      // `wasmChunks && Array.isArray(wasmChunks)` check already falls back to JS on it.
+      if (!areChunksInBounds(chunks)) {
+        logger.error('[WASM TextChunker] Chunk array failed bounds check, falling back to JS:', {
+          textLength: text.length,
+        });
+        this.fallbackHits++;
+        return null;
+      }
       logger.log(`[WASM TextChunker] ✅ Chunked into ${chunks.length} chunks`);
       this.wasmHits++;
       return chunks;

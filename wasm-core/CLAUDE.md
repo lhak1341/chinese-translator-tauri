@@ -90,6 +90,10 @@ outer pattern so only A runs in Phase A and B wraps it in Phase B.
 
 For any real translation text ≥50 chars (essentially all real usage), dictionary-lookup matching goes through a _separate_ native Rust trie in `src-tauri/src/lookup_index_engine.rs` (one Tauri IPC call, rayon-parallel across positions), not this file. Before benchmarking or optimizing `trie.rs` for "translation speed," trace the real call path — see ADR-040 for the full investigation and why an aho-corasick swap of the _actual_ hot path (the `src-tauri` trie, not this one) was evaluated and rejected.
 
+## Building a New WASM Boundary Validator? Check `Option<T>` First
+
+A non-`Optional` field on a `#[wasm_bindgen]` struct is guaranteed present/correctly-typed by serde — a `validateWasmDictionaryMatch`-style `typeof` check on it defends against a corruption shape that can't occur from valid Rust serialization. The one thing serde can't guarantee is a semantically-wrong-but-correctly-typed value (e.g. an out-of-range index from a Rust arithmetic bug) — that's the actual, recurring bug class here (see root `CLAUDE.md` §4). Check the struct's `Option<T>` usage before choosing a validator shape; see `src/utils/wasm/WasmBoundaryValidation.ts`'s `isPatternMatchInBounds`/`areChunksInBounds` for the index-bounds-only pattern this leads to.
+
 ## `number_processor.rs` Is Rust Spec Only — No WASM Export
 
 `#[wasm_bindgen]` removed from `NumberProcessor` struct and impl. File kept as the spec/test suite for JS `NumberProcessor.js` (37 tests as of 2026-08-25 — previous "155" figure here was stale). Do NOT add `#[wasm_bindgen]` back.

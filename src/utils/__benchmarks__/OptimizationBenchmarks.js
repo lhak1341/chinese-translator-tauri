@@ -806,11 +806,13 @@ export class OptimizationBenchmarks {
 
   /**
    * Benchmark #11: WASM Text Assembly (Task #7)
-   * Compares JavaScript string concatenation vs Rust String::with_capacity
+   * Compares the real production paths — `jsAssembleWithSpacing` (JS fallback) vs
+   * `assembleWithSpacing` (WASM) — both applying the same 10 spacing rules, instead
+   * of a hand-rolled no-spacing-rules JS loop against a since-deleted WASM method.
    */
   async benchmarkWasmTextAssembly() {
     logger.log('\n📊 Benchmark #11: WASM Text Assembly (Task #7)');
-    logger.log('  Testing: JavaScript concatenation vs Rust String::with_capacity');
+    logger.log('  Testing: jsAssembleWithSpacing (JS) vs assembleWithSpacing (WASM)');
 
     const { createWasmTextAssembler } = await import('../wasm/WasmTextAssembler.js');
 
@@ -822,54 +824,32 @@ export class OptimizationBenchmarks {
       speedup: {},
     };
 
+    const tokenTypes = ['chinese_word', 'chinese_word', 'latin_word', 'number', 'punctuation'];
+
     for (const count of segmentCounts) {
       logger.log(`  Testing with ${count} segments...`);
 
-      // Generate test segments
+      // Generate test segments matching assembleWithSpacing's real input shape
       const segments = Array.from({ length: count }, (_, i) => ({
-        original: '这是一段测试文本',
-        translated: 'Đây là một đoạn văn bản thử nghiệm',
-        translationSource: i % 3 === 0 ? 'pattern' : i % 2 === 0 ? 'phrase' : 'character',
-        startIndex: i * 8,
-        endIndex: (i + 1) * 8,
-        metadata: {
-          phase: (i % 5) + 1,
-          confidence: 0.9,
-        },
+        text: i % 5 === 3 ? String(i) : i % 5 === 4 ? '.' : 'văn bản',
+        tokenType: tokenTypes[i % tokenTypes.length],
+        tokenIndex: i,
       }));
 
       const iterations = 1000;
+      const wasmAssembler = await createWasmTextAssembler();
 
-      // JavaScript assembly
+      // JavaScript assembly (jsAssembleWithSpacing — real production fallback)
       let jsStart = performance.now();
       for (let iter = 0; iter < iterations; iter++) {
-        let translatedText = '';
-        let originalText = '';
-        const originalArray = [];
-        const translatedArray = [];
-        const sourcesArray = [];
-        const positionsArray = [];
-        let currentPosition = 0;
-
-        for (const segment of segments) {
-          translatedText += segment.translated;
-          originalText += segment.original;
-
-          originalArray.push(segment.original);
-          translatedArray.push(segment.translated);
-          sourcesArray.push(segment.translationSource);
-          positionsArray.push(currentPosition);
-
-          currentPosition += segment.original.length;
-        }
+        wasmAssembler.jsAssembleWithSpacing(segments);
       }
       results.javascript[count] = (performance.now() - jsStart) / iterations;
 
-      // WASM assembly
-      const wasmAssembler = await createWasmTextAssembler();
+      // WASM assembly (assembleWithSpacing — real production path)
       let wasmStart = performance.now();
       for (let iter = 0; iter < iterations; iter++) {
-        wasmAssembler.assembleTranslation(segments);
+        wasmAssembler.assembleWithSpacing(segments);
       }
       results.wasm[count] = (performance.now() - wasmStart) / iterations;
 

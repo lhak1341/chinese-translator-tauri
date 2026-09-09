@@ -16,10 +16,16 @@
  * 5. Two-phase validation (validate before modifying)
  * 6. Error propagation (fail fast on invalid data)
  *
- * See ADR-037 for why this file only validates dictionary matches today —
+ * See ADR-037 for why this file only validated dictionary matches for a while —
  * the token/pattern/lookup validators that used to live here were deleted as
  * dead code, and the live WASM wrappers (WasmPatternProcessor.js,
- * WasmTextChunker.js) currently do no structural validation of their own.
+ * WasmTextChunker.js) did no structural validation of their own until
+ * `isPatternMatchInBounds`/`areChunksInBounds` closed that gap (2026-09-09,
+ * architecture review candidate #2 grilling). Both Rust result structs
+ * (`PatternProcessingResult`, `TextChunkResult`) guarantee field presence/type
+ * via serde — the one thing serde can't guarantee is a semantically-wrong-but
+ * -correctly-typed index from a Rust-side arithmetic bug, so these two check
+ * index bounds only, not general field shape.
  */
 
 /**
@@ -61,4 +67,49 @@ export function validateWasmDictionaryMatch(match: unknown): Record<string, unkn
     metadata: m.metadata === undefined ? null : m.metadata,
     dictionary: m.dictionary || 'unknown',
   };
+}
+
+/**
+ * Bounds-check a WASM pattern-match result before it's applied to a `tokens` array.
+ *
+ * Rust's `PatternProcessingResult.start_index`/`end_index` are non-Optional `usize` —
+ * serde guarantees they're present and non-negative. This guards the one thing serde
+ * can't: a semantically out-of-range index from a Rust-side arithmetic bug (this
+ * codebase's recurring position-arithmetic bug class, see root CLAUDE.md).
+ *
+ * @param result - One entry from processTokensWasm's parsed results array
+ * @param tokensLength - Length of the ORIGINAL tokens array the result indexes into
+ *   (not the filtered semanticTokens array processTokensWasm was called with)
+ */
+export function isPatternMatchInBounds(result: unknown, tokensLength: number): boolean {
+  if (!result || typeof result !== 'object') return false;
+  const r = result as Record<string, unknown>;
+  const start = r.startIndex;
+  const end = r.endIndex;
+  return (
+    typeof start === 'number' &&
+    typeof end === 'number' &&
+    start >= 0 &&
+    start < tokensLength &&
+    end >= start
+  );
+}
+
+/**
+ * Bounds-check a WASM chunk array before it's converted to TextChunk objects.
+ *
+ * Rejects the whole array on any violation — chunks partition the whole text, so a
+ * single bad chunk can't be dropped in isolation without losing content, unlike a
+ * pattern match (see `isPatternMatchInBounds`).
+ */
+export function areChunksInBounds(chunks: unknown): boolean {
+  if (!Array.isArray(chunks)) return false;
+  let lastStart = -1;
+  for (const chunk of chunks) {
+    if (!chunk || typeof chunk !== 'object') return false;
+    const start = (chunk as Record<string, unknown>).startIndex;
+    if (typeof start !== 'number' || start < 0 || start < lastStart) return false;
+    lastStart = start;
+  }
+  return true;
 }

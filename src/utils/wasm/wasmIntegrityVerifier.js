@@ -38,7 +38,7 @@ let manifestLoadFailed = false;
  */
 const EXPECTED_EXPORTS = {
   translation_wasm_core: {
-    classes: ['WasmPatternProcessor', 'NumberProcessor'],
+    classes: ['WasmPatternProcessor'],
     functions: ['default'], // WASM initialization function
     minExports: 2, // Minimum number of exports (reduced for test compatibility)
   },

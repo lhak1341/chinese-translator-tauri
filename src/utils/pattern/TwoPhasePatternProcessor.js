@@ -1,5 +1,6 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
+import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
 import { logger } from '../logger.js';
 import { buildPatternVariableCache, buildTypeFilter } from './PatternVariableCache.js';
 
@@ -217,7 +218,20 @@ class TwoPhasePatternProcessor {
         return [];
       }
 
-      return wasmResults;
+      // Bounds-check each result against the ORIGINAL tokens array it indexes into —
+      // NOT semanticTokens.length (extractSemanticTokens filters non-semantic tokens
+      // out, so the two lengths differ). A result failing this check is dropped
+      // individually; the token it would have covered falls through to later phases
+      // exactly as if no pattern matched, which is already a safe, handled case.
+      const validResults = wasmResults.filter((result) => {
+        const inBounds = isPatternMatchInBounds(result, tokens.length);
+        if (!inBounds) {
+          logger.warn('WASM pattern match failed bounds check, dropping:', result);
+        }
+        return inBounds;
+      });
+
+      return validResults;
     } catch (error) {
       logger.error('❌ WASM pattern processing failed:', error);
       throw error;
