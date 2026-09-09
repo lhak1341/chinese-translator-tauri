@@ -130,6 +130,19 @@ fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
     }
 }
 
+/// Checks whether a rename target already exists on disk. Shared by every
+/// rename path (standalone and cascade) so a collision is never silently
+/// overwritten by `fs::rename`. Returns the error message to report, not an
+/// `Err`, since callers report a collision as a soft `DictionaryResponse::err`
+/// (and the cascade path additionally needs to roll back before reporting it).
+fn collision_message(new_path: &PathBuf, new_dictionary_id: &str, label: &str) -> Option<String> {
+    if new_path.exists() {
+        Some(format!("{} dictionary '{}' already exists", label, new_dictionary_id))
+    } else {
+        None
+    }
+}
+
 // CODE REVIEW FIX (2026-01-30): Track mutex poisoning events for monitoring
 // Global counters to detect cache corruption and notify frontend
 static MUTEX_POISONED: AtomicBool = AtomicBool::new(false);
@@ -849,11 +862,8 @@ fn rename_structural_patterns_dictionary_impl(
         )));
     }
 
-    if new_file_path.exists() {
-        return Ok(DictionaryResponse::err(format!(
-            "Patterns dictionary '{}' already exists",
-            new_dictionary_id
-        )));
+    if let Some(msg) = collision_message(&new_file_path, new_dictionary_id, "Patterns") {
+        return Ok(DictionaryResponse::err(msg));
     }
 
     fs::rename(&old_file_path, &new_file_path)
@@ -1953,8 +1963,12 @@ fn rename_proper_nouns_dictionary_impl(
         let old_patterns_path = dictionary_path.join(format!("{}.json", old_patterns_id));
         let new_patterns_path = dictionary_path.join(format!("{}.json", new_patterns_id));
         if old_patterns_path.exists() {
-            if let Err(_) = fs::rename(&old_patterns_path, &new_patterns_path) {
-                // Patterns rename failed — roll back properNouns rename and config
+            let collision = collision_message(&new_patterns_path, &new_patterns_id, "Patterns");
+            let rename_failed = collision.is_none()
+                && fs::rename(&old_patterns_path, &new_patterns_path).is_err();
+            if collision.is_some() || rename_failed {
+                // Patterns rename failed (or its target already exists) — roll
+                // back properNouns rename and config
                 let _ = fs::rename(&new_file_path, &old_file_path);
                 cache.invalidate(Some(old_dictionary_id));
                 // Reverse the config substitution: swap new_dictionary_id back to old
@@ -1966,9 +1980,10 @@ fn rename_proper_nouns_dictionary_impl(
                         }
                     }
                 }
-                return Ok(DictionaryResponse::err(
-                    "Rename failed: could not rename paired patterns dictionary. Both files restored.",
-                ));
+                let message = collision.unwrap_or_else(|| {
+                    "Rename failed: could not rename paired patterns dictionary. Both files restored.".to_string()
+                });
+                return Ok(DictionaryResponse::err(message));
             }
             cache.invalidate(Some(&old_patterns_id));
         }
@@ -3613,6 +3628,39 @@ mod tests {
     }
 
     #[test]
+    fn test_rename_cascade_does_not_overwrite_existing_patterns_target() {
+        let dir = temp_test_dir("rename_cascade_collision_no_overwrite");
+        fs::write(dir.join("properNouns-f_Old.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-f_Old.json"), r#"{"marker":"old"}"#).unwrap();
+        // A real patterns-f_New.json already exists with its own content — the
+        // cascade must reject the rename rather than silently overwrite it.
+        fs::write(dir.join("patterns-f_New.json"), r#"{"marker":"preexisting"}"#).unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-f_Old"]}"#).unwrap();
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-f_Old",
+            "properNouns-f_New",
+        );
+
+        let response = result.unwrap();
+        assert!(!response.success);
+        assert!(response.error.as_ref().unwrap().contains("Patterns dictionary 'patterns-f_New' already exists"));
+        let preserved = fs::read_to_string(dir.join("patterns-f_New.json")).unwrap();
+        assert!(preserved.contains("preexisting"), "pre-existing patterns target must not be overwritten");
+        assert!(
+            dir.join("patterns-f_Old.json").exists(),
+            "patterns-f_Old.json must not be renamed away when its target collides"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn test_rename_rejects_default_proper_nouns_dictionary() {
         let dir = temp_test_dir("rename_rejects_default");
         let config_path = dir.join("config.json");
@@ -3718,13 +3766,12 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_rolls_back_everything_when_patterns_cascade_fails() {
-        let dir = temp_test_dir("rename_rollback_cascade_failure");
+    fn test_rename_rolls_back_everything_when_patterns_cascade_target_collides() {
+        let dir = temp_test_dir("rename_rollback_cascade_collision");
         fs::write(dir.join("properNouns-f_Old.json"), "{}").unwrap();
         fs::write(dir.join("patterns-f_Old.json"), "{}").unwrap();
-        // Pre-create the cascade's rename TARGET as a directory so fs::rename(file, dir) fails —
-        // simulates a real filesystem failure on just the second (patterns) rename, without
-        // affecting the first (properNouns) rename which still has a clear destination.
+        // Pre-create the cascade's rename TARGET so it already exists — the collision
+        // check now catches this before fs::rename is even attempted.
         fs::create_dir(dir.join("patterns-f_New.json")).unwrap();
         let config_path = dir.join("config.json");
         fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-f_Old"]}"#).unwrap();
@@ -3740,10 +3787,10 @@ mod tests {
 
         let response = result.unwrap();
         assert!(!response.success);
-        assert!(response.error.as_ref().unwrap().contains("could not rename paired patterns dictionary"));
+        assert!(response.error.as_ref().unwrap().contains("Patterns dictionary 'patterns-f_New' already exists"));
         assert!(
             dir.join("properNouns-f_Old.json").exists(),
-            "properNouns rename must be rolled back when the patterns cascade fails"
+            "properNouns rename must be rolled back when the patterns cascade target collides"
         );
         assert!(!dir.join("properNouns-f_New.json").exists());
         let config: serde_json::Value =

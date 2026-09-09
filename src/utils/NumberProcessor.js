@@ -64,19 +64,22 @@ export class NumberProcessor {
       {
         name: 'tenThousandRange',
         regex: /([一二两三四五六七八九])([一二两三四五六七八九])万/,
-        converter: this.convertTenThousandRange.bind(this),
+        converter: (match, firstDigit, secondDigit) =>
+          this.convertRange(match, firstDigit, secondDigit, { multiplier: 1, suffix: ' vạn' }),
         description: 'Ten thousand ranges like 七八万 (7-8 vạn)',
       },
       {
         name: 'thousandRange',
         regex: /([一二两三四五六七八九])([一二两三四五六七八九])千/,
-        converter: this.convertThousandRange.bind(this),
+        converter: (match, firstDigit, secondDigit) =>
+          this.convertRange(match, firstDigit, secondDigit, { multiplier: 1, suffix: ' ngàn' }),
         description: 'Thousand ranges like 七八千 (7-8 ngàn)',
       },
       {
         name: 'hundredsRange',
         regex: /([一二两三四五六七八九])([一二两三四五六七八九])百/,
-        converter: this.convertHundredsRange.bind(this),
+        converter: (match, firstDigit, secondDigit) =>
+          this.convertRange(match, firstDigit, secondDigit, { multiplier: 100 }),
         description: 'Hundreds ranges like 四五百 (400-500)',
       },
       {
@@ -88,7 +91,8 @@ export class NumberProcessor {
       {
         name: 'numberRange',
         regex: /([一二两三四五六七八九])([一二两三四五六七八九])十/,
-        converter: this.convertNumberRange.bind(this),
+        converter: (match, firstDigit, secondDigit) =>
+          this.convertRange(match, firstDigit, secondDigit, { multiplier: 10 }),
         description: 'Number ranges like 五六十 (50-60), 七八十 (70-80) - validates logical ranges',
       },
       {
@@ -369,36 +373,20 @@ export class NumberProcessor {
   }
 
   /**
-   * Convert ten thousand ranges (e.g., 七八万 -> 7-8 vạn)
-   * Only converts if the digits form a logical ascending range
+   * Shared core for the 4 range converters whose whole difference is a
+   * multiplier/suffix pair: ten-thousand ranges (七八万 -> 7-8 vạn), thousand
+   * ranges (七八千 -> 7-8 ngàn), hundreds ranges (四五百 -> 400-500), and plain
+   * number ranges (五六十 -> 50-60). Only converts if the digits form a logical
+   * ascending range. `convertTeenAgeRange`/`convertTensBasedRange` are NOT this
+   * shape — they add an offset before the ascending check and take a third
+   * capture group, a different formula, not a parameter substitution of this one
+   * (architecture review 2026-09-09, candidate #3 grilling).
    */
-  convertTenThousandRange(match, firstDigit, secondDigit) {
+  convertRange(match, firstDigit, secondDigit, { multiplier = 1, suffix = '' } = {}) {
     const firstValue = this.NUMBER_MAP[firstDigit];
     const secondValue = this.NUMBER_MAP[secondDigit];
     if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
-    return this.formatRangeString(firstValue, secondValue, 1, ' vạn');
-  }
-
-  /**
-   * Convert thousand ranges (e.g., 七八千 -> 7-8 ngàn)
-   * Only converts if the digits form a logical ascending range
-   */
-  convertThousandRange(match, firstDigit, secondDigit) {
-    const firstValue = this.NUMBER_MAP[firstDigit];
-    const secondValue = this.NUMBER_MAP[secondDigit];
-    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
-    return this.formatRangeString(firstValue, secondValue, 1, ' ngàn');
-  }
-
-  /**
-   * Convert hundreds ranges (e.g., 四五百 -> 400-500)
-   * Only converts if the digits form a logical ascending range
-   */
-  convertHundredsRange(match, firstDigit, secondDigit) {
-    const firstValue = this.NUMBER_MAP[firstDigit];
-    const secondValue = this.NUMBER_MAP[secondDigit];
-    if (!this.isAscendingRangePair(firstValue, secondValue)) return null;
-    return this.formatRangeString(firstValue, secondValue, 100);
+    return this.formatRangeString(firstValue, secondValue, multiplier, suffix);
   }
 
   /**

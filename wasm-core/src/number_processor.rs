@@ -591,19 +591,24 @@ impl NumberProcessor {
         Some(Self::format_with_commas(value))
     }
 
-    /// Extracts two consecutive single-digit numbers from `groups[0]` and `groups[1]`,
-    /// returning `None` if either group is missing, non-numeric, or the values
-    /// are not consecutive (second != first + 1).
-    fn extract_consecutive_pair(&self, groups: &[&str]) -> Option<(u32, u32)> {
+    /// Extracts two single-digit numbers from `groups[0]` and `groups[1]`, returning
+    /// `None` if either group is missing, non-numeric, or `second` does not exceed
+    /// `first`. Mirrors JS `NumberProcessor.js::isAscendingRangePair` exactly: despite
+    /// this fn's former name, ANY ascending pair is valid, not just adjacent digits
+    /// (三八 -> 30-80 is as valid as 五六 -> 50-60). Widened 2026-09-09 (architecture
+    /// review candidate #3 grilling) — the stricter `second != first + 1` check had
+    /// silently rejected every non-consecutive ascending pair with no Rust test ever
+    /// exercising that case, while JS's own test suite already covered it.
+    fn extract_ascending_pair(&self, groups: &[&str]) -> Option<(u32, u32)> {
         if groups.len() < 2 { return None; }
         let first = self.get_number(groups[0].chars().next()?)?;
         let second = self.get_number(groups[1].chars().next()?)?;
-        if second != first + 1 { return None; }
+        if second <= first { return None; }
         Some((first, second))
     }
 
     fn convert_percentage_range(&self, groups: &[&str]) -> Option<String> {
-        let (first, second) = self.extract_consecutive_pair(groups)?;
+        let (first, second) = self.extract_ascending_pair(groups)?;
         Some(format!("{}-{}%", first * 10, second * 10))
     }
 
@@ -634,44 +639,48 @@ impl NumberProcessor {
     }
 
     fn convert_ten_thousand_range(&self, groups: &[&str]) -> Option<String> {
-        let (first, second) = self.extract_consecutive_pair(groups)?;
+        let (first, second) = self.extract_ascending_pair(groups)?;
         Some(format!("{}-{} vạn", first, second))
     }
 
     fn convert_thousand_range(&self, groups: &[&str]) -> Option<String> {
-        let (first, second) = self.extract_consecutive_pair(groups)?;
+        let (first, second) = self.extract_ascending_pair(groups)?;
         Some(format!("{}-{} ngàn", first, second))
     }
 
     fn convert_hundreds_range(&self, groups: &[&str]) -> Option<String> {
-        let (first, second) = self.extract_consecutive_pair(groups)?;
+        let (first, second) = self.extract_ascending_pair(groups)?;
         Some(format!("{}-{}", first * 100, second * 100))
     }
 
     fn convert_hundreds_plus_tens_range(&self, groups: &[&str]) -> Option<String> {
         if groups.len() < 3 { return None; }
         let hundreds = self.get_number(groups[0].chars().next()?)?;
-        let (first, second) = self.extract_consecutive_pair(&groups[1..])?;
+        let (first, second) = self.extract_ascending_pair(&groups[1..])?;
         let first_total = hundreds * 100 + first * 10;
         let second_total = hundreds * 100 + second * 10;
         Some(format!("{}-{}", first_total, second_total))
     }
 
     fn convert_number_range(&self, groups: &[&str]) -> Option<String> {
-        let (first, second) = self.extract_consecutive_pair(groups)?;
+        let (first, second) = self.extract_ascending_pair(groups)?;
         Some(format!("{}-{}", first * 10, second * 10))
     }
 
     fn convert_teen_age_range(&self, groups: &[&str]) -> Option<String> {
-        let (base_first, _) = self.extract_consecutive_pair(groups)?;
-        let first = 10 + base_first;
-        Some(format!("{}-{}", first, first + 1))
+        // Was `(base_first, _)` + hardcoded `first + 1` — silently ignored the actual
+        // second digit and always produced an adjacent pair, even for a non-adjacent
+        // ascending match like 十六八 (16, 18). Fixed alongside the ascending-pair
+        // widening above, which would otherwise let non-adjacent pairs reach here for
+        // the first time with the old discard-second bug still in place.
+        let (first, second) = self.extract_ascending_pair(groups)?;
+        Some(format!("{}-{}", 10 + first, 10 + second))
     }
 
     fn convert_tens_based_range(&self, groups: &[&str]) -> Option<String> {
         if groups.len() < 3 { return None; }
         let tens = self.get_number(groups[0].chars().next()?)? * 10;
-        let (base_first, base_second) = self.extract_consecutive_pair(&groups[1..])?;
+        let (base_first, base_second) = self.extract_ascending_pair(&groups[1..])?;
         Some(format!("{}-{}", tens + base_first, tens + base_second))
     }
 
@@ -1061,6 +1070,31 @@ mod tests {
         let m = p.find_longest_number_match(&tokens, 0);
         assert!(m.is_some());
         assert_eq!(m.unwrap().result, "50-60");
+    }
+
+    #[test]
+    fn test_converter_number_range_non_consecutive_ascending() {
+        // 五八十 → 50-80 — an ascending but non-adjacent pair (5, 8) must still be
+        // accepted, matching JS `isAscendingRangePair`. Regression test for the
+        // `extract_ascending_pair` widening (architecture review 2026-09-09,
+        // candidate #3 grilling) — previously rejected via a stricter
+        // second == first + 1 check that no Rust test exercised.
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("五"), tok("八"), tok("十")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "50-80");
+    }
+
+    #[test]
+    fn test_converter_teen_age_range_non_consecutive_ascending() {
+        // 十六八 → 16-18 — the old implementation discarded the second digit and
+        // always returned an adjacent pair (would have wrongly produced "16-17").
+        let p = NumberProcessor::new();
+        let tokens = vec![tok("十"), tok("六"), tok("八")];
+        let m = p.find_longest_number_match(&tokens, 0);
+        assert!(m.is_some());
+        assert_eq!(m.unwrap().result, "16-18");
     }
 
     #[test]
