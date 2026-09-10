@@ -8,6 +8,7 @@
 use super::pattern::{SemanticPattern, TokenType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
 
 /// Semantic token representation (from JavaScript side)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -696,44 +697,60 @@ pub fn build_result(template: &str, variables: &HashMap<String, String>) -> Stri
         .sum();
 
     let mut result = String::with_capacity(template.len() + extra_capacity);
-    let mut chars = template.chars().peekable();
+    let template_chars: Vec<char> = template.chars().collect();
 
     // Sort variables by name length descending so longer names match before prefixes
     // (e.g., "XY" matches before "X" if both are variable names)
     let mut sorted_vars: Vec<(&String, &String)> = variables.iter().collect();
     sorted_vars.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
 
-    while let Some(ch) = chars.next() {
-        // Check if this could be the start of a variable name
-        // Variables are typically single characters (X, Y, Z) or multi-character names
-        // Try to match against all variable names (longest first for determinism)
+    let mut i = 0;
+    while i < template_chars.len() {
+        let ch = template_chars[i];
         let mut matched = false;
 
         for (var_name, translation) in &sorted_vars {
-            // var_name: &&String, translation: &&String (from &Vec<(&String, &String)>)
-            if !var_name.is_empty() && ch == var_name.chars().next().unwrap() {
-                // Check if the full variable name matches at this position
-                let var_char_count = var_name.chars().count();
-                let remaining_chars: String = std::iter::once(ch)
-                    .chain(chars.clone().take(var_char_count - 1))
-                    .collect();
-
-                if remaining_chars.as_str() == var_name.as_str() {
-                    // Match found - substitute translation
-                    result.push_str(translation);
-                    // Skip the remaining characters of the variable name
-                    for _ in 0..(var_char_count - 1) {
-                        chars.next();
-                    }
-                    matched = true;
-                    break;
-                }
+            let var_chars: Vec<char> = var_name.chars().collect();
+            let var_char_count = var_chars.len();
+            if var_char_count == 0 || i + var_char_count > template_chars.len() {
+                continue;
             }
+            if template_chars[i..i + var_char_count] != var_chars[..] {
+                continue;
+            }
+
+            // Guard against the variable letter being fused into real template
+            // text rather than standing alone as a placeholder — mirrors JS
+            // PatternTemplateEngine.isVariableChar. A naive match here treated
+            // every occurrence of the variable letter as the placeholder, so
+            // template "X họ Xích" (赤姓X) corrupted the literal "Xích" into
+            // "<translation>ích" because it also starts with "X".
+            let prev_is_lowercase = i > 0
+                && matches!(
+                    template_chars[i - 1].general_category(),
+                    GeneralCategory::LowercaseLetter
+                );
+            let next_idx = i + var_char_count;
+            let next_is_lowercase = next_idx < template_chars.len()
+                && matches!(
+                    template_chars[next_idx].general_category(),
+                    GeneralCategory::LowercaseLetter
+                );
+            if prev_is_lowercase || next_is_lowercase {
+                continue;
+            }
+
+            // Match found - substitute translation
+            result.push_str(translation);
+            i += var_char_count;
+            matched = true;
+            break;
         }
 
         if !matched {
             // No variable match - copy character as-is
             result.push(ch);
+            i += 1;
         }
     }
 
@@ -836,5 +853,57 @@ mod tests {
 
         let result = build_result(template, &variables);
         assert_eq!(result, "người và người");
+    }
+
+    #[test]
+    fn test_build_result_does_not_corrupt_fused_variable_letter() {
+        // Regression test: build_result used to match the variable letter "X"
+        // anywhere it appeared, including fused into fixed template text like
+        // "Xích" (赤姓X → "X họ Xích"), turning it into "<translation>ích".
+        let template = "X họ Xích";
+        let mut variables = HashMap::new();
+        variables.insert("X".to_string(), "lão giả".to_string());
+
+        let result = build_result(template, &variables);
+        assert_eq!(result, "lão giả họ Xích");
+    }
+
+    mod parity {
+        use super::*;
+        use serde::Deserialize;
+
+        #[derive(Deserialize)]
+        struct FixtureCase {
+            name: String,
+            template: String,
+            variables: HashMap<String, String>,
+            expected: String,
+        }
+
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<FixtureCase>,
+        }
+
+        fn load_fixture() -> Fixture {
+            let raw = include_str!("../../../test-fixtures/build-result-parity.json");
+            serde_json::from_str(raw)
+                .expect("build-result-parity.json must be valid JSON matching the Fixture shape")
+        }
+
+        #[test]
+        fn build_result_matches_the_shared_fixture() {
+            let fixture = load_fixture();
+            assert!(!fixture.cases.is_empty(), "fixture must not be empty");
+
+            for case in fixture.cases {
+                let result = build_result(&case.template, &case.variables);
+                assert_eq!(
+                    result, case.expected,
+                    "case \"{}\": build_result diverged from the shared fixture (template: {:?})",
+                    case.name, case.template
+                );
+            }
+        }
     }
 }

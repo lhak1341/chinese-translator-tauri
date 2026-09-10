@@ -25,6 +25,7 @@ import { buildPrecomputedStrings } from '../wasm/StringProcessingAdapter.js';
 import { PrecomputedTokenStrings } from './PrecomputedTokenStrings.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
 import { classifyVariableType } from './VariableTypeClassifier.js';
+import { PatternTemplateEngine } from './PatternTemplateEngine.js';
 
 export class SemanticPatternProcessor {
   constructor() {
@@ -364,7 +365,7 @@ export class SemanticPatternProcessor {
     }
 
     const matchedTokens = [];
-    let result = template;
+    const variables = {};
 
     // Process each token and resolve variables using existing variable cache.
     // Position (i - startIndex) maps 1:1 onto pattern.tokens (built char-by-char
@@ -374,7 +375,13 @@ export class SemanticPatternProcessor {
     // token belonged to, so any pattern with 2+ distinct variables (e.g. "X的Y")
     // only ever filled the first one — the second `.replace('X', ...)` found no
     // more literal 'X' in the template and silently no-op'd, leaving 'Y' in the
-    // output untouched.
+    // output untouched. Collecting into `variables` and delegating to
+    // buildResult() also fixes a second bug: a raw `.replace(patternToken.name,
+    // ...)` matches the FIRST occurrence of that letter anywhere in the
+    // template string, including inside fixed text that happens to contain it
+    // (e.g. "Xích" in "X họ Xích" for 赤姓X) — buildResult() uses
+    // PatternTemplateEngine.isVariableChar to only substitute standalone
+    // placeholder letters.
     for (let i = startIndex; i <= endIndex; i++) {
       const tokenValue = tokens[i].value;
       matchedTokens.push({
@@ -389,9 +396,11 @@ export class SemanticPatternProcessor {
 
         const translatedValue =
           translation && typeof translation === 'string' ? translation : translation?.translation;
-        result = result.replace(patternToken.name, translatedValue || tokenValue);
+        variables[patternToken.name] = translatedValue || tokenValue;
       }
     }
+
+    const result = this.buildResult(template, variables);
 
     return {
       success: true,
@@ -1197,22 +1206,24 @@ export class SemanticPatternProcessor {
    * @returns {string} Final result
    */
   buildResult(template, variables) {
-    let result = template;
-    const placeholders = {};
-    let placeholderIndex = 0;
-
-    // Replace variables with placeholders to avoid collision
-    for (const [varName, translation] of Object.entries(variables)) {
-      const placeholder = `__PLACEHOLDER_${placeholderIndex++}__`;
-      placeholders[placeholder] = translation;
-      result = result.replace(new RegExp(varName, 'g'), placeholder);
+    // Blind regex substring replace on varName (e.g. "X") corrupts fixed
+    // template text that happens to contain that letter as a real word char
+    // (e.g. "Xích" in "X họ Xích" for 赤姓X) — same class of bug as the
+    // fused-letter case PatternTemplateEngine.isVariableChar already guards
+    // against on the pattern-source side (see its "Yến" comment). Reuse that
+    // classifier here so only standalone placeholder letters get substituted.
+    let result = '';
+    for (let i = 0; i < template.length; i++) {
+      const ch = template[i];
+      if (
+        Object.prototype.hasOwnProperty.call(variables, ch) &&
+        PatternTemplateEngine.isVariableChar(template, i)
+      ) {
+        result += variables[ch];
+      } else {
+        result += ch;
+      }
     }
-
-    // Replace placeholders with translations
-    for (const [placeholder, translation] of Object.entries(placeholders)) {
-      result = result.replace(new RegExp(placeholder, 'g'), translation);
-    }
-
     return result;
   }
 

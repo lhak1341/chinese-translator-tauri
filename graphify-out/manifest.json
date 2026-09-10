@@ -135,8 +135,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/matcher.rs": {
-    "mtime": 1787618573.6860964,
-    "ast_hash": "4cc91c67e6c10de991c1f9b56cc10005",
+    "mtime": 1789060439.632932,
+    "ast_hash": "a5561c14acd979c2da3a1b5bd406b0b9",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/index.rs": {
@@ -730,9 +730,9 @@
     "semantic_hash": "0f9a12ff3b5f4ccf7864d57e6c586ba1"
   },
   "src/utils/pattern/SemanticPatternProcessor.js": {
-    "mtime": 1786380189.3619747,
-    "ast_hash": "7a5be3330eb9c7b60b25eb85f67b8783",
-    "semantic_hash": "7a5be3330eb9c7b60b25eb85f67b8783"
+    "mtime": 1789058120.2375553,
+    "ast_hash": "d3b36e807c68cc1f93a990f566019537",
+    "semantic_hash": ""
   },
   "src/utils/pattern/PatternPriorityCalculator.ts": {
     "mtime": 1786380154.1010265,
@@ -1360,8 +1360,8 @@
     "semantic_hash": "ffe3070521c171ce32058444c7f3a4a3"
   },
   "docs/guides/troubleshooting.md": {
-    "mtime": 1788967224.6203115,
-    "ast_hash": "cb003af4a7625c3288395e92eeb0bf75",
+    "mtime": 1789061995.3990352,
+    "ast_hash": "03b340c1d9e8e970ed7b06e7e2542d4e",
     "semantic_hash": ""
   },
   "docs/guides/performance.md": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1788968002.914113,
-    "ast_hash": "9c2ca6bb46ce9c1c482328499b1207f8",
+    "mtime": 1789060462.4276888,
+    "ast_hash": "cc5f858728917b54944942f4af60b5b4",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1405,8 +1405,8 @@
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1788951786.9610438,
-    "ast_hash": "d100da182752361c517a99873958f033",
+    "mtime": 1789061979.3353362,
+    "ast_hash": "614aa20525f0618e6a93809f97e73446",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1825,8 +1825,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1788952350.4553242,
-    "ast_hash": "62deb2087a44e2c708b1d10b80142c20",
+    "mtime": 1789061975.7164884,
+    "ast_hash": "5f2eb51d80c47f8c21e0ecb4c7372aeb",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1880,8 +1880,13 @@
     "semantic_hash": ""
   },
   "docs/adr/ADR-041-keep-number-processor-rs-as-parity-spec.md": {
-    "mtime": 1788965109.267518,
-    "ast_hash": "08e76b8ce6511b66228a6b466c1728bf",
+    "mtime": 1788968282.9673417,
+    "ast_hash": "5466e6e6e6f30272c1f86f0d50415764",
+    "semantic_hash": ""
+  },
+  "test-fixtures/build-result-parity.json": {
+    "mtime": 1789060405.3036761,
+    "ast_hash": "f0446f6b0216bd1502c2ea0ba8250f90",
     "semantic_hash": ""
   }
 }

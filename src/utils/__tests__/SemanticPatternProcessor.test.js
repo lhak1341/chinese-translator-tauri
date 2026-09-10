@@ -175,6 +175,32 @@ describe('SemanticPatternProcessor — processTokens()', () => {
       expect(results).toHaveLength(1);
       expect(results[0].translation).toBe('chó của mèo');
     });
+
+    // Regression test: buildResult()/convertPrioritizedPatternToMatchResult()
+    // used to substitute the variable letter via a blind substring replace
+    // (new RegExp(varName, 'g') / result.replace(patternToken.name, ...)),
+    // which also matched that same letter inside fixed template text (e.g.
+    // "Xích" contains "X"). 赤姓老者 → template "X họ Xích" produced
+    // "lão giả họ lão giảích" instead of "lão giả họ Xích".
+    test('does not corrupt fixed template text that contains the variable letter', async () => {
+      const proc = new SemanticPatternProcessor();
+      await proc.initializePatterns({ 赤姓X: 'X họ Xích' });
+      proc.variableCache = new Map([['老者', { translation: 'lão giả' }]]);
+
+      const tokens = [
+        makeToken('chinese_char', '赤'),
+        makeToken('chinese_char', '姓'),
+        makeToken('chinese_word', '老者'),
+      ];
+      const pattern = proc.patterns.find((p) => p.originalPattern === '赤姓X');
+
+      const results = await proc.processTokens(tokens, {
+        prioritizedPatterns: [{ pattern, startIndex: 0, endIndex: 2 }],
+      });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].translation).toBe('lão giả họ Xích');
+    });
   });
 });
 

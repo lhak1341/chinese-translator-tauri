@@ -241,7 +241,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 ### Engine and pipeline tests
 
-**Pipeline phases testable in jsdom: 2 (proper nouns), 3 (numbers), 4 (phrases), 5 (chars)** — all pure JS. Phase 1 (WASM patterns) needs the binary and is covered in wasm-core Rust tests.
+**Pipeline phases testable in jsdom: 2 (proper nouns), 3 (numbers), 4 (phrases), 5 (chars)** — all pure JS. Phase 1 (WASM patterns) needs the binary and is covered in wasm-core Rust tests. **A green vitest run proves nothing about Phase 1**: WASM init fails with `ECONNREFUSED` in the test env and falls back to JS silently, so a JS-only fix to a function with a Rust mirror can pass every JS test while the real `pnpm tauri:dev` WASM path stays broken (confirmed 2026-09-10, `SemanticPatternProcessor.js::buildResult` vs `matcher.rs::build_result`). Verify with `cargo test --manifest-path wasm-core/Cargo.toml` and a rebuilt `pnpm build-wasm-dev` + manual `tauri:dev` check, not vitest alone.
 
 **Simulate Phase 1 output in jsdom** by pre-marking tokens with `{ translated: 'X', translationSource: 'pattern' }` — later phases skip pre-marked tokens, so Phase 4/5 guards can be tested without WASM.
 

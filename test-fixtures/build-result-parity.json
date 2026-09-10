@@ -1,0 +1,54 @@
+{
+  "_contract": "Shared cross-language fixture for pattern-template variable substitution. Both wasm-core/src/pattern_processor/matcher.rs's build_result() and src/utils/pattern/SemanticPatternProcessor.js's buildResult() independently substitute variable placeholders (e.g. \"X\", \"Y\") into a translated template string, and this file is the single source of truth both sides assert their real output against. Added after a production bug (2026-09-10): 赤姓老者 → template \"X họ Xích\" produced \"Lão giả họ lão giảích\" because both implementations matched the variable letter \"X\" anywhere it appeared in the template, including fused into the fixed word \"Xích\". Fixed on both sides by only substituting a variable letter that stands alone (not immediately preceded/followed by a lowercase letter) — mirrors src/utils/pattern/PatternTemplateEngine.js's isVariableChar. The Rust mirror check lives in wasm-core/src/pattern_processor/matcher.rs's mod tests::parity.",
+  "cases": [
+    {
+      "name": "simple_single_variable",
+      "description": "Baseline: one variable, standalone in the template.",
+      "template": "những X này",
+      "variables": { "X": "người" },
+      "expected": "những người này"
+    },
+    {
+      "name": "multiple_variables_each_filled_once",
+      "description": "Regression: a naive .replace(varName, ...) that ignores which variable a token belongs to only ever fills the first placeholder it finds literally in the template.",
+      "template": "Y của X",
+      "variables": { "X": "Trương Tam", "Y": "tay" },
+      "expected": "tay của Trương Tam"
+    },
+    {
+      "name": "repeated_variable_both_occurrences_filled",
+      "description": "The same variable letter appears twice as a genuine placeholder; both must be substituted.",
+      "template": "X và X",
+      "variables": { "X": "người" },
+      "expected": "người và người"
+    },
+    {
+      "name": "fused_variable_letter_suffix_not_corrupted",
+      "description": "Production bug case (赤姓X → \"X họ Xích\"): the variable letter X is immediately followed by a lowercase letter inside the fixed word \"Xích\" and must NOT be treated as the placeholder.",
+      "template": "X họ Xích",
+      "variables": { "X": "lão giả" },
+      "expected": "lão giả họ Xích"
+    },
+    {
+      "name": "fused_variable_letter_prefix_not_corrupted",
+      "description": "Mirror of the suffix case: the variable letter X is immediately preceded by a lowercase letter inside fixed text and must NOT be treated as the placeholder, even though a real standalone X elsewhere in the template must still be substituted.",
+      "template": "cyX gặp X",
+      "variables": { "X": "cô ấy" },
+      "expected": "cyX gặp cô ấy"
+    },
+    {
+      "name": "variable_at_string_end_boundary",
+      "description": "Standalone variable with no character after it (end of template) must still substitute correctly — exercises the next-char boundary check with no next char.",
+      "template": "đây là X",
+      "variables": { "X": "anh ấy" },
+      "expected": "đây là anh ấy"
+    },
+    {
+      "name": "variable_at_string_start_boundary",
+      "description": "Standalone variable with no character before it (start of template) must still substitute correctly — exercises the prev-char boundary check with no prev char.",
+      "template": "X đến rồi",
+      "variables": { "X": "cô ấy" },
+      "expected": "cô ấy đến rồi"
+    }
+  ]
+}
