@@ -34,7 +34,7 @@ coverage
 
 # Lock files (don't format)
 package-lock.json
-pnpm-lock.yaml
+bun.lock
 yarn.lock
 
 # Config files that should stay formatted manually

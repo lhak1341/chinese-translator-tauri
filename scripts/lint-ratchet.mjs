@@ -47,14 +47,14 @@ if (process.argv.includes('--update')) {
 const { maxWarnings } = JSON.parse(readFileSync(baselinePath, 'utf8'));
 
 if (errors > 0) {
-  console.error(`lint: ${errors} error(s). Run \`pnpm lint:full\` for details.`);
+  console.error(`lint: ${errors} error(s). Run \`bun run lint:full\` for details.`);
   process.exit(1);
 }
 
 if (warnings > maxWarnings) {
   console.error(
     `lint: ${warnings} warnings exceeds the baseline of ${maxWarnings}.\n` +
-      `This change added ${warnings - maxWarnings}. Run \`pnpm lint:full\` to see them.`
+      `This change added ${warnings - maxWarnings}. Run \`bun run lint:full\` to see them.`
   );
   process.exit(1);
 }
@@ -62,7 +62,7 @@ if (warnings > maxWarnings) {
 if (warnings < maxWarnings) {
   console.error(
     `lint: ${warnings} warnings is below the baseline of ${maxWarnings} — nice.\n` +
-      `Lock it in with \`pnpm lint:baseline\` so the ceiling cannot drift back up.`
+      `Lock it in with \`bun run lint:baseline\` so the ceiling cannot drift back up.`
   );
   process.exit(1);
 }

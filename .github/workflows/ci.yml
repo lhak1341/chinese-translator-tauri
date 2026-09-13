@@ -13,17 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
 
+      # scripts/*.mjs shell out to `node` explicitly, so Node stays installed
+      # even though bun is the package manager.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -63,13 +66,13 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM modules
-        run: pnpm build-wasm-dev
+        run: bun run build-wasm-dev
 
       - name: Type check
-        run: pnpm type-check
+        run: bun run type-check
 
       - name: Lint
-        run: pnpm lint
+        run: bun run lint
 
       - name: Run tests
-        run: pnpm test -- --run
+        run: bun run test --run

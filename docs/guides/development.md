@@ -34,7 +34,7 @@ Two real examples of the pattern, current as of this writing: `window.translatio
 
 **API contract testing**: critical methods that must stay synchronous (e.g. `translate()`) are pinned with `expect(result).not.toBeInstanceOf(Promise)` — see `DictionaryManager.apiContract.test.js`. Add a case here before changing a hot-path method's sync/async shape.
 
-`pnpm test` runs in watch mode; `pnpm test -- --run` runs once (used by CI and pre-commit). See root `CLAUDE.md` for the "silent when piped" gotcha.
+`bun run test` runs in watch mode; `bun run test --run` runs once (used by CI and pre-commit). See root `CLAUDE.md` for the "silent when piped" gotcha.
 
 ---
 
@@ -47,14 +47,14 @@ Two real examples of the pattern, current as of this writing: `window.translatio
 1. wasm-core Rust tests (`cargo test --manifest-path wasm-core/Cargo.toml`) — added 2026-08-25; previously wasm-core had zero CI coverage despite 35+ passing local tests
 2. src-tauri Rust tests (`cargo test --manifest-path src-tauri/Cargo.toml`) — added 2026-08-31; the suite had zero CI coverage while two of its reset tests failed deterministically on every local run
 3. Bench compilation (`cargo check --benches`, both crates) — added 2026-08-31; `cargo test` never compiles benches, so they bit-rotted silently between manual runs
-4. WASM dev build (`pnpm build-wasm-dev`, via wasm-pack) — needed before the JS test suite can run
-5. Type checking (`pnpm type-check`)
-6. Linting (`pnpm lint`) — a real gate since 2026-08-31; before that it ran `eslint . --quiet` against a warn-only rule set and could not fail
-7. Tests (`pnpm test -- --run`) — rebuilds stale WASM first via `scripts/ensure-wasm-fresh.mjs`
+4. WASM dev build (`bun run build-wasm-dev`, via wasm-pack) — needed before the JS test suite can run
+5. Type checking (`bun run type-check`)
+6. Linting (`bun run lint`) — a real gate since 2026-08-31; before that it ran `eslint . --quiet` against a warn-only rule set and could not fail
+7. Tests (`bun run test --run`) — rebuilds stale WASM first via `scripts/ensure-wasm-fresh.mjs`
 
-**Pragmatic CI philosophy**: CI catches development errors (types, lint, wasm-core tests, JS tests). Full production app builds (`pnpm tauri:build`) are verified locally before releases, not in CI — build works locally, that's what matters for releases.
+**Pragmatic CI philosophy**: CI catches development errors (types, lint, wasm-core tests, JS tests). Full production app builds (`bun run tauri:build`) are verified locally before releases, not in CI — build works locally, that's what matters for releases.
 
-**Pre-commit hooks** (Husky + lint-staged, installed via `pnpm install`'s `prepare` script): Prettier auto-format, ESLint auto-fix, and TypeScript type-check on staged files.
+**Pre-commit hooks** (Husky + lint-staged, installed via `bun install`'s `prepare` script): Prettier auto-format, ESLint auto-fix, and TypeScript type-check on staged files.
 
 ---
 
@@ -66,7 +66,7 @@ See [CSP_SECURITY.md](../CSP_SECURITY.md) for the full CSP directive rationale (
 
 **WASM asset filenames must not be content-hashed** — wasm-pack's generated glue code imports the `.wasm` file by its literal name; Vite's default content-hashing breaks that import. `rollupOptions.output.assetFileNames` needs an explicit `.wasm` exception (`assets/[name][extname]`, no hash).
 
-**Test production builds before releasing**: `pnpm tauri:build`, then open the built `.app` and manually check WASM number processing, dictionary loading, and translation quality — this is not covered by CI (see CI/CD Pipeline above).
+**Test production builds before releasing**: `bun run tauri:build`, then open the built `.app` and manually check WASM number processing, dictionary loading, and translation quality — this is not covered by CI (see CI/CD Pipeline above).
 
 ---
 
@@ -109,8 +109,8 @@ Fallow reports are a starting point, not a deletion list. Four blind spots:
 **Verification after each batch:**
 
 ```bash
-pnpm type-check && pnpm test -- --run  # add --reporter=verbose if backgrounding — default reporter is silent when piped, and a full run legitimately slows down deep in; that's not a hang
-pnpm tauri:dev  # catches dynamic import() breakage — type-check/tests miss it
+bun run type-check && bun run test --run  # add --reporter=verbose if backgrounding — default reporter is silent when piped, and a full run legitimately slows down deep in; that's not a hang
+bun run tauri:dev  # catches dynamic import() breakage — type-check/tests miss it
 ```
 
 ---

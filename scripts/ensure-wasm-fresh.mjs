@@ -2,8 +2,8 @@
 /**
  * Rebuild the WASM bundle if it is older than the Rust sources it was built from.
  *
- * `src/wasm/` is gitignored wasm-pack output. `pnpm dev`, `pnpm build`, `pnpm tauri:dev` and
- * `pnpm tauri:build` all rebuild it first, but `pnpm test` did not — so editing wasm-core and
+ * `src/wasm/` is gitignored wasm-pack output. `bun run dev`, `bun run build`, `bun run tauri:dev` and
+ * `bun run tauri:build` all rebuild it first, but `bun run test` did not — so editing wasm-core and
  * running the test suite validated the *previous* binary and passed, which is worse than
  * failing. This makes that state unreachable: stale output is rebuilt before tests run.
  */
@@ -49,4 +49,4 @@ console.log(
     ? 'wasm: no build output found — building.'
     : 'wasm: build output is older than wasm-core sources — rebuilding.'
 );
-execFileSync('pnpm', ['run', 'build-wasm-dev'], { cwd: root, stdio: 'inherit' });
+execFileSync('bun', ['run', 'build-wasm-dev'], { cwd: root, stdio: 'inherit' });

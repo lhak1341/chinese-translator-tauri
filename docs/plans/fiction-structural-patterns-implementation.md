@@ -173,7 +173,7 @@ Method names:
 - `createStructuralPatternsDictionary(id: string): Promise<SaveResult>`
 - `renameStructuralPatternsDictionary(oldId: string, newId: string): Promise<DictionaryOperationResult>`
 
-Run `pnpm type-check` after.
+Run `bun run type-check` after.
 
 ---
 
@@ -430,8 +430,8 @@ After all phases:
 
 ```bash
 cargo check --manifest-path src-tauri/Cargo.toml
-pnpm type-check                    # 0 errors expected
-pnpm test -- --run                 # all 1863 tests pass
+bun run type-check                    # 0 errors expected
+bun run test --run                 # all 1863 tests pass
 ```
 
 Manual verification:

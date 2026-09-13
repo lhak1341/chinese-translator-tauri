@@ -65,7 +65,7 @@ An inline array literal passed to a generic component's prop (`<Foo<T> options={
 
 ## `.tsx` Prop Types for `.jsx` Callbacks Can Silently Drift
 
-A `.tsx` file's locally-declared prop type for a value that's really a `.jsx` function (e.g. `Translator.jsx`'s handlers) isn't checked against the real implementation — `checkJs: false` means only a `.jsx`-side JSDoc mismatch is invisible too. These drift silently until something removes whatever permissive type was tolerating the mismatch (e.g. narrowing a union). After narrowing any handler/callback type, run `pnpm type-check` and expect to find stale declarations in `.tsx` callers, not just the type's own definition site.
+A `.tsx` file's locally-declared prop type for a value that's really a `.jsx` function (e.g. `Translator.jsx`'s handlers) isn't checked against the real implementation — `checkJs: false` means only a `.jsx`-side JSDoc mismatch is invisible too. These drift silently until something removes whatever permissive type was tolerating the mismatch (e.g. narrowing a union). After narrowing any handler/callback type, run `bun run type-check` and expect to find stale declarations in `.tsx` callers, not just the type's own definition site.
 
 ## Engine Lifecycle — `useTranslatorEngine` Hook
 

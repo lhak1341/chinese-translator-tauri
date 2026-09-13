@@ -11,13 +11,13 @@ cargo check --manifest-path src-tauri/Cargo.toml  # NOT cd + cargo — zoxide br
 cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check both when touching Rust
 cargo test --manifest-path wasm-core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
-pnpm tauri:dev
-pnpm test -- --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall
-pnpm type-check  # 0 errors expected
-pnpm lint  # enforced warning ceiling (.lint-baseline.json); `pnpm lint:full` for the findings, `pnpm lint:baseline` to lock in a lower count
+bun run tauri:dev
+bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall
+bun run type-check  # 0 errors expected
+bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:full` for the findings, `bun run lint:baseline` to lock in a lower count
 ```
 
-`pnpm tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
+`bun run tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".
 
 ---
 
