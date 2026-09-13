@@ -46,6 +46,14 @@ more-variable pattern over a shorter, more-specific one waiting to compose — e
 `.priority`'s only real consumers are `find_best_pattern_match` and this tie-break; `trie.rs` has an unrelated
 same-named field (dictionary trie metadata) — don't let a bare `.priority` grep pull it in.
 
+**A curated 2-3 pattern repro can miss a real composite-bonus bug that only manifests at full-dictionary scale** —
+confirmed 2026-09-13: `compute_composite_bonus` summed a pattern's leading/trailing bonuses independently, letting
+an unrelated `<literal>X<literal>`-shaped decoy pattern (e.g. `在X中`) phantom-contribute a bonus from only its
+trailing side matching, with its required leading literal nowhere nearby. A hand-picked 3-pattern repro showed
+correct behavior on both inputs; only loading the real `patterns.json` via `parse_patterns_dict` surfaced the
+interference. If an isolated repro doesn't reproduce a suspected scoring bug here, load the real dictionary before
+concluding the hypothesis or fix is wrong.
+
 **Test coverage:** `test_phase_a_composite_bonus_wins_over_larger_own_span` (`tests/two_phase_test.rs`) covers the
 trailing-bonus path (`estimate_trailing_bonus`) end-to-end, via `process_tokens`. `estimate_leading_bonus` has
 direct unit coverage (architecture review 2026-07-29, candidate #5) in `two_phase.rs`'s inline
@@ -110,7 +118,7 @@ A non-`Optional` field on a `#[wasm_bindgen]` struct is guaranteed present/corre
 
 `/.cargo/config.toml` sets `[build] rustflags = ["-D", "warnings"]`, matching what CI's `actions-rust-lang/setup-rust-toolchain@v1` exports by default. Local and CI Rust builds fail on the same warnings; there is no longer a class of failure that only appears after a push.
 
-Both failures found before this was aligned (2026-08-26) (2026-08-26) were latent for weeks and neither was a real defect: an unconstructed enum variant in `conflict_resolution_parity_test.rs` and an unnecessary `mut` in `string_processor.rs`'s tests. That is the shape to expect — dead-code and unused-binding lints in **test** code, which normal local runs never surface. Prefer closing the gap the lint points at over `#[allow(...)]`: the unconstructed `MatchType::Other` marked a genuine parity hole, since it mirrors the else-branch of the JS ternary at `WasmConflictResolution.js:74` that `literal`, `semantic`, `structural_pattern`, and `composite` matches all reach in production.
+Both failures found before this was aligned (2026-08-26) were latent for weeks and neither was a real defect: an unconstructed enum variant in `conflict_resolution_parity_test.rs` and an unnecessary `mut` in `string_processor.rs`'s tests. That is the shape to expect — dead-code and unused-binding lints in **test** code, which normal local runs never surface. Prefer closing the gap the lint points at over `#[allow(...)]`: the unconstructed `MatchType::Other` marked a genuine parity hole, since it mirrors the else-branch of the JS ternary at `WasmConflictResolution.js:74` that `literal`, `semantic`, `structural_pattern`, and `composite` matches all reach in production.
 
 ## Checking Module Liveness Before a Deep Call-Site Grep
 

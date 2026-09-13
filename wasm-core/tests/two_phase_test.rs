@@ -1199,3 +1199,115 @@ fn test_phase_a_priority_tiebreak_lets_inner_wrapper_compose_with_outer_pattern(
     assert_eq!(phase_a_component.original_text, "这位前辈");
     assert_eq!(phase_a_component.translation, "vị tiền bối này");
 }
+
+#[test]
+fn test_composite_bonus_requires_both_sides_of_a_two_sided_pattern() {
+    // Regression for "肖姓女子手中的法盘中" (live bug, one char longer than the
+    // correctly-translating "肖姓女子手中的法盘"): `compute_composite_bonus`
+    // (two_phase.rs) used to sum a pattern's leading and trailing literal bonuses
+    // independently. A decoy pattern shaped "在X中" (leading "在" + trailing "中")
+    // could contribute its full trailing bonus from the coincidental extra "中"
+    // token alone, even though its required leading "在" was nowhere near the
+    // candidate — because a failed/inapplicable leading check silently zeroed
+    // only its own term instead of disqualifying the pattern's bonus entirely.
+    //
+    // "X手中的Y" (own 7 chars) ties "肖姓X" (own 4 + real bonus 3 = 7) without the
+    // decoy. With the decoy's phantom trailing bonus (pre-fix), "X手中的Y" wins
+    // outright at 8, "肖姓X" is discarded, and the composite never forms — "肖姓"
+    // is left untranslated by this pattern set. The fix requires the decoy's
+    // leading "在" to also match before granting any bonus from it.
+    let mut surname_types = HashMap::new();
+    surname_types.insert("X".to_string(), vec!["character".to_string()]);
+    let pattern_surname = parse_pattern(
+        "肖姓X".to_string(),
+        "X họ Tiêu".to_string(),
+        Some(surname_types),
+        true, // allowAsPatternVariable — competes in Phase A
+        Some("$X".to_string()), // resolved type = X's type ("character"), so "X手中的Y" accepts it as its own X
+    );
+
+    let mut hand_types = HashMap::new();
+    hand_types.insert(
+        "X".to_string(),
+        vec![
+            "person".to_string(),
+            "character".to_string(),
+            "creature".to_string(),
+        ],
+    );
+    hand_types.insert("Y".to_string(), vec!["object".to_string()]);
+    let pattern_hand = parse_pattern(
+        "X手中的Y".to_string(),
+        "Y trong tay X".to_string(),
+        Some(hand_types),
+        true, // allowAsPatternVariable — races "肖姓X" directly in Phase A
+        None,
+    );
+
+    // Decoy: Phase-B-only, two-sided ("在" ... "中"). Never actually applicable
+    // here (no "在" anywhere in the sentence) but must not phantom-contribute
+    // a bonus off the trailing "中" alone.
+    let pattern_decoy = parse_pattern(
+        "在X中".to_string(),
+        "trong X".to_string(),
+        None,
+        false, // Phase B only
+        None,
+    );
+
+    let mut tokens = vec![
+        create_token("肖", 0),
+        create_token("姓", 1),
+        create_token("女子", 2),
+        create_token("手", 3),
+        create_token("中", 4),
+        create_token("的", 5),
+        create_token("法盘", 6),
+        create_token("中", 7), // the extra trailing char that triggers the bug
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "女子".to_string(),
+        VariableCacheEntry {
+            translation: "nữ tử".to_string(),
+            source: "phrase".to_string(),
+            var_type: Some("character".to_string()),
+        },
+    );
+    variable_cache.insert(
+        "法盘".to_string(),
+        VariableCacheEntry {
+            translation: "pháp bàn".to_string(),
+            source: "proper-noun".to_string(),
+            var_type: Some("object".to_string()),
+        },
+    );
+
+    let processor =
+        TwoPhasePatternProcessor::new(vec![pattern_surname, pattern_hand, pattern_decoy]);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Expected 1 hierarchical composite covering '肖姓女子手中的法盘'. Got {} result(s): {:?}",
+        results.len(),
+        results
+            .iter()
+            .map(|r| format!(
+                "[{}-{}] {} \"{}\"",
+                r.start_index, r.end_index, r.source, r.translation
+            ))
+            .collect::<Vec<_>>()
+    );
+
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 6); // stops before the trailing decoy "中" at index 7
+    assert_eq!(results[0].translation, "pháp bàn trong tay nữ tử họ Tiêu");
+
+    let phase_a_component = results[0].phase_a.as_ref().unwrap();
+    assert_eq!(phase_a_component.original_text, "肖姓女子");
+    assert_eq!(phase_a_component.translation, "nữ tử họ Tiêu");
+}

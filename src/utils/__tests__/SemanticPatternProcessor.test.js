@@ -284,6 +284,48 @@ describe('SemanticPatternProcessor — testPatternMatch() / findBestPatternMatch
     expect(result.result).toBe('tay của Trương Tam');
     expect(result.matchedTokens).toHaveLength(3);
   });
+
+  // Regression test: X手中的Y has no pattern token after Y, so testPatternMatch's
+  // "no more pattern tokens" branch used to take candidateSpans[0] (the longest
+  // cache hit) unconditionally, with no type check. A trailing "中" character
+  // after the real object span ("法盘") produced a second, longer cache hit
+  // ("法盘中") that won blindly, corrupting the match's end position and
+  // scrambling the final assembled sentence. Fixed by preferring the longest
+  // span whose resolved type actually satisfies allowedVariableTypes.
+  test('trailing variable with no following pattern token skips a longer wrong-typed span for a shorter correctly-typed one', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({
+      X手中的Y: {
+        translation: 'Y trong tay X',
+        allowedVariableTypes: { Y: ['object'] },
+      },
+    });
+    proc.variableCache = new Map([
+      ['女子', { translation: 'nữ tử', type: 'person' }],
+      ['法盘', { translation: 'pháp bàn', type: 'object' }],
+      // Longer cache hit bleeding past the real object boundary, wrong type.
+      ['法盘中', { translation: 'pháp bàn trung', type: 'unknown' }],
+    ]);
+
+    const tokens = [
+      makeToken('chinese_word', '女子'),
+      makeToken('chinese_char', '手'),
+      makeToken('chinese_char', '中'),
+      makeToken('chinese_char', '的'),
+      makeToken('chinese_word', '法盘'),
+      makeToken('chinese_char', '中'),
+    ];
+    const pattern = proc.patterns.find((p) => p.originalPattern === 'X手中的Y');
+
+    const result = proc.testPatternMatch(pattern, tokens, 0, {});
+
+    expect(result.success).toBe(true);
+    expect(result.result).toBe('pháp bàn trong tay nữ tử');
+    // Only consumes the 5 tokens of "女子手中的法盘" — the trailing "中" (index 5)
+    // is left for the next phase to translate on its own, not swallowed into Y.
+    expect(result.matchedTokens).toHaveLength(5);
+    expect(result.endPosition).toBe(4);
+  });
 });
 
 describe('SemanticPatternProcessor — getPerformanceStats()', () => {

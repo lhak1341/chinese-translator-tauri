@@ -358,18 +358,39 @@ impl TwoPhasePatternProcessor {
                     continue;
                 }
 
+                // A pattern's leading/trailing literal runs are each either absent
+                // (not required — vacuously satisfied) or present (required — must
+                // actually match). Summing the two independently let a pattern with
+                // BOTH a leading and trailing requirement (e.g. "在X中") contribute
+                // a bonus from a coincidental trailing-only match while its required
+                // leading literal was absent or unmet — e.g. a bare trailing "中"
+                // right after a candidate phantom-awarded every "<prefix>X中"-shaped
+                // pattern in the dictionary, even with the prefix nowhere nearby.
+                // Both required sides must hold for this pattern's bonus to count.
+                let trailing_required = pattern.tokens[var_idx + 1..]
+                    .iter()
+                    .any(|t| t.token_type == TokenType::Literal);
                 let trailing = self.estimate_trailing_bonus(
                     pattern, var_idx, semantic_tokens, candidate.end_index + 1,
                 );
-                let leading = if var_idx > 0 && candidate.start_index > 0 {
+                let trailing_ok = !trailing_required || trailing > 0;
+
+                let leading_required = var_idx > 0
+                    && pattern.tokens[..var_idx]
+                        .iter()
+                        .any(|t| t.token_type == TokenType::Literal);
+                let leading = if leading_required && candidate.start_index > 0 {
                     self.estimate_leading_bonus(pattern, var_idx, semantic_tokens, candidate.start_index)
                 } else {
                     0
                 };
+                let leading_ok = !leading_required || leading > 0;
 
-                let bonus = trailing + leading;
-                if bonus > max_bonus {
-                    max_bonus = bonus;
+                if trailing_ok && leading_ok {
+                    let bonus = trailing + leading;
+                    if bonus > max_bonus {
+                        max_bonus = bonus;
+                    }
                 }
                 break; // First compatible variable slot per pattern is sufficient
             }

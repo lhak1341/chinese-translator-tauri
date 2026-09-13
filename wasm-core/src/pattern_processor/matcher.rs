@@ -531,7 +531,7 @@ impl<'a> PatternMatcher<'a> {
     /// `allowedVariableTypes` checks without a second HashMap lookup.
     fn resolve_variable_with_lookahead(
         &self,
-        _var_name: &str,
+        var_name: &str,
         semantic_tokens: &[SemanticToken],
         current_position: usize,
         pattern: &SemanticPattern,
@@ -623,9 +623,38 @@ impl<'a> PatternMatcher<'a> {
                         // intentionally no break — keep iterating for a shorter span
                     }
                 } else {
-                    // No more pattern tokens — use longest available span
-                    result = Some((translation, span, text, var_type));
-                    break;
+                    // No more pattern tokens — prefer the longest span whose
+                    // resolved type satisfies allowedVariableTypes, instead of
+                    // blindly taking the longest cache hit. A wrong-typed longer
+                    // span (e.g. a trailing character bleeding past the real
+                    // boundary into another cache hit) would otherwise win here
+                    // and fail the whole match at the caller's type check
+                    // (line ~444 below), instead of falling back to the
+                    // correct shorter span. Mirrors the JS fix in
+                    // SemanticPatternProcessor.js::testPatternMatch.
+                    let type_ok = match pattern
+                        .metadata
+                        .allowed_variable_types
+                        .as_ref()
+                        .and_then(|types| types.get(var_name))
+                    {
+                        Some(allowed) => {
+                            let effective_type = var_type.as_deref().unwrap_or("unknown");
+                            allowed.iter().any(|t| t == effective_type)
+                        }
+                        None => true,
+                    };
+
+                    if type_ok {
+                        result = Some((translation, span, text, var_type));
+                        break;
+                    }
+                    // Wrong type — keep the longest as a fallback (preserves
+                    // old behavior / error message if no shorter span is typed
+                    // correctly either) but keep trying shorter spans first.
+                    if result.is_none() {
+                        result = Some((translation, span, text, var_type));
+                    }
                 }
             }
         }

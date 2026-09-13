@@ -272,6 +272,74 @@ fn test_pattern_match_failure_variable_not_in_cache() {
 }
 
 #[test]
+fn test_trailing_variable_prefers_type_correct_shorter_span() {
+    // Pattern: "X手中的Y" — Y is the LAST pattern token, so
+    // resolve_variable_with_lookahead's "no more pattern tokens" branch picks
+    // the span. Before the fix, that branch took the longest cache-hit span
+    // unconditionally, with no type check — a trailing "中" character after
+    // the real object span ("法盘") produced a second, longer cache hit
+    // ("法盘中") of the wrong type, which won and then failed the whole match
+    // at the caller's allowed_variable_types check. Live repro:
+    // "肖姓女子手中的法盘中" garbled the translated sentence order.
+    let mut allowed_variable_types = HashMap::new();
+    allowed_variable_types.insert("Y".to_string(), vec!["object".to_string()]);
+
+    let pattern = parse_pattern(
+        "X手中的Y".to_string(),
+        "Y trong tay X".to_string(),
+        Some(allowed_variable_types),
+        false,
+        None,
+    );
+
+    let tokens = vec![
+        create_token("女子", 0),
+        create_token("手", 1),
+        create_token("中", 2),
+        create_token("的", 3),
+        create_token("法盘", 4),
+        create_token("中", 5),
+    ];
+
+    let mut variable_cache = HashMap::new();
+    variable_cache.insert(
+        "女子".to_string(),
+        VariableCacheEntry {
+            translation: "nữ tử".to_string(),
+            source: "character".to_string(),
+            var_type: Some("person".to_string()),
+        },
+    );
+    variable_cache.insert(
+        "法盘".to_string(),
+        VariableCacheEntry {
+            translation: "pháp bàn".to_string(),
+            source: "character".to_string(),
+            var_type: Some("object".to_string()),
+        },
+    );
+    // Longer cache hit bleeding past the real object boundary, wrong type.
+    variable_cache.insert(
+        "法盘中".to_string(),
+        VariableCacheEntry {
+            translation: "pháp bàn trung".to_string(),
+            source: "character".to_string(),
+            var_type: Some("unknown".to_string()),
+        },
+    );
+
+    let matcher = PatternMatcher::new(&variable_cache, DEFAULT_MAX_VARIABLE_SPAN);
+    let result = matcher.test_pattern_match(&pattern, &tokens, 0);
+
+    assert!(result.success, "Pattern should match: {:?}", result.reason);
+    assert_eq!(result.result.as_ref().unwrap(), "pháp bàn trong tay nữ tử");
+    // Only consumes the 5 tokens of "女子手中的法盘" — the trailing "中" (index 5)
+    // is left for the next phase to translate on its own, not swallowed into Y.
+    assert_eq!(result.matched_tokens.as_ref().unwrap().len(), 5);
+    assert_eq!(result.end_position, Some(4));
+}
+
+#[test]
 fn test_build_result_with_complex_template() {
     let template = "ở trong X Y";
     let mut variables = HashMap::new();

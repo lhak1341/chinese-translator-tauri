@@ -1,0 +1,23 @@
+# src/utils/wasm — WASM Wrapper Lifecycle
+
+The WASM wrappers share one binary, so failure is always collective.
+
+All 7 wrappers (PatternProcessor, TextAssembler, TextChunker, DictionaryManager, ConflictResolution, StringProcessor, TextTokenizer) import the same `translation_wasm_core.js`. Any panic corrupts the shared `dlmalloc` linear memory permanently, so a panic anywhere must retire everything.
+
+- **Retire on panic, never retry.** Every `catch` around a WASM call sets `this.obj = null; this.initialized = false; this.initializationFailed = true`, and `initialize()` guards `if (this.initializationFailed) return false`. Once `panic = "abort"` fires, `borrow_mut_count` is stuck — retrying yields "recursive use" forever.
+- **Cascade only through `src/utils/wasm/WasmCascadeRegistry.js`.** Each wrapper calls `registerCascadeHandler(fn)` once at module load; each panic catch calls `fireCascadeRetire()`, which invokes every handler including its own. A direct sibling call is redundant rather than a safety net: all wrappers are statically imported from `TranslationEngine.js`, so all are registered before any translation runs. **Confirmed twice** — four wrappers reached a sibling directly until 2026-08-08 (sole cause of the only import cycle this repo's static analysis ever flagged), and the 2026-08-08 cleanup left two survivors in `WasmDictionaryManager.js`, each sitting one line above the `fireCascadeRetire()` that already covered it, until 2026-08-31. Removing them deleted the last wrapper-to-wrapper import in the directory. `WasmCascadeDiscipline.test.js` now enforces the registration, the fire, the no-sibling-retire edge, and the module-privacy of retire functions; it is also what tells you a new wrapper has to join the cascade at all.
+- **`__destroy_into_raw()` before every `instance = null`.** Otherwise FinalizationRegistry stays active, and the stale callback fires when dlmalloc reuses the freed Rc address — the next method call panics in `alloc/rc.rs`. Use `__destroy_into_raw()` (JS-only, safe post-panic), never `.free()` (calls into WASM, unsafe after `panic = "abort"`).
+- **Singletons trigger background init at module bottom** with `.initialize().catch(warn)`; missing it forces every first caller onto the slow JS path.
+- **`new URL(path, import.meta.url)` needs a hard-coded string literal.** Template literals defeat Vite's asset URL transform — resolves in dev, breaks in production, so no test in this repo can see it. Enforced repo-wide by `SourceConventionScan.test.js`.
+
+Wrappers that deviate, and why:
+
+- `WasmConflictResolution.js` — module-level singleton, no class: retire is bare `initialized = false; initializationFailed = true`, no `this.*`. Fires at two pipeline points (Phase 2 before NumberProcessor, Phase 4 after DictionaryManager).
+- `WasmPatternProcessor.js`, `WasmStringProcessor.js`, `WasmTextChunker.js`, `WasmTextTokenizer.js` — use `WasmProcessorLifecycle`: on a runtime panic call `lifecycle.permanentlyFail()`, **not** `lifecycle.reset()`, which clears `_hasFailed` and allows re-init from the corrupted binary.
+- `WasmPatternProcessor.js` — exports functions rather than a singleton; its module-bottom prewarm is a self-calling IIFE that only warms the ES module cache.
+- `WasmTextTokenizer.js` — holds no owned struct (`tokenizeText`/`getTokenizerStats` are free wasm-bindgen functions), so retire is a bare `permanentlyFail()` with no `__destroy_into_raw()`.
+- `WasmPatternProcessor.js` — `processTokensWasm` receives only `semanticTokens` (`extractSemanticTokens`-filtered, non-semantic tokens dropped); a result's `startIndex`/`endIndex` index into the ORIGINAL `tokens` array via each token's `originalIndex` field, so any bounds check against `tokens.length` must run in `TwoPhasePatternProcessor.js` (still has `tokens` in scope), never inside `processTokensWasm` itself.
+
+`translation_wasm_core.d.ts` is auto-generated and the linter reverts manual edits — `__destroy_into_raw` is absent from it, so suppress TS2339 with `// @ts-ignore` on the call line rather than editing the `.d.ts`.
+
+`WasmMemoryPool.getCurrentMemoryUsage()` is `private` and not part of `WasmBufferAllocator` — external callers use `getStats().totalMemoryUsage`.

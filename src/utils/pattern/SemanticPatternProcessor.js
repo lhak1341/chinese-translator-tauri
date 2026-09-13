@@ -1058,8 +1058,22 @@ export class SemanticPatternProcessor {
               // intentionally no break
             }
           } else {
-            // No more pattern tokens - use longest available span
-            validSpan = candidate;
+            // No more pattern tokens - use longest available span, but if
+            // this variable has an allowed-types constraint, prefer the
+            // longest span whose resolved type actually satisfies it.
+            // Otherwise a longer cache hit that bleeds past the real
+            // boundary (e.g. object span + trailing "中" character) wins
+            // blindly and the type check below rejects the whole match
+            // instead of falling back to the correct shorter span.
+            const allowedTypes = pattern.metadata.allowedVariableTypes?.[patternToken.name];
+            if (Array.isArray(allowedTypes)) {
+              validSpan =
+                candidateSpans.find((c) =>
+                  allowedTypes.includes(c.translation.type || 'unknown')
+                ) || candidateSpans[0];
+            } else {
+              validSpan = candidate;
+            }
             break;
           }
         }
