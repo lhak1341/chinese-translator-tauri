@@ -806,6 +806,37 @@ pub fn find_best_pattern_match(
     variable_cache: &HashMap<String, VariableCacheEntry>,
     max_var_span: usize,
 ) -> Option<PatternMatchResult> {
+    find_best_pattern_match_iter(
+        patterns.iter(),
+        semantic_tokens,
+        position,
+        variable_cache,
+        max_var_span,
+    )
+}
+
+/// Iterator-accepting form of [`find_best_pattern_match`].
+///
+/// Callers that draw candidates from two separate pattern slices (literal-starting
+/// plus variable-starting, as both Phase A and Phase B do at every token position)
+/// use this to chain the slices instead of concatenating them into an owned buffer.
+/// Concatenating deep-cloned every variable-starting pattern — ~1025 of them against
+/// the production dictionary — once per token position per phase, which measured at
+/// ~370µs per clone pass and dominated pattern-matching time.
+///
+/// Iteration order is significant and must be preserved by callers: ties (equal match
+/// length, variable count and priority) resolve to whichever candidate is seen first,
+/// so chain slices in the same order a concatenated buffer would have held them.
+pub fn find_best_pattern_match_iter<'a, I>(
+    patterns: I,
+    semantic_tokens: &[SemanticToken],
+    position: usize,
+    variable_cache: &HashMap<String, VariableCacheEntry>,
+    max_var_span: usize,
+) -> Option<PatternMatchResult>
+where
+    I: IntoIterator<Item = &'a SemanticPattern>,
+{
     let matcher = PatternMatcher::new(variable_cache, max_var_span);
     let mut best_match: Option<PatternMatchResult> = None;
     let mut best_priority: i32 = -1;

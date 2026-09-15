@@ -6164,7 +6164,9 @@ export class TranslationEngine {
       try {
         validatePhaseOrder('patterns');
         await withTimeout(
-          this.applyPatterns(tokens, { ...options, debug: true }),
+          this.phaseProfiler.profile('patterns', async () => {
+            await this.applyPatterns(tokens, { ...options, debug: true });
+          }),
           PHASE_TIMEOUTS.patterns,
           'patterns'
         );
@@ -6214,10 +6216,12 @@ export class TranslationEngine {
       try {
         validatePhaseOrder('properNouns');
         await withTimeout(
-          this.applyDictionaryTranslation(tokens, {
-            ...options,
-            dictionaryOrder: [...this.activeProperNouns],
-            phase: 'properNouns',
+          this.phaseProfiler.profile('properNouns', async () => {
+            await this.applyDictionaryTranslation(tokens, {
+              ...options,
+              dictionaryOrder: [...this.activeProperNouns],
+              phase: 'properNouns',
+            });
           }),
           PHASE_TIMEOUTS.properNouns,
           'properNouns'

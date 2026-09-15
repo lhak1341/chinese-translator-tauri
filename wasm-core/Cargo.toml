@@ -46,6 +46,10 @@ harness = false
 name = "trie_matching"
 harness = false
 
+[[bench]]
+name = "real_dictionary_profile"
+harness = false
+
 [profile.release]
 # Optimize for size and speed
 opt-level = 3

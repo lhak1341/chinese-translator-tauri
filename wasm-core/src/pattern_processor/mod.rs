@@ -28,7 +28,7 @@ pub mod wasm_wrapper;
 pub use index::{PatternIndex, VARIABLE_KEY};
 pub use matcher::{
     build_result,
-    find_best_pattern_match, PatternMatchResult, PatternMatcher, PhaseAPattern,
+    find_best_pattern_match, find_best_pattern_match_iter, PatternMatchResult, PatternMatcher, PhaseAPattern,
     PhaseAResult,
     SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
 };

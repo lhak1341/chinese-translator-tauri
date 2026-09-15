@@ -11,7 +11,7 @@
  */
 
 use super::index::PatternIndex;
-use super::matcher::{find_best_pattern_match, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
+use super::matcher::{find_best_pattern_match_iter, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
 use super::pattern::{SemanticPattern, TokenType};
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
@@ -215,7 +215,6 @@ impl TwoPhasePatternProcessor {
         // skipped at any position where a literal-starting Phase A pattern also
         // existed, even if the variable-starting pattern would win by priority.
         let variable_patterns = self.phase_a_index.get_variable_patterns();
-        let mut candidate_patterns = Vec::with_capacity(variable_patterns.len() + 32);
 
         while position < semantic_tokens.len() {
             // Skip tokens already processed
@@ -240,13 +239,14 @@ impl TwoPhasePatternProcessor {
                 .map(|c| c.to_string())
                 .unwrap_or_default();
             let literal_patterns = self.phase_a_index.get_patterns_by_first_token(&first_char);
-            candidate_patterns.clear();
-            candidate_patterns.extend_from_slice(literal_patterns);
-            candidate_patterns.extend_from_slice(variable_patterns);
 
-            if !candidate_patterns.is_empty() {
-                if let Some(match_result) = find_best_pattern_match(
-                    &candidate_patterns,
+            // Chain the two slices rather than concatenating them into an owned
+            // buffer — concatenating deep-cloned every variable-starting pattern
+            // at every position. Order (literal then variable) is load-bearing for
+            // tie-breaks and matches the previous buffer's layout.
+            if !literal_patterns.is_empty() || !variable_patterns.is_empty() {
+                if let Some(match_result) = find_best_pattern_match_iter(
+                    literal_patterns.iter().chain(variable_patterns.iter()),
                     semantic_tokens,
                     position,
                     variable_cache,
@@ -526,10 +526,8 @@ impl TwoPhasePatternProcessor {
         let mut results = Vec::with_capacity(semantic_tokens.len() / 2);
         let mut position = 0;
 
-        // variable_patterns is constant for the entire loop — hoist outside and
-        // reuse a single buffer to avoid allocating a new Vec every iteration.
+        // variable_patterns is constant for the entire loop — hoist outside.
         let variable_patterns = self.phase_b_index.get_variable_patterns();
-        let mut candidate_patterns = Vec::with_capacity(variable_patterns.len() + 32);
 
         while position < semantic_tokens.len() {
             // Skip tokens already processed
@@ -554,16 +552,13 @@ impl TwoPhasePatternProcessor {
                 .unwrap_or_default();
             let literal_patterns = self.phase_b_index.get_patterns_by_first_token(&first_char);
 
-            // Combine both literal-starting and variable-starting patterns.
-            // Reuse the pre-allocated buffer — clear and refill each iteration.
-            candidate_patterns.clear();
-            candidate_patterns.extend_from_slice(literal_patterns);
-            candidate_patterns.extend_from_slice(variable_patterns);
-
-            // Find best pattern match among candidates with enhanced cache
-            let match_result = if !candidate_patterns.is_empty() {
-                find_best_pattern_match(
-                    &candidate_patterns,
+            // Combine both literal-starting and variable-starting patterns by
+            // chaining the slices — concatenating them into an owned buffer
+            // deep-cloned every variable-starting pattern at every position.
+            // Order (literal then variable) is load-bearing for tie-breaks.
+            let match_result = if !literal_patterns.is_empty() || !variable_patterns.is_empty() {
+                find_best_pattern_match_iter(
+                    literal_patterns.iter().chain(variable_patterns.iter()),
                     semantic_tokens,
                     position,
                     &enhanced_cache,
