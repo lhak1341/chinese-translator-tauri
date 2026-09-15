@@ -113,6 +113,97 @@ impl PatternProcessingResult {
     }
 }
 
+/// Lookup from "first literal character" to the variable-starting patterns needing it.
+///
+/// `test_pattern_match` fast-rejects patterns whose FIRST token is a literal by comparing
+/// that literal against the token at `position`. Variable-starting patterns get no such
+/// check, so all of them (~1025 against the production dictionary) ran the full matcher at
+/// every token position.
+///
+/// A variable consumes 1..=`max_var_span` tokens (`resolve_variable_with_lookahead` tries
+/// `(1..=max_span).rev()`), so for a pattern with a single leading variable the first literal
+/// must begin at a token in `[position + 1, position + max_var_span]`. Literals are always
+/// matched from a token boundary, so that token's first char must equal the literal's first
+/// char. Rather than testing that per pattern (a scan proportional to the window for each of
+/// the 1025 patterns — measurably slower than just matching), this inverts it: look up the
+/// distinct first chars actually present in the window, which is a handful of hash lookups.
+///
+/// Patterns this cannot reason about — no literal at all, or more than one leading variable,
+/// which widens the window per pattern — go in `always`, and are always tried.
+struct VariableLiteralIndex {
+    /// first literal char -> indices into the variable-pattern slice, ascending
+    by_first_literal: HashMap<char, Vec<u32>>,
+    /// Indices that must always be tried, ascending
+    always: Vec<u32>,
+}
+
+impl VariableLiteralIndex {
+    fn build(patterns: &[SemanticPattern]) -> Self {
+        let mut by_first_literal: HashMap<char, Vec<u32>> = HashMap::new();
+        let mut always = Vec::new();
+
+        for (i, pattern) in patterns.iter().enumerate() {
+            let idx = i as u32;
+            let first_literal = pattern
+                .tokens
+                .iter()
+                .position(|t| t.token_type == TokenType::Literal);
+
+            match first_literal {
+                // Exactly one leading variable, then a literal we can key on.
+                Some(li) if li == 1 => {
+                    match pattern.tokens[li].value.as_ref().and_then(|v| v.chars().next()) {
+                        Some(c) => by_first_literal.entry(c).or_default().push(idx),
+                        None => always.push(idx),
+                    }
+                }
+                _ => always.push(idx),
+            }
+        }
+
+        Self { by_first_literal, always }
+    }
+
+    /// Collect indices of patterns that could match at `position`, in ascending index order.
+    ///
+    /// Ascending order matters: `find_best_pattern_match_iter` resolves an exact tie (equal
+    /// match length, variable count and priority) in favour of whichever candidate it sees
+    /// first, so candidates must reach it in their original slice order.
+    fn collect_candidates(
+        &self,
+        semantic_tokens: &[SemanticToken],
+        position: usize,
+        max_var_span: usize,
+        seen_chars: &mut Vec<char>,
+        out: &mut Vec<u32>,
+    ) {
+        out.clear();
+        out.extend_from_slice(&self.always);
+
+        if max_var_span > 0 && position + 1 < semantic_tokens.len() {
+            let window_end = position
+                .saturating_add(max_var_span)
+                .min(semantic_tokens.len() - 1);
+
+            seen_chars.clear();
+            for token in &semantic_tokens[position + 1..=window_end] {
+                let Some(c) = token.value.chars().next() else {
+                    continue;
+                };
+                if seen_chars.contains(&c) {
+                    continue; // same char twice in the window — its bucket is already added
+                }
+                seen_chars.push(c);
+                if let Some(bucket) = self.by_first_literal.get(&c) {
+                    out.extend_from_slice(bucket);
+                }
+            }
+        }
+
+        out.sort_unstable();
+    }
+}
+
 /// Two-phase pattern processor
 pub struct TwoPhasePatternProcessor {
     /// All patterns
@@ -129,6 +220,12 @@ pub struct TwoPhasePatternProcessor {
 
     /// Pattern index for Phase B (all patterns)
     phase_b_index: PatternIndex,
+
+    /// First-literal lookup over `phase_a_index.get_variable_patterns()`
+    phase_a_variable_literals: VariableLiteralIndex,
+
+    /// First-literal lookup over `phase_b_index.get_variable_patterns()`
+    phase_b_variable_literals: VariableLiteralIndex,
 }
 
 impl TwoPhasePatternProcessor {
@@ -152,12 +249,20 @@ impl TwoPhasePatternProcessor {
         let mut phase_b_index = PatternIndex::new();
         phase_b_index.index_patterns(&patterns);
 
+        // Built over the very slices the phase loops iterate, so the indices line up.
+        let phase_a_variable_literals =
+            VariableLiteralIndex::build(phase_a_index.get_variable_patterns());
+        let phase_b_variable_literals =
+            VariableLiteralIndex::build(phase_b_index.get_variable_patterns());
+
         Self {
             all_patterns: patterns,
             variable_patterns,
             composite_eligible_patterns,
             phase_a_index,
             phase_b_index,
+            phase_a_variable_literals,
+            phase_b_variable_literals,
         }
     }
 
@@ -215,6 +320,8 @@ impl TwoPhasePatternProcessor {
         // skipped at any position where a literal-starting Phase A pattern also
         // existed, even if the variable-starting pattern would win by priority.
         let variable_patterns = self.phase_a_index.get_variable_patterns();
+        let mut candidate_idx: Vec<u32> = Vec::new();
+        let mut seen_chars: Vec<char> = Vec::new();
 
         while position < semantic_tokens.len() {
             // Skip tokens already processed
@@ -244,9 +351,19 @@ impl TwoPhasePatternProcessor {
             // buffer — concatenating deep-cloned every variable-starting pattern
             // at every position. Order (literal then variable) is load-bearing for
             // tie-breaks and matches the previous buffer's layout.
-            if !literal_patterns.is_empty() || !variable_patterns.is_empty() {
+            self.phase_a_variable_literals.collect_candidates(
+                semantic_tokens,
+                position,
+                DEFAULT_MAX_VARIABLE_SPAN,
+                &mut seen_chars,
+                &mut candidate_idx,
+            );
+
+            if !literal_patterns.is_empty() || !candidate_idx.is_empty() {
                 if let Some(match_result) = find_best_pattern_match_iter(
-                    literal_patterns.iter().chain(variable_patterns.iter()),
+                    literal_patterns.iter().chain(
+                        candidate_idx.iter().map(|&i| &variable_patterns[i as usize]),
+                    ),
                     semantic_tokens,
                     position,
                     variable_cache,
@@ -528,6 +645,8 @@ impl TwoPhasePatternProcessor {
 
         // variable_patterns is constant for the entire loop — hoist outside.
         let variable_patterns = self.phase_b_index.get_variable_patterns();
+        let mut candidate_idx: Vec<u32> = Vec::new();
+        let mut seen_chars: Vec<char> = Vec::new();
 
         while position < semantic_tokens.len() {
             // Skip tokens already processed
@@ -556,9 +675,19 @@ impl TwoPhasePatternProcessor {
             // chaining the slices — concatenating them into an owned buffer
             // deep-cloned every variable-starting pattern at every position.
             // Order (literal then variable) is load-bearing for tie-breaks.
-            let match_result = if !literal_patterns.is_empty() || !variable_patterns.is_empty() {
+            self.phase_b_variable_literals.collect_candidates(
+                semantic_tokens,
+                position,
+                phase_b_max_var_span,
+                &mut seen_chars,
+                &mut candidate_idx,
+            );
+
+            let match_result = if !literal_patterns.is_empty() || !candidate_idx.is_empty() {
                 find_best_pattern_match_iter(
-                    literal_patterns.iter().chain(variable_patterns.iter()),
+                    literal_patterns.iter().chain(
+                        candidate_idx.iter().map(|&i| &variable_patterns[i as usize]),
+                    ),
                     semantic_tokens,
                     position,
                     &enhanced_cache,
@@ -943,5 +1072,139 @@ mod tests {
         assert_eq!(processor.variable_patterns.len(), 1); // Only "X的Y" has allowAsPatternVariable
         assert_eq!(processor.composite_eligible_patterns.len(), 2); // "这些X" and "在X眼中" (single-variable)
         assert_eq!(processor.all_patterns.len(), 3);
+    }
+
+    /// Equivalence proof for `VariableLiteralIndex`, run against the real production
+    /// dictionary: at every position, the best match found by iterating the index-selected
+    /// candidates must be IDENTICAL to the best match found by iterating every
+    /// variable-starting pattern. The index is only a speed optimisation; if it ever changes
+    /// which pattern wins, it changes translation output, and this fails.
+    mod variable_literal_index_equivalence {
+        use super::super::*;
+        use crate::pattern_processor::parse_patterns_dict;
+        use serde_json::Value;
+
+        fn token(value: &str, index: usize) -> SemanticToken {
+            SemanticToken {
+                value: value.to_string(),
+                original_index: index,
+                protected_by_phase_a: None,
+                phase_a_result: None,
+                translation_source: None,
+                has_preceding_boundary: false,
+            }
+        }
+
+        #[test]
+        fn index_selects_the_same_best_match_as_scanning_every_pattern() {
+            let home = std::env::var("HOME").unwrap_or_default();
+            let path = std::env::var("PATTERNS_JSON").unwrap_or_else(|_| {
+                format!(
+                    "{}/Library/Application Support/com.lhak.chinese-translator/dictionaries/patterns.json",
+                    home
+                )
+            });
+            let Ok(raw) = std::fs::read_to_string(&path) else {
+                eprintln!("SKIP: production patterns.json not found");
+                return;
+            };
+            let map: HashMap<String, Value> =
+                serde_json::from_str(&raw).expect("patterns.json parses");
+            let patterns = parse_patterns_dict(map);
+            assert!(!patterns.is_empty());
+
+            let processor = TwoPhasePatternProcessor::new(patterns);
+
+            let corpus = "在这个宗门之中有一位年轻的弟子名叫王二他天赋异禀修炼速度远超同龄人\
+                          三十岁便突破到了金丹期这一日他站在山顶之上望着远方的云海心中思索着\
+                          下一步的修炼方向忽然一道剑气从天而降斩碎了周围的岩石王二不知道这是";
+            let semantic_tokens: Vec<SemanticToken> =
+                corpus.chars().enumerate().map(|(i, c)| token(&c.to_string(), i)).collect();
+
+            // Populate a cache so variables actually resolve — an empty cache would make
+            // nearly everything fail to match and render the comparison vacuous.
+            let mut cache: HashMap<String, VariableCacheEntry> = HashMap::new();
+            let chars: Vec<char> = corpus.chars().collect();
+            for w in 1..=4 {
+                for win in chars.windows(w) {
+                    let s: String = win.iter().collect();
+                    cache.entry(s.clone()).or_insert(VariableCacheEntry {
+                        translation: format!("[{}]", s),
+                        source: "phrases".to_string(),
+                        var_type: Some("concept".to_string()),
+                    });
+                }
+            }
+
+            for (index, max_span) in [
+                (&processor.phase_a_variable_literals, DEFAULT_MAX_VARIABLE_SPAN),
+                (&processor.phase_b_variable_literals, DEFAULT_MAX_VARIABLE_SPAN),
+                (&processor.phase_b_variable_literals, 12),
+                (&processor.phase_b_variable_literals, 30),
+            ] {
+                let all = if std::ptr::eq(index, &processor.phase_a_variable_literals) {
+                    processor.phase_a_index.get_variable_patterns()
+                } else {
+                    processor.phase_b_index.get_variable_patterns()
+                };
+
+                let mut candidate_idx = Vec::new();
+                let mut seen_chars = Vec::new();
+                let mut compared = 0usize;
+                let mut narrowed = 0usize;
+
+                for position in 0..semantic_tokens.len() {
+                    let expected = find_best_pattern_match_iter(
+                        all.iter(),
+                        &semantic_tokens,
+                        position,
+                        &cache,
+                        max_span,
+                    );
+
+                    index.collect_candidates(
+                        &semantic_tokens,
+                        position,
+                        max_span,
+                        &mut seen_chars,
+                        &mut candidate_idx,
+                    );
+                    if candidate_idx.len() < all.len() {
+                        narrowed += 1;
+                    }
+                    let actual = find_best_pattern_match_iter(
+                        candidate_idx.iter().map(|&i| &all[i as usize]),
+                        &semantic_tokens,
+                        position,
+                        &cache,
+                        max_span,
+                    );
+
+                    let key = |m: &Option<PatternMatchResult>| {
+                        m.as_ref().map(|r| {
+                            (
+                                r.pattern_id.clone(),
+                                r.result.clone(),
+                                r.start_position,
+                                r.end_position,
+                            )
+                        })
+                    };
+                    assert_eq!(
+                        key(&expected),
+                        key(&actual),
+                        "index changed the winning match at position {position} (max_span={max_span})"
+                    );
+                    compared += 1;
+                }
+
+                assert!(compared > 0);
+                assert!(
+                    narrowed > 0,
+                    "index never narrowed the candidate set at max_span={max_span} — test is vacuous"
+                );
+                eprintln!("max_span={max_span}: {compared} positions compared, {narrowed} narrowed");
+            }
+        }
     }
 }
