@@ -25,7 +25,7 @@ Fix: Vite HMR on any JS file resets the engine instance, clearing the flag. Or d
 
 ## Build Profile
 
-`npm run build-wasm-dev` (`wasm-pack build --dev`) = debug WASM — `overflow-checks = true`, `debug_assertions = true`, unoptimized. A panic in `tauri:dev` may not reproduce in production (`build-wasm` uses release: `overflow-checks = false`, `opt-level = 3`). When debugging a WASM panic, verify whether it is debug-only before assuming a logic error.
+`npm run build-wasm-dev` (`wasm-pack build --dev`) = debug WASM — `overflow-checks = true`, `debug_assertions = true`, unoptimized. A panic in `tauri:dev` may not reproduce in production (`build-wasm` uses release: `overflow-checks = false`, `opt-level = 3`). When debugging a WASM panic, verify whether it is debug-only before assuming a logic error. Corollary for benchmarking: `bun run dev` and `bun run tauri:dev` both run `build-wasm-dev` first and **silently overwrite a release binary with a debug one**, so any timing taken through them is meaningless (measured 7838 ms debug vs 2089 ms release on the same input). Profile with `bun run build-wasm && bunx tauri dev`, or `bun run build-wasm` plus a plain `./node_modules/.bin/vite`.
 
 **Dev binary path:** `bun run build-wasm-dev` outputs to `src/wasm/translation_wasm_core_bg.wasm` — that is what the dev server serves. `public/wasm/` is updated only by production builds (`bun run build`) and can be months stale without breaking dev. When diagnosing a stale-binary bug, check `src/wasm/`, not `public/wasm/`.
 
@@ -46,13 +46,17 @@ more-variable pattern over a shorter, more-specific one waiting to compose — e
 `.priority`'s only real consumers are `find_best_pattern_match` and this tie-break; `trie.rs` has an unrelated
 same-named field (dictionary trie metadata) — don't let a bare `.priority` grep pull it in.
 
-**A curated 2-3 pattern repro can miss a real composite-bonus bug that only manifests at full-dictionary scale** —
-confirmed 2026-09-13: `compute_composite_bonus` summed a pattern's leading/trailing bonuses independently, letting
-an unrelated `<literal>X<literal>`-shaped decoy pattern (e.g. `在X中`) phantom-contribute a bonus from only its
-trailing side matching, with its required leading literal nowhere nearby. A hand-picked 3-pattern repro showed
-correct behavior on both inputs; only loading the real `patterns.json` via `parse_patterns_dict` surfaced the
-interference. If an isolated repro doesn't reproduce a suspected scoring bug here, load the real dictionary before
-concluding the hypothesis or fix is wrong.
+**A repro here must reproduce production STATE, not just production scale — otherwise it answers a question you did
+not ask, confidently.** Two confirmed instances, one correctness and one performance. (1) 2026-09-13:
+`compute_composite_bonus` summed a pattern's leading/trailing bonuses independently, letting an unrelated
+`<literal>X<literal>`-shaped decoy pattern (e.g. `在X中`) phantom-contribute a bonus from only its trailing side
+matching, with its required leading literal nowhere nearby. A hand-picked 3-pattern repro showed correct behavior on
+both inputs; only loading the real `patterns.json` via `parse_patterns_dict` surfaced the interference. (2)
+2026-09-16: a criterion bench using the real dictionary but an EMPTY variable cache and `DEFAULT_MAX_VARIABLE_SPAN`
+rated a candidate prefilter 2-7x FASTER; in production, where `phase_b_max_var_span = max(6, max_phase_a_key_chars)`
+is much larger and the cache is populated, the same change measured 2-3x SLOWER and was reverted. Load the real
+dictionary AND a realistic cache/span before trusting any result from this module, and note that proving a filter
+_sound_ proves nothing about whether it is _worth it_.
 
 **Test coverage:** `test_phase_a_composite_bonus_wins_over_larger_own_span` (`tests/two_phase_test.rs`) covers the
 trailing-bonus path (`estimate_trailing_bonus`) end-to-end, via `process_tokens`. `estimate_leading_bonus` has

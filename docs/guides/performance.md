@@ -19,8 +19,9 @@ window.checkRealMemory(); // Shows real heap usage %
 
 ```javascript
 window.translationEngine.translationSegments.length;
-// Expected: ≤35 segments (automatic cleanup triggers at Emergency:3, Critical:5, Normal:35)
-// Problem: >35 segments = cleanup thresholds not working
+// Cleanup is idle-deferred at SEGMENT_CLEANUP_TRIGGER (75) and trims back to
+// SEGMENT_CLEANUP_KEEP (35); SEGMENT_CLEANUP_HARD_CEILING (100) trims synchronously.
+// Problem: sustained >100 = the engine's own cleanup is not firing
 ```
 
 **Pattern**: Translation segments accumulate unbounded arrays, causing 100x slowdown. Proactive cleanup standardized in `PerformanceThresholds.ts`.
@@ -44,7 +45,7 @@ window.performanceDashboard.getHealthReport();
 **Common patterns:**
 
 - **False memory alerts** (1.3-2.0x baseline): Startup vs runtime baseline comparison - check real heap first
-- **Actual memory leaks** (>35 segments): Cleanup thresholds not triggering
+- **Actual memory leaks** (segments sustained >100): Cleanup thresholds not triggering
 - **Cache degradation** (<70% hit rate): Content variation or configuration issues
 - **Processing slowdown** (1.2-1.5x baseline): WASM fallback, dictionary loading delays, DOM bottlenecks
 
@@ -82,10 +83,7 @@ await window.translationEngine.invalidateAllCaches('properNouns');
 - `deleteEntry()` - Clears caches after successful delete
 - `undo()` / `redo()` - Clears caches after history operations
 
-**Implementation**:
-
-- Unified API: `TranslationEngine.js:6849-6902`
-- Dictionary operations: `LazyDictionaryContext.tsx` (lines 383-385, 466-468, 514-516, 558-560, 595-597)
+**Implementation**: `TranslationEngine.invalidateAllCaches()`; the dictionary context calls it after each mutating operation.
 
 **Why this matters**: Prevents stale translations from being served after dictionary changes. Each cache invalidation is logged with timing for debugging.
 
@@ -133,6 +131,16 @@ console.timeEnd('pattern-matching');
 // - Which operation takes >50% of the time?
 ```
 
+**A measurement here is invalid unless you prove the thing you meant to measure actually ran.** Five confirmed ways it silently does not:
+
+- **WASM does not run under vitest or Node.** `src/test/setup.ts` mocks `translation_wasm_core.js`, and Node `fetch` cannot load `file://` ("not implemented... yet"). A vitest profile shows the pattern phase as near-zero or as fail-fast overhead. Use vitest for the pure-JS phases — it measures those accurately and without tab throttling — and a browser for anything WASM.
+- **Dev builds are debug WASM.** See `wasm-core/CLAUDE.md`'s Build Profile: `bun run dev` / `bun run tauri:dev` overwrite a release binary with a debug one.
+- **`phaseProfiler` wraps async functions, so its numbers are wall-clock-with-awaits, not CPU share.** Measured on one run: it reported `Pattern Matching (WASM)` = 463 ms where the actual synchronous WASM work was 69 ms. Treat `getProfilingReport()` percentages as a ranking hint, never as a CPU breakdown.
+- **A background tab throttles timers**, and the engine yields between batches, so wall-clock inflates without bound (a 304-char input measured 12 s hidden vs ~35 ms unthrottled) and looks exactly like an algorithmic cliff. Check `document.hidden` before believing any wall-clock number. The throttle-immune measure is the sum of _synchronous_ `WasmPatternProcessor.processTokens` durations.
+- **Monkey-patch instrumentation silently misses after a WASM rebuild:** vite then serves the app HMR-busted module URLs, so a console `import('/src/wasm/…')` returns a _different module instance_ than the engine uses — the patch lands on a copy nothing calls, and `isWasmPatternProcessorReady()` read from that copy reports `false` while WASM is fine. Always probe with a tiny translate and assert the hook fired before trusting a run.
+
+Driving the engine outside the native app (needed for browser profiling): the app's own dictionary load goes through Tauri `invoke` and fails with "All 6 dictionaries failed to load" — expected, ignore it. Construct `TranslationEngine` directly and `fetch()` dictionary copies staged under `public/`. Verify output equality on `result.translatedText` only: hashing the whole result is not a valid check, because `semanticArrays` is ordered by chunk completion order and varies between runs.
+
 ### Step 3: Verify Optimization Impact
 
 ```javascript
@@ -168,37 +176,9 @@ console.log(
 - **Token array operations**: Profile slice/map/filter chains
 - **DOM manipulation**: Measure render blocking, use virtualization thresholds
 
-### Built-in Pattern Matching Profiler
+### Rust-side matcher profiling is not wired up
 
-**Rust-side detailed profiling:**
-
-```javascript
-// 1. Enable profiling
-window.enableMatcherProfiling();
-window.resetMatcherProfiling();
-
-// 2. Translate test text
-
-// 3. View detailed breakdown
-window.printMatcherProfilingReport();
-
-// Output shows:
-// - Variable Resolution time (string building, cache lookups, lookahead)
-// - Cache hit rate (percentage of successful variable cache lookups)
-// - Early rejection efficiency
-// - Literal matching performance
-// - Unmeasured overhead
-
-// Diagnostic questions:
-// - Is string building >50% of variable resolution? → Pre-compute spans
-// - Are cache lookups >50%? → Optimize HashMap key structure
-// - Is lookahead >50%? → Skip lookahead for patterns without literals
-// - Is cache hit rate <30%? → Dictionary doesn't have entries (not cache problem)
-```
-
-**When to use pattern matcher profiling**: When pattern matching takes >50% of translation time and you need to identify which part of variable resolution is the bottleneck.
-
-**Archive**: See `docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md` for detailed usage instructions and interpretation guide.
+`wasm-core` exports `enable_matcher_profiling` / `reset_matcher_profiling` and friends, but nothing installs them on `window` — `DevConsole.js` exposes only `translationEngine`, `performanceDashboard`, `systemPerformanceMonitor`, `checkRealMemory`, `optimizationBenchmarks` and `runOptimizationBenchmarks`. To use the Rust-side breakdown (variable-resolution time, cache hit rate, early-rejection efficiency), expose the exports through `DevConsole.js` first and invoke each one manually once, per the dev-console rot warning in `src/utils/CLAUDE.md`. Usage and interpretation: `docs/archive/pattern-optimization/PATTERN_MATCHING_DETAILED_VAR_PROFILING.md`.
 
 ### Prevention Strategy
 
@@ -213,200 +193,21 @@ window.printMatcherProfilingReport();
 
 ## Memory Leak Prevention
 
-### Timer Cleanup Pattern
+**Every accumulator that grows per-translation or per-interval needs a size cap and an explicit teardown at the site that creates it.** A cleanup pass bolted on elsewhere does not count — it drifts out of sync with the thing it is cleaning, and the accumulator is unbounded in the window between them. Four accumulator kinds appear here; the generic JS half (store the interval id, clear it in `destroy()`, evict oldest on insert since `Map` iterates in insertion order) is not repeated below, only what is project-specific.
 
-**Production stability** (January 2025): Eliminated memory leaks causing 50MB+ accumulation over long sessions.
+| Accumulator                   | Cap                                                                                                                                                              | Owner                                                               |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Translation segments          | `SEGMENT_CLEANUP_TRIGGER` 75 (idle-deferred), trimmed back to `SEGMENT_CLEANUP_KEEP` 35; `SEGMENT_CLEANUP_HARD_CEILING` 100 trims synchronously at the push site | `TranslationEngine`, values in `constants/PerformanceThresholds.ts` |
+| Proper-noun translation cache | 10,000 entries                                                                                                                                                   | `TranslationEngine`                                                 |
+| Dictionary sort cache         | 15                                                                                                                                                               | `IncrementalDictionarySorter`                                       |
+| Loading states / callbacks    | 50 / 30                                                                                                                                                          | `SmoothLoadingManager` (`UIResponsiveness.ts`)                      |
+| localStorage-backed caches    | proactive cleanup at 4MB of the ~5MB quota (count key+value as UTF-16, 2 bytes/char)                                                                             | translation cache                                                   |
 
-All `setInterval` must have corresponding `clearInterval` in cleanup/destroy methods.
+Timers follow the same rule: every `setInterval`/`setTimeout` needs its id stored and cleared in a teardown that React's effect cleanup actually calls (`useEffect(() => () => x.destroy(), [])`). `Translator.jsx`'s `highlightScrollTimeoutRef` is the live example — a ref cleared in its own effect cleanup.
 
-```javascript
-// CRITICAL: setInterval leak fix
-class TranslationSegmentCache {
-  constructor() {
-    this.cleanupIntervalId = null; // Track interval ID
+Historical impact, for calibration on whether a regression here matters: long sessions went 50MB → <10MB (timer cleanup), dictionary switching 20-50MB → <5MB (bounded collections), translation cache 12.6MB → <5MB (quota monitoring).
 
-    // Start periodic cleanup
-    this.cleanupIntervalId = setInterval(() => {
-      this.performCleanup();
-    }, 60000);
-  }
-
-  destroy() {
-    // MUST clear interval on cleanup
-    if (this.cleanupIntervalId !== null) {
-      clearInterval(this.cleanupIntervalId);
-      this.cleanupIntervalId = null;
-    }
-  }
-}
-```
-
-**Key principles:**
-
-- Store interval ID in instance variable
-- Provide explicit `destroy()` method
-- Set ID to null after clearing
-- Call destroy in React cleanup: `useEffect(() => { return () => cache.destroy(); }, [])`
-
-**Impact**: Long-running sessions 50MB → <10MB
-
-**Implementation**: `TranslationSegmentCache.js:destroy()`, `ProactivePerformanceDetector.js:destroy()`
-
-### Bounded Collection Pattern
-
-Map/Set collections must have size limits with LRU eviction.
-
-```javascript
-// CRITICAL: Unbounded Map growth fix
-class ProactivePerformanceDetector {
-  constructor() {
-    this.MAX_BASELINES = 100;
-    this.MAX_TRENDS = 200;
-    this.MAX_ALERTS = 50;
-
-    this.baselines = new Map();
-    this.trends = new Map();
-    this.recentAlerts = new Map();
-  }
-
-  recordBaseline(metricKey, value) {
-    // Enforce size limit with LRU eviction
-    if (this.baselines.size >= this.MAX_BASELINES) {
-      const firstKey = this.baselines.keys().next().value;
-      this.baselines.delete(firstKey); // Remove oldest
-    }
-
-    this.baselines.set(metricKey, value);
-  }
-}
-```
-
-**Key principles:**
-
-- Define MAX\_\* constants for all collections
-- Check size before adding
-- Delete oldest entry (Map insertion order = chronological)
-- Typical limits: Baselines=100, Trends=200, Alerts=50
-
-**Impact**: Dictionary switching 20-50MB → <5MB
-
-**Implementation**: `ProactivePerformanceDetector.js:recordBaseline()`, `recordTrend()`, `recordAlert()`
-
-**Additional Bounded Collection Examples** (Code Review Round 9, 2026-01-20):
-
-- **SmoothLoadingManager** (`UIResponsiveness.ts`): 2 Maps with limits (loadingStates=50, callbacks=30)
-- **IncrementalDictionarySorter** (`IncrementalDictionarySorter.js`): sortedCache Map limit=15
-- **Translator Component** (`Translator.jsx`): Timer cleanup for scrollRestorationTimeoutRef
-
-### localStorage Quota Monitoring Pattern
-
-localStorage has 5-10MB quota. Monitor and cleanup proactively at 80% threshold.
-
-```javascript
-// HIGH: localStorage quota monitoring
-isApproachingQuota() {
-  try {
-    let totalBytes = 0;
-    const cacheKeys = this.metadata.keys || [];
-
-    for (const key of cacheKeys) {
-      const value = localStorage.getItem(key);
-      if (value) {
-        totalBytes += (key.length + value.length) * 2; // UTF-16 encoding
-      }
-    }
-
-    const totalMB = totalBytes / 1024 / 1024;
-    const quotaLimitMB = 4; // 80% of typical 5MB quota
-
-    if (totalMB > quotaLimitMB) {
-      console.warn(`⚠️ localStorage approaching quota: ${totalMB.toFixed(2)}MB / 5MB`);
-      this.proactiveCleanup(); // Remove oldest entries
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    return false;
-  }
-}
-```
-
-**Key principles:**
-
-- Calculate total bytes (key + value, UTF-16 = 2 bytes/char)
-- Set threshold at 80% (4MB of 5MB typical quota)
-- Trigger proactive cleanup before hitting quota
-- Check before every large write operation
-
-**Impact**: Translation cache 12.6MB → <5MB (within quota)
-
-**Implementation**: `TranslationSegmentCache.js:isApproachingQuota()`, `proactiveCleanup()`
-
-### Segment Cleanup Verification Pattern
-
-Translation segments accumulate large arrays. Verify cleanup triggers fire correctly.
-
-```javascript
-// HIGH: Segment cleanup verification
-cleanupOldSegments() {
-  const threshold = this.getSegmentCleanupThreshold();
-  const segmentCount = this.translationSegments.length;
-
-  // Log cleanup trigger
-  console.log(
-    `🧹 Segment cleanup: ${segmentCount} segments (threshold: ${threshold.type}=${threshold.value})`
-  );
-
-  if (segmentCount > threshold.value) {
-    const removedCount = segmentCount - threshold.value;
-    this.translationSegments.splice(0, removedCount);
-
-    console.log(`✅ Removed ${removedCount} old segments, ${this.translationSegments.length} remaining`);
-  }
-}
-```
-
-**Key principles:**
-
-- Log when cleanup triggers (verify thresholds work)
-- Log removal count and remaining count
-- Expected behavior: ≤35 segments (Emergency:3, Critical:5, Normal:35)
-- Problem indicator: >35 segments = thresholds not firing
-
-**Implementation**: `TranslationEngine.js:cleanupOldSegments()`
-
-### Semantic Array Auto-Compact Pattern
-
-Semantic arrays pre-allocate capacity but waste memory if oversized. Auto-compact when >30% waste.
-
-```javascript
-// HIGH: Semantic array auto-compact
-autoCompactIfNeeded() {
-  const wastedCapacity = this.capacity - this.length;
-  const wasteRatio = wastedCapacity / this.capacity;
-
-  if (wasteRatio > 0.3) {
-    console.log(
-      `📦 Auto-compacting semantic array: ${this.capacity} → ${this.length} (${(wasteRatio * 100).toFixed(1)}% waste)`
-    );
-    this.compact();
-  }
-}
-```
-
-**Key principles:**
-
-- Calculate waste ratio: (capacity - length) / capacity
-- Compact if waste >30%
-- Log before compacting (helps debug performance)
-- Call after translation completes
-
-**Implementation**: `OptimizedSemanticArrayBuilder.js:autoCompactIfNeeded()`
-
-### Test Coverage
-
-**Test Coverage**: 60 tests in `MemoryLeakDetector.test.js` verify memory monitoring and leak prevention.
+Verifying at runtime: `window.checkRealMemory()` for real heap %, and `window.translationEngine.translationSegments.length` for segment growth — >35 means the thresholds are not firing. Coverage: `MemoryLeakDetector.test.js`.
 
 ---
 
