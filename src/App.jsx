@@ -7,6 +7,7 @@ import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
 import { applyAppearanceToCssVars } from './utils/ui/AppearanceReducer';
 import { loadAppearanceConfig } from './utils/appearanceConfig';
+import { flushPendingPosition } from './utils/reader/PendingPositionFlush';
 // NOTE: WASM singleton cleanup intentionally NOT called from App unmount.
 // Module-level WASM singletons (WasmNumberProcessor, WasmPatternProcessor,
 // rustLookupIndexManager, wasmMemoryPoolManager)
@@ -59,6 +60,33 @@ function App() {
     return () => {
       isMountedRef.current = false;
       cleanup();
+    };
+  }, []);
+
+  // Flush any pending Reader position write before the window actually closes — the
+  // debounce (see useReadingPosition) means a scroll right before quitting could
+  // otherwise never reach disk. Dynamically imported: `@tauri-apps/api/window` touches
+  // the Tauri IPC bridge at module load, which the vitest/jsdom test environment doesn't
+  // provide, and this app has no non-Tauri (browser-only) target to support instead.
+  useEffect(() => {
+    let unlisten;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        if (cancelled) return;
+        unlisten = await getCurrentWindow().onCloseRequested(async (event) => {
+          event.preventDefault();
+          await flushPendingPosition();
+          await getCurrentWindow().destroy();
+        });
+      } catch (error) {
+        logger.warn('Failed to register close-requested flush:', error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      unlisten?.();
     };
   }, []);
 

@@ -58,6 +58,8 @@ pub fn run() {
             dictionary_commands::save_appearance_settings,
             dictionary_commands::load_transform_rules,
             dictionary_commands::save_transform_rules,
+            dictionary_commands::load_book_records,
+            dictionary_commands::save_book_records,
             dictionary_commands::export_dictionaries,
             dictionary_commands::import_dictionaries,
             dictionary_commands::reset_dictionaries,
@@ -67,6 +69,7 @@ pub fn run() {
             book_commands::open_book,
             book_commands::read_book_lines,
             book_commands::close_book,
+            book_commands::fingerprint_book,
         ])
         .run(tauri::generate_context!())
         .expect("Failed to start Chinese-Vietnamese Translator. Please check your system configuration and try again. If the problem persists, please report it at: https://github.com/lhak1341/chinese-translator-tauri/issues");

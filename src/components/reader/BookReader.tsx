@@ -1,13 +1,18 @@
 import React, { useEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
-import type { EncodingReport, OpenBook } from '../../types/ReaderTypes';
+import type { EncodingReport, OpenBook, ReadingPosition } from '../../types/ReaderTypes';
 import { useBookLines } from '../../hooks/useBookLines';
+import { useReadingPosition } from '../../hooks/useReadingPosition';
 import styles from '../../styles/Reader.module.css';
 
 interface BookReaderProps {
   book: OpenBook;
   encoding: EncodingReport;
+  /** Where this book was left off, or `null` if it's never been opened before. */
+  initialPosition: ReadingPosition | null;
+  /** Whether the Reader is the visible tab — see `useReadingPosition`. */
+  isActive: boolean;
   onBack: () => void;
 }
 
@@ -39,7 +44,13 @@ const PREFETCH_LINES = 600;
  * The virtualizer measures each mounted row and keeps the measurement, so scrolling back
  * over ground already covered is as accurate as it was the first time.
  */
-const BookReader: React.FC<BookReaderProps> = ({ book, encoding, onBack }) => {
+const BookReader: React.FC<BookReaderProps> = ({
+  book,
+  encoding,
+  initialPosition,
+  isActive,
+  onBack,
+}) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { getLine, requestRange, error } = useBookLines(book.fingerprint, book.lineCount);
 
@@ -48,6 +59,15 @@ const BookReader: React.FC<BookReaderProps> = ({ book, encoding, onBack }) => {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: OVERSCAN_ROWS,
+  });
+
+  const { onScroll } = useReadingPosition({
+    fingerprint: book.fingerprint,
+    initialPosition,
+    scrollRef,
+    virtualizer,
+    lineCount: book.lineCount,
+    isActive,
   });
 
   const virtualRows = virtualizer.getVirtualItems();
@@ -94,7 +114,7 @@ const BookReader: React.FC<BookReaderProps> = ({ book, encoding, onBack }) => {
         </div>
       )}
 
-      <div ref={scrollRef} className={styles.readerScroll}>
+      <div ref={scrollRef} className={styles.readerScroll} onScroll={onScroll}>
         <div className={styles.readerCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualRows.map((row) => {
             const line = getLine(row.index);

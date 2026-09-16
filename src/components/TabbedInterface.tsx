@@ -167,7 +167,7 @@ const TabbedInterface: React.FC = () => {
           aria-labelledby="tab-reader"
           className={`${styles.componentWrapper} ${activeTab === 'reader' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
-          <ReaderTab />
+          <ReaderTab isActive={activeTab === 'reader'} />
         </div>
         <div
           role="tabpanel"

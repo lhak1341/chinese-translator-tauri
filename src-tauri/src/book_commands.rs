@@ -89,6 +89,17 @@ pub struct LibraryBook {
     /// File name without its extension, for display.
     pub title: String,
     pub size_bytes: u64,
+    /// Modified time, milliseconds since the Unix epoch. Paired with `size_bytes` so the
+    /// frontend's book-records reconciliation can skip re-fingerprinting a file that
+    /// hasn't changed since its record was last cached.
+    pub modified_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookFingerprint {
+    pub fingerprint: String,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -180,7 +191,12 @@ fn resolve_library_path(
 /// not a plain name. The file name crosses the IPC boundary, so it is untrusted: a
 /// separator or a `..` component would turn "open a book" into "read any file".
 fn resolve_book_path(library_path: &Path, file_name: &str) -> Result<PathBuf, String> {
+    // A bare ".." or "." is exactly one `Path` component, so the count check alone lets
+    // it through — `components().count() != 1` was written to reject "sub/book.txt" and
+    // "../secrets.txt" (2 components each), not a single traversal segment on its own.
     if file_name.is_empty()
+        || file_name == ".."
+        || file_name == "."
         || file_name.contains('/')
         || file_name.contains('\\')
         || file_name.contains('\0')
@@ -202,6 +218,19 @@ fn is_text_file(path: &Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("txt"))
+}
+
+/// Milliseconds since the Unix epoch. `modified()`/`duration_since` both fail on a
+/// platform without mtime support or a clock set before the epoch — either way, `0` is a
+/// safe "unknown" sentinel that simply forces a re-fingerprint on the next scan, rather
+/// than a hard error over a cosmetic field.
+fn modified_ms(metadata: &std::fs::Metadata) -> u64 {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 // ============================================================================
@@ -229,6 +258,7 @@ fn scan_library_impl(library_path: &Path) -> Result<LibraryScan, String> {
             title: title_from_file_name(&file_name),
             file_name,
             size_bytes: metadata.len(),
+            modified_ms: modified_ms(&metadata),
         });
     }
 
@@ -253,6 +283,33 @@ fn read_book_bytes(path: &Path) -> Result<Vec<u8>, String> {
         ));
     }
     std::fs::read(path).map_err(|e| sanitize_io_error(e, "the book"))
+}
+
+/// Fingerprint a file without decoding it — reads the file's size plus only its first
+/// `PREFIX_BYTES`, never the whole book. This is what makes library-scan reconciliation
+/// (relink a moved book, mark a missing one unavailable) affordable to run over every
+/// file that changed: `open_book`'s full `read_book_bytes` would read tens of megabytes
+/// per book just to get an identity check.
+fn fingerprint_file_impl(path: &Path) -> Result<BookFingerprint, String> {
+    use std::io::Read;
+
+    let metadata = std::fs::metadata(path).map_err(|e| sanitize_io_error(e, "the book"))?;
+    if !metadata.is_file() {
+        return Err("That book is not a file".to_string());
+    }
+    let size = metadata.len();
+
+    let mut file = std::fs::File::open(path).map_err(|e| sanitize_io_error(e, "the book"))?;
+    let mut prefix = Vec::with_capacity(PREFIX_BYTES.min(size as usize));
+    file.by_ref()
+        .take(PREFIX_BYTES as u64)
+        .read_to_end(&mut prefix)
+        .map_err(|e| sanitize_io_error(e, "the book"))?;
+
+    Ok(BookFingerprint {
+        fingerprint: book_loader::fingerprint(size, &prefix),
+        size_bytes: size,
+    })
 }
 
 fn open_book_impl(
@@ -305,6 +362,21 @@ pub async fn scan_library(
 ) -> Result<LibraryScan, String> {
     let path = resolve_library_path(&app_handle, library_path)?;
     scan_library_impl(&path)
+}
+
+/// Fingerprint one library file without decoding it. Used by the frontend's book-records
+/// reconciliation to identify a book whose size or modified time changed since the last
+/// scan — including a rename or move, since the fingerprint alone is what lets a record
+/// survive one — without paying for a full decode.
+#[tauri::command]
+pub async fn fingerprint_book(
+    app_handle: tauri::AppHandle,
+    library_path: Option<String>,
+    file_name: String,
+) -> Result<BookFingerprint, String> {
+    let root = resolve_library_path(&app_handle, library_path)?;
+    let path = resolve_book_path(&root, &file_name)?;
+    fingerprint_file_impl(&path)
 }
 
 /// Decode a book and hold it in the cache.
@@ -446,7 +518,7 @@ mod tests {
     #[test]
     fn book_names_with_separators_are_rejected() {
         let root = Path::new("/library");
-        for name in ["../secrets.txt", "sub/book.txt", "", "a\\b.txt"] {
+        for name in ["../secrets.txt", "sub/book.txt", "", "a\\b.txt", "..", "."] {
             assert!(
                 resolve_book_path(root, name).is_err(),
                 "{} must be rejected",
@@ -494,6 +566,48 @@ mod tests {
     #[test]
     fn reading_a_missing_book_does_not_leak_the_path() {
         let error = read_book_bytes(Path::new("/definitely/not/here.txt")).unwrap_err();
+        assert_eq!(error, "the book not found");
+    }
+
+    #[test]
+    fn scanning_reports_a_modified_time_for_each_book() {
+        let dir = TempDir::new("scan_mtime");
+        dir.write("novel.txt", &gbk("第一章\r\n"));
+        let scan = scan_library_impl(&dir.0).expect("scan succeeds");
+        assert_eq!(scan.books.len(), 1);
+        assert!(scan.books[0].modified_ms > 0, "a freshly-written file has a real mtime");
+    }
+
+    #[test]
+    fn fingerprinting_a_file_matches_opening_it() {
+        let dir = TempDir::new("fingerprint_matches_open");
+        let path = dir.write("novel.txt", &gbk("第一章\r\n内容\r\n"));
+
+        let via_fingerprint = fingerprint_file_impl(&path).expect("fingerprinting succeeds");
+        let (opened, _) = open_book_impl(&path, "novel.txt", None).expect("open succeeds");
+        let opened_book = opened.book.expect("an opened book carries metadata");
+
+        assert_eq!(via_fingerprint.fingerprint, opened_book.fingerprint);
+        assert_eq!(via_fingerprint.size_bytes, opened_book.size_bytes);
+    }
+
+    #[test]
+    fn fingerprinting_ignores_bytes_past_the_prefix_window() {
+        let dir = TempDir::new("fingerprint_prefix_window");
+        let mut long = vec![b'x'; PREFIX_BYTES + 64];
+        let baseline_path = dir.write("baseline.txt", &long);
+        let baseline = fingerprint_file_impl(&baseline_path).expect("fingerprinting succeeds");
+
+        long[PREFIX_BYTES + 10] = b'y';
+        let changed_path = dir.write("changed.txt", &long);
+        let changed = fingerprint_file_impl(&changed_path).expect("fingerprinting succeeds");
+
+        assert_eq!(baseline.fingerprint, changed.fingerprint);
+    }
+
+    #[test]
+    fn fingerprinting_a_missing_book_does_not_leak_the_path() {
+        let error = fingerprint_file_impl(Path::new("/definitely/not/here.txt")).unwrap_err();
         assert_eq!(error, "the book not found");
     }
 }

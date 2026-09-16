@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1789573802.280065,
-    "ast_hash": "ac2908b9571f55f45aee91eb4f629f50",
+    "mtime": 1789575399.4301038,
+    "ast_hash": "1745d6c30f4331f91ddd5c6056f42fd2",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -65,8 +65,8 @@
     "semantic_hash": "68b39d39a5cc10a50e1260aa31ed5a6a"
   },
   "src-tauri/src/dictionary_commands.rs": {
-    "mtime": 1789573446.384054,
-    "ast_hash": "c742392bf13973324531201a9e36898a",
+    "mtime": 1789575351.5996132,
+    "ast_hash": "a88d7ede448b624dce3f9fff12193182",
     "semantic_hash": ""
   },
   "wasm-core/benches/pattern_matching.rs": {
@@ -190,13 +190,13 @@
     "semantic_hash": "8b5360ca10abe938bf58efedc7abaf1f"
   },
   "src/tauriAPI.ts": {
-    "mtime": 1789574063.0387475,
-    "ast_hash": "cbb5f4eaf2bda3052409f4c8d3cf53cc",
+    "mtime": 1789575470.5314443,
+    "ast_hash": "eeb2417da0d45c3ed2a5908125ae9904",
     "semantic_hash": ""
   },
   "src/App.jsx": {
-    "mtime": 1789571677.7534807,
-    "ast_hash": "4bf983fcdda4d2de580a66c1c64adaae",
+    "mtime": 1789575771.3752735,
+    "ast_hash": "9006112d9338b41b88d90ffca65a7bb4",
     "semantic_hash": ""
   },
   "src/types/ComponentTypes.d.ts": {
@@ -225,8 +225,8 @@
     "semantic_hash": "22b47651425350e838307a5fa43147c8"
   },
   "src/types/ElectronTypes.d.ts": {
-    "mtime": 1789573840.7059648,
-    "ast_hash": "8478dcc5dd2f8c491c29aa886c276994",
+    "mtime": 1789575450.613836,
+    "ast_hash": "5d9f4a61bf49a09bf8abd4b9241fe7ee",
     "semantic_hash": ""
   },
   "src/types/PatternProcessingTypes.d.ts": {
@@ -830,8 +830,8 @@
     "semantic_hash": "ed9a3bf1dcc0d3dfe5686fa401a1fb11"
   },
   "src/components/TabbedInterface.tsx": {
-    "mtime": 1789573873.018333,
-    "ast_hash": "94b20f64c7dc9ebf176e88826e70e839",
+    "mtime": 1789575775.251246,
+    "ast_hash": "9769aa5d1b5b03f8a24cb9340a6d079e",
     "semantic_hash": ""
   },
   "src/components/ToastContext.tsx": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1789574062.6409416,
-    "ast_hash": "44fe013ea0f46e8fbb3bb447022d6c71",
+    "mtime": 1789576190.3601947,
+    "ast_hash": "6807e13811efbd59ba83039c05c5c4e1",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1789572849.086731,
-    "ast_hash": "dbc6a0e73155b052f30bf0a8d84a9a29",
+    "mtime": 1789574604.3773108,
+    "ast_hash": "dcef79f6197b28f34f29952b14b9273e",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1820,8 +1820,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1789572794.7376962,
-    "ast_hash": "45cc3e5d411d617cb6c86548b82612d3",
+    "mtime": 1789574604.376804,
+    "ast_hash": "9ccad98df08e186b2faf9046b565d1bf",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1890,8 +1890,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/book_commands.rs": {
-    "mtime": 1789573802.2527132,
-    "ast_hash": "f697503c7f30e9fc20d63a98bdf19b6f",
+    "mtime": 1789575392.3133957,
+    "ast_hash": "0af00b06faa2fbc86b94141fd2736f54",
     "semantic_hash": ""
   },
   "src-tauri/src/book_loader.rs": {
@@ -1905,13 +1905,13 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1789573852.6735015,
-    "ast_hash": "e4b732dce360d10befe727066443a601",
+    "mtime": 1789575897.3240182,
+    "ast_hash": "b62ae833eff1a2db32bf083210d9f612",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
-    "mtime": 1789573852.6728144,
-    "ast_hash": "8c3d1d4dfc3308548f39786618fc3085",
+    "mtime": 1789575884.010592,
+    "ast_hash": "6b704f35af5f00345d02db69cce1c3b3",
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1789573852.6731555,
-    "ast_hash": "57a0bd0ddb80d5cebbabfb1983337628",
+    "mtime": 1789575853.4833949,
+    "ast_hash": "cf9cdbb69d7031017df5343f4fddb58e",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1935,8 +1935,8 @@
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
-    "mtime": 1789573836.5144987,
-    "ast_hash": "71772697af0f34fe025d97d72a0c2a56",
+    "mtime": 1789575436.0837688,
+    "ast_hash": "69013e9b5be7f9d0478497dc000a8f91",
     "semantic_hash": ""
   },
   "wasm-core/benches/real_dictionary_profile.rs": {
@@ -1947,6 +1947,31 @@
   "docs/adr/ADR-042-adopt-tanstack-react-virtual-for-the-reader.md": {
     "mtime": 1789573954.5067198,
     "ast_hash": "dffde0142a4dbb2301f07aacc15f41ee",
+    "semantic_hash": ""
+  },
+  "src/hooks/useReadingPosition.ts": {
+    "mtime": 1789575760.3490436,
+    "ast_hash": "052fc067dd23b6aad8cb124f14adbded",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/BookRecordValidation.ts": {
+    "mtime": 1789575495.211843,
+    "ast_hash": "578635aa743980ec6d8fbd0234c944d0",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/BookRecordsBackend.ts": {
+    "mtime": 1789576100.2429926,
+    "ast_hash": "53d8960399c71b2d82192301e5ceb3a8",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/PendingPositionFlush.ts": {
+    "mtime": 1789575742.0151231,
+    "ast_hash": "747f62f6a7c3775e3054fda3aba90d71",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/ReconcileLibrary.ts": {
+    "mtime": 1789575849.5392878,
+    "ast_hash": "645d7c80123ea505c9bd203892e4a653",
     "semantic_hash": ""
   }
 }

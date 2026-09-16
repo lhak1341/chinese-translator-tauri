@@ -18,9 +18,16 @@ import type {
   AppearanceResult,
   ProperNounsListResult,
   TransformRulesResult,
+  BookRecordsResult,
 } from './types/ElectronTypes';
 import type { AppConfiguration, AppearanceSettings } from './types/ComponentTypes';
-import type { BookLines, LibraryScan, OpenBookResult } from './types/ReaderTypes';
+import type {
+  BookFingerprint,
+  BookLines,
+  BookRecords,
+  LibraryScan,
+  OpenBookResult,
+} from './types/ReaderTypes';
 import type { TransformRule } from './types/TransformRuleTypes';
 
 // ── Rust command name constants ───────────────────────────────────────────────
@@ -51,6 +58,9 @@ const CMD = {
   OPEN_BOOK: 'open_book',
   READ_BOOK_LINES: 'read_book_lines',
   CLOSE_BOOK: 'close_book',
+  FINGERPRINT_BOOK: 'fingerprint_book',
+  LOAD_BOOK_RECORDS: 'load_book_records',
+  SAVE_BOOK_RECORDS: 'save_book_records',
 } as const;
 
 // ── Tauri-specific types ──────────────────────────────────────────────────────
@@ -188,6 +198,17 @@ const tauriAPI = {
   /** Drop the cached book. Scoped by fingerprint so a stale close cannot evict a new book. */
   closeBook: async (fingerprint?: string | null): Promise<boolean> =>
     callReaderCommand<boolean>(CMD.CLOSE_BOOK, { fingerprint }, 'closeBook'),
+
+  /** Fingerprint one library file without decoding it — for book-records reconciliation. */
+  fingerprintBook: async (
+    fileName: string,
+    libraryPath?: string | null
+  ): Promise<BookFingerprint> =>
+    callReaderCommand<BookFingerprint>(
+      CMD.FINGERPRINT_BOOK,
+      { fileName, libraryPath },
+      'fingerprintBook'
+    ),
 
   readClipboard: async (): Promise<string> => {
     try {
@@ -366,6 +387,12 @@ const tauriAPI = {
 
   saveTransformRules: async (rules: TransformRule[]): Promise<SaveResult> =>
     callTauriCommand<SaveResult>(CMD.SAVE_TRANSFORM_RULES, { rules }, 'saveTransformRules'),
+
+  loadBookRecords: async (): Promise<BookRecordsResult> =>
+    callTauriCommand<BookRecordsResult>(CMD.LOAD_BOOK_RECORDS, undefined, 'loadBookRecords'),
+
+  saveBookRecords: async (records: BookRecords): Promise<SaveResult> =>
+    callTauriCommand<SaveResult>(CMD.SAVE_BOOK_RECORDS, { records }, 'saveBookRecords'),
 
   exportDictionaries: async (): Promise<DictionaryOperationResult> =>
     callTauriCommand<DictionaryOperationResult>(

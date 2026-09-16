@@ -10,7 +10,13 @@
 import type { AppConfiguration, DictionaryInfo, AppearanceSettings } from './ComponentTypes';
 import type { DictionaryData } from './DictionaryTypes';
 import type { TransformRule } from './TransformRuleTypes';
-import type { BookLines, LibraryScan, OpenBookResult } from './ReaderTypes';
+import type {
+  BookFingerprint,
+  BookLines,
+  BookRecords,
+  LibraryScan,
+  OpenBookResult,
+} from './ReaderTypes';
 
 // =============================================================================
 // Result Types
@@ -77,6 +83,14 @@ export interface AppearanceResult extends ElectronResult<AppearanceSettings> {
 export interface TransformRulesResult extends ElectronResult<TransformRule[]> {
   /** Persisted Transform Rule list */
   data?: TransformRule[];
+}
+
+/**
+ * Book records load result
+ */
+export interface BookRecordsResult extends ElectronResult<BookRecords> {
+  /** Persisted book records, keyed by fingerprint */
+  data?: BookRecords;
 }
 
 /**
@@ -230,6 +244,12 @@ export interface ElectronAPI {
   /** Save the full Transform Rule list */
   saveTransformRules: (rules: TransformRule[]) => Promise<SaveResult>;
 
+  // Book record operations
+  /** Load persisted book records, keyed by fingerprint */
+  loadBookRecords: () => Promise<BookRecordsResult>;
+  /** Save the full book records map */
+  saveBookRecords: (records: BookRecords) => Promise<SaveResult>;
+
   // File operations
   /** Open file selection dialog */
   selectFile: (options: FileSelectOptions) => Promise<FileSelectResult>;
@@ -272,6 +292,8 @@ export interface ElectronAPI {
   readBookLines: (fingerprint: string, start: number, end: number) => Promise<BookLines>;
   /** Drop the cached book */
   closeBook: (fingerprint?: string | null) => Promise<boolean>;
+  /** Fingerprint one library file without decoding it */
+  fingerprintBook: (fileName: string, libraryPath?: string | null) => Promise<BookFingerprint>;
 
   // Development tools
   /** Open developer tools */

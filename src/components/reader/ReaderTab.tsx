@@ -1,18 +1,36 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import tauriAPI from '../../tauriAPI';
 import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
-import type { EncodingReport, LibraryBook, OpenBook } from '../../types/ReaderTypes';
+import type {
+  EncodingReport,
+  LibraryBook,
+  OpenBook,
+  ReadingPosition,
+} from '../../types/ReaderTypes';
+import { recordBookOpened } from '../../utils/reader/BookRecordsBackend';
+import {
+  reconcileLibraryScan,
+  type ShelfBook,
+  type UnavailableBook,
+} from '../../utils/reader/ReconcileLibrary';
 import Bookshelf from './Bookshelf';
 import BookReader from './BookReader';
 import EncodingPrompt from './EncodingPrompt';
 import styles from '../../styles/Reader.module.css';
 
+interface ReaderTabProps {
+  /** Whether the Reader is the visible tab. Every tab stays mounted across a switch, so
+   * this is what tells `BookReader` to flush a pending position write on switch-away. */
+  isActive: boolean;
+}
+
 /** The book the reader is currently in, if any. */
 interface OpenState {
   book: OpenBook;
   encoding: EncodingReport;
+  position: ReadingPosition | null;
 }
 
 /** A book that would not decode: its name plus the report explaining why. */
@@ -29,10 +47,11 @@ interface EncodingChoiceState {
  * Back returns to it. Back is pure navigation — the book stays decoded in the Rust-side
  * cache, so returning to it is instant. A book closes only when a different one opens.
  */
-const ReaderTab: React.FC = () => {
+const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [libraryPath, setLibraryPath] = useState<string>('');
   const [configuredPath, setConfiguredPath] = useState<string | null>(null);
-  const [books, setBooks] = useState<LibraryBook[]>([]);
+  const [books, setBooks] = useState<ShelfBook[]>([]);
+  const [unavailableBooks, setUnavailableBooks] = useState<UnavailableBook[]>([]);
   const [isScanning, setIsScanning] = useState(true);
   const [shelfError, setShelfError] = useState<string | null>(null);
   const [open, setOpen] = useState<OpenState | null>(null);
@@ -44,11 +63,30 @@ const ReaderTab: React.FC = () => {
     try {
       const result = await tauriAPI.scanLibrary(path);
       setLibraryPath(result.libraryPath);
-      setBooks(result.books);
       setShelfError(null);
+      // Reconciliation (lazy fingerprint recompute, relink-on-move, unavailable
+      // marking) runs after every scan, not just the first — a rescan is the only
+      // refresh path this feature has, so it must be the one that catches a book that
+      // moved or came back since the last scan.
+      try {
+        const { shelfBooks, unavailableBooks: missing } = await reconcileLibraryScan(
+          result.books,
+          path
+        );
+        setBooks(shelfBooks);
+        setUnavailableBooks(missing);
+      } catch (cause) {
+        logger.error('Failed to reconcile book records:', cause);
+        // Reconciliation failure shouldn't blank the shelf — show the scan as-is, with
+        // no progress info, rather than nothing.
+        setBooks(
+          result.books.map((book) => ({ ...book, fingerprint: '', position: null, lineCount: 0 }))
+        );
+      }
     } catch (cause) {
       logger.error('Failed to scan the library:', cause);
       setBooks([]);
+      setUnavailableBooks([]);
       setShelfError(extractErrorMessage(cause));
     } finally {
       setIsScanning(false);
@@ -77,6 +115,11 @@ const ReaderTab: React.FC = () => {
     };
   }, [scan]);
 
+  // Guards against a double-click firing two concurrent `open_book` calls for the same
+  // file — each does a full read + decode on the Rust side, so a duplicate is wasted
+  // work, not just a UI oddity.
+  const openingFileNameRef = useRef<string | null>(null);
+
   const openBook = useCallback(
     async (book: LibraryBook, encodingOverride?: string): Promise<void> => {
       // Returning to a book that is already decoded costs nothing — don't re-open it.
@@ -85,6 +128,8 @@ const ReaderTab: React.FC = () => {
         setIsReading(true);
         return;
       }
+      if (openingFileNameRef.current === book.fileName) return;
+      openingFileNameRef.current = book.fileName;
       setShelfError(null);
       try {
         const result = await tauriAPI.openBook(
@@ -103,12 +148,30 @@ const ReaderTab: React.FC = () => {
           return;
         }
         setEncodingChoice(null);
-        setOpen({ book: result.book, encoding: result.encoding });
+        // Refresh (or create) this book's cached fields now that its true line count and
+        // encoding are known — preserves any existing reading position.
+        let position: ReadingPosition | null = null;
+        try {
+          const record = await recordBookOpened(result.book.fingerprint, {
+            title: result.book.title,
+            lastKnownPath: result.book.fileName,
+            lineCount: result.book.lineCount,
+            encodingLabel: result.encoding.label,
+            sizeBytes: result.book.sizeBytes,
+            modifiedMs: book.modifiedMs,
+          });
+          position = record.position;
+        } catch (cause) {
+          logger.error('Failed to record the book as opened:', cause);
+        }
+        setOpen({ book: result.book, encoding: result.encoding, position });
         setIsReading(true);
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
         setShelfError(extractErrorMessage(cause));
         setIsReading(false);
+      } finally {
+        openingFileNameRef.current = null;
       }
     },
     [configuredPath, open]
@@ -173,7 +236,13 @@ const ReaderTab: React.FC = () => {
   if (isReading && open) {
     return (
       <div className={styles.container}>
-        <BookReader book={open.book} encoding={open.encoding} onBack={backToShelf} />
+        <BookReader
+          book={open.book}
+          encoding={open.encoding}
+          initialPosition={open.position}
+          isActive={isActive}
+          onBack={backToShelf}
+        />
       </div>
     );
   }
@@ -182,6 +251,7 @@ const ReaderTab: React.FC = () => {
     <div className={styles.container}>
       <Bookshelf
         books={books}
+        unavailableBooks={unavailableBooks}
         libraryPath={libraryPath}
         isUsingDefaultPath={configuredPath === null}
         isLoading={isScanning}

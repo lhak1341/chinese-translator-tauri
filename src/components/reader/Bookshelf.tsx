@@ -1,10 +1,13 @@
 import React from 'react';
-import { BookOpen, FolderOpen, Loader, RefreshCw, AlertCircle } from 'lucide-react';
+import { BookOpen, FolderOpen, Loader, RefreshCw, AlertCircle, FileWarning } from 'lucide-react';
 import type { LibraryBook } from '../../types/ReaderTypes';
+import type { ShelfBook, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import styles from '../../styles/Reader.module.css';
 
 interface BookshelfProps {
-  books: LibraryBook[];
+  books: ShelfBook[];
+  /** Previously-known books this scan couldn't find, anywhere under the library root. */
+  unavailableBooks: UnavailableBook[];
   libraryPath: string;
   isUsingDefaultPath: boolean;
   isLoading: boolean;
@@ -23,6 +26,16 @@ function formatSize(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+/** "Not started" / "line N of M" / "in progress" (line count not cached yet — the book
+ * hasn't been opened, just seen on a scan). `null` means genuinely never opened. */
+function formatProgress(book: ShelfBook): string | null {
+  if (!book.position) return 'Not started';
+  if (book.lineCount > 0) {
+    return `Line ${(book.position.line + 1).toLocaleString()} of ${book.lineCount.toLocaleString()}`;
+  }
+  return 'In progress';
+}
+
 /**
  * The library as a destination: every text file in the library folder, one row each.
  * Opening a book replaces the shelf; Back brings it here again with the book still
@@ -30,6 +43,7 @@ function formatSize(bytes: number): string {
  */
 const Bookshelf: React.FC<BookshelfProps> = ({
   books,
+  unavailableBooks,
   libraryPath,
   isUsingDefaultPath,
   isLoading,
@@ -99,6 +113,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                 >
                   <BookOpen size={16} className={styles.bookIcon} />
                   <span className={styles.bookTitle}>{book.title}</span>
+                  <span className={styles.bookProgress}>{formatProgress(book)}</span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                   {isOpen && <span className={styles.openBadge}>open</span>}
                 </button>
@@ -106,6 +121,23 @@ const Bookshelf: React.FC<BookshelfProps> = ({
             );
           })}
         </ul>
+      )}
+
+      {unavailableBooks.length > 0 && (
+        <div className={styles.unavailableSection}>
+          <div className={styles.unavailableTitle}>Unavailable</div>
+          {unavailableBooks.map((book) => (
+            <div key={book.fingerprint} className={styles.unavailableRow}>
+              <FileWarning size={16} className={styles.unavailableIcon} />
+              <div className={styles.unavailableInfo}>
+                <span className={styles.bookTitle}>{book.title}</span>
+                <span className={styles.unavailablePath} title={book.lastKnownPath}>
+                  Last seen at {book.lastKnownPath}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

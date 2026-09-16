@@ -1299,6 +1299,14 @@ enum BlobKind {
     Config,
     TransformRules,
     Appearance,
+    /// Reader book records (`docs`-referenced ticket "Book records: resume where you
+    /// stopped"): a map of fingerprint -> record, each record an authoritative half
+    /// (fingerprint, reading position) plus a regenerable cached half (title,
+    /// last-known path, line count, encoding, size/mtime, availability). The
+    /// reconciliation logic (lazy fingerprint recompute, relink-on-move, unavailable
+    /// marking) lives entirely in TS (`src/utils/reader/`) — this is just the 4th
+    /// blob kind, same shape as the other 3.
+    Books,
 }
 
 impl BlobKind {
@@ -1307,6 +1315,7 @@ impl BlobKind {
             BlobKind::Config => "config.json",
             BlobKind::TransformRules => "transform-rules.json",
             BlobKind::Appearance => "appearance.json",
+            BlobKind::Books => "books.json",
         }
     }
 
@@ -1314,6 +1323,7 @@ impl BlobKind {
         match self {
             BlobKind::Config => serde_json::json!({ "activeProperNouns": ["properNouns"] }),
             BlobKind::TransformRules => serde_json::json!([]),
+            BlobKind::Books => serde_json::json!({}),
             BlobKind::Appearance => serde_json::json!({
                 "chineseText": {
                     "fontFamily": "\"Noto Sans CJK SC\", SimSun, \"Microsoft YaHei\", Inter, system-ui, Arial, sans-serif",
@@ -1389,6 +1399,19 @@ pub async fn save_appearance_settings(
     appearance_settings: serde_json::Value,
 ) -> Result<DictionaryResponse, String> {
     save_blob(&app_handle, BlobKind::Appearance, &appearance_settings)
+}
+
+#[tauri::command]
+pub async fn load_book_records(app_handle: tauri::AppHandle) -> Result<DictionaryResponse, String> {
+    load_blob(&app_handle, BlobKind::Books)
+}
+
+#[tauri::command]
+pub async fn save_book_records(
+    app_handle: tauri::AppHandle,
+    records: serde_json::Value,
+) -> Result<DictionaryResponse, String> {
+    save_blob(&app_handle, BlobKind::Books, &records)
 }
 
 #[tauri::command]
@@ -2570,8 +2593,12 @@ mod tests {
             BlobKind::Config.filename(),
             BlobKind::TransformRules.filename(),
             BlobKind::Appearance.filename(),
+            BlobKind::Books.filename(),
         ];
-        assert_eq!(filenames, ["config.json", "transform-rules.json", "appearance.json"]);
+        assert_eq!(
+            filenames,
+            ["config.json", "transform-rules.json", "appearance.json", "books.json"]
+        );
     }
 
     #[test]
@@ -2581,6 +2608,7 @@ mod tests {
             serde_json::json!({ "activeProperNouns": ["properNouns"] })
         );
         assert_eq!(BlobKind::TransformRules.default_value(), serde_json::json!([]));
+        assert_eq!(BlobKind::Books.default_value(), serde_json::json!({}));
         let appearance_default = BlobKind::Appearance.default_value();
         assert_eq!(
             appearance_default["chineseText"]["fontSize"],
@@ -2598,7 +2626,12 @@ mod tests {
     /// directly; this covers the part that actually varies per kind.
     #[test]
     fn test_blob_load_save_round_trip_for_every_kind() {
-        for kind in [BlobKind::Config, BlobKind::TransformRules, BlobKind::Appearance] {
+        for kind in [
+            BlobKind::Config,
+            BlobKind::TransformRules,
+            BlobKind::Appearance,
+            BlobKind::Books,
+        ] {
             let dir = temp_test_dir(&format!("blob_round_trip_{}", kind.filename()));
             let path = dir.join(kind.filename());
 

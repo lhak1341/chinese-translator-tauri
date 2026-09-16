@@ -11,6 +11,8 @@ export interface LibraryBook {
   /** File name without its extension. */
   title: string;
   sizeBytes: number;
+  /** Modified time, milliseconds since the Unix epoch. */
+  modifiedMs: number;
 }
 
 export interface LibraryScan {
@@ -64,3 +66,46 @@ export interface BookLines {
   lines: string[];
   lineCount: number;
 }
+
+export interface BookFingerprint {
+  fingerprint: string;
+  sizeBytes: number;
+}
+
+/** A raw file line index plus the fraction already scrolled into that line, so restore
+ * can go finer than "top of this line" via `scrollToIndex` + a small offset nudge. */
+export interface ReadingPosition {
+  line: number;
+  fraction: number;
+}
+
+/**
+ * A book record, keyed by fingerprint in `BookRecords` so rename/move survives it.
+ *
+ * Authoritative (never regenerated, small, protected): `fingerprint`, `position`.
+ * Cached (regenerable from a rescan or an open, safe to discard/overwrite): everything
+ * else, including `sizeBytes`/`modifiedMs` — the pair the library scan compares against
+ * to decide whether a file needs its fingerprint recomputed at all.
+ */
+export interface BookRecord {
+  // ── Authoritative ──
+  fingerprint: string;
+  /** `null` means never opened — distinct from "opened, first line". */
+  position: ReadingPosition | null;
+
+  // ── Cached ──
+  title: string;
+  /** Bare file name, never a full path — same IPC convention as `LibraryBook.fileName`. */
+  lastKnownPath: string;
+  lineCount: number;
+  encodingLabel: string;
+  sizeBytes: number;
+  modifiedMs: number;
+  /** `false` when the last scan could not find this book anywhere under the library
+   * root, by path or by fingerprint. The record is kept, not deleted, so a later rescan
+   * can re-link it. */
+  available: boolean;
+}
+
+/** The on-disk shape of `books.json`: every known book record, keyed by fingerprint. */
+export type BookRecords = Record<string, BookRecord>;
