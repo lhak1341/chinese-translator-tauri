@@ -7,6 +7,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from './utils/logger.js';
+import { extractErrorMessage } from './utils/errorHelpers';
 import type {
   ElectronResult,
   DictionaryLoadResult,
@@ -19,6 +20,7 @@ import type {
   TransformRulesResult,
 } from './types/ElectronTypes';
 import type { AppConfiguration, AppearanceSettings } from './types/ComponentTypes';
+import type { BookLines, LibraryScan, OpenBookResult } from './types/ReaderTypes';
 import type { TransformRule } from './types/TransformRuleTypes';
 
 // ── Rust command name constants ───────────────────────────────────────────────
@@ -45,6 +47,10 @@ const CMD = {
   IMPORT_DICTIONARIES: 'import_dictionaries',
   RESET_DICTIONARIES: 'reset_dictionaries',
   BUILD_LOOKUP_INDEX: 'build_lookup_index',
+  SCAN_LIBRARY: 'scan_library',
+  OPEN_BOOK: 'open_book',
+  READ_BOOK_LINES: 'read_book_lines',
+  CLOSE_BOOK: 'close_book',
 } as const;
 
 // ── Tauri-specific types ──────────────────────────────────────────────────────
@@ -130,9 +136,59 @@ async function callTauriCommand<T extends ElectronResult>(
   }
 }
 
+/**
+ * The Reader commands return their payload directly rather than an `ElectronResult`
+ * envelope, and signal failure by rejecting. That is deliberate: every Reader call has a
+ * visible place to put an error — the shelf, the encoding banner — so a caller that
+ * swallowed failures into `{ success: false }` would have to re-derive the message
+ * anyway. The error is normalized to a string here so callers never handle `unknown`.
+ */
+async function callReaderCommand<T>(
+  cmd: string,
+  args: Record<string, unknown> | undefined,
+  context: string
+): Promise<T> {
+  try {
+    return await invoke<T>(cmd, args);
+  } catch (error) {
+    logger.error(`Error in ${context}:`, error);
+    throw new Error(extractErrorMessage(error));
+  }
+}
+
 // ── API ───────────────────────────────────────────────────────────────────────
 
 const tauriAPI = {
+  // ── Reader ──────────────────────────────────────────────────────────────────
+
+  /** List every text file in the library folder. A blank path means the default. */
+  scanLibrary: async (libraryPath?: string | null): Promise<LibraryScan> =>
+    callReaderCommand<LibraryScan>(CMD.SCAN_LIBRARY, { libraryPath }, 'scanLibrary'),
+
+  /**
+   * Decode a book and cache it in Rust. `encodingOverride` is the escape hatch for a
+   * file whose encoding could not be established — without it, such a file comes back
+   * as `status: 'needsEncoding'` and is deliberately left undecoded.
+   */
+  openBook: async (
+    fileName: string,
+    libraryPath?: string | null,
+    encodingOverride?: string | null
+  ): Promise<OpenBookResult> =>
+    callReaderCommand<OpenBookResult>(
+      CMD.OPEN_BOOK,
+      { fileName, libraryPath, encodingOverride },
+      'openBook'
+    ),
+
+  /** Lines `[start, end)` of the open book, blank lines included as empty strings. */
+  readBookLines: async (fingerprint: string, start: number, end: number): Promise<BookLines> =>
+    callReaderCommand<BookLines>(CMD.READ_BOOK_LINES, { fingerprint, start, end }, 'readBookLines'),
+
+  /** Drop the cached book. Scoped by fingerprint so a stale close cannot evict a new book. */
+  closeBook: async (fingerprint?: string | null): Promise<boolean> =>
+    callReaderCommand<boolean>(CMD.CLOSE_BOOK, { fingerprint }, 'closeBook'),
+
   readClipboard: async (): Promise<string> => {
     try {
       return await invoke<string>(CMD.READ_CLIPBOARD);

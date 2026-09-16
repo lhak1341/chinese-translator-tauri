@@ -38,10 +38,18 @@ describe('useHotkeyHandler', () => {
   });
 
   describe('dispatch wiring', () => {
-    test('Option+1 dispatches tabSwitch to translator', async () => {
+    test('Option+1 dispatches tabSwitch to the Reader — the first tab', async () => {
       const onTabSwitch = vi.fn();
       renderHook(() => useHotkeyHandler({ onTabSwitch }));
       fireKey({ key: '1', code: 'Digit1', altKey: true, metaKey: false });
+      await flush();
+      expect(onTabSwitch).toHaveBeenCalledWith('reader');
+    });
+
+    test('Option+2 dispatches tabSwitch to the Translator, which shifted down one', async () => {
+      const onTabSwitch = vi.fn();
+      renderHook(() => useHotkeyHandler({ onTabSwitch }));
+      fireKey({ key: '2', code: 'Digit2', altKey: true, metaKey: false });
       await flush();
       expect(onTabSwitch).toHaveBeenCalledWith('translator');
     });

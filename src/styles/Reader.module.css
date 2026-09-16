@@ -1,0 +1,290 @@
+/* Reader Tab Styles — bookshelf, reading view, encoding prompt */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background-color);
+}
+
+/* ── Bookshelf ─────────────────────────────────────────────────────────────── */
+
+.shelf {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 1rem 1.25rem;
+  gap: 0.75rem;
+}
+
+.shelfHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.shelfHeaderLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.shelfTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.shelfPath {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48ch;
+}
+
+.defaultBadge,
+.openBadge,
+.encodingNote {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.shelfActions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.secondaryButton,
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.3rem;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.secondaryButton:hover {
+  background: var(--hover-bg);
+}
+
+.bookList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.bookRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.55rem 0.4rem;
+  cursor: pointer;
+  color: var(--text-color);
+}
+
+.bookRow:hover {
+  background: var(--hover-bg);
+}
+
+.bookRowOpen {
+  background: var(--hover-bg);
+}
+
+.bookIcon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.bookTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+}
+
+.bookMeta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* ── Reading view ──────────────────────────────────────────────────────────── */
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.readerHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.readerTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-color);
+}
+
+.readerMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.readerScroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Horizontal padding lives here, not on the rows: a row's measured height must not
+     include anything that changes with its content, and side padding on the scroller
+     keeps every row's width identical. */
+  padding: 0 clamp(1rem, 12vw, 8rem);
+}
+
+.readerCanvas {
+  position: relative;
+  width: 100%;
+}
+
+.readerRowPositioner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+/*
+  No margins anywhere on a row. Resize observations exclude margins, so a margin makes
+  every row under-report its height and the error compounds down the document. Padding
+  and line-height are identical between the pending and loaded states — only the text
+  node changes — so a row does not resize when its page arrives.
+*/
+.readerLine {
+  margin: 0;
+  padding: 0.18rem 0;
+  font-size: 1rem;
+  line-height: 1.85;
+  color: var(--text-color);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.pending {
+  opacity: 0.35;
+}
+
+/* ── Encoding prompt ───────────────────────────────────────────────────────── */
+
+.encodingPanel {
+  margin: 1.5rem auto;
+  max-width: 44rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.encodingHeading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color);
+}
+
+.encodingHeading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.encodingBody {
+  margin: 0;
+  font-size: 0.87rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.encodingChoices {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Shared notices ────────────────────────────────────────────────────────── */
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--error-color, #b3261e);
+  border: 1px solid var(--error-color, #b3261e);
+}
+
+.centeredNotice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex: 1;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+}

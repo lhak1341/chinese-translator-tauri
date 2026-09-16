@@ -1,7 +1,10 @@
 // Dictionary commands module
+mod book_commands;
 mod dictionary_commands;
+pub mod book_loader;
 pub mod lookup_index_engine;
 
+use book_commands::BookCache;
 use dictionary_commands::{DictionaryCache, RateLimiters, TrieCache};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
@@ -28,6 +31,8 @@ pub fn run() {
         .manage(TrieCache::new())
         // SECURITY: Manage rate limiters for DoS prevention
         .manage(RateLimiters::new())
+        // Reader: one decoded book at a time (see book_commands.rs)
+        .manage(BookCache::new())
         // CODE REVIEW FIX (CRITICAL-2): Setup hook to initialize AppHandle for event emission
         .setup(|app| {
             dictionary_commands::init_app_handle(app.handle().clone());
@@ -58,6 +63,10 @@ pub fn run() {
             dictionary_commands::reset_dictionaries,
             dictionary_commands::build_lookup_index,
             dictionary_commands::check_dictionary_cache_health,
+            book_commands::scan_library,
+            book_commands::open_book,
+            book_commands::read_book_lines,
+            book_commands::close_book,
         ])
         .run(tauri::generate_context!())
         .expect("Failed to start Chinese-Vietnamese Translator. Please check your system configuration and try again. If the problem persists, please report it at: https://github.com/lhak1341/chinese-translator-tauri/issues");

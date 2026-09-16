@@ -10,6 +10,7 @@
 import type { AppConfiguration, DictionaryInfo, AppearanceSettings } from './ComponentTypes';
 import type { DictionaryData } from './DictionaryTypes';
 import type { TransformRule } from './TransformRuleTypes';
+import type { BookLines, LibraryScan, OpenBookResult } from './ReaderTypes';
 
 // =============================================================================
 // Result Types
@@ -256,6 +257,21 @@ export interface ElectronAPI {
   maximizeWindow: () => void;
   /** Close application window */
   closeWindow: () => void;
+
+  // Reader operations (see src/types/ReaderTypes.ts — these reject on failure rather
+  // than returning a success envelope)
+  /** List every text file in the library folder */
+  scanLibrary: (libraryPath?: string | null) => Promise<LibraryScan>;
+  /** Decode a book into the Rust-side cache */
+  openBook: (
+    fileName: string,
+    libraryPath?: string | null,
+    encodingOverride?: string | null
+  ) => Promise<OpenBookResult>;
+  /** Read lines [start, end) of the open book */
+  readBookLines: (fingerprint: string, start: number, end: number) => Promise<BookLines>;
+  /** Drop the cached book */
+  closeBook: (fingerprint?: string | null) => Promise<boolean>;
 
   // Development tools
   /** Open developer tools */

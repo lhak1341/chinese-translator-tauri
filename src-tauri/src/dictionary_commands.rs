@@ -116,7 +116,7 @@ fn check_json_depth(value: &serde_json::Value, max_depth: usize) -> Result<(), S
 }
 
 /// SECURITY: Sanitize I/O errors to prevent information disclosure
-fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
+pub(crate) fn sanitize_io_error(error: std::io::Error, context: &str) -> String {
     match error.kind() {
         std::io::ErrorKind::NotFound => format!("{} not found", context),
         std::io::ErrorKind::PermissionDenied => format!("Permission denied accessing {}", context),

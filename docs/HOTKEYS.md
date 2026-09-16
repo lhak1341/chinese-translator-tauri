@@ -9,16 +9,21 @@
 
 | Shortcut               | Action                      |
 | ---------------------- | --------------------------- |
-| `Option/Alt + 1`       | Switch to Translator tab    |
-| `Option/Alt + 2`       | Switch to Dictionary tab    |
-| `Option/Alt + 3`       | Switch to Rules tab         |
-| `Option/Alt + 4`       | Switch to Configuration tab |
-| `Option/Alt + 5`       | Switch to Appearance tab    |
+| `Option/Alt + 1`       | Switch to Reader tab        |
+| `Option/Alt + 2`       | Switch to Translator tab    |
+| `Option/Alt + 3`       | Switch to Dictionary tab    |
+| `Option/Alt + 4`       | Switch to Rules tab         |
+| `Option/Alt + 5`       | Switch to Configuration tab |
+| `Option/Alt + 6`       | Switch to Appearance tab    |
 | `Cmd/Ctrl + Z`         | Undo                        |
 | `Cmd/Ctrl + Shift + Z` | Redo                        |
 
-Tab switching uses Option/Alt, not `Cmd/Ctrl + Shift + 1-5` — that combo collides with a
+Tab switching uses Option/Alt, not `Cmd/Ctrl + Shift + 1-6` — that combo collides with a
 default macOS shortcut.
+
+The Reader took `Option/Alt + 1` and pushed the other five tabs down by one. That was a
+deliberate trade — five bindings already in muscle memory changed — made because the
+Reader is where the app should land.
 
 ---
 

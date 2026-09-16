@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { matchHotkey } from '../HotkeyDispatchTable';
+import { TAB_ORDER } from '../../../constants/tabs';
 import type { MatchHotkeyContext } from '../HotkeyDispatchTable';
 
 // Helpers — build minimal KeyboardEvent-shaped objects
@@ -51,46 +52,31 @@ describe('matchHotkey guards', () => {
   });
 });
 
-// ─── Tab switch (Option/Alt+1-5) ───────────────────────────────────────────────
+// ─── Tab switch (Option/Alt+1-6) ───────────────────────────────────────────────
 
 describe('tab switch', () => {
-  it('Option+1 → tabSwitch:translator', () => {
-    expect(matchHotkey(altDigit('Digit1'), ctx())).toEqual({
-      type: 'tabSwitch',
-      tab: 'translator',
-    });
+  // Pinned literally, not derived from TAB_ORDER: these are the bindings in the user's
+  // muscle memory, so a reordering must fail here and be an explicit decision rather
+  // than silently following the array. The Reader took Digit1 and moved the rest down.
+  const EXPECTED_BINDINGS = [
+    ['Digit1', 'reader'],
+    ['Digit2', 'translator'],
+    ['Digit3', 'dictionary'],
+    ['Digit4', 'rules'],
+    ['Digit5', 'configuration'],
+    ['Digit6', 'appearance'],
+  ] as const;
+
+  it.each(EXPECTED_BINDINGS)('Option+%s → tabSwitch:%s', (code, tab) => {
+    expect(matchHotkey(altDigit(code), ctx())).toEqual({ type: 'tabSwitch', tab });
   });
 
-  it('Option+2 → tabSwitch:dictionary', () => {
-    expect(matchHotkey(altDigit('Digit2'), ctx())).toEqual({
-      type: 'tabSwitch',
-      tab: 'dictionary',
-    });
+  it('covers every tab in TAB_ORDER — a new tab needs a binding and a case here', () => {
+    expect(TAB_ORDER).toEqual(EXPECTED_BINDINGS.map(([, tab]) => tab));
   });
 
-  it('Option+3 → tabSwitch:rules', () => {
-    expect(matchHotkey(altDigit('Digit3'), ctx())).toEqual({
-      type: 'tabSwitch',
-      tab: 'rules',
-    });
-  });
-
-  it('Option+4 → tabSwitch:configuration', () => {
-    expect(matchHotkey(altDigit('Digit4'), ctx())).toEqual({
-      type: 'tabSwitch',
-      tab: 'configuration',
-    });
-  });
-
-  it('Option+5 → tabSwitch:appearance', () => {
-    expect(matchHotkey(altDigit('Digit5'), ctx())).toEqual({
-      type: 'tabSwitch',
-      tab: 'appearance',
-    });
-  });
-
-  it('Option+6 (no mapping) → null', () => {
-    expect(matchHotkey(altDigit('Digit6'), ctx())).toBeNull();
+  it('Option+7, past the end of TAB_ORDER → null', () => {
+    expect(matchHotkey(altDigit('Digit7'), ctx())).toBeNull();
   });
 
   it('Cmd+Shift+1 no longer switches tabs (freed up — used to collide with a default macOS shortcut)', () => {

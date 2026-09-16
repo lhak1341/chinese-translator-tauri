@@ -13,10 +13,19 @@ export interface SessionConfig {
   lastSelectedDictionary: string | null;
 }
 
+export interface ReaderConfig {
+  /**
+   * Library root for the Reader's bookshelf. `null` means "use the default", which Rust
+   * resolves (and reports back) rather than the frontend hard-coding a path.
+   */
+  libraryPath: string | null;
+}
+
 export interface AppConfig {
   engine: EngineConfig;
   ui: UIConfig;
   session: SessionConfig;
+  reader: ReaderConfig;
 }
 
 const ENGINE_DEFAULTS: EngineConfig = {
@@ -56,6 +65,9 @@ function fromRaw(raw: Record<string, unknown>): AppConfig {
       lastSelectedDictionary:
         typeof raw.lastSelectedDictionary === 'string' ? raw.lastSelectedDictionary : null,
     },
+    reader: {
+      libraryPath: typeof raw.libraryPath === 'string' ? raw.libraryPath : null,
+    },
   };
 }
 
@@ -64,6 +76,7 @@ function toRaw(config: AppConfig): AppConfiguration {
     activeProperNouns: config.engine.activeProperNouns,
     defaultQuickAddDictionary: config.ui.defaultQuickAddDictionary,
     lastSelectedDictionary: config.session.lastSelectedDictionary,
+    libraryPath: config.reader.libraryPath,
   } as unknown as AppConfiguration;
 }
 
@@ -79,6 +92,7 @@ export function saveAppConfig(patch: {
   engine?: Partial<EngineConfig>;
   ui?: Partial<UIConfig>;
   session?: Partial<SessionConfig>;
+  reader?: Partial<ReaderConfig>;
 }): Promise<void> {
   return withConfigLock(async () => {
     const current = cache ?? (await loadAppConfig());
@@ -86,6 +100,7 @@ export function saveAppConfig(patch: {
       engine: { ...current.engine, ...patch.engine },
       ui: { ...current.ui, ...patch.ui },
       session: { ...current.session, ...patch.session },
+      reader: { ...current.reader, ...patch.reader },
     };
     const rawResult = await window.electronAPI.saveConfiguration(toRaw(merged));
     const result = validateApiResult(rawResult, 'saveConfiguration');

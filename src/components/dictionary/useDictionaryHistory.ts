@@ -61,7 +61,6 @@ export function useDictionaryHistory(
     [] // stable — reads currentHistoryIndex via currentHistoryIndexRef.current
   );
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- dictionariesRef is a stable ref; intentionally excluded
   const undo = useCallback(async (): Promise<boolean> => {
     if (currentHistoryIndex < 0) return false;
     const operation = history[currentHistoryIndex];
@@ -83,7 +82,6 @@ export function useDictionaryHistory(
     return false;
   }, [history, currentHistoryIndex, commitMutation, invalidateEngine]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- dictionariesRef is a stable ref; intentionally excluded
   const redo = useCallback(async (): Promise<boolean> => {
     if (currentHistoryIndex >= history.length - 1) return false;
     const operation = history[currentHistoryIndex + 1];

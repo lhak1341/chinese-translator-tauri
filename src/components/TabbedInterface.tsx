@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Languages, Book, Settings, Palette, Wand2, LucideIcon } from 'lucide-react';
+import { Languages, Book, Settings, Palette, Wand2, BookOpen, LucideIcon } from 'lucide-react';
+import ReaderTab from './reader/ReaderTab';
 import Translator from './Translator';
 import DictionaryManager from './dictionary/DictionaryManager';
 import RulesManager from './rules/RulesManager';
@@ -7,6 +8,8 @@ import type { RulesManagerHandle } from './rules/RulesManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
+import { TAB_ORDER, tabShortcutDigit } from '../constants/tabs';
+import type { TabId } from '../types/ComponentTypes';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { loadAppConfig } from '../utils/appConfig';
 import {
@@ -16,20 +19,27 @@ import {
 import styles from '../styles/TabbedInterface.module.css';
 
 /**
- * Valid tab identifiers for the application
+ * Per-tab presentation. Order and shortcut come from `TAB_ORDER`, which the hotkey
+ * dispatch table reads too — so a reordering moves the nav bar and the shortcuts
+ * together instead of requiring both to be edited.
  */
-type TabId = 'translator' | 'dictionary' | 'rules' | 'configuration' | 'appearance';
+const TAB_PRESENTATION: Record<TabId, { label: string; icon: LucideIcon }> = {
+  reader: { label: 'Reader', icon: BookOpen },
+  translator: { label: 'Translator', icon: Languages },
+  dictionary: { label: 'Dictionary', icon: Book },
+  rules: { label: 'Rules', icon: Wand2 },
+  configuration: { label: 'Configuration', icon: Settings },
+  appearance: { label: 'Appearance', icon: Palette },
+};
 
-/**
- * Tab configuration
- */
-const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] = [
-  { id: 'translator', label: 'Translator', shortcut: '1', icon: Languages },
-  { id: 'dictionary', label: 'Dictionary', shortcut: '2', icon: Book },
-  { id: 'rules', label: 'Rules', shortcut: '3', icon: Wand2 },
-  { id: 'configuration', label: 'Configuration', shortcut: '4', icon: Settings },
-  { id: 'appearance', label: 'Appearance', shortcut: '5', icon: Palette },
-];
+const TABS: { id: TabId; label: string; shortcut: string; icon: LucideIcon }[] = TAB_ORDER.map(
+  (id) => ({
+    id,
+    label: TAB_PRESENTATION[id].label,
+    icon: TAB_PRESENTATION[id].icon,
+    shortcut: String(tabShortcutDigit(id)),
+  })
+);
 
 /**
  * TabbedInterface Component
@@ -44,7 +54,7 @@ const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
 };
 
 const TabbedInterface: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('translator');
+  const [activeTab, setActiveTab] = useState<TabId>('reader');
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
   const rulesManagerRef = useRef<RulesManagerHandle>(null);
   const { setSelectedDictionary, dictionaries } = useDictionary();
@@ -146,6 +156,19 @@ const TabbedInterface: React.FC = () => {
 
       {/* Content Area */}
       <div className={styles.content}>
+        {/*
+          Every panel stays mounted: leaving the Reader to edit a dictionary entry and
+          coming back must not reload the book. The Reader's own state — and the decoded
+          book in the Rust cache — therefore survives a tab switch.
+        */}
+        <div
+          role="tabpanel"
+          id="panel-reader"
+          aria-labelledby="tab-reader"
+          className={`${styles.componentWrapper} ${activeTab === 'reader' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
+        >
+          <ReaderTab />
+        </div>
         <div
           role="tabpanel"
           id="panel-translator"

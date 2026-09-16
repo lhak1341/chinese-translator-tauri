@@ -1,4 +1,5 @@
 import type { TabId } from '../../types/ComponentTypes';
+import { tabForShortcutDigit } from '../../constants/tabs';
 
 export type HotkeyAction =
   | { type: 'tabSwitch'; tab: TabId }
@@ -44,23 +45,17 @@ export function matchHotkey(
 ): HotkeyAction | null {
   if (context.isInputFocused) return null;
 
-  // Option/Alt+1-5: tab switching. Checked first since it uses a modifier the rest of
+  // Option/Alt+digit: tab switching. Checked first since it uses a modifier the rest of
   // this table doesn't — was Cmd/Ctrl+Shift+1-5 until that collided with a default
   // macOS shortcut; Option+digit doesn't.
+  //
+  // The digit is an index into TAB_ORDER rather than a switch over tab names, so the nav
+  // bar and these shortcuts cannot drift apart: both read the same array.
   if (event.altKey && !event.metaKey && !event.ctrlKey) {
-    switch (event.code) {
-      case 'Digit1':
-        return { type: 'tabSwitch', tab: 'translator' };
-      case 'Digit2':
-        return { type: 'tabSwitch', tab: 'dictionary' };
-      case 'Digit3':
-        return { type: 'tabSwitch', tab: 'rules' };
-      case 'Digit4':
-        return { type: 'tabSwitch', tab: 'configuration' };
-      case 'Digit5':
-        return { type: 'tabSwitch', tab: 'appearance' };
-    }
-    return null;
+    const digit = /^Digit([1-9])$/.exec(event.code);
+    if (!digit) return null;
+    const tab = tabForShortcutDigit(Number(digit[1]));
+    return tab ? { type: 'tabSwitch', tab } : null;
   }
 
   if (!event.metaKey && !event.ctrlKey) return null;
