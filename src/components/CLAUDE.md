@@ -2,7 +2,7 @@
 
 ## Hotkey Architecture
 
-`useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props. Key→action dispatch table lives in `src/utils/ui/HotkeyDispatchTable.ts` (`matchHotkey`) — add/change shortcuts there, not in the hook body.
+`useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props. Key→action dispatch table lives in `src/utils/ui/HotkeyDispatchTable.ts` (`matchHotkey`) — add/change shortcuts there, not in the hook body. **Tab shortcuts are the exception: `src/constants/tabs.ts`'s `TAB_ORDER` is their single source** — the nav bar and `Option/Alt+digit` both derive from it by index, so a tab's shortcut is its position in that array and reordering needs one edit, not two. The bindings stay pinned literally in `HotkeyDispatchTable.test.ts` on purpose: they live in muscle memory, so a reorder must fail a test rather than silently follow the array.
 
 **Option/Alt-modified digit hotkeys must match `event.code` (`'Digit1'`...), never `event.key`** — macOS remaps Option+digit to a different character per keyboard layout (Option+1 → `¡` on US layout), so `.key` matching silently breaks for most users; `.code` is the physical key, immune to modifier remapping.
 
