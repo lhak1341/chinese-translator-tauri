@@ -31,7 +31,9 @@ Known instances:
 
 **State SET inside a `useEffect` must not be in its deps**: if a flag is reset inside the effect body and that same flag is in the dep array, the reset re-triggers the effect. `isClipboardTranslation` was the canonical example — now extracted to `useClipboardTranslation` as a ref (`isClipboardTranslationRef`), so this invariant no longer applies there.
 
-**Testing `useHotkeyHandler.ts`'s clipboard quick-add path**: it calls `navigator.clipboard`/`window.getSelection` directly — NOT `window.electronAPI.readClipboard` (that's `useClipboardTranslation`'s path). jsdom has neither by default; stub both with `Object.defineProperty`/`vi.spyOn` before testing the quick-add dispatch cases.
+**Two async fetches keyed by the same identifier (e.g. a book fingerprint) can race** — a same-key check alone can't tell which one _started_ more recently, only that they share a key. Guard with a shared `requestIdRef` counter incremented per fetch, applied only if it still matches on resolution. `useChapterOutline.ts`: a mount-effect fetch and a `setOverride` fetch both write `headers` for the same fingerprint; without this, a slower mount-fetch resolving after a faster override-fetch silently clobbers the user's choice.
+
+**jsdom doesn't implement several DOM APIs — stub via `Object.defineProperty`/`vi.spyOn`, never assume real behavior.** Confirmed: `navigator.clipboard`/`window.getSelection` (`useHotkeyHandler.ts`'s clipboard quick-add path, NOT `window.electronAPI.readClipboard` — that's `useClipboardTranslation`'s path); `Element.isContentEditable` (always `false` regardless of the `contenteditable` attribute — `useChapterHotkeys.ts`'s input-focus guard).
 
 ## React State Updater Rules
 
