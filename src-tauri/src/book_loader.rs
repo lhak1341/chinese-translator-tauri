@@ -320,6 +320,13 @@ impl BookContent {
         self.lines.len()
     }
 
+    /// Every line as a borrowed slice, in file order — line N here is line N everywhere
+    /// else a line number is used (reading position, chapter headers). Used by chapter
+    /// detection, which scans the whole book rather than a viewport window.
+    pub fn line_slices(&self) -> Vec<&str> {
+        self.lines.iter().map(|&(start, end)| &self.text[start..end]).collect()
+    }
+
     /// Lines `[start, end)`, clamped to the book. Blank lines come back as empty
     /// strings: roughly half of a novel is blank, reading position is a raw file line
     /// number, and dropping them server-side would create two numbering systems.

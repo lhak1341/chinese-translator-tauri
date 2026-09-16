@@ -4,6 +4,8 @@ import {
   saveBookRecords,
   invalidateBookRecords,
   setReadingPosition,
+  setChapterOutline,
+  setManualChapterPattern,
   recordBookOpened,
   withBookRecordsLock,
 } from '../BookRecordsBackend';
@@ -13,6 +15,7 @@ function makeRecord(overrides: Partial<BookRecord> = {}): BookRecord {
   return {
     fingerprint: 'fp1',
     position: null,
+    manualChapterPattern: null,
     title: 'Novel',
     lastKnownPath: 'novel.txt',
     lineCount: 1000,
@@ -20,6 +23,7 @@ function makeRecord(overrides: Partial<BookRecord> = {}): BookRecord {
     sizeBytes: 12345,
     modifiedMs: 1700000000000,
     available: true,
+    chapterOutline: null,
     ...overrides,
   };
 }
@@ -110,6 +114,71 @@ describe('setReadingPosition', () => {
   });
 });
 
+describe('setChapterOutline', () => {
+  test('persists a freshly-elected outline, preserving every other field', async () => {
+    const existing = makeRecord();
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    const outline = {
+      pattern: 'chapter' as const,
+      candidates: [{ pattern: 'chapter' as const, hitCount: 800, medianGap: 60, regularity: 1 }],
+    };
+    await setChapterOutline('fp1', outline);
+
+    expect(saveFn).toHaveBeenCalledWith({ fp1: { ...existing, chapterOutline: outline } });
+  });
+
+  test('skips silently when no record exists yet for the fingerprint', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setChapterOutline('missing-fp', { pattern: null, candidates: [] });
+
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('setManualChapterPattern', () => {
+  test('persists an override, preserving every other field', async () => {
+    const existing = makeRecord();
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setManualChapterPattern('fp1', 'volume');
+
+    expect(saveFn).toHaveBeenCalledWith({ fp1: { ...existing, manualChapterPattern: 'volume' } });
+  });
+
+  test('clearing the override persists null', async () => {
+    const existing = makeRecord({ manualChapterPattern: 'volume' });
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setManualChapterPattern('fp1', null);
+
+    expect(saveFn).toHaveBeenCalledWith({ fp1: { ...existing, manualChapterPattern: null } });
+  });
+
+  test('skips silently when no record exists yet for the fingerprint', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setManualChapterPattern('missing-fp', 'chapter');
+
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+});
+
 describe('recordBookOpened', () => {
   test('creates a fresh record with position: null when none existed', async () => {
     const record = await recordBookOpened('fp1', {
@@ -141,6 +210,29 @@ describe('recordBookOpened', () => {
 
     expect(record.position).toEqual({ line: 99, fraction: 0.1 });
     expect(record.title).toBe('New Title');
+  });
+
+  test('preserves an existing chapter outline and manual override while refreshing cached fields', async () => {
+    const outline = {
+      pattern: 'chapter' as const,
+      candidates: [{ pattern: 'chapter' as const, hitCount: 800, medianGap: 60, regularity: 1 }],
+    };
+    const existing = makeRecord({ chapterOutline: outline, manualChapterPattern: 'volume' });
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+
+    const record = await recordBookOpened('fp1', {
+      title: 'New Title',
+      lastKnownPath: 'novel.txt',
+      lineCount: 1000,
+      encodingLabel: 'GBK',
+      sizeBytes: 12345,
+      modifiedMs: 1700000000001,
+    });
+
+    expect(record.chapterOutline).toEqual(outline);
+    expect(record.manualChapterPattern).toBe('volume');
   });
 });
 

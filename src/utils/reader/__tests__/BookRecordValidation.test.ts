@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { validateBookRecord, validateReadingPosition } from '../BookRecordValidation';
+import {
+  validateBookRecord,
+  validateChapterOutline,
+  validateManualChapterPattern,
+  validateReadingPosition,
+} from '../BookRecordValidation';
 
 function rawRecord(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -50,6 +55,7 @@ describe('validateBookRecord', () => {
     expect(validateBookRecord('fp1', raw)).toEqual({
       fingerprint: 'fp1',
       position: { line: 42, fraction: 0.25 },
+      manualChapterPattern: null,
       title: 'Novel',
       lastKnownPath: 'novel.txt',
       lineCount: 1000,
@@ -57,6 +63,7 @@ describe('validateBookRecord', () => {
       sizeBytes: 12345,
       modifiedMs: 1700000000000,
       available: true,
+      chapterOutline: null,
     });
   });
 
@@ -72,6 +79,7 @@ describe('validateBookRecord', () => {
     expect(record).toEqual({
       fingerprint: 'fp1',
       position: { line: 42, fraction: 0.25 },
+      manualChapterPattern: null,
       title: '',
       lastKnownPath: 'novel.txt',
       lineCount: 0,
@@ -79,6 +87,7 @@ describe('validateBookRecord', () => {
       sizeBytes: 12345,
       modifiedMs: 1700000000000,
       available: true,
+      chapterOutline: null,
     });
   });
 
@@ -92,5 +101,60 @@ describe('validateBookRecord', () => {
   test('a never-opened record (position: null) round-trips as not-started', () => {
     const record = validateBookRecord('fp1', rawRecord({ position: null }));
     expect(record?.position).toBeNull();
+  });
+});
+
+describe('validateManualChapterPattern', () => {
+  test('accepts every known pattern id', () => {
+    for (const pattern of ['chapter', 'section', 'volume', 'hui', 'bareNumber']) {
+      expect(validateManualChapterPattern(pattern)).toBe(pattern);
+    }
+  });
+
+  test('falls back an unknown or malformed value to null', () => {
+    expect(validateManualChapterPattern('not-a-pattern')).toBeNull();
+    expect(validateManualChapterPattern(42)).toBeNull();
+    expect(validateManualChapterPattern(undefined)).toBeNull();
+  });
+
+  test('null (no override) round-trips as null', () => {
+    expect(validateManualChapterPattern(null)).toBeNull();
+  });
+});
+
+describe('validateChapterOutline', () => {
+  const wellFormed = {
+    pattern: 'chapter',
+    candidates: [
+      { pattern: 'chapter', hitCount: 800, medianGap: 60, regularity: 1 },
+      { pattern: 'volume', hitCount: 0, medianGap: null, regularity: null },
+    ],
+  };
+
+  test('accepts a well-formed outline', () => {
+    expect(validateChapterOutline(wellFormed)).toEqual(wellFormed);
+  });
+
+  test('accepts a null-pattern outline (nothing elected, candidates still recorded)', () => {
+    const nothingElected = { pattern: null, candidates: wellFormed.candidates };
+    expect(validateChapterOutline(nothingElected)).toEqual(nothingElected);
+  });
+
+  test('falls back malformed input to null', () => {
+    expect(validateChapterOutline(null)).toBeNull();
+    expect(validateChapterOutline('not-an-object')).toBeNull();
+    expect(validateChapterOutline({ pattern: 'not-a-pattern', candidates: [] })).toBeNull();
+    expect(validateChapterOutline({ pattern: 'chapter', candidates: 'not-an-array' })).toBeNull();
+  });
+
+  test('drops the whole outline when any one candidate is malformed', () => {
+    const malformed = {
+      pattern: 'chapter',
+      candidates: [
+        { pattern: 'chapter', hitCount: 800, medianGap: 60, regularity: 1 },
+        { pattern: 'not-a-pattern', hitCount: 0, medianGap: null, regularity: null },
+      ],
+    };
+    expect(validateChapterOutline(malformed)).toBeNull();
   });
 });

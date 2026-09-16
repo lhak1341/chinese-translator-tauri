@@ -1,9 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
-import type { EncodingReport, OpenBook, ReadingPosition } from '../../types/ReaderTypes';
+import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List } from 'lucide-react';
+import type {
+  ChapterOutlineSummary,
+  ChapterPatternId,
+  EncodingReport,
+  OpenBook,
+  ReadingPosition,
+} from '../../types/ReaderTypes';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useReadingPosition } from '../../hooks/useReadingPosition';
+import { useChapterOutline } from '../../hooks/useChapterOutline';
+import { useChapterHotkeys } from '../../hooks/useChapterHotkeys';
+import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
+import ChapterPanel from './ChapterPanel';
 import styles from '../../styles/Reader.module.css';
 
 interface BookReaderProps {
@@ -11,6 +21,11 @@ interface BookReaderProps {
   encoding: EncodingReport;
   /** Where this book was left off, or `null` if it's never been opened before. */
   initialPosition: ReadingPosition | null;
+  /** This book's cached chapter outline at open time, or `null` if this fingerprint has
+   * never been elected before — see `useChapterOutline`. */
+  initialChapterOutline: ChapterOutlineSummary | null;
+  /** This book's persisted manual pattern override at open time, or `null`. */
+  initialManualChapterPattern: ChapterPatternId | null;
   /** Whether the Reader is the visible tab — see `useReadingPosition`. */
   isActive: boolean;
   onBack: () => void;
@@ -48,11 +63,14 @@ const BookReader: React.FC<BookReaderProps> = ({
   book,
   encoding,
   initialPosition,
+  initialChapterOutline,
+  initialManualChapterPattern,
   isActive,
   onBack,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { getLine, requestRange, error } = useBookLines(book.fingerprint, book.lineCount);
+  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
 
   const virtualizer = useVirtualizer({
     count: book.lineCount,
@@ -70,9 +88,47 @@ const BookReader: React.FC<BookReaderProps> = ({
     isActive,
   });
 
+  const {
+    headers: chapterHeaders,
+    candidates: chapterCandidates,
+    activePattern: chapterPattern,
+    isOverridden: isChapterOverridden,
+    error: chapterError,
+    setOverride: setChapterOverride,
+  } = useChapterOutline({
+    fingerprint: book.fingerprint,
+    cachedOutline: initialChapterOutline,
+    cachedManualPattern: initialManualChapterPattern,
+  });
+
   const virtualRows = virtualizer.getVirtualItems();
   const firstIndex = virtualRows.length > 0 ? virtualRows[0].index : 0;
   const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
+
+  const chapterIndex = currentChapterIndex(chapterHeaders, firstIndex);
+  const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
+
+  const jumpToLine = useCallback(
+    (line: number): void => {
+      virtualizer.scrollToIndex(line, { align: 'start' });
+      setIsOutlineOpen(false);
+    },
+    [virtualizer]
+  );
+
+  const goToChapter = useCallback(
+    (direction: -1 | 1): void => {
+      const target = stepChapter(chapterHeaders, firstIndex, direction);
+      if (target) virtualizer.scrollToIndex(target.line, { align: 'start' });
+    },
+    [chapterHeaders, firstIndex, virtualizer]
+  );
+
+  useChapterHotkeys({
+    isActive,
+    onPrevious: () => goToChapter(-1),
+    onNext: () => goToChapter(1),
+  });
 
   // Fetch the pages covering what is about to be painted. Running after render (rather
   // than inside it) keeps the fetch out of the render pass; the rows it fills in arrive
@@ -107,6 +163,46 @@ const BookReader: React.FC<BookReaderProps> = ({
         </span>
       </div>
 
+      <div className={styles.chapterStrip}>
+        <div className={styles.chapterStripNav}>
+          <button
+            onClick={() => goToChapter(-1)}
+            disabled={chapterHeaders.length === 0 || chapterIndex <= 0}
+            className={styles.iconButton}
+            title="Previous chapter ([)"
+            aria-label="Previous chapter"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            onClick={() => goToChapter(1)}
+            disabled={chapterHeaders.length === 0 || chapterIndex === chapterHeaders.length - 1}
+            className={styles.iconButton}
+            title="Next chapter (])"
+            aria-label="Next chapter"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+        <button
+          className={styles.chapterStripCurrent}
+          onClick={() => setIsOutlineOpen(true)}
+          title="Open chapter list"
+        >
+          <List size={13} />
+          <span className={styles.chapterStripTitle}>
+            {currentChapter
+              ? currentChapter.title || '(untitled)'
+              : chapterHeaders.length > 0
+                ? 'Before the first chapter'
+                : 'No chapter structure detected'}
+          </span>
+        </button>
+        <span className={styles.chapterStripLine}>
+          Line {(firstIndex + 1).toLocaleString()} of {book.lineCount.toLocaleString()}
+        </span>
+      </div>
+
       {error && (
         <div className={styles.error}>
           <AlertCircle size={15} />
@@ -137,13 +233,27 @@ const BookReader: React.FC<BookReaderProps> = ({
                   stay the file's own.
                 */}
                 <p className={`${styles.readerLine} ${line === undefined ? styles.pending : ''}`}>
-                  {line === undefined ? ' ' : line || ' '}
+                  {line === undefined ? ' ' : line || ' '}
                 </p>
               </div>
             );
           })}
         </div>
       </div>
+
+      {isOutlineOpen && (
+        <ChapterPanel
+          headers={chapterHeaders}
+          candidates={chapterCandidates}
+          activePattern={chapterPattern}
+          isOverridden={isChapterOverridden}
+          currentIndex={chapterIndex}
+          error={chapterError}
+          onJump={jumpToLine}
+          onSetOverride={setChapterOverride}
+          onClose={() => setIsOutlineOpen(false)}
+        />
+      )}
     </div>
   );
 };

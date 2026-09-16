@@ -80,6 +80,50 @@ export interface ReadingPosition {
 }
 
 /**
+ * A header convention `detect_chapter_outline`/`chapter_headers_for_pattern` recognize.
+ * Mirrors `src-tauri/src/chapter_outline.rs::PatternId` — camelCase serde names.
+ */
+export type ChapterPatternId = 'chapter' | 'section' | 'volume' | 'hui' | 'bareNumber';
+
+/** One pattern's election stats, whether or not it won — the manual-override control
+ * needs every candidate, not just the winner. */
+export interface ChapterPatternCandidate {
+  pattern: ChapterPatternId;
+  hitCount: number;
+  /** `null` when there were too few hits (or gaps) for the number to mean anything. */
+  medianGap: number | null;
+  regularity: number | null;
+}
+
+/** The full result of `detect_chapter_outline`: every candidate's stats, the elected
+ * pattern (`null` if nothing cleared the thresholds), and the winner's headers. */
+export interface ChapterOutline {
+  candidates: ChapterPatternCandidate[];
+  elected: ChapterPatternId | null;
+  headers: ChapterHeader[];
+}
+
+/** One chapter/section/volume header: the file's own line number plus its own text. */
+export interface ChapterHeader {
+  line: number;
+  title: string;
+}
+
+/**
+ * The half of a `ChapterOutline` worth persisting in a book record: the elected pattern
+ * plus every candidate's stats, for the manual-override control. `headers` is never
+ * cached here — it can run to thousands of entries, and `chapter_headers_for_pattern`
+ * is cheap enough (one regex pass) to call fresh on every open instead.
+ */
+export interface ChapterOutlineSummary {
+  /** `null` when no pattern cleared the election thresholds — still worth caching, so a
+   * later open of the same, unchanged file doesn't re-run election just to find nothing
+   * again. */
+  pattern: ChapterPatternId | null;
+  candidates: ChapterPatternCandidate[];
+}
+
+/**
  * A book record, keyed by fingerprint in `BookRecords` so rename/move survives it.
  *
  * Authoritative (never regenerated, small, protected): `fingerprint`, `position`.
@@ -92,6 +136,10 @@ export interface BookRecord {
   fingerprint: string;
   /** `null` means never opened — distinct from "opened, first line". */
   position: ReadingPosition | null;
+  /** The user's own pattern choice, overriding election. `null` means "trust election" —
+   * distinct from `chapterOutline.pattern`, which is the detector's own answer and stays
+   * untouched by an override so switching back to "auto" doesn't lose it. */
+  manualChapterPattern: ChapterPatternId | null;
 
   // ── Cached ──
   title: string;
@@ -105,6 +153,10 @@ export interface BookRecord {
    * root, by path or by fingerprint. The record is kept, not deleted, so a later rescan
    * can re-link it. */
   available: boolean;
+  /** `null` before the book has ever been opened, or when election found no structure to
+   * elect — see `ChapterOutlineSummary`. Recomputed only when the fingerprint changes,
+   * since a fingerprint match already means the file (and so its structure) is unchanged. */
+  chapterOutline: ChapterOutlineSummary | null;
 }
 
 /** The on-disk shape of `books.json`: every known book record, keyed by fingerprint. */

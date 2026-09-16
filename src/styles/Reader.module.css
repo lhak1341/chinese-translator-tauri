@@ -201,6 +201,7 @@
 /* ── Reading view ──────────────────────────────────────────────────────────── */
 
 .reader {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -234,6 +235,207 @@
   font-size: 0.75rem;
   color: var(--text-secondary);
   flex-shrink: 0;
+}
+
+.chapterStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.chapterStripCurrent {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.chapterStripCurrent:hover {
+  background: var(--hover-bg);
+}
+
+.chapterStripTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 32ch;
+}
+
+.chapterStripNav {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.chapterStripLine {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 0.25rem;
+}
+
+.iconButton:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.iconButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.iconButton:disabled:hover {
+  background: transparent;
+}
+
+/* ── Chapter outline panel ─────────────────────────────────────────────────── */
+
+.outlinePanel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(22rem, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  background: var(--background-color);
+  border-left: 1px solid var(--border-color);
+  box-shadow: -0.5rem 0 1rem rgba(0, 0, 0, 0.08);
+  z-index: 5;
+  min-height: 0;
+}
+
+.outlinePanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.outlinePanelTitle {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+.outlineOverride {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.outlineOverride select {
+  font-size: 0.8rem;
+  padding: 0.3rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+.outlineSearch {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.3rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.outlineSearch input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.outlineList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.outlineRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.4rem;
+  cursor: pointer;
+  color: var(--text-color);
+  font-size: 0.83rem;
+  border-radius: 0.25rem;
+}
+
+.outlineRow:hover {
+  background: var(--hover-bg);
+}
+
+.outlineRowActive {
+  background: var(--hover-bg);
+  font-weight: 600;
+}
+
+.outlineRowTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outlineRowLine {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.outlineEmpty {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0.25rem;
+  line-height: 1.5;
 }
 
 .readerScroll {

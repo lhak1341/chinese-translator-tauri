@@ -1,4 +1,10 @@
-import type { BookRecord, BookRecords, ReadingPosition } from '../../types/ReaderTypes';
+import type {
+  BookRecord,
+  BookRecords,
+  ChapterOutlineSummary,
+  ChapterPatternId,
+  ReadingPosition,
+} from '../../types/ReaderTypes';
 import { validateApiResult } from '../configValidation';
 import { validateBookRecord } from './BookRecordValidation';
 import { logger } from '../logger';
@@ -87,6 +93,50 @@ export function setReadingPosition(fingerprint: string, position: ReadingPositio
   });
 }
 
+/**
+ * Persist a freshly-elected chapter outline. Called once per fingerprint — right after
+ * `detect_chapter_outline` runs on a book whose record didn't already carry one — so a
+ * later open of the same, unchanged file skips election and goes straight to
+ * `chapter_headers_for_pattern`. A missing record is a caller bug, same as
+ * `setReadingPosition`: `open_book` always creates one before election can run.
+ */
+export function setChapterOutline(
+  fingerprint: string,
+  outline: ChapterOutlineSummary
+): Promise<void> {
+  return withBookRecordsLock(async () => {
+    const { records } = await loadBookRecords();
+    const existing = records[fingerprint];
+    if (!existing) {
+      logger.warn(`setChapterOutline: no record for ${fingerprint}, skipping`);
+      return;
+    }
+    const updated: BookRecord = { ...existing, chapterOutline: outline };
+    await saveBookRecords({ ...records, [fingerprint]: updated });
+  });
+}
+
+/**
+ * Persist the user's manual pattern override, or clear it (`null`) to go back to trusting
+ * election. Distinct from `setChapterOutline`: this never touches the detector's own
+ * answer, so switching back to "auto" doesn't lose it.
+ */
+export function setManualChapterPattern(
+  fingerprint: string,
+  pattern: ChapterPatternId | null
+): Promise<void> {
+  return withBookRecordsLock(async () => {
+    const { records } = await loadBookRecords();
+    const existing = records[fingerprint];
+    if (!existing) {
+      logger.warn(`setManualChapterPattern: no record for ${fingerprint}, skipping`);
+      return;
+    }
+    const updated: BookRecord = { ...existing, manualChapterPattern: pattern };
+    await saveBookRecords({ ...records, [fingerprint]: updated });
+  });
+}
+
 export interface OpenedBookCachedFields {
   title: string;
   lastKnownPath: string;
@@ -113,6 +163,8 @@ export function recordBookOpened(
     const updated: BookRecord = {
       fingerprint,
       position: existing?.position ?? null,
+      manualChapterPattern: existing?.manualChapterPattern ?? null,
+      chapterOutline: existing?.chapterOutline ?? null,
       available: true,
       ...fields,
     };

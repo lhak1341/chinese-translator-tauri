@@ -1,4 +1,18 @@
-import type { BookRecord, ReadingPosition } from '../../types/ReaderTypes';
+import type {
+  BookRecord,
+  ChapterOutlineSummary,
+  ChapterPatternCandidate,
+  ChapterPatternId,
+  ReadingPosition,
+} from '../../types/ReaderTypes';
+
+const CHAPTER_PATTERN_IDS: readonly ChapterPatternId[] = [
+  'chapter',
+  'section',
+  'volume',
+  'hui',
+  'bareNumber',
+];
 
 function isFiniteNonNegative(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0;
@@ -6,6 +20,57 @@ function isFiniteNonNegative(v: unknown): v is number {
 
 function isFraction(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+}
+
+function isChapterPatternId(v: unknown): v is ChapterPatternId {
+  return typeof v === 'string' && (CHAPTER_PATTERN_IDS as readonly string[]).includes(v);
+}
+
+function isChapterPatternIdOrNull(v: unknown): v is ChapterPatternId | null {
+  return v === null || isChapterPatternId(v);
+}
+
+function isFiniteOrNull(v: unknown): v is number | null {
+  return v === null || (typeof v === 'number' && Number.isFinite(v));
+}
+
+/** Validates one persisted `manualChapterPattern`. `null` (not overridden) or anything
+ * malformed both fall back to `null` — trusting election is always a safe default. */
+export function validateManualChapterPattern(raw: unknown): ChapterPatternId | null {
+  return isChapterPatternId(raw) ? raw : null;
+}
+
+function validateChapterPatternCandidate(raw: unknown): ChapterPatternCandidate | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+  if (!isChapterPatternId(c.pattern)) return null;
+  if (!isFiniteNonNegative(c.hitCount)) return null;
+  if (!isFiniteOrNull(c.medianGap) || !isFiniteOrNull(c.regularity)) return null;
+  return {
+    pattern: c.pattern,
+    hitCount: c.hitCount,
+    medianGap: c.medianGap as number | null,
+    regularity: c.regularity as number | null,
+  };
+}
+
+/** Validates a persisted `chapterOutline`. Entirely cached/regenerable — `open_book`'s
+ * next `detect_chapter_outline` call overwrites it — so anything malformed falls back to
+ * `null` (meaning "never detected") rather than dropping the whole record. A record with
+ * even one malformed candidate is dropped as a whole (not repaired candidate-by-candidate)
+ * so a corrupt outline can never look like a real, if partial, election result. */
+export function validateChapterOutline(raw: unknown): ChapterOutlineSummary | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (!isChapterPatternIdOrNull(o.pattern)) return null;
+  if (!Array.isArray(o.candidates)) return null;
+  const candidates: ChapterPatternCandidate[] = [];
+  for (const rawCandidate of o.candidates) {
+    const candidate = validateChapterPatternCandidate(rawCandidate);
+    if (!candidate) return null;
+    candidates.push(candidate);
+  }
+  return { pattern: o.pattern, candidates };
 }
 
 /** Validates a persisted reading position. Returns `null` (meaning "not started") for
@@ -38,6 +103,7 @@ export function validateBookRecord(fingerprint: string, raw: unknown): BookRecor
   return {
     fingerprint,
     position: validateReadingPosition(r.position),
+    manualChapterPattern: validateManualChapterPattern(r.manualChapterPattern),
     title: typeof r.title === 'string' ? r.title : '',
     lastKnownPath: typeof r.lastKnownPath === 'string' ? r.lastKnownPath : '',
     lineCount: isFiniteNonNegative(r.lineCount) ? r.lineCount : 0,
@@ -45,5 +111,6 @@ export function validateBookRecord(fingerprint: string, raw: unknown): BookRecor
     sizeBytes: isFiniteNonNegative(r.sizeBytes) ? r.sizeBytes : 0,
     modifiedMs: isFiniteNonNegative(r.modifiedMs) ? r.modifiedMs : 0,
     available: typeof r.available === 'boolean' ? r.available : true,
+    chapterOutline: validateChapterOutline(r.chapterOutline),
   };
 }

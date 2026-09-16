@@ -581,6 +581,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "once_cell",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "tauri",

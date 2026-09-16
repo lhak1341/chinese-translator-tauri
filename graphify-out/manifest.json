@@ -55,8 +55,8 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1789575399.4301038,
-    "ast_hash": "1745d6c30f4331f91ddd5c6056f42fd2",
+    "mtime": 1789595031.331687,
+    "ast_hash": "f0fa5127c32c5ca4da8bb5b034ddbc3b",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -190,8 +190,8 @@
     "semantic_hash": "8b5360ca10abe938bf58efedc7abaf1f"
   },
   "src/tauriAPI.ts": {
-    "mtime": 1789575470.5314443,
-    "ast_hash": "eeb2417da0d45c3ed2a5908125ae9904",
+    "mtime": 1789595387.642264,
+    "ast_hash": "57c7dba46b71bec06b81b03609147531",
     "semantic_hash": ""
   },
   "src/App.jsx": {
@@ -225,8 +225,8 @@
     "semantic_hash": "22b47651425350e838307a5fa43147c8"
   },
   "src/types/ElectronTypes.d.ts": {
-    "mtime": 1789575450.613836,
-    "ast_hash": "5d9f4a61bf49a09bf8abd4b9241fe7ee",
+    "mtime": 1789577194.4645932,
+    "ast_hash": "ce5d203db87cd9a7d0acd1c0ce2719f8",
     "semantic_hash": ""
   },
   "src/types/PatternProcessingTypes.d.ts": {
@@ -1890,13 +1890,13 @@
     "semantic_hash": ""
   },
   "src-tauri/src/book_commands.rs": {
-    "mtime": 1789575392.3133957,
-    "ast_hash": "0af00b06faa2fbc86b94141fd2736f54",
+    "mtime": 1789595022.7817264,
+    "ast_hash": "5309603c919e659a0e6ce71b8e2bdc52",
     "semantic_hash": ""
   },
   "src-tauri/src/book_loader.rs": {
-    "mtime": 1789573775.2690446,
-    "ast_hash": "151fedd08891df96e743513924e3394b",
+    "mtime": 1789594966.527583,
+    "ast_hash": "0ee95cd1a119492778be1ee2e499c223",
     "semantic_hash": ""
   },
   "src/components/EngineContext.jsx": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1789575897.3240182,
-    "ast_hash": "b62ae833eff1a2db32bf083210d9f612",
+    "mtime": 1789596405.261065,
+    "ast_hash": "99cea45de81c5c52a467a54f5c4fb408",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1789575853.4833949,
-    "ast_hash": "cf9cdbb69d7031017df5343f4fddb58e",
+    "mtime": 1789595725.6671152,
+    "ast_hash": "c2c5db6769278c45cc8ce2fc1fae4d65",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1935,8 +1935,8 @@
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
-    "mtime": 1789575436.0837688,
-    "ast_hash": "69013e9b5be7f9d0478497dc000a8f91",
+    "mtime": 1789595465.509638,
+    "ast_hash": "5fd8c2813e96984001b88cd9990f4a78",
     "semantic_hash": ""
   },
   "wasm-core/benches/real_dictionary_profile.rs": {
@@ -1950,18 +1950,18 @@
     "semantic_hash": ""
   },
   "src/hooks/useReadingPosition.ts": {
-    "mtime": 1789575760.3490436,
-    "ast_hash": "052fc067dd23b6aad8cb124f14adbded",
+    "mtime": 1789577062.046635,
+    "ast_hash": "45711d56b8a20a0d78286da735ffc719",
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordValidation.ts": {
-    "mtime": 1789575495.211843,
-    "ast_hash": "578635aa743980ec6d8fbd0234c944d0",
+    "mtime": 1789595496.9694095,
+    "ast_hash": "6577a70614d6c96ba782dc71894c891f",
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordsBackend.ts": {
-    "mtime": 1789576100.2429926,
-    "ast_hash": "53d8960399c71b2d82192301e5ceb3a8",
+    "mtime": 1789595361.6239958,
+    "ast_hash": "73b16326b915be7f579dbc72482ac59e",
     "semantic_hash": ""
   },
   "src/utils/reader/PendingPositionFlush.ts": {
@@ -1970,8 +1970,38 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1789575849.5392878,
-    "ast_hash": "645d7c80123ea505c9bd203892e4a653",
+    "mtime": 1789595368.961996,
+    "ast_hash": "ce64542e1ec953f10436d4270fcc3677",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/chapter_outline.rs": {
+    "mtime": 1789595228.116126,
+    "ast_hash": "597f3ad052f1aa8777fe8a1490436050",
+    "semantic_hash": ""
+  },
+  "src/components/reader/ChapterPanel.tsx": {
+    "mtime": 1789595635.3853767,
+    "ast_hash": "918f93b6589aa13665b211f7f797fccc",
+    "semantic_hash": ""
+  },
+  "src/hooks/useChapterHotkeys.ts": {
+    "mtime": 1789595618.247854,
+    "ast_hash": "80bd695722ab31975d60e2388d061932",
+    "semantic_hash": ""
+  },
+  "src/hooks/useChapterOutline.ts": {
+    "mtime": 1789596276.5769644,
+    "ast_hash": "c44a6c42c3ec03ade769ac7deafedbac",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/ChapterNavigation.ts": {
+    "mtime": 1789595459.7710412,
+    "ast_hash": "6793534baf3e517f2aede79ef3c10f93",
+    "semantic_hash": ""
+  },
+  "src/utils/ui/EditableFocus.ts": {
+    "mtime": 1789595609.1112366,
+    "ast_hash": "cd0d98a2cfb2f27388ba338956b3a5ac",
     "semantic_hash": ""
   }
 }

@@ -25,6 +25,9 @@ import type {
   BookFingerprint,
   BookLines,
   BookRecords,
+  ChapterHeader,
+  ChapterOutline,
+  ChapterPatternId,
   LibraryScan,
   OpenBookResult,
 } from './types/ReaderTypes';
@@ -59,6 +62,8 @@ const CMD = {
   READ_BOOK_LINES: 'read_book_lines',
   CLOSE_BOOK: 'close_book',
   FINGERPRINT_BOOK: 'fingerprint_book',
+  DETECT_CHAPTER_OUTLINE: 'detect_chapter_outline',
+  CHAPTER_HEADERS_FOR_PATTERN: 'chapter_headers_for_pattern',
   LOAD_BOOK_RECORDS: 'load_book_records',
   SAVE_BOOK_RECORDS: 'save_book_records',
 } as const;
@@ -208,6 +213,31 @@ const tauriAPI = {
       CMD.FINGERPRINT_BOOK,
       { fileName, libraryPath },
       'fingerprintBook'
+    ),
+
+  /**
+   * Full chapter-pattern election over the currently open book. Expensive relative to the
+   * other Reader calls (a regex pass per candidate pattern over every line), so callers
+   * should only reach for this when a book's record has no cached outline yet —
+   * `chapterHeadersForPattern` is the cheap path for every open after the first.
+   */
+  detectChapterOutline: async (fingerprint: string): Promise<ChapterOutline> =>
+    callReaderCommand<ChapterOutline>(
+      CMD.DETECT_CHAPTER_OUTLINE,
+      { fingerprint },
+      'detectChapterOutline'
+    ),
+
+  /** Headers for one specific pattern, bypassing election — refreshing a previously
+   * elected/overridden pattern's headers, or applying a manual override. */
+  chapterHeadersForPattern: async (
+    fingerprint: string,
+    pattern: ChapterPatternId
+  ): Promise<ChapterHeader[]> =>
+    callReaderCommand<ChapterHeader[]>(
+      CMD.CHAPTER_HEADERS_FOR_PATTERN,
+      { fingerprint, pattern },
+      'chapterHeadersForPattern'
     ),
 
   readClipboard: async (): Promise<string> => {

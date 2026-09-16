@@ -108,6 +108,7 @@ export function applyReconciliation(
       record = {
         fingerprint: fresh.fingerprint,
         position: byFingerprint?.position ?? null,
+        manualChapterPattern: byFingerprint?.manualChapterPattern ?? null,
         title: file.title,
         lastKnownPath: file.fileName,
         lineCount: byFingerprint?.lineCount ?? 0,
@@ -115,6 +116,7 @@ export function applyReconciliation(
         sizeBytes: fresh.sizeBytes,
         modifiedMs: file.modifiedMs,
         available: true,
+        chapterOutline: byFingerprint?.chapterOutline ?? null,
       };
     }
     // Two scanned files can fingerprint identically (byte-for-byte duplicate content,

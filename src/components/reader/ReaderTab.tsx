@@ -4,12 +4,14 @@ import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import type {
+  ChapterOutlineSummary,
+  ChapterPatternId,
   EncodingReport,
   LibraryBook,
   OpenBook,
   ReadingPosition,
 } from '../../types/ReaderTypes';
-import { recordBookOpened } from '../../utils/reader/BookRecordsBackend';
+import { loadBookRecords, recordBookOpened } from '../../utils/reader/BookRecordsBackend';
 import {
   reconcileLibraryScan,
   type ShelfBook,
@@ -31,6 +33,8 @@ interface OpenState {
   book: OpenBook;
   encoding: EncodingReport;
   position: ReadingPosition | null;
+  chapterOutline: ChapterOutlineSummary | null;
+  manualChapterPattern: ChapterPatternId | null;
 }
 
 /** A book that would not decode: its name plus the report explaining why. */
@@ -122,9 +126,32 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
 
   const openBook = useCallback(
     async (book: LibraryBook, encodingOverride?: string): Promise<void> => {
-      // Returning to a book that is already decoded costs nothing — don't re-open it.
+      // Returning to a book that is already decoded costs nothing — don't re-open it. Its
+      // record is re-read from the (already in-memory) cache rather than trusting the
+      // `open` state's own copy: `position`/`chapterOutline`/`manualChapterPattern` are
+      // all written straight to disk from elsewhere (scroll debounce, an outline
+      // override) without ever flowing back into this component's state, so the captured
+      // copy from the original open() call would otherwise be replayed stale.
       if (!encodingOverride && open && open.book.fileName === book.fileName) {
         setEncodingChoice(null);
+        try {
+          const { records } = await loadBookRecords();
+          const record = records[open.book.fingerprint];
+          if (record) {
+            setOpen((previous) =>
+              previous
+                ? {
+                    ...previous,
+                    position: record.position,
+                    chapterOutline: record.chapterOutline,
+                    manualChapterPattern: record.manualChapterPattern,
+                  }
+                : previous
+            );
+          }
+        } catch (cause) {
+          logger.error('Failed to refresh the book record on reopen:', cause);
+        }
         setIsReading(true);
         return;
       }
@@ -149,8 +176,10 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         }
         setEncodingChoice(null);
         // Refresh (or create) this book's cached fields now that its true line count and
-        // encoding are known — preserves any existing reading position.
+        // encoding are known — preserves any existing reading position and chapter outline.
         let position: ReadingPosition | null = null;
+        let chapterOutline: ChapterOutlineSummary | null = null;
+        let manualChapterPattern: ChapterPatternId | null = null;
         try {
           const record = await recordBookOpened(result.book.fingerprint, {
             title: result.book.title,
@@ -161,10 +190,18 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
             modifiedMs: book.modifiedMs,
           });
           position = record.position;
+          chapterOutline = record.chapterOutline;
+          manualChapterPattern = record.manualChapterPattern;
         } catch (cause) {
           logger.error('Failed to record the book as opened:', cause);
         }
-        setOpen({ book: result.book, encoding: result.encoding, position });
+        setOpen({
+          book: result.book,
+          encoding: result.encoding,
+          position,
+          chapterOutline,
+          manualChapterPattern,
+        });
         setIsReading(true);
       } catch (cause) {
         logger.error('Failed to open the book:', cause);
@@ -240,6 +277,8 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           book={open.book}
           encoding={open.encoding}
           initialPosition={open.position}
+          initialChapterOutline={open.chapterOutline}
+          initialManualChapterPattern={open.manualChapterPattern}
           isActive={isActive}
           onBack={backToShelf}
         />
