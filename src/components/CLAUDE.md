@@ -67,17 +67,22 @@ An inline array literal passed to a generic component's prop (`<Foo<T> options={
 
 A `.tsx` file's locally-declared prop type for a value that's really a `.jsx` function (e.g. `Translator.jsx`'s handlers) isn't checked against the real implementation — `checkJs: false` means only a `.jsx`-side JSDoc mismatch is invisible too. These drift silently until something removes whatever permissive type was tolerating the mismatch (e.g. narrowing a union). After narrowing any handler/callback type, run `bun run type-check` and expect to find stale declarations in `.tsx` callers, not just the type's own definition site.
 
-## Engine Lifecycle — `useTranslatorEngine` Hook
+## Engine Lifecycle — `EngineContext` / `useEngine()`
 
-Engine init, config load, and reinit are owned by `src/hooks/useTranslatorEngine.js`. Do NOT inline these back into `Translator.jsx`.
+The engine is constructed once, above the tab container (`App.jsx` wraps `<TabbedInterface>` in `<EngineProvider>`, from `src/components/EngineContext.jsx`) — not owned by `Translator.jsx`. Only one engine may exist at a time: the WASM pattern/number processors are module-scope singletons, so a second live engine would silently share state with the first. `Translator.jsx` (and any future tab needing translation) consumes it via `useEngine()`; do NOT call `useTranslatorEngine`/`useEngineReinitializer` directly from a tab component — that re-creates a second, unshared engine.
 
-The hook exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConfig, reinitialize }`:
+`useEngine()` throws if called outside `EngineProvider`. It exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConfig, reinitialize, reinitializeEngine }`:
 
 - `enginePhase` — `'loading' | 'ready' | 'error'`. Replaces `engineInitialized` + `configLoaded` flags.
 - `engineRef` — ref to current engine instance (or null).
 - `initError` — error string when `enginePhase === 'error'`, else null.
-- `activeProperNounsFromConfig` — loaded from disk once on mount; use directly in `Translator.jsx` (no sync hook needed).
-- `reinitialize(rawDicts, options)` — never throws; errors go to `enginePhase`/`initError`. Pass raw (unfiltered) dicts; the hook filters internally. Pass `forceConfigReload: true` to re-read config from disk — do NOT call `invalidateAppConfig`/`loadAppConfig` in the caller. For non-React callers (adapters outside the component tree), check `engineRef.current?.isReady()` after `await reinitialize(...)` to determine success — `enginePhase` state is async and not directly readable from adapters.
+- `activeProperNounsFromConfig` — loaded from disk once on mount.
+- `reinitialize(rawDicts, options)` — the raw `useTranslatorEngine` reinitializer; never throws, errors go to `enginePhase`/`initError`. Pass raw (unfiltered) dicts; the hook filters internally. Pass `forceConfigReload: true` to re-read config from disk — do NOT call `invalidateAppConfig`/`loadAppConfig` in the caller. For non-React callers (adapters outside the component tree), check `engineRef.current?.isReady()` after `await reinitialize(...)` to determine success — `enginePhase` state is async and not directly readable from adapters.
+- `reinitializeEngine` — `reinitialize` wrapped by `useEngineReinitializer` (awaits it, then fires the fire-and-forget WASM dictionary-sync validation). This is the one `useForceReloadContext`/`useForceReload` consume — use this, not raw `reinitialize`, from `Translator.jsx`.
+
+**Destroy-before-replace**: `useTranslatorEngine`'s internal `runEngineInit` destroys the outgoing engine (if any) before constructing the replacement, on both the mount path and every `reinitialize()` call — not just the `useForceReload` path that also calls `destroyEngine()` explicitly beforehand. This is what makes "only one engine at a time" structural rather than a convention every caller has to remember. A throwing `destroy()` is caught and logged, never blocks the replacement.
+
+**Error boundary**: `EngineProvider` wraps its children in `ErrorBoundary` (`src/components/ErrorBoundary.tsx`) — it sits at the provider, not around `<Translator>` in `TabbedInterface.tsx`, since an initialization failure is now shared by every tab rather than local to one.
 
 **Race condition**: `reinitialize` sets `isInitializingRef.current = true` synchronously on entry and the hook's init effect checks `enginePhase === 'loading' && !isInitializingRef.current`. `handleForceReload` must NOT set any separate lock — `reinitialize` handles it.
 

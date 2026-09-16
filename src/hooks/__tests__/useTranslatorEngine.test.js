@@ -23,9 +23,10 @@ vi.mock('../../utils/appConfig', () => ({
   invalidateAppConfig: vi.fn(),
 }));
 
-function mockEngine(initializeImpl) {
+function mockEngine(initializeImpl, destroyImpl) {
   const initialize = vi.fn(initializeImpl ?? (() => Promise.resolve()));
-  return { initialize };
+  const destroy = vi.fn(destroyImpl ?? (() => {}));
+  return { initialize, destroy };
 }
 
 beforeEach(() => {
@@ -127,6 +128,45 @@ describe('useTranslatorEngine — reinitialize', () => {
       'properNouns',
       'properNouns-Fresh',
     ]);
+  });
+
+  test('destroys the outgoing engine before constructing the replacement', async () => {
+    const engine1 = mockEngine();
+    const engine2 = mockEngine();
+    vi.mocked(createTranslationEngine).mockReturnValueOnce(engine1).mockReturnValueOnce(engine2);
+
+    const { result } = renderHook(() => useTranslatorEngine());
+    await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
+    expect(result.current.engineRef.current).toBe(engine1);
+
+    await act(async () => {
+      await result.current.reinitialize({ properNouns: {} });
+    });
+
+    expect(engine1.destroy).toHaveBeenCalledTimes(1);
+    expect(engine2.destroy).not.toHaveBeenCalled();
+    expect(result.current.engineRef.current).toBe(engine2);
+    expect(result.current.enginePhase).toBe('ready');
+  });
+
+  test('a throwing destroy() on the outgoing engine does not block the replacement', async () => {
+    const engine1 = mockEngine(undefined, () => {
+      throw new Error('destroy boom');
+    });
+    const engine2 = mockEngine();
+    vi.mocked(createTranslationEngine).mockReturnValueOnce(engine1).mockReturnValueOnce(engine2);
+
+    const { result } = renderHook(() => useTranslatorEngine());
+    await waitFor(() => expect(result.current.enginePhase).toBe('ready'));
+
+    await act(async () => {
+      await result.current.reinitialize({ properNouns: {} });
+    });
+
+    expect(engine1.destroy).toHaveBeenCalledTimes(1);
+    expect(result.current.engineRef.current).toBe(engine2);
+    expect(result.current.enginePhase).toBe('ready');
+    expect(result.current.initError).toBeNull();
   });
 
   test('re-entrancy guard: a concurrent reinitialize call while one is in flight is a no-op', async () => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
+import { EngineProvider } from './components/EngineContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
@@ -80,7 +81,9 @@ function AppContent() {
 
   return (
     <div style={{ height: '100vh', width: '100vw' }}>
-      <TabbedInterface />
+      <EngineProvider>
+        <TabbedInterface />
+      </EngineProvider>
     </div>
   );
 }

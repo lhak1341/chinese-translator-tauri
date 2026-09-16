@@ -12,7 +12,7 @@ import DictionaryEntry from './dictionary/DictionaryEntry';
 import ModalErrorBoundary from './ModalErrorBoundary';
 import TranslatorControls from './translator/TranslatorControls';
 import TranslatorDisplayPanels from './translator/TranslatorDisplayPanels';
-import { useTranslatorEngine } from '../hooks/useTranslatorEngine';
+import { useEngine } from './EngineContext';
 import AppReadinessOverlay from './AppReadinessOverlay';
 import {
   scheduleHighlightScroll,
@@ -32,7 +32,6 @@ import { useTranslationResults } from '../hooks/useTranslationResults';
 import { useHighlightingState } from '../hooks/useHighlightingState';
 import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
-import { useEngineReinitializer } from '../hooks/useEngineReinitializer';
 import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
 import { useForceReloadContext } from '../hooks/useReloadExecutionContexts';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
@@ -106,12 +105,11 @@ import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
 //     shape guard) fans in from 5 earlier hooks:
 //     useDictionaryReloadGuard, useHighlightingState, useTranslationResults,
 //     useClipboardTranslation, plus 2 raw refs — then useAutoTranslateTrigger consumes it
-//   - useEngineReinitializer + useReloadRetranslate both require useTranslatorEngine's
-//     reinitialize/engineRef
-//   - forceReloadCtx (useForceReloadContext) is the biggest fan-in: useTranslatorEngine,
+//   - useReloadRetranslate requires useEngine()'s engineRef
+//   - forceReloadCtx (useForceReloadContext) is the biggest fan-in: useEngine(),
 //     useTranslationController, useStreamingTranslation, useTranslationResults,
-//     useDictionaryReloadGuard, useHighlightingState, useEngineReinitializer,
-//     useReloadRetranslate, useScrollPositionManager — then useForceReload consumes it
+//     useDictionaryReloadGuard, useHighlightingState, useReloadRetranslate,
+//     useScrollPositionManager — then useForceReload consumes it
 //   Net effect: nearly every hook above exists to eventually feed forceReloadCtx/
 //   useForceReload at the end of the setup section.
 // ============================================================================
@@ -193,8 +191,8 @@ const Translator = ({ isActive = true }) => {
     enginePhase,
     engineRef,
     initError: initializationError,
-    reinitialize,
-  } = useTranslatorEngine();
+    reinitializeEngine,
+  } = useEngine();
   const [activeTranslations, setActiveTranslations] = useState(0);
   const { poisoning, dismiss: dismissCachePoisoning } = useCachePoisoningGuard();
 
@@ -827,7 +825,6 @@ const Translator = ({ isActive = true }) => {
     ctx: executionCtx,
   });
 
-  const reinitializeEngine = useEngineReinitializer(reinitialize, engineRef);
   const retranslate = useReloadRetranslate({
     engineRef,
     validateSemanticArraySize,

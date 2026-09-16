@@ -13,7 +13,6 @@ import {
   resolveDefaultProperNounTarget,
   resolveAndVerifyStructuralPatternTarget,
 } from '../utils/dictionary';
-import ErrorBoundary from './ErrorBoundary';
 import styles from '../styles/TabbedInterface.module.css';
 
 /**
@@ -153,9 +152,7 @@ const TabbedInterface: React.FC = () => {
           aria-labelledby="tab-translator"
           className={`${styles.componentWrapper} ${activeTab === 'translator' ? styles.componentWrapperVisible : styles.componentWrapperHidden}`}
         >
-          <ErrorBoundary>
-            <Translator isActive={activeTab === 'translator'} />
-          </ErrorBoundary>
+          <Translator isActive={activeTab === 'translator'} />
         </div>
         <div
           role="tabpanel"

@@ -416,6 +416,22 @@ Prior to 2026-07-17c, Rust's punctuation classifier was a finite enumerated char
 
 Entry points: `src/utils/text/TextTokenizer.ts` (JS-facing class, owns the WASM-first/JS-fallback dispatch), `src/utils/wasm/WasmTextTokenizer.js` (thin WASM wrapper), `wasm-core/src/text_tokenizer.rs` (`tokenize_text_core` — plain-Rust core, `tokenize_text` — thin `#[wasm_bindgen]` wrapper around it), `test-fixtures/tokenizer-parity.json` (shared parity contract).
 
+## Engine Reinitialization
+
+The operation behind the "Reload Dictionary" button (Cmd/Ctrl+R) and, once a Reader exists, behind switching books. The user-facing label says reload; the operation **discards the engine and builds a new one**.
+
+`useTranslatorEngine`'s `reinitialize(rawDictionaries, options)` optionally re-reads `config.json` (`forceConfigReload`), takes `activeProperNouns` from it, then runs the same `runEngineInit` the mount path uses: destroy the outgoing engine (if any) → `filterDictionariesForEngine` → `engineRef.current = createTranslationEngine()` → `initialize()`. The previous engine is destroyed before the replacement is constructed — `runEngineInit` does this itself, on both the mount path and every `reinitialize()` call, not just the explicit `destroyEngine()` the `useForceReload` path also calls beforehand.
+
+Three consequences worth stating plainly, because the name hides all of them:
+
+- **Nothing inside the engine survives.** Any state that must outlive a reinitialization — a Reader's scroll position, current line, open-book binding, translated-window cache — belongs to the caller, never the engine.
+- **Switching books is the same operation.** Write `activeProperNouns` to `config.json`, then `reinitialize(raw, { forceConfigReload: true })`. There is no separate book-switch path.
+- **`DictionaryManager.reloadDictionaries()` is not this operation and has no non-test callers.** Its name invites the assumption that it is; it is not on the reload path at all.
+
+Distinct from `WasmProcessorLifecycle`, which governs the module-scope WASM processors. Those are **not** per-engine: `WasmPatternProcessor` holds module-level `wasmPatternProcessor`/`wasmModule`/`lifecycle`, and `SemanticPatternProcessor.initializePatterns` calls `reinitializeWasmPatternProcessor`, which resets and re-initializes that shared processor with the new pattern set. So two concurrently-initialized `TranslationEngine` instances cannot hold different pattern sets — the last to initialize owns the global one. **One engine instance per app, structurally** — enforced by `EngineProvider` (`src/components/EngineContext.jsx`), which constructs the engine once above the tab container and is the sole caller of `useTranslatorEngine`; `Translator.jsx` (and any future tab needing translation) consumes it via `useEngine()` rather than calling the hook itself.
+
+Entry points: `src/components/EngineContext.jsx` (`EngineProvider`, `useEngine`), `src/hooks/useTranslatorEngine.js` (`reinitialize`, `runEngineInit`), `src/utils/TranslationEngine.js` (`createTranslationEngine`, `destroy`). See also the `useEngineReinitializer / useReloadRetranslate` entry below for the two capability functions layered on top.
+
 ## useEngineReinitializer / useReloadRetranslate
 
 The two capability functions `Translator.jsx` supplies as `forceReloadCtx.reinitializeEngine`/`.retranslate` for `useForceReload` (see ADR-027-era `ForceReloadContext`). Extracted 2026-07-17c: this logic previously lived inline in `Translator.jsx`'s `forceReloadCtx` object literal and had zero direct test coverage — `useForceReload.test.js` mocks both fields wholesale as bare `vi.fn()`, so the real branching (WASM validation statuses, dual-mode-optimized-to-sequential fallback) was never exercised anywhere.

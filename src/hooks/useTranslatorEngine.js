@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { invalidateAppConfig, loadAppConfig } from '../utils/appConfig';
 import { createTranslationEngine, DEBUG_LEVELS } from '../utils/TranslationEngine.js';
@@ -40,14 +40,27 @@ export function useTranslatorEngine() {
   const isInitializingRef = useRef(false);
 
   /**
-   * Shared init sequence: construct engine → filter dictionaries → initialize →
-   * set phase/error. Used by both the mount effect and reinitialize(); callers
-   * own their own pre-guards (re-entrancy check, forcing 'loading', config reload).
+   * Shared init sequence: destroy outgoing engine (if any) → construct engine →
+   * filter dictionaries → initialize → set phase/error. Used by both the mount
+   * effect and reinitialize(); callers own their own pre-guards (re-entrancy
+   * check, forcing 'loading', config reload).
+   *
+   * Only one engine may exist at a time — the WASM pattern/number processors
+   * are module-scope singletons, so a second live engine would silently share
+   * state with the first. Destroying the outgoing engine before constructing
+   * the replacement is what enforces that, not caller discipline.
    */
-  async function runEngineInit(dictionaries, activeProperNouns, options = {}) {
+  const runEngineInit = useCallback(async (dictionaries, activeProperNouns, options = {}) => {
     const { priorities = ENGINE_PRIORITIES, debugLevel = DEBUG_LEVELS.ERROR } = options;
     isInitializingRef.current = true;
     try {
+      if (engineRef.current) {
+        try {
+          engineRef.current.destroy();
+        } catch (destroyError) {
+          logger.error('Failed to destroy outgoing engine:', destroyError);
+        }
+      }
       const filtered = filterDictionariesForEngine(dictionaries, activeProperNouns);
       engineRef.current = createTranslationEngine();
       await engineRef.current.initialize(filtered, {
@@ -64,7 +77,9 @@ export function useTranslatorEngine() {
     } finally {
       isInitializingRef.current = false;
     }
-  }
+    // engineRef/isInitializingRef are refs (stable identity); setInitError/setEnginePhase
+    // are stable setState functions — this closes over no reactive values.
+  }, []);
 
   // Load config once on mount — replaces loadInitialConfig effect in Translator.jsx
   useEffect(() => {
@@ -88,7 +103,7 @@ export function useTranslatorEngine() {
     ) {
       runEngineInit(dictionaries, activeProperNounsFromConfig);
     }
-  }, [isLoading, loadError, activeProperNounsFromConfig, dictionaries, enginePhase]);
+  }, [isLoading, loadError, activeProperNounsFromConfig, dictionaries, enginePhase, runEngineInit]);
 
   /**
    * Reinitializes the engine — called by handleForceReload.
@@ -101,31 +116,34 @@ export function useTranslatorEngine() {
    * @param {boolean} [options.forceConfigReload=false] - Re-read config from disk; updates activeProperNounsFromConfig state
    * @param {string} [options.debugLevel] - Engine debug level
    */
-  async function reinitialize(rawDictionaries, options = {}) {
-    const { forceConfigReload = false, priorities = ENGINE_PRIORITIES, debugLevel } = options;
-    if (isInitializingRef.current) return;
-    isInitializingRef.current = true;
-    setEnginePhase('loading');
-    try {
-      let activeProperNouns = activeProperNounsFromConfig ?? ['properNouns'];
-      if (forceConfigReload) {
-        invalidateAppConfig();
-        const freshConfig = await loadAppConfig();
-        activeProperNouns = freshConfig.engine.activeProperNouns;
-        setActiveProperNounsFromConfig(activeProperNouns);
+  const reinitialize = useCallback(
+    async (rawDictionaries, options = {}) => {
+      const { forceConfigReload = false, priorities = ENGINE_PRIORITIES, debugLevel } = options;
+      if (isInitializingRef.current) return;
+      isInitializingRef.current = true;
+      setEnginePhase('loading');
+      try {
+        let activeProperNouns = activeProperNounsFromConfig ?? ['properNouns'];
+        if (forceConfigReload) {
+          invalidateAppConfig();
+          const freshConfig = await loadAppConfig();
+          activeProperNouns = freshConfig.engine.activeProperNouns;
+          setActiveProperNounsFromConfig(activeProperNouns);
+        }
+        // runEngineInit owns its own isInitializingRef/try-catch for the init step itself;
+        // this try/catch only needs to cover the config-reload step above, so a
+        // forceConfigReload failure still lands in initError/enginePhase, never throws.
+        await runEngineInit(rawDictionaries, activeProperNouns, { priorities, debugLevel });
+      } catch (error) {
+        logger.error('Failed to reinitialize engine:', error);
+        setInitError(extractErrorMessage(error));
+        setEnginePhase('error');
+      } finally {
+        isInitializingRef.current = false;
       }
-      // runEngineInit owns its own isInitializingRef/try-catch for the init step itself;
-      // this try/catch only needs to cover the config-reload step above, so a
-      // forceConfigReload failure still lands in initError/enginePhase, never throws.
-      await runEngineInit(rawDictionaries, activeProperNouns, { priorities, debugLevel });
-    } catch (error) {
-      logger.error('Failed to reinitialize engine:', error);
-      setInitError(extractErrorMessage(error));
-      setEnginePhase('error');
-    } finally {
-      isInitializingRef.current = false;
-    }
-  }
+    },
+    [activeProperNounsFromConfig, runEngineInit]
+  );
 
   return {
     enginePhase,
