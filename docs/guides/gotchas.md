@@ -46,6 +46,8 @@ The fallback for all three is a `python3` line-index rewrite, which sidesteps st
 
 **`sed -i ''` can silently no-op** — ran with no error, changed nothing (confirmed 2026-09-07 on a variable rename across a hook file). Verify with a follow-up `grep`, or just use the Edit tool for renames — it either applies or errors, never silently does neither.
 
+**Before treating a `bun run lint` ratchet failure as caused by your change, verify against a clean checkout** (`git stash -u && bun run lint`) — the `.lint-baseline.json` count can already be exceeded on `main` itself, independent of any edit.
+
 ## JavaScript / TypeScript
 
 **Synchronous WASM cannot be timed out via `Promise.race()`** (2026-02-14): `callWasmWithTimeout()` in `wasmOperationTimeout.js` uses `Promise.race([operation(), timeoutPromise])`. If `operation()` makes a synchronous WASM call, the JS thread is blocked for the full call duration — the timeout fires only _after_ WASM returns, not during it. True interruption requires a Web Worker.
