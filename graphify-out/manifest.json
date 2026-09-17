@@ -235,8 +235,8 @@
     "semantic_hash": "7f64cda994b687b347c8878339986b9c"
   },
   "src/types/TranslationEngineTypes.d.ts": {
-    "mtime": 1787586262.6722538,
-    "ast_hash": "3a2be259b7bc9d976f2128090012b124",
+    "mtime": 1789616715.7126858,
+    "ast_hash": "24498957243f4a47e4fe723507d8f22e",
     "semantic_hash": ""
   },
   "src/types/DictionaryManagerTypes.d.ts": {
@@ -975,8 +975,8 @@
     "semantic_hash": "1b2dd06cb3e02948a143e779a2836000"
   },
   "src/hooks/useTranslatorEngine.js": {
-    "mtime": 1789572306.4919043,
-    "ast_hash": "9fada5a73e5c41d051fac31958fd021b",
+    "mtime": 1789614297.0733197,
+    "ast_hash": "78e3a9a68301e64ee3c31669d7b1423d",
     "semantic_hash": ""
   },
   "src/hooks/useVirtualScrollRange.ts": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1789597872.8562427,
-    "ast_hash": "04fec2e4689264c503f79e73dd2e6bef",
+    "mtime": 1789617004.3527527,
+    "ast_hash": "5272ff56a126148aa3e4a70c8d10498b",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1820,8 +1820,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1789574604.376804,
-    "ast_hash": "9ccad98df08e186b2faf9046b565d1bf",
+    "mtime": 1789617004.353434,
+    "ast_hash": "ead8dcfc4c31c17bf0873e57ecff6d96",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1900,13 +1900,13 @@
     "semantic_hash": ""
   },
   "src/components/EngineContext.jsx": {
-    "mtime": 1789572360.6494925,
-    "ast_hash": "4ed55e0fbb3f2d6631f4dfd38c9a434a",
+    "mtime": 1789614297.0740778,
+    "ast_hash": "1381e6270d488d0f6c713ee473a91340",
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1789597157.2777877,
-    "ast_hash": "4fe5fa7d57481c9e7b3502dd9f33a1cf",
+    "mtime": 1789617184.424814,
+    "ast_hash": "13b2d0e90168d8e74efe13fb8c5a42c7",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1930,8 +1930,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useBookLines.ts": {
-    "mtime": 1789573828.5569537,
-    "ast_hash": "34c5b219242ecc1f67416644c2b7acaa",
+    "mtime": 1789614290.0484471,
+    "ast_hash": "794f626ddda9f7b6d4273af2085039a9",
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
@@ -2005,8 +2005,28 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1789597879.292646,
-    "ast_hash": "0a19cc4441f73e69977a0abc6ee2e7af",
+    "mtime": 1789617268.0799654,
+    "ast_hash": "0818a26d1a50d6f0c20ba55b842e8e89",
+    "semantic_hash": ""
+  },
+  "src/components/EngineContext.d.ts": {
+    "mtime": 1789617267.8346834,
+    "ast_hash": "e46e121b0acd790125ff855f3ba505fb",
+    "semantic_hash": ""
+  },
+  "src/hooks/useWindowedTranslation.ts": {
+    "mtime": 1789617184.424563,
+    "ast_hash": "6ac8e9ca6d2f7a056538e55665d96d53",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/TranslationChunkCache.ts": {
+    "mtime": 1789617045.3725088,
+    "ast_hash": "9573a5b8998c9a4636f61d8f4b3ffbe0",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/TranslationWindow.ts": {
+    "mtime": 1789617268.1260204,
+    "ast_hash": "3e93b8b72364a365a09ecd759bf71d19",
     "semantic_hash": ""
   }
 }
