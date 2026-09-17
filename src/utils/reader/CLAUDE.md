@@ -38,3 +38,7 @@ Test files are excluded from `tsc` (see root `CLAUDE.md`), so a fixture literal 
 `@tanstack/react-virtual` v3: `virtualizer.measurementsCache` is the public per-index array (measured where mounted, `estimateSize` elsewhere) — `getMeasurements()` is private, and `getOffsetForIndex()` clamps to the max scroll offset, so it is wrong for a raw row top and right for a scroll target.
 
 **Unmeasured rows are estimated per index, never by a fixed height.** `estimateRowSize` scales the line's Chinese character count by the panel's own `emPerChar` and biases it slightly upward. A fixed skeleton height fails differently in kind, not degree: its error is systematic, so long lines are underestimated every time and the error accumulates monotonically down the document instead of cancelling.
+
+## The binding is the authority; the config keys it writes are a cache
+
+`BookBindingContext` applies a binding by writing `engine.activeProperNouns` and `ui.defaultQuickAddDictionary`, then reinitializing — and it is allowed to fail that write and carry on, because a book that will not bind must still be readable. So anything in Reader context needing "the active fiction's dictionaries" reads `binding`, not those keys: the config route is a longer path to the same answer through a value the Reader itself wrote, and after a failed apply it still names the _previous_ book. `BoundQuickAddTargets.ts` is that resolution for the add-entry bar's Cmd-5/Cmd-6 targets, falling back to the Translator's config-driven resolvers only when the book is genuinely unbound.
