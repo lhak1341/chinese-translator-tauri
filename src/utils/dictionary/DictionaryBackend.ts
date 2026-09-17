@@ -3,6 +3,22 @@ import { extractErrorMessage } from '../errorHelpers';
 import type { DictionaryData } from '../../types/DictionaryTypes';
 import type { BatchDictionaryResult } from '../../types/ElectronTypes';
 
+/**
+ * Every proper-nouns dictionary id that exists on disk.
+ *
+ * The command returns plain id strings at runtime while `ElectronTypes.d.ts` declares
+ * `DictionaryInfo[]`; absorbing that in one place keeps the `typeof entry === 'string'`
+ * shrug from being hand-copied at each call site, which is how the two copies that existed
+ * before this got the chance to drift.
+ */
+export async function listProperNounsDictionaryIds(): Promise<string[]> {
+  const result = await window.electronAPI.listProperNounsDictionaries();
+  if (!result.success || !result.dictionaries) {
+    throw new Error(result.error ?? 'Failed to list proper-nouns dictionaries');
+  }
+  return result.dictionaries.map((entry) => (typeof entry === 'string' ? entry : entry.id));
+}
+
 export interface BatchLoadResult {
   /** Raw (unsorted) data per dictionary ID. Failed IDs are present as `{}`. */
   loadedDictionaries: Record<string, DictionaryData>;

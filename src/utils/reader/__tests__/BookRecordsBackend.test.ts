@@ -6,6 +6,7 @@ import {
   setReadingPosition,
   setChapterOutline,
   setManualChapterPattern,
+  setBookBinding,
   recordBookOpened,
   withBookRecordsLock,
 } from '../BookRecordsBackend';
@@ -16,6 +17,7 @@ function makeRecord(overrides: Partial<BookRecord> = {}): BookRecord {
     fingerprint: 'fp1',
     position: null,
     manualChapterPattern: null,
+    binding: null,
     title: 'Novel',
     lastKnownPath: 'novel.txt',
     lineCount: 1000,
@@ -179,6 +181,47 @@ describe('setManualChapterPattern', () => {
   });
 });
 
+describe('setBookBinding', () => {
+  test('persists a bound fiction dictionary, preserving every other field', async () => {
+    const existing = makeRecord();
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setBookBinding('fp1', { fictionDictionary: 'properNouns-f_TapDo' });
+
+    expect(saveFn).toHaveBeenCalledWith({
+      fp1: { ...existing, binding: { fictionDictionary: 'properNouns-f_TapDo' } },
+    });
+  });
+
+  test('persists "no fiction dictionary" as an answer, not as an absent binding', async () => {
+    const existing = makeRecord();
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setBookBinding('fp1', { fictionDictionary: null });
+
+    expect(saveFn).toHaveBeenCalledWith({
+      fp1: { ...existing, binding: { fictionDictionary: null } },
+    });
+  });
+
+  test('skips silently when no record exists yet for the fingerprint', async () => {
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await setBookBinding('missing-fp', { fictionDictionary: null });
+
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+});
+
 describe('recordBookOpened', () => {
   test('creates a fresh record with position: null when none existed', async () => {
     const record = await recordBookOpened('fp1', {
@@ -210,6 +253,25 @@ describe('recordBookOpened', () => {
 
     expect(record.position).toEqual({ line: 99, fraction: 0.1 });
     expect(record.title).toBe('New Title');
+  });
+
+  test('preserves an existing binding while refreshing cached fields', async () => {
+    const existing = makeRecord({ binding: { fictionDictionary: null } });
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: existing } });
+
+    const record = await recordBookOpened('fp1', {
+      title: 'New Title',
+      lastKnownPath: 'renamed.txt',
+      lineCount: 1000,
+      encodingLabel: 'GBK',
+      sizeBytes: 12345,
+      modifiedMs: 1700000000001,
+    });
+
+    // The answer "no fiction dictionary" must survive a reopen, or the offer comes back.
+    expect(record.binding).toEqual({ fictionDictionary: null });
   });
 
   test('preserves an existing chapter outline and manual override while refreshing cached fields', async () => {

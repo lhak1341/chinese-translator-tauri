@@ -13,9 +13,14 @@ export function classifyDictionaryId(id: string): DictionaryTypeFlags {
   };
 }
 
+/** The id prefix every fiction proper-nouns dictionary carries. Exported so callers that
+ * need to *build* or *strip* one share the single literal with the predicate below,
+ * rather than hand-copying a second copy that can drift from it. */
+export const FICTION_PROPER_NOUNS_PREFIX = 'properNouns-f_';
+
 /** True for a fiction proper-nouns dict ID, e.g. "properNouns-f_X". */
 export function isFictionProperNounsId(id: string): boolean {
-  return id.startsWith('properNouns-f_');
+  return id.startsWith(FICTION_PROPER_NOUNS_PREFIX);
 }
 
 /** True for a fiction structural-pattern dict ID, e.g. "patterns-f_X". */

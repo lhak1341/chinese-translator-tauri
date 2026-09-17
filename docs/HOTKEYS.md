@@ -27,6 +27,23 @@ Reader is where the app should land.
 
 ---
 
+## Reader tab
+
+| Shortcut       | Action                                          |
+| -------------- | ----------------------------------------------- |
+| `[` / `]`      | Previous / next chapter                         |
+| `Cmd/Ctrl + B` | Dictionaries for this book (the binding dialog) |
+
+`[` and `]` carry no modifier, so both are inert while a text input or content-editable
+element has focus — otherwise they would fire while you type a literal bracket into a
+search box or a dictionary entry.
+
+The Add shortcuts (`Cmd/Ctrl + 1`–`7`) work here too, unchanged. Two of them already mean
+"the active fiction's dictionaries"; binding a book is what makes that phrase reliable
+instead of dependent on having remembered to change a setting in Configuration.
+
+---
+
 ## Translator tab
 
 | Shortcut               | Action                                                        |

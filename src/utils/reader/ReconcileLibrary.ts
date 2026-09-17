@@ -109,6 +109,7 @@ export function applyReconciliation(
         fingerprint: fresh.fingerprint,
         position: byFingerprint?.position ?? null,
         manualChapterPattern: byFingerprint?.manualChapterPattern ?? null,
+        binding: byFingerprint?.binding ?? null,
         title: file.title,
         lastKnownPath: file.fileName,
         lineCount: byFingerprint?.lineCount ?? 0,

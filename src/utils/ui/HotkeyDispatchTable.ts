@@ -16,6 +16,7 @@ export type HotkeyAction =
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'reloadDictionary' }
+  | { type: 'bindDictionaries' }
   | { type: 'openNewRule' };
 
 export interface MatchHotkeyContext {
@@ -107,6 +108,8 @@ export function matchHotkey(
         return canUndo ? { type: 'undo' } : null;
       case 'r':
         return activeTab === 'translator' ? { type: 'reloadDictionary' } : null;
+      case 'b':
+        return activeTab === 'reader' ? { type: 'bindDictionaries' } : null;
     }
   }
 

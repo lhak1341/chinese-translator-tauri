@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
+  validateBookBinding,
   validateBookRecord,
   validateChapterOutline,
   validateManualChapterPattern,
@@ -49,6 +50,37 @@ describe('validateReadingPosition', () => {
   });
 });
 
+describe('validateBookBinding', () => {
+  test('accepts a bound fiction dictionary', () => {
+    expect(validateBookBinding({ fictionDictionary: 'properNouns-f_TapDo' })).toEqual({
+      fictionDictionary: 'properNouns-f_TapDo',
+    });
+  });
+
+  test('accepts "no fiction dictionary" as the answer it is', () => {
+    expect(validateBookBinding({ fictionDictionary: null })).toEqual({ fictionDictionary: null });
+  });
+
+  test('falls an absent binding back to "never answered", which re-offers the dialog', () => {
+    expect(validateBookBinding(undefined)).toBeNull();
+    expect(validateBookBinding(null)).toBeNull();
+  });
+
+  test('rejects a malformed binding rather than repairing it to "answered: none"', () => {
+    // Repairing to { fictionDictionary: null } would silently assert an answer the
+    // reader never gave, and would never ask again.
+    expect(validateBookBinding({})).toBeNull();
+    expect(validateBookBinding({ fictionDictionary: 42 })).toBeNull();
+    expect(validateBookBinding('properNouns-f_TapDo')).toBeNull();
+  });
+
+  test('rejects a dictionary id outside the fiction namespace', () => {
+    expect(validateBookBinding({ fictionDictionary: 'phrases' })).toBeNull();
+    expect(validateBookBinding({ fictionDictionary: 'properNouns' })).toBeNull();
+    expect(validateBookBinding({ fictionDictionary: '../escape' })).toBeNull();
+  });
+});
+
 describe('validateBookRecord', () => {
   test('round-trips a well-formed record, taking fingerprint from the key not the body', () => {
     const raw = rawRecord({ fingerprint: 'wrong-should-be-ignored' });
@@ -56,6 +88,7 @@ describe('validateBookRecord', () => {
       fingerprint: 'fp1',
       position: { line: 42, fraction: 0.25 },
       manualChapterPattern: null,
+      binding: null,
       title: 'Novel',
       lastKnownPath: 'novel.txt',
       lineCount: 1000,
@@ -80,6 +113,7 @@ describe('validateBookRecord', () => {
       fingerprint: 'fp1',
       position: { line: 42, fraction: 0.25 },
       manualChapterPattern: null,
+      binding: null,
       title: '',
       lastKnownPath: 'novel.txt',
       lineCount: 0,

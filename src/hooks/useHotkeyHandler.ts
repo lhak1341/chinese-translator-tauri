@@ -21,6 +21,7 @@ export interface HotkeyHandlerOptions {
   onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
   onQuickAddCustomStructuralPattern?: (text?: string) => Promise<void>;
   onReloadDictionary?: () => void;
+  onBindDictionaries?: () => void;
   onFocusSearch?: () => void;
   onDictionaryTabHotkey?: (key: string) => Promise<void>;
   onOpenNewRule?: (text?: string) => void;
@@ -36,6 +37,7 @@ export interface HotkeyHandlerOptions {
  * - Cmd/Ctrl+7: Switch to Rules tab and open the new-rule form, prefilled with the
  *   clipboard/selection text as the Key (Translator tab only, like the quick-add keys)
  * - Cmd/Ctrl+R: Reload dictionary (Translator tab only)
+ * - Cmd/Ctrl+B: Bind dictionaries for the open book (Reader tab only)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
  * - Cmd/Ctrl+Z: Undo
  * - Cmd/Ctrl+Shift+Z: Redo
@@ -131,6 +133,9 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           break;
         case 'reloadDictionary':
           opts.onReloadDictionary?.();
+          break;
+        case 'bindDictionaries':
+          opts.onBindDictionaries?.();
           break;
         case 'openNewRule':
           await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule');

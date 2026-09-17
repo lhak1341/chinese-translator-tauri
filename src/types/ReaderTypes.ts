@@ -124,6 +124,20 @@ export interface ChapterOutlineSummary {
 }
 
 /**
+ * A book's answer to "which fiction dictionary does this book use?".
+ *
+ * A record's `binding` being `null` means the question has never been answered — that is
+ * what puts the offer banner on screen. A `binding` whose `fictionDictionary` is `null` is
+ * the *answered* case "no fiction dictionary", which is a real, remembered answer and must
+ * never re-offer. Collapsing the two into one nullable string would lose that distinction
+ * and re-ask forever.
+ */
+export interface BookBinding {
+  /** A `properNouns-f_*` id, or `null` for the remembered answer "no fiction dictionary". */
+  fictionDictionary: string | null;
+}
+
+/**
  * A book record, keyed by fingerprint in `BookRecords` so rename/move survives it.
  *
  * Authoritative (never regenerated, small, protected): `fingerprint`, `position`.
@@ -140,6 +154,9 @@ export interface BookRecord {
    * distinct from `chapterOutline.pattern`, which is the detector's own answer and stays
    * untouched by an override so switching back to "auto" doesn't lose it. */
   manualChapterPattern: ChapterPatternId | null;
+  /** Which fiction dictionary this book uses. `null` means never answered — see
+   * `BookBinding` for why "answered: none" is a different value, not the same one. */
+  binding: BookBinding | null;
 
   // ── Cached ──
   title: string;

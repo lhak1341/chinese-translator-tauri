@@ -479,3 +479,14 @@
   border: none;
   transition: all 0.15s ease;
 }
+
+/* A note beside a category header — e.g. the Fiction list is the open book's binding,
+   read-only here while a book is open. */
+.categoryNote {
+  margin-left: 0.5rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}

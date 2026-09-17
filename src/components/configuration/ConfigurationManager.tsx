@@ -1,5 +1,6 @@
 import React from 'react';
 import { PlusCircle, Loader, AlertCircle, Pencil, Check, X, Bookmark } from 'lucide-react';
+import { isFictionProperNounsId } from '../../utils/dictionary/DictionaryIdClassifier';
 import styles from '../../styles/ConfigurationManager.module.css';
 import { useDictionaryConfigManagement } from './useDictionaryConfigManagement';
 
@@ -34,6 +35,8 @@ const ConfigurationManager: React.FC = () => {
     handleCancelRename,
     handleConfirmRename,
     handleSetDefaultQuickAdd,
+    isFictionLockedByBook,
+    openBookTitle,
   } = useDictionaryConfigManagement();
 
   // Render a single dictionary row (minimal style, no card borders)
@@ -43,6 +46,10 @@ const ConfigurationManager: React.FC = () => {
     const canRename = dictionaryId !== 'properNouns';
     const isDefaultQuickAdd = defaultQuickAddDictionary === dictionaryId;
     const isCustomProperNoun = dictionaryId.startsWith('properNouns-');
+    // A fiction row reflects the open book's binding while one is open; it stays visible
+    // and readable, it just isn't the place to change it. Generic and theme rows are
+    // untouched by this.
+    const isLocked = isFictionLockedByBook && isFictionProperNounsId(dictionaryId);
 
     // Get display name
     const getDisplayName = (id: string): string => {
@@ -94,7 +101,13 @@ const ConfigurationManager: React.FC = () => {
               <input
                 type="checkbox"
                 checked={isChecked}
+                disabled={isLocked}
                 onChange={() => handleToggleDictionary(dictionaryId)}
+                title={
+                  isLocked
+                    ? `Set by the book open in the Reader${openBookTitle ? `: ${openBookTitle}` : ''}`
+                    : undefined
+                }
               />
               {getDisplayName(dictionaryId)}
             </label>
@@ -201,7 +214,14 @@ const ConfigurationManager: React.FC = () => {
 
           {/* Right Column: Fiction in 3 columns (75% width, column-first ordering) */}
           <div className={styles.rightColumn}>
-            <div className={styles.categoryHeader}>Fiction</div>
+            <div className={styles.categoryHeader}>
+              Fiction
+              {isFictionLockedByBook && (
+                <span className={styles.categoryNote}>
+                  {openBookTitle ? `set by ${openBookTitle}` : 'set by the open book'}
+                </span>
+              )}
+            </div>
             {categorizedDictionaries.fiction.length === 0 ? (
               <div className={styles.noDictionaries}>No dictionaries</div>
             ) : (

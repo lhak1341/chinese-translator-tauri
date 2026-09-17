@@ -26,6 +26,7 @@ function makeRecord(overrides: Partial<BookRecord> = {}): BookRecord {
   return {
     fingerprint: 'fp1',
     position: null,
+    binding: null,
     title: 'Novel',
     lastKnownPath: 'novel.txt',
     lineCount: 500,
@@ -76,6 +77,7 @@ describe('applyReconciliation', () => {
     const existing = makeRecord({
       lastKnownPath: 'old-name.txt',
       position: { line: 77, fraction: 0.5 },
+      binding: { fictionDictionary: 'properNouns-f_TapDo' },
     });
     const movedFile = makeFile({ fileName: 'new-name.txt', title: 'New Name' });
     const fingerprints = new Map<string, BookFingerprint>([
@@ -86,6 +88,9 @@ describe('applyReconciliation', () => {
 
     expect(result.records.fp1.lastKnownPath).toBe('new-name.txt');
     expect(result.records.fp1.position).toEqual({ line: 77, fraction: 0.5 });
+    // The binding is the other authoritative half — surviving a rename is the whole
+    // reason records are keyed by fingerprint rather than by path.
+    expect(result.records.fp1.binding).toEqual({ fictionDictionary: 'properNouns-f_TapDo' });
     expect(result.records.fp1.title).toBe('New Name');
     expect(result.unavailableBooks).toEqual([]);
   });

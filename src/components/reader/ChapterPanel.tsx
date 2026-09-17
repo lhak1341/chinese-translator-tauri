@@ -5,15 +5,8 @@ import type {
   ChapterPatternCandidate,
   ChapterPatternId,
 } from '../../types/ReaderTypes';
+import { CHAPTER_PATTERN_LABELS, candidateSummary } from '../../utils/reader/ChapterPatternLabels';
 import styles from '../../styles/Reader.module.css';
-
-const PATTERN_LABELS: Record<ChapterPatternId, string> = {
-  chapter: 'Chapter (第...章)',
-  section: 'Section (第...节)',
-  volume: 'Volume (第...卷)',
-  hui: 'Hui (第...回)',
-  bareNumber: 'Numbered lines',
-};
 
 interface ChapterPanelProps {
   headers: ChapterHeader[];
@@ -26,15 +19,6 @@ interface ChapterPanelProps {
   onJump: (line: number) => void;
   onSetOverride: (pattern: ChapterPatternId | null) => void;
   onClose: () => void;
-}
-
-/** One line of a pattern candidate's stats, for the override dropdown. */
-function candidateSummary(candidate: ChapterPatternCandidate): string {
-  const parts = [`${candidate.hitCount} hit${candidate.hitCount === 1 ? '' : 's'}`];
-  if (candidate.medianGap != null) parts.push(`median gap ${Math.round(candidate.medianGap)}`);
-  if (candidate.regularity != null)
-    parts.push(`${Math.round(candidate.regularity * 100)}% regular`);
-  return parts.join(', ');
 }
 
 /**
@@ -83,12 +67,12 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
         >
           <option value="">
             {activePattern && !isOverridden
-              ? `Auto — ${PATTERN_LABELS[activePattern]}`
+              ? `Auto — ${CHAPTER_PATTERN_LABELS[activePattern]}`
               : 'Auto — none detected'}
           </option>
           {candidates.map((candidate) => (
             <option key={candidate.pattern} value={candidate.pattern}>
-              {PATTERN_LABELS[candidate.pattern]} ({candidateSummary(candidate)})
+              {CHAPTER_PATTERN_LABELS[candidate.pattern]} ({candidateSummary(candidate)})
             </option>
           ))}
         </select>

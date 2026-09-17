@@ -1,4 +1,5 @@
 import type {
+  BookBinding,
   BookRecord,
   BookRecords,
   ChapterOutlineSummary,
@@ -137,6 +138,28 @@ export function setManualChapterPattern(
   });
 }
 
+/**
+ * Persist this book's answer to the binding question. Written immediately rather than
+ * debounced like `position`: a binding change is rare, deliberate, and is followed by an
+ * engine reinitialization the reader can see, so the write must already be on disk if the
+ * app dies during it.
+ *
+ * Pass `{ fictionDictionary: null }` for the answer "no fiction dictionary" — never plain
+ * `null`, which is the *unanswered* state and would re-offer the dialog on the next open.
+ */
+export function setBookBinding(fingerprint: string, binding: BookBinding): Promise<void> {
+  return withBookRecordsLock(async () => {
+    const { records } = await loadBookRecords();
+    const existing = records[fingerprint];
+    if (!existing) {
+      logger.warn(`setBookBinding: no record for ${fingerprint}, skipping`);
+      return;
+    }
+    const updated: BookRecord = { ...existing, binding };
+    await saveBookRecords({ ...records, [fingerprint]: updated });
+  });
+}
+
 export interface OpenedBookCachedFields {
   title: string;
   lastKnownPath: string;
@@ -164,6 +187,7 @@ export function recordBookOpened(
       fingerprint,
       position: existing?.position ?? null,
       manualChapterPattern: existing?.manualChapterPattern ?? null,
+      binding: existing?.binding ?? null,
       chapterOutline: existing?.chapterOutline ?? null,
       available: true,
       ...fields,

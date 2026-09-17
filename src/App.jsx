@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import TabbedInterface from './components/TabbedInterface';
 import { DictionaryProvider } from './components/dictionary/DictionaryContext';
 import { EngineProvider } from './components/EngineContext';
+import { BookBindingProvider } from './components/BookBindingContext';
 import { ToastProvider, useToast, setGlobalToast } from './components/ToastContext';
 import { performanceHealth } from './utils/performance';
 import { logger } from './utils/logger';
@@ -110,7 +111,12 @@ function AppContent() {
   return (
     <div style={{ height: '100vh', width: '100vw' }}>
       <EngineProvider>
-        <TabbedInterface />
+        {/* Inside EngineProvider: applying a binding reinitializes the engine, and the
+            binding is the authority on the fiction slice of activeProperNouns for every
+            tab, not just the Reader — so it lives above the tab container too. */}
+        <BookBindingProvider>
+          <TabbedInterface />
+        </BookBindingProvider>
       </EngineProvider>
     </div>
   );

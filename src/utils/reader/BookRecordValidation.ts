@@ -1,4 +1,6 @@
+import { isFictionProperNounsId } from '../dictionary/DictionaryIdClassifier';
 import type {
+  BookBinding,
   BookRecord,
   ChapterOutlineSummary,
   ChapterPatternCandidate,
@@ -73,6 +75,26 @@ export function validateChapterOutline(raw: unknown): ChapterOutlineSummary | nu
   return { pattern: o.pattern, candidates };
 }
 
+/**
+ * Validates a persisted dictionary binding. Authoritative — it cannot be rebuilt from the
+ * file — so the repair here is deliberately conservative: anything malformed falls back to
+ * `null`, meaning "never answered", which re-offers the dialog. Repairing a corrupt
+ * binding to `{ fictionDictionary: null }` instead would silently assert the reader had
+ * answered "no fiction dictionary" and would never ask again.
+ *
+ * A `fictionDictionary` that is not a `properNouns-f_*` id is rejected for the same
+ * reason the engine's own id checks exist: binding the fiction slice to `phrases` (or to a
+ * path fragment) is not a reading preference, it is a corrupt file.
+ */
+export function validateBookBinding(raw: unknown): BookBinding | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  if (b.fictionDictionary === null) return { fictionDictionary: null };
+  if (typeof b.fictionDictionary !== 'string') return null;
+  if (!isFictionProperNounsId(b.fictionDictionary)) return null;
+  return { fictionDictionary: b.fictionDictionary };
+}
+
 /** Validates a persisted reading position. Returns `null` (meaning "not started") for
  * anything malformed — a corrupt position is not worth dropping the whole record over,
  * since the record's other fields (and the book itself) are still perfectly good. */
@@ -90,11 +112,12 @@ export function validateReadingPosition(raw: unknown): ReadingPosition | null {
  * itself — a single source of truth for identity, rather than two fields that could
  * silently disagree.
  *
- * Cached fields (everything but `position`) are regenerable — the next scan or open
- * overwrites them — so a malformed one is repaired to a safe default rather than
- * dropping the whole record. `position` is authoritative; a malformed one falls back to
- * "not started" (see `validateReadingPosition`) rather than destroying the record, since
- * losing just the resume point is a smaller loss than losing the record's existence too.
+ * Cached fields (everything but `position` and `binding`) are regenerable — the next scan
+ * or open overwrites them — so a malformed one is repaired to a safe default rather than
+ * dropping the whole record. The authoritative two fall back to "not started" and "never
+ * answered" respectively rather than destroying the record: losing the resume point or
+ * being re-asked which dictionary to use is a smaller loss than losing the record's
+ * existence, and both repairs are ones the reader can see and correct.
  */
 export function validateBookRecord(fingerprint: string, raw: unknown): BookRecord | null {
   if (!fingerprint) return null;
@@ -104,6 +127,7 @@ export function validateBookRecord(fingerprint: string, raw: unknown): BookRecor
     fingerprint,
     position: validateReadingPosition(r.position),
     manualChapterPattern: validateManualChapterPattern(r.manualChapterPattern),
+    binding: validateBookBinding(r.binding),
     title: typeof r.title === 'string' ? r.title : '',
     lastKnownPath: typeof r.lastKnownPath === 'string' ? r.lastKnownPath : '',
     lineCount: isFiniteNonNegative(r.lineCount) ? r.lineCount : 0,

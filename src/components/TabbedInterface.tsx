@@ -8,6 +8,7 @@ import type { RulesManagerHandle } from './rules/RulesManager';
 import ConfigurationManager from './configuration/ConfigurationManager';
 import AppearanceManager from './appearance/AppearanceManager';
 import { useHotkeyHandler } from '../hooks/useHotkeyHandler';
+import { useBookBinding } from './BookBindingContext';
 import { TAB_ORDER, tabShortcutDigit } from '../constants/tabs';
 import type { TabId } from '../types/ComponentTypes';
 import { useDictionary } from './dictionary/DictionaryContext';
@@ -55,6 +56,9 @@ const DICTIONARY_HOTKEY_MAP: Record<string, string> = {
 
 const TabbedInterface: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('reader');
+  // The dialog lives in the Reader but its shortcut is registered here, with every other
+  // global one — the binding context is what lets the two be in different places.
+  const { openDialog: openBindingDialog } = useBookBinding();
   const dictionarySearchRef = useRef<HTMLInputElement>(null);
   const rulesManagerRef = useRef<RulesManagerHandle>(null);
   const { setSelectedDictionary, dictionaries } = useDictionary();
@@ -123,6 +127,7 @@ const TabbedInterface: React.FC = () => {
 
   useHotkeyHandler({
     onTabSwitch: handleTabChange,
+    onBindDictionaries: openBindingDialog,
     onFocusSearch: handleFocusSearch,
     onDictionaryTabHotkey: handleDictionaryTabHotkey,
     onOpenNewRule: handleOpenNewRule,

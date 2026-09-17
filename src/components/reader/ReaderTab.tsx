@@ -4,6 +4,7 @@ import { loadAppConfig, saveAppConfig } from '../../utils/appConfig';
 import { extractErrorMessage } from '../../utils/errorHelpers';
 import { logger } from '../../utils/logger';
 import type {
+  BookBinding,
   ChapterOutlineSummary,
   ChapterPatternId,
   EncodingReport,
@@ -17,6 +18,7 @@ import {
   type ShelfBook,
   type UnavailableBook,
 } from '../../utils/reader/ReconcileLibrary';
+import { useBookBinding } from '../BookBindingContext';
 import Bookshelf from './Bookshelf';
 import BookReader from './BookReader';
 import EncodingPrompt from './EncodingPrompt';
@@ -61,6 +63,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
   const [open, setOpen] = useState<OpenState | null>(null);
   const [encodingChoice, setEncodingChoice] = useState<EncodingChoiceState | null>(null);
   const [isReading, setIsReading] = useState(false);
+  const { announceOpenBook } = useBookBinding();
 
   const scan = useCallback(async (path: string | null): Promise<void> => {
     setIsScanning(true);
@@ -138,6 +141,18 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           const { records } = await loadBookRecords();
           const record = records[open.book.fingerprint];
           if (record) {
+            // Re-announcing on a reopen is what makes returning to a book you had bound
+            // put its dictionaries back after reading something else. The apply is a
+            // no-op when the active list already matches, so a Back-then-forward costs
+            // nothing.
+            announceOpenBook(
+              {
+                fingerprint: open.book.fingerprint,
+                fileName: open.book.fileName,
+                title: open.book.title,
+              },
+              record.binding
+            );
             setOpen((previous) =>
               previous
                 ? {
@@ -180,6 +195,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         let position: ReadingPosition | null = null;
         let chapterOutline: ChapterOutlineSummary | null = null;
         let manualChapterPattern: ChapterPatternId | null = null;
+        let binding: BookBinding | null = null;
         try {
           const record = await recordBookOpened(result.book.fingerprint, {
             title: result.book.title,
@@ -192,9 +208,23 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           position = record.position;
           chapterOutline = record.chapterOutline;
           manualChapterPattern = record.manualChapterPattern;
+          binding = record.binding;
         } catch (cause) {
           logger.error('Failed to record the book as opened:', cause);
         }
+        // Outside that try on purpose. If the record read failed, the new book must still
+        // take authority: `binding` is then `null` ("never answered"), which applies the
+        // general dictionaries only and shows the offer. Leaving the *previous* book
+        // authoritative instead would keep its `properNouns-f_*` active over this novel —
+        // the silent wrong-dictionary failure the binding exists to prevent.
+        announceOpenBook(
+          {
+            fingerprint: result.book.fingerprint,
+            fileName: result.book.fileName,
+            title: result.book.title,
+          },
+          binding
+        );
         setOpen({
           book: result.book,
           encoding: result.encoding,
@@ -211,7 +241,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         openingFileNameRef.current = null;
       }
     },
-    [configuredPath, open]
+    [announceOpenBook, configuredPath, open]
   );
 
   const chooseEncoding = useCallback(

@@ -634,3 +634,169 @@
   color: var(--text-secondary);
   font-size: 0.88rem;
 }
+
+/* ── Dictionary binding ──────────────────────────────────────────────────── */
+
+.bindingBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.5rem 1rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--primary-color);
+  border-radius: 0.3rem;
+  background: var(--surface-color, transparent);
+  font-size: 0.82rem;
+  color: var(--text-color);
+  flex-shrink: 0;
+}
+
+.bindingBannerIcon {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+.bindingBannerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.bindingSuggestion {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.bindingOverlay {
+  composes: modalOverlay from './shared.module.css';
+  background-color: rgba(0, 0, 0, 0.35);
+  padding: 1rem;
+}
+
+.bindingDialog {
+  display: flex;
+  flex-direction: column;
+  width: min(34rem, 100%);
+  max-height: 100%;
+  gap: 0.5rem;
+  padding: 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.2);
+  min-height: 0;
+}
+
+.bindingHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.bindingTitle {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-color);
+}
+
+.bindingSubtitle {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bindingBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.bindingSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.bindingSectionTitle {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.bindingHint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.bindingOption {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.83rem;
+  color: var(--text-color);
+}
+
+.bindingOption select,
+.bindingInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  padding: 0.3rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--border-color);
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+.bindingTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  color: var(--text-color);
+}
+
+.bindingTable th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 0.2rem 0.4rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bindingTable td {
+  padding: 0.2rem 0.4rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bindingTable th:not(:first-child),
+.bindingTable td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.bindingTableActive td {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.bindingEmpty {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.bindingFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}

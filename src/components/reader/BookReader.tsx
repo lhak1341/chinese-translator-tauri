@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type {
   ChapterOutlineSummary,
   ChapterPatternId,
@@ -17,6 +17,13 @@ import { useChapterHotkeys } from '../../hooks/useChapterHotkeys';
 import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
 import { usePanelSync } from '../../hooks/usePanelSync';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
+import {
+  fictionDisplayName,
+  suggestFictionDictionary,
+} from '../../utils/reader/FictionDictionarySuggestion';
+import { useBookBinding } from '../BookBindingContext';
+import BindingBanner from './BindingBanner';
+import BindingDialog from './BindingDialog';
 import ChapterPanel from './ChapterPanel';
 import ReaderPanel from './ReaderPanel';
 import type { PanelRow } from './ReaderPanel';
@@ -111,9 +118,24 @@ const BookReader: React.FC<BookReaderProps> = ({
     book.lineCount
   );
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  // Dismissal is session-local on purpose: it is not an answer, so nothing is persisted
+  // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
+  // book does not silently hide it for the next.
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [viewportLines, setViewportLines] = useState(DEFAULT_VIEWPORT_LINES);
   const [anchorLine, setAnchorLine] = useState(0);
   const { engineRef, enginePhase, engineVersion } = useEngine();
+  const {
+    binding,
+    fictionDictionaries,
+    isDialogOpen,
+    isApplying: isBindingApplying,
+    error: bindingError,
+    openDialog,
+    closeDialog,
+    bind,
+    createAndBind,
+  } = useBookBinding();
 
   // `getLine` is referentially stable and reads through a ref, so this is too — which is
   // what lets every panel's `estimateSize` stay stable across renders.
@@ -290,6 +312,15 @@ const BookReader: React.FC<BookReaderProps> = ({
     isEnabled: isActive && enginePhase === 'ready',
   });
 
+  const suggestion = useMemo(
+    () => suggestFictionDictionary(book.fileName, fictionDictionaries),
+    [book.fileName, fictionDictionaries]
+  );
+  // `binding === null` is "never answered". `{ fictionDictionary: null }` is the answer
+  // "none", and must not re-offer — collapsing the two is how this asks forever.
+  const isUnbound = binding === null;
+  const showBanner = isUnbound && dismissedFor !== book.fingerprint;
+
   const chapterIndex = currentChapterIndex(chapterHeaders, firstIndex);
   const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
 
@@ -375,6 +406,18 @@ const BookReader: React.FC<BookReaderProps> = ({
         <span className={styles.readerTitle} title={book.fileName}>
           {book.title}
         </span>
+        <button
+          onClick={openDialog}
+          className={styles.secondaryButton}
+          title="Dictionaries for this book"
+        >
+          <BookMarked size={14} />
+          {binding?.fictionDictionary
+            ? fictionDisplayName(binding.fictionDictionary)
+            : isUnbound
+              ? 'Bind dictionaries'
+              : 'No fiction dictionary'}
+        </button>
         <span className={styles.readerMeta}>
           {book.lineCount.toLocaleString()} lines · {encoding.label}
           {encoding.label === 'GBK' && !encoding.strictlyClean && (
@@ -430,6 +473,14 @@ const BookReader: React.FC<BookReaderProps> = ({
         </span>
       </div>
 
+      {showBanner && (
+        <BindingBanner
+          suggestedDictionary={suggestion.dictionaryId}
+          onChoose={openDialog}
+          onDismiss={() => setDismissedFor(book.fingerprint)}
+        />
+      )}
+
       {(error || translationError) && (
         <div className={styles.error}>
           <AlertCircle size={15} />
@@ -466,6 +517,25 @@ const BookReader: React.FC<BookReaderProps> = ({
           onScroll={handleScroll}
         />
       </div>
+
+      {isDialogOpen && (
+        <BindingDialog
+          bookTitle={book.title}
+          fileName={book.fileName}
+          fictionDictionaries={fictionDictionaries}
+          suggestion={suggestion}
+          currentBinding={binding}
+          isApplying={isBindingApplying}
+          error={bindingError}
+          candidates={chapterCandidates}
+          activePattern={chapterPattern}
+          isOverridden={isChapterOverridden}
+          onSetOverride={setChapterOverride}
+          onBind={(fictionDictionary) => void bind(fictionDictionary)}
+          onCreateAndBind={(rawName) => void createAndBind(rawName)}
+          onClose={closeDialog}
+        />
+      )}
 
       {isOutlineOpen && (
         <ChapterPanel

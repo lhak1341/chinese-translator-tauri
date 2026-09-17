@@ -11,7 +11,10 @@ import {
   sortDictionaries,
   categorizeDictionaries,
 } from '../../utils/dictionary/DictionaryListOrganizer';
+import { listProperNounsDictionaryIds } from '../../utils/dictionary/DictionaryBackend';
 import { useDictionary } from '../dictionary/DictionaryContext';
+import { useBookBinding } from '../BookBindingContext';
+import { activeProperNounsForBinding } from '../../utils/reader/BindingActivation';
 
 /**
  * All state, load/migration effect, and CRUD/rename/quick-add handlers for the
@@ -20,6 +23,15 @@ import { useDictionary } from '../dictionary/DictionaryContext';
  */
 export function useDictionaryConfigManagement() {
   const { loadDictionary, removeDictionaryKey } = useDictionary();
+  // While a book is open it owns the fiction slice — see `BindingActivation`. Generic and
+  // theme dictionaries stay fully editable here either way.
+  const {
+    isBookOpen,
+    boundFictionDictionary,
+    openBook,
+    fictionDictionaries,
+    refreshFictionDictionaries,
+  } = useBookBinding();
   const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -32,46 +44,73 @@ export function useDictionaryConfigManagement() {
 
   const [defaultQuickAddDictionary, setDefaultQuickAddDictionary] = useState<string | null>(null);
 
+  /**
+   * The rows this screen shows.
+   *
+   * `availableDictionaries` is read once on mount and this tab never unmounts, so a
+   * fiction dictionary created from the Reader's binding dialog would otherwise have no
+   * row here for the rest of the session — while the active list below already carries it.
+   * The binding context re-reads its fiction list on every create, so folding it in is
+   * what keeps the two halves of this screen describing the same set.
+   */
+  const allDictionaries = useMemo(
+    () => sortDictionaries([...new Set([...availableDictionaries, ...fictionDictionaries])]),
+    [availableDictionaries, fictionDictionaries]
+  );
+
   const categorizedDictionaries = useMemo(
-    () => categorizeDictionaries(availableDictionaries),
-    [availableDictionaries]
+    () => categorizeDictionaries(allDictionaries),
+    [allDictionaries]
+  );
+
+  /**
+   * What the checkboxes render from.
+   *
+   * With a book open this is the binding, not the last thing saved to config — the two
+   * agree on disk, but deriving it means a binding change made in the Reader is reflected
+   * here immediately instead of waiting for this hook's mount-once config read to happen
+   * again, which it never does.
+   */
+  const effectiveActiveDictionaries = useMemo(
+    () =>
+      isBookOpen
+        ? activeProperNounsForBinding(activeDictionaries, boundFictionDictionary)
+        : activeDictionaries,
+    [activeDictionaries, boundFictionDictionary, isBookOpen]
   );
 
   // Load available dictionaries on mount
   useEffect(() => {
     const loadDictionaries = async (): Promise<void> => {
       try {
-        const result = await window.electronAPI.listProperNounsDictionaries();
-        if (result.success && result.dictionaries) {
-          const dictionaryIds = result.dictionaries.map((d) => (typeof d === 'string' ? d : d.id));
-          setAvailableDictionaries(sortDictionaries(dictionaryIds));
+        // Throws on a failed list — the catch below turns it into the on-screen error,
+        // which is what the hand-rolled `else { throw }` here used to do.
+        const dictionaryIds = await listProperNounsDictionaryIds();
+        setAvailableDictionaries(sortDictionaries(dictionaryIds));
 
-          // Load active dictionaries from saved configuration
-          const config = await loadAppConfig();
-          setActiveDictionaries(config.engine.activeProperNouns);
-          setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
+        // Load active dictionaries from saved configuration
+        const config = await loadAppConfig();
+        setActiveDictionaries(config.engine.activeProperNouns);
+        setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
 
-          // Migration: create missing patterns-f_* for pre-existing fiction proper-noun dicts
-          try {
-            const patternsListResult = await window.electronAPI.listFictionPatternDictionaries();
-            const existingPatterns = new Set<string>(
-              patternsListResult.success
-                ? (patternsListResult.dictionaries as unknown as string[])
-                : []
-            );
-            const fictionDicts = dictionaryIds.filter(isFictionProperNounsId);
-            for (const id of fictionDicts) {
-              const patternsDictId = toPatternsId(id);
-              if (!existingPatterns.has(patternsDictId)) {
-                await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
-                await loadDictionary(patternsDictId);
-              }
+        // Migration: create missing patterns-f_* for pre-existing fiction proper-noun dicts
+        try {
+          const patternsListResult = await window.electronAPI.listFictionPatternDictionaries();
+          const existingPatterns = new Set<string>(
+            patternsListResult.success
+              ? (patternsListResult.dictionaries as unknown as string[])
+              : []
+          );
+          const fictionDicts = dictionaryIds.filter(isFictionProperNounsId);
+          for (const id of fictionDicts) {
+            const patternsDictId = toPatternsId(id);
+            if (!existingPatterns.has(patternsDictId)) {
+              await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
+              await loadDictionary(patternsDictId);
             }
-          } catch (migrationErr) {
-            logger.warn('Fiction pattern dictionary migration failed (non-fatal):', migrationErr);
           }
-        } else {
-          throw new Error(result.error ?? 'Failed to load dictionaries');
+        } catch (migrationErr) {
+          logger.warn('Fiction pattern dictionary migration failed (non-fatal):', migrationErr);
         }
       } catch (err) {
         setError(formatErrorMessage('Dictionary loading', err));
@@ -101,10 +140,19 @@ export function useDictionaryConfigManagement() {
   };
 
   const handleToggleDictionary = async (dictionaryId: string): Promise<void> => {
+    // The open book is the authority on its fiction dictionary. Refusing here rather than
+    // disabling the input alone means a toggle can never write a fiction entry the Reader
+    // would then silently overwrite on its next apply.
+    if (isBookOpen && isFictionProperNounsId(dictionaryId)) return;
     try {
-      const newActiveDictionaries = activeDictionaries.includes(dictionaryId)
-        ? activeDictionaries.filter((id) => id !== dictionaryId)
-        : [...activeDictionaries, dictionaryId];
+      // Toggles start from the *effective* list, not the raw one this hook read at mount.
+      // A generic toggle computed from a stale raw list would write the previous book's
+      // fiction dictionary back into config — the engine's next reinitialization would
+      // then load it, which is the silent wrong-dictionary failure from the far side.
+      const current = effectiveActiveDictionaries;
+      const newActiveDictionaries = current.includes(dictionaryId)
+        ? current.filter((id) => id !== dictionaryId)
+        : [...current, dictionaryId];
 
       await saveAppConfig({ engine: { activeProperNouns: newActiveDictionaries } });
       setActiveDictionaries(newActiveDictionaries);
@@ -140,6 +188,9 @@ export function useDictionaryConfigManagement() {
         await loadDictionary(dictionaryId);
         if (isFictionProperNounsId(dictionaryId)) {
           await loadDictionary(toPatternsId(dictionaryId));
+          // Keep the binding context's fiction list in step — it is what the Reader's
+          // binding dialog offers, and the merge above reads it back into this screen.
+          await refreshFictionDictionaries();
         }
       } else {
         throw new Error(result.error);
@@ -186,6 +237,9 @@ export function useDictionaryConfigManagement() {
         if (isFictionProperNounsId(renamingDictionaryId)) {
           await loadDictionary(toPatternsId(newDictionaryId));
           removeDictionaryKey(toPatternsId(renamingDictionaryId));
+          // Without this the context would keep offering the pre-rename id, and the merge
+          // above would show the book's dictionary under both names at once.
+          await refreshFictionDictionaries();
         }
 
         setAvailableDictionaries((prev) =>
@@ -222,8 +276,12 @@ export function useDictionaryConfigManagement() {
   };
 
   return {
-    availableDictionaries,
-    activeDictionaries,
+    availableDictionaries: allDictionaries,
+    activeDictionaries: effectiveActiveDictionaries,
+    /** True while the Reader has a book open: fiction rows reflect its binding and cannot
+     * be toggled here. */
+    isFictionLockedByBook: isBookOpen,
+    openBookTitle: openBook?.title ?? null,
     isLoading,
     error,
     showNewDictionaryModal,

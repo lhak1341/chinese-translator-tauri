@@ -45,6 +45,19 @@ vi.mock('../../dictionary/DictionaryContext', () => ({
   useDictionary: () => ({ loadDictionary, removeDictionaryKey }),
 }));
 
+// No book open: these tests are about creating and renaming dictionaries, not about the
+// Reader's authority over the fiction slice. The locked-fiction behavior is covered in
+// useDictionaryConfigManagement.binding.test.tsx, where the binding is the subject.
+vi.mock('../../BookBindingContext', () => ({
+  useBookBinding: () => ({
+    isBookOpen: false,
+    boundFictionDictionary: null,
+    openBook: null,
+    fictionDictionaries: [],
+    refreshFictionDictionaries: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 const createProperNounsDictionary = vi.fn();
 const createFictionDictionaryPair = vi.fn();
 const createStructuralPatternsDictionary = vi.fn();

@@ -241,3 +241,27 @@ describe('reloadDictionary', () => {
     ).toBeNull();
   });
 });
+
+// ─── Cmd+B (bind dictionaries for the open book) ──────────────────────────────
+
+describe('bindDictionaries', () => {
+  it('Cmd+B on reader tab → bindDictionaries', () => {
+    expect(matchHotkey(key('b', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+      type: 'bindDictionaries',
+    });
+  });
+
+  it('Cmd+B on translator tab → null (there is no open book to bind)', () => {
+    expect(matchHotkey(key('b', { meta: true }), ctx({ activeTab: 'translator' }))).toBeNull();
+  });
+
+  it('Cmd+B while a text input has focus → null', () => {
+    expect(
+      matchHotkey(key('b', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+    ).toBeNull();
+  });
+
+  it('plain B → null (no modifier is the chapter-key convention, not this)', () => {
+    expect(matchHotkey(key('b'), ctx({ activeTab: 'reader' }))).toBeNull();
+  });
+});
