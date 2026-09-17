@@ -25,6 +25,7 @@ const ENGINE_PRIORITIES = {
  * Returns:
  *   enginePhase     — 'loading' | 'ready' | 'error'
  *   engineRef       — ref to current engine instance (or null)
+ *   engineVersion   — increments once per constructed engine; the cache-invalidation signal
  *   initError       — error message string when phase === 'error', else null
  *   activeProperNounsFromConfig — loaded from disk; use directly in Translator.jsx
  *   reinitialize    — async (rawDictionaries, options) => void — config reload + filtering internal
@@ -34,6 +35,11 @@ export function useTranslatorEngine() {
 
   const [enginePhase, setEnginePhase] = useState('loading');
   const [initError, setInitError] = useState(null);
+  // Bumped once per successfully constructed engine. Consumers that cache translated
+  // output keyed by dictionary state — the Reader's chunk cache — invalidate on a change:
+  // nothing survives reinitialization, so a cached translation from the previous engine is
+  // a translation against dictionaries that no longer exist.
+  const [engineVersion, setEngineVersion] = useState(0);
   const [activeProperNounsFromConfig, setActiveProperNounsFromConfig] = useState(null);
 
   const engineRef = useRef(null);
@@ -69,6 +75,7 @@ export function useTranslatorEngine() {
         debugLevel,
       });
       setInitError(null);
+      setEngineVersion((version) => version + 1);
       setEnginePhase('ready');
     } catch (error) {
       logger.error('Failed to initialize engine:', error);
@@ -148,6 +155,7 @@ export function useTranslatorEngine() {
   return {
     enginePhase,
     engineRef,
+    engineVersion,
     initError,
     activeProperNounsFromConfig,
     reinitialize,

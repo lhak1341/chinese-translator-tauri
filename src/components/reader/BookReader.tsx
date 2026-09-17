@@ -9,7 +9,10 @@ import type {
   ReadingPosition,
 } from '../../types/ReaderTypes';
 import { useBookLines } from '../../hooks/useBookLines';
-import { useReadingPosition } from '../../hooks/useReadingPosition';
+import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
+import { countVisibleLines, nextViewportLines } from '../../utils/reader/TranslationWindow';
+import { useEngine } from '../EngineContext';
+import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useChapterHotkeys } from '../../hooks/useChapterHotkeys';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
@@ -42,6 +45,12 @@ const ESTIMATED_ROW_HEIGHT = 30;
 const OVERSCAN_ROWS = 24;
 
 /**
+ * Lines the viewport is assumed to hold before it has been measured once. Only the very
+ * first fill uses it; every later one is driven by the measured count.
+ */
+const DEFAULT_VIEWPORT_LINES = 30;
+
+/**
  * Lines requested beyond the rendered range in each direction.
  *
  * A row that mounts before its text arrives is one placeholder line tall and grows to its
@@ -69,8 +78,14 @@ const BookReader: React.FC<BookReaderProps> = ({
   onBack,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { getLine, requestRange, error } = useBookLines(book.fingerprint, book.lineCount);
+  const { getLine, linesVersion, requestRange, error } = useBookLines(
+    book.fingerprint,
+    book.lineCount
+  );
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  const [viewportLines, setViewportLines] = useState(DEFAULT_VIEWPORT_LINES);
+  const [anchorLine, setAnchorLine] = useState(0);
+  const { engineRef, enginePhase, engineVersion } = useEngine();
 
   const virtualizer = useVirtualizer({
     count: book.lineCount,
@@ -78,6 +93,27 @@ const BookReader: React.FC<BookReaderProps> = ({
     estimateSize: () => ESTIMATED_ROW_HEIGHT,
     overscan: OVERSCAN_ROWS,
   });
+
+  /**
+   * Publish the anchor and the measured viewport height that the translation bands derive
+   * from. The arithmetic — which rows count as visible, when a change is a real resize
+   * rather than a row growing under the reader, and which line the anchor is — lives in
+   * `TranslationWindow` and `useReadingPosition`; this only supplies the DOM geometry.
+   *
+   * The anchor is `computeAnchor`'s topmost line *touching the viewport*, not
+   * `virtualRows[0].index`: the virtualizer's item list includes `OVERSCAN_ROWS` above the
+   * viewport, so using it would put the bands a screenful above the reader and make the
+   * fetch band asymmetric around them.
+   */
+  const measureViewport = useCallback((): void => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    const rows = virtualizer.getVirtualItems();
+    const visible = countVisibleLines(rows, scrollEl.scrollTop, scrollEl.clientHeight);
+    setViewportLines((previous) => nextViewportLines(previous, visible));
+    const anchor = computeAnchor(scrollEl.scrollTop, rows);
+    if (anchor) setAnchorLine(anchor.line);
+  }, [virtualizer]);
 
   const { onScroll } = useReadingPosition({
     fingerprint: book.fingerprint,
@@ -104,6 +140,46 @@ const BookReader: React.FC<BookReaderProps> = ({
   const virtualRows = virtualizer.getVirtualItems();
   const firstIndex = virtualRows.length > 0 ? virtualRows[0].index : 0;
   const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
+
+  /**
+   * One engine call.
+   *
+   * Only ever called while the Reader is the visible tab: `translateWithSegments` resets
+   * engine-wide segment state on entry, so the single shared engine can serve exactly one
+   * caller at a time, and the Translator tab's own calls are user-driven from its own view.
+   */
+  const translateChunk = useCallback(
+    async (text: string) => {
+      const engine = engineRef.current;
+      if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+      // Progressive batching is the engine's only supported path through this method; the
+      // Reader passes no progress callbacks because a chunk is small enough to land whole.
+      const result = await engine.translateWithSegments(text, { progressive: true });
+      return {
+        translatedText: result?.translatedText ?? '',
+        semanticArrays: result?.semanticArrays ?? null,
+        prebuiltSegments: result?.prebuiltSegments ?? [],
+      };
+    },
+    [engineRef]
+  );
+
+  const {
+    getTranslatedLine,
+    isTranslating,
+    error: translationError,
+  } = useWindowedTranslation({
+    fingerprint: book.fingerprint,
+    lineCount: book.lineCount,
+    anchorLine,
+    viewportLines,
+    overscanLines: OVERSCAN_ROWS,
+    linesVersion,
+    getLine,
+    translateChunk,
+    dictionaryVersion: engineVersion,
+    isEnabled: isActive && enginePhase === 'ready',
+  });
 
   const chapterIndex = currentChapterIndex(chapterHeaders, firstIndex);
   const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
@@ -138,6 +214,17 @@ const BookReader: React.FC<BookReaderProps> = ({
   useEffect(() => {
     requestRange(firstIndex - PREFETCH_LINES, lastIndex + 1 + PREFETCH_LINES);
   }, [firstIndex, lastIndex, requestRange]);
+
+  // Re-measure whenever the rendered range moves — which covers the first paint, a window
+  // resize (rows enter or leave), and a row growing as its translation lands.
+  useEffect(() => {
+    measureViewport();
+  }, [firstIndex, lastIndex, measureViewport]);
+
+  const handleScroll = useCallback((): void => {
+    onScroll();
+    measureViewport();
+  }, [measureViewport, onScroll]);
 
   return (
     <div className={styles.reader}>
@@ -199,21 +286,28 @@ const BookReader: React.FC<BookReaderProps> = ({
           </span>
         </button>
         <span className={styles.chapterStripLine}>
+          {isTranslating && <span className={styles.translatingDot} aria-hidden="true" />}
           Line {(firstIndex + 1).toLocaleString()} of {book.lineCount.toLocaleString()}
         </span>
       </div>
 
-      {error && (
+      {(error || translationError) && (
         <div className={styles.error}>
           <AlertCircle size={15} />
-          {error}
+          {error ?? translationError}
         </div>
       )}
 
-      <div ref={scrollRef} className={styles.readerScroll} onScroll={onScroll}>
+      <div ref={scrollRef} className={styles.readerScroll} onScroll={handleScroll}>
         <div className={styles.readerCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualRows.map((row) => {
             const line = getLine(row.index);
+            const translated = getTranslatedLine(row.index);
+            // Text the reader has not reached yet shows its real Chinese, dimmed, rather
+            // than a blank or a grey bar — scrolling ahead still shows something readable,
+            // and the row is measured at very nearly its final height.
+            const text = translated ?? line;
+            const isUntranslated = translated === undefined && (line?.trim().length ?? 0) > 0;
             return (
               <div
                 key={row.key}
@@ -232,8 +326,11 @@ const BookReader: React.FC<BookReaderProps> = ({
                   A blank line is a real, empty line and keeps its slot, so line numbers
                   stay the file's own.
                 */}
-                <p className={`${styles.readerLine} ${line === undefined ? styles.pending : ''}`}>
-                  {line === undefined ? ' ' : line || ' '}
+                <p
+                  className={`${styles.readerLine} ${isUntranslated || line === undefined ? styles.pending : ''}`}
+                  lang={translated === undefined ? 'zh' : 'vi'}
+                >
+                  {text === undefined ? ' ' : text || ' '}
                 </p>
               </div>
             );

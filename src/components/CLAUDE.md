@@ -73,16 +73,19 @@ A `.tsx` file's locally-declared prop type for a value that's really a `.jsx` fu
 
 The engine is constructed once, above the tab container (`App.jsx` wraps `<TabbedInterface>` in `<EngineProvider>`, from `src/components/EngineContext.jsx`) — not owned by `Translator.jsx`. Only one engine may exist at a time: the WASM pattern/number processors are module-scope singletons, so a second live engine would silently share state with the first. `Translator.jsx` (and any future tab needing translation) consumes it via `useEngine()`; do NOT call `useTranslatorEngine`/`useEngineReinitializer` directly from a tab component — that re-creates a second, unshared engine.
 
-`useEngine()` throws if called outside `EngineProvider`. It exposes `{ enginePhase, engineRef, initError, activeProperNounsFromConfig, reinitialize, reinitializeEngine }`:
+`useEngine()` throws if called outside `EngineProvider`. It exposes `{ enginePhase, engineRef, engineVersion, initError, activeProperNounsFromConfig, reinitialize, reinitializeEngine }`:
 
 - `enginePhase` — `'loading' | 'ready' | 'error'`. Replaces `engineInitialized` + `configLoaded` flags.
 - `engineRef` — ref to current engine instance (or null).
+- `engineVersion` — increments once per successfully constructed engine (mount and every `reinitialize()`). The cache-invalidation signal for anything holding translated output: nothing inside the engine survives reinitialization, so output cached against the previous engine was translated against dictionaries that no longer exist. The Reader's chunk cache (`src/utils/reader/TranslationChunkCache.ts`) consumes it as `dictionaryVersion` and clears itself wholesale on a change. It counts engine constructions, not dictionary edits — a dictionary edited on disk without a reload does not bump it, which is correct, because the running engine has not seen that edit either.
 - `initError` — error string when `enginePhase === 'error'`, else null.
 - `activeProperNounsFromConfig` — loaded from disk once on mount.
 - `reinitialize(rawDicts, options)` — the raw `useTranslatorEngine` reinitializer; never throws, errors go to `enginePhase`/`initError`. Pass raw (unfiltered) dicts; the hook filters internally. Pass `forceConfigReload: true` to re-read config from disk — do NOT call `invalidateAppConfig`/`loadAppConfig` in the caller. For non-React callers (adapters outside the component tree), check `engineRef.current?.isReady()` after `await reinitialize(...)` to determine success — `enginePhase` state is async and not directly readable from adapters.
 - `reinitializeEngine` — `reinitialize` wrapped by `useEngineReinitializer` (awaits it, then fires the fire-and-forget WASM dictionary-sync validation). This is the one `useForceReloadContext`/`useForceReload` consume — use this, not raw `reinitialize`, from `Translator.jsx`.
 
 **Destroy-before-replace**: `useTranslatorEngine`'s internal `runEngineInit` destroys the outgoing engine (if any) before constructing the replacement, on both the mount path and every `reinitialize()` call — not just the `useForceReload` path that also calls `destroyEngine()` explicitly beforehand. This is what makes "only one engine at a time" structural rather than a convention every caller has to remember. A throwing `destroy()` is caught and logged, never blocks the replacement.
+
+**TypeScript consumers**: `EngineContext.jsx` stays JavaScript, so its types come from a hand-written `src/components/EngineContext.d.ts`. `createContext(undefined)` infers `undefined`, which makes `useEngine()` destructure `never` in a `.tsx` file — the `.d.ts` is what fixes that. Nothing checks it against the provider (`checkJs` is off), so a key added to the provider's `value` must be added there by hand, alongside the bullet list above.
 
 **Error boundary**: `EngineProvider` wraps its children in `ErrorBoundary` (`src/components/ErrorBoundary.tsx`) — it sits at the provider, not around `<Translator>` in `TabbedInterface.tsx`, since an initialization failure is now shared by every tab rather than local to one.
 

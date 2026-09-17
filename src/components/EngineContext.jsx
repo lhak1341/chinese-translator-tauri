@@ -19,14 +19,21 @@ import ErrorBoundary from './ErrorBoundary';
 const EngineContext = createContext(undefined);
 
 export function EngineProvider({ children }) {
-  const { enginePhase, engineRef, initError, activeProperNounsFromConfig, reinitialize } =
-    useTranslatorEngine();
+  const {
+    enginePhase,
+    engineRef,
+    engineVersion,
+    initError,
+    activeProperNounsFromConfig,
+    reinitialize,
+  } = useTranslatorEngine();
   const reinitializeEngine = useEngineReinitializer(reinitialize, engineRef);
 
   const value = useMemo(
     () => ({
       enginePhase,
       engineRef,
+      engineVersion,
       initError,
       activeProperNounsFromConfig,
       reinitialize,
@@ -35,6 +42,7 @@ export function EngineProvider({ children }) {
     [
       enginePhase,
       engineRef,
+      engineVersion,
       initError,
       activeProperNounsFromConfig,
       reinitialize,

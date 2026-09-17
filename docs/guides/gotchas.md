@@ -156,7 +156,7 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 **Test file placement follows the tree it's under, and the two trees disagree** — so check the sibling convention before creating a file rather than generalizing from the other half of the repo.
 
-- **`src/utils/`** flattens: everything goes in `src/utils/__tests__/`, including modules living in `dictionary/`, `pattern/`, `highlighting/`. Not a nested `src/utils/<subdir>/__tests__/`. `src/utils/ui/__tests__/` is the one pre-existing exception.
+- **`src/utils/`** flattens: everything goes in `src/utils/__tests__/`, including modules living in `dictionary/`, `pattern/`, `highlighting/`. Not a nested `src/utils/<subdir>/__tests__/`. Two exceptions exist: `src/utils/ui/__tests__/` and `src/utils/reader/__tests__/` — check the siblings before generalizing.
 - **`src/components/`** nests: a component in a subdirectory puts its test there (`src/components/dictionary/__tests__/`). Only root-level components with no subdirectory of their own (`ErrorBoundary.tsx`, `TabbedInterface.tsx`, a new cross-cutting primitive) use the flat `src/components/__tests__/`.
 
 Confirm with `ls src/utils/__tests__/ | grep <ModuleName>` before adding one.

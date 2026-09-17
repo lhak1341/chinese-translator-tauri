@@ -614,6 +614,11 @@ export interface TranslationEngine {
     dictionaries: Record<string, any>,
     options?: TranslationEngineInitOptions
   ): Promise<void>;
+  /** Initialized *and* holding usable dictionaries — the gate every call site checks. */
+  isReady(): boolean;
+  /** Releases tries and WASM handles. Exactly one engine may be live at a time, so the
+   * outgoing one is destroyed before its replacement is constructed. */
+  destroy(): void;
 
   // Core Translation Methods
   translateWithSegments(text: string, options?: TranslationOptions): Promise<TranslationResult>;

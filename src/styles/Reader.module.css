@@ -481,6 +481,28 @@
   opacity: 0.35;
 }
 
+/* Quiet progress: a fill is running somewhere in the buffer. Deliberately not a spinner
+   or a blocking state — the text on screen stays readable while it fills. */
+.translatingDot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: var(--accent-color, currentColor);
+  animation: translatingPulse 1.1s ease-in-out infinite;
+}
+
+@keyframes translatingPulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* ── Encoding prompt ───────────────────────────────────────────────────────── */
 
 .encodingPanel {

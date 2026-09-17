@@ -22,6 +22,15 @@ export const PAGE_KEEP_RADIUS = 8;
 export interface BookLineWindow {
   /** The line's text, or `undefined` while its page is still in flight. */
   getLine: (index: number) => string | undefined;
+  /**
+   * Bumped every time a page lands (or the book changes).
+   *
+   * `getLine` is referentially stable and reads through a ref, so nothing downstream can
+   * tell from its identity that new lines exist. Anything that plans work over line text —
+   * the translation window, whose chunk plan stops at the first unfetched line — depends on
+   * this instead.
+   */
+  linesVersion: number;
   /** Ask for every page covering `[start, end)`. Already-loaded pages are free. */
   requestRange: (start: number, end: number) => void;
   /** Set when a fetch failed; the reading view surfaces it rather than showing blanks. */
@@ -39,7 +48,7 @@ export interface BookLineWindow {
 export function useBookLines(fingerprint: string | null, lineCount: number): BookLineWindow {
   const pagesRef = useRef<Map<number, string[]>>(new Map());
   const inFlightRef = useRef<Set<number>>(new Set());
-  const [, forceRender] = useState(0);
+  const [linesVersion, setLinesVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // A new book means the old pages are meaningless — and, because pages are keyed by
@@ -48,7 +57,7 @@ export function useBookLines(fingerprint: string | null, lineCount: number): Boo
     pagesRef.current = new Map();
     inFlightRef.current = new Set();
     setError(null);
-    forceRender((n) => n + 1);
+    setLinesVersion((n) => n + 1);
   }, [fingerprint]);
 
   // Read inside the fetch callback rather than closing over the render's value — the
@@ -70,7 +79,7 @@ export function useBookLines(fingerprint: string | null, lineCount: number): Boo
         if (fingerprint !== fingerprintRef.current) return;
         pagesRef.current.set(page, result.lines);
         setError(null);
-        forceRender((n) => n + 1);
+        setLinesVersion((n) => n + 1);
       } catch (cause) {
         logger.error('Failed to read book lines:', cause);
         setError(extractErrorMessage(cause));
@@ -109,5 +118,5 @@ export function useBookLines(fingerprint: string | null, lineCount: number): Boo
     return page?.[index % LINES_PER_PAGE];
   }, []);
 
-  return { getLine, requestRange, error };
+  return { getLine, linesVersion, requestRange, error };
 }
