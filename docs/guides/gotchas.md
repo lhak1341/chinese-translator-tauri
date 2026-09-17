@@ -88,9 +88,7 @@ The general test before either swap: enumerate which falsy values can actually a
 
 **Canonical homes for shared component types** (2026-02-14): `ThrottledStreamingState` → `UITypes.d.ts`. `DictionaryEntryMetadata`, `MoveEntryData`, `EditingEntryData` → `DictionaryTypes.ts`. Import from these files; do not redeclare locally in components.
 
-**`AppConfiguration` import path**: Always import from `src/types/ComponentTypes`, NOT from `configValidation`. `configValidation.ts` does not re-export it.
-
-**`getDictionaryLabel` / `getDictionaryDropdownLabel` / `compareDictionaryOrder`**: Import directly from `dictionaryHelpers`. The re-export through `DuplicateAnalyzer` was removed (2026-02-13).
+**Import from the file that _declares_ a symbol, not the file you saw using it** — a `.d.ts` or util that imports a type for its own signatures does not re-export it, and the failure (`TS2459: declares 'X' locally, but it is not exported`) arrives only after the import is written. Confirmed three times: `AppConfiguration` → `src/types/ComponentTypes`, never `configValidation`; `getDictionaryLabel`/`getDictionaryDropdownLabel`/`compareDictionaryOrder` → `dictionaryHelpers`, since the `DuplicateAnalyzer` re-export was removed 2026-02-13; `SemanticArrays` → `src/types/SemanticTypes`, not `TranslationEngineTypes` (which imports it to type `TranslationResult` and stops there). Grep for `^export .*<name>` before writing the path.
 
 **`useConfigurationLoader.ts` deleted (2026-02-13)**: Hook existed with no callers or tests. Imperative equivalent is `loadValidatedConfiguration()` in `configurationHelpers.ts`.
 
@@ -288,7 +286,7 @@ vi.mock('../wasm/WasmProcessorLifecycle', () => ({
 
 ### Before asserting
 
-**Verify fixture behavior before writing directional assertions against a regex or heuristic calculation** (density scores, complexity weights) — a quick `node -e` snippet first. CJK-range regexes are easy to misjudge; one "proper noun density" pattern actually fired on nearly any punctuated Chinese sentence. For modules with tunable magic-number weights, assert directional or boundary relationships (`x > y`, `below threshold N → strategy A`) rather than pinning exact float outputs, so the test survives re-tuning.
+**Verify a fixture's expected value by running it, not by computing it in your head** — regexes, heuristic calculations (density scores, complexity weights), and interval arithmetic alike; a quick `node -e` snippet first. CJK-range regexes are easy to misjudge; one "proper noun density" pattern actually fired on nearly any punctuated Chinese sentence. Half-open ranges are the arithmetic case: a `countVisibleLines` fixture was asserted at 3 because one of four rows overlapping `[100, 400)` was miscounted by hand, and a keep-band test treated a chunk starting exactly at `end` as inside the band. For modules with tunable magic-number weights, assert directional or boundary relationships (`x > y`, `below threshold N → strategy A`) rather than pinning exact float outputs, so the test survives re-tuning.
 
 **Temporary debug instrumentation in huge files (`TranslationEngine.js`, `SemanticPatternProcessor.js`) is easy to leave behind** — grep for `console.error`/`console.log`/whatever debug tag you added before considering a bug hunt finished. File size makes a stray line easy to miss on a final read-through.
 
