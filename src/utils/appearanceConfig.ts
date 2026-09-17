@@ -1,10 +1,5 @@
 import { validateApiResult } from './configValidation';
-import type {
-  AppearanceSettings,
-  FontSettings,
-  LetterSpacing,
-  Theme,
-} from '../types/ComponentTypes';
+import type { AppearanceSettings, FontSettings, Theme } from '../types/ComponentTypes';
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
   chineseText: {
@@ -33,11 +28,33 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
   characterOnlyFollowsFullTranslation: true,
 };
 
-const LETTER_SPACINGS: LetterSpacing[] = ['normal', 'tight', 'wide'];
+/**
+ * What the letter-spacing field held before it was a free-text CSS value, mapped to the
+ * lengths those words meant. Saved settings still carry them, and `letter-spacing: tight`
+ * is not valid CSS — it was being dropped by the browser, so a book set to `tight` was
+ * rendered at `normal` and the setting appeared to do nothing.
+ */
+const LEGACY_LETTER_SPACINGS: Record<string, string> = {
+  tight: '-0.02em',
+  wide: '0.05em',
+};
+
+/** `normal` or a length in a unit that means the same thing everywhere it is used. */
+const LETTER_SPACING_LENGTH = /^-?\d*\.?\d+(px|rem|em)$/;
 const THEMES: Theme[] = ['light', 'dark', 'auto'];
 
-function isLetterSpacing(v: unknown): v is LetterSpacing {
-  return typeof v === 'string' && (LETTER_SPACINGS as string[]).includes(v);
+/**
+ * The stored letter spacing as a usable CSS value, or `null` when it is not one.
+ *
+ * Validated on the way *in* rather than on the way out: the field is free text, so this is
+ * the only place a typo can be caught — and it must accept what the field's own
+ * placeholder tells the reader to type, which a fixed set of keywords did not.
+ */
+function normalizeLetterSpacing(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const value = v.trim();
+  if (value === 'normal') return 'normal';
+  return LEGACY_LETTER_SPACINGS[value] ?? (LETTER_SPACING_LENGTH.test(value) ? value : null);
 }
 
 function isTheme(v: unknown): v is Theme {
@@ -49,7 +66,8 @@ function fromRawFontSettings(raw: unknown, defaults: FontSettings): FontSettings
   const result = { ...defaults };
   if (typeof obj.fontFamily === 'string') result.fontFamily = obj.fontFamily;
   if (typeof obj.fontSize === 'string') result.fontSize = obj.fontSize;
-  if (isLetterSpacing(obj.letterSpacing)) result.letterSpacing = obj.letterSpacing;
+  const letterSpacing = normalizeLetterSpacing(obj.letterSpacing);
+  if (letterSpacing !== null) result.letterSpacing = letterSpacing;
   if (typeof obj.paragraphSpacing === 'string') result.paragraphSpacing = obj.paragraphSpacing;
   return result;
 }

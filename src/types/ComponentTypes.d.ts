@@ -101,11 +101,6 @@ export interface AppConfiguration {
 // =============================================================================
 
 /**
- * Letter spacing options
- */
-export type LetterSpacing = 'normal' | 'tight' | 'wide';
-
-/**
  * Font settings for a text area
  */
 export interface FontSettings {
@@ -113,8 +108,9 @@ export interface FontSettings {
   fontFamily: string;
   /** Font size (CSS value, e.g., '1rem', '14px') */
   fontSize: string;
-  /** Letter spacing setting */
-  letterSpacing: LetterSpacing;
+  /** Letter spacing: `normal`, or a CSS length ('0.05em', '-0.02em', '1px') — the
+   * Appearance tab's field is free text, and the value is passed to CSS verbatim. */
+  letterSpacing: string;
   /** Line height (optional, CSS value) */
   lineHeight?: string;
   /** Font weight (optional, CSS value) */

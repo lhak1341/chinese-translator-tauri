@@ -12,13 +12,13 @@ describe('appearanceConfig.fromRaw', () => {
       chineseText: {
         fontFamily: 'Arial',
         fontSize: '2rem',
-        letterSpacing: 'tight',
+        letterSpacing: '-0.02em',
         paragraphSpacing: '2rem',
       },
       fullTranslation: {
         fontFamily: 'Georgia',
         fontSize: '1.5rem',
-        letterSpacing: 'wide',
+        letterSpacing: '0.05em',
         paragraphSpacing: '1.5rem',
       },
       characterOnly: {
@@ -48,7 +48,7 @@ describe('appearanceConfig.fromRaw', () => {
     expect(result.chineseText.fontSize).toBe(DEFAULT_APPEARANCE.chineseText.fontSize);
   });
 
-  it('rejects an invalid letterSpacing enum value and falls back to default', () => {
+  it('rejects a letterSpacing that is not a CSS value and falls back to default', () => {
     const raw = {
       chineseText: {
         fontFamily: 'Arial',
@@ -60,6 +60,43 @@ describe('appearanceConfig.fromRaw', () => {
     const result = fromRaw(raw);
     expect(result.chineseText.letterSpacing).toBe(DEFAULT_APPEARANCE.chineseText.letterSpacing);
     expect(result.chineseText.fontFamily).toBe('Arial');
+  });
+
+  // The field is free text whose placeholder asks for a length, so a length is what has to
+  // survive a round trip — it did not, and reverted to `normal` on the next launch.
+  it.each(['0.05em', '-0.02em', '1px', '.5rem'])('keeps the length %s', (letterSpacing) => {
+    expect(fromRaw({ chineseText: { letterSpacing } }).chineseText.letterSpacing).toBe(
+      letterSpacing
+    );
+  });
+
+  it('trims a length that was typed with stray whitespace', () => {
+    expect(fromRaw({ chineseText: { letterSpacing: '  0.05em ' } }).chineseText.letterSpacing).toBe(
+      '0.05em'
+    );
+  });
+
+  // `letter-spacing: tight` is not valid CSS, so the words never rendered as anything —
+  // settings saved when the field was a three-way choice are migrated to what they meant.
+  it.each([
+    ['tight', '-0.02em'],
+    ['wide', '0.05em'],
+  ])('migrates the legacy %s keyword to %s', (stored, expected) => {
+    expect(fromRaw({ chineseText: { letterSpacing: stored } }).chineseText.letterSpacing).toBe(
+      expected
+    );
+  });
+
+  it('keeps normal as itself — a real CSS keyword, not a legacy one', () => {
+    expect(fromRaw({ chineseText: { letterSpacing: 'normal' } }).chineseText.letterSpacing).toBe(
+      'normal'
+    );
+  });
+
+  it('rejects a unit it cannot trust to mean one thing', () => {
+    expect(fromRaw({ chineseText: { letterSpacing: '5%' } }).chineseText.letterSpacing).toBe(
+      DEFAULT_APPEARANCE.chineseText.letterSpacing
+    );
   });
 
   it('rejects an invalid theme enum value and falls back to default', () => {
