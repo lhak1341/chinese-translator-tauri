@@ -444,12 +444,18 @@
   panels without a border on any of them — a border would change a panel's content box and
   so every row's wrap width, which is the one measurement that has to stay stable.
 */
+/*
+  The three panels are cards on the page background, with the Translator's own panel
+  chrome — same surface, border, radius and 1rem gutter — so a book and a pasted chapter
+  are read on the same surface rather than in two different-looking tabs.
+*/
 .readerBody {
   flex: 1;
   display: flex;
   min-height: 0;
-  gap: 1px;
-  background: var(--border-color, rgba(128, 128, 128, 0.3));
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--background-color);
 }
 
 .readerReference {
@@ -457,8 +463,7 @@
   flex-direction: column;
   flex: 0 0 42%;
   min-width: 0;
-  gap: 1px;
-  background: inherit;
+  gap: 1rem;
 }
 
 .readerPanel {
@@ -467,7 +472,10 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
-  background: var(--bg-color, transparent);
+  overflow: hidden;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
 }
 
 .panelTitle {
@@ -496,7 +504,7 @@
   /* Horizontal padding lives here, not on the rows: a row's measured height must not
      include anything that changes with its content, and side padding on the scroller
      keeps every row's width identical. */
-  padding: 0 1rem;
+  padding: 0 1rem 1rem;
 }
 
 /*
@@ -517,6 +525,7 @@
   );
   font-size: var(--chinese-text-size, 1.25rem);
   letter-spacing: var(--chinese-text-spacing, normal);
+  --reader-paragraph-spacing: var(--chinese-text-paragraph-spacing, 1rem);
 }
 
 .paneTranslation {
@@ -530,6 +539,7 @@
   );
   font-size: var(--full-translation-size, 1.25rem);
   letter-spacing: var(--full-translation-spacing, normal);
+  --reader-paragraph-spacing: var(--full-translation-paragraph-spacing, 1rem);
 }
 
 .paneCharacterOnly {
@@ -543,6 +553,7 @@
   );
   font-size: var(--character-only-size, 1.25rem);
   letter-spacing: var(--character-only-spacing, normal);
+  --reader-paragraph-spacing: var(--character-only-paragraph-spacing, 1rem);
 }
 
 /*
@@ -584,9 +595,17 @@
   and line-height are identical between the pending and loaded states — only the text
   node changes — so a row does not resize when its page arrives.
 */
+/*
+  Paragraph spacing is the row's bottom *padding*, never a margin — the Translator spaces
+  its paragraphs with `margin-bottom`, but resize observations exclude margins, so here a
+  margin would make every row under-report its height and the error would compound down a
+  75,000-line book. Each line of these files is a paragraph, so the setting applies per
+  row; `useColumnMetrics` reads the same alias back to keep the unmeasured rows' estimates
+  honest.
+*/
 .readerLine {
   margin: 0;
-  padding: 0.18rem 0;
+  padding: 0 0 var(--reader-paragraph-spacing, 1rem);
   line-height: 1.85;
   color: var(--text-color);
   white-space: pre-wrap;
@@ -930,7 +949,7 @@
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--border-color);
   border-radius: 0.35rem;
-  color: var(--muted-text-color);
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -976,7 +995,7 @@
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--muted-text-color);
+  color: var(--text-secondary);
 }
 
 .paletteRowLabel {
@@ -993,11 +1012,11 @@
   border-radius: 0.25rem;
   font-family: inherit;
   font-size: 0.7rem;
-  color: var(--muted-text-color);
+  color: var(--text-secondary);
 }
 
 .paletteEmpty {
   padding: 0.6rem 0.5rem;
   font-size: 0.8rem;
-  color: var(--muted-text-color);
+  color: var(--text-secondary);
 }

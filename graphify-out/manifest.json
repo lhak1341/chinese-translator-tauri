@@ -2035,8 +2035,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderPanel.ts": {
-    "mtime": 1789633019.276901,
-    "ast_hash": "47a42b16966d2a8253de9169150c8189",
+    "mtime": 1789633213.144653,
+    "ast_hash": "54467f1230c522836781c9244038943c",
     "semantic_hash": ""
   },
   "src/utils/reader/PanelSync.ts": {
@@ -2115,8 +2115,13 @@
     "semantic_hash": ""
   },
   "src/hooks/useColumnMetrics.ts": {
-    "mtime": 1789633010.4533622,
-    "ast_hash": "b2b634bbc1ebf8c39c8ba947da10c0b0",
+    "mtime": 1789633213.1438892,
+    "ast_hash": "05335c6ec395b2f5d5159a839f639353",
+    "semantic_hash": ""
+  },
+  "src/utils/ui/CssLength.ts": {
+    "mtime": 1789633200.66956,
+    "ast_hash": "87a6b610052f96d2a190229e6f8bd6c4",
     "semantic_hash": ""
   }
 }

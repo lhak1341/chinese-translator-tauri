@@ -7,18 +7,16 @@ import type { RowMetrics } from '../utils/reader/PanelSync';
 import { useColumnMetrics } from './useColumnMetrics';
 
 /**
- * Row geometry as `Reader.module.css` renders it: `.readerLine` is `line-height: 1.85`,
- * and `padding: 0.18rem 0`. The line height is a *ratio* because the font size under it is
- * the reader's own Appearance setting — a panel at 1.25rem has rows a quarter taller than
- * one at 1rem, and a fixed 30px would under-estimate every unvisited region of the book by
- * that much. The padding is in `rem`, so it does not move with the font.
+ * `.readerLine`'s `line-height`, as a ratio rather than a pixel count: the font size under
+ * it is the reader's own Appearance setting, so a panel at 1.25rem has rows a quarter
+ * taller than one at 1rem and a fixed 30px would under-estimate every unvisited region of
+ * the book by that much. Kept in step with the stylesheet by hand; the paragraph spacing
+ * below a row is not, because it is a setting — `useColumnMetrics` measures that one.
  *
- * These only have to be right for *unmeasured* rows — every mounted row is measured — but
- * they are what a never-visited region's scrollbar is built from, so they are kept in step
- * with the stylesheet by hand rather than read back from it every frame.
+ * Both only have to be right for *unmeasured* rows — every mounted row is measured — but
+ * they are what a never-visited region's scrollbar is built from.
  */
 const ROW_LINE_HEIGHT_RATIO = 1.85;
-const ROW_PADDING_PX = 6;
 
 /**
  * Upward bias on an estimated row width. A row that shrinks when it is measured reads as
@@ -61,19 +59,19 @@ export function useReaderPanel({
   charCountAt,
 }: UseReaderPanelOptions): ReaderPanelGeometry {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { columnEm, fontSizePx } = useColumnMetrics(scrollRef);
+  const { columnEm, fontSizePx, rowPaddingPx } = useColumnMetrics(scrollRef);
 
   // "Latest ref" pattern: `estimateSize` below is referentially stable, so a re-render
   // never makes the virtualizer treat its estimates as new. A resize reaches the estimate
   // through this ref, by way of the virtualizer's own resize handling.
-  const liveRef = useRef({ columnEm, fontSizePx, emPerChar, charCountAt });
-  liveRef.current = { columnEm, fontSizePx, emPerChar, charCountAt };
+  const liveRef = useRef({ columnEm, fontSizePx, rowPaddingPx, emPerChar, charCountAt });
+  liveRef.current = { columnEm, fontSizePx, rowPaddingPx, emPerChar, charCountAt };
 
   const estimateSize = useCallback(
     (index: number): number =>
       estimateRowSize(liveRef.current.charCountAt(index), {
         lineHeight: liveRef.current.fontSizePx * ROW_LINE_HEIGHT_RATIO,
-        padding: ROW_PADDING_PX,
+        padding: liveRef.current.rowPaddingPx,
         columnEm: liveRef.current.columnEm,
         emPerChar: liveRef.current.emPerChar,
         bias: ROW_ESTIMATE_BIAS,

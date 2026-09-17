@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type React from 'react';
 import { useAppearanceVersion } from './useAppearanceVersion';
+import { cssLengthToPx } from '../utils/ui/CssLength';
 
 /**
  * Width to assume before the element has been measured — roughly a comfortable prose
@@ -10,6 +11,16 @@ const DEFAULT_COLUMN_EM = 40;
 
 /** Font size to assume before measuring: the browser default, in pixels. */
 const DEFAULT_FONT_SIZE_PX = 16;
+
+/** Row padding to assume before measuring — `Reader.module.css`'s own default spacing. */
+const DEFAULT_ROW_PADDING_PX = 16;
+
+/**
+ * The per-panel alias `Reader.module.css` sets to whichever Appearance section's paragraph
+ * spacing that panel follows. Read from the panel rather than from `:root` so each one
+ * resolves to its own section's value.
+ */
+const ROW_SPACING_PROPERTY = '--reader-paragraph-spacing';
 
 export interface ColumnMetrics {
   /**
@@ -23,6 +34,8 @@ export interface ColumnMetrics {
   columnEm: number;
   /** The rendered font size, in pixels — an estimated row's height scales with it. */
   fontSizePx: number;
+  /** The paragraph spacing below each row, in pixels — added to every row's height. */
+  rowPaddingPx: number;
 }
 
 /**
@@ -38,6 +51,7 @@ export function useColumnMetrics(ref: React.RefObject<HTMLElement | null>): Colu
   const [metrics, setMetrics] = useState<ColumnMetrics>({
     columnEm: DEFAULT_COLUMN_EM,
     fontSizePx: DEFAULT_FONT_SIZE_PX,
+    rowPaddingPx: DEFAULT_ROW_PADDING_PX,
   });
   const appearanceVersion = useAppearanceVersion();
 
@@ -53,7 +67,20 @@ export function useColumnMetrics(ref: React.RefObject<HTMLElement | null>): Colu
         Number.parseFloat(style.paddingLeft || '0') + Number.parseFloat(style.paddingRight || '0');
       const usable = element.clientWidth - padding;
       if (!(usable > 0)) return;
-      setMetrics({ columnEm: usable / fontSize, fontSizePx: fontSize });
+      // A custom property comes back as the token the stylesheet wrote (`1rem`), not as a
+      // used pixel value, so the unit is resolved here against the two font sizes.
+      const rootFontSizePx =
+        Number.parseFloat(getComputedStyle(document.documentElement).fontSize) ||
+        DEFAULT_FONT_SIZE_PX;
+      const spacing = cssLengthToPx(style.getPropertyValue(ROW_SPACING_PROPERTY), {
+        rootFontSizePx,
+        fontSizePx: fontSize,
+      });
+      setMetrics({
+        columnEm: usable / fontSize,
+        fontSizePx: fontSize,
+        rowPaddingPx: spacing ?? DEFAULT_ROW_PADDING_PX,
+      });
     };
 
     measure();

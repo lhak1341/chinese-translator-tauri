@@ -172,7 +172,6 @@
   "170": "wasm-core Pattern Processor",
   "171": "text_chunker.rs",
   "172": "getStringFromWasm0",
-  "173": "WasmTextTokenizer.js",
   "174": "AppReadinessOverlay.tsx",
   "175": "TranslatorControls.tsx",
   "176": "UnicodePunctuationDetector.ts",
