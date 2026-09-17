@@ -31,6 +31,8 @@ Reader is where the app should land.
 
 | Shortcut       | Action                                          |
 | -------------- | ----------------------------------------------- |
+| `Cmd/Ctrl + K` | Open the command palette                        |
+| `Cmd/Ctrl + G` | Jump to chapter (outline, search focused)       |
 | `[` / `]`      | Previous / next chapter                         |
 | `Cmd/Ctrl + B` | Dictionaries for this book (the binding dialog) |
 
@@ -38,7 +40,14 @@ Reader is where the app should land.
 element has focus — otherwise they would fire while you type a literal bracket into a
 search box or a dictionary entry.
 
-The Add shortcuts (`Cmd/Ctrl + 1`–`7`) work here too, unchanged. Two of them already mean
+The command palette offers every action in this section except opening itself, plus
+switching books and the Add shortcuts below, and each of its rows shows the direct
+shortcut it stands for — so it is also where those shortcuts are discovered. Typing filters; Escape closes; Enter runs the highlighted
+row. The Add rows carry the text selected in the reading view at the moment the palette
+opened, since focusing its search collapses the selection.
+
+The Add shortcuts (`Cmd/Ctrl + 1`–`6`) work here too, unchanged; `Cmd/Ctrl + 7` (new
+Transform Rule) is the Translator's alone. Two of them already mean
 "the active fiction's dictionaries"; binding a book is what makes that phrase reliable
 instead of dependent on having remembered to change a setting in Configuration.
 

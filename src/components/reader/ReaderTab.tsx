@@ -282,6 +282,18 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
     await scan(null);
   }, [scan]);
 
+  /** Open another book by file name — what the Reader's command palette switches with.
+   * Routed through the same `openBook` a shelf click uses, so the new book arrives with
+   * its own binding announced and its position restored. */
+  const switchBook = useCallback(
+    (fileName: string): void => {
+      const book = books.find((candidate) => candidate.fileName === fileName);
+      if (!book) return;
+      void openBook(book);
+    },
+    [books, openBook]
+  );
+
   const backToShelf = useCallback((): void => {
     // Pure navigation: the book stays decoded so coming back is instant.
     setIsReading(false);
@@ -310,6 +322,8 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           initialChapterOutline={open.chapterOutline}
           initialManualChapterPattern={open.manualChapterPattern}
           isActive={isActive}
+          books={books}
+          onSwitchBook={switchBook}
           onBack={backToShelf}
         />
       </div>

@@ -250,6 +250,87 @@ describe('useHotkeyHandler', () => {
     });
   });
 
+  describe('Reader palette and outline', () => {
+    test('Cmd+K on the Reader opens the command palette', async () => {
+      const onOpenCommandPalette = vi.fn();
+      renderHook(() => useHotkeyHandler({ onOpenCommandPalette, activeTab: 'reader' }));
+      fireKey({ key: 'k' });
+      await flush();
+      expect(onOpenCommandPalette).toHaveBeenCalledTimes(1);
+    });
+
+    test('Cmd+K on the Translator does nothing — the palette belongs to the Reader', async () => {
+      const onOpenCommandPalette = vi.fn();
+      renderHook(() => useHotkeyHandler({ onOpenCommandPalette, activeTab: 'translator' }));
+      fireKey({ key: 'k' });
+      await flush();
+      expect(onOpenCommandPalette).not.toHaveBeenCalled();
+    });
+
+    test('Cmd+K does nothing while the Reader is a background tab', async () => {
+      const onOpenCommandPalette = vi.fn();
+      renderHook(() => useHotkeyHandler({ onOpenCommandPalette }));
+      fireKey({ key: 'k' });
+      await flush();
+      expect(onOpenCommandPalette).not.toHaveBeenCalled();
+    });
+
+    test('Cmd+G on the Reader opens the chapter outline', async () => {
+      const onOpenChapterOutline = vi.fn();
+      renderHook(() => useHotkeyHandler({ onOpenChapterOutline, activeTab: 'reader' }));
+      fireKey({ key: 'g' });
+      await flush();
+      expect(onOpenChapterOutline).toHaveBeenCalledTimes(1);
+    });
+
+    test('Cmd+G on the Dictionary tab does nothing', async () => {
+      const onOpenChapterOutline = vi.fn();
+      renderHook(() => useHotkeyHandler({ onOpenChapterOutline, activeTab: 'dictionary' }));
+      fireKey({ key: 'g' });
+      await flush();
+      expect(onOpenChapterOutline).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('chapter stepping', () => {
+    test('[ steps to the previous chapter on the Reader', async () => {
+      const onPreviousChapter = vi.fn();
+      renderHook(() => useHotkeyHandler({ onPreviousChapter, activeTab: 'reader' }));
+      fireKey({ key: '[', metaKey: false });
+      await flush();
+      expect(onPreviousChapter).toHaveBeenCalledTimes(1);
+    });
+
+    test('] steps to the next chapter on the Reader', async () => {
+      const onNextChapter = vi.fn();
+      renderHook(() => useHotkeyHandler({ onNextChapter, activeTab: 'reader' }));
+      fireKey({ key: ']', metaKey: false });
+      await flush();
+      expect(onNextChapter).toHaveBeenCalledTimes(1);
+    });
+
+    test('[ does nothing while the Reader is a background tab', async () => {
+      const onPreviousChapter = vi.fn();
+      renderHook(() => useHotkeyHandler({ onPreviousChapter }));
+      fireKey({ key: '[', metaKey: false });
+      await flush();
+      expect(onPreviousChapter).not.toHaveBeenCalled();
+    });
+
+    test('[ typed into an input does nothing', async () => {
+      const onPreviousChapter = vi.fn();
+      renderHook(() => useHotkeyHandler({ onPreviousChapter, activeTab: 'reader' }));
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { key: '[', bubbles: true, cancelable: true })
+      );
+      await flush();
+      expect(onPreviousChapter).not.toHaveBeenCalled();
+      input.remove();
+    });
+  });
+
   describe('ref-mirror correctness (no stale closures across rerenders)', () => {
     test("a later rerender's callback is the one invoked, not the initial one", async () => {
       const onUndoFirst = vi.fn();

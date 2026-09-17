@@ -283,3 +283,88 @@ describe('bindDictionaries', () => {
     expect(matchHotkey(key('b'), ctx({ activeTab: 'reader' }))).toBeNull();
   });
 });
+
+// ─── Cmd+K / Cmd+G (the Reader's palette and its outline) ─────────────────────
+
+describe('openCommandPalette', () => {
+  it('Cmd+K on reader tab → openCommandPalette', () => {
+    expect(matchHotkey(key('k', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+      type: 'openCommandPalette',
+    });
+  });
+
+  it('Cmd+K on translator tab → null (the palette is the Reader’s)', () => {
+    expect(matchHotkey(key('k', { meta: true }), ctx({ activeTab: 'translator' }))).toBeNull();
+  });
+
+  it('Cmd+K with no tab (Reader in the background) → null', () => {
+    expect(matchHotkey(key('k', { meta: true }), ctx({ activeTab: undefined }))).toBeNull();
+  });
+
+  it('Cmd+K while the palette’s own search has focus → null', () => {
+    expect(
+      matchHotkey(key('k', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+    ).toBeNull();
+  });
+
+  it('plain K → null', () => {
+    expect(matchHotkey(key('k'), ctx({ activeTab: 'reader' }))).toBeNull();
+  });
+});
+
+describe('openChapterOutline', () => {
+  it('Cmd+G on reader tab → openChapterOutline', () => {
+    expect(matchHotkey(key('g', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+      type: 'openChapterOutline',
+    });
+  });
+
+  it('Cmd+G on dictionary tab → null', () => {
+    expect(matchHotkey(key('g', { meta: true }), ctx({ activeTab: 'dictionary' }))).toBeNull();
+  });
+
+  it('Cmd+G while a text input has focus → null', () => {
+    expect(
+      matchHotkey(key('g', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+    ).toBeNull();
+  });
+});
+
+// ─── `[` / `]` (chapter stepping — the one unmodified pair) ───────────────────
+
+describe('chapter stepping', () => {
+  it('[ on reader tab → previousChapter', () => {
+    expect(matchHotkey(key('['), ctx({ activeTab: 'reader' }))).toEqual({
+      type: 'previousChapter',
+    });
+  });
+
+  it('] on reader tab → nextChapter', () => {
+    expect(matchHotkey(key(']'), ctx({ activeTab: 'reader' }))).toEqual({ type: 'nextChapter' });
+  });
+
+  it('[ on translator tab → null (a book open in the background stays put)', () => {
+    expect(matchHotkey(key('['), ctx({ activeTab: 'translator' }))).toBeNull();
+  });
+
+  it('[ with no tab at all → null', () => {
+    expect(matchHotkey(key('['), ctx({ activeTab: undefined }))).toBeNull();
+  });
+
+  it('[ while a text input has focus → null (typing a literal bracket)', () => {
+    expect(matchHotkey(key('['), ctx({ activeTab: 'reader', isInputFocused: true }))).toBeNull();
+  });
+
+  it.each([
+    ['meta', { meta: true }],
+    ['ctrl', { ctrl: true }],
+    ['shift', { shift: true }],
+    ['alt', { alt: true }],
+  ])('[ with %s held → null', (_name, modifier) => {
+    expect(matchHotkey(key('[', modifier), ctx({ activeTab: 'reader' }))).toBeNull();
+  });
+
+  it('any other unmodified key on the reader → null', () => {
+    expect(matchHotkey(key('a'), ctx({ activeTab: 'reader' }))).toBeNull();
+  });
+});

@@ -17,6 +17,10 @@ export type HotkeyAction =
   | { type: 'redo' }
   | { type: 'reloadDictionary' }
   | { type: 'bindDictionaries' }
+  | { type: 'openCommandPalette' }
+  | { type: 'openChapterOutline' }
+  | { type: 'previousChapter' }
+  | { type: 'nextChapter' }
   | { type: 'openNewRule' };
 
 export interface MatchHotkeyContext {
@@ -45,6 +49,17 @@ export function matchHotkey(
   context: MatchHotkeyContext
 ): HotkeyAction | null {
   if (context.isInputFocused) return null;
+
+  // `[` / `]` step chapters, with no modifier at all — the one unmodified pair in this
+  // table. They shadow printable characters, which is exactly what the `isInputFocused`
+  // guard above exists for: typing a literal bracket into a search box or a dictionary
+  // entry must never step a chapter.
+  if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+    if (context.activeTab !== 'reader') return null;
+    if (event.key === '[') return { type: 'previousChapter' };
+    if (event.key === ']') return { type: 'nextChapter' };
+    return null;
+  }
 
   // Option/Alt+digit: tab switching. Checked first since it uses a modifier the rest of
   // this table doesn't — was Cmd/Ctrl+Shift+1-5 until that collided with a default
@@ -115,6 +130,12 @@ export function matchHotkey(
           : null;
       case 'b':
         return activeTab === 'reader' ? { type: 'bindDictionaries' } : null;
+      // The palette and the outline are Reader-only for the same reason as Cmd+B: both
+      // act on the open book, and there is nothing for them to act on anywhere else.
+      case 'k':
+        return activeTab === 'reader' ? { type: 'openCommandPalette' } : null;
+      case 'g':
+        return activeTab === 'reader' ? { type: 'openChapterOutline' } : null;
     }
   }
 

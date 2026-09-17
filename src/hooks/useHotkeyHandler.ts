@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { TabId } from '../types/ComponentTypes';
+import { isEditableTarget } from '../utils/ui/EditableFocus';
 import { matchHotkey } from '../utils/ui/HotkeyDispatchTable';
 import type { HotkeyAction } from '../utils/ui/HotkeyDispatchTable';
 import { extractErrorMessage } from '../utils/errorHelpers';
@@ -40,6 +41,10 @@ export interface HotkeyHandlerOptions {
   onQuickAddCustomStructuralPattern?: (text?: string) => Promise<void>;
   onReloadDictionary?: () => void;
   onBindDictionaries?: () => void;
+  onOpenCommandPalette?: () => void;
+  onOpenChapterOutline?: () => void;
+  onPreviousChapter?: () => void;
+  onNextChapter?: () => void;
   onFocusSearch?: () => void;
   onDictionaryTabHotkey?: (key: string) => Promise<void>;
   onOpenNewRule?: (text?: string) => void;
@@ -56,6 +61,9 @@ export interface HotkeyHandlerOptions {
  *   clipboard/selection text as the Key (Translator tab only, like the quick-add keys)
  * - Cmd/Ctrl+R: Reload dictionary (Translator and Reader tabs — one shared action)
  * - Cmd/Ctrl+B: Bind dictionaries for the open book (Reader tab only)
+ * - Cmd/Ctrl+K: Open the command palette (Reader tab only)
+ * - Cmd/Ctrl+G: Open the chapter outline with its search focused (Reader tab only)
+ * - `[` / `]`: Previous / next chapter (Reader tab only, no modifier)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
  * - Cmd/Ctrl+Z: Undo
  * - Cmd/Ctrl+Shift+Z: Redo
@@ -164,6 +172,18 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
         case 'bindDictionaries':
           opts.onBindDictionaries?.();
           break;
+        case 'openCommandPalette':
+          opts.onOpenCommandPalette?.();
+          break;
+        case 'openChapterOutline':
+          opts.onOpenChapterOutline?.();
+          break;
+        case 'previousChapter':
+          opts.onPreviousChapter?.();
+          break;
+        case 'nextChapter':
+          opts.onNextChapter?.();
+          break;
         case 'openNewRule':
           await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule', NEW_RULE_TABS);
           break;
@@ -175,18 +195,11 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
       // synchronous throw from optional-chained callbacks doesn't become an
       // unhandled rejection. handleQuickAdd catches its own async errors.
       try {
-        const target = event.target as HTMLElement;
-        const isInputFocused =
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.tagName === 'SELECT' ||
-          target.isContentEditable;
-
         const action = matchHotkey(event, {
           activeTab: optionsRef.current.activeTab,
           canUndo: optionsRef.current.canUndo,
           canRedo: optionsRef.current.canRedo,
-          isInputFocused,
+          isInputFocused: isEditableTarget(event.target),
         });
         if (!action) return;
         event.preventDefault();

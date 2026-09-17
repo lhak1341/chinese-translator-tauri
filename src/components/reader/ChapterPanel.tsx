@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Search, X } from 'lucide-react';
 import type {
   ChapterHeader,
@@ -16,6 +16,9 @@ interface ChapterPanelProps {
   /** Index into `headers` of the chapter currently on screen, or `-1`. */
   currentIndex: number;
   error: string | null;
+  /** Take focus into the search on open. Set by the jump-to-chapter shortcut, which opens
+   * the panel to be typed into; the chapter-strip button leaves focus where it was. */
+  autoFocusSearch?: boolean;
   onJump: (line: number) => void;
   onSetOverride: (pattern: ChapterPatternId | null) => void;
   onClose: () => void;
@@ -33,11 +36,21 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
   isOverridden,
   currentIndex,
   error,
+  autoFocusSearch = false,
   onJump,
   onSetOverride,
   onClose,
 }) => {
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // The search input only exists once there are chapters to search, and the outline can
+  // still be being elected when the panel opens — so this runs again when the headers
+  // land, not on open alone. Without `headers.length` in the deps the shortcut would open
+  // an unfocused panel whenever it won the race.
+  useEffect(() => {
+    if (autoFocusSearch) searchRef.current?.focus();
+  }, [autoFocusSearch, headers.length]);
 
   const filtered = useMemo(() => {
     const indexed = headers.map((header, index) => ({ header, index }));
@@ -95,6 +108,7 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
           <div className={styles.outlineSearch}>
             <Search size={14} />
             <input
+              ref={searchRef}
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}

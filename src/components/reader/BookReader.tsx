@@ -20,7 +20,6 @@ import { countVisibleLines, nextViewportLines } from '../../utils/reader/Transla
 import { useEngine } from '../EngineContext';
 import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
-import { useChapterHotkeys } from '../../hooks/useChapterHotkeys';
 import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
 import { usePanelSync } from '../../hooks/usePanelSync';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
@@ -33,6 +32,8 @@ import { useBookBinding } from '../BookBindingContext';
 import BindingBanner from './BindingBanner';
 import BindingDialog from './BindingDialog';
 import ChapterPanel from './ChapterPanel';
+import CommandPalette from './CommandPalette';
+import { buildPaletteCommands, type PaletteBook } from '../../utils/reader/PaletteCommands';
 import ReaderPanel from './ReaderPanel';
 import type { PanelRow } from './ReaderPanel';
 import styles from '../../styles/Reader.module.css';
@@ -49,6 +50,12 @@ interface BookReaderProps {
   initialManualChapterPattern: ChapterPatternId | null;
   /** Whether the Reader is the visible tab — see `useReadingPosition`. */
   isActive: boolean;
+  /** The whole shelf, so the palette can switch books without going back to it. The open
+   * book is in here too; the palette drops its own row. */
+  books: readonly PaletteBook[];
+  /** Open another book by file name — the shelf's own open path, so the book arrives with
+   * its binding applied exactly as it would from a click on the shelf. */
+  onSwitchBook: (fileName: string) => void;
   onBack: () => void;
 }
 
@@ -119,13 +126,23 @@ const BookReader: React.FC<BookReaderProps> = ({
   initialChapterOutline,
   initialManualChapterPattern,
   isActive,
+  books,
+  onSwitchBook,
   onBack,
 }) => {
   const { getLine, linesVersion, requestRange, error } = useBookLines(
     book.fingerprint,
     book.lineCount
   );
-  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
+  /** The outline panel, and whether it should take focus into its search on open. The
+   * jump-to-chapter shortcut opens it ready to type; the chapter-strip button opens it
+   * for the eye, leaving the keyboard where it was. */
+  const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  /** The reader's text selection as of the moment the palette opened. Captured there
+   * rather than read when an Add row runs: focusing the palette's search collapses the
+   * document selection, so by then the term the reader highlighted is gone. */
+  const [paletteSelection, setPaletteSelection] = useState('');
   // Dismissal is session-local on purpose: it is not an answer, so nothing is persisted
   // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
   // book does not silently hide it for the next.
@@ -344,7 +361,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   const jumpToLine = useCallback(
     (line: number): void => {
       virtualizer.scrollToIndex(line, { align: 'start' });
-      setIsOutlineOpen(false);
+      setOutline(null);
     },
     [virtualizer]
   );
@@ -357,11 +374,13 @@ const BookReader: React.FC<BookReaderProps> = ({
     [chapterHeaders, firstIndex, virtualizer]
   );
 
-  useChapterHotkeys({
-    isActive,
-    onPrevious: () => goToChapter(-1),
-    onNext: () => goToChapter(1),
-  });
+  const reloadDictionaries = useCallback((): void => {
+    // The owner reports its own failures (toast + status); this catch only keeps a
+    // rejection from escaping as an unhandled one.
+    requestDictionaryReload().catch((cause: unknown) => {
+      logger.error('Reader-triggered dictionary reload failed:', cause);
+    });
+  }, []);
 
   // The add-entry shortcut family, reused: the same hook the Translator's modal is driven
   // by, so Cmd-1..6 resolve the same targets here as there — including the two that mean
@@ -412,6 +431,57 @@ const BookReader: React.FC<BookReaderProps> = ({
       await openQuickAddCustomStructuralPattern(text);
     },
     [boundTargets.structuralPatterns, openQuickAdd, openQuickAddCustomStructuralPattern]
+  );
+
+  /** Open the outline ready to be typed into — what both the jump-to-chapter shortcut and
+   * the palette's own row do. The chapter-strip button opens it without taking focus. */
+  const openOutlineForSearch = useCallback((): void => {
+    setOutline({ focusSearch: true });
+  }, []);
+
+  const openPalette = useCallback((): void => {
+    setPaletteSelection(window.getSelection()?.toString().trim() ?? '');
+    setIsPaletteOpen(true);
+  }, []);
+
+  // The palette's rows are data — the shortcut each one displays included. Everything
+  // here is the same callback the direct binding fires, so the two paths cannot drift.
+  const paletteCommands = useMemo(
+    () =>
+      buildPaletteCommands({
+        books,
+        currentFileName: book.fileName,
+        handlers: {
+          onJumpToChapter: openOutlineForSearch,
+          onPreviousChapter: () => goToChapter(-1),
+          onNextChapter: () => goToChapter(1),
+          onBindDictionaries: openDialog,
+          onReloadDictionaries: reloadDictionaries,
+          onAddCharacter: () => openQuickAddCharacter(paletteSelection),
+          onAddPhrase: () => openQuickAddPhrase(paletteSelection),
+          onAddProperNoun: () => openQuickAddProperNoun(paletteSelection),
+          onAddPattern: () => openQuickAddPattern(paletteSelection),
+          onAddFictionProperNoun: () => void openBoundProperNoun(paletteSelection),
+          onAddFictionStructuralPattern: () => void openBoundStructuralPattern(paletteSelection),
+          onSwitchBook,
+        },
+      }),
+    [
+      book.fileName,
+      books,
+      goToChapter,
+      openOutlineForSearch,
+      onSwitchBook,
+      openBoundProperNoun,
+      openBoundStructuralPattern,
+      openDialog,
+      openQuickAddCharacter,
+      openQuickAddPattern,
+      openQuickAddPhrase,
+      openQuickAddProperNoun,
+      paletteSelection,
+      reloadDictionaries,
+    ]
   );
 
   // Fetch the pages covering what is about to be painted. Running after render (rather
@@ -490,13 +560,11 @@ const BookReader: React.FC<BookReaderProps> = ({
         onQuickAddPattern={openQuickAddPattern}
         onQuickAddCustomProperNoun={openBoundProperNoun}
         onQuickAddCustomStructuralPattern={openBoundStructuralPattern}
-        onReloadDictionary={() => {
-          // The owner reports its own failures (toast + status); this catch only keeps a
-          // rejection from escaping as an unhandled one.
-          requestDictionaryReload().catch((cause: unknown) => {
-            logger.error('Reader-triggered dictionary reload failed:', cause);
-          });
-        }}
+        onReloadDictionary={reloadDictionaries}
+        onOpenCommandPalette={openPalette}
+        onOpenChapterOutline={openOutlineForSearch}
+        onPreviousChapter={() => goToChapter(-1)}
+        onNextChapter={() => goToChapter(1)}
       />
 
       <div className={styles.readerHeader}>
@@ -556,7 +624,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         </div>
         <button
           className={styles.chapterStripCurrent}
-          onClick={() => setIsOutlineOpen(true)}
+          onClick={() => setOutline({ focusSearch: false })}
           title="Open chapter list"
         >
           <List size={13} />
@@ -646,7 +714,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         />
       )}
 
-      {isOutlineOpen && (
+      {outline && (
         <ChapterPanel
           headers={chapterHeaders}
           candidates={chapterCandidates}
@@ -656,8 +724,13 @@ const BookReader: React.FC<BookReaderProps> = ({
           error={chapterError}
           onJump={jumpToLine}
           onSetOverride={setChapterOverride}
-          onClose={() => setIsOutlineOpen(false)}
+          autoFocusSearch={outline.focusSearch}
+          onClose={() => setOutline(null)}
         />
+      )}
+
+      {isPaletteOpen && (
+        <CommandPalette commands={paletteCommands} onClose={() => setIsPaletteOpen(false)} />
       )}
     </div>
   );
