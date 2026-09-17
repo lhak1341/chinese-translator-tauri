@@ -6,6 +6,8 @@
 
 **Option/Alt-modified digit hotkeys must match `event.code` (`'Digit1'`...), never `event.key`** — macOS remaps Option+digit to a different character per keyboard layout (Option+1 → `¡` on US layout), so `.key` matching silently breaks for most users; `.code` is the physical key, immune to modifier remapping.
 
+**One action, one call site.** `Cmd+B` (`bindDictionaries`) is registered in `TabbedInterface`, so also passing `onBindDictionaries` to `BookReader`'s `<HotkeyHandler>` fires `openDialog` twice on one press — grep the action name before wiring a handler prop. And anything that _shows_ a binding (the Reader's palette hints, `docs/HOTKEYS.md`) is a second copy of the dispatch table: assert it against `matchHotkey` (`PaletteCommands.test.ts` parses each hint back into its keypress), or a changed binding leaves the UI advertising a dead key.
+
 **All `TabbedInterface` tabs are always mounted** (visibility toggled via CSS `visibility`, not conditional render) — so a hotkey pressed on one tab can imperatively trigger another always-mounted tab's component via a `forwardRef`/`useImperativeHandle` (see `RulesManagerHandle`, mirrors the older `dictionarySearchRef` precedent), without needing a second instance of that component's own state hooks. Any modal opened this way (target tab not switched to) must render via `createPortal(..., document.body)` — a plain nested overlay inherits `visibility: hidden` from the still-hidden tab-panel ancestor despite `position: fixed`.
 
 ## Memo-Regression Tests Need Their Own File
@@ -124,9 +126,9 @@ Each concern below is owned by an extracted hook — use its named ops, never re
 
 Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of `error instanceof Error ? error.message : 'Unknown error'` — the inline form misses `string`, `{ message }`, and `null` inputs.
 
-## Appearance Style Memos — Static Constants
+## Appearance Travels as CSS Variables, Never as State
 
-`sharedTextStyle`, `inputTextStyle`, `outputTextStyle`, `characterOnlyTextStyle` in `Translator.jsx` use CSS variable string values (e.g. `'var(--chinese-text-font, ...)'`) with deps `[]` — static constants, not derived from `appearance` state. `useAppearanceSettings` is called only from `AppearanceManager.tsx`. Do not move these into the hook. See ADR-024.
+`useAppearanceSettings` is called only from `AppearanceManager.tsx`; everything else receives appearance as custom properties written to `document.documentElement` by `applyAppearanceToCssVars` (ADR-024). Two consequences. **Anything the browser re-renders needs no wiring** — `Translator.jsx`'s `sharedTextStyle`/`inputTextStyle`/`outputTextStyle`/`characterOnlyTextStyle` are `var(...)` strings with deps `[]`, static constants, not derived from `appearance`; do not move them into the hook. **Anything that measures in JS must watch for the write itself** — a font change leaves every box exactly as wide as it was, so `ResizeObserver` reports nothing and a cached measurement silently keeps the old geometry (`useAppearanceVersion` watches the root style attribute; `useColumnMetrics` re-measures, and `useAppearanceRelayout` drops the Reader virtualizers' caches and restores the anchor). Matching the Translator's typography means reading those inline objects — `lineHeight: '1.5'`, `fontSize: '1.25rem'`, `padding: '1.5rem'` in `sharedTextStyle` — plus `.panel` in `TranslatorDisplayPanels.module.css` (`--surface-color`, 1px `--border-color`, `--radius-lg`, 1rem inset); the CSS modules alone do not carry them.
 
 ## Table Toolbar Building Blocks — `SearchFilterHeader.tsx`
 

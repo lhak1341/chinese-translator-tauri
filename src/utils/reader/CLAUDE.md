@@ -37,6 +37,8 @@ Test files are excluded from `tsc` (see root `CLAUDE.md`), so a fixture literal 
 
 `@tanstack/react-virtual` v3: `virtualizer.measurementsCache` is the public per-index array (measured where mounted, `estimateSize` elsewhere) — `getMeasurements()` is private, and `getOffsetForIndex()` clamps to the max scroll offset, so it is wrong for a raw row top and right for a scroll target.
 
+**Any number the estimate depends on that Appearance owns must be measured, not hardcoded.** `useColumnMetrics` reads the panel's font size and its `--reader-paragraph-spacing` back off the scroll element; a fixed 30px line height under-estimated every unvisited region by a quarter once the font could be 1.25rem. Reading a custom property back needs unit resolution — `getComputedStyle` returns the authored token (`1rem`), not a used pixel value, hence `cssLengthToPx`. Row spacing is `padding`, never `margin`: resize observations exclude margins, so a margin makes every row under-report its height and the error compounds down the document.
+
 **Unmeasured rows are estimated per index, never by a fixed height.** `estimateRowSize` scales the line's Chinese character count by the panel's own `emPerChar` and biases it slightly upward. A fixed skeleton height fails differently in kind, not degree: its error is systematic, so long lines are underestimated every time and the error accumulates monotonically down the document instead of cancelling.
 
 ## The binding is the authority; the config keys it writes are a cache
