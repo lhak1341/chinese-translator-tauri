@@ -461,7 +461,7 @@
 .readerReference {
   display: flex;
   flex-direction: column;
-  flex: 0 0 42%;
+  flex: 0 0 33%;
   min-width: 0;
   gap: 1rem;
 }
@@ -606,7 +606,9 @@
 .readerLine {
   margin: 0;
   padding: 0 0 var(--reader-paragraph-spacing, 1rem);
-  line-height: 1.85;
+  /* The Translator's text panels, exactly: its shared text style is `lineHeight: '1.5'`.
+     `useReaderPanel` holds the same number as a ratio for unmeasured rows. */
+  line-height: 1.5;
   color: var(--text-color);
   white-space: pre-wrap;
   overflow-wrap: break-word;
