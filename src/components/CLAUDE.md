@@ -2,7 +2,7 @@
 
 ## Hotkey Architecture
 
-`useHotkeyHandler` has two call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts) and `Translator.jsx` via `<HotkeyHandler>` component (Translator-tab shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, Translator-tab hotkeys to `HotkeyHandler` props. Key→action dispatch table lives in `src/utils/ui/HotkeyDispatchTable.ts` (`matchHotkey`) — add/change shortcuts there, not in the hook body. **Tab shortcuts are the exception: `src/constants/tabs.ts`'s `TAB_ORDER` is their single source** — the nav bar and `Option/Alt+digit` both derive from it by index, so a tab's shortcut is its position in that array and reordering needs one edit, not two. The bindings stay pinned literally in `HotkeyDispatchTable.test.ts` on purpose: they live in muscle memory, so a reorder must fail a test rather than silently follow the array.
+`useHotkeyHandler` has three call sites — `TabbedInterface.tsx` (tab switching + Dictionary-tab shortcuts), and `Translator.jsx` and `reader/BookReader.tsx` via the `<HotkeyHandler>` component (their own tab's shortcuts). Add Dictionary-tab hotkeys to `TabbedInterface`, per-tab ones to that tab's `HotkeyHandler` props. **Every call site is listening at once** — each passes its own tab id (and `undefined` while it is the background tab), so tab identity is the only thing stopping two of them answering the same key; a handler registered without that gate fires from a hidden tab. Key→action dispatch table lives in `src/utils/ui/HotkeyDispatchTable.ts` (`matchHotkey`) — add/change shortcuts there, not in the hook body. The one thing that stays in the hook is **which tabs a quick-add-shaped action is allowed on** (`QUICK_ADD_TABS`/`NEW_RULE_TABS` in `useHotkeyHandler.ts`): `matchHotkey` is pure and cannot know whether a callback is wired, and these actions share one clipboard-copy path rather than one key. **Tab shortcuts are the exception: `src/constants/tabs.ts`'s `TAB_ORDER` is their single source** — the nav bar and `Option/Alt+digit` both derive from it by index, so a tab's shortcut is its position in that array and reordering needs one edit, not two. The bindings stay pinned literally in `HotkeyDispatchTable.test.ts` on purpose: they live in muscle memory, so a reorder must fail a test rather than silently follow the array.
 
 **Option/Alt-modified digit hotkeys must match `event.code` (`'Digit1'`...), never `event.key`** — macOS remaps Option+digit to a different character per keyboard layout (Option+1 → `¡` on US layout), so `.key` matching silently breaks for most users; `.code` is the physical key, immune to modifier remapping.
 
@@ -11,10 +11,6 @@
 ## Memo-Regression Tests Need Their Own File
 
 Testing "does React.memo actually skip a re-render" requires `vi.mock`ing the child with a spy double — but that mock also poisons any sibling test in the same file asserting the real child's rendered output (className, styles). Isolate into a new file (e.g. `SegmentedParagraphs.memoization.test.tsx` alongside `SegmentedParagraphs.test.tsx`) rather than mocking inside the existing behavioral test file.
-
-## Testing components that use `react-resizable-panels`
-
-`Panel`/`Group`/`Separator` construct `window.ResizeObserver` directly, unguarded — jsdom has none and `src/test/setup.ts` doesn't mock it. Mock the trio as trivial pass-throughs (`({children}) => <>{children}</>`) rather than rendering them for real. Found testing `TranslatorDisplayPanels.tsx`.
 
 **Hook call order in `Translator.jsx`:** which hook's output feeds which other hook (e.g. `executionCtx`/`forceReloadCtx`'s multi-hook fan-in) is documented in-file, in the SECTION 2 banner comment near the top of `Translator.jsx` (architecture review 2026-07-30, candidate #4) — not just in this file's per-hook rules below.
 
@@ -35,7 +31,7 @@ Known instances:
 
 **eslint's `exhaustive-deps` only recognizes a ref created by `useRef` in the same component** — a ref handed back from a custom hook is an ordinary value to it, so list it in the dep array rather than fighting the rule; it is as stable as any other ref (`useReaderPanel`'s `scrollRef`, consumed by `BookReader.tsx`).
 
-**jsdom doesn't implement several DOM APIs — stub via `Object.defineProperty`/`vi.spyOn`, never assume real behavior.** Confirmed: `navigator.clipboard`/`window.getSelection` (`useHotkeyHandler.ts`'s clipboard quick-add path, NOT `window.electronAPI.readClipboard` — that's `useClipboardTranslation`'s path); `Element.isContentEditable` (always `false` regardless of the `contenteditable` attribute — `useChapterHotkeys.ts`'s input-focus guard); scroll geometry — `scrollTop` is a real settable property on a detached element, but `scrollHeight`/`clientHeight` are always `0` and no scroll event ever fires, so a scroll test stubs both sizes and dispatches the echo itself (`usePanelSync.test.ts`).
+**jsdom doesn't implement several DOM APIs — stub via `Object.defineProperty`/`vi.spyOn`, never assume real behavior.** Confirmed: `navigator.clipboard`/`window.getSelection` (`useHotkeyHandler.ts`'s clipboard quick-add path, NOT `window.electronAPI.readClipboard` — that's `useClipboardTranslation`'s path); `Element.isContentEditable` (always `false` regardless of the `contenteditable` attribute — `useChapterHotkeys.ts`'s input-focus guard); scroll geometry — `scrollTop` is a real settable property on a detached element, but `scrollHeight`/`clientHeight` are always `0` and no scroll event ever fires, so a scroll test stubs both sizes and dispatches the echo itself (`usePanelSync.test.ts`); `ResizeObserver` — `react-resizable-panels`' `Panel`/`Group`/`Separator` construct it directly and unguarded and `src/test/setup.ts` doesn't mock it, so mock those three as trivial pass-throughs (`({children}) => <>{children}</>`) rather than rendering them for real (`TranslatorDisplayPanels.tsx`).
 
 ## React State Updater Rules
 
@@ -138,9 +134,11 @@ Use `extractErrorMessage(error)` (`src/utils/errors/errorHelpers.ts`) instead of
 
 **6th instance found and closed 2026-09-09** (architecture review candidate #5 grilling): `FilterDimensionRow` (same file) is now the single owner of one labeled filter dimension's markup inside a `FilterPanel` — the `<div style={{display:'flex',...}}><span style={{...label style...}}>LABEL:</span>{chips}</div>` wrapper was hand-copied 4 times in `EnhancedVirtualizedDictionaryTable.tsx` (Pattern/Flags/Variable/Type), plus a 5th, narrower instance in `RulesManager.tsx` that shared only the label-span style (no wrapping div, since a single-dimension panel has nothing to wrap-group against `FilterPanel`'s own `flexWrap`). Both now call `FilterDimensionRow` — a real 2nd caller-file existed already, unlike a purely hypothetical one-file dedup.
 
-## New Context Providers — Memoize the Value, Transitively
+## New Context Providers
 
 A `createContext` provider's `value` must be wrapped in `useMemo`, and every function inside it — including ones returned by a wrapped hook, not just ones declared locally — must be `useCallback`-stable, or the memoization is defeated at its root and every consumer re-renders on every provider re-render. `DictionaryContext.tsx` does this correctly; `EngineContext.jsx` initially didn't (missed on first pass despite reading the sibling file — the convention lives at the return statement, not the exports).
+
+**A provider mounted above `TabbedInterface` is a test change too, and its failures point at the wrong file.** Components here are rendered in isolation with their contexts `vi.mock`ed, so a new provider obligates a mock in every existing test file that renders a consumer — and that mock must return _every_ field consumers destructure. A missing field is spread inside the consumer's own `useMemo`, so the stack blames the consumer, not the mock that omitted it. `BookBindingContext` hit both halves: two test files needed new mocks, then a later field addition failed 16 tests pointing at `useDictionaryConfigManagement.ts`.
 
 ## Global Singleton Lifecycle — `performanceHealth` / `systemPerformanceMonitor`
 
