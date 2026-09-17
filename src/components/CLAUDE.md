@@ -33,7 +33,9 @@ Known instances:
 
 **Two async fetches keyed by the same identifier (e.g. a book fingerprint) can race** — a same-key check alone can't tell which one _started_ more recently, only that they share a key. Guard with a shared `requestIdRef` counter incremented per fetch, applied only if it still matches on resolution. `useChapterOutline.ts`: a mount-effect fetch and a `setOverride` fetch both write `headers` for the same fingerprint; without this, a slower mount-fetch resolving after a faster override-fetch silently clobbers the user's choice.
 
-**jsdom doesn't implement several DOM APIs — stub via `Object.defineProperty`/`vi.spyOn`, never assume real behavior.** Confirmed: `navigator.clipboard`/`window.getSelection` (`useHotkeyHandler.ts`'s clipboard quick-add path, NOT `window.electronAPI.readClipboard` — that's `useClipboardTranslation`'s path); `Element.isContentEditable` (always `false` regardless of the `contenteditable` attribute — `useChapterHotkeys.ts`'s input-focus guard).
+**eslint's `exhaustive-deps` only recognizes a ref created by `useRef` in the same component** — a ref handed back from a custom hook is an ordinary value to it, so list it in the dep array rather than fighting the rule; it is as stable as any other ref (`useReaderPanel`'s `scrollRef`, consumed by `BookReader.tsx`).
+
+**jsdom doesn't implement several DOM APIs — stub via `Object.defineProperty`/`vi.spyOn`, never assume real behavior.** Confirmed: `navigator.clipboard`/`window.getSelection` (`useHotkeyHandler.ts`'s clipboard quick-add path, NOT `window.electronAPI.readClipboard` — that's `useClipboardTranslation`'s path); `Element.isContentEditable` (always `false` regardless of the `contenteditable` attribute — `useChapterHotkeys.ts`'s input-focus guard); scroll geometry — `scrollTop` is a real settable property on a detached element, but `scrollHeight`/`clientHeight` are always `0` and no scroll event ever fires, so a scroll test stubs both sizes and dispatches the echo itself (`usePanelSync.test.ts`).
 
 ## React State Updater Rules
 

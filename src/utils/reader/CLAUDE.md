@@ -1,8 +1,8 @@
 # src/utils/reader — Gotchas
 
-## BookRecord field additions touch six sites, not one
+## A required field added to a shared type lands silently in every test fixture
 
-Adding a field to `BookRecord` (`src/types/ReaderTypes.ts`) requires updating: the type itself; `BookRecordValidation.ts`'s `validateBookRecord` (parse the raw field, decide its repair-to-default); `BookRecordsBackend.ts`'s `recordBookOpened` (preserve the existing value when refreshing cached fields under the same fingerprint); `ReconcileLibrary.ts`'s `applyReconciliation` (preserve on relink/rename); and every test file with a `makeRecord`/`rawRecord` fixture literal (`BookRecordValidation.test.ts`, `BookRecordsBackend.test.ts`, `ReconcileLibrary.test.ts`) — a fixture missing the field type-checks fine (test files are excluded from `tsc`, see root `CLAUDE.md`) but silently drifts from what production code actually returns.
+Test files are excluded from `tsc` (see root `CLAUDE.md`), so a fixture literal missing a newly required field type-checks fine and silently drifts from what production code actually returns — grep the type's name for fixture literals as part of the change, not after. `CachedChunk.characterOnlyText` hit this; `BookRecord` (`src/types/ReaderTypes.ts`) is the expensive case, needing six sites: the type itself; `BookRecordValidation.ts`'s `validateBookRecord` (parse the raw field, decide its repair-to-default); `BookRecordsBackend.ts`'s `recordBookOpened` (preserve the existing value when refreshing cached fields under the same fingerprint); `ReconcileLibrary.ts`'s `applyReconciliation` (preserve on relink/rename); and the `makeRecord`/`rawRecord` fixtures in `BookRecordValidation.test.ts`, `BookRecordsBackend.test.ts` and `ReconcileLibrary.test.ts`.
 
 ## Windowed translation is four seams that must stay wired together
 
@@ -34,5 +34,7 @@ Adding a field to `BookRecord` (`src/types/ReaderTypes.ts`) requires updating: t
 **The followers do not scroll themselves.** The translation panel is the scroll master; the reference panels are `overflow: hidden` (`.readerFollower`) and move only when the sync writes them — a wheel over one is forwarded to the master instead. That is what keeps the measurement resync (`resync()` on any panel's total size changing) from fighting a drag: a follower's rows measure as it moves, and if the reader could also drag it, that resync would snap it back mid-gesture.
 
 **The character-only gloss is a second engine pass, run after the translation is published.** `useWindowedTranslation` sets the chunk with `characterOnlyText: null`, rebuilds, and only then calls `translateGloss` — folding both into one `translateChunk` doubles the latency of every window fill for a panel that is reference material. A `null` gloss is left out of the assembled lines entirely; assembling it as `''` would blank the reference panel instead of leaving the Chinese showing.
+
+`@tanstack/react-virtual` v3: `virtualizer.measurementsCache` is the public per-index array (measured where mounted, `estimateSize` elsewhere) — `getMeasurements()` is private, and `getOffsetForIndex()` clamps to the max scroll offset, so it is wrong for a raw row top and right for a scroll target.
 
 **Unmeasured rows are estimated per index, never by a fixed height.** `estimateRowSize` scales the line's Chinese character count by the panel's own `emPerChar` and biases it slightly upward. A fixed skeleton height fails differently in kind, not degree: its error is systematic, so long lines are underestimated every time and the error accumulates monotonically down the document instead of cancelling.
