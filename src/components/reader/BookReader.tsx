@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, BookMarked, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type {
   ChapterOutlineSummary,
@@ -7,6 +7,13 @@ import type {
   OpenBook,
   ReadingPosition,
 } from '../../types/ReaderTypes';
+import { logger } from '../../utils/logger';
+import { requestDictionaryReload } from '../../utils/dictionary';
+import { useDictionary } from '../dictionary/DictionaryContext';
+import { useDictionaryModals } from '../../hooks/useDictionaryModals';
+import { useReloadReanchor } from '../../hooks/useReloadReanchor';
+import HotkeyHandler from '../HotkeyHandler';
+import AddEntryBar from './AddEntryBar';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
 import { countVisibleLines, nextViewportLines } from '../../utils/reader/TranslationWindow';
@@ -21,6 +28,7 @@ import {
   fictionDisplayName,
   suggestFictionDictionary,
 } from '../../utils/reader/FictionDictionarySuggestion';
+import { boundQuickAddTargets } from '../../utils/reader/BoundQuickAddTargets';
 import { useBookBinding } from '../BookBindingContext';
 import BindingBanner from './BindingBanner';
 import BindingDialog from './BindingDialog';
@@ -124,6 +132,10 @@ const BookReader: React.FC<BookReaderProps> = ({
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
   const [viewportLines, setViewportLines] = useState(DEFAULT_VIEWPORT_LINES);
   const [anchorLine, setAnchorLine] = useState(0);
+  /** The anchor at full precision (line + sub-line fraction), kept live for the reload
+   * re-anchor — which needs the value as of the moment the reload lands, not as of
+   * whatever render last read it. */
+  const anchorRef = useRef<ReadingPosition | null>(null);
   const { engineRef, enginePhase, engineVersion } = useEngine();
   const {
     binding,
@@ -221,7 +233,12 @@ const BookReader: React.FC<BookReaderProps> = ({
     const visible = countVisibleLines(rows, scrollEl.scrollTop, scrollEl.clientHeight);
     setViewportLines((previous) => nextViewportLines(previous, visible));
     const anchor = computeAnchor(scrollEl.scrollTop, rows);
-    if (anchor) setAnchorLine(anchor.line);
+    if (anchor) {
+      setAnchorLine(anchor.line);
+      // The line alone drives the translation bands; the fraction only matters to the
+      // reload re-anchor, which needs the same precision the persisted position has.
+      anchorRef.current = anchor;
+    }
     // `scrollRef` comes from `useReaderPanel` rather than a local `useRef`, so the lint
     // rule cannot tell it is a ref — it is listed, and is as stable as any other ref.
   }, [scrollRef, virtualizer]);
@@ -346,6 +363,57 @@ const BookReader: React.FC<BookReaderProps> = ({
     onNext: () => goToChapter(1),
   });
 
+  // The add-entry shortcut family, reused: the same hook the Translator's modal is driven
+  // by, so Cmd-1..6 resolve the same targets here as there — including the two that mean
+  // "the active fiction's dictionaries", which the open book's binding is what makes
+  // reliable. Only the surface differs; see `AddEntryBar`.
+  const { dictionaries } = useDictionary();
+  const {
+    showQuickAdd,
+    quickAddDictionary,
+    clipboardText,
+    openQuickAdd,
+    openQuickAddCharacter,
+    openQuickAddPhrase,
+    openQuickAddProperNoun,
+    openQuickAddPattern,
+    openQuickAddCustomProperNoun,
+    openQuickAddCustomStructuralPattern,
+    closeQuickAdd,
+  } = useDictionaryModals(dictionaries);
+
+  // The two members of the family that mean "the active fiction's dictionaries" are
+  // answered from the open book's binding, not from the config key the binding happens to
+  // have written — so the bar's label and its destination cannot disagree when that write
+  // failed. An unbound book falls through to the config-driven resolvers, which own the
+  // reporting for having no fiction dictionary at all.
+  const boundTargets = useMemo(
+    () => boundQuickAddTargets(binding?.fictionDictionary ?? null, dictionaries),
+    [binding, dictionaries]
+  );
+
+  const openBoundProperNoun = useCallback(
+    async (text?: string): Promise<void> => {
+      if (boundTargets.properNouns) {
+        openQuickAdd(boundTargets.properNouns, text ?? '');
+        return;
+      }
+      await openQuickAddCustomProperNoun(text);
+    },
+    [boundTargets.properNouns, openQuickAdd, openQuickAddCustomProperNoun]
+  );
+
+  const openBoundStructuralPattern = useCallback(
+    async (text?: string): Promise<void> => {
+      if (boundTargets.structuralPatterns) {
+        openQuickAdd(boundTargets.structuralPatterns, text ?? '');
+        return;
+      }
+      await openQuickAddCustomStructuralPattern(text);
+    },
+    [boundTargets.structuralPatterns, openQuickAdd, openQuickAddCustomStructuralPattern]
+  );
+
   // Fetch the pages covering what is about to be painted. Running after render (rather
   // than inside it) keeps the fetch out of the render pass; the rows it fills in arrive
   // as a state update on the next tick. The deps are the two indices, not the row array:
@@ -370,6 +438,18 @@ const BookReader: React.FC<BookReaderProps> = ({
   useEffect(() => {
     resync();
   }, [translationTotalSize, originalTotalSize, characterTotalSize, resync]);
+
+  // Steps 1 and 5 of a reload in the Reader: capture the anchor, and scroll back to it
+  // once the chunk cache has been invalidated and the fetch band re-translated. Steps 2-4
+  // are the reload itself plus `engineVersion` reaching `useWindowedTranslation`.
+  useReloadReanchor({
+    engineVersion,
+    isEnabled: isActive,
+    anchorRef,
+    scrollRef,
+    virtualizer,
+    lineCount: book.lineCount,
+  });
 
   const handleScroll = useCallback((): void => {
     onScroll();
@@ -398,6 +478,27 @@ const BookReader: React.FC<BookReaderProps> = ({
 
   return (
     <div className={styles.reader}>
+      {/* `activeTab` is left unset while the Reader is in the background, exactly as the
+          Translator does it: every tab stays mounted, so the tab identity is what keeps
+          two registered handlers from both answering the same key. */}
+      <HotkeyHandler
+        activeTab={isActive ? 'reader' : undefined}
+        onQuickAdd={openQuickAddProperNoun}
+        onQuickAddCharacter={openQuickAddCharacter}
+        onQuickAddPhrase={openQuickAddPhrase}
+        onQuickAddProperNoun={openQuickAddProperNoun}
+        onQuickAddPattern={openQuickAddPattern}
+        onQuickAddCustomProperNoun={openBoundProperNoun}
+        onQuickAddCustomStructuralPattern={openBoundStructuralPattern}
+        onReloadDictionary={() => {
+          // The owner reports its own failures (toast + status); this catch only keeps a
+          // rejection from escaping as an unhandled one.
+          requestDictionaryReload().catch((cause: unknown) => {
+            logger.error('Reader-triggered dictionary reload failed:', cause);
+          });
+        }}
+      />
+
       <div className={styles.readerHeader}>
         <button onClick={onBack} className={styles.secondaryButton}>
           <ArrowLeft size={14} />
@@ -517,6 +618,14 @@ const BookReader: React.FC<BookReaderProps> = ({
           onScroll={handleScroll}
         />
       </div>
+
+      {showQuickAdd && (
+        <AddEntryBar
+          source={clipboardText}
+          dictionaryId={quickAddDictionary}
+          onClose={closeQuickAdd}
+        />
+      )}
 
       {isDialogOpen && (
         <BindingDialog

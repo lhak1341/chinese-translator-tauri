@@ -7,6 +7,7 @@ import { useTranslationController } from '../hooks/useTranslationController';
 import { TOAST_DURATIONS, TOAST_IDS } from '../constants/toastConfig';
 import { UI_TIMEOUTS } from '../constants/TranslationConstants';
 import { useDictionary } from './dictionary/DictionaryContext';
+import { registerDictionaryReload } from '../utils/dictionary';
 import HotkeyHandler from './HotkeyHandler';
 import DictionaryEntry from './dictionary/DictionaryEntry';
 import ModalErrorBoundary from './ModalErrorBoundary';
@@ -858,6 +859,14 @@ const Translator = ({ isActive = true }) => {
     isLoading,
     dictionaries
   );
+
+  // Publish the reload so the Reader's Cmd/Ctrl+R triggers *this* action rather than a
+  // second implementation of it — see DictionaryReloadRegistry for why it's a registry
+  // and not a context.
+  useEffect(() => {
+    registerDictionaryReload(handleForceReload);
+    return () => registerDictionaryReload(null);
+  }, [handleForceReload]);
 
   // Memoized style definitions to prevent re-creation on every render
   const sharedTextStyle = useMemo(

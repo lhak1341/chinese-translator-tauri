@@ -800,3 +800,57 @@
   gap: 0.5rem;
   flex-shrink: 0;
 }
+
+/* ── Add-entry bar ─────────────────────────────────────────────────────────────
+   Floats over the bottom of the reading view rather than taking a row in the
+   column: the three panels keep their height, so the Chinese line the term came
+   from is still on screen while the translation is typed. */
+
+.addEntryBar {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--primary-color);
+  border-radius: 0.4rem;
+  background: var(--background-color);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.addEntryDictionary {
+  flex-shrink: 0;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.addEntryInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+.addEntrySource {
+  flex: 0 1 12rem;
+}
+
+.addEntryError {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--error-color, #b3261e);
+}

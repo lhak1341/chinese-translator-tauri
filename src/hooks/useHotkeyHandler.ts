@@ -6,6 +6,24 @@ import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 import toast from '../utils/toast';
 
+/**
+ * Tabs on which the add-entry shortcut family means "add a dictionary entry".
+ *
+ * `matchHotkey` only knows that Cmd-1..6 mean something else on the Dictionary tab; this
+ * is what keeps them from firing on Rules/Configuration/Appearance, where the modal would
+ * open behind a `visibility: hidden` panel. The Reader is on the list because its
+ * floating add-entry bar is the same family reused — see `AddEntryBar`.
+ */
+const QUICK_ADD_TABS: readonly TabId[] = ['translator', 'reader'];
+
+/** Cmd-7 opens the Rules tab's new-rule form, which the Reader has no equivalent of. */
+const NEW_RULE_TABS: readonly TabId[] = ['translator'];
+
+/** A background tab passes no id at all, which is never allowed anywhere. */
+function isAllowedTab(tab: TabId | undefined, allowed: readonly TabId[]): boolean {
+  return tab !== undefined && allowed.includes(tab);
+}
+
 export interface HotkeyHandlerOptions {
   onTranslateFromClipboard?: () => void;
   onUndo?: () => void;
@@ -33,10 +51,10 @@ export interface HotkeyHandlerOptions {
  *
  * Keyboard Shortcuts:
  * - Option/Alt+1-5: Switch tabs (Translator/Dictionary/Rules/Configuration/Appearance)
- * - Cmd/Ctrl+1-5: Quick add to different dictionaries (Translator tab) / Switch dictionary (Dictionary tab)
+ * - Cmd/Ctrl+1-5: Quick add to different dictionaries (Translator and Reader tabs) / Switch dictionary (Dictionary tab)
  * - Cmd/Ctrl+7: Switch to Rules tab and open the new-rule form, prefilled with the
  *   clipboard/selection text as the Key (Translator tab only, like the quick-add keys)
- * - Cmd/Ctrl+R: Reload dictionary (Translator tab only)
+ * - Cmd/Ctrl+R: Reload dictionary (Translator and Reader tabs — one shared action)
  * - Cmd/Ctrl+B: Bind dictionaries for the open book (Reader tab only)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
  * - Cmd/Ctrl+Z: Undo
@@ -70,9 +88,14 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
     const handleQuickAdd = async (
       event: KeyboardEvent,
       callback: ((text?: string) => void | Promise<void>) | undefined,
-      label: string
+      label: string,
+      allowedTabs: readonly TabId[] = QUICK_ADD_TABS
     ): Promise<void> => {
-      if (optionsRef.current.activeTab !== 'translator') return;
+      if (!isAllowedTab(optionsRef.current.activeTab, allowedTabs)) return;
+      // Several handlers are registered at once (the tab container, the Translator, the
+      // Reader) and only one of them wires any given action. Without this, the others
+      // still run the clipboard round-trip below to feed a callback that isn't there.
+      if (!callback) return;
       event.preventDefault();
       try {
         const copied = await copySelectedText();
@@ -92,7 +115,11 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           opts.onTabSwitch?.(action.tab);
           break;
         case 'quickAdd':
-          opts.onQuickAdd?.();
+          // Gated like the rest of the family. `matchHotkey` returns this for every tab,
+          // so without the check Cmd+Shift+N on Rules/Configuration opens the
+          // Translator's modal behind a hidden panel — and, now that the Reader
+          // registers the family too, would open both at once.
+          if (isAllowedTab(opts.activeTab, QUICK_ADD_TABS)) opts.onQuickAdd?.();
           break;
         case 'translateFromClipboard':
           opts.onTranslateFromClipboard?.();
@@ -138,7 +165,7 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           opts.onBindDictionaries?.();
           break;
         case 'openNewRule':
-          await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule');
+          await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule', NEW_RULE_TABS);
           break;
       }
     };

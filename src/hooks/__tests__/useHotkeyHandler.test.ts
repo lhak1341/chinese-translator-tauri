@@ -80,7 +80,7 @@ describe('useHotkeyHandler', () => {
 
     test('Cmd+Shift+N calls onQuickAdd', async () => {
       const onQuickAdd = vi.fn();
-      renderHook(() => useHotkeyHandler({ onQuickAdd }));
+      renderHook(() => useHotkeyHandler({ onQuickAdd, activeTab: 'translator' }));
       fireKey({ key: 'n', shiftKey: true });
       await flush();
       expect(onQuickAdd).toHaveBeenCalledTimes(1);
@@ -185,6 +185,45 @@ describe('useHotkeyHandler', () => {
 
       expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
       expect(onQuickAddCharacter).not.toHaveBeenCalled();
+    });
+
+    test('reader tab: the quick-add family fires there too, unchanged', async () => {
+      setSelection('太岳山脉');
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue('太岳山脉');
+      const onQuickAddProperNoun = vi.fn();
+
+      renderHook(() => useHotkeyHandler({ onQuickAddProperNoun, activeTab: 'reader' }));
+      fireKey({ key: '3' });
+      await flush();
+
+      expect(onQuickAddProperNoun).toHaveBeenCalledWith('太岳山脉');
+    });
+
+    test('Cmd+Shift+N on the reader tab calls onQuickAdd', async () => {
+      const onQuickAdd = vi.fn();
+      renderHook(() => useHotkeyHandler({ onQuickAdd, activeTab: 'reader' }));
+      fireKey({ key: 'n', shiftKey: true });
+      await flush();
+      expect(onQuickAdd).toHaveBeenCalledTimes(1);
+    });
+
+    test('Cmd+Shift+N on a tab with no add-entry surface does not call onQuickAdd', async () => {
+      const onQuickAdd = vi.fn();
+      renderHook(() => useHotkeyHandler({ onQuickAdd, activeTab: 'rules' }));
+      fireKey({ key: 'n', shiftKey: true });
+      await flush();
+      expect(onQuickAdd).not.toHaveBeenCalled();
+    });
+
+    test('Cmd+7 on the reader tab: onOpenNewRule is not called (no new-rule form there)', async () => {
+      setSelection('太岳山脉');
+      const onOpenNewRule = vi.fn();
+
+      renderHook(() => useHotkeyHandler({ onOpenNewRule, activeTab: 'reader' }));
+      fireKey({ key: '7' });
+      await flush();
+
+      expect(onOpenNewRule).not.toHaveBeenCalled();
     });
 
     test('Cmd+7 on translator tab: onOpenNewRule receives clipboard text, same as other quick-add keys', async () => {

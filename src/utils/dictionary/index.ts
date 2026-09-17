@@ -87,5 +87,8 @@ export {
   resolveAndVerifyStructuralPatternTarget,
 } from './QuickAddTargetResolver';
 
+// --- Dictionary reload (one action, triggered from the Translator or the Reader) ---
+export { registerDictionaryReload, requestDictionaryReload } from './DictionaryReloadRegistry';
+
 // --- Engine-facing dictionary filtering ---
 export { filterDictionariesForEngine } from './FictionDictionaryFilter';

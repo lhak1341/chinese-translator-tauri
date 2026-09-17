@@ -106,8 +106,13 @@ export function matchHotkey(
         return activeTab === 'dictionary' ? { type: 'focusSearch' } : null;
       case 'z':
         return canUndo ? { type: 'undo' } : null;
+      // The Reader shares the Translator's reload, not a variant of it: the action is
+      // "throw the engine away and rebuild it from disk", and the Reader's whole
+      // revise-and-see-it loop is that action plus re-anchoring afterwards.
       case 'r':
-        return activeTab === 'translator' ? { type: 'reloadDictionary' } : null;
+        return activeTab === 'translator' || activeTab === 'reader'
+          ? { type: 'reloadDictionary' }
+          : null;
       case 'b':
         return activeTab === 'reader' ? { type: 'bindDictionaries' } : null;
     }

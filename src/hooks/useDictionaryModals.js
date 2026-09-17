@@ -112,6 +112,10 @@ export function useDictionaryModals(dictionaries) {
 
   return {
     modalState,
+    // Exposed for a caller that already knows its target and must not ask config for it —
+    // the Reader resolves Cmd-5/Cmd-6 from the open book's binding instead. See
+    // `utils/reader/BoundQuickAddTargets.ts`.
+    openQuickAdd,
     showQuickAdd: modalState.isOpen,
     quickAddDictionary: modalState.dictionaryId,
     clipboardText: modalState.text,

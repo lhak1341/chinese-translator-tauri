@@ -41,6 +41,12 @@ describe('matchHotkey guards', () => {
     expect(matchHotkey(key('1', { meta: true }), ctx({ isInputFocused: true }))).toBeNull();
   });
 
+  it('returns null for a quick-add key while the Reader add-entry input has focus', () => {
+    expect(
+      matchHotkey(key('1', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+    ).toBeNull();
+  });
+
   it('returns null when no meta or ctrl', () => {
     expect(matchHotkey(key('1'), ctx())).toBeNull();
   });
@@ -231,8 +237,20 @@ describe('reloadDictionary', () => {
     });
   });
 
+  it('Cmd+R on reader tab → reloadDictionary (the same action, not a Reader variant)', () => {
+    expect(matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'reader' }))).toEqual({
+      type: 'reloadDictionary',
+    });
+  });
+
   it('Cmd+R on dictionary tab → null', () => {
     expect(matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'dictionary' }))).toBeNull();
+  });
+
+  it('Cmd+R on the reader tab while the add-entry input has focus → null', () => {
+    expect(
+      matchHotkey(key('r', { meta: true }), ctx({ activeTab: 'reader', isInputFocused: true }))
+    ).toBeNull();
   });
 
   it('Cmd+Shift+R → null (shift guard prevents accidental reload)', () => {

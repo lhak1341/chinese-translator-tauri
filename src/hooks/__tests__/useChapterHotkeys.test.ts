@@ -48,6 +48,26 @@ describe('useChapterHotkeys', () => {
     document.body.removeChild(input);
   });
 
+  it('does nothing while the add-entry bar has focus', () => {
+    // The bar opens over the reading view with both panels and the chapter strip still
+    // live behind it, so `[`/`]` are keys the reader is plausibly typing rather than
+    // navigating with — a Vietnamese translation can contain either. `isEditableTarget`
+    // is what keeps a chapter jump from firing mid-edit and losing the term being fixed.
+    const input = document.createElement('input');
+    input.setAttribute('aria-label', 'Translation');
+    document.body.appendChild(input);
+    const onPrevious = vi.fn();
+    const onNext = vi.fn();
+    renderHook(() => useChapterHotkeys({ isActive: true, onPrevious, onNext }));
+
+    dispatchKey('[', { target: input });
+    dispatchKey(']', { target: input });
+
+    expect(onPrevious).not.toHaveBeenCalled();
+    expect(onNext).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
+
   it('does nothing while a content-editable element has focus', () => {
     // jsdom does not implement `isContentEditable` from the `contenteditable` attribute —
     // stub it directly, the same workaround used elsewhere in this codebase for DOM APIs
