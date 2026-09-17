@@ -1,5 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowLeft, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import type {
   ChapterOutlineSummary,
@@ -15,8 +14,12 @@ import { useEngine } from '../EngineContext';
 import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useChapterHotkeys } from '../../hooks/useChapterHotkeys';
+import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
+import { usePanelSync } from '../../hooks/usePanelSync';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
 import ChapterPanel from './ChapterPanel';
+import ReaderPanel from './ReaderPanel';
+import type { PanelRow } from './ReaderPanel';
 import styles from '../../styles/Reader.module.css';
 
 interface BookReaderProps {
@@ -35,14 +38,18 @@ interface BookReaderProps {
 }
 
 /**
- * Starting height guess for an unmeasured row. Every mounted row is measured, so this
- * only has to be close enough that the scrollbar is not absurd while scrolling fast
- * through never-visited regions.
+ * How wide one source Chinese character renders in each panel, in em.
+ *
+ * The Chinese panel is 1 by definition. The other two are Latin text, at roughly half an
+ * em a character: a Chinese character becomes about three Latin characters in running
+ * Vietnamese prose, and about five in the character-only gloss, where every character is
+ * spelled out and space-separated. Calibrated by eye against real chapters — they are the
+ * estimate's only tuning knob, and being wrong costs scrollbar accuracy in unvisited
+ * regions, nothing more.
  */
-const ESTIMATED_ROW_HEIGHT = 30;
-
-/** Rows rendered outside the viewport, so a flick does not expose blank space. */
-const OVERSCAN_ROWS = 24;
+const EM_PER_CHAR_ORIGINAL = 1;
+const EM_PER_CHAR_TRANSLATION = 1.5;
+const EM_PER_CHAR_CHARACTER_ONLY = 2.5;
 
 /**
  * Lines the viewport is assumed to hold before it has been measured once. Only the very
@@ -60,13 +67,35 @@ const DEFAULT_VIEWPORT_LINES = 30;
  */
 const PREFETCH_LINES = 600;
 
+/** Panel identities, as `usePanelSync` names them. */
+const TRANSLATION_PANEL = 'translation';
+const ORIGINAL_PANEL = 'original';
+const CHARACTER_ONLY_PANEL = 'character-only';
+
 /**
- * One scrolling panel of decoded Chinese, virtualized by line.
+ * One row of a Vietnamese panel.
  *
- * Variable-height virtualization is the whole point: lines wrap to different heights and
- * a fixed-height list gets the total wrong by a growing amount down a 75,000-line book.
- * The virtualizer measures each mounted row and keeps the measurement, so scrolling back
- * over ground already covered is as accurate as it was the first time.
+ * Text the reader has not reached yet shows its real Chinese, dimmed, rather than a blank
+ * or a grey bar — scrolling ahead still shows something readable, and the row is measured
+ * at very nearly its final height, so it barely moves when the Vietnamese lands.
+ */
+function vietnameseRow(translated: string | undefined, source: string | undefined): PanelRow {
+  if (translated !== undefined) return { text: translated, isPending: false, lang: 'vi' };
+  return { text: source, isPending: true, lang: 'zh' };
+}
+
+/**
+ * The three-panel reader: the Chinese source and its character-only gloss stacked on the
+ * left, the full translation on the right.
+ *
+ * The full-translation panel is the scroll master and the other two follow, line by line
+ * — see `usePanelSync` for why the mapping is a line index rather than a pixel ratio, and
+ * why the follower writes are animation-frame throttled behind a "who is driving" latch.
+ *
+ * Variable-height virtualization is the whole point of each panel: lines wrap to different
+ * heights and a fixed-height list gets the total wrong by a growing amount down a
+ * 75,000-line book. The virtualizer measures each mounted row and keeps the measurement,
+ * so scrolling back over ground already covered is as accurate as it was the first time.
  */
 const BookReader: React.FC<BookReaderProps> = ({
   book,
@@ -77,7 +106,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   isActive,
   onBack,
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const { getLine, linesVersion, requestRange, error } = useBookLines(
     book.fingerprint,
     book.lineCount
@@ -87,18 +115,77 @@ const BookReader: React.FC<BookReaderProps> = ({
   const [anchorLine, setAnchorLine] = useState(0);
   const { engineRef, enginePhase, engineVersion } = useEngine();
 
-  const virtualizer = useVirtualizer({
-    count: book.lineCount,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ESTIMATED_ROW_HEIGHT,
-    overscan: OVERSCAN_ROWS,
+  // `getLine` is referentially stable and reads through a ref, so this is too — which is
+  // what lets every panel's `estimateSize` stay stable across renders.
+  const charCountAt = useCallback(
+    (index: number): number => getLine(index)?.length ?? 0,
+    [getLine]
+  );
+
+  const translationPanel = useReaderPanel({
+    lineCount: book.lineCount,
+    emPerChar: EM_PER_CHAR_TRANSLATION,
+    charCountAt,
   });
+  const originalPanel = useReaderPanel({
+    lineCount: book.lineCount,
+    emPerChar: EM_PER_CHAR_ORIGINAL,
+    charCountAt,
+  });
+  const characterPanel = useReaderPanel({
+    lineCount: book.lineCount,
+    emPerChar: EM_PER_CHAR_CHARACTER_ONLY,
+    charCountAt,
+  });
+
+  const { scrollRef, virtualizer } = translationPanel;
+
+  const { handleScroll: syncScroll, resync } = usePanelSync({
+    panels: [
+      { id: TRANSLATION_PANEL, scrollRef, metrics: translationPanel.metrics },
+      {
+        id: ORIGINAL_PANEL,
+        scrollRef: originalPanel.scrollRef,
+        metrics: originalPanel.metrics,
+      },
+      {
+        id: CHARACTER_ONLY_PANEL,
+        scrollRef: characterPanel.scrollRef,
+        metrics: characterPanel.metrics,
+      },
+    ],
+    lineCount: book.lineCount,
+    masterId: TRANSLATION_PANEL,
+  });
+
+  /**
+   * A wheel over a follower scrolls the master, which then drives every panel including
+   * the one under the pointer.
+   *
+   * The reference panels do not scroll on their own — the translation panel is the scroll
+   * master and the other two follow, so they are `overflow: hidden` and only ever moved by
+   * a write from the sync. Forwarding the wheel is what keeps them usable anyway: the
+   * reader can point anywhere and scroll, and the master stays the only thing driving.
+   */
+  const forwardWheelToMaster = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>): void => {
+      const scrollEl = scrollRef.current;
+      if (!scrollEl) return;
+      scrollEl.scrollTop += event.deltaY;
+    },
+    [scrollRef]
+  );
 
   /**
    * Publish the anchor and the measured viewport height that the translation bands derive
    * from. The arithmetic — which rows count as visible, when a change is a real resize
    * rather than a row growing under the reader, and which line the anchor is — lives in
    * `TranslationWindow` and `useReadingPosition`; this only supplies the DOM geometry.
+   *
+   * Taken from the master panel, and deliberately not from the cross-panel sync: this is
+   * the durable anchor — persistence, the line display, translation scheduling — and it
+   * has different timing needs from the per-frame pixel writes that keep the followers
+   * level.
    *
    * The anchor is `computeAnchor`'s topmost line *touching the viewport*, not
    * `virtualRows[0].index`: the virtualizer's item list includes `OVERSCAN_ROWS` above the
@@ -113,7 +200,9 @@ const BookReader: React.FC<BookReaderProps> = ({
     setViewportLines((previous) => nextViewportLines(previous, visible));
     const anchor = computeAnchor(scrollEl.scrollTop, rows);
     if (anchor) setAnchorLine(anchor.line);
-  }, [virtualizer]);
+    // `scrollRef` comes from `useReaderPanel` rather than a local `useRef`, so the lint
+    // rule cannot tell it is a ref — it is listed, and is as stable as any other ref.
+  }, [scrollRef, virtualizer]);
 
   const { onScroll } = useReadingPosition({
     fingerprint: book.fingerprint,
@@ -164,8 +253,27 @@ const BookReader: React.FC<BookReaderProps> = ({
     [engineRef]
   );
 
+  /**
+   * The same text through the engine's character-only pass, for the reference panel.
+   *
+   * A second engine call, run after the chunk's full translation is already on screen —
+   * see `useWindowedTranslation`, which owns that ordering. Sequential rather than
+   * concurrent for the same reason as everything else here: the engine serves one caller
+   * at a time.
+   */
+  const translateGloss = useCallback(
+    async (text: string): Promise<string> => {
+      const engine = engineRef.current;
+      if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+      const result = await engine.translateWithCharactersOnly(text);
+      return result?.translatedText ?? '';
+    },
+    [engineRef]
+  );
+
   const {
     getTranslatedLine,
+    getCharacterOnlyLine,
     isTranslating,
     error: translationError,
   } = useWindowedTranslation({
@@ -177,6 +285,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     linesVersion,
     getLine,
     translateChunk,
+    translateGloss,
     dictionaryVersion: engineVersion,
     isEnabled: isActive && enginePhase === 'ready',
   });
@@ -221,10 +330,40 @@ const BookReader: React.FC<BookReaderProps> = ({
     measureViewport();
   }, [firstIndex, lastIndex, measureViewport]);
 
+  // A row that gets measured moves every row below it in *that* panel and in no other, so
+  // the panels drift apart with no scroll event to notice it. Each panel's total size is
+  // the signal: it changes exactly when a measurement does.
+  const translationTotalSize = virtualizer.getTotalSize();
+  const originalTotalSize = originalPanel.virtualizer.getTotalSize();
+  const characterTotalSize = characterPanel.virtualizer.getTotalSize();
+  useEffect(() => {
+    resync();
+  }, [translationTotalSize, originalTotalSize, characterTotalSize, resync]);
+
   const handleScroll = useCallback((): void => {
     onScroll();
     measureViewport();
-  }, [measureViewport, onScroll]);
+    syncScroll(TRANSLATION_PANEL);
+  }, [measureViewport, onScroll, syncScroll]);
+
+  const translationRow = useCallback(
+    (index: number): PanelRow => vietnameseRow(getTranslatedLine(index), getLine(index)),
+    [getLine, getTranslatedLine]
+  );
+
+  const originalRow = useCallback(
+    (index: number): PanelRow => {
+      const line = getLine(index);
+      // The source panel is only ever pending on its own page fetch, never on translation.
+      return { text: line, isPending: line === undefined, lang: 'zh' };
+    },
+    [getLine]
+  );
+
+  const characterRow = useCallback(
+    (index: number): PanelRow => vietnameseRow(getCharacterOnlyLine(index), getLine(index)),
+    [getCharacterOnlyLine, getLine]
+  );
 
   return (
     <div className={styles.reader}>
@@ -298,44 +437,34 @@ const BookReader: React.FC<BookReaderProps> = ({
         </div>
       )}
 
-      <div ref={scrollRef} className={styles.readerScroll} onScroll={handleScroll}>
-        <div className={styles.readerCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
-          {virtualRows.map((row) => {
-            const line = getLine(row.index);
-            const translated = getTranslatedLine(row.index);
-            // Text the reader has not reached yet shows its real Chinese, dimmed, rather
-            // than a blank or a grey bar — scrolling ahead still shows something readable,
-            // and the row is measured at very nearly its final height.
-            const text = translated ?? line;
-            const isUntranslated = translated === undefined && (line?.trim().length ?? 0) > 0;
-            return (
-              <div
-                key={row.key}
-                data-index={row.index}
-                ref={virtualizer.measureElement}
-                className={styles.readerRowPositioner}
-                style={{ transform: `translateY(${row.start}px)` }}
-              >
-                {/*
-                  Placeholder and final row are the same element with the same padding,
-                  font and line height — only the text node differs — so a row that
-                  arrives as a single unwrapped line does not move at all, and a longer one
-                  grows by whole line heights rather than by an arbitrary amount. The
-                  prefetch margin above is what keeps that from being the common case.
-
-                  A blank line is a real, empty line and keeps its slot, so line numbers
-                  stay the file's own.
-                */}
-                <p
-                  className={`${styles.readerLine} ${isUntranslated || line === undefined ? styles.pending : ''}`}
-                  lang={translated === undefined ? 'zh' : 'vi'}
-                >
-                  {text === undefined ? ' ' : text || ' '}
-                </p>
-              </div>
-            );
-          })}
+      <div className={styles.readerBody}>
+        <div className={styles.readerReference}>
+          <ReaderPanel
+            title="Original"
+            isFollower
+            scrollRef={originalPanel.scrollRef}
+            virtualizer={originalPanel.virtualizer}
+            getRow={originalRow}
+            onScroll={() => syncScroll(ORIGINAL_PANEL)}
+            onWheel={forwardWheelToMaster}
+          />
+          <ReaderPanel
+            title="Character only"
+            isFollower
+            scrollRef={characterPanel.scrollRef}
+            virtualizer={characterPanel.virtualizer}
+            getRow={characterRow}
+            onScroll={() => syncScroll(CHARACTER_ONLY_PANEL)}
+            onWheel={forwardWheelToMaster}
+          />
         </div>
+        <ReaderPanel
+          title="Translation"
+          scrollRef={scrollRef}
+          virtualizer={virtualizer}
+          getRow={translationRow}
+          onScroll={handleScroll}
+        />
       </div>
 
       {isOutlineOpen && (

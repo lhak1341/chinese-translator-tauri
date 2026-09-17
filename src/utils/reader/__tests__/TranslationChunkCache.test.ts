@@ -22,6 +22,7 @@ function entry(startLine: number, endLine: number, translatedText = 'xin chào')
   return {
     chunk: chunkPlan(startLine, endLine),
     translatedText,
+    characterOnlyText: translatedText,
     semanticArrays: null,
     prebuiltSegments: [],
   };

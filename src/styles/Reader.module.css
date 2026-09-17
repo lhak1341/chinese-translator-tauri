@@ -438,20 +438,90 @@
   line-height: 1.5;
 }
 
+/*
+  Three panels: the two reference panels stacked on the left, the translation on the right.
+  The gap is the container's own background showing through, so there is a hairline between
+  panels without a border on any of them — a border would change a panel's content box and
+  so every row's wrap width, which is the one measurement that has to stay stable.
+*/
+.readerBody {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  gap: 1px;
+  background: var(--border-color, rgba(128, 128, 128, 0.3));
+}
+
+.readerReference {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 42%;
+  min-width: 0;
+  gap: 1px;
+  background: inherit;
+}
+
+.readerPanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-color, transparent);
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  padding: 0.3rem 1rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
 .readerScroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  /* The row font size is declared here as well as on `.readerLine` so that the two agree:
+     `useColumnEm` measures the column in em of *this* element's font, and an unmeasured
+     row's estimated height is that column width divided by the width of one character. */
+  font-size: 1rem;
   /* Horizontal padding lives here, not on the rows: a row's measured height must not
      include anything that changes with its content, and side padding on the scroller
      keeps every row's width identical. */
-  padding: 0 clamp(1rem, 12vw, 8rem);
+  padding: 0 1rem;
+}
+
+/*
+  A follower panel does not scroll on its own: the translation panel is the scroll master,
+  and these two are only ever moved by a write from `usePanelSync`. `hidden` still accepts a
+  programmatic `scrollTop`, so the sync works exactly as it does on a scrollable panel, and
+  a wheel over the panel is forwarded to the master instead.
+*/
+.readerFollower {
+  overflow-y: hidden;
 }
 
 .readerCanvas {
   position: relative;
   width: 100%;
+  /*
+    Ask the browser not to compensate scrollTop when a row above the fold is measured and
+    changes height: this panel's compensation is not the other panels', so the three would
+    disagree by whatever each browser decided on its own.
+
+    A hint, not a guarantee — the property is not broadly available and the app runs in the
+    host webview, so macOS and Windows differ here. The animation-frame resync in
+    `usePanelSync` is what actually holds the panels together; this only reduces how often
+    it has visible work to do.
+  */
+  overflow-anchor: none;
 }
 
 .readerRowPositioner {

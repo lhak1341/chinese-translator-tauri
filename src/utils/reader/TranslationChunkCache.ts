@@ -13,6 +13,17 @@ import type { ChunkPlan, LineRange } from './TranslationWindow';
 export interface CachedChunk {
   chunk: ChunkPlan;
   translatedText: string;
+  /**
+   * The same chunk through the character-only pass, for the reference panel, or `null`
+   * while that second pass is still running — the full translation is published first, so
+   * the gloss never delays it.
+   *
+   * Kept beside the full translation rather than in a cache of its own: the two are
+   * produced by one fill, evicted together, and invalidated by the same dictionary
+   * version, so a second cache would be a second set of the same three rules to keep in
+   * step.
+   */
+  characterOnlyText: string | null;
   semanticArrays: SemanticArrays | null;
   prebuiltSegments: TranslationSegment[];
 }

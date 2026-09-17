@@ -33,6 +33,12 @@ export interface UseWindowedTranslationOptions {
   getLine: (index: number) => string | undefined;
   /** One engine call. Must be referentially stable. */
   translateChunk: (text: string) => Promise<ChunkTranslationResult>;
+  /**
+   * The same text through the engine's character-only pass, for the reference panel. Runs
+   * *after* the chunk's full translation has already been published, so the gloss costs
+   * the translation panel nothing but its own engine time. Must be referentially stable.
+   */
+  translateGloss: (text: string) => Promise<string>;
   /** Bumped on every engine reinitialization; a change invalidates the whole cache. */
   dictionaryVersion: number;
   /** Translation only runs while the engine is ready and the Reader is the visible tab. */
@@ -42,6 +48,8 @@ export interface UseWindowedTranslationOptions {
 export interface WindowedTranslation {
   /** Vietnamese for this raw file line, or `undefined` while it is still Chinese. */
   getTranslatedLine: (index: number) => string | undefined;
+  /** Character-by-character Vietnamese for this raw file line, or `undefined`. */
+  getCharacterOnlyLine: (index: number) => string | undefined;
   /** True while a fill is in progress, for a quiet indicator rather than a blocking state. */
   isTranslating: boolean;
   error: string | null;
@@ -69,18 +77,35 @@ export function useWindowedTranslation({
   linesVersion,
   getLine,
   translateChunk,
+  translateGloss,
   dictionaryVersion,
   isEnabled,
 }: UseWindowedTranslationOptions): WindowedTranslation {
   const cacheRef = useRef<TranslationChunkCache>(new TranslationChunkCache());
   const linesRef = useRef<Map<number, string>>(new Map());
+  const characterOnlyRef = useRef<Map<number, string>>(new Map());
   const generationRef = useRef(0);
   const [, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const rebuild = useCallback((): void => {
-    linesRef.current = assembleTranslatedLines(cacheRef.current.values());
+    const entries = cacheRef.current.values();
+    linesRef.current = assembleTranslatedLines(entries);
+    // The character-only pass folds back into lines by exactly the same rule — it is the
+    // same chunks through the same engine — so it reuses the same assembler rather than
+    // growing a second one that could drift from it. A chunk whose gloss has not landed
+    // yet is left out entirely rather than assembled as an empty string: an empty string
+    // is a translated blank line, which would blank the reference panel instead of leaving
+    // the Chinese showing.
+    characterOnlyRef.current = assembleTranslatedLines(
+      entries
+        .filter((entry) => entry.characterOnlyText !== null)
+        .map(({ chunk, characterOnlyText }) => ({
+          chunk,
+          translatedText: characterOnlyText as string,
+        }))
+    );
     forceRender((n) => n + 1);
   }, []);
 
@@ -89,6 +114,7 @@ export function useWindowedTranslation({
     generationRef.current += 1;
     cacheRef.current.clear();
     linesRef.current = new Map();
+    characterOnlyRef.current = new Map();
     setError(null);
     forceRender((n) => n + 1);
   }, [fingerprint]);
@@ -131,9 +157,21 @@ export function useWindowedTranslation({
           // reader scrolled away is still worth keeping — but only if the dictionaries it
           // was translated against are still the ones in force.
           if (cache.version !== dictionaryVersion) return;
-          cache.set({ chunk, ...result });
+          cache.set({ chunk, ...result, characterOnlyText: null });
           rebuild();
           setError(null);
+
+          // Second pass, after the translation is already on screen: the engine serves one
+          // caller at a time, so this cannot overlap the call above, and running it here
+          // rather than inside `translateChunk` is what keeps the translation panel filling
+          // at its own pace instead of at twice the cost.
+          const gloss = await translateGloss(text);
+          if (cache.version !== dictionaryVersion) return;
+          const stored = cache.get(chunk.key);
+          if (stored) {
+            cache.set({ ...stored, characterOnlyText: gloss });
+            rebuild();
+          }
         } catch (cause) {
           logger.error('Failed to translate a reader chunk:', cause);
           setError(extractErrorMessage(cause));
@@ -155,6 +193,7 @@ export function useWindowedTranslation({
     overscanLines,
     rebuild,
     translateChunk,
+    translateGloss,
     viewportLines,
   ]);
 
@@ -163,5 +202,10 @@ export function useWindowedTranslation({
     []
   );
 
-  return { getTranslatedLine, isTranslating, error };
+  const getCharacterOnlyLine = useCallback(
+    (index: number): string | undefined => characterOnlyRef.current.get(index),
+    []
+  );
+
+  return { getTranslatedLine, getCharacterOnlyLine, isTranslating, error };
 }
