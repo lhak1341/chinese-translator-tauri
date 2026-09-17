@@ -1855,8 +1855,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1789632739.8835962,
-    "ast_hash": "ea2b55743669875c13eda06e1bde5a97",
+    "mtime": 1789633076.401945,
+    "ast_hash": "0536d693fd5c9386f972704e937ee49d",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1789632695.508242,
-    "ast_hash": "4b9666f980495a1fe27e8b2d10b21290",
+    "mtime": 1789633048.264677,
+    "ast_hash": "a61de133f26f7a338d0892c8c814648d",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -2025,13 +2025,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
-    "mtime": 1789619026.739766,
-    "ast_hash": "8610bda21210890b39361ec4d3094fa4",
-    "semantic_hash": ""
-  },
-  "src/hooks/useColumnEm.ts": {
-    "mtime": 1789618633.3162673,
-    "ast_hash": "7c36241fbdd7605a7714619a1e757f55",
+    "mtime": 1789633019.2775893,
+    "ast_hash": "0424ce96ec02d0b90d074db9ccfdfa8d",
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
@@ -2040,8 +2035,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderPanel.ts": {
-    "mtime": 1789618934.5074222,
-    "ast_hash": "b1480f03b3191324cfd5c9f0b4fe6318",
+    "mtime": 1789633019.276901,
+    "ast_hash": "47a42b16966d2a8253de9169150c8189",
     "semantic_hash": ""
   },
   "src/utils/reader/PanelSync.ts": {
@@ -2107,6 +2102,21 @@
   "src/utils/reader/PaletteCommands.ts": {
     "mtime": 1789632320.5199358,
     "ast_hash": "d3a11a531605f676816cb517c7ce0507",
+    "semantic_hash": ""
+  },
+  "src/hooks/useAppearanceRelayout.ts": {
+    "mtime": 1789633039.2539868,
+    "ast_hash": "a7d806fe280ad5981000a2787ccc328c",
+    "semantic_hash": ""
+  },
+  "src/hooks/useAppearanceVersion.ts": {
+    "mtime": 1789633010.424688,
+    "ast_hash": "6e275c8dc1210197a4931a1d399d13d5",
+    "semantic_hash": ""
+  },
+  "src/hooks/useColumnMetrics.ts": {
+    "mtime": 1789633010.4533622,
+    "ast_hash": "b2b634bbc1ebf8c39c8ba947da10c0b0",
     "semantic_hash": ""
   }
 }

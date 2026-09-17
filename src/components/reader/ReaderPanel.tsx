@@ -16,8 +16,23 @@ export interface PanelRow {
   lang: 'zh' | 'vi';
 }
 
+/** Which Appearance section's font this panel renders in. */
+export type PanelVariant = 'original' | 'translation' | 'characterOnly';
+
+const VARIANT_CLASS: Record<PanelVariant, string> = {
+  original: styles.paneOriginal,
+  translation: styles.paneTranslation,
+  characterOnly: styles.paneCharacterOnly,
+};
+
 export interface ReaderPanelProps {
   title: string;
+  /**
+   * The Appearance section this panel follows — Chinese text, full translation, or the
+   * character-only gloss. It sets the font on the scroll element, which is also the
+   * element `useColumnMetrics` measures, so the estimates and the rendering agree.
+   */
+  variant: PanelVariant;
   /**
    * A follower panel: moved only by a write from the cross-panel sync, never scrolled on
    * its own. It is `overflow: hidden` rather than `auto`, which is what makes it a
@@ -44,6 +59,7 @@ export interface ReaderPanelProps {
  */
 const ReaderPanel: React.FC<ReaderPanelProps> = ({
   title,
+  variant,
   isFollower = false,
   scrollRef,
   virtualizer,
@@ -56,7 +72,9 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
       <header className={styles.panelTitle}>{title}</header>
       <div
         ref={scrollRef}
-        className={`${styles.readerScroll} ${isFollower ? styles.readerFollower : ''}`}
+        className={`${styles.readerScroll} ${VARIANT_CLASS[variant]} ${
+          isFollower ? styles.readerFollower : ''
+        }`}
         onScroll={onScroll}
         onWheel={onWheel}
       >

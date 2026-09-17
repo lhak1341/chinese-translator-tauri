@@ -12,6 +12,7 @@ import { requestDictionaryReload } from '../../utils/dictionary';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { useDictionaryModals } from '../../hooks/useDictionaryModals';
 import { useReloadReanchor } from '../../hooks/useReloadReanchor';
+import { useAppearanceRelayout } from '../../hooks/useAppearanceRelayout';
 import HotkeyHandler from '../HotkeyHandler';
 import AddEntryBar from './AddEntryBar';
 import { useBookLines } from '../../hooks/useBookLines';
@@ -521,6 +522,20 @@ const BookReader: React.FC<BookReaderProps> = ({
     lineCount: book.lineCount,
   });
 
+  // A font change from the Appearance tab resizes every row in all three panels. The
+  // master is listed first: it is the one the anchor is restored on, and the followers
+  // are then pulled level by the resync above.
+  useAppearanceRelayout({
+    isEnabled: isActive,
+    anchorRef,
+    panels: [
+      { virtualizer, scrollRef },
+      { virtualizer: originalPanel.virtualizer, scrollRef: originalPanel.scrollRef },
+      { virtualizer: characterPanel.virtualizer, scrollRef: characterPanel.scrollRef },
+    ],
+    lineCount: book.lineCount,
+  });
+
   const handleScroll = useCallback((): void => {
     onScroll();
     measureViewport();
@@ -661,6 +676,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         <div className={styles.readerReference}>
           <ReaderPanel
             title="Original"
+            variant="original"
             isFollower
             scrollRef={originalPanel.scrollRef}
             virtualizer={originalPanel.virtualizer}
@@ -670,6 +686,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           />
           <ReaderPanel
             title="Character only"
+            variant="characterOnly"
             isFollower
             scrollRef={characterPanel.scrollRef}
             virtualizer={characterPanel.virtualizer}
@@ -680,6 +697,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         </div>
         <ReaderPanel
           title="Translation"
+          variant="translation"
           scrollRef={scrollRef}
           virtualizer={virtualizer}
           getRow={translationRow}

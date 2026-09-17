@@ -488,14 +488,61 @@
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  /* The row font size is declared here as well as on `.readerLine` so that the two agree:
-     `useColumnEm` measures the column in em of *this* element's font, and an unmeasured
-     row's estimated height is that column width divided by the width of one character. */
-  font-size: 1rem;
+  /* The font is declared on this element and inherited by the rows, never repeated on
+     them: `useColumnMetrics` measures the column in em of *this* element's font, and an
+     unmeasured row's estimated height is built from that measurement. A second
+     declaration further down could disagree with it, and the estimates would follow the
+     wrong one. The three `.pane*` classes below supply it. */
   /* Horizontal padding lives here, not on the rows: a row's measured height must not
      include anything that changes with its content, and side padding on the scroller
      keeps every row's width identical. */
   padding: 0 1rem;
+}
+
+/*
+  Each panel renders in its own Appearance section's font — the same custom properties the
+  Translator's panels read, with the same fallbacks, so the two tabs show a reader's
+  settings identically. The fallbacks are only ever seen before the settings load.
+*/
+.paneOriginal {
+  font-family: var(
+    --chinese-text-font,
+    'Noto Sans CJK SC',
+    SimSun,
+    'Microsoft YaHei',
+    Inter,
+    system-ui,
+    Arial,
+    sans-serif
+  );
+  font-size: var(--chinese-text-size, 1.25rem);
+  letter-spacing: var(--chinese-text-spacing, normal);
+}
+
+.paneTranslation {
+  font-family: var(
+    --full-translation-font,
+    Bookerly,
+    Amstelvar,
+    'Noto Sans CJK SC',
+    Arial,
+    sans-serif
+  );
+  font-size: var(--full-translation-size, 1.25rem);
+  letter-spacing: var(--full-translation-spacing, normal);
+}
+
+.paneCharacterOnly {
+  font-family: var(
+    --character-only-font,
+    Bookerly,
+    Amstelvar,
+    'Noto Sans CJK SC',
+    Arial,
+    sans-serif
+  );
+  font-size: var(--character-only-size, 1.25rem);
+  letter-spacing: var(--character-only-spacing, normal);
 }
 
 /*
@@ -540,7 +587,6 @@
 .readerLine {
   margin: 0;
   padding: 0.18rem 0;
-  font-size: 1rem;
   line-height: 1.85;
   color: var(--text-color);
   white-space: pre-wrap;
