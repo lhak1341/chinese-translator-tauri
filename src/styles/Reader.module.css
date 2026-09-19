@@ -105,7 +105,8 @@
 }
 
 .bookRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 9rem 3.75rem 3rem;
   align-items: center;
   gap: 0.6rem;
   width: 100%;
@@ -113,7 +114,7 @@
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border-color);
-  padding: 0.55rem 0.4rem;
+  padding: 0.7rem 0.4rem;
   cursor: pointer;
   color: var(--text-color);
 }
@@ -126,31 +127,117 @@
   background: var(--hover-bg);
 }
 
-.bookIcon {
-  flex-shrink: 0;
-  color: var(--text-secondary);
-}
-
 .bookTitle {
-  flex: 1;
+  grid-column: 1 / span 2;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: 1.05rem;
+}
+
+.bookTitleVi,
+.bookTitleZh {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.05rem;
+}
+
+.bookTitleZh {
+  color: var(--text-secondary);
 }
 
 .bookMeta {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bookProgress {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   color: var(--text-secondary);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.bookGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  align-content: start;
+}
+
+.bookCard {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  cursor: pointer;
+  color: var(--text-color);
+}
+
+.bookCard:hover {
+  background: var(--hover-bg);
+}
+
+.bookCardOpen {
+  background: var(--hover-bg);
+  border-color: var(--primary-color);
+}
+
+.bookCardHeader {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bookCardTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.bookCardTitleVi,
+.bookCardTitleZh {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.bookCardTitleVi {
+  font-size: 1rem;
+}
+
+.bookCardTitleZh {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.bookCardFooter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: auto;
 }
 
 .unavailableSection {
@@ -709,6 +796,13 @@
 .clickableSegmentHighlighted,
 .clickableSegmentHighlighted:hover {
   background: color-mix(in srgb, var(--primary-color) 28%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  .clickableSegmentHighlighted,
+  .clickableSegmentHighlighted:hover {
+    background: color-mix(in srgb, var(--primary-color) 55%, transparent);
+  }
 }
 
 .pending {

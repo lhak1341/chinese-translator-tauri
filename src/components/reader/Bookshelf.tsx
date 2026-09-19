@@ -1,8 +1,17 @@
-import React from 'react';
-import { BookOpen, FolderOpen, Loader, RefreshCw, AlertCircle, FileWarning } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import {
+  FolderOpen,
+  Loader,
+  RefreshCw,
+  AlertCircle,
+  FileWarning,
+  LayoutGrid,
+  List,
+} from 'lucide-react';
 import type { LibraryBook } from '../../types/ReaderTypes';
 import type { ShelfBook, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import styles from '../../styles/Reader.module.css';
+import { SearchFilterHeader } from '../SearchFilterHeader';
 
 interface BookshelfProps {
   books: ShelfBook[];
@@ -20,10 +29,36 @@ interface BookshelfProps {
   onRescan: () => void;
 }
 
+type ShelfLayout = 'list' | 'card';
+
+const SHELF_LAYOUT_STORAGE_KEY = 'reader.shelfLayout';
+
+function loadShelfLayout(): ShelfLayout {
+  try {
+    return localStorage.getItem(SHELF_LAYOUT_STORAGE_KEY) === 'card' ? 'card' : 'list';
+  } catch {
+    return 'list';
+  }
+}
+
 function formatSize(bytes: number): string {
   const megabytes = bytes / (1024 * 1024);
   if (megabytes >= 1) return `${megabytes.toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** Splits a "<Vietnamese title> <Chinese title>" filename stem at the first Han
+ * character, e.g. "Đại bát hầu 大泼猴" → { vietnamese: "Đại bát hầu", chinese: "大泼猴" }.
+ * Returns `null` when the title has no Han text (nothing to split) or is Han-only
+ * (no Vietnamese half). */
+function splitBookTitle(title: string): { vietnamese: string; chinese: string } | null {
+  const chars = Array.from(title);
+  const hanIndex = chars.findIndex((ch) => /\p{Script=Han}/u.test(ch));
+  if (hanIndex <= 0) return null;
+  const vietnamese = chars.slice(0, hanIndex).join('').trim();
+  const chinese = chars.slice(hanIndex).join('').trim();
+  if (!vietnamese || !chinese) return null;
+  return { vietnamese, chinese };
 }
 
 /** "Not started" / "line N of M" / "in progress" (line count not cached yet — the book
@@ -54,6 +89,25 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   onUseDefaultFolder,
   onRescan,
 }) => {
+  const [search, setSearch] = useState('');
+  const [layout, setLayout] = useState<ShelfLayout>(loadShelfLayout);
+
+  const toggleLayout = () => {
+    const next: ShelfLayout = layout === 'list' ? 'card' : 'list';
+    setLayout(next);
+    try {
+      localStorage.setItem(SHELF_LAYOUT_STORAGE_KEY, next);
+    } catch {
+      // Best-effort persistence only; the toggle still works for this session.
+    }
+  };
+
+  const filteredBooks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return books;
+    return books.filter((book) => book.title.toLowerCase().includes(query));
+  }, [books, search]);
+
   return (
     <div className={styles.shelf}>
       <div className={styles.shelfHeader}>
@@ -65,6 +119,14 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           </span>
         </div>
         <div className={styles.shelfActions}>
+          <button
+            onClick={toggleLayout}
+            className={styles.secondaryButton}
+            title={layout === 'list' ? 'Switch to card view' : 'Switch to list view'}
+          >
+            {layout === 'list' ? <LayoutGrid size={14} /> : <List size={14} />}
+            {layout === 'list' ? 'Cards' : 'List'}
+          </button>
           <button onClick={onRescan} className={styles.secondaryButton} title="Rescan the folder">
             <RefreshCw size={14} />
             Rescan
@@ -92,6 +154,20 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         </div>
       )}
 
+      {!isLoading && books.length > 0 && (
+        <SearchFilterHeader
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Filter by title…"
+          searchAriaLabel="Filter library by title"
+          showFilterButton={false}
+          filterOpen={false}
+          filterActive={false}
+          onToggleFilter={() => {}}
+          filterButtonLabel=""
+        />
+      )}
+
       {isLoading ? (
         <div className={styles.centeredNotice}>
           <Loader size={18} className="animate-spin" />
@@ -101,18 +177,73 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         <div className={styles.centeredNotice}>
           <span>No .txt files in this folder.</span>
         </div>
+      ) : filteredBooks.length === 0 ? (
+        <div className={styles.centeredNotice}>
+          <span>No books match "{search}".</span>
+        </div>
+      ) : layout === 'card' ? (
+        <div className={styles.bookGrid}>
+          {filteredBooks.map((book) => {
+            const isOpen = openFileName === book.fileName;
+            const split = splitBookTitle(book.title);
+            return (
+              <button
+                key={book.fileName}
+                className={`${styles.bookCard} ${isOpen ? styles.bookCardOpen : ''}`}
+                onClick={() => onOpen(book)}
+              >
+                {isOpen && (
+                  <div className={styles.bookCardHeader}>
+                    <span className={styles.openBadge}>open</span>
+                  </div>
+                )}
+                {split ? (
+                  <div className={styles.bookCardTitle}>
+                    <span className={styles.bookCardTitleVi} title={split.vietnamese}>
+                      {split.vietnamese}
+                    </span>
+                    <span className={styles.bookCardTitleZh} title={split.chinese}>
+                      {split.chinese}
+                    </span>
+                  </div>
+                ) : (
+                  <div className={styles.bookCardTitle}>
+                    <span className={styles.bookCardTitleVi} title={book.title}>
+                      {book.title}
+                    </span>
+                  </div>
+                )}
+                <div className={styles.bookCardFooter}>
+                  <span className={styles.bookProgress}>{formatProgress(book)}</span>
+                  <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       ) : (
         <ul className={styles.bookList}>
-          {books.map((book) => {
+          {filteredBooks.map((book) => {
             const isOpen = openFileName === book.fileName;
+            const split = splitBookTitle(book.title);
             return (
               <li key={book.fileName}>
                 <button
                   className={`${styles.bookRow} ${isOpen ? styles.bookRowOpen : ''}`}
                   onClick={() => onOpen(book)}
                 >
-                  <BookOpen size={16} className={styles.bookIcon} />
-                  <span className={styles.bookTitle}>{book.title}</span>
+                  {split ? (
+                    <>
+                      <span className={styles.bookTitleVi} title={split.vietnamese}>
+                        {split.vietnamese}
+                      </span>
+                      <span className={styles.bookTitleZh} title={split.chinese}>
+                        {split.chinese}
+                      </span>
+                    </>
+                  ) : (
+                    <span className={styles.bookTitle}>{book.title}</span>
+                  )}
                   <span className={styles.bookProgress}>{formatProgress(book)}</span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                   {isOpen && <span className={styles.openBadge}>open</span>}

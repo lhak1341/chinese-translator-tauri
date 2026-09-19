@@ -38,3 +38,15 @@ A style the Reader toggles on a row (`.clickableSegmentHighlighted`) may change 
 CSS `transition` cannot fire on unmount — exit is always a hard cut with conditional rendering. Do NOT use `visibility: hidden` + `opacity: 0` to "hide" flex items.
 
 Affected: `TranslatorControls.module.css` `.progressIndicator` / `.activeBadge` use `@keyframes fadeIn`.
+
+## Grid Rows Aren't Shared Across Sibling Grid Containers
+
+Each `display: grid` element is its own formatting context — `auto`-sized tracks size to that instance's own content, so two rows built as separate grid containers (e.g. a `<button>` per `<li>`) can end up with different column widths even with identical `grid-template-columns`; any `fr` track absorbs whatever's left over, so it drifts row to row. Give every non-title column (icons, badges, numeric fields) a fixed length instead of `auto`, or promote to a real shared grid (`display:grid` on the list + `display:contents` per row) if content-based sizing is required. Confirmed 2026-09-19: `Bookshelf.tsx`'s `.bookRow` — progress/size columns were `auto`, so title columns drifted per row.
+
+## `<button>` Inherits index.css's Global Reset, Not Just `display:inline-flex`
+
+The base `button` rule (`index.css`) sets `align-items: center`, `justify-content: center`, `padding`, and `display: inline-flex` for every `<button>` in the app. A component styling a `<button>` as a custom flex/grid container (a card, a table row) must explicitly re-set every layout property it needs — setting only `flex-direction` lets `align-items:center` show through. Confirmed 2026-09-19: `.bookCard` set `flex-direction: column` but not `align-items`, so children shrank to content width and centered instead of stretching, which also broke the ellipsis/line-clamp sizing on the title text.
+
+## Alpha-Blended Highlight Colors Need a Separate Dark-Mode Check
+
+`color-mix(in srgb, var(--x) N%, transparent)` reads very differently over a light page background than a dark one — the same alpha that pops on white can be nearly invisible on dark. Check (or override under `@media (prefers-color-scheme: dark)`) any new highlight/selection background rather than assuming one value works for both themes. Confirmed 2026-09-19: Reader's `.clickableSegmentHighlighted` used 28% for both themes; raised to 55% under dark.

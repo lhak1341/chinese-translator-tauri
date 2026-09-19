@@ -1115,8 +1115,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1789619316.5075676,
-    "ast_hash": "d54ec5758c78d82a56e2b8f664a87a76",
+    "mtime": 1789808735.7118976,
+    "ast_hash": "26c0b737c03f17d39c48e60bfe871799",
     "semantic_hash": ""
   },
   "BENCHMARK_BASELINE_INSTRUCTIONS.md": {
@@ -1125,8 +1125,8 @@
     "semantic_hash": "50a29eeadd84997e72cdea20bb565cad"
   },
   "CLAUDE.md": {
-    "mtime": 1789619316.5075676,
-    "ast_hash": "d54ec5758c78d82a56e2b8f664a87a76",
+    "mtime": 1789808735.7118976,
+    "ast_hash": "26c0b737c03f17d39c48e60bfe871799",
     "semantic_hash": ""
   },
   "memory/MEMORY.md": {
@@ -1395,13 +1395,13 @@
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
-    "mtime": 1789806357.7044287,
-    "ast_hash": "0074e3abae8e5f6805d8a4babd4e416e",
+    "mtime": 1789808747.4343328,
+    "ast_hash": "c522858c1e8e518e8f367564afdfca33",
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1789806545.9672637,
-    "ast_hash": "f14aa0b0c080221dbe693b83fcf5b14d",
+    "mtime": 1789808778.386289,
+    "ast_hash": "a48d7da08922020e4d05b50fa7751322",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1910,8 +1910,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
-    "mtime": 1789575884.010592,
-    "ast_hash": "6b704f35af5f00345d02db69cce1c3b3",
+    "mtime": 1789808188.3232374,
+    "ast_hash": "3046481ff368261907a66c7f29badd16",
     "semantic_hash": ""
   },
   "src/components/reader/EncodingPrompt.tsx": {
