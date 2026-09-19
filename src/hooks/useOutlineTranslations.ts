@@ -19,8 +19,9 @@ export interface UseOutlineTranslationsOptions {
    * referentially stable, and must itself be serialized against any other caller of the
    * shared engine — this hook makes no ordering guarantee of its own. */
   translateBatch: (text: string) => Promise<string>;
-  /** Bumped on every engine reinitialization; a change invalidates the whole cache, since
-   * every cached title was translated against dictionaries that no longer apply. */
+  /** Bumped on every engine reinitialization; a change makes every cached title stale,
+   * since each was translated against dictionaries that no longer apply. Stale titles keep
+   * showing until their replacement lands — see the cache note in the hook body. */
   dictionaryVersion: number;
   /** Only translate while this is true — the engine must be ready, and it's worth backing
    * off while the reader's own viewport fill is busy so the outline never delays the text
@@ -93,22 +94,33 @@ export function useOutlineTranslations({
   dictionaryVersion,
   isEnabled,
 }: UseOutlineTranslationsOptions): OutlineTranslations {
-  const cacheRef = useRef<Map<number, string>>(new Map());
+  /**
+   * Line → its translated title, stamped with the dictionary version that produced it.
+   *
+   * A version below the current one is stale: re-translated at the next opportunity, and
+   * shown meanwhile. Clearing the map on a reload instead — which is what this did — turned
+   * every chapter title, and the chapter-strip button the reader is looking at, back into
+   * Chinese until the whole list had been re-translated.
+   *
+   * A different book *is* cleared: those titles belong to another novel, and showing them
+   * would be wrong rather than merely out of date.
+   */
+  const cacheRef = useRef<Map<number, { title: string; version: number }>>(new Map());
   const fingerprintRef = useRef(fingerprint);
-  const versionRef = useRef(dictionaryVersion);
   const generationRef = useRef(0);
   const [, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
 
   useEffect(() => {
-    if (fingerprintRef.current !== fingerprint || versionRef.current !== dictionaryVersion) {
+    if (fingerprintRef.current !== fingerprint) {
       fingerprintRef.current = fingerprint;
-      versionRef.current = dictionaryVersion;
       cacheRef.current = new Map();
     }
 
     if (!isEnabled || headers.length === 0) return;
-    const missing = headers.filter((header) => !cacheRef.current.has(header.line));
+    const missing = headers.filter(
+      (header) => cacheRef.current.get(header.line)?.version !== dictionaryVersion
+    );
     if (missing.length === 0) return;
 
     const ordered = [...missing].sort(
@@ -123,7 +135,12 @@ export function useOutlineTranslations({
         if (generationRef.current !== generation) return;
         const text = batch.map((header) => header.title).join('\n');
         if (text.trim().length === 0) {
-          batch.forEach((header) => cacheRef.current.set(header.line, header.title));
+          batch.forEach((header) =>
+            cacheRef.current.set(header.line, {
+              title: header.title,
+              version: dictionaryVersion,
+            })
+          );
           forceRender((n) => n + 1);
           continue;
         }
@@ -131,7 +148,7 @@ export function useOutlineTranslations({
           const translated = await translateBatch(text);
           if (generationRef.current !== generation) return;
           for (const [line, title] of assembleBatch(batch, translated)) {
-            cacheRef.current.set(line, title);
+            cacheRef.current.set(line, { title, version: dictionaryVersion });
           }
           forceRender((n) => n + 1);
         } catch (cause) {
@@ -144,7 +161,8 @@ export function useOutlineTranslations({
   }, [fingerprint, dictionaryVersion, headers, priorityLine, isEnabled, translateBatch]);
 
   const getTranslatedTitle = useCallback(
-    (line: number): string | undefined => cacheRef.current.get(line),
+    // Stale or current, a title is shown: the alternative on a reload is Chinese.
+    (line: number): string | undefined => cacheRef.current.get(line)?.title,
     []
   );
 

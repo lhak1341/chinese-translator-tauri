@@ -109,23 +109,38 @@ describe('TranslationChunkCache', () => {
     expect(cache.size).toBe(2);
   });
 
-  it('discards every entry when the dictionary version changes', () => {
+  it('keeps every entry when the dictionary version changes, and calls none of them fresh', () => {
+    // Discarding them is what used to turn the page back into Chinese for the length of a
+    // refill. They stay readable; they just stop counting as translated.
     const cache = new TranslationChunkCache(10, 3);
     cache.set(entry(0, 4));
     cache.set(entry(10, 14));
 
-    expect(cache.setVersion(3)).toBe(false);
-    expect(cache.size).toBe(2);
+    cache.setVersion(4);
 
-    expect(cache.setVersion(4)).toBe(true);
-    expect(cache.size).toBe(0);
+    expect(cache.size).toBe(2);
     expect(cache.version).toBe(4);
+    expect(cache.get('0:0-4:1')?.translatedText).toBe('xin chào');
+    expect(cache.isFresh('0:0-4:1')).toBe(false);
+    expect(cache.has('0:0-4:1')).toBe(true);
   });
 
-  it('reports nothing discarded when an empty cache changes version', () => {
+  it('calls an entry fresh again once it is re-translated against the new version', () => {
+    const cache = new TranslationChunkCache(10, 3);
+    cache.set(entry(0, 4));
+    cache.setVersion(4);
+
+    cache.set(entry(0, 4, 'bản mới'));
+
+    expect(cache.isFresh('0:0-4:1')).toBe(true);
+    expect(cache.get('0:0-4:1')?.translatedText).toBe('bản mới');
+  });
+
+  it('calls a missing key neither present nor fresh', () => {
     const cache = new TranslationChunkCache();
 
-    expect(cache.setVersion(1)).toBe(false);
+    expect(cache.has('0:0-4:1')).toBe(false);
+    expect(cache.isFresh('0:0-4:1')).toBe(false);
   });
 
   it('re-caches the same key rather than duplicating it', () => {
@@ -154,7 +169,9 @@ describe('hysteresis between the fetch and keep bands', () => {
     );
     const translated: string[] = [];
     for (const chunk of plan) {
-      if (cache.has(chunk.key)) continue;
+      // `isFresh`, not `has` — a stale chunk is present and still shown, but it is not
+      // translated against the dictionaries now in force, so a plan must re-request it.
+      if (cache.isFresh(chunk.key)) continue;
       translated.push(chunk.key);
       cache.set({
         chunk,

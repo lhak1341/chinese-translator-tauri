@@ -48,6 +48,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+interface Props {
+  engineVersion: number;
+  isEnabled: boolean;
+  isRefilling: boolean;
+}
+
 function setup(anchor: ReadingPosition | null = { line: 120, fraction: 0.25 }) {
   const scrollElement = makeScrollElement();
   const virtualizer = makeVirtualizer();
@@ -55,19 +61,24 @@ function setup(anchor: ReadingPosition | null = { line: 120, fraction: 0.25 }) {
   const scrollRef = { current: scrollElement as HTMLElement | null };
 
   const view = renderHook(
-    ({ engineVersion, isEnabled }: { engineVersion: number; isEnabled: boolean }) =>
+    ({ engineVersion, isEnabled, isRefilling }: Props) =>
       useReloadReanchor({
         engineVersion,
         isEnabled,
+        isRefilling,
         anchorRef,
         scrollRef,
         virtualizer,
         lineCount: 75_000,
       }),
-    { initialProps: { engineVersion: 1, isEnabled: true } }
+    { initialProps: { engineVersion: 1, isEnabled: true, isRefilling: false } }
   );
 
-  return { view, virtualizer, scrollElement, anchorRef };
+  /** The reload landing, with the refill already under way unless told otherwise. */
+  const reload = (isRefilling = true): void =>
+    view.rerender({ engineVersion: 2, isEnabled: true, isRefilling });
+
+  return { view, reload, virtualizer, scrollElement, anchorRef };
 }
 
 describe('useReloadReanchor', () => {
@@ -78,9 +89,9 @@ describe('useReloadReanchor', () => {
   });
 
   it('scrolls back to the captured anchor when the engine version bumps', () => {
-    const { view, virtualizer, scrollElement } = setup();
+    const { virtualizer, scrollElement, reload } = setup();
 
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    reload();
 
     expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(120, { align: 'start' });
     // The sub-line fraction is applied on top of the line, not rounded away — 25% into a
@@ -89,9 +100,9 @@ describe('useReloadReanchor', () => {
   });
 
   it('keeps re-applying across frames, because the refill keeps moving rows', () => {
-    const { view, virtualizer } = setup();
+    const { virtualizer, reload } = setup();
 
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    reload();
     expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
 
     runFrame();
@@ -100,24 +111,79 @@ describe('useReloadReanchor', () => {
     expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(3);
   });
 
-  it('stops once the window has elapsed', () => {
-    const { view, virtualizer } = setup();
+  it('keeps re-anchoring for as long as the refill runs, past any fixed window', () => {
+    // Why the loop settles on the refill rather than on a stopwatch: a wide band or a slow
+    // engine outlived the old three-second window, and every chunk that landed after it
+    // closed moved the line under the reader with nothing left to correct it.
+    const { virtualizer, reload } = setup();
+    reload();
+    virtualizer.scrollToIndex.mockClear();
 
-    view.rerender({ engineVersion: 2, isEnabled: true });
-    expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
-
-    now += 3001;
+    now += 10_000;
     runFrame();
-    expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
 
-    // And it really has stopped: no further frame was queued.
-    runFrame();
     expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
   });
 
+  it('stops once the refill has been quiet long enough', () => {
+    const { view, virtualizer, reload } = setup();
+    reload();
+
+    view.rerender({ engineVersion: 2, isEnabled: true, isRefilling: false });
+    runFrame();
+    virtualizer.scrollToIndex.mockClear();
+
+    now += 251;
+    runFrame();
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+
+    // And it really has stopped: no further frame was queued.
+    runFrame();
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it('does not mistake a refill that has not started yet for one that has finished', () => {
+    // The anchor is captured when the engine version bumps, which is before the fill effect
+    // has re-planned anything. Believing that quiet would close the window before the
+    // refill that moves the rows had even begun.
+    const { virtualizer, reload } = setup();
+    reload(false);
+
+    now += 251;
+    runFrame();
+    virtualizer.scrollToIndex.mockClear();
+    runFrame();
+
+    expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up on a refill that never starts, once the grace period is over', () => {
+    const { virtualizer, reload } = setup();
+    reload(false);
+
+    now += 1501;
+    runFrame();
+    virtualizer.scrollToIndex.mockClear();
+    runFrame();
+
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it('stops at the ceiling even if the refill never settles', () => {
+    const { virtualizer, reload } = setup();
+    reload();
+
+    now += 15_001;
+    runFrame();
+    virtualizer.scrollToIndex.mockClear();
+    runFrame();
+
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+  });
+
   it.each(['wheel', 'pointerdown'])('hands the position back on %s', (eventType) => {
-    const { view, virtualizer } = setup();
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    const { virtualizer, reload } = setup();
+    reload();
     virtualizer.scrollToIndex.mockClear();
 
     window.dispatchEvent(new Event(eventType));
@@ -127,8 +193,8 @@ describe('useReloadReanchor', () => {
   });
 
   it('hands the position back on a navigation key', () => {
-    const { view, virtualizer } = setup();
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    const { virtualizer, reload } = setup();
+    reload();
     virtualizer.scrollToIndex.mockClear();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ']' }));
@@ -138,8 +204,8 @@ describe('useReloadReanchor', () => {
   });
 
   it('keeps going when only a modifier is pressed', () => {
-    const { view, virtualizer } = setup();
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    const { virtualizer, reload } = setup();
+    reload();
     virtualizer.scrollToIndex.mockClear();
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift' }));
@@ -151,24 +217,24 @@ describe('useReloadReanchor', () => {
   it('stays out of the way while the Reader is a background tab', () => {
     const { view, virtualizer } = setup();
 
-    view.rerender({ engineVersion: 2, isEnabled: false });
+    view.rerender({ engineVersion: 2, isEnabled: false, isRefilling: true });
     runFrame();
 
     expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
   });
 
   it('does nothing when there is no anchor yet', () => {
-    const { view, virtualizer } = setup(null);
+    const { virtualizer, reload } = setup(null);
 
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    reload();
     runFrame();
 
     expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
   });
 
   it('cancels its loop on unmount', () => {
-    const { view, virtualizer } = setup();
-    view.rerender({ engineVersion: 2, isEnabled: true });
+    const { view, virtualizer, reload } = setup();
+    reload();
     virtualizer.scrollToIndex.mockClear();
 
     view.unmount();

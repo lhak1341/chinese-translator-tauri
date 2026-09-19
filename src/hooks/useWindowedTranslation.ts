@@ -176,7 +176,9 @@ export function useWindowedTranslation({
 
   useEffect(() => {
     const cache = cacheRef.current;
-    if (cache.setVersion(dictionaryVersion)) rebuild();
+    // Invalidates without discarding: the page keeps the text it has until each chunk's
+    // replacement arrives, rather than reverting to Chinese for the length of the refill.
+    cache.setVersion(dictionaryVersion);
     if (!isEnabled || lineCount === 0 || viewportLines <= 0) return;
 
     const generation = (generationRef.current += 1);
@@ -185,7 +187,7 @@ export function useWindowedTranslation({
 
     const fetchRange = snapRangeToParagraphs(bands.fetch, getLine, lineCount);
     const plan = orderChunksByDistance(planChunks(fetchRange, getLine, lineCount), anchorLine);
-    const missing = plan.filter((chunk) => !cache.has(chunk.key));
+    const missing = plan.filter((chunk) => !cache.isFresh(chunk.key));
     if (missing.length === 0) {
       // Clear it here too: a fill abandoned mid-loop never reaches its own tail, so without
       // this the indicator pulses for as long as the reader stays in already-translated text.
@@ -205,6 +207,13 @@ export function useWindowedTranslation({
           // reader scrolled away is still worth keeping — but only if the dictionaries it
           // was translated against are still the ones in force.
           if (cache.version !== dictionaryVersion) return;
+          // Whatever this chunk held before — the stale translation being replaced right
+          // now — still has a gloss beside it, and the gloss pass is a whole engine call
+          // behind. Keeping its text spares the reference panel a blank while that call
+          // runs; its *segments* are dropped, because they were relabeled against the
+          // outgoing translation's units and would light the wrong word against the new
+          // ones. The panel shows them as plain text until the new gloss lands.
+          const previous = cache.get(chunk.key);
           cache.set({
             chunk,
             ...result,
@@ -218,7 +227,7 @@ export function useWindowedTranslation({
             originalSegments: result.semanticArrays
               ? precomputeOriginalSegments(text, result.semanticArrays)
               : [],
-            characterOnlyText: null,
+            characterOnlyText: previous?.characterOnlyText ?? null,
             characterOnlySegments: null,
           });
           rebuild();

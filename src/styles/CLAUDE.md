@@ -27,6 +27,10 @@ Use `composes: modalOverlay from './shared.module.css'` then add per-component `
 - **`spin` and `pulse` are already global in `index.css`** — do not define local or `:global` duplicates in any module file or `shared.module.css`; `animation: spin/pulse` falls back naturally.
 - **`streaming-animations.css` is plain CSS (not a module)** — `@keyframes` defined there are global. Currently defines `progress-pulse` (used by `.streaming-progress-pulse`) and `streaming-blink` (used by `.typing-cursor`). Do not rename them or add new ones to that file.
 
+## Styling Virtualized Text Must Be Metrics-Neutral
+
+A style the Reader toggles on a row (`.clickableSegmentHighlighted`) may change color and background but never weight, size, or spacing: a wider run can rewrap the line, which changes that row's measured height and moves every row below it — on a click, in a 75,000-line document. The Translator bolds its highlight because its panels hold one translation and reflow costs nothing there. Same family as `Reader.module.css`'s "no margins on a row": resize observations exclude margins, so a margin makes every row under-report its height.
+
 ## Hiding Elements — Use Conditional Rendering, Not `visibility: hidden`
 
 `visibility: hidden` reserves flex layout space — invisible items shift siblings. For status pills/badges that should take no space when absent, use conditional rendering (`{cond && <div>}`) with a CSS `@keyframes` entrance animation defined locally in the component's `.module.css` file.

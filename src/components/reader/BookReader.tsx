@@ -694,6 +694,9 @@ const BookReader: React.FC<BookReaderProps> = ({
   // are the reload itself plus `engineVersion` reaching `useWindowedTranslation`.
   useReloadReanchor({
     engineVersion,
+    // The refill is what moves rows, so it — not a stopwatch — is what decides how long the
+    // anchor keeps being re-applied.
+    isRefilling: isTranslating,
     isEnabled: isActive,
     anchorRef,
     scrollRef,

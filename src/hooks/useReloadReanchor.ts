@@ -4,19 +4,38 @@ import { tryRestorePosition, type RestoreTarget } from './useReadingPosition';
 import type { ReadingPosition } from '../types/ReaderTypes';
 
 /**
- * How long after a reload the captured anchor keeps being re-applied.
+ * How long the refill must stay quiet before the anchor is left alone.
  *
- * One restore is not enough. Clearing the chunk cache turns every translated row back
- * into its untranslated Chinese, which is a different height; the refill then turns them
- * back, a chunk at a time. Each of those changes the offset of every row below it, so the
- * line under the reader keeps moving for as long as the band takes to come back.
+ * One restore is not enough: the refill replaces a chunk's text at a time, and each swap
+ * changes the offset of every row below it, so the line under the reader keeps moving for
+ * as long as the band takes to come back. The loop therefore runs until the thing that
+ * moves rows has stopped.
  *
- * A fixed window rather than a "the refill is done" signal, because there isn't one:
- * `isTranslating` goes false and true again each time the fill is re-planned, and a total
- * size that happens to land on its previous value announces nothing. The window ends on
- * its own, and the reader can end it sooner just by using the reader.
+ * `isTranslating` alone is not that signal — it goes false and true again each time the
+ * fill is re-planned, so a bare `!isTranslating` would end the window in the gap between
+ * two chunks. Continuously false for this long is: re-planning turns it back on within a
+ * frame or two, well inside the interval.
  */
-const REANCHOR_WINDOW_MS = 3000;
+const REFILL_SETTLE_MS = 250;
+
+/**
+ * How long a reload is given to start refilling before quiet counts as finished.
+ *
+ * The anchor is captured when `engineVersion` bumps, which is before the fill effect has
+ * re-planned anything — so for the first frames `isTranslating` is false simply because
+ * nothing has started yet. Without this, that gap reads as "settled" and the window closes
+ * before the refill that moves the rows even begins.
+ */
+const REFILL_GRACE_MS = 1500;
+
+/**
+ * The hard ceiling, whatever the refill is doing.
+ *
+ * A fill that never settles — an engine erroring on every chunk, a band that keeps being
+ * re-planned — must not leave a loop fighting the reader forever. Generous, because the
+ * cheaper protection is the reader's own first wheel or keypress, which ends it instantly.
+ */
+const REANCHOR_CEILING_MS = 15000;
 
 /** Modifier presses on their own are not navigation, so they must not end the window —
  * holding Shift before typing would otherwise abandon the re-anchor. */
@@ -25,6 +44,14 @@ const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta']);
 export interface UseReloadReanchorOptions {
   /** Increments once per constructed engine — the reload having actually landed. */
   engineVersion: number;
+  /**
+   * Whether the windowed refill is currently translating — the thing that moves rows.
+   *
+   * Read live each frame, never closed over: the loop ends when this has been false
+   * continuously for {@link REFILL_SETTLE_MS}, not on a fixed timer, so a slow refill keeps
+   * its anchor and a fast one releases it early.
+   */
+  isRefilling: boolean;
   /** Only re-anchors while the Reader is the visible tab. A reload triggered from the
    * Translator moves nothing the reader can see, and re-anchoring a background panel
    * would fight whatever they do first on coming back. */
@@ -45,11 +72,17 @@ export interface UseReloadReanchorOptions {
  * line index plus a sub-line fraction, the same representation the persisted reading
  * position uses, once a frame until the refill has stopped moving things around.
  *
+ * Re-applying every frame is what makes rows *above* the anchor free: `scrollToIndex`
+ * recomputes from the virtualizer's current geometry, so a row that grew a line somewhere
+ * up the document costs nothing. What the loop cannot undo is the anchor row's own height
+ * changing, which moves the sub-line fraction by at most one row.
+ *
  * The reader gets the window back the moment they use it: a wheel, a pointer press or a
  * non-modifier key disarms, so a re-anchor can never yank a deliberate scroll back.
  */
 export function useReloadReanchor({
   engineVersion,
+  isRefilling,
   isEnabled,
   anchorRef,
   scrollRef,
@@ -57,9 +90,9 @@ export function useReloadReanchor({
   lineCount,
 }: UseReloadReanchorOptions): void {
   // "Latest ref": the effect below keys on the reload alone, but each frame of the loop it
-  // starts must see the live scroll element, virtualizer and line count.
-  const liveRef = useRef({ scrollRef, virtualizer, lineCount, isEnabled });
-  liveRef.current = { scrollRef, virtualizer, lineCount, isEnabled };
+  // starts must see the live scroll element, virtualizer, line count and refill state.
+  const liveRef = useRef({ scrollRef, virtualizer, lineCount, isEnabled, isRefilling });
+  liveRef.current = { scrollRef, virtualizer, lineCount, isEnabled, isRefilling };
 
   const frameRef = useRef<number | null>(null);
   const previousVersionRef = useRef(engineVersion);
@@ -74,15 +107,35 @@ export function useReloadReanchor({
     const captured = anchorRef.current;
     if (!captured) return undefined;
 
-    const deadline = Date.now() + REANCHOR_WINDOW_MS;
+    const armedAt = Date.now();
+    const ceiling = armedAt + REANCHOR_CEILING_MS;
+    /** When the refill last went quiet, or `null` while it is working. */
+    let quietSince: number | null = null;
+    /** Whether a refill was ever seen — until then, quiet only means "not started". */
+    let sawRefill = false;
+
     const stop = (): void => {
       if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
     };
     const step = (): void => {
       frameRef.current = null;
-      if (Date.now() > deadline) return;
+      const now = Date.now();
+      if (now > ceiling) return;
+
       const { scrollRef: live, virtualizer: target, lineCount: lines } = liveRef.current;
+      if (liveRef.current.isRefilling) {
+        sawRefill = true;
+        quietSince = null;
+      } else {
+        quietSince ??= now;
+      }
+      // A refill that has run and then gone quiet is finished. One that has not started yet
+      // gets the grace period before its quiet is believed.
+      const quietLongEnough = quietSince !== null && now - quietSince >= REFILL_SETTLE_MS;
+      const believable = sawRefill || now - armedAt >= REFILL_GRACE_MS;
+      if (quietLongEnough && believable) return;
+
       tryRestorePosition(live.current, target, lines, captured);
       frameRef.current = requestAnimationFrame(step);
     };

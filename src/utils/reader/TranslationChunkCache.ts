@@ -52,6 +52,13 @@ export interface CachedChunk {
    * panels, and it too is done once here rather than per render.
    */
   characterOnlySegments: PositionedSegment[] | null;
+  /**
+   * The dictionary version this chunk was translated against, stamped on insert.
+   *
+   * An entry below the cache's current version is **stale**: still shown, never counted as
+   * present when planning. See {@link TranslationChunkCache.setVersion}.
+   */
+  version?: number;
 }
 
 /**
@@ -75,9 +82,13 @@ export const DEFAULT_CHUNK_CACHE_CAPACITY = 192;
  *
  * - **Nothing inside the keep band is ever evicted**, whatever the capacity says. That is
  *   what makes crossing the fetch boundary back and forth free instead of a re-request.
- * - **A dictionary-version change clears everything.** Salvaging part of the cache would
- *   mean reasoning about which entries an edit could have touched — the invalidation
- *   matrix that "no disk cache" exists to avoid.
+ * - **A dictionary-version change invalidates everything, but discards nothing.** Every
+ *   entry goes stale at once: none of them counts as present any more, so the whole
+ *   resident band is re-translated, and each is still served until its replacement lands.
+ *   Throwing them away instead is what a reload used to do, and it turned the page back
+ *   into dim Chinese for as long as the refill took — rows collapsing to a different
+ *   height and growing back one chunk at a time under the reader's eyes. Nothing stale is
+ *   trusted: it is shown, never counted.
  */
 export class TranslationChunkCache {
   /** Insertion order is LRU order: a read deletes and re-inserts, so the oldest is first. */
@@ -101,20 +112,30 @@ export class TranslationChunkCache {
   }
 
   /**
-   * Adopt a dictionary version, clearing every entry if it differs from the current one.
+   * Adopt a dictionary version. Every entry translated against an older one becomes stale.
    *
-   * @returns whether anything was discarded — the caller re-renders only when it was.
+   * Nothing is discarded and nothing re-renders: what is on screen stays exactly as it is,
+   * and the caller's next plan finds every chunk of the resident band un-present and
+   * re-translates it, replacing each row's text as its own chunk comes back.
    */
-  setVersion(version: number): boolean {
-    if (version === this.currentVersion) return false;
+  setVersion(version: number): void {
     this.currentVersion = version;
-    const had = this.entries.size > 0;
-    this.entries.clear();
-    return had;
   }
 
+  /** Whether this key is present at all, stale or not. */
   has(key: string): boolean {
     return this.entries.has(key);
+  }
+
+  /**
+   * Whether this key is present **and** translated against the current dictionaries.
+   *
+   * This is the question planning asks — `has` would let a stale chunk masquerade as
+   * filled, and a reload would then change nothing on screen.
+   */
+  isFresh(key: string): boolean {
+    const entry = this.entries.get(key);
+    return entry !== undefined && (entry.version ?? this.currentVersion) === this.currentVersion;
   }
 
   /** Reads count as use: the entry moves to the most-recent end. */
@@ -126,9 +147,10 @@ export class TranslationChunkCache {
     return entry;
   }
 
+  /** Stamped with the current version, which is what makes it fresh. */
   set(entry: CachedChunk): void {
     this.entries.delete(entry.chunk.key);
-    this.entries.set(entry.chunk.key, entry);
+    this.entries.set(entry.chunk.key, { ...entry, version: this.currentVersion });
   }
 
   /**
