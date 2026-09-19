@@ -19,6 +19,8 @@ import ModalErrorBoundary from '../ModalErrorBoundary';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
 import type { GlossResult } from '../../hooks/useWindowedTranslation';
+import { callOnEngine } from '../../utils/reader/EngineCall';
+import { useReaderHighlight } from '../../hooks/useReaderHighlight';
 import { countVisibleLines, nextViewportLines } from '../../utils/reader/TranslationWindow';
 import { useEngine } from '../EngineContext';
 import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
@@ -40,7 +42,7 @@ import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import { buildPaletteCommands, type PaletteBook } from '../../utils/reader/PaletteCommands';
 import ReaderPanel from './ReaderPanel';
-import type { PanelRow, ReaderHighlight } from './ReaderPanel';
+import type { PanelRow } from './ReaderPanel';
 import { fillSegmentGaps } from '../../utils/reader/LineSegments';
 import type { ReaderSegment } from '../../utils/reader/LineSegments';
 import styles from '../../styles/Reader.module.css';
@@ -161,15 +163,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
   // book does not silently hide it for the next.
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
-  /**
-   * The lit semantic unit, or `null`.
-   *
-   * One piece of state for every panel: a unit is the same unit on both sides of the
-   * translation, so lighting the Vietnamese lights the Chinese it came from with no mapping
-   * step in between — which is the whole reason the panels key off a chunk key plus an
-   * index rather than off text positions.
-   */
-  const [highlight, setHighlight] = useState<ReaderHighlight | null>(null);
   const [viewportLines, setViewportLines] = useState(DEFAULT_VIEWPORT_LINES);
   const [anchorLine, setAnchorLine] = useState(0);
   /** The anchor at full precision (line + sub-line fraction), kept live for the reload
@@ -180,6 +173,7 @@ const BookReader: React.FC<BookReaderProps> = ({
    * own comment for why a jump's first remeasurement needs to be thrown away. */
   const skipNextAnchorMeasureRef = useRef(false);
   const { engineRef, enginePhase, engineVersion } = useEngine();
+  const { highlight, toggleHighlight } = useReaderHighlight(book.fingerprint, engineVersion);
   const {
     binding,
     fictionDictionaries,
@@ -367,6 +361,12 @@ const BookReader: React.FC<BookReaderProps> = ({
    * its own result, corrupting it. Routing both through one promise chain, rather than
    * relying on each caller to loop sequentially on its own, is what keeps that true across
    * two independent hooks that don't know about each other.
+   *
+   * `callOnEngine` (`src/utils/reader/EngineCall.ts`) is what makes going around this queue
+   * a compile error rather than a documentation violation: it's the only producer of the
+   * `EngineCall<T>` brand that `useWindowedTranslation`/`useOutlineTranslations` require on
+   * their options, and it also owns the ready-check every one of the three calls below
+   * needs — each supplies only its own engine method call and result mapping.
    */
   const engineQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const runOnEngine = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
@@ -384,22 +384,25 @@ const BookReader: React.FC<BookReaderProps> = ({
    * Only ever called while the Reader is the visible tab: the Translator tab's own calls
    * are user-driven from its own view, so the two never contend for the engine.
    */
-  const translateChunk = useCallback(
-    (text: string) =>
-      runOnEngine(async () => {
-        const engine = engineRef.current;
-        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
-        // Progressive batching is the engine's only supported path through this method; the
-        // Reader passes no progress callbacks because a chunk is small enough to land whole.
+  // `useMemo`, not `useCallback`: `callOnEngine`'s result isn't an inline function literal,
+  // so `useCallback` can't have its deps statically checked by `exhaustive-deps` — wrapping
+  // in a literal `() => callOnEngine(...)` for `useMemo` keeps the same memoized identity
+  // while giving the linter a body it can actually scan.
+  const translateChunk = useMemo(
+    () =>
+      callOnEngine(engineRef, runOnEngine, async (engine, text) => {
+        // Progressive batching is the engine's only supported path through this method;
+        // the Reader passes no progress callbacks because a chunk is small enough to land
+        // whole.
         const result = await engine.translateWithSegments(text, { progressive: true });
         return {
           translatedText: result?.translatedText ?? '',
           semanticArrays: result?.semanticArrays ?? null,
-          // `TranslationEngineTypes.d.ts` declares these as `TranslationSegment[]`, but what
-          // fills them is `matchWordSegments`, whose output is `WordSegment[]` — offsets into
-          // the translated text plus a unit index, which is what the Reader slices by. The
-          // Translator reaches the same runtime objects through an `as any` at its own panel;
-          // this asserts the real shape instead.
+          // `TranslationEngineTypes.d.ts` declares these as `TranslationSegment[]`, but
+          // what fills them is `matchWordSegments`, whose output is `WordSegment[]` —
+          // offsets into the translated text plus a unit index, which is what the Reader
+          // slices by. The Translator reaches the same runtime objects through an `as any`
+          // at its own panel; this asserts the real shape instead.
           prebuiltSegments: (result?.prebuiltSegments ?? []) as unknown as WordSegment[],
         };
       }),
@@ -412,11 +415,9 @@ const BookReader: React.FC<BookReaderProps> = ({
    * A second engine call, run after the chunk's full translation is already on screen —
    * see `useWindowedTranslation`, which owns that ordering.
    */
-  const translateGloss = useCallback(
-    (text: string): Promise<GlossResult> =>
-      runOnEngine(async () => {
-        const engine = engineRef.current;
-        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+  const translateGloss = useMemo(
+    () =>
+      callOnEngine(engineRef, runOnEngine, async (engine, text): Promise<GlossResult> => {
         const result = await engine.translateWithCharactersOnly(text);
         return {
           translatedText: result?.translatedText ?? '',
@@ -429,11 +430,9 @@ const BookReader: React.FC<BookReaderProps> = ({
   );
 
   /** One engine call, for a batch of chapter titles — see `useOutlineTranslations`. */
-  const translateOutlineBatch = useCallback(
-    (text: string): Promise<string> =>
-      runOnEngine(async () => {
-        const engine = engineRef.current;
-        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+  const translateOutlineBatch = useMemo(
+    () =>
+      callOnEngine(engineRef, runOnEngine, async (engine, text) => {
         const result = await engine.translateWithSegments(text, { progressive: true });
         return result?.translatedText ?? '';
       }),
@@ -447,7 +446,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     getOriginalSegments,
     getCharacterOnlySegments,
     isTranslating,
-    error: translationError,
   } = useWindowedTranslation({
     fingerprint: book.fingerprint,
     lineCount: book.lineCount,
@@ -724,22 +722,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     syncScroll(TRANSLATION_PANEL);
   }, [measureViewport, onScroll, syncScroll]);
 
-  // A chunk key is a line range, so the same key names a different passage in another book
-  // and different Vietnamese after a dictionary reload. Neither is a highlight worth
-  // keeping, and both would otherwise light an unrelated word.
-  useEffect(() => {
-    setHighlight(null);
-  }, [book.fingerprint, engineVersion]);
-
-  /** Click a run to light it, click it again to clear — same gesture in every panel. */
-  const toggleHighlight = useCallback((next: ReaderHighlight): void => {
-    setHighlight((current) =>
-      current && current.chunkKey === next.chunkKey && current.unitIndex === next.unitIndex
-        ? null
-        : next
-    );
-  }, []);
-
   const translationRow = useCallback(
     (index: number): PanelRow =>
       vietnameseRow(
@@ -903,10 +885,10 @@ const BookReader: React.FC<BookReaderProps> = ({
         />
       )}
 
-      {(error || translationError) && (
+      {error && (
         <div className={styles.error}>
           <AlertCircle size={15} />
-          {error ?? translationError}
+          {error}
         </div>
       )}
 

@@ -17,8 +17,8 @@ import toast from '../utils/toast';
  */
 const QUICK_ADD_TABS: readonly TabId[] = ['translator', 'reader'];
 
-/** Cmd-7 opens the Rules tab's new-rule form, which the Reader has no equivalent of. */
-const NEW_RULE_TABS: readonly TabId[] = ['translator'];
+/** Cmd-7 opens the Rules tab's new-rule form. Reader reuses it same as Translator. */
+const NEW_RULE_TABS: readonly TabId[] = ['translator', 'reader'];
 
 /** A background tab passes no id at all, which is never allowed anywhere. */
 function isAllowedTab(tab: TabId | undefined, allowed: readonly TabId[]): boolean {

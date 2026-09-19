@@ -1,41 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   assembleTranslatedLines,
-  chunkText,
   computeBands,
   orderChunksByDistance,
   planChunks,
   snapRangeToParagraphs,
 } from '../utils/reader/TranslationWindow';
 import {
-  bridgeGlossSegments,
   buildCharacterOnlyLineSegments,
   buildOriginalLineSegments,
   buildTranslatedLineSegments,
 } from '../utils/reader/LineSegments';
-import type {
-  PositionedSegment,
-  ReaderSegment,
-  SegmentedChunk,
-} from '../utils/reader/LineSegments';
+import type { ReaderSegment, SegmentedChunk } from '../utils/reader/LineSegments';
 import { TranslationChunkCache } from '../utils/reader/TranslationChunkCache';
-import { precomputeOriginalSegments, segmentFromPositionMetadata } from '../utils/highlighting';
-import type { SemanticArrays } from '../types/SemanticTypes';
-import { extractErrorMessage } from '../utils/errorHelpers';
+import { fillPlan } from '../utils/reader/WindowedTranslationFill';
+import type { ChunkTranslationResult, GlossResult } from '../utils/reader/WindowedTranslationFill';
+import type { EngineCall } from '../utils/reader/EngineCall';
 import { logger } from '../utils/logger';
 
-/** What one engine call gives back, trimmed to what the Reader keeps. */
-export interface ChunkTranslationResult {
-  translatedText: string;
-  semanticArrays: SemanticArrays | null;
-  prebuiltSegments: PositionedSegment[];
-}
-
-/** What the character-only pass gives back. */
-export interface GlossResult {
-  translatedText: string;
-  semanticArrays: SemanticArrays | null;
-}
+export type { ChunkTranslationResult, GlossResult } from '../utils/reader/WindowedTranslationFill';
 
 export interface UseWindowedTranslationOptions {
   /** The open book. A change means every cached chunk belongs to a different novel. */
@@ -48,14 +31,19 @@ export interface UseWindowedTranslationOptions {
   /** Bumped by `useBookLines` whenever a page lands, so a plan blocked on unfetched lines re-runs. */
   linesVersion: number;
   getLine: (index: number) => string | undefined;
-  /** One engine call. Must be referentially stable. */
-  translateChunk: (text: string) => Promise<ChunkTranslationResult>;
+  /**
+   * One engine call. Must be referentially stable, and must be produced by `callOnEngine`
+   * (`src/utils/reader/EngineCall.ts`) — the `EngineCall` brand is what makes wiring a
+   * callback that bypasses the shared engine queue a compile error.
+   */
+  translateChunk: EngineCall<ChunkTranslationResult>;
   /**
    * The same text through the engine's character-only pass, for the reference panel. Runs
    * *after* the chunk's full translation has already been published, so the gloss costs
-   * the translation panel nothing but its own engine time. Must be referentially stable.
+   * the translation panel nothing but its own engine time. Must be referentially stable and
+   * `callOnEngine`-produced, same as `translateChunk`.
    */
-  translateGloss: (text: string) => Promise<GlossResult>;
+  translateGloss: EngineCall<GlossResult>;
   /** Bumped on every engine reinitialization; a change invalidates the whole cache. */
   dictionaryVersion: number;
   /** Translation only runs while the engine is ready and the Reader is the visible tab. */
@@ -85,7 +73,6 @@ export interface WindowedTranslation {
   getOriginalSegments: (index: number) => readonly ReaderSegment[] | undefined;
   /** True while a fill is in progress, for a quiet indicator rather than a blocking state. */
   isTranslating: boolean;
-  error: string | null;
 }
 
 /**
@@ -96,6 +83,13 @@ export interface WindowedTranslation {
  * chunk boundary is a cancellation point — scrolling away bumps the generation and the
  * loop stops after the call in flight, which is why the buffer can be much wider than the
  * highlighting ceiling allows any single call to be.
+ *
+ * The fill loop itself — cancellation, the cache read/write protocol, the two-call
+ * ordering, per-chunk error isolation — lives in `fillPlan` (`src/utils/reader/
+ * WindowedTranslationFill.ts`), a plain async generator with no React in it. This hook is
+ * wiring: it plans the band into chunks (`TranslationWindow.ts`), owns the cache instance
+ * and the generation counter, drives `fillPlan` inside an effect, and folds landed chunks
+ * back into per-line strings/segments for render (`rebuild`).
  *
  * Nothing here is written to disk, and nothing is translated ahead of the fetch band:
  * translating a screenful takes a fraction of a second against a reader who spends tens of
@@ -121,9 +115,14 @@ export function useWindowedTranslation({
   const originalSegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
   const characterOnlySegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
   const generationRef = useRef(0);
+  // Bumps only when the cache itself stops being trustworthy — a book switch or unmount —
+  // never on an ordinary re-plan (anchor move, page landing, resize). Separate from
+  // `generationRef` on purpose: see `fillPlan`'s doc comment for the bug conflating them
+  // caused (a chunk's gloss silently abandoned by an anchor move, orphaned forever since
+  // its translation was already cached as "fresh").
+  const bookGenerationRef = useRef(0);
   const [, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const rebuild = useCallback((): void => {
     const entries = cacheRef.current.values();
@@ -157,13 +156,13 @@ export function useWindowedTranslation({
   // A different book means every cached chunk is keyed by a line range in another file.
   useEffect(() => {
     generationRef.current += 1;
+    bookGenerationRef.current += 1;
     cacheRef.current.clear();
     linesRef.current = new Map();
     characterOnlyRef.current = new Map();
     translatedSegmentsRef.current = new Map();
     originalSegmentsRef.current = new Map();
     characterOnlySegmentsRef.current = new Map();
-    setError(null);
     forceRender((n) => n + 1);
   }, [fingerprint]);
 
@@ -171,6 +170,7 @@ export function useWindowedTranslation({
   useEffect(() => {
     return () => {
       generationRef.current += 1;
+      bookGenerationRef.current += 1;
     };
   }, []);
 
@@ -182,6 +182,18 @@ export function useWindowedTranslation({
     if (!isEnabled || lineCount === 0 || viewportLines <= 0) return;
 
     const generation = (generationRef.current += 1);
+    const bookGeneration = bookGenerationRef.current;
+    // "Is there a newer plan?" — checked only before starting a new chunk. True on every
+    // ordinary re-plan; skipping a not-yet-started chunk here is free.
+    const isStale = (): boolean => generationRef.current !== generation;
+    // "Has the cache itself stopped being trustworthy?" — checked after each of a started
+    // chunk's two awaits. True only on a book switch or unmount, never an ordinary
+    // re-plan — see `fillPlan`'s doc comment for why conflating this with `isStale` is a
+    // bug already shipped once. `dictionaryVersion` belongs here too: a reload must not
+    // let a chunk's result land against dictionaries no longer in force, same as before.
+    const isAbandoned = (): boolean =>
+      bookGenerationRef.current !== bookGeneration || cache.version !== dictionaryVersion;
+
     const bands = computeBands({ anchorLine, viewportLines, overscanLines, lineCount });
     if (cache.prune(bands.keep).length > 0) rebuild();
 
@@ -197,74 +209,22 @@ export function useWindowedTranslation({
 
     setIsTranslating(true);
     void (async () => {
-      for (const chunk of missing) {
-        if (generationRef.current !== generation) return;
-        const text = chunkText(chunk, getLine);
-        if (text.trim().length === 0) continue;
-        try {
-          const result = await translateChunk(text);
-          // The work is done and the text is unchanged, so a chunk that finished after the
-          // reader scrolled away is still worth keeping — but only if the dictionaries it
-          // was translated against are still the ones in force.
-          if (cache.version !== dictionaryVersion) return;
-          // Whatever this chunk held before — the stale translation being replaced right
-          // now — still has a gloss beside it, and the gloss pass is a whole engine call
-          // behind. Keeping its text spares the reference panel a blank while that call
-          // runs; its *segments* are dropped, because they were relabeled against the
-          // outgoing translation's units and would light the wrong word against the new
-          // ones. The panel shows them as plain text until the new gloss lands.
-          const previous = cache.get(chunk.key);
-          cache.set({
-            chunk,
-            ...result,
-            // The Vietnamese runs are measured against an NFC-normalized copy of this text
-            // (`matchWordSegments` normalizes before it searches), so the panel must hold
-            // the same normalization or every offset after the first composed character
-            // would slice a row in the wrong place.
-            translatedText: result.translatedText.normalize('NFC'),
-            sourceText: text,
-            // Derived once, here, rather than on every rebuild: see `CachedChunk`.
-            originalSegments: result.semanticArrays
-              ? precomputeOriginalSegments(text, result.semanticArrays)
-              : [],
-            characterOnlyText: previous?.characterOnlyText ?? null,
-            characterOnlySegments: null,
-          });
-          rebuild();
-          setError(null);
-
-          // Second pass, after the translation is already on screen: the engine serves one
-          // caller at a time, so this cannot overlap the call above, and running it here
-          // rather than inside `translateChunk` is what keeps the translation panel filling
-          // at its own pace instead of at twice the cost.
-          const gloss = await translateGloss(text);
-          if (cache.version !== dictionaryVersion) return;
-          const stored = cache.get(chunk.key);
-          if (stored) {
-            // Normalized for the same reason the full translation is: the gloss's own
-            // segmenter measures its offsets against an NFC copy of the text.
-            const glossText = gloss.translatedText.normalize('NFC');
-            cache.set({
-              ...stored,
-              characterOnlyText: glossText,
-              // The gloss is a second pass with semantic arrays of its own, so its unit
-              // indices mean nothing to the other two panels until they are relabeled by
-              // the source characters each one covers.
-              characterOnlySegments: gloss.semanticArrays
-                ? bridgeGlossSegments(
-                    segmentFromPositionMetadata(glossText, gloss.semanticArrays),
-                    precomputeOriginalSegments(text, gloss.semanticArrays),
-                    stored.originalSegments
-                  )
-                : null,
-            });
-            rebuild();
-          }
-        } catch (cause) {
-          logger.error('Failed to translate a reader chunk:', cause);
-          setError(extractErrorMessage(cause));
-          break;
+      for await (const event of fillPlan(
+        cache,
+        missing,
+        getLine,
+        { translateChunk, translateGloss },
+        isStale,
+        isAbandoned
+      )) {
+        if (event.type === 'skipped') {
+          // Isolated, not fatal: one bad chunk does not block the rest of the visible
+          // window, and does not degrade the reading experience with a banner for it — the
+          // chunk simply stays un-translated and retries the next time planning re-runs.
+          logger.error('Failed to translate a reader chunk:', event.cause);
+          continue;
         }
+        rebuild();
       }
       if (generationRef.current === generation) setIsTranslating(false);
     })();
@@ -319,6 +279,5 @@ export function useWindowedTranslation({
     getOriginalSegments,
     getCharacterOnlySegments,
     isTranslating,
-    error,
   };
 }

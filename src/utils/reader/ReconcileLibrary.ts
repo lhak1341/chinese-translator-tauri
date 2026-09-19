@@ -137,6 +137,13 @@ export function applyReconciliation(
     });
   }
 
+  // Locale-aware, so both shelf lists sort the same true A-Z a reader expects — Rust's own
+  // pre-sort in `scan_library_impl` (`book_commands.rs`) is plain `String::cmp`, byte order,
+  // which puts every capital letter before every lowercase one and doesn't fold diacritics.
+  // This sort is authoritative; the Rust one is redundant but harmless left as a stable
+  // starting order.
+  shelfBooks.sort((a, b) => a.title.localeCompare(b.title));
+
   const unavailableBooks: UnavailableBook[] = [];
   for (const record of Object.values(next)) {
     if (matched.has(record.fingerprint)) continue;

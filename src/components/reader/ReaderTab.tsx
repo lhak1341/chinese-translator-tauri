@@ -19,6 +19,7 @@ import {
   type UnavailableBook,
 } from '../../utils/reader/ReconcileLibrary';
 import { useBookBinding } from '../BookBindingContext';
+import type { OpenBookIdentity } from '../BookBindingContext';
 import Bookshelf from './Bookshelf';
 import BookReader from './BookReader';
 import EncodingPrompt from './EncodingPrompt';
@@ -44,6 +45,12 @@ interface EncodingChoiceState {
   fileName: string;
   title: string;
   report: EncodingReport;
+}
+
+/** The slice of an open book that `announceOpenBook` needs — same shape whether the book
+ * just finished decoding or was already open and is only being re-announced. */
+function identityOf(book: OpenBook): OpenBookIdentity {
+  return { fingerprint: book.fingerprint, fileName: book.fileName, title: book.title };
 }
 
 /**
@@ -145,14 +152,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
             // put its dictionaries back after reading something else. The apply is a
             // no-op when the active list already matches, so a Back-then-forward costs
             // nothing.
-            announceOpenBook(
-              {
-                fingerprint: open.book.fingerprint,
-                fileName: open.book.fileName,
-                title: open.book.title,
-              },
-              record.binding
-            );
+            announceOpenBook(identityOf(open.book), record.binding);
             setOpen((previous) =>
               previous
                 ? {
@@ -217,14 +217,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         // general dictionaries only and shows the offer. Leaving the *previous* book
         // authoritative instead would keep its `properNouns-f_*` active over this novel —
         // the silent wrong-dictionary failure the binding exists to prevent.
-        announceOpenBook(
-          {
-            fingerprint: result.book.fingerprint,
-            fileName: result.book.fileName,
-            title: result.book.title,
-          },
-          binding
-        );
+        announceOpenBook(identityOf(result.book), binding);
         setOpen({
           book: result.book,
           encoding: result.encoding,

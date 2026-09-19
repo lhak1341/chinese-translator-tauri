@@ -96,6 +96,8 @@ Write an ADR when making decisions about:
 - Code style choices (use ESLint/Prettier)
 - Temporary experiments
 
+**Rejecting a proposed split/extraction**: apply the deletion test to the _proposed change itself_, not just the original shallow-module complaint — a split whose caller-facing shape never changes relocates complexity instead of concentrating it (ADR-039, ADR-043, ADR-044 all reject this way).
+
 ## References
 
 - ADR Process: [Michael Nygard's ADR Template](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)

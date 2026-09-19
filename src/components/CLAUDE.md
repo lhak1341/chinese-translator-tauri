@@ -56,7 +56,7 @@ Never list frequently-updating state or callback props in a `useEffect` dep arra
 
 **Two async fetches keyed by the same identifier can race.** A same-key check cannot tell which one _started_ more recently. Guard with a shared `requestIdRef` counter incremented per fetch and applied only if it still matches on resolution — `useChapterOutline.ts`'s mount fetch and `setOverride` fetch both write `headers` for one fingerprint, and without it a slow mount fetch silently clobbers the user's choice.
 
-**eslint's `exhaustive-deps` only recognizes a ref created by `useRef` in the same component** — one handed back from a custom hook is an ordinary value to it, so list it in the dep array rather than fighting the rule; it is as stable as any other ref (`useReaderPanel`'s `scrollRef`, consumed by `BookReader.tsx`).
+**eslint's `exhaustive-deps` only sees a dependency it can read syntactically at the call site** — a ref from a custom hook, or a callback built by a factory function, are both invisible to it. A ref returned by a custom hook (not `useRef` in the same component) needs listing in the dep array by hand — it's as stable as any other ref (`useReaderPanel`'s `scrollRef`, consumed by `BookReader.tsx`). `useCallback(factoryCall(...), deps)` warns "pass an inline function instead" even with a correct deps array, because the first arg isn't a literal — `useMemo(() => factoryCall(...), deps)` keeps the same identity while giving the linter a literal to scan (`BookReader.tsx`'s `translateChunk`/`translateGloss`/`translateOutlineBatch`, wrapping `callOnEngine`).
 
 ## React state updater rules
 

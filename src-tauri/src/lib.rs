@@ -1,5 +1,6 @@
 // Dictionary commands module
 mod book_commands;
+mod chapter_outline_commands;
 mod dictionary_commands;
 pub mod book_loader;
 pub mod chapter_outline;
@@ -71,8 +72,8 @@ pub fn run() {
             book_commands::read_book_lines,
             book_commands::close_book,
             book_commands::fingerprint_book,
-            book_commands::detect_chapter_outline,
-            book_commands::chapter_headers_for_pattern,
+            chapter_outline_commands::detect_chapter_outline,
+            chapter_outline_commands::chapter_headers_for_pattern,
         ])
         .run(tauri::generate_context!())
         .expect("Failed to start Chinese-Vietnamese Translator. Please check your system configuration and try again. If the problem persists, please report it at: https://github.com/lhak1341/chinese-translator-tauri/issues");

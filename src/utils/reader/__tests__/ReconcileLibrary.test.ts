@@ -199,4 +199,22 @@ describe('reconcileLibraryScan', () => {
 
     expect(result.shelfBooks.map((b) => b.fileName)).toEqual(['ok.txt']);
   });
+
+  test('shelfBooks sorts A-Z by title, locale-aware, regardless of scan order', async () => {
+    const files = [
+      makeFile({ fileName: 'zebra.txt', title: 'Zebra' }),
+      makeFile({ fileName: 'apple.txt', title: 'apple' }),
+      makeFile({ fileName: 'eclair.txt', title: 'Éclair' }),
+    ];
+    const fingerprintFn = vi.fn(async (fileName: string) => ({
+      fingerprint: `fp-${fileName}`,
+      sizeBytes: 100,
+    }));
+
+    const result = await reconcileLibraryScan(files, null, fingerprintFn);
+
+    // Plain byte order would put 'Zebra' (capital Z) before 'apple' (lowercase a) and
+    // 'Éclair' (composed é) after both — none of that is true A-Z for a human reader.
+    expect(result.shelfBooks.map((b) => b.title)).toEqual(['apple', 'Éclair', 'Zebra']);
+  });
 });

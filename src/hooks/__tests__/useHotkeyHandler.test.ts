@@ -215,15 +215,16 @@ describe('useHotkeyHandler', () => {
       expect(onQuickAdd).not.toHaveBeenCalled();
     });
 
-    test('Cmd+7 on the reader tab: onOpenNewRule is not called (no new-rule form there)', async () => {
+    test('Cmd+7 on reader tab: onOpenNewRule receives clipboard text, Reader reuses the Rules form', async () => {
       setSelection('太岳山脉');
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue('太岳山脉');
       const onOpenNewRule = vi.fn();
 
       renderHook(() => useHotkeyHandler({ onOpenNewRule, activeTab: 'reader' }));
       fireKey({ key: '7' });
       await flush();
 
-      expect(onOpenNewRule).not.toHaveBeenCalled();
+      expect(onOpenNewRule).toHaveBeenCalledWith('太岳山脉');
     });
 
     test('Cmd+7 on translator tab: onOpenNewRule receives clipboard text, same as other quick-add keys', async () => {

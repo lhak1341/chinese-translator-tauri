@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChapterHeader } from '../types/ReaderTypes';
+import type { EngineCall } from '../utils/reader/EngineCall';
 import { logger } from '../utils/logger';
 
 /** Characters aimed at per batch — titles are short, so this covers dozens of them per
@@ -16,9 +17,10 @@ export interface UseOutlineTranslationsOptions {
   priorityLine: number;
   /** One engine call, resolving to Vietnamese for a batch of chapter titles joined by
    * `\n` — the same shape `useWindowedTranslation` sends for ordinary book text. Must be
-   * referentially stable, and must itself be serialized against any other caller of the
-   * shared engine — this hook makes no ordering guarantee of its own. */
-  translateBatch: (text: string) => Promise<string>;
+   * referentially stable, and produced by `callOnEngine` (`src/utils/reader/EngineCall.ts`)
+   * — this hook makes no serialization guarantee of its own, and relies on the `EngineCall`
+   * brand to make wiring a callback that bypasses the shared engine queue a compile error. */
+  translateBatch: EngineCall<string>;
   /** Bumped on every engine reinitialization; a change makes every cached title stale,
    * since each was translated against dictionaries that no longer apply. Stale titles keep
    * showing until their replacement lands — see the cache note in the hook body. */
@@ -82,9 +84,16 @@ function assembleBatch(batch: ChapterHeader[], translatedText: string): Map<numb
  * Translates chapter titles for the outline panel (and the chapter-strip button), on
  * demand, batched.
  *
- * Mirrors `useWindowedTranslation`'s cache-and-generation shape: titles are cheap enough,
- * and few enough per batch, that a plan/chunk pipeline isn't needed, but the same
- * invalidation rule applies — a dictionary reload must not leave stale titles behind.
+ * Resembles `useWindowedTranslation`'s cache-and-generation shape — titles are cheap
+ * enough, and few enough per batch, that a plan/chunk pipeline isn't needed, but the same
+ * invalidation rule applies: a dictionary reload must not leave stale titles behind. The
+ * resemblance is surface-level, not shared depth: call arity (one engine call here, two in
+ * `fillPlan`), cache shape (a plain `Map`, no eviction, vs `TranslationChunkCache`'s LRU),
+ * and effect topology (book-change and fill-scheduling share one effect here, split in two
+ * there) all genuinely differ — a shared primitive was deliberately rejected, see
+ * ADR-043. This hook does not need `fillPlan`'s isStale-after-`await` fix either: that
+ * closed a race between two *separate* effects bumping `generationRef` independently,
+ * which this hook's single-effect shape was never exposed to.
  */
 export function useOutlineTranslations({
   fingerprint,
@@ -152,8 +161,11 @@ export function useOutlineTranslations({
           }
           forceRender((n) => n + 1);
         } catch (cause) {
+          // Isolated, not fatal: one bad batch does not block translating the rest of the
+          // outline. Its headers stay un-translated and retry the next time this effect
+          // reruns for any reason — no separate give-up-after-N tracking, matching
+          // `fillPlan`'s same choice (see ADR-043).
           logger.error('Failed to translate a batch of chapter titles:', cause);
-          break;
         }
       }
       if (generationRef.current === generation) setIsTranslating(false);
