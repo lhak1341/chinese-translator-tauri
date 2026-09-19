@@ -368,3 +368,37 @@ describe('chapter stepping', () => {
     expect(matchHotkey(key('a'), ctx({ activeTab: 'reader' }))).toBeNull();
   });
 });
+
+// ─── Space / Shift+Space (page the reading panel) ─────────────────────────────
+
+describe('paging', () => {
+  it('Space on reader tab → pageDown', () => {
+    expect(matchHotkey(key(' '), ctx({ activeTab: 'reader' }))).toEqual({ type: 'pageDown' });
+  });
+
+  it('Shift+Space on reader tab → pageUp', () => {
+    expect(matchHotkey(key(' ', { shift: true }), ctx({ activeTab: 'reader' }))).toEqual({
+      type: 'pageUp',
+    });
+  });
+
+  it('Space on translator tab → null (nothing there scrolls this way)', () => {
+    expect(matchHotkey(key(' '), ctx({ activeTab: 'translator' }))).toBeNull();
+  });
+
+  it('Space with no tab at all → null', () => {
+    expect(matchHotkey(key(' '), ctx({ activeTab: undefined }))).toBeNull();
+  });
+
+  it('Space while a text input has focus → null (typing a literal space)', () => {
+    expect(matchHotkey(key(' '), ctx({ activeTab: 'reader', isInputFocused: true }))).toBeNull();
+  });
+
+  it.each([
+    ['meta', { meta: true }],
+    ['ctrl', { ctrl: true }],
+    ['alt', { alt: true }],
+  ])('Space with %s held → null', (_name, modifier) => {
+    expect(matchHotkey(key(' ', modifier), ctx({ activeTab: 'reader' }))).toBeNull();
+  });
+});

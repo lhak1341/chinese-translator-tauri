@@ -36,9 +36,16 @@ describe('stepChapter', () => {
     expect(stepChapter(headers, 50, 1)).toEqual({ line: 100, title: 'Chapter at 100' });
   });
 
-  test('steps to the previous header before the current chapter', () => {
+  test("steps back to the current chapter's own start when mid-chapter", () => {
+    // Media-player back-button convention: from inside chapter 100, one press returns
+    // to its own start (100), not straight past it to chapter 0.
     const headers = headersAt(0, 100, 250);
-    expect(stepChapter(headers, 150, -1)).toEqual({ line: 0, title: 'Chapter at 0' });
+    expect(stepChapter(headers, 150, -1)).toEqual({ line: 100, title: 'Chapter at 100' });
+  });
+
+  test('steps to the previous chapter when already sitting on a header line', () => {
+    const headers = headersAt(0, 100, 250);
+    expect(stepChapter(headers, 100, -1)).toEqual({ line: 0, title: 'Chapter at 0' });
   });
 
   test('returns null stepping past the last chapter', () => {
@@ -46,9 +53,14 @@ describe('stepChapter', () => {
     expect(stepChapter(headers, 150, 1)).toBeNull();
   });
 
-  test('returns null stepping before the first chapter', () => {
+  test("steps back to the first chapter's own start when mid-chapter, rather than null", () => {
     const headers = headersAt(0, 100);
-    expect(stepChapter(headers, 10, -1)).toBeNull();
+    expect(stepChapter(headers, 10, -1)).toEqual({ line: 0, title: 'Chapter at 0' });
+  });
+
+  test("returns null stepping back from the first chapter's own start — nothing before it", () => {
+    const headers = headersAt(0, 100);
+    expect(stepChapter(headers, 0, -1)).toBeNull();
   });
 
   test('stepping forward before any chapter starts lands on the first one', () => {

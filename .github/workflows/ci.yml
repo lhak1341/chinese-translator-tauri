@@ -52,7 +52,14 @@ jobs:
       - name: Run wasm-core Rust tests
         run: cargo test --manifest-path wasm-core/Cargo.toml
 
+      # book_loader/chapter_outline's corpus tests read a real personal novel library
+      # (~/Downloads/_FICTION by default) that CI has no access to and can't be given —
+      # the fixture is real books on purpose (see book_loader.rs's `corpus_dir()`). The
+      # explicit opt-out is what keeps a genuinely missing corpus from failing silently
+      # on a dev machine; CI is the one place it's expected to be absent.
       - name: Run src-tauri Rust tests
+        env:
+          SKIP_READER_CORPUS_TESTS: '1'
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       # cargo test compiles lib, bins and tests, but never benches — a bench referencing a

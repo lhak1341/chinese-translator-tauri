@@ -24,6 +24,7 @@ Known instances:
 
 - `wasmStatus` interval (`Translator.jsx`) — dep array is `[enginePhase]`, ref used inside callback for status comparison
 - Keydown listener in `useHotkeyHandler.ts` — dep array is `[]`; all props mirrored into one `optionsRef` (not per-prop refs, collapsed 2026-07-16), read as `optionsRef.current.X` inside the listener
+- `goToChapter` in `BookReader.tsx` (dispatched via `useHotkeyHandler`'s `onNextChapter`) — `optionsRef` mirroring the listener's own props doesn't help when the mirrored callback itself closes over frequently-updating state: a rapid second `]` (key-repeat) can fire before React re-renders from the first press's `setAnchorLine`, so the stale closure still has the pre-jump `anchorLine`. Reads `anchorRef.current.line` instead.
 
 **Also applies to `useCallback` with a mutable state dep**: a `Set` in state creates a new reference on every `setState` → the callback recreates on every update. Use a ref mirror; dep array → `[]`.
 

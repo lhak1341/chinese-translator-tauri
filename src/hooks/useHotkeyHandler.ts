@@ -12,8 +12,8 @@ import toast from '../utils/toast';
  *
  * `matchHotkey` only knows that Cmd-1..6 mean something else on the Dictionary tab; this
  * is what keeps them from firing on Rules/Configuration/Appearance, where the modal would
- * open behind a `visibility: hidden` panel. The Reader is on the list because its
- * floating add-entry bar is the same family reused — see `AddEntryBar`.
+ * open behind a `visibility: hidden` panel. The Reader is on the list because it reuses
+ * the same `DictionaryEntry` modal the Translator opens.
  */
 const QUICK_ADD_TABS: readonly TabId[] = ['translator', 'reader'];
 
@@ -45,6 +45,8 @@ export interface HotkeyHandlerOptions {
   onOpenChapterOutline?: () => void;
   onPreviousChapter?: () => void;
   onNextChapter?: () => void;
+  onPageDown?: () => void;
+  onPageUp?: () => void;
   onFocusSearch?: () => void;
   onDictionaryTabHotkey?: (key: string) => Promise<void>;
   onOpenNewRule?: (text?: string) => void;
@@ -64,6 +66,7 @@ export interface HotkeyHandlerOptions {
  * - Cmd/Ctrl+K: Open the command palette (Reader tab only)
  * - Cmd/Ctrl+G: Open the chapter outline with its search focused (Reader tab only)
  * - `[` / `]`: Previous / next chapter (Reader tab only, no modifier)
+ * - Space / Shift+Space: Page the reading panel down / up (Reader tab only, no modifier)
  * - Cmd/Ctrl+L: Focus search (Dictionary tab only)
  * - Cmd/Ctrl+Z: Undo
  * - Cmd/Ctrl+Shift+Z: Redo
@@ -183,6 +186,12 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
           break;
         case 'nextChapter':
           opts.onNextChapter?.();
+          break;
+        case 'pageDown':
+          opts.onPageDown?.();
+          break;
+        case 'pageUp':
+          opts.onPageUp?.();
           break;
         case 'openNewRule':
           await handleQuickAdd(event, opts.onOpenNewRule, 'Add Rule', NEW_RULE_TABS);

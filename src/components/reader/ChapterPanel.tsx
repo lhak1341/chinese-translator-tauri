@@ -16,6 +16,10 @@ interface ChapterPanelProps {
   /** Index into `headers` of the chapter currently on screen, or `-1`. */
   currentIndex: number;
   error: string | null;
+  /** Vietnamese for a header's title, or `undefined` while it is still Chinese. */
+  getTranslatedTitle?: (line: number) => string | undefined;
+  /** True while chapter titles are still being translated in the background. */
+  isTranslatingTitles?: boolean;
   /** Take focus into the search on open. Set by the jump-to-chapter shortcut, which opens
    * the panel to be typed into; the chapter-strip button leaves focus where it was. */
   autoFocusSearch?: boolean;
@@ -36,6 +40,8 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
   isOverridden,
   currentIndex,
   error,
+  getTranslatedTitle,
+  isTranslatingTitles = false,
   autoFocusSearch = false,
   onJump,
   onSetOverride,
@@ -43,6 +49,7 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+  const activeRowRef = useRef<HTMLLIElement | null>(null);
 
   // The search input only exists once there are chapters to search, and the outline can
   // still be being elected when the panel opens — so this runs again when the headers
@@ -52,17 +59,35 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
     if (autoFocusSearch) searchRef.current?.focus();
   }, [autoFocusSearch, headers.length]);
 
+  // Same race as the search-focus effect above: the current chapter can still be unknown
+  // (`currentIndex === -1`) at the moment the panel opens, if the outline is still being
+  // elected. Re-running once `headers.length` lands is what catches the row that wasn't
+  // there yet on the first pass. `?.` on the method itself, not just the ref, because
+  // jsdom doesn't implement `scrollIntoView`.
+  useEffect(() => {
+    activeRowRef.current?.scrollIntoView?.({ block: 'center' });
+  }, [currentIndex, headers.length]);
+
   const filtered = useMemo(() => {
     const indexed = headers.map((header, index) => ({ header, index }));
     const needle = query.trim().toLowerCase();
     if (!needle) return indexed;
-    return indexed.filter(({ header }) => header.title.toLowerCase().includes(needle));
-  }, [headers, query]);
+    return indexed.filter(({ header }) => {
+      const translated = getTranslatedTitle?.(header.line);
+      return (
+        header.title.toLowerCase().includes(needle) ||
+        (translated?.toLowerCase().includes(needle) ?? false)
+      );
+    });
+  }, [headers, query, getTranslatedTitle]);
 
   return (
     <div className={styles.outlinePanel}>
       <div className={styles.outlinePanelHeader}>
-        <span className={styles.outlinePanelTitle}>Chapters</span>
+        <span className={styles.outlinePanelTitle}>
+          {isTranslatingTitles && <span className={styles.translatingDot} aria-hidden="true" />}
+          Chapters
+        </span>
         <button onClick={onClose} className={styles.iconButton} aria-label="Close chapter panel">
           <X size={16} />
         </button>
@@ -119,14 +144,16 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
 
           <ul className={styles.outlineList}>
             {filtered.map(({ header, index }) => (
-              <li key={header.line}>
+              <li key={header.line} ref={index === currentIndex ? activeRowRef : undefined}>
                 <button
                   className={`${styles.outlineRow} ${
                     index === currentIndex ? styles.outlineRowActive : ''
                   }`}
                   onClick={() => onJump(header.line)}
                 >
-                  <span className={styles.outlineRowTitle}>{header.title || '(untitled)'}</span>
+                  <span className={styles.outlineRowTitle}>
+                    {(getTranslatedTitle?.(header.line) ?? header.title) || '(untitled)'}
+                  </span>
                   <span className={styles.outlineRowLine}>{header.line + 1}</span>
                 </button>
               </li>

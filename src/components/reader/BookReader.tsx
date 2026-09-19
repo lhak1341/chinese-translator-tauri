@@ -14,13 +14,15 @@ import { useDictionaryModals } from '../../hooks/useDictionaryModals';
 import { useReloadReanchor } from '../../hooks/useReloadReanchor';
 import { useAppearanceRelayout } from '../../hooks/useAppearanceRelayout';
 import HotkeyHandler from '../HotkeyHandler';
-import AddEntryBar from './AddEntryBar';
+import DictionaryEntry from '../dictionary/DictionaryEntry';
+import ModalErrorBoundary from '../ModalErrorBoundary';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
 import { countVisibleLines, nextViewportLines } from '../../utils/reader/TranslationWindow';
 import { useEngine } from '../EngineContext';
 import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
+import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
 import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
 import { usePanelSync } from '../../hooks/usePanelSync';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
@@ -154,6 +156,9 @@ const BookReader: React.FC<BookReaderProps> = ({
    * re-anchor — which needs the value as of the moment the reload lands, not as of
    * whatever render last read it. */
   const anchorRef = useRef<ReadingPosition | null>(null);
+  /** Set by `scrollToLine`, consumed by the very next `measureViewport` call — see its
+   * own comment for why a jump's first remeasurement needs to be thrown away. */
+  const skipNextAnchorMeasureRef = useRef(false);
   const { engineRef, enginePhase, engineVersion } = useEngine();
   const {
     binding,
@@ -229,6 +234,22 @@ const BookReader: React.FC<BookReaderProps> = ({
   );
 
   /**
+   * Space / Shift+Space, dispatched by the same window-level hotkey handler as every
+   * other reader shortcut — not the browser's native "scroll the focused element"
+   * behavior, which is what broke: a virtualized row can leave the DOM (recycled out of
+   * view) while it holds focus, and nothing is focused for the browser to scroll until
+   * the panel is clicked again. This needs no focus at all, so it can't be lost that way.
+   */
+  const pageBy = useCallback(
+    (direction: 1 | -1): void => {
+      const scrollEl = scrollRef.current;
+      if (!scrollEl) return;
+      scrollEl.scrollTop += direction * scrollEl.clientHeight * 0.9;
+    },
+    [scrollRef]
+  );
+
+  /**
    * Publish the anchor and the measured viewport height that the translation bands derive
    * from. The arithmetic — which rows count as visible, when a change is a real resize
    * rather than a row growing under the reader, and which line the anchor is — lives in
@@ -250,6 +271,20 @@ const BookReader: React.FC<BookReaderProps> = ({
     const rows = virtualizer.getVirtualItems();
     const visible = countVisibleLines(rows, scrollEl.scrollTop, scrollEl.clientHeight);
     setViewportLines((previous) => nextViewportLines(previous, visible));
+
+    // A jump via `scrollToLine` can land on a row the virtualizer has only ever
+    // estimated the size of — translated Vietnamese routinely wraps to more lines than
+    // the Chinese-based estimate, so once that row (and the ones before it) actually
+    // render and measure, the virtualizer's own settling shifts where a given `scrollTop`
+    // pixel value falls relative to line numbers. That settling's own scroll event is
+    // real, but computing an anchor from it walks the anchor *backward* — enough, right
+    // after a forward chapter jump, to land back before the header just jumped to. One
+    // skip is enough: `scrollToLine` already set the correct anchor, and by the
+    // measurement after this one the settling has already happened.
+    const skipAnchor = skipNextAnchorMeasureRef.current;
+    skipNextAnchorMeasureRef.current = false;
+    if (skipAnchor) return;
+
     const anchor = computeAnchor(scrollEl.scrollTop, rows);
     if (anchor) {
       setAnchorLine(anchor.line);
@@ -288,44 +323,75 @@ const BookReader: React.FC<BookReaderProps> = ({
   const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
 
   /**
+   * Serializes every call this component makes onto the shared engine.
+   *
+   * `translateWithSegments` resets engine-wide segment state on entry, so two calls
+   * in flight at once — the viewport fill and the outline's title-by-title translation,
+   * say — would race: the second call's reset can land while the first is still awaiting
+   * its own result, corrupting it. Routing both through one promise chain, rather than
+   * relying on each caller to loop sequentially on its own, is what keeps that true across
+   * two independent hooks that don't know about each other.
+   */
+  const engineQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const runOnEngine = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    const settled = engineQueueRef.current.then(fn, fn);
+    engineQueueRef.current = settled.then(
+      () => undefined,
+      () => undefined
+    );
+    return settled;
+  }, []);
+
+  /**
    * One engine call.
    *
-   * Only ever called while the Reader is the visible tab: `translateWithSegments` resets
-   * engine-wide segment state on entry, so the single shared engine can serve exactly one
-   * caller at a time, and the Translator tab's own calls are user-driven from its own view.
+   * Only ever called while the Reader is the visible tab: the Translator tab's own calls
+   * are user-driven from its own view, so the two never contend for the engine.
    */
   const translateChunk = useCallback(
-    async (text: string) => {
-      const engine = engineRef.current;
-      if (!engine?.isReady()) throw new Error('Translation engine is not ready');
-      // Progressive batching is the engine's only supported path through this method; the
-      // Reader passes no progress callbacks because a chunk is small enough to land whole.
-      const result = await engine.translateWithSegments(text, { progressive: true });
-      return {
-        translatedText: result?.translatedText ?? '',
-        semanticArrays: result?.semanticArrays ?? null,
-        prebuiltSegments: result?.prebuiltSegments ?? [],
-      };
-    },
-    [engineRef]
+    (text: string) =>
+      runOnEngine(async () => {
+        const engine = engineRef.current;
+        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+        // Progressive batching is the engine's only supported path through this method; the
+        // Reader passes no progress callbacks because a chunk is small enough to land whole.
+        const result = await engine.translateWithSegments(text, { progressive: true });
+        return {
+          translatedText: result?.translatedText ?? '',
+          semanticArrays: result?.semanticArrays ?? null,
+          prebuiltSegments: result?.prebuiltSegments ?? [],
+        };
+      }),
+    [engineRef, runOnEngine]
   );
 
   /**
    * The same text through the engine's character-only pass, for the reference panel.
    *
    * A second engine call, run after the chunk's full translation is already on screen —
-   * see `useWindowedTranslation`, which owns that ordering. Sequential rather than
-   * concurrent for the same reason as everything else here: the engine serves one caller
-   * at a time.
+   * see `useWindowedTranslation`, which owns that ordering.
    */
   const translateGloss = useCallback(
-    async (text: string): Promise<string> => {
-      const engine = engineRef.current;
-      if (!engine?.isReady()) throw new Error('Translation engine is not ready');
-      const result = await engine.translateWithCharactersOnly(text);
-      return result?.translatedText ?? '';
-    },
-    [engineRef]
+    (text: string): Promise<string> =>
+      runOnEngine(async () => {
+        const engine = engineRef.current;
+        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+        const result = await engine.translateWithCharactersOnly(text);
+        return result?.translatedText ?? '';
+      }),
+    [engineRef, runOnEngine]
+  );
+
+  /** One engine call, for a batch of chapter titles — see `useOutlineTranslations`. */
+  const translateOutlineBatch = useCallback(
+    (text: string): Promise<string> =>
+      runOnEngine(async () => {
+        const engine = engineRef.current;
+        if (!engine?.isReady()) throw new Error('Translation engine is not ready');
+        const result = await engine.translateWithSegments(text, { progressive: true });
+        return result?.translatedText ?? '';
+      }),
+    [engineRef, runOnEngine]
   );
 
   const {
@@ -347,6 +413,22 @@ const BookReader: React.FC<BookReaderProps> = ({
     isEnabled: isActive && enginePhase === 'ready',
   });
 
+  // Runs in the background, not just while the panel is open — the chapter-strip button
+  // shows the current title too, and waiting for the reader to open the panel before
+  // starting would just move the wait rather than remove it. `!isTranslating` backs off
+  // while the viewport fill is busy, so a long book's title list never delays the text
+  // actually on screen; titles batch several to a call (see the hook) rather than paying
+  // one whole round trip per title, and the panel degrades to the original Chinese for
+  // whichever ones haven't landed yet, same as any other reader text.
+  const { getTranslatedTitle, isTranslating: isTranslatingTitles } = useOutlineTranslations({
+    fingerprint: book.fingerprint,
+    headers: chapterHeaders,
+    priorityLine: anchorLine,
+    translateBatch: translateOutlineBatch,
+    dictionaryVersion: engineVersion,
+    isEnabled: isActive && enginePhase === 'ready' && !isTranslating,
+  });
+
   const suggestion = useMemo(
     () => suggestFictionDictionary(book.fileName, fictionDictionaries),
     [book.fileName, fictionDictionaries]
@@ -356,23 +438,70 @@ const BookReader: React.FC<BookReaderProps> = ({
   const isUnbound = binding === null;
   const showBanner = isUnbound && dismissedFor !== book.fingerprint;
 
-  const chapterIndex = currentChapterIndex(chapterHeaders, firstIndex);
+  // `anchorLine`, not `firstIndex`: the virtualizer's rendered range includes
+  // `OVERSCAN_ROWS` (24) lines above the viewport, so `firstIndex` sits up to 24 lines
+  // *before* what the reader can actually see. Chapter detection built on it lagged
+  // behind a real chapter boundary by that much — up to 24 lines into the next chapter,
+  // "next" still read the reader as being in the one before, jumping back to a start
+  // already scrolled past instead of advancing. `anchorLine` is `computeAnchor`'s
+  // topmost line actually touching the viewport, with no such margin.
+  const chapterIndex = currentChapterIndex(chapterHeaders, anchorLine);
   const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
 
-  const jumpToLine = useCallback(
+  // Clamped for the last line's rounding, not for anything the anchor itself can produce.
+  const readingProgressPercent =
+    book.lineCount > 0 ? Math.min(100, ((anchorLine + 1) / book.lineCount) * 100) : 0;
+
+  /**
+   * Every programmatic jump goes through here rather than a bare `scrollToIndex` call.
+   *
+   * `anchorLine` otherwise only updates from `measureViewport`, which runs off the
+   * scroll element's own `scroll` event — and that event races the virtualizer's own
+   * range recalculation for the same scroll. Landing before it does, `measureViewport`
+   * reads `getVirtualItems()` still describing the *pre*-jump range, so `computeAnchor`
+   * resolves the wrong row and `anchorLine` is left one jump behind. `]` then reads the
+   * stale anchor, recomputes the *same* target chapter it just jumped to, and the second
+   * press looks like it does nothing — until a manual scroll produces a `scroll` event
+   * that isn't racing anything, which is what "unsticks" it.
+   *
+   * `align: 'start'` guarantees the target line lands at the very top of the viewport, so
+   * the anchor here — line, fraction 0 — needs no measurement to already be correct.
+   */
+  const scrollToLine = useCallback(
     (line: number): void => {
       virtualizer.scrollToIndex(line, { align: 'start' });
-      setOutline(null);
+      setAnchorLine(line);
+      anchorRef.current = { line, fraction: 0 };
+      // See `measureViewport`: the settling from this jump's own scroll event must not be
+      // allowed to walk the anchor it just set back across the boundary just crossed.
+      skipNextAnchorMeasureRef.current = true;
     },
     [virtualizer]
   );
 
+  const jumpToLine = useCallback(
+    (line: number): void => {
+      scrollToLine(line);
+      setOutline(null);
+    },
+    [scrollToLine]
+  );
+
   const goToChapter = useCallback(
     (direction: -1 | 1): void => {
-      const target = stepChapter(chapterHeaders, firstIndex, direction);
-      if (target) virtualizer.scrollToIndex(target.line, { align: 'start' });
+      // `anchorRef.current`, not the `anchorLine` state closed over here: a rapid second
+      // `]` can fire before React has re-rendered (and so re-created this callback) after
+      // the first press's `setAnchorLine` — key-repeat routinely does this within the
+      // same tick. `optionsRef` in `useHotkeyHandler` would then hand the keydown listener
+      // this exact stale closure, still bound to the pre-jump `anchorLine`, and it would
+      // recompute the same target it just jumped to — a second "does nothing" on top of
+      // the first fix's. The ref is written synchronously in `scrollToLine`, so reading it
+      // here is correct regardless of which render generation of this closure runs it.
+      const line = anchorRef.current?.line ?? anchorLine;
+      const target = stepChapter(chapterHeaders, line, direction);
+      if (target) scrollToLine(target.line);
     },
-    [chapterHeaders, firstIndex, virtualizer]
+    [chapterHeaders, anchorLine, scrollToLine]
   );
 
   const reloadDictionaries = useCallback((): void => {
@@ -383,10 +512,10 @@ const BookReader: React.FC<BookReaderProps> = ({
     });
   }, []);
 
-  // The add-entry shortcut family, reused: the same hook the Translator's modal is driven
-  // by, so Cmd-1..6 resolve the same targets here as there — including the two that mean
-  // "the active fiction's dictionaries", which the open book's binding is what makes
-  // reliable. Only the surface differs; see `AddEntryBar`.
+  // The add-entry shortcut family, reused: the same hook (and the same DictionaryEntry
+  // modal) the Translator uses, so Cmd-1..6 resolve the same targets here as there —
+  // including the two that mean "the active fiction's dictionaries", which the open
+  // book's binding is what makes reliable.
   const { dictionaries } = useDictionary();
   const {
     showQuickAdd,
@@ -400,6 +529,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     openQuickAddCustomProperNoun,
     openQuickAddCustomStructuralPattern,
     closeQuickAdd,
+    handleQuickAddDictionaryChange,
   } = useDictionaryModals(dictionaries);
 
   // The two members of the family that mean "the active fiction's dictionaries" are
@@ -580,6 +710,8 @@ const BookReader: React.FC<BookReaderProps> = ({
         onOpenChapterOutline={openOutlineForSearch}
         onPreviousChapter={() => goToChapter(-1)}
         onNextChapter={() => goToChapter(1)}
+        onPageDown={() => pageBy(1)}
+        onPageUp={() => pageBy(-1)}
       />
 
       <div className={styles.readerHeader}>
@@ -617,44 +749,60 @@ const BookReader: React.FC<BookReaderProps> = ({
       </div>
 
       <div className={styles.chapterStrip}>
-        <div className={styles.chapterStripNav}>
-          <button
-            onClick={() => goToChapter(-1)}
-            disabled={chapterHeaders.length === 0 || chapterIndex <= 0}
-            className={styles.iconButton}
-            title="Previous chapter ([)"
-            aria-label="Previous chapter"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <button
-            onClick={() => goToChapter(1)}
-            disabled={chapterHeaders.length === 0 || chapterIndex === chapterHeaders.length - 1}
-            className={styles.iconButton}
-            title="Next chapter (])"
-            aria-label="Next chapter"
-          >
-            <ChevronRight size={14} />
-          </button>
+        <div className={styles.chapterStripReference}>
+          <div className={styles.chapterStripNav}>
+            <button
+              onClick={() => goToChapter(-1)}
+              // Mirrors `stepChapter` itself rather than re-deriving "is there a previous
+              // chapter" from `chapterIndex` — since a step back from mid-chapter now
+              // lands on the *current* chapter's own start, the button stays enabled in
+              // the first chapter too, as long as there's somewhere for it to go.
+              disabled={
+                chapterHeaders.length === 0 || stepChapter(chapterHeaders, anchorLine, -1) === null
+              }
+              className={styles.iconButton}
+              title="Previous chapter ([)"
+              aria-label="Previous chapter"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              onClick={() => goToChapter(1)}
+              disabled={chapterHeaders.length === 0 || chapterIndex === chapterHeaders.length - 1}
+              className={styles.iconButton}
+              title="Next chapter (])"
+              aria-label="Next chapter"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
-        <button
-          className={styles.chapterStripCurrent}
-          onClick={() => setOutline({ focusSearch: false })}
-          title="Open chapter list"
-        >
-          <List size={13} />
-          <span className={styles.chapterStripTitle}>
-            {currentChapter
-              ? currentChapter.title || '(untitled)'
-              : chapterHeaders.length > 0
-                ? 'Before the first chapter'
-                : 'No chapter structure detected'}
+        <div className={styles.chapterStripTranslation}>
+          <button
+            className={styles.chapterStripCurrent}
+            onClick={() => setOutline({ focusSearch: false })}
+            title="Open chapter list"
+          >
+            <List size={13} />
+            <span className={styles.chapterStripTitle}>
+              {currentChapter
+                ? (getTranslatedTitle(currentChapter.line) ?? currentChapter.title) || '(untitled)'
+                : chapterHeaders.length > 0
+                  ? 'Before the first chapter'
+                  : 'No chapter structure detected'}
+            </span>
+          </button>
+          <span className={styles.chapterStripLine}>
+            {isTranslating && <span className={styles.translatingDot} aria-hidden="true" />}
+            <span className={styles.readingProgressTrack} aria-hidden="true">
+              <span
+                className={styles.readingProgressFill}
+                style={{ width: `${readingProgressPercent}%` }}
+              />
+            </span>
+            Line {(anchorLine + 1).toLocaleString()} of {book.lineCount.toLocaleString()}
           </span>
-        </button>
-        <span className={styles.chapterStripLine}>
-          {isTranslating && <span className={styles.translatingDot} aria-hidden="true" />}
-          Line {(firstIndex + 1).toLocaleString()} of {book.lineCount.toLocaleString()}
-        </span>
+        </div>
       </div>
 
       {showBanner && (
@@ -706,11 +854,15 @@ const BookReader: React.FC<BookReaderProps> = ({
       </div>
 
       {showQuickAdd && (
-        <AddEntryBar
-          source={clipboardText}
-          dictionaryId={quickAddDictionary}
-          onClose={closeQuickAdd}
-        />
+        <ModalErrorBoundary onClose={closeQuickAdd} title="❌ Failed to load Add">
+          <DictionaryEntry
+            onClose={closeQuickAdd}
+            selectedDictionary={quickAddDictionary}
+            allowDictionarySelection={true}
+            onDictionaryChange={handleQuickAddDictionaryChange}
+            initialSource={clipboardText}
+          />
+        </ModalErrorBoundary>
       )}
 
       {isDialogOpen && (
@@ -740,6 +892,8 @@ const BookReader: React.FC<BookReaderProps> = ({
           isOverridden={isChapterOverridden}
           currentIndex={chapterIndex}
           error={chapterError}
+          getTranslatedTitle={getTranslatedTitle}
+          isTranslatingTitles={isTranslatingTitles}
           onJump={jumpToLine}
           onSetOverride={setChapterOverride}
           autoFocusSearch={outline.focusSearch}

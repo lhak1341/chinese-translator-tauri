@@ -240,13 +240,31 @@
 .chapterStrip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  /* Same 1rem gap and 33%/67% split as `.readerBody`'s `.readerReference`/`.readerPanel`
+     columns below, so the nav arrows sit over Original+Character and the chapter title
+     sits over Translation, instead of the whole strip floating independent of either. */
+  gap: 1rem;
   padding: 0.35rem 1rem;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   font-size: 0.78rem;
   color: var(--text-secondary);
+}
+
+.chapterStripReference {
+  display: flex;
+  align-items: center;
+  flex: 0 0 33%;
+  min-width: 0;
+}
+
+.chapterStripTranslation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .chapterStripCurrent {
@@ -282,8 +300,30 @@
 }
 
 .chapterStripLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* Stands in for the scrollbar thumb `.readerScroll` hides — a thumb sized for 75,000
+   lines is a sliver a pixel or two tall, no more informative than this bar and a lot
+   harder to see. */
+.readingProgressTrack {
+  display: inline-block;
+  width: 4rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.readingProgressFill {
+  display: block;
+  height: 100%;
+  background: var(--accent-color);
+  border-radius: inherit;
 }
 
 .iconButton {
@@ -405,6 +445,10 @@
   cursor: pointer;
   color: var(--text-color);
   font-size: 0.83rem;
+  /* Every row is a <button>, and the global `button` rule (index.css) sets
+     font-weight: 500 — left unset, every row in the list reads as bold, not just the
+     current chapter. */
+  font-weight: 400;
   border-radius: 0.25rem;
 }
 
@@ -414,6 +458,7 @@
 
 .outlineRowActive {
   background: var(--hover-bg);
+  color: var(--accent-color);
   font-weight: 600;
 }
 
@@ -429,6 +474,10 @@
   flex-shrink: 0;
   font-size: 0.72rem;
   color: var(--text-secondary);
+}
+
+.outlineRowActive .outlineRowLine {
+  color: inherit;
 }
 
 .outlineEmpty {
@@ -495,7 +544,11 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
+  /* A native scrollbar's thumb is meaningless at book scale — on a 75,000-line file it's
+     a sliver a pixel or two tall, unusable as a jump target and uninformative as a
+     position indicator. The chapter strip's progress bar (below) replaces the latter;
+     Cmd/Ctrl+G, the chapter list, and Space/Shift+Space replace the former. */
+  scrollbar-width: none;
   /* The font is declared on this element and inherited by the rows, never repeated on
      them: `useColumnMetrics` measures the column in em of *this* element's font, and an
      unmeasured row's estimated height is built from that measurement. A second
@@ -505,6 +558,10 @@
      include anything that changes with its content, and side padding on the scroller
      keeps every row's width identical. */
   padding: 0 1rem 1rem;
+}
+
+.readerScroll::-webkit-scrollbar {
+  display: none;
 }
 
 /*
@@ -866,60 +923,6 @@
   justify-content: flex-end;
   gap: 0.5rem;
   flex-shrink: 0;
-}
-
-/* ── Add-entry bar ─────────────────────────────────────────────────────────────
-   Floats over the bottom of the reading view rather than taking a row in the
-   column: the three panels keep their height, so the Chinese line the term came
-   from is still on screen while the translation is typed. */
-
-.addEntryBar {
-  position: absolute;
-  left: 1rem;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--border-color);
-  border-left: 3px solid var(--primary-color);
-  border-radius: 0.4rem;
-  background: var(--background-color);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-}
-
-.addEntryDictionary {
-  flex-shrink: 0;
-  max-width: 14rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--primary-color);
-}
-
-.addEntryInput {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.85rem;
-  padding: 0.3rem 0.45rem;
-  border: 1px solid var(--border-color);
-  border-radius: 0.25rem;
-  background: var(--background-color);
-  color: var(--text-color);
-}
-
-.addEntrySource {
-  flex: 0 1 12rem;
-}
-
-.addEntryError {
-  flex-shrink: 0;
-  font-size: 0.75rem;
-  color: var(--error-color, #b3261e);
 }
 
 /* ── Command palette ───────────────────────────────────────────────────────── */

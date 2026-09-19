@@ -34,11 +34,16 @@ Reader is where the app should land.
 | `Cmd/Ctrl + K` | Open the command palette                        |
 | `Cmd/Ctrl + G` | Jump to chapter (outline, search focused)       |
 | `[` / `]`      | Previous / next chapter                         |
+| `Space`        | Page the reading panel down                     |
+| `Shift+Space`  | Page the reading panel up                       |
 | `Cmd/Ctrl + B` | Dictionaries for this book (the binding dialog) |
 
-`[` and `]` carry no modifier, so both are inert while a text input or content-editable
-element has focus — otherwise they would fire while you type a literal bracket into a
-search box or a dictionary entry.
+`[` and `]`, and `Space`/`Shift+Space`, carry no modifier, so all four are inert while a
+text input or content-editable element has focus — otherwise they would fire while you
+type a literal bracket or a space into a search box or a dictionary entry. Space is
+dispatched by the same hotkey handler as everything else here rather than left to the
+browser's own scroll-the-focused-element behavior, which loses track of the panel once a
+virtualized row holding focus scrolls out of the DOM.
 
 The command palette offers every action in this section except opening itself, plus
 switching books and the Add shortcuts below, and each of its rows shows the direct

@@ -257,6 +257,8 @@ Moved out of root `CLAUDE.md` 2026-08-17 (agent-config-hygiene restructure) — 
 
 **Dead-code cleanup with fallow has multiple blind spots** (dynamic imports, CSS `composes`, class vs singleton, test-only). See [Fallow Protocol](./development.md#fallow-dead-code-analysis) before deleting anything.
 
+**A CI failure on your own push isn't necessarily caused by your push.** `gh run list` then `gh run view <run-id> --log-failed` before assuming a red check traces to the diff just pushed — confirmed 2026-09-19: `src-tauri`'s `book_loader`/`chapter_outline` corpus tests (`src-tauri/CLAUDE.md`'s Reader Corpus Tests entry) had failed on every run since 2026-09-13, unrelated to the Reader UI work under review; `ci.yml` never set the tests' own documented `SKIP_READER_CORPUS_TESTS` opt-out.
+
 ## Related Guides
 
 - [Architecture Guide](./architecture.md) - System architecture and WASM acceleration

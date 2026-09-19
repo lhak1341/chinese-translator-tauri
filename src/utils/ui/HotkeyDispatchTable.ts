@@ -21,7 +21,9 @@ export type HotkeyAction =
   | { type: 'openChapterOutline' }
   | { type: 'previousChapter' }
   | { type: 'nextChapter' }
-  | { type: 'openNewRule' };
+  | { type: 'openNewRule' }
+  | { type: 'pageDown' }
+  | { type: 'pageUp' };
 
 export interface MatchHotkeyContext {
   activeTab?: TabId;
@@ -49,6 +51,18 @@ export function matchHotkey(
   context: MatchHotkeyContext
 ): HotkeyAction | null {
   if (context.isInputFocused) return null;
+
+  // Space pages the reading panel, with or without Shift for direction — dispatched here
+  // rather than left to the browser's own "scroll the focused element" behavior, which is
+  // what silently broke: a virtualized row can leave the DOM (recycled out of view) while
+  // it holds focus, and the browser has nothing left to scroll until the panel is clicked
+  // again. Routing it through the same window-level handler as every other reader
+  // shortcut needs no DOM focus at all, so it can't be lost that way.
+  if (!event.metaKey && !event.ctrlKey && !event.altKey) {
+    if (context.activeTab === 'reader' && event.key === ' ') {
+      return { type: event.shiftKey ? 'pageUp' : 'pageDown' };
+    }
+  }
 
   // `[` / `]` step chapters, with no modifier at all — the one unmodified pair in this
   // table. They shadow printable characters, which is exactly what the `isInputFocused`

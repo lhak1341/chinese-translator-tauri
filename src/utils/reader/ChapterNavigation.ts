@@ -21,13 +21,24 @@ export function currentChapterIndex(headers: ChapterHeader[], line: number): num
   return result;
 }
 
-/** The header a `[`/`]` step should jump to, or `null` at either end of the book (before
- * the first chapter for `-1`, or past the last one for `1`). */
+/**
+ * The header a `[`/`]` step should jump to, or `null` at either end of the book (before
+ * the first chapter for `-1`, or past the last one for `1`).
+ *
+ * `-1` follows the back-button convention a media player's previous-track button uses:
+ * once you're actually inside a chapter — anywhere past its own header line — the first
+ * press returns you to *that* chapter's start rather than skipping straight past it to
+ * the one before, which is what made it feel error-prone deep into a long chapter. A
+ * press already sitting exactly on a chapter's header line is the "already at the start"
+ * case and goes one further back, same as pressing it twice.
+ */
 export function stepChapter(
   headers: ChapterHeader[],
   line: number,
   direction: -1 | 1
 ): ChapterHeader | null {
-  const target = currentChapterIndex(headers, line) + direction;
-  return headers[target] ?? null;
+  const index = currentChapterIndex(headers, line);
+  if (direction === 1) return headers[index + 1] ?? null;
+  if (index >= 0 && line > headers[index].line) return headers[index];
+  return headers[index - 1] ?? null;
 }
