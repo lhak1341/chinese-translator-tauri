@@ -688,6 +688,29 @@
   line-height: 0;
 }
 
+/*
+  One clickable semantic run inside a row.
+
+  Highlighting is a background, never a weight or a size change: a bolder run is a wider
+  run, which can push a line to wrap once more, which changes that row's measured height
+  and moves every row below it — on a click, in a 75,000-line virtualized document. The
+  Translator can afford `font-weight: 600` because its panels hold one translation and
+  reflow costs nothing there.
+*/
+.clickableSegment {
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.clickableSegment:hover {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.clickableSegmentHighlighted,
+.clickableSegmentHighlighted:hover {
+  background: color-mix(in srgb, var(--primary-color) 28%, transparent);
+}
+
 .pending {
   opacity: 0.35;
 }

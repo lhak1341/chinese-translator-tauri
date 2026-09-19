@@ -18,12 +18,14 @@ import DictionaryEntry from '../dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
+import type { GlossResult } from '../../hooks/useWindowedTranslation';
 import { countVisibleLines, nextViewportLines } from '../../utils/reader/TranslationWindow';
 import { useEngine } from '../EngineContext';
 import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
 import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
+import type { WordSegment } from '../../utils/highlighting';
 import { usePanelSync } from '../../hooks/usePanelSync';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
 import {
@@ -38,7 +40,9 @@ import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import { buildPaletteCommands, type PaletteBook } from '../../utils/reader/PaletteCommands';
 import ReaderPanel from './ReaderPanel';
-import type { PanelRow } from './ReaderPanel';
+import type { PanelRow, ReaderHighlight } from './ReaderPanel';
+import { fillSegmentGaps } from '../../utils/reader/LineSegments';
+import type { ReaderSegment } from '../../utils/reader/LineSegments';
 import styles from '../../styles/Reader.module.css';
 
 interface BookReaderProps {
@@ -107,9 +111,12 @@ const CHARACTER_ONLY_PANEL = 'character-only';
 function vietnameseRow(
   translated: string | undefined,
   source: string | undefined,
-  isBlank: boolean
+  isBlank: boolean,
+  segments?: readonly ReaderSegment[]
 ): PanelRow {
-  if (translated !== undefined) return { text: translated, isPending: false, lang: 'vi', isBlank };
+  if (translated !== undefined)
+    return { text: translated, isPending: false, lang: 'vi', isBlank, segments };
+  // Stand-in Chinese carries no runs: they describe the Vietnamese this row will become.
   return { text: source, isPending: true, lang: 'zh', isBlank };
 }
 
@@ -154,6 +161,15 @@ const BookReader: React.FC<BookReaderProps> = ({
   // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
   // book does not silently hide it for the next.
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  /**
+   * The lit semantic unit, or `null`.
+   *
+   * One piece of state for every panel: a unit is the same unit on both sides of the
+   * translation, so lighting the Vietnamese lights the Chinese it came from with no mapping
+   * step in between — which is the whole reason the panels key off a chunk key plus an
+   * index rather than off text positions.
+   */
+  const [highlight, setHighlight] = useState<ReaderHighlight | null>(null);
   const [viewportLines, setViewportLines] = useState(DEFAULT_VIEWPORT_LINES);
   const [anchorLine, setAnchorLine] = useState(0);
   /** The anchor at full precision (line + sub-line fraction), kept live for the reload
@@ -379,7 +395,12 @@ const BookReader: React.FC<BookReaderProps> = ({
         return {
           translatedText: result?.translatedText ?? '',
           semanticArrays: result?.semanticArrays ?? null,
-          prebuiltSegments: result?.prebuiltSegments ?? [],
+          // `TranslationEngineTypes.d.ts` declares these as `TranslationSegment[]`, but what
+          // fills them is `matchWordSegments`, whose output is `WordSegment[]` — offsets into
+          // the translated text plus a unit index, which is what the Reader slices by. The
+          // Translator reaches the same runtime objects through an `as any` at its own panel;
+          // this asserts the real shape instead.
+          prebuiltSegments: (result?.prebuiltSegments ?? []) as unknown as WordSegment[],
         };
       }),
     [engineRef, runOnEngine]
@@ -392,12 +413,17 @@ const BookReader: React.FC<BookReaderProps> = ({
    * see `useWindowedTranslation`, which owns that ordering.
    */
   const translateGloss = useCallback(
-    (text: string): Promise<string> =>
+    (text: string): Promise<GlossResult> =>
       runOnEngine(async () => {
         const engine = engineRef.current;
         if (!engine?.isReady()) throw new Error('Translation engine is not ready');
         const result = await engine.translateWithCharactersOnly(text);
-        return result?.translatedText ?? '';
+        return {
+          translatedText: result?.translatedText ?? '',
+          // Carried, not dropped: the gloss's own units are what its clickable runs are
+          // built from before being relabeled with the full translation's.
+          semanticArrays: result?.semanticArrays ?? null,
+        };
       }),
     [engineRef, runOnEngine]
   );
@@ -417,6 +443,9 @@ const BookReader: React.FC<BookReaderProps> = ({
   const {
     getTranslatedLine,
     getCharacterOnlyLine,
+    getTranslatedSegments,
+    getOriginalSegments,
+    getCharacterOnlySegments,
     isTranslating,
     error: translationError,
   } = useWindowedTranslation({
@@ -692,25 +721,61 @@ const BookReader: React.FC<BookReaderProps> = ({
     syncScroll(TRANSLATION_PANEL);
   }, [measureViewport, onScroll, syncScroll]);
 
+  // A chunk key is a line range, so the same key names a different passage in another book
+  // and different Vietnamese after a dictionary reload. Neither is a highlight worth
+  // keeping, and both would otherwise light an unrelated word.
+  useEffect(() => {
+    setHighlight(null);
+  }, [book.fingerprint, engineVersion]);
+
+  /** Click a run to light it, click it again to clear — same gesture in every panel. */
+  const toggleHighlight = useCallback((next: ReaderHighlight): void => {
+    setHighlight((current) =>
+      current && current.chunkKey === next.chunkKey && current.unitIndex === next.unitIndex
+        ? null
+        : next
+    );
+  }, []);
+
   const translationRow = useCallback(
     (index: number): PanelRow =>
-      vietnameseRow(getTranslatedLine(index), getLine(index), isBlankAt(index)),
-    [getLine, getTranslatedLine, isBlankAt]
+      vietnameseRow(
+        getTranslatedLine(index),
+        getLine(index),
+        isBlankAt(index),
+        getTranslatedSegments(index)
+      ),
+    [getLine, getTranslatedLine, getTranslatedSegments, isBlankAt]
   );
 
   const originalRow = useCallback(
     (index: number): PanelRow => {
       const line = getLine(index);
-      // The source panel is only ever pending on its own page fetch, never on translation.
-      return { text: line, isPending: line === undefined, lang: 'zh', isBlank: isBlankAt(index) };
+      const segments = line === undefined ? undefined : getOriginalSegments(index);
+      return {
+        text: line,
+        // The source panel is only ever pending on its own page fetch, never on translation.
+        isPending: line === undefined,
+        lang: 'zh',
+        isBlank: isBlankAt(index),
+        // A chunk covers part of a line before the rest of it lands, and this panel shows
+        // the file's own line either way — so whatever no run covers is filled back in as
+        // plain text rather than dropped.
+        segments: segments && fillSegmentGaps(line as string, segments),
+      };
     },
-    [getLine, isBlankAt]
+    [getLine, getOriginalSegments, isBlankAt]
   );
 
   const characterRow = useCallback(
     (index: number): PanelRow =>
-      vietnameseRow(getCharacterOnlyLine(index), getLine(index), isBlankAt(index)),
-    [getCharacterOnlyLine, getLine, isBlankAt]
+      vietnameseRow(
+        getCharacterOnlyLine(index),
+        getLine(index),
+        isBlankAt(index),
+        getCharacterOnlySegments(index)
+      ),
+    [getCharacterOnlyLine, getCharacterOnlySegments, getLine, isBlankAt]
   );
 
   return (
@@ -853,6 +918,8 @@ const BookReader: React.FC<BookReaderProps> = ({
             getRow={originalRow}
             onScroll={() => syncScroll(ORIGINAL_PANEL)}
             onWheel={forwardWheelToMaster}
+            highlight={highlight}
+            onSegmentClick={toggleHighlight}
           />
           <ReaderPanel
             title="Character only"
@@ -863,6 +930,8 @@ const BookReader: React.FC<BookReaderProps> = ({
             getRow={characterRow}
             onScroll={() => syncScroll(CHARACTER_ONLY_PANEL)}
             onWheel={forwardWheelToMaster}
+            highlight={highlight}
+            onSegmentClick={toggleHighlight}
           />
         </div>
         <ReaderPanel
@@ -872,6 +941,8 @@ const BookReader: React.FC<BookReaderProps> = ({
           virtualizer={virtualizer}
           getRow={translationRow}
           onScroll={handleScroll}
+          highlight={highlight}
+          onSegmentClick={toggleHighlight}
         />
       </div>
 

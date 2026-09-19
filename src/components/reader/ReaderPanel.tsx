@@ -1,6 +1,25 @@
 import React from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
+import type { ReaderSegment } from '../../utils/reader/LineSegments';
+import { sanitizeString } from '../../utils/configValidation';
 import styles from '../../styles/Reader.module.css';
+
+/**
+ * Which semantic unit is lit, as a chunk key plus an index into that chunk's own arrays.
+ *
+ * Never a bare index: the Reader translates a book in ~600-character chunks, each with
+ * semantic arrays numbered from zero, so unit 4 means something different in every chunk on
+ * screen and an index alone would light up one word per chunk.
+ */
+export interface ReaderHighlight {
+  chunkKey: string;
+  unitIndex: number;
+}
+
+function isLit(segment: ReaderSegment, highlight: ReaderHighlight | null): boolean {
+  if (highlight === null || segment.chunkKey === '') return false;
+  return segment.chunkKey === highlight.chunkKey && segment.unitIndex === highlight.unitIndex;
+}
 
 /** One line as a panel renders it. */
 export interface PanelRow {
@@ -29,6 +48,14 @@ export interface PanelRow {
    * it keeps its full height, so its row does not jump when its page lands.
    */
   isBlank: boolean;
+  /**
+   * The row cut into clickable runs, when something has translated it. Absent while the row
+   * is still Chinese stand-in text, and on a row no chunk covers.
+   *
+   * The runs concatenate to exactly `text`, so a row does not reflow when highlighting
+   * arrives — it is the same characters, in spans rather than one text node.
+   */
+  segments?: readonly ReaderSegment[];
 }
 
 /** Which Appearance section's font this panel renders in. */
@@ -59,7 +86,55 @@ export interface ReaderPanelProps {
   getRow: (index: number) => PanelRow;
   onScroll: () => void;
   onWheel?: (event: React.WheelEvent<HTMLDivElement>) => void;
+  /** The lit unit, shared by every panel — clicking one lights its counterparts. */
+  highlight?: ReaderHighlight | null;
+  /** Clicking a run. Must be referentially stable, or every span re-renders per click. */
+  onSegmentClick?: (highlight: ReaderHighlight) => void;
 }
+
+/**
+ * One row's worth of clickable runs.
+ *
+ * Rendered as plain `<span>`s inside the row's own `<p>`, not as a nested block: the runs
+ * are exactly the characters the plain row held, so the line wraps where it always did and
+ * the virtualizer measures the same height it measured before highlighting existed.
+ *
+ * The lit run is marked with a background rather than a heavier weight — the Translator's
+ * highlight bolds, which here could rewrap a line and shove every row below it down a
+ * 75,000-line book.
+ */
+const SegmentedLine: React.FC<{
+  segments: readonly ReaderSegment[];
+  highlight: ReaderHighlight | null;
+  onSegmentClick: (highlight: ReaderHighlight) => void;
+}> = React.memo(({ segments, highlight, onSegmentClick }) => (
+  <>
+    {segments.map((segment) =>
+      segment.chunkKey === '' ? (
+        <span key={segment.lineStart}>{segment.text}</span>
+      ) : (
+        <span
+          key={segment.lineStart}
+          data-unit-index={segment.unitIndex}
+          className={`${styles.clickableSegment} ${
+            isLit(segment, highlight) ? styles.clickableSegmentHighlighted : ''
+          }`}
+          title={`"${sanitizeString(segment.originalText ?? '', 100)}" → "${sanitizeString(
+            segment.translatedText ?? '',
+            100
+          )}" (${segment.source ?? 'unknown'})`}
+          onClick={() =>
+            onSegmentClick({ chunkKey: segment.chunkKey, unitIndex: segment.unitIndex })
+          }
+        >
+          {segment.text}
+        </span>
+      )
+    )}
+  </>
+));
+
+SegmentedLine.displayName = 'SegmentedLine';
 
 /**
  * One scrolling panel of a book, virtualized by line.
@@ -81,6 +156,8 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
   getRow,
   onScroll,
   onWheel,
+  highlight = null,
+  onSegmentClick,
 }) => {
   return (
     <section className={styles.readerPanel}>
@@ -95,7 +172,7 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
       >
         <div className={styles.readerCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualizer.getVirtualItems().map((row) => {
-            const { text, isPending, lang, isBlank } = getRow(row.index);
+            const { text, isPending, lang, isBlank, segments } = getRow(row.index);
             return (
               <div
                 key={row.key}
@@ -120,7 +197,19 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
                   }`}
                   lang={lang}
                 >
-                  {isBlank ? '' : text === undefined ? ' ' : text || ' '}
+                  {isBlank ? (
+                    ''
+                  ) : segments !== undefined && onSegmentClick !== undefined ? (
+                    <SegmentedLine
+                      segments={segments}
+                      highlight={highlight}
+                      onSegmentClick={onSegmentClick}
+                    />
+                  ) : text === undefined ? (
+                    ' '
+                  ) : (
+                    text || ' '
+                  )}
                 </p>
               </div>
             );

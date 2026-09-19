@@ -1,5 +1,5 @@
 import type { SemanticArrays } from '../../types/SemanticTypes';
-import type { TranslationSegment } from '../../types/TranslationEngineTypes';
+import type { PositionedSegment } from './LineSegments';
 import type { ChunkPlan, LineRange } from './TranslationWindow';
 
 /**
@@ -12,6 +12,14 @@ import type { ChunkPlan, LineRange } from './TranslationWindow';
  */
 export interface CachedChunk {
   chunk: ChunkPlan;
+  /**
+   * Exactly the text this chunk sent to the engine.
+   *
+   * Kept rather than re-derived from the book: the Chinese panel's clickable segments are
+   * measured against it, and re-cutting it from the line pages would tie a rendered row to
+   * whichever pages happen to be resident, which is not what the engine saw.
+   */
+  sourceText: string;
   translatedText: string;
   /**
    * The same chunk through the character-only pass, for the reference panel, or `null`
@@ -25,7 +33,25 @@ export interface CachedChunk {
    */
   characterOnlyText: string | null;
   semanticArrays: SemanticArrays | null;
-  prebuiltSegments: TranslationSegment[];
+  /** The Vietnamese runs, measured against `translatedText`. */
+  prebuiltSegments: PositionedSegment[];
+  /**
+   * The Chinese runs, measured against `sourceText`.
+   *
+   * Derived from `semanticArrays` at the moment the chunk lands rather than at render
+   * time: the derivation is a scan of the whole chunk, and a panel rebuilds on every chunk
+   * that arrives, which would re-scan every resident chunk each time.
+   */
+  originalSegments: PositionedSegment[];
+  /**
+   * The gloss's runs, measured against `characterOnlyText`, and `null` until that second
+   * pass lands beside it.
+   *
+   * Their `unitIndex` is the *full translation's*, not the gloss pass's own — see
+   * `bridgeGlossSegments`. That relabeling is what lets one highlight light all three
+   * panels, and it too is done once here rather than per render.
+   */
+  characterOnlySegments: PositionedSegment[] | null;
 }
 
 /**

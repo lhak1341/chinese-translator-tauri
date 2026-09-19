@@ -7,9 +7,20 @@ import {
   planChunks,
   snapRangeToParagraphs,
 } from '../utils/reader/TranslationWindow';
+import {
+  bridgeGlossSegments,
+  buildCharacterOnlyLineSegments,
+  buildOriginalLineSegments,
+  buildTranslatedLineSegments,
+} from '../utils/reader/LineSegments';
+import type {
+  PositionedSegment,
+  ReaderSegment,
+  SegmentedChunk,
+} from '../utils/reader/LineSegments';
 import { TranslationChunkCache } from '../utils/reader/TranslationChunkCache';
+import { precomputeOriginalSegments, segmentFromPositionMetadata } from '../utils/highlighting';
 import type { SemanticArrays } from '../types/SemanticTypes';
-import type { TranslationSegment } from '../types/TranslationEngineTypes';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
 
@@ -17,7 +28,13 @@ import { logger } from '../utils/logger';
 export interface ChunkTranslationResult {
   translatedText: string;
   semanticArrays: SemanticArrays | null;
-  prebuiltSegments: TranslationSegment[];
+  prebuiltSegments: PositionedSegment[];
+}
+
+/** What the character-only pass gives back. */
+export interface GlossResult {
+  translatedText: string;
+  semanticArrays: SemanticArrays | null;
 }
 
 export interface UseWindowedTranslationOptions {
@@ -38,7 +55,7 @@ export interface UseWindowedTranslationOptions {
    * *after* the chunk's full translation has already been published, so the gloss costs
    * the translation panel nothing but its own engine time. Must be referentially stable.
    */
-  translateGloss: (text: string) => Promise<string>;
+  translateGloss: (text: string) => Promise<GlossResult>;
   /** Bumped on every engine reinitialization; a change invalidates the whole cache. */
   dictionaryVersion: number;
   /** Translation only runs while the engine is ready and the Reader is the visible tab. */
@@ -50,6 +67,22 @@ export interface WindowedTranslation {
   getTranslatedLine: (index: number) => string | undefined;
   /** Character-by-character Vietnamese for this raw file line, or `undefined`. */
   getCharacterOnlyLine: (index: number) => string | undefined;
+  /**
+   * The gloss of this line cut into clickable runs, or `undefined` where its second pass
+   * has not landed. Their unit indices are the full translation's, so a click here lights
+   * the same word in the other two panels.
+   */
+  getCharacterOnlySegments: (index: number) => readonly ReaderSegment[] | undefined;
+  /**
+   * The Vietnamese of this line cut into clickable runs, or `undefined` where nothing has
+   * been translated yet. Concatenates to exactly `getTranslatedLine(index)`.
+   */
+  getTranslatedSegments: (index: number) => readonly ReaderSegment[] | undefined;
+  /**
+   * The Chinese of this line cut into clickable runs, or `undefined` where no chunk covers
+   * it. May cover only part of the line while a fill is in flight — see `fillSegmentGaps`.
+   */
+  getOriginalSegments: (index: number) => readonly ReaderSegment[] | undefined;
   /** True while a fill is in progress, for a quiet indicator rather than a blocking state. */
   isTranslating: boolean;
   error: string | null;
@@ -84,6 +117,9 @@ export function useWindowedTranslation({
   const cacheRef = useRef<TranslationChunkCache>(new TranslationChunkCache());
   const linesRef = useRef<Map<number, string>>(new Map());
   const characterOnlyRef = useRef<Map<number, string>>(new Map());
+  const translatedSegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
+  const originalSegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
+  const characterOnlySegmentsRef = useRef<Map<number, ReaderSegment[]>>(new Map());
   const generationRef = useRef(0);
   const [, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
@@ -106,6 +142,15 @@ export function useWindowedTranslation({
           translatedText: characterOnlyText as string,
         }))
     );
+    // Cut from the same chunks the lines above were assembled from, so a row's runs and its
+    // plain string are two views of one fold rather than two foldings that can disagree.
+    const segmented: SegmentedChunk[] = entries.map((entry) => ({
+      ...entry,
+      translatedSegments: entry.prebuiltSegments,
+    }));
+    translatedSegmentsRef.current = buildTranslatedLineSegments(segmented);
+    originalSegmentsRef.current = buildOriginalLineSegments(segmented);
+    characterOnlySegmentsRef.current = buildCharacterOnlyLineSegments(segmented);
     forceRender((n) => n + 1);
   }, []);
 
@@ -115,6 +160,9 @@ export function useWindowedTranslation({
     cacheRef.current.clear();
     linesRef.current = new Map();
     characterOnlyRef.current = new Map();
+    translatedSegmentsRef.current = new Map();
+    originalSegmentsRef.current = new Map();
+    characterOnlySegmentsRef.current = new Map();
     setError(null);
     forceRender((n) => n + 1);
   }, [fingerprint]);
@@ -157,7 +205,22 @@ export function useWindowedTranslation({
           // reader scrolled away is still worth keeping — but only if the dictionaries it
           // was translated against are still the ones in force.
           if (cache.version !== dictionaryVersion) return;
-          cache.set({ chunk, ...result, characterOnlyText: null });
+          cache.set({
+            chunk,
+            ...result,
+            // The Vietnamese runs are measured against an NFC-normalized copy of this text
+            // (`matchWordSegments` normalizes before it searches), so the panel must hold
+            // the same normalization or every offset after the first composed character
+            // would slice a row in the wrong place.
+            translatedText: result.translatedText.normalize('NFC'),
+            sourceText: text,
+            // Derived once, here, rather than on every rebuild: see `CachedChunk`.
+            originalSegments: result.semanticArrays
+              ? precomputeOriginalSegments(text, result.semanticArrays)
+              : [],
+            characterOnlyText: null,
+            characterOnlySegments: null,
+          });
           rebuild();
           setError(null);
 
@@ -169,7 +232,23 @@ export function useWindowedTranslation({
           if (cache.version !== dictionaryVersion) return;
           const stored = cache.get(chunk.key);
           if (stored) {
-            cache.set({ ...stored, characterOnlyText: gloss });
+            // Normalized for the same reason the full translation is: the gloss's own
+            // segmenter measures its offsets against an NFC copy of the text.
+            const glossText = gloss.translatedText.normalize('NFC');
+            cache.set({
+              ...stored,
+              characterOnlyText: glossText,
+              // The gloss is a second pass with semantic arrays of its own, so its unit
+              // indices mean nothing to the other two panels until they are relabeled by
+              // the source characters each one covers.
+              characterOnlySegments: gloss.semanticArrays
+                ? bridgeGlossSegments(
+                    segmentFromPositionMetadata(glossText, gloss.semanticArrays),
+                    precomputeOriginalSegments(text, gloss.semanticArrays),
+                    stored.originalSegments
+                  )
+                : null,
+            });
             rebuild();
           }
         } catch (cause) {
@@ -207,5 +286,30 @@ export function useWindowedTranslation({
     []
   );
 
-  return { getTranslatedLine, getCharacterOnlyLine, isTranslating, error };
+  const getTranslatedSegments = useCallback(
+    (index: number): readonly ReaderSegment[] | undefined =>
+      translatedSegmentsRef.current.get(index),
+    []
+  );
+
+  const getOriginalSegments = useCallback(
+    (index: number): readonly ReaderSegment[] | undefined => originalSegmentsRef.current.get(index),
+    []
+  );
+
+  const getCharacterOnlySegments = useCallback(
+    (index: number): readonly ReaderSegment[] | undefined =>
+      characterOnlySegmentsRef.current.get(index),
+    []
+  );
+
+  return {
+    getTranslatedLine,
+    getCharacterOnlyLine,
+    getTranslatedSegments,
+    getOriginalSegments,
+    getCharacterOnlySegments,
+    isTranslating,
+    error,
+  };
 }

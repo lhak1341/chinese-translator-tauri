@@ -21,10 +21,13 @@ function chunkPlan(startLine: number, endLine: number): ChunkPlan {
 function entry(startLine: number, endLine: number, translatedText = 'xin chào'): CachedChunk {
   return {
     chunk: chunkPlan(startLine, endLine),
+    sourceText: '原文',
     translatedText,
     characterOnlyText: translatedText,
     semanticArrays: null,
     prebuiltSegments: [],
+    originalSegments: [],
+    characterOnlySegments: [],
   };
 }
 
@@ -155,9 +158,13 @@ describe('hysteresis between the fetch and keep bands', () => {
       translated.push(chunk.key);
       cache.set({
         chunk,
+        sourceText: '原文',
         translatedText: 'bản dịch',
+        characterOnlyText: null,
         semanticArrays: null,
         prebuiltSegments: [],
+        originalSegments: [],
+        characterOnlySegments: null,
       });
     }
     return { translated, evicted, planned: plan.length };
