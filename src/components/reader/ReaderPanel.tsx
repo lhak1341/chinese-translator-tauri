@@ -14,6 +14,21 @@ export interface PanelRow {
   isPending: boolean;
   /** Language of `text` as rendered, which changes while a row is pending. */
   lang: 'zh' | 'vi';
+  /**
+   * A blank line in the source file, which renders at zero height.
+   *
+   * Line breaks between paragraphs are not uniform across a library — one file runs its
+   * paragraphs adjacent, the next separates them by one blank line, the one after by two —
+   * and every row already carries the paragraph gap as its own bottom padding. Rendering a
+   * blank line as a real row would add that file's own spacing on top of the setting's, so
+   * the same Paragraph Spacing would read differently from book to book. Collapsed to
+   * nothing, every file spaces its paragraphs by the setting alone.
+   *
+   * Decided from the *original* Chinese line, never from this panel's own text, so all
+   * three panels collapse the same rows and stay aligned. An unfetched line is not blank —
+   * it keeps its full height, so its row does not jump when its page lands.
+   */
+  isBlank: boolean;
 }
 
 /** Which Appearance section's font this panel renders in. */
@@ -80,7 +95,7 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
       >
         <div className={styles.readerCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
           {virtualizer.getVirtualItems().map((row) => {
-            const { text, isPending, lang } = getRow(row.index);
+            const { text, isPending, lang, isBlank } = getRow(row.index);
             return (
               <div
                 key={row.key}
@@ -95,14 +110,17 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
                   arrives as a single unwrapped line does not move at all, and a longer one
                   grows by whole line heights rather than by an arbitrary amount.
 
-                  A blank line is a real, empty line and keeps its slot, so line numbers
-                  stay the file's own.
+                  A blank line keeps its slot — line numbers stay the file's own — but
+                  renders at zero height, so the file's own paragraph breaks add nothing to
+                  the spacing the Appearance setting already puts below every row.
                 */}
                 <p
-                  className={`${styles.readerLine} ${isPending ? styles.pending : ''}`}
+                  className={`${styles.readerLine} ${isPending ? styles.pending : ''} ${
+                    isBlank ? styles.blankLine : ''
+                  }`}
                   lang={lang}
                 >
-                  {text === undefined ? ' ' : text || ' '}
+                  {isBlank ? '' : text === undefined ? ' ' : text || ' '}
                 </p>
               </div>
             );

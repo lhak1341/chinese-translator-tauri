@@ -36,6 +36,15 @@ export interface UseReaderPanelOptions {
   emPerChar: number;
   /** Chinese characters on this line — the estimate's only input. Must be stable. */
   charCountAt: (index: number) => number;
+  /**
+   * Whether this line is one of the file's own paragraph breaks, which renders at zero
+   * height (see `PanelRow.isBlank`). Estimated at zero too, or a blank-heavy book's
+   * scrollbar would claim a document several times the height of the one that renders.
+   *
+   * Not derivable from `charCountAt` returning 0: that is also an unfetched line, which
+   * keeps its full height. Must be stable.
+   */
+  isBlankAt: (index: number) => boolean;
 }
 
 export interface ReaderPanelGeometry {
@@ -57,6 +66,7 @@ export function useReaderPanel({
   lineCount,
   emPerChar,
   charCountAt,
+  isBlankAt,
 }: UseReaderPanelOptions): ReaderPanelGeometry {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { columnEm, fontSizePx, rowPaddingPx } = useColumnMetrics(scrollRef);
@@ -64,18 +74,27 @@ export function useReaderPanel({
   // "Latest ref" pattern: `estimateSize` below is referentially stable, so a re-render
   // never makes the virtualizer treat its estimates as new. A resize reaches the estimate
   // through this ref, by way of the virtualizer's own resize handling.
-  const liveRef = useRef({ columnEm, fontSizePx, rowPaddingPx, emPerChar, charCountAt });
-  liveRef.current = { columnEm, fontSizePx, rowPaddingPx, emPerChar, charCountAt };
+  const liveRef = useRef({
+    columnEm,
+    fontSizePx,
+    rowPaddingPx,
+    emPerChar,
+    charCountAt,
+    isBlankAt,
+  });
+  liveRef.current = { columnEm, fontSizePx, rowPaddingPx, emPerChar, charCountAt, isBlankAt };
 
   const estimateSize = useCallback(
     (index: number): number =>
-      estimateRowSize(liveRef.current.charCountAt(index), {
-        lineHeight: liveRef.current.fontSizePx * ROW_LINE_HEIGHT_RATIO,
-        padding: liveRef.current.rowPaddingPx,
-        columnEm: liveRef.current.columnEm,
-        emPerChar: liveRef.current.emPerChar,
-        bias: ROW_ESTIMATE_BIAS,
-      }),
+      liveRef.current.isBlankAt(index)
+        ? 0
+        : estimateRowSize(liveRef.current.charCountAt(index), {
+            lineHeight: liveRef.current.fontSizePx * ROW_LINE_HEIGHT_RATIO,
+            padding: liveRef.current.rowPaddingPx,
+            columnEm: liveRef.current.columnEm,
+            emPerChar: liveRef.current.emPerChar,
+            bias: ROW_ESTIMATE_BIAS,
+          }),
     []
   );
 

@@ -104,9 +104,13 @@ const CHARACTER_ONLY_PANEL = 'character-only';
  * or a grey bar — scrolling ahead still shows something readable, and the row is measured
  * at very nearly its final height, so it barely moves when the Vietnamese lands.
  */
-function vietnameseRow(translated: string | undefined, source: string | undefined): PanelRow {
-  if (translated !== undefined) return { text: translated, isPending: false, lang: 'vi' };
-  return { text: source, isPending: true, lang: 'zh' };
+function vietnameseRow(
+  translated: string | undefined,
+  source: string | undefined,
+  isBlank: boolean
+): PanelRow {
+  if (translated !== undefined) return { text: translated, isPending: false, lang: 'vi', isBlank };
+  return { text: source, isPending: true, lang: 'zh', isBlank };
 }
 
 /**
@@ -179,20 +183,36 @@ const BookReader: React.FC<BookReaderProps> = ({
     [getLine]
   );
 
+  /**
+   * Whether this line is one of the file's own paragraph breaks — rendered at zero height,
+   * see `PanelRow.isBlank`.
+   *
+   * Distinct from `charCountAt(index) === 0`, which is also true of a line whose page has
+   * not been fetched: an unfetched row keeps its full estimated height, so the scrollbar
+   * does not shrink and then grow again as pages land.
+   */
+  const isBlankAt = useCallback(
+    (index: number): boolean => getLine(index)?.trim() === '',
+    [getLine]
+  );
+
   const translationPanel = useReaderPanel({
     lineCount: book.lineCount,
     emPerChar: EM_PER_CHAR_TRANSLATION,
     charCountAt,
+    isBlankAt,
   });
   const originalPanel = useReaderPanel({
     lineCount: book.lineCount,
     emPerChar: EM_PER_CHAR_ORIGINAL,
     charCountAt,
+    isBlankAt,
   });
   const characterPanel = useReaderPanel({
     lineCount: book.lineCount,
     emPerChar: EM_PER_CHAR_CHARACTER_ONLY,
     charCountAt,
+    isBlankAt,
   });
 
   const { scrollRef, virtualizer } = translationPanel;
@@ -673,22 +693,24 @@ const BookReader: React.FC<BookReaderProps> = ({
   }, [measureViewport, onScroll, syncScroll]);
 
   const translationRow = useCallback(
-    (index: number): PanelRow => vietnameseRow(getTranslatedLine(index), getLine(index)),
-    [getLine, getTranslatedLine]
+    (index: number): PanelRow =>
+      vietnameseRow(getTranslatedLine(index), getLine(index), isBlankAt(index)),
+    [getLine, getTranslatedLine, isBlankAt]
   );
 
   const originalRow = useCallback(
     (index: number): PanelRow => {
       const line = getLine(index);
       // The source panel is only ever pending on its own page fetch, never on translation.
-      return { text: line, isPending: line === undefined, lang: 'zh' };
+      return { text: line, isPending: line === undefined, lang: 'zh', isBlank: isBlankAt(index) };
     },
-    [getLine]
+    [getLine, isBlankAt]
   );
 
   const characterRow = useCallback(
-    (index: number): PanelRow => vietnameseRow(getCharacterOnlyLine(index), getLine(index)),
-    [getCharacterOnlyLine, getLine]
+    (index: number): PanelRow =>
+      vietnameseRow(getCharacterOnlyLine(index), getLine(index), isBlankAt(index)),
+    [getCharacterOnlyLine, getLine, isBlankAt]
   );
 
   return (

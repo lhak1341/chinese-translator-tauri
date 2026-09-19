@@ -671,6 +671,23 @@
   overflow-wrap: break-word;
 }
 
+/*
+  A blank line in the source file: no text, no padding, no line box — zero pixels.
+
+  Paragraph breaks are not uniform across a library: one file runs its paragraphs adjacent,
+  the next puts one blank line between them, the one after two. Since every row already
+  carries the paragraph gap as its own bottom padding, a rendered blank row would add the
+  file's own spacing on top of the setting's, and the same Paragraph Spacing would read
+  differently from book to book. Collapsed, the setting is the only thing that spaces
+  paragraphs, in every file.
+
+  The row keeps its slot in the line numbering — only its height goes.
+*/
+.blankLine {
+  padding: 0;
+  line-height: 0;
+}
+
 .pending {
   opacity: 0.35;
 }
