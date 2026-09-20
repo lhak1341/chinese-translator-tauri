@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type React from 'react';
-import { tryRestorePosition, type RestoreTarget } from './useReadingPosition';
+import { computeAnchor, tryRestorePosition, type RestoreTarget } from './useReadingPosition';
 import type { ReadingPosition } from '../types/ReaderTypes';
 
 /**
@@ -40,6 +40,50 @@ const REANCHOR_CEILING_MS = 15000;
 /** Modifier presses on their own are not navigation, so they must not end the window —
  * holding Shift before typing would otherwise abandon the re-anchor. */
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta']);
+
+/**
+ * How close the sub-line fraction has to be to count as already in place.
+ *
+ * A row is tens of pixels tall, so a hundredth of one is well under a pixel — far below
+ * anything the reader could see, and far above the rounding a fractional `scrollTop`
+ * produces.
+ */
+const FRACTION_EPSILON = 0.01;
+
+/**
+ * Whether the reader is already where the re-anchor wants them.
+ *
+ * The loop runs every frame for as long as the refill does — which can be seconds — and
+ * most of those frames change nothing: no chunk landed, so no row moved, so the anchor is
+ * exactly where the previous frame put it. Restoring anyway is not free. `scrollToIndex`
+ * writes `scrollTop`, the write fires a `scroll` event, the handler re-measures the
+ * viewport and sets `anchorLine`, and that re-renders the whole reader — three virtualized
+ * panels — once per frame for the length of the refill, on top of whatever the refill
+ * itself is costing. Checking first turns that into a read of the rendered range.
+ */
+function isAnchorInPlace(
+  scrollEl: HTMLElement | null,
+  virtualizer: RestoreTarget,
+  captured: ReadingPosition
+): boolean {
+  if (!scrollEl) return false;
+  const rows = virtualizer.getVirtualItems();
+
+  // `computeAnchor` answers even when no row starts at or before the scroll offset: it
+  // falls back to the first row at fraction 0, which is the right answer for "where is the
+  // reader" and the wrong one here. That fallback can equal the captured anchor while the
+  // row in question sits hundreds of pixels away, and believing it would stop the loop
+  // correcting exactly when it is most needed. Only a resolved anchor may settle this.
+  const scrollTop = scrollEl.scrollTop;
+  if (!rows.some((row) => row.start <= scrollTop)) return false;
+
+  const current = computeAnchor(scrollTop, rows);
+  if (!current) return false;
+  return (
+    current.line === captured.line &&
+    Math.abs(current.fraction - captured.fraction) < FRACTION_EPSILON
+  );
+}
 
 export interface UseReloadReanchorOptions {
   /** Increments once per constructed engine — the reload having actually landed. */
@@ -136,7 +180,12 @@ export function useReloadReanchor({
       const believable = sawRefill || now - armedAt >= REFILL_GRACE_MS;
       if (quietLongEnough && believable) return;
 
-      tryRestorePosition(live.current, target, lines, captured);
+      // Only write when the anchor has actually drifted. A frame in which nothing landed
+      // needs no correction, and correcting anyway costs a scroll event and a full reader
+      // re-render — see `isAnchorInPlace`.
+      if (!isAnchorInPlace(live.current, target, captured)) {
+        tryRestorePosition(live.current, target, lines, captured);
+      }
       frameRef.current = requestAnimationFrame(step);
     };
     step();

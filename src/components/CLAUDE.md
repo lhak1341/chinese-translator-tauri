@@ -48,6 +48,8 @@ TypeScript's own narrowing has two traps here: an optional property accessed thr
 
 Never list frequently-updating state or callback props in a `useEffect` dep array that creates a `setInterval` or `addEventListener` — the subscription is torn down and rebuilt on every update. Use `const ref = useRef(value); ref.current = value;` and read `ref.current` inside the callback (`wasmStatus`'s interval in `Translator.jsx`; `useHotkeyHandler.ts`'s keydown listener, whose props are all mirrored into one `optionsRef` rather than per-prop refs).
 
+**The same refs are invisible to `React.memo`, so a memoized child needs every input it renders from as an actual prop.** A getter that is stable by design (`useCallback(…, [])` reading through a ref) cannot signal that its data changed, and state read off a stable object inside the child — `virtualizer.getVirtualItems()` — is not in the props comparison at all, so the child stops re-rendering on scroll. Both bit `ReaderPanel` in one change: the rendered range and total size became props, and an explicit `contentVersion` counter (`useWindowedTranslation`'s `version`) is what tells it a chunk landed. Before memoizing, list what the component reads that no prop describes.
+
 **A ref mirror of the listener's props is not enough when the mirrored callback closes over state itself.** `goToChapter` in `BookReader.tsx` reads `anchorRef.current.line`, because a key-repeated `]` can fire before React re-renders from the first press's `setAnchorLine`, and `optionsRef` would hand the listener that stale closure.
 
 **The same applies to `useCallback` with a mutable state dep**: a `Set` in state is a new reference on every `setState`, so the callback recreates on every update. Ref mirror, dep array `[]`.

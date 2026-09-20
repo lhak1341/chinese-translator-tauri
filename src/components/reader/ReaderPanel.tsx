@@ -1,5 +1,5 @@
 import React from 'react';
-import type { Virtualizer } from '@tanstack/react-virtual';
+import type { VirtualItem, Virtualizer } from '@tanstack/react-virtual';
 import type { ReaderSegment } from '../../utils/reader/LineSegments';
 import { sanitizeString } from '../../utils/configValidation';
 import styles from '../../styles/Reader.module.css';
@@ -19,6 +19,28 @@ export interface ReaderHighlight {
 function isLit(segment: ReaderSegment, highlight: ReaderHighlight | null): boolean {
   if (highlight === null || segment.chunkKey === '') return false;
   return segment.chunkKey === highlight.chunkKey && segment.unitIndex === highlight.unitIndex;
+}
+
+/**
+ * The hover tooltip for a run, built once per run rather than once per render.
+ *
+ * `sanitizeString` is a regex pass, and the tooltip needs two of them. Inline in the JSX
+ * that was thousands of regex passes per render across three panels of fifty-odd rows,
+ * paid on every render, for a string only ever read if the pointer comes to rest on that
+ * exact span. Runs are replaced wholesale by a rebuild, so keying on a run's own identity
+ * is exact rather than a heuristic, and a `WeakMap` needs no eviction rule.
+ */
+const titleCache = new WeakMap<ReaderSegment, string>();
+
+function segmentTitle(segment: ReaderSegment): string {
+  const cached = titleCache.get(segment);
+  if (cached !== undefined) return cached;
+  const title = `"${sanitizeString(segment.originalText ?? '', 100)}" → "${sanitizeString(
+    segment.translatedText ?? '',
+    100
+  )}" (${segment.source ?? 'unknown'})`;
+  titleCache.set(segment, title);
+  return title;
 }
 
 /** One line as a panel renders it. */
@@ -82,7 +104,31 @@ export interface ReaderPanelProps {
    */
   isFollower?: boolean;
   scrollRef: React.RefObject<HTMLDivElement | null>;
+  /**
+   * This panel's virtualizer, for `measureElement` alone — the rendered range and the
+   * canvas height arrive as `rows` and `totalSize` instead.
+   *
+   * Reading them off the virtualizer in here would make this component's output depend on
+   * state none of its props describe, and it is memoized: a scroll would move the range
+   * with every prop identical, and the panel would not re-render. Passing them in is what
+   * keeps "the props changed" and "the output changed" the same question.
+   */
   virtualizer: Virtualizer<HTMLDivElement, Element>;
+  /** The rendered range. `getVirtualItems()` is itself memoized on the virtualizer's
+   * indexes and measurements, so this identity changes exactly when the range does. */
+  rows: readonly VirtualItem[];
+  /** The scroll canvas height, `virtualizer.getTotalSize()`. */
+  totalSize: number;
+  /**
+   * Changes whenever what `getRow` would return has changed.
+   *
+   * `getRow` is built from getters that read through refs and never change identity, so it
+   * cannot itself signal that a chunk landed or a page was fetched. This component is
+   * memoized, so without an explicit signal new text would sit in the refs unrendered
+   * until something unrelated moved. Unused in the body on purpose: its only job is to be
+   * part of the props comparison.
+   */
+  contentVersion: number;
   getRow: (index: number) => PanelRow;
   onScroll: () => void;
   onWheel?: (event: React.WheelEvent<HTMLDivElement>) => void;
@@ -119,10 +165,7 @@ const SegmentedLine: React.FC<{
           className={`${styles.clickableSegment} ${
             isLit(segment, highlight) ? styles.clickableSegmentHighlighted : ''
           }`}
-          title={`"${sanitizeString(segment.originalText ?? '', 100)}" → "${sanitizeString(
-            segment.translatedText ?? '',
-            100
-          )}" (${segment.source ?? 'unknown'})`}
+          title={segmentTitle(segment)}
           onClick={() =>
             onSegmentClick({ chunkKey: segment.chunkKey, unitIndex: segment.unitIndex })
           }
@@ -147,12 +190,14 @@ SegmentedLine.displayName = 'SegmentedLine';
  * drift apart with distance from it, and the anchor sits at the reading position, which is
  * the only place alignment is being looked at.
  */
-const ReaderPanel: React.FC<ReaderPanelProps> = ({
+const ReaderPanelInner: React.FC<ReaderPanelProps> = ({
   title,
   variant,
   isFollower = false,
   scrollRef,
   virtualizer,
+  rows,
+  totalSize,
   getRow,
   onScroll,
   onWheel,
@@ -170,8 +215,8 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
         onScroll={onScroll}
         onWheel={onWheel}
       >
-        <div className={styles.readerCanvas} style={{ height: `${virtualizer.getTotalSize()}px` }}>
-          {virtualizer.getVirtualItems().map((row) => {
+        <div className={styles.readerCanvas} style={{ height: `${totalSize}px` }}>
+          {rows.map((row) => {
             const { text, isPending, lang, isBlank, segments } = getRow(row.index);
             return (
               <div
@@ -219,5 +264,24 @@ const ReaderPanel: React.FC<ReaderPanelProps> = ({
     </section>
   );
 };
+
+ReaderPanelInner.displayName = 'ReaderPanel';
+
+/**
+ * Memoized, because BookReader re-renders far more often than any panel's content changes.
+ *
+ * A rebuild publishes one chunk at a time and each publication is a render; so is every
+ * anchor move while scrolling, and every frame of the post-reload re-anchor loop. Without
+ * this, each of those re-runs all three panels' `getVirtualItems().map` over fifty-odd
+ * rows — rebuilding spans for two panels whose rows did not change — and the two reference
+ * panels change far less often than the master does.
+ *
+ * This is only worth anything while the props hold their identity across a render that
+ * changed nothing: `getRow` is a `useCallback` whose own deps are the windowed-translation
+ * getters, `onScroll`/`onWheel`/`onSegmentClick` are stable callbacks, and `virtualizer`
+ * and `scrollRef` are per-panel instances. An inline arrow in any of those positions
+ * silently turns this back into a plain component.
+ */
+const ReaderPanel = React.memo(ReaderPanelInner);
 
 export default ReaderPanel;

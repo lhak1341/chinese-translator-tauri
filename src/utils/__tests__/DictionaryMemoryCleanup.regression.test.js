@@ -298,6 +298,78 @@ describe('Dictionary Memory Cleanup Regression Tests', () => {
       expect(manager.engine).toBeNull();
       expect(manager.initialized).toBe(false);
     });
+
+    // `clear_all_dictionaries()` releases the entries; the struct itself is only released
+    // by destroying it. Dropping the JS reference alone leaves the Rust value in WASM
+    // linear memory until a non-deterministic GC, and linear memory never shrinks — so a
+    // session that reloads repeatedly accumulates one dictionary engine per reload.
+    // `__destroy_into_raw()` rather than `.free()` is the house rule in
+    // src/utils/wasm/CLAUDE.md: it is JS-only, so it stays safe after a `panic = "abort"`.
+    it('destroys the owned DictionaryEngine, not just its dictionaries', () => {
+      const manager = new WasmDictionaryManager();
+      const destroySpy = vi.fn();
+
+      manager.initialized = true;
+      manager.engine = {
+        clear_all_dictionaries: vi.fn(),
+        __destroy_into_raw: destroySpy,
+      };
+
+      manager.cleanup();
+
+      expect(destroySpy).toHaveBeenCalledTimes(1);
+      expect(manager.engine).toBeNull();
+    });
+
+    it('still nullifies the engine when destroying it throws', () => {
+      const manager = new WasmDictionaryManager();
+
+      manager.initialized = true;
+      manager.engine = {
+        clear_all_dictionaries: vi.fn(),
+        __destroy_into_raw: vi.fn(() => {
+          throw new Error('already destroyed');
+        }),
+      };
+
+      expect(() => manager.cleanup()).not.toThrow();
+      expect(manager.engine).toBeNull();
+      expect(manager.initialized).toBe(false);
+    });
+
+    // `memoryPool` is the module singleton `wasmMemoryPoolManager`, shared with every
+    // other WASM wrapper, and its `cleanup()` clears the 30s optimization interval and
+    // drops the pressure detector with nothing to recreate either. This method runs once
+    // per dictionary reload, so tearing the pool down here would silently disable buffer
+    // pooling process-wide from the first reload onward.
+    it('leaves the shared memory pool alone', () => {
+      const poolCleanup = vi.fn();
+      const manager = new WasmDictionaryManager({
+        cleanup: poolCleanup,
+        getStats: () => ({ totalMemoryUsage: 0 }),
+      });
+
+      manager.initialized = true;
+      manager.engine = { clear_all_dictionaries: vi.fn() };
+
+      manager.cleanup();
+
+      expect(poolCleanup).not.toHaveBeenCalled();
+    });
+
+    // A resolved promise left behind would let a later `initialize()` short-circuit and
+    // hand the caller back this retired instance.
+    it('clears the memoized initialization promise', async () => {
+      const manager = new WasmDictionaryManager();
+
+      manager.initialized = true;
+      manager.initializationPromise = Promise.resolve(true);
+      manager.engine = { clear_all_dictionaries: vi.fn() };
+
+      manager.cleanup();
+
+      expect(manager.initializationPromise).toBeNull();
+    });
   });
 
   describe('HIGH-1: EnhancedDictionaryManager cleanup chain', () => {

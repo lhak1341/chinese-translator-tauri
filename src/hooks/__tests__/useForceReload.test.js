@@ -435,3 +435,78 @@ describe('useForceReload — parallelDictionaryLoader fallback path', () => {
     expect(failureLogs).toHaveLength(1);
   });
 });
+
+// ── Reader-triggered reload: the retranslate step is deferred, not performed ──────
+
+/**
+ * A reload triggered from the Reader must not re-translate the Translator's own input.
+ *
+ * Every tab stays mounted, so the Translator is holding whatever was last pasted into it,
+ * and re-translating a whole hidden document is the single most expensive thing a
+ * Reader-triggered reload did. It is also not merely slow: `translateWithSegments` resets
+ * engine-wide segment state on entry, and BookReader's engine queue is documented as
+ * assuming the Translator never calls the engine while the Reader is driving it.
+ */
+describe('useForceReload — retranslateInput: false', () => {
+  /** Run one reload to completion, including the scroll-restore timeout in `finally`. */
+  async function runReload(result, options) {
+    vi.useFakeTimers();
+    const done = act(async () => {
+      result.current(options);
+    });
+    await act(async () => {
+      vi.runAllTimersAsync();
+    });
+    await done;
+  }
+
+  test('skips the retranslate step even when there is input to redo', async () => {
+    const ctx = makeCtx();
+    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+
+    await runReload(result, { retranslateInput: false });
+
+    expect(ctx.retranslate).not.toHaveBeenCalled();
+  });
+
+  test('still reloads and reinitializes — only the last step is skipped', async () => {
+    const ctx = makeCtx();
+    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+
+    await runReload(result, { retranslateInput: false });
+
+    expect(ctx.cancelTranslations).toHaveBeenCalled();
+    expect(ctx.destroyEngine).toHaveBeenCalled();
+    expect(ctx.reinitializeEngine).toHaveBeenCalled();
+  });
+
+  test('says the visible translation is stale rather than claiming it is current', async () => {
+    const ctx = makeCtx();
+    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+
+    await runReload(result, { retranslateInput: false });
+
+    const finalStatus = ctx.setStatus.mock.calls.at(-1)[0];
+    expect(finalStatus).toContain('previous dictionaries');
+  });
+
+  test('defaults to retranslating when called with no options at all', async () => {
+    const ctx = makeCtx();
+    const { result } = renderHook(() => useForceReload(ctx, false, 'hello world', false, {}));
+
+    await runReload(result, undefined);
+
+    expect(ctx.retranslate).toHaveBeenCalledWith('hello world');
+  });
+
+  test('empty input reports plain completion, not staleness', async () => {
+    const ctx = makeCtx();
+    const { result } = renderHook(() => useForceReload(ctx, false, '   ', false, {}));
+
+    await runReload(result, { retranslateInput: false });
+
+    const finalStatus = ctx.setStatus.mock.calls.at(-1)[0];
+    expect(finalStatus).not.toContain('previous dictionaries');
+    expect(ctx.retranslate).not.toHaveBeenCalled();
+  });
+});

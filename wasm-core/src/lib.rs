@@ -87,6 +87,10 @@ pub struct DictionaryVersion {
 struct VersionedDictionary {
     trie: TrieNode,
     version: DictionaryVersion,
+    /// What this dictionary added to `PerformanceStats::memory_usage_bytes` when it was
+    /// inserted. Kept so replacing it can subtract exactly what it contributed rather than
+    /// re-deriving an estimate from entries that have already been consumed into the trie.
+    estimated_size: usize,
 }
 
 
@@ -188,9 +192,10 @@ impl DictionaryEngine {
             )));
         }
 
-        let versioned_dict = Self::build_versioned_dictionary(&entries);
+        let versioned_dict = Self::build_versioned_dictionary(&entries, estimated_size);
         let entry_count = versioned_dict.version.entry_count;
 
+        self.untrack_dictionary(name);
         self.performance_stats.memory_usage_bytes += estimated_size;
         self.total_entries += entry_count;
         self.dictionaries.insert(name.to_string(), versioned_dict);
@@ -225,6 +230,11 @@ impl DictionaryEngine {
 
             let estimated_size = self.estimate_dictionary_size(&dict.entries);
 
+            // Untracked first, so the headroom check sees the total *without* the copy this
+            // load replaces. Checking before untracking makes a re-sync of an unchanged
+            // dictionary look like it needs twice the room it actually does.
+            self.untrack_dictionary(&dict.name);
+
             if self.performance_stats.memory_usage_bytes + estimated_size
                 > self.performance_stats.memory_limit_bytes
             {
@@ -232,7 +242,7 @@ impl DictionaryEngine {
                 continue;
             }
 
-            let versioned_dict = Self::build_versioned_dictionary(&dict.entries);
+            let versioned_dict = Self::build_versioned_dictionary(&dict.entries, estimated_size);
             let entry_count = versioned_dict.version.entry_count;
 
             self.performance_stats.memory_usage_bytes += estimated_size;
@@ -249,7 +259,10 @@ impl DictionaryEngine {
     /// Build a VersionedDictionary from a slice of entries.
     /// Shared by load_dictionary and load_dictionaries_batch to eliminate duplicated
     /// trie-build + checksum + versioning logic.
-    fn build_versioned_dictionary(entries: &[DictionaryEntry]) -> VersionedDictionary {
+    fn build_versioned_dictionary(
+        entries: &[DictionaryEntry],
+        estimated_size: usize,
+    ) -> VersionedDictionary {
         let mut trie = TrieNode::new();
         let mut checksum = 0u64;
         for entry in entries {
@@ -266,7 +279,30 @@ impl DictionaryEngine {
             entry_count,
             checksum,
         };
-        VersionedDictionary { trie, version }
+        VersionedDictionary { trie, version, estimated_size }
+    }
+
+    /// Drop a dictionary's contribution to the running totals, if it is currently loaded.
+    ///
+    /// Every insert path replaces whatever `dictionaries` already held under that name, and
+    /// the replaced value's accounting has to come back off the totals or they only ever
+    /// climb. That mattered: `load_dictionaries_batch` refuses a dictionary once
+    /// `memory_usage_bytes + estimated_size` passes the limit, and the JS side re-syncs
+    /// every dictionary on every entry add, so an inflated total eventually starts
+    /// rejecting loads that fit perfectly well. `get_performance_report`'s `isWithinLimit`
+    /// went the same way.
+    ///
+    /// Call before inserting; `remove` is what makes it idempotent for a fresh name.
+    fn untrack_dictionary(&mut self, name: &str) {
+        if let Some(previous) = self.dictionaries.remove(name) {
+            self.performance_stats.memory_usage_bytes = self
+                .performance_stats
+                .memory_usage_bytes
+                .saturating_sub(previous.estimated_size);
+            self.total_entries = self
+                .total_entries
+                .saturating_sub(previous.version.entry_count);
+        }
     }
 
     // Helper method to estimate dictionary memory usage
@@ -357,13 +393,10 @@ impl DictionaryEngine {
     /// JS interop contract: `entries_json` is a JSON string (`JSON.stringify(wasmEntries)`).
     #[wasm_bindgen]
     pub fn reload_dictionary(&mut self, name: &str, entries_json: &str) -> Result<bool, JsValue> {
-        if let Some(old_dict) = self.dictionaries.remove(name) {
-            let old_size = old_dict.version.entry_count * 200;
-            self.performance_stats.memory_usage_bytes =
-                self.performance_stats.memory_usage_bytes.saturating_sub(old_size);
-            self.total_entries = self.total_entries.saturating_sub(old_dict.version.entry_count);
-        }
-
+        // `load_dictionary` untracks the previous copy itself, by the size it was actually
+        // accounted at. This used to subtract `entry_count * 200` instead — a guess
+        // unrelated to `estimate_dictionary_size`, so it corrected the totals in the wrong
+        // direction as often as the right one.
         self.load_dictionary(name, entries_json)
     }
 
@@ -522,4 +555,111 @@ fn base36_encode(mut num: u32) -> String {
 
     result.reverse();
     String::from_utf8(result).unwrap()
+}
+
+#[cfg(test)]
+mod dictionary_accounting_tests {
+    use super::*;
+
+    const ENTRIES: &str = r#"[
+        {"chinese":"你好","vietnamese":"xin chào","metadata":null},
+        {"chinese":"世界","vietnamese":"thế giới","metadata":null}
+    ]"#;
+
+    const LONGER: &str = r#"[
+        {"chinese":"你好","vietnamese":"xin chào","metadata":null},
+        {"chinese":"世界","vietnamese":"thế giới","metadata":null},
+        {"chinese":"天空","vietnamese":"bầu trời","metadata":null}
+    ]"#;
+
+    /// The JS side re-syncs every dictionary on every entry add, so the same name is loaded
+    /// over and over for the life of the process. Each load replaces the previous trie, so
+    /// the totals must replace too — they used to only ever add.
+    #[test]
+    fn reloading_the_same_dictionary_replaces_its_accounting() {
+        let mut engine = DictionaryEngine::new();
+
+        engine.load_dictionary("characters", ENTRIES).unwrap();
+        let entries_after_first = engine.get_total_entries();
+        let bytes_after_first = engine.get_memory_usage();
+        assert_eq!(engine.get_dictionary_count(), 1);
+
+        for _ in 0..20 {
+            engine.load_dictionary("characters", ENTRIES).unwrap();
+        }
+
+        assert_eq!(engine.get_dictionary_count(), 1);
+        assert_eq!(engine.get_total_entries(), entries_after_first);
+        assert_eq!(engine.get_memory_usage(), bytes_after_first);
+    }
+
+    /// Replacing with a *different* set must still land on that set's own accounting, not
+    /// on a difference applied to a stale figure.
+    #[test]
+    fn replacing_with_a_different_set_accounts_for_the_new_one() {
+        let mut engine = DictionaryEngine::new();
+
+        engine.load_dictionary("characters", LONGER).unwrap();
+        let longer_entries = engine.get_total_entries();
+        let longer_bytes = engine.get_memory_usage();
+
+        engine.load_dictionary("characters", ENTRIES).unwrap();
+        assert!(engine.get_total_entries() < longer_entries);
+        assert!(engine.get_memory_usage() < longer_bytes);
+
+        engine.load_dictionary("characters", LONGER).unwrap();
+        assert_eq!(engine.get_total_entries(), longer_entries);
+        assert_eq!(engine.get_memory_usage(), longer_bytes);
+    }
+
+    /// Distinct names still accumulate — the subtraction must key on the name being
+    /// replaced, not fire on every load.
+    #[test]
+    fn distinct_dictionaries_still_accumulate() {
+        let mut engine = DictionaryEngine::new();
+
+        engine.load_dictionary("characters", ENTRIES).unwrap();
+        let one = engine.get_total_entries();
+        engine.load_dictionary("phrases", ENTRIES).unwrap();
+
+        assert_eq!(engine.get_dictionary_count(), 2);
+        assert_eq!(engine.get_total_entries(), one * 2);
+    }
+
+    /// The batch path shares the rule, and its headroom check must not count the copy it is
+    /// about to replace — otherwise re-syncing an unchanged dictionary looks like it needs
+    /// twice the room it does.
+    #[test]
+    fn batch_reload_does_not_inflate_totals() {
+        let mut engine = DictionaryEngine::new();
+        let batch = format!(
+            r#"[{{"name":"characters","entries":{}}}]"#,
+            ENTRIES
+        );
+
+        engine.load_dictionaries_batch(&batch).unwrap();
+        let entries_after_first = engine.get_total_entries();
+        let bytes_after_first = engine.get_memory_usage();
+
+        for _ in 0..20 {
+            engine.load_dictionaries_batch(&batch).unwrap();
+        }
+
+        assert_eq!(engine.get_dictionary_count(), 1);
+        assert_eq!(engine.get_total_entries(), entries_after_first);
+        assert_eq!(engine.get_memory_usage(), bytes_after_first);
+    }
+
+    /// `clear_all_dictionaries` is what engine teardown calls; it must zero both counters so
+    /// a retired engine leaves nothing behind in the figures.
+    #[test]
+    fn clearing_zeroes_the_counters() {
+        let mut engine = DictionaryEngine::new();
+        engine.load_dictionary("characters", ENTRIES).unwrap();
+        engine.clear_all_dictionaries();
+
+        assert_eq!(engine.get_dictionary_count(), 0);
+        assert_eq!(engine.get_total_entries(), 0);
+        assert_eq!(engine.get_memory_usage(), 0);
+    }
 }

@@ -782,8 +782,37 @@ export class DictionaryManager {
 
   // ─── WASM Acceleration ────────────────────────────────────────────────────
 
-  async syncDictionariesToWasm() {
+  /**
+   * Push dictionary entries into the WASM engine.
+   *
+   * @param {string} [dictionaryName] - Sync only this dictionary. Omit to sync all.
+   *
+   * Scoped by name wherever the caller knows it, because this is not cheap: a sync
+   * serializes every entry of every named dictionary to JSON, hands the string to Rust to
+   * deserialize, and rebuilds the trie on the other side. The characters dictionary alone
+   * is 27,000+ entries. Editing one entry used to re-upload all of them — and the editor
+   * calls `invalidateAllCaches(dictionaryName)` after *every* add, so adding twenty
+   * entries in a reading session paid that twenty times over.
+   *
+   * An unknown name syncs nothing rather than falling back to everything: a silent full
+   * sync is exactly the cost this parameter exists to avoid, and a typo that quietly still
+   * works is a typo that never gets fixed.
+   */
+  async syncDictionariesToWasm(dictionaryName) {
     if (!this.wasmLookup?.isReady()) return;
+
+    if (dictionaryName !== undefined && dictionaryName !== null) {
+      const entries = this.flatEntries.get(dictionaryName);
+      if (entries === undefined) {
+        this.log(
+          DEBUG_LEVELS.DEBUG,
+          `Skipping WASM sync for unknown dictionary: ${dictionaryName}`
+        );
+        return;
+      }
+      return this.wasmLookup.sync(new Map([[dictionaryName, entries]]), this._extractPriorityMap());
+    }
+
     return this.wasmLookup.sync(this.flatEntries, this._extractPriorityMap());
   }
 

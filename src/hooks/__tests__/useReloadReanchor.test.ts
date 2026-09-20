@@ -243,3 +243,91 @@ describe('useReloadReanchor', () => {
     expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The loop runs once a frame for as long as the refill does, which can be seconds. Most of
+ * those frames change nothing — no chunk landed, so no row moved — and restoring anyway is
+ * not free: `scrollToIndex` writes `scrollTop`, that write fires a `scroll` event, the
+ * handler re-measures the viewport and sets `anchorLine`, and that re-renders all three
+ * virtualized panels. Once per frame, on top of the refill itself.
+ */
+describe('useReloadReanchor - frames that need no correction', () => {
+  /** A virtualizer whose single row's offset the test can move, to stand in for the rows
+   * above the anchor growing as their translations land. */
+  function movableVirtualizer(start = 0) {
+    const state = { start };
+    return {
+      state,
+      scrollToIndex: vi.fn(),
+      getVirtualItems: () => [{ index: 120, start: state.start, size: 40 }],
+    };
+  }
+
+  function setupSettled(anchor: ReadingPosition = { line: 120, fraction: 0 }) {
+    const scrollElement = makeScrollElement();
+    const virtualizer = movableVirtualizer();
+    const anchorRef = { current: anchor as ReadingPosition | null };
+    const scrollRef = { current: scrollElement as HTMLElement | null };
+
+    const view = renderHook(
+      ({ engineVersion, isEnabled, isRefilling }: Props) =>
+        useReloadReanchor({
+          engineVersion,
+          isEnabled,
+          isRefilling,
+          anchorRef,
+          scrollRef,
+          virtualizer,
+          lineCount: 75_000,
+        }),
+      { initialProps: { engineVersion: 1, isEnabled: true, isRefilling: false } }
+    );
+
+    const reload = (isRefilling = true): void =>
+      view.rerender({ engineVersion: 2, isEnabled: true, isRefilling });
+
+    return { view, reload, virtualizer, scrollElement };
+  }
+
+  it('does not write when the reader is already on the captured anchor', () => {
+    const { virtualizer, reload } = setupSettled();
+
+    // scrollTop 0, and line 120 starts at 0: the anchor is exactly where it should be.
+    reload();
+
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet across many frames while nothing moves', () => {
+    const { virtualizer, reload } = setupSettled();
+
+    reload();
+    for (let frame = 0; frame < 30; frame += 1) runFrame();
+
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+  });
+
+  it('corrects as soon as a landed chunk moves the rows under the reader', () => {
+    const { virtualizer, reload } = setupSettled();
+
+    reload();
+    runFrame();
+    expect(virtualizer.scrollToIndex).not.toHaveBeenCalled();
+
+    // A chunk lands above the anchor and its rows grow, so the anchor line no longer
+    // begins at the reader's scroll offset.
+    virtualizer.state.start = 600;
+    runFrame();
+
+    expect(virtualizer.scrollToIndex).toHaveBeenCalledWith(120, { align: 'start' });
+  });
+
+  it('still corrects a fraction that has drifted, not just a changed line', () => {
+    // Captured a quarter into the row; the reader is sitting at the very top of it.
+    const { virtualizer, reload } = setupSettled({ line: 120, fraction: 0.25 });
+
+    reload();
+
+    expect(virtualizer.scrollToIndex).toHaveBeenCalledTimes(1);
+  });
+});

@@ -43,7 +43,7 @@ import CommandPalette from './CommandPalette';
 import { buildPaletteCommands, type PaletteBook } from '../../utils/reader/PaletteCommands';
 import ReaderPanel from './ReaderPanel';
 import type { PanelRow } from './ReaderPanel';
-import { fillSegmentGaps } from '../../utils/reader/LineSegments';
+import { fillSegmentGapsCached } from '../../utils/reader/LineSegments';
 import type { ReaderSegment } from '../../utils/reader/LineSegments';
 import styles from '../../styles/Reader.module.css';
 
@@ -446,6 +446,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     getOriginalSegments,
     getCharacterOnlySegments,
     isTranslating,
+    version: translationVersion,
   } = useWindowedTranslation({
     fingerprint: book.fingerprint,
     lineCount: book.lineCount,
@@ -722,6 +723,17 @@ const BookReader: React.FC<BookReaderProps> = ({
     syncScroll(TRANSLATION_PANEL);
   }, [measureViewport, onScroll, syncScroll]);
 
+  // The follower panels' own scroll handlers. Stable rather than inline arrows: both
+  // panels are memoized, and a fresh closure per render would make every render a prop
+  // change and the memo a no-op.
+  const handleOriginalScroll = useCallback((): void => {
+    syncScroll(ORIGINAL_PANEL);
+  }, [syncScroll]);
+
+  const handleCharacterScroll = useCallback((): void => {
+    syncScroll(CHARACTER_ONLY_PANEL);
+  }, [syncScroll]);
+
   const translationRow = useCallback(
     (index: number): PanelRow =>
       vietnameseRow(
@@ -746,7 +758,9 @@ const BookReader: React.FC<BookReaderProps> = ({
         // A chunk covers part of a line before the rest of it lands, and this panel shows
         // the file's own line either way — so whatever no run covers is filled back in as
         // plain text rather than dropped.
-        segments: segments && fillSegmentGaps(line as string, segments),
+        // Cached on the runs' own identity: this runs per rendered row per render, and a
+        // fresh array each time is a changed prop for every row in the panel.
+        segments: segments && fillSegmentGapsCached(line as string, segments),
       };
     },
     [getLine, getOriginalSegments, isBlankAt]
@@ -900,8 +914,13 @@ const BookReader: React.FC<BookReaderProps> = ({
             isFollower
             scrollRef={originalPanel.scrollRef}
             virtualizer={originalPanel.virtualizer}
+            rows={originalPanel.virtualizer.getVirtualItems()}
+            totalSize={originalTotalSize}
+            // Both: this panel's text comes from `getLine` (so a landed page changes it)
+            // and its runs from the chunk cache (so a landed chunk does too).
+            contentVersion={linesVersion + translationVersion}
             getRow={originalRow}
-            onScroll={() => syncScroll(ORIGINAL_PANEL)}
+            onScroll={handleOriginalScroll}
             onWheel={forwardWheelToMaster}
             highlight={highlight}
             onSegmentClick={toggleHighlight}
@@ -912,8 +931,11 @@ const BookReader: React.FC<BookReaderProps> = ({
             isFollower
             scrollRef={characterPanel.scrollRef}
             virtualizer={characterPanel.virtualizer}
+            rows={characterPanel.virtualizer.getVirtualItems()}
+            totalSize={characterTotalSize}
+            contentVersion={linesVersion + translationVersion}
             getRow={characterRow}
-            onScroll={() => syncScroll(CHARACTER_ONLY_PANEL)}
+            onScroll={handleCharacterScroll}
             onWheel={forwardWheelToMaster}
             highlight={highlight}
             onSegmentClick={toggleHighlight}
@@ -924,6 +946,9 @@ const BookReader: React.FC<BookReaderProps> = ({
           variant="translation"
           scrollRef={scrollRef}
           virtualizer={virtualizer}
+          rows={virtualRows}
+          totalSize={translationTotalSize}
+          contentVersion={linesVersion + translationVersion}
           getRow={translationRow}
           onScroll={handleScroll}
           highlight={highlight}

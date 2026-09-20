@@ -33,6 +33,7 @@ import { useTranslationResults } from '../hooks/useTranslationResults';
 import { useHighlightingState } from '../hooks/useHighlightingState';
 import { useAutoTranslateTrigger } from '../hooks/useAutoTranslateTrigger';
 import { useForceReload } from '../hooks/useForceReload';
+import { useDeferredRetranslate } from '../hooks/useDeferredRetranslate';
 import { useReloadRetranslate } from '../hooks/useReloadRetranslate';
 import { useForceReloadContext } from '../hooks/useReloadExecutionContexts';
 import { installDevConsole } from '../utils/__devtools__/DevConsole.js';
@@ -860,13 +861,31 @@ const Translator = ({ isActive = true }) => {
     dictionaries
   );
 
+  // Redo this tab's own translation when it is next shown, rather than during a reload
+  // triggered from the Reader — see the hook for why the work is moved and not dropped.
+  const { defer: deferRetranslate } = useDeferredRetranslate({
+    isActive,
+    inputText,
+    retranslate,
+  });
+
+  // The Reader's version of the reload: the same action, minus the step that re-translates
+  // *this* tab's hidden input. That step is the single most expensive thing a
+  // Reader-triggered reload used to do, and it also put a second caller on the engine while
+  // the Reader's own chunk fill was running — which `BookReader`'s engine queue is
+  // explicitly documented as assuming cannot happen.
+  const handleReaderReload = useCallback(async () => {
+    deferRetranslate();
+    await handleForceReload({ retranslateInput: false });
+  }, [deferRetranslate, handleForceReload]);
+
   // Publish the reload so the Reader's Cmd/Ctrl+R triggers *this* action rather than a
   // second implementation of it — see DictionaryReloadRegistry for why it's a registry
   // and not a context.
   useEffect(() => {
-    registerDictionaryReload(handleForceReload);
+    registerDictionaryReload(handleReaderReload);
     return () => registerDictionaryReload(null);
-  }, [handleForceReload]);
+  }, [handleReaderReload]);
 
   // Memoized style definitions to prevent re-creation on every render
   const sharedTextStyle = useMemo(

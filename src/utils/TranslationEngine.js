@@ -688,7 +688,7 @@ export class TranslationEngine {
    * - Clear batch processing cache
    * - Clear semantic array builder cache
    * - Clear pattern processor variable cache
-   * - Clear dictionary manager caches
+   * - Dispose the dictionary manager (tries, flat entries, WASM dictionaries)
    * - Clear translation segments
    * - Clear cached semantic tokens
    *
@@ -726,9 +726,26 @@ export class TranslationEngine {
       this.semanticPatternProcessor.variableCache.clear();
     }
 
-    // Clear dictionary manager caches
-    if (this.dictionaryManager && typeof this.dictionaryManager.clearCache === 'function') {
-      this.dictionaryManager.clearCache();
+    // Dispose the dictionary manager, rather than only clearing its cache.
+    //
+    // `clearCache()` empties the translation cache and nothing else, so every trie, the
+    // flat entry list, and — through `wasmLookup` — the WASM `DictionaryEngine` holding a
+    // copy of every dictionary all outlived the engine that owned them. A reload builds a
+    // replacement engine, so that was a leak *per reload*, and WASM linear memory never
+    // shrinks: a session that reloads twenty times ends up carrying twenty copies of the
+    // character dictionary, which is what made a long reading session get slower the more
+    // entries were added.
+    //
+    // `dispose()` is what releases all three. It leaves the manager unusable, which is
+    // exactly the contract this method already documents for the engine as a whole. It
+    // also sets `ready = false`, so `isReady()` stays answerable rather than throwing on
+    // the nulled fields.
+    if (this.dictionaryManager) {
+      if (typeof this.dictionaryManager.dispose === 'function') {
+        this.dictionaryManager.dispose();
+      } else if (typeof this.dictionaryManager.clearCache === 'function') {
+        this.dictionaryManager.clearCache();
+      }
     }
 
     // Clear translation segments
@@ -7529,7 +7546,13 @@ export class TranslationEngine {
         typeof this.dictionaryManager.syncDictionariesToWasm === 'function'
       ) {
         try {
-          await this.dictionaryManager.syncDictionariesToWasm();
+          // Scoped to the dictionary that changed when the caller named one. A sync
+          // re-serializes every entry of every dictionary it is given and rebuilds the
+          // trie in Rust; the entry editor calls this method after every single add, so
+          // an unscoped sync here charged the whole 37,000-entry corpus per keystroke-sized
+          // edit. `dictionaryName` is null for a whole-reload invalidation, which still
+          // syncs everything, which is correct there.
+          await this.dictionaryManager.syncDictionariesToWasm(dictionaryName ?? undefined);
           this.log(DEBUG_LEVELS.DEBUG, '✅ WASM dictionaries re-synced after cache invalidation');
         } catch (wasmError) {
           // Non-critical: WASM sync failure falls back to JavaScript dictionaries
@@ -7600,7 +7623,8 @@ export class TranslationEngine {
         typeof this.dictionaryManager.syncDictionariesToWasm === 'function'
       ) {
         try {
-          await this.dictionaryManager.syncDictionariesToWasm();
+          // The comment above this block always said "specific dictionary"; it now is one.
+          await this.dictionaryManager.syncDictionariesToWasm(dictionaryName);
           this.log(DEBUG_LEVELS.DEBUG, `✅ WASM dictionary re-synced for ${dictionaryName}`);
         } catch (wasmError) {
           // Non-critical: WASM sync failure falls back to JavaScript dictionaries

@@ -520,13 +520,45 @@ export function rangeText(text: string, range: ChunkLineRange): string {
  * A line split across chunks (see {@link splitLongLine}) is rebuilt by concatenation, which
  * is why entries are applied in line order regardless of the order they arrived in.
  */
+const linePieceCache = new WeakMap<ChunkPlan, Map<string, Map<number, string>>>();
+
+/**
+ * One chunk's text, divided into the file lines it covers — memoized on the chunk.
+ *
+ * A fold re-runs from scratch every time any chunk lands, over every chunk still resident,
+ * so this exact division is recomputed for up to a couple of hundred unchanged chunks per
+ * arriving one. A chunk's division depends on nothing but its own plan and its own text,
+ * both of which are fixed for the life of the cache entry, so it never needs recomputing
+ * at all.
+ *
+ * Keyed by plan *and* text because one plan is folded twice — once for the full
+ * translation and once for the character-only gloss — with different text each time.
+ */
+function chunkLinePieces(chunk: ChunkPlan, text: string): Map<number, string> {
+  let byText = linePieceCache.get(chunk);
+  if (byText === undefined) {
+    byText = new Map();
+    linePieceCache.set(chunk, byText);
+  }
+  const hit = byText.get(text);
+  if (hit !== undefined) return hit;
+
+  const pieces = new Map<number, string>();
+  for (const range of chunkLineRanges(chunk, text)) {
+    const piece = rangeText(text, range);
+    const existing = pieces.get(range.line);
+    pieces.set(range.line, existing === undefined ? piece : existing + piece);
+  }
+  byText.set(text, pieces);
+  return pieces;
+}
+
 export function assembleTranslatedLines(entries: Iterable<TranslatedChunk>): Map<number, string> {
   const lines = new Map<number, string>();
   for (const { chunk, translatedText } of orderChunksByLine(entries)) {
-    for (const range of chunkLineRanges(chunk, translatedText)) {
-      const piece = rangeText(translatedText, range);
-      const existing = lines.get(range.line);
-      lines.set(range.line, existing === undefined ? piece : existing + piece);
+    for (const [line, piece] of chunkLinePieces(chunk, translatedText)) {
+      const existing = lines.get(line);
+      lines.set(line, existing === undefined ? piece : existing + piece);
     }
   }
   return lines;

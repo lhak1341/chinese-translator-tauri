@@ -86,172 +86,199 @@ function accumulateLoadResults(items) {
  * @param {string} inputText
  * @param {boolean} isLoading
  * @param {Record<string, any>} dictionaries
+ * @returns {(options?: {retranslateInput?: boolean}) => Promise<void>}
  */
 export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading, dictionaries) {
-  const handleForceReload = useCallback(async () => {
-    if (isDictionaryReloading) {
-      logger.warn('🛑 Reload already in progress - ignoring duplicate call');
-      toast.warning('Dictionary reload already in progress');
-      return;
-    }
-    logger.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
+  const handleForceReload = useCallback(
+    async (options = {}) => {
+      // Step 8 re-translates the Translator's own input. That is right when the reload was
+      // triggered from the Translator, and pure waste when it was triggered from the Reader:
+      // every tab stays mounted, so the Translator is holding whatever was last pasted into
+      // it, and re-translating a whole hidden document is work nobody is waiting to see.
+      //
+      // It is also not merely slow. `translateWithSegments` resets engine-wide segment state
+      // on entry, and `BookReader`'s engine queue is built on the documented assumption that
+      // "the Translator tab's own calls are user-driven from its own view, so the two never
+      // contend". A Reader-triggered retranslate breaks that assumption and can land its
+      // reset in the middle of a Reader chunk that is still awaiting its own result.
+      //
+      // The caller that skips it owns telling the Translator its output is now stale — see
+      // `useDeferredRetranslate`.
+      const { retranslateInput = true } = options;
+      if (isDictionaryReloading) {
+        logger.warn('🛑 Reload already in progress - ignoring duplicate call');
+        toast.warning('Dictionary reload already in progress');
+        return;
+      }
+      logger.log('🔄 Reload Dictionary initiated - clearing all caches and reloading from storage');
 
-    const savedPositions = ctx.saveScrollPositions();
-    ctx.setReloading(true);
-    logger.log('📍 Saved scroll positions:', savedPositions);
-
-    try {
-      logger.log('🔄 Starting Reload Dictionary sequence...');
-      ctx.setStatus('🔄 Starting dictionary reload...\n\nStep 1: Stopping active translations...');
-
-      // Step 1 — CRITICAL-3: cancelTranslations() must fully resolve before destroyEngine()
-      logger.log('Step 1: Stopping ongoing translations...');
-      await ctx.cancelTranslations();
-
-      // Step 2: Clear engine and caches
-      logger.log('Step 2: Clearing engine and translation caches...');
-      ctx.setStatus('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
-      ctx.destroyEngine();
-
-      // Steps 3-4: Force reload all dictionaries from storage (direct IPC — not on protocol)
-      logger.log('Step 4: Force reloading all dictionaries from storage...');
-      const allDictionaryIds = Object.keys(dictionaries || {});
-      ctx.setStatus(
-        `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
-      );
-
-      let freshDictionaries = {};
-      let successCount = 0;
+      const savedPositions = ctx.saveScrollPositions();
+      ctx.setReloading(true);
+      logger.log('📍 Saved scroll positions:', savedPositions);
 
       try {
-        const dictionariesToLoad = allDictionaryIds.map((dictId) => ({
-          name: dictId,
-          path: dictId,
-        }));
-
-        const loadFunction = (name, _path) => loadDictionaryOrThrow(name);
-
-        const loadResult = await parallelDictionaryLoader.loadDictionariesParallel(
-          dictionariesToLoad,
-          loadFunction
+        logger.log('🔄 Starting Reload Dictionary sequence...');
+        ctx.setStatus(
+          '🔄 Starting dictionary reload...\n\nStep 1: Stopping active translations...'
         );
 
-        const normalizedItems = loadResult.results.map(({ name, success, result, error }) => ({
-          id: name,
-          success: success && !!result,
-          data: result?.data,
-          entryCount: result?.entryCount,
-          error,
-        }));
-        ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
+        // Step 1 — CRITICAL-3: cancelTranslations() must fully resolve before destroyEngine()
+        logger.log('Step 1: Stopping ongoing translations...');
+        await ctx.cancelTranslations();
 
-        logger.log(
-          `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (${loadResult.duration.toFixed(0)}ms)`
-        );
-      } catch (loaderError) {
-        logger.warn(
-          'ParallelDictionaryLoader failed, falling back to manual loading:',
-          loaderError
+        // Step 2: Clear engine and caches
+        logger.log('Step 2: Clearing engine and translation caches...');
+        ctx.setStatus('🔄 Dictionary reload in progress...\n\nStep 2: Clearing caches...');
+        ctx.destroyEngine();
+
+        // Steps 3-4: Force reload all dictionaries from storage (direct IPC — not on protocol)
+        logger.log('Step 4: Force reloading all dictionaries from storage...');
+        const allDictionaryIds = Object.keys(dictionaries || {});
+        ctx.setStatus(
+          `🔄 Dictionary reload in progress...\n\nStep 3: Loading ${allDictionaryIds.length} dictionaries in parallel...`
         );
 
-        // Per-item failure logging happens once, in accumulateLoadResults below — do not
-        // log here too (this branch used to double-log before that was unified).
-        const loadPromises = allDictionaryIds.map(async (dictId) => {
-          try {
-            const { data, entryCount } = await loadDictionaryOrThrow(dictId);
-            return { dictId, data, success: true, entryCount };
-          } catch (error) {
-            return { dictId, error: error.message, success: false };
-          }
-        });
+        let freshDictionaries = {};
+        let successCount = 0;
 
-        const results = await Promise.all(loadPromises);
-        const normalizedItems = results.map(({ dictId, data, success, entryCount, error }) => ({
-          id: dictId,
-          success,
-          data,
-          entryCount,
-          error,
-        }));
-        ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
+        try {
+          const dictionariesToLoad = allDictionaryIds.map((dictId) => ({
+            name: dictId,
+            path: dictId,
+          }));
 
-        logger.log(
-          `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (fallback)`
-        );
-      }
+          const loadFunction = (name, _path) => loadDictionaryOrThrow(name);
 
-      // Step 5: UI state
-      logger.log('Step 5: Updating UI state...');
-      ctx.setStatus(
-        '🔄 Reload Dictionary in progress...\n\nCaches cleared, dictionaries reloaded from storage.\nReinitializing engine...'
-      );
-      ctx.clearHighlighting();
-
-      // Steps 6-7: Reinitialize engine (protocol handles isReady check + async WASM validation)
-      logger.log('Steps 6+7: Reinitializing engine with fresh configuration and dictionaries...');
-      ctx.setStatus(
-        '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
-      );
-      const dictionariesToUse =
-        Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
-
-      if (!isLoading && dictionariesToUse) {
-        const engineReady = await ctx.reinitializeEngine(dictionariesToUse, {
-          forceConfigReload: true,
-          debugLevel: DEBUG_LEVELS.ERROR,
-        });
-
-        if (!engineReady) {
-          ctx.setReloadError(
-            '❌ Reload Dictionary failed!\n\nError reinitializing engine. Check console for details.'
+          const loadResult = await parallelDictionaryLoader.loadDictionariesParallel(
+            dictionariesToLoad,
+            loadFunction
           );
-          toast.error('Failed to reinitialize engine. Try reloading the app.');
-          return;
-        }
-        logger.log('✅ Engine reinitialized successfully');
 
-        // Step 8: Retranslate if input exists (protocol owns dual/fallback logic + success toast)
-        if (inputText.trim()) {
-          logger.log('Step 8: Retranslating current text...');
-          ctx.setStatus('🔄 Engine ready - retranslating text...');
-          try {
-            await ctx.retranslate(inputText);
-            logger.log('✅ Retranslation completed successfully');
-          } catch (_retranslateError) {
-            logger.error('❌ Retranslation failed:', _retranslateError);
-            ctx.setReloadError('❌ Retranslation failed!\n\nError: ' + _retranslateError.message);
-            toast.error(`Retranslation failed: ${_retranslateError.message}`);
+          const normalizedItems = loadResult.results.map(({ name, success, result, error }) => ({
+            id: name,
+            success: success && !!result,
+            data: result?.data,
+            entryCount: result?.entryCount,
+            error,
+          }));
+          ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
+
+          logger.log(
+            `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (${loadResult.duration.toFixed(0)}ms)`
+          );
+        } catch (loaderError) {
+          logger.warn(
+            'ParallelDictionaryLoader failed, falling back to manual loading:',
+            loaderError
+          );
+
+          // Per-item failure logging happens once, in accumulateLoadResults below — do not
+          // log here too (this branch used to double-log before that was unified).
+          const loadPromises = allDictionaryIds.map(async (dictId) => {
+            try {
+              const { data, entryCount } = await loadDictionaryOrThrow(dictId);
+              return { dictId, data, success: true, entryCount };
+            } catch (error) {
+              return { dictId, error: error.message, success: false };
+            }
+          });
+
+          const results = await Promise.all(loadPromises);
+          const normalizedItems = results.map(({ dictId, data, success, entryCount, error }) => ({
+            id: dictId,
+            success,
+            data,
+            entryCount,
+            error,
+          }));
+          ({ freshDictionaries, successCount } = accumulateLoadResults(normalizedItems));
+
+          logger.log(
+            `📥 Loaded ${successCount}/${allDictionaryIds.length} dictionaries in parallel (fallback)`
+          );
+        }
+
+        // Step 5: UI state
+        logger.log('Step 5: Updating UI state...');
+        ctx.setStatus(
+          '🔄 Reload Dictionary in progress...\n\nCaches cleared, dictionaries reloaded from storage.\nReinitializing engine...'
+        );
+        ctx.clearHighlighting();
+
+        // Steps 6-7: Reinitialize engine (protocol handles isReady check + async WASM validation)
+        logger.log('Steps 6+7: Reinitializing engine with fresh configuration and dictionaries...');
+        ctx.setStatus(
+          '🔄 Dictionary reload in progress...\n\nStep 4: Reinitializing translation engine...'
+        );
+        const dictionariesToUse =
+          Object.keys(freshDictionaries).length > 0 ? freshDictionaries : dictionaries;
+
+        if (!isLoading && dictionariesToUse) {
+          const engineReady = await ctx.reinitializeEngine(dictionariesToUse, {
+            forceConfigReload: true,
+            debugLevel: DEBUG_LEVELS.ERROR,
+          });
+
+          if (!engineReady) {
+            ctx.setReloadError(
+              '❌ Reload Dictionary failed!\n\nError reinitializing engine. Check console for details.'
+            );
+            toast.error('Failed to reinitialize engine. Try reloading the app.');
+            return;
+          }
+          logger.log('✅ Engine reinitialized successfully');
+
+          // Step 8: Retranslate if input exists (protocol owns dual/fallback logic + success toast)
+          if (retranslateInput && inputText.trim()) {
+            logger.log('Step 8: Retranslating current text...');
+            ctx.setStatus('🔄 Engine ready - retranslating text...');
+            try {
+              await ctx.retranslate(inputText);
+              logger.log('✅ Retranslation completed successfully');
+            } catch (_retranslateError) {
+              logger.error('❌ Retranslation failed:', _retranslateError);
+              ctx.setReloadError('❌ Retranslation failed!\n\nError: ' + _retranslateError.message);
+              toast.error(`Retranslation failed: ${_retranslateError.message}`);
+            }
+          } else if (!retranslateInput && inputText.trim()) {
+            // Deliberately not retranslated here — the caller defers it. Say so, rather than
+            // claiming completion over output that no longer matches the dictionaries.
+            ctx.setStatus(
+              '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nThe translation below is from the previous dictionaries and will be redone when you return to this tab.'
+            );
+            toast.success('Dictionary reloaded successfully');
+          } else {
+            ctx.setStatus(
+              '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.'
+            );
+            toast.success('Dictionary reloaded successfully');
           }
         } else {
+          logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
           ctx.setStatus(
-            '✅ Reload Dictionary completed!\n\nAll caches cleared, dictionaries reloaded from storage, and engine reinitialized.\nEngine is ready for translation.'
+            '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.'
           );
-          toast.success('Dictionary reloaded successfully');
+          toast.error('Dictionaries not ready - please try again');
         }
-      } else {
-        logger.log('⚠️ Cannot reinitialize engine - dictionaries not ready');
-        ctx.setStatus(
-          '⚠️ Reload Dictionary partially completed\n\nEngine will reinitialize automatically when dictionaries are ready.'
-        );
-        toast.error('Dictionaries not ready - please try again');
-      }
 
-      logger.log('✅ Reload Dictionary sequence completed');
-    } catch (error) {
-      logger.error('❌ Reload Dictionary failed:', error);
-      ctx.setReloadError('❌ Reload Dictionary failed!\n\nUnexpected error: ' + error.message);
-      toast.error(`Dictionary reload failed: ${error.message}`);
-    } finally {
-      // CRITICAL-1: restore scroll BEFORE clearing isDictionaryReloading so auto-scroll
-      // cannot override saved positions during the reload window.
-      setTimeout(async () => {
-        logger.log('📍 Final scroll restoration attempt after reload complete');
-        await ctx.restoreScrollPositions(savedPositions);
-        ctx.setReloading(false);
-        logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
-      }, 100);
-    }
-  }, [isDictionaryReloading, inputText, isLoading, dictionaries]); // ctx excluded — all stable
+        logger.log('✅ Reload Dictionary sequence completed');
+      } catch (error) {
+        logger.error('❌ Reload Dictionary failed:', error);
+        ctx.setReloadError('❌ Reload Dictionary failed!\n\nUnexpected error: ' + error.message);
+        toast.error(`Dictionary reload failed: ${error.message}`);
+      } finally {
+        // CRITICAL-1: restore scroll BEFORE clearing isDictionaryReloading so auto-scroll
+        // cannot override saved positions during the reload window.
+        setTimeout(async () => {
+          logger.log('📍 Final scroll restoration attempt after reload complete');
+          await ctx.restoreScrollPositions(savedPositions);
+          ctx.setReloading(false);
+          logger.log('🔄 Dictionary reload complete - flag reset after scroll restoration');
+        }, 100);
+      }
+    },
+    [isDictionaryReloading, inputText, isLoading, dictionaries]
+  ); // ctx excluded — all stable
 
   return handleForceReload;
 }

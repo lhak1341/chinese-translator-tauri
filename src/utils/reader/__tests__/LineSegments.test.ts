@@ -5,6 +5,7 @@ import {
   buildOriginalLineSegments,
   buildTranslatedLineSegments,
   fillSegmentGaps,
+  fillSegmentGapsCached,
 } from '../LineSegments';
 import type { PositionedSegment, SegmentedChunk } from '../LineSegments';
 import { assembleTranslatedLines } from '../TranslationWindow';
@@ -360,5 +361,178 @@ describe('fillSegmentGaps', () => {
 
   it('adds nothing for an empty line', () => {
     expect(fillSegmentGaps('', [])).toEqual([]);
+  });
+
+  // Identity, not just equality: this runs per rendered row per render, and the Chinese
+  // panel's rows are memoized on their `segments` prop. An equal-but-new array in the
+  // steady state means every row re-renders on every render, forever.
+  it('returns the very same array when the runs already cover the line', () => {
+    const segments = [run(0, '你好'), run(2, '世界')];
+    expect(fillSegmentGaps('你好世界', segments)).toBe(segments);
+  });
+
+  it('returns a new array only when there is something to fill', () => {
+    const segments = [run(2, '世界')];
+    expect(fillSegmentGaps('你好世界', segments)).not.toBe(segments);
+  });
+});
+
+describe('fillSegmentGapsCached', () => {
+  const run = (lineStart: number, text: string) => ({
+    text,
+    lineStart,
+    unitIndex: 0,
+    chunkKey: 'k',
+  });
+
+  it('agrees with the uncached function', () => {
+    const segments = [run(2, '世界')];
+    expect(fillSegmentGapsCached('你好世界', segments)).toEqual(
+      fillSegmentGaps('你好世界', segments)
+    );
+  });
+
+  it('hands back the same filled array for the same runs', () => {
+    const segments = [run(2, '世界')];
+    const first = fillSegmentGapsCached('你好世界', segments);
+    expect(fillSegmentGapsCached('你好世界', segments)).toBe(first);
+  });
+
+  // The runs can outlive the page they were measured against while a fetch is in flight,
+  // so the line text is part of the key, not just the runs.
+  it('recomputes when the same runs are measured against different line text', () => {
+    const segments = [run(2, '世界')];
+    const first = fillSegmentGapsCached('你好世界', segments);
+    const second = fillSegmentGapsCached('再见世界', segments);
+
+    expect(second).not.toBe(first);
+    expect(second.map((s) => s.text)).toEqual(['再见', '世界']);
+  });
+
+  it('keeps distinct runs distinct', () => {
+    const a = [run(2, '世界')];
+    const b = [run(2, '世界')];
+    expect(fillSegmentGapsCached('你好世界', a)).not.toBe(fillSegmentGapsCached('你好世界', b));
+  });
+});
+
+/**
+ * The folds are memoized per chunk, because they are re-run in full every time any one
+ * chunk lands — so a resident band of two hundred chunks used to re-cut all two hundred,
+ * three times over, per arriving chunk. These pin the two things that memo must not break:
+ * a repeated fold has to produce the same answer, and it has to keep producing the same
+ * answer for the split-line case, which is the one path that cannot be served from cache.
+ */
+describe('repeated folds', () => {
+  it('produces an identical result the second time', () => {
+    const entry = chunkOf({
+      chunk: plan(4, 5),
+      translatedText: 'một hai\nba bốn',
+      translatedSegments: [unit(0, 3, 0), gap(3, 4), unit(4, 7, 1), gap(7, 8), unit(8, 14, 2)],
+    });
+
+    const first = buildTranslatedLineSegments([entry]);
+    const second = buildTranslatedLineSegments([entry]);
+
+    expect(joined(second, 4)).toBe(joined(first, 4));
+    expect(joined(second, 5)).toBe(joined(first, 5));
+  });
+
+  // Identity, not only equality: an unchanged row handed a new array every fold is a
+  // changed prop for the panel that renders it, which is what the memo exists to avoid.
+  it('hands an unchanged row the very same array', () => {
+    const entry = chunkOf({
+      chunk: plan(4, 4),
+      translatedText: 'một hai',
+      translatedSegments: [unit(0, 3, 0), gap(3, 4), unit(4, 7, 1)],
+    });
+
+    const first = buildTranslatedLineSegments([entry]);
+    const second = buildTranslatedLineSegments([entry]);
+
+    expect(second.get(4)).toBe(first.get(4));
+  });
+
+  // The regression the memo could most easily cause: a cached slice merged into a line that
+  // another chunk also contributes to. Appending in place would grow the cached array on
+  // every fold, so the row would gain a copy of itself each time anything landed.
+  it('does not double a line that is split across chunks', () => {
+    const tail = chunkOf({
+      chunk: plan(9, 9, 4, 8),
+      translatedText: 'sau',
+      translatedSegments: [unit(0, 3, 0)],
+    });
+    const head = chunkOf({
+      chunk: plan(9, 9, 0, 4),
+      translatedText: 'trước ',
+      translatedSegments: [unit(0, 5, 0), gap(5, 6)],
+    });
+
+    const first = buildTranslatedLineSegments([tail, head]);
+    const second = buildTranslatedLineSegments([tail, head]);
+    const third = buildTranslatedLineSegments([tail, head]);
+
+    expect(joined(first, 9)).toBe('trước sau');
+    expect(joined(second, 9)).toBe('trước sau');
+    expect(joined(third, 9)).toBe('trước sau');
+    expect(second.get(9)).toHaveLength(first.get(9)!.length);
+  });
+
+  it('does not double the Chinese panel either', () => {
+    const entry = chunkOf({
+      chunk: plan(2, 2),
+      sourceText: '你好世界',
+      originalSegments: [unit(0, 2, 0), unit(2, 4, 1)],
+    });
+
+    const first = buildOriginalLineSegments([entry]);
+    const second = buildOriginalLineSegments([entry]);
+
+    expect(joined(second, 2)).toBe(joined(first, 2));
+    expect(second.get(2)).toHaveLength(first.get(2)!.length);
+  });
+
+  // A chunk's gloss lands after its translation, so the same plan is folded again with
+  // different text. The memo must miss on that rather than serve the earlier pairing.
+  it('re-cuts a chunk whose text was replaced', () => {
+    const chunk = plan(0, 0);
+    const segments = [unit(0, 3, 0)];
+
+    const before = buildTranslatedLineSegments([
+      chunkOf({ chunk, translatedText: 'một', translatedSegments: segments }),
+    ]);
+    const after = buildTranslatedLineSegments([
+      chunkOf({ chunk, translatedText: 'hai', translatedSegments: segments }),
+    ]);
+
+    expect(joined(before, 0)).toBe('một');
+    expect(joined(after, 0)).toBe('hai');
+  });
+
+  // The Vietnamese and Chinese folds read different arrays off the same chunk; a cache
+  // keyed too loosely would serve one panel the other's runs.
+  it('keeps the Vietnamese and Chinese folds of one chunk apart', () => {
+    const entry = chunkOf({
+      chunk: plan(0, 0),
+      sourceText: '你好',
+      originalSegments: [unit(0, 2, 0)],
+      translatedText: 'xin chào',
+      translatedSegments: [unit(0, 8, 0)],
+    });
+
+    expect(joined(buildTranslatedLineSegments([entry]), 0)).toBe('xin chào');
+    expect(joined(buildOriginalLineSegments([entry]), 0)).toBe('你好');
+  });
+
+  it('still seals a producer that leaves a hole, on the cached path too', () => {
+    const entry = chunkOf({
+      chunk: plan(0, 0),
+      translatedText: 'một hai',
+      // Nothing covers offsets 3..4 — the space — so the fold must seal it.
+      translatedSegments: [unit(0, 3, 0), unit(4, 7, 1)],
+    });
+
+    expect(joined(buildTranslatedLineSegments([entry]), 0)).toBe('một hai');
+    expect(joined(buildTranslatedLineSegments([entry]), 0)).toBe('một hai');
   });
 });

@@ -73,6 +73,16 @@ export interface WindowedTranslation {
   getOriginalSegments: (index: number) => readonly ReaderSegment[] | undefined;
   /** True while a fill is in progress, for a quiet indicator rather than a blocking state. */
   isTranslating: boolean;
+  /**
+   * Bumped every time the folded output above changes — a chunk landing, an eviction, a
+   * book switch.
+   *
+   * Every getter here is a `useCallback(..., [])` reading through a ref, so none of them
+   * changes identity when the text behind it does. That is deliberate (it is what lets the
+   * panels' `estimateSize` stay stable), but it means a memoized consumer cannot tell from
+   * its props that there is new text to show. This is the value it watches instead.
+   */
+  version: number;
 }
 
 /**
@@ -121,7 +131,7 @@ export function useWindowedTranslation({
   // caused (a chunk's gloss silently abandoned by an anchor move, orphaned forever since
   // its translation was already cached as "fresh").
   const bookGenerationRef = useRef(0);
-  const [, forceRender] = useState(0);
+  const [version, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
 
   const rebuild = useCallback((): void => {
@@ -279,5 +289,6 @@ export function useWindowedTranslation({
     getOriginalSegments,
     getCharacterOnlySegments,
     isTranslating,
+    version,
   };
 }

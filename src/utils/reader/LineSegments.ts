@@ -162,12 +162,63 @@ function sealCoverage(
   return sealed;
 }
 
-/** Append `addition`'s runs after whatever `target` already holds for that line. */
+/**
+ * `sliceChunk`, memoized on the segment array it was given.
+ *
+ * Every fold here re-slices every resident chunk, and a fold runs each time any one chunk
+ * lands — so a band of two hundred chunks re-cut all two hundred, three times over (the
+ * Vietnamese, the Chinese and the gloss), for each chunk that arrived. That is the
+ * quadratic in the middle of a dictionary reload: the refill replaces the whole fetch
+ * band, so the cost is paid once per replaced chunk.
+ *
+ * A slice depends only on the chunk's text, its line ranges, its producer's segments, and
+ * the base offsets — all fixed for the life of a cache entry except the bases, which is
+ * what `basesAreZero` is about below. The producer's segment array is the key because it
+ * is the one input that is both stable across folds and distinct per chunk and per role:
+ * the same chunk's Vietnamese, Chinese and gloss arrive as three different arrays.
+ *
+ * The text is compared as well as keyed on, because a chunk's gloss lands *after* its
+ * translation and replaces the entry: a stale pairing must miss rather than be served.
+ */
+const sliceCache = new WeakMap<
+  readonly PositionedSegment[],
+  { text: string; sliced: Map<number, ReaderSegment[]> }
+>();
+
+function sliceChunkCached(
+  chunkKey: string,
+  text: string,
+  ranges: readonly ChunkLineRange[],
+  segments: readonly PositionedSegment[],
+  lineStartFor: (range: ChunkLineRange, index: number) => number
+): Map<number, ReaderSegment[]> {
+  const hit = sliceCache.get(segments);
+  if (hit !== undefined && hit.text === text) return hit.sliced;
+  const sliced = sliceChunk(
+    chunkKey,
+    text,
+    ranges,
+    sealCoverage(text.length, segments),
+    lineStartFor
+  );
+  sliceCache.set(segments, { text, sliced });
+  return sliced;
+}
+
+/**
+ * Append `addition`'s runs after whatever `target` already holds for that line.
+ *
+ * Never mutates `addition`'s arrays, and hands them straight through when the line is
+ * untouched. Both matter now that they can be memoized slices shared with the next fold:
+ * pushing into one would corrupt the cache, and copying one that nothing else contributes
+ * to would hand every row a new array identity per fold and defeat the panels' own
+ * memoization. Concatenation only happens on a line genuinely split across chunks.
+ */
 function mergeInto(target: Map<number, ReaderSegment[]>, addition: Map<number, ReaderSegment[]>) {
   for (const [line, segments] of addition) {
     const existing = target.get(line);
     if (existing === undefined) target.set(line, segments);
-    else existing.push(...segments);
+    else target.set(line, existing.concat(segments));
   }
 }
 
@@ -225,13 +276,20 @@ function buildVietnameseLineSegments(
   for (const entry of orderChunksByLine(entries)) {
     const { text, segments } = read(entry);
     const ranges = chunkLineRanges(entry.chunk, text);
-    const sliced = sliceChunk(
-      entry.chunk.key,
-      text,
-      ranges,
-      sealCoverage(text.length, segments),
-      (range) => filled.get(range.line) ?? 0
-    );
+    // The memo can only answer for bases of zero, since the bases are the one input that
+    // depends on the other chunks in the fold. They are zero for every chunk that starts
+    // each line it touches, which is all of them except where one source line was long
+    // enough to be split across chunks — the rare case, which falls through and re-slices.
+    const basesAreZero = ranges.every((range) => (filled.get(range.line) ?? 0) === 0);
+    const sliced = basesAreZero
+      ? sliceChunkCached(entry.chunk.key, text, ranges, segments, () => 0)
+      : sliceChunk(
+          entry.chunk.key,
+          text,
+          ranges,
+          sealCoverage(text.length, segments),
+          (range) => filled.get(range.line) ?? 0
+        );
     for (const range of ranges) {
       filled.set(range.line, (filled.get(range.line) ?? 0) + rangeText(text, range).length);
     }
@@ -320,13 +378,15 @@ export function buildOriginalLineSegments(
   const byLine = new Map<number, ReaderSegment[]>();
 
   for (const entry of orderChunksByLine(entries)) {
+    // Always cacheable, unlike the Vietnamese fold: this panel's base offsets come from the
+    // chunk's own `startChar`, never from what an earlier chunk contributed.
     mergeInto(
       byLine,
-      sliceChunk(
+      sliceChunkCached(
         entry.chunk.key,
         entry.sourceText,
         chunkLineRanges(entry.chunk, entry.sourceText),
-        sealCoverage(entry.sourceText.length, entry.originalSegments),
+        entry.originalSegments,
         (range) => (range.line === entry.chunk.startLine ? entry.chunk.startChar : 0)
       )
     );
@@ -346,9 +406,25 @@ export function buildOriginalLineSegments(
 export function fillSegmentGaps(
   lineText: string,
   segments: readonly ReaderSegment[]
-): ReaderSegment[] {
-  const out: ReaderSegment[] = [];
+): readonly ReaderSegment[] {
+  // The steady state is no gaps at all, and it is worth detecting rather than rebuilding
+  // into an equal-but-new array: this runs per rendered row per render, and a fresh array
+  // each time is a changed `segments` prop, which defeats `SegmentedLine`'s `React.memo`
+  // for the whole Chinese panel — every row's spans re-rendered on every render, forever.
+  // Returning the input unchanged is what the doc comment above already promises.
   let cursor = 0;
+  let hasGap = false;
+  for (const segment of segments) {
+    if (segment.lineStart > cursor) {
+      hasGap = true;
+      break;
+    }
+    cursor = segment.lineStart + segment.text.length;
+  }
+  if (!hasGap && cursor >= lineText.length) return segments;
+
+  const out: ReaderSegment[] = [];
+  cursor = 0;
 
   for (const segment of segments) {
     if (segment.lineStart > cursor) {
@@ -368,4 +444,31 @@ export function fillSegmentGaps(
   }
 
   return out;
+}
+
+/**
+ * `fillSegmentGaps`, memoized on the runs it was given.
+ *
+ * The gap-filled array for a row only changes when that row's runs do, and its runs are
+ * replaced wholesale by a rebuild — so keying on the array's identity is exact, not a
+ * heuristic. A `WeakMap` means a line the reader scrolled away from drops out with the
+ * rebuild that replaced it, with no eviction rule to maintain.
+ *
+ * The line text is stored alongside and compared, because the same runs can outlive the
+ * page they were measured against while a fetch is in flight.
+ */
+const gapFillCache = new WeakMap<
+  readonly ReaderSegment[],
+  { lineText: string; filled: readonly ReaderSegment[] }
+>();
+
+export function fillSegmentGapsCached(
+  lineText: string,
+  segments: readonly ReaderSegment[]
+): readonly ReaderSegment[] {
+  const hit = gapFillCache.get(segments);
+  if (hit !== undefined && hit.lineText === lineText) return hit.filled;
+  const filled = fillSegmentGaps(lineText, segments);
+  gapFillCache.set(segments, { lineText, filled });
+  return filled;
 }

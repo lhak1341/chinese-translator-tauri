@@ -12,9 +12,9 @@ cargo check --manifest-path wasm-core/Cargo.toml   # separate crate — check bo
 cargo test --manifest-path wasm-core/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
 bun run tauri:dev  # opens a native WebView window, not a browser tab — claude-in-chrome tools can't attach to it; ask the user to check visually, or verify via bun run test/type-check instead
-bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall. vitest 4 has no `basic` reporter: `--reporter=basic` dies with ERR_LOAD_URL, which reads as a broken vite config, not a bad flag
+bun run test --run  # rebuilds stale WASM first; default reporter prints ~nothing when backgrounded/piped — silence ≠ hung; check `ps` CPU or add --reporter=verbose before assuming a stall. vitest 4 has no `basic` reporter: `--reporter=basic` dies with ERR_LOAD_URL, which reads as a broken vite config, not a bad flag. `bunx vitest --run <path>` for single-file iteration bypasses the freshness gate (it lives in the npm script, not vitest) — fast, but re-run the full command before trusting any result that depends on Rust
 bun run type-check  # 0 errors expected; excludes **/*.test.ts(x) — a test file's own type errors surface only at test-run time, not here
-bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:full` for the findings, `bun run lint:baseline` to lock in a lower count
+bun run lint  # enforced warning ceiling (.lint-baseline.json); `bun run lint:full` for the findings. Exits 1 both directions — *below* baseline fails too, with a "nice." message that reads like success; `bun run lint:baseline` locks the lower count in and is required to go green
 ```
 
 `bun run tauri:deploy` runs `sweep-targets` after build (prunes `src-tauri/target` and `wasm-core/target` artifacts older than 7 days via `cargo sweep`, keeps disk usage sane under weekly deploys). Requires `cargo install cargo-sweep` on the machine first — not a repo dependency, so a fresh clone/machine needs it installed manually or `sweep-targets` fails with "command not found".

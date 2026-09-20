@@ -380,8 +380,22 @@ export class WasmDictionaryManager {
   }
 
   /**
-   * Clean up resources including memory pool
-   * CODE REVIEW FIX (HIGH-2): Clear WASM dictionaries before nullifying engine
+   * Retire this instance's WASM dictionary engine.
+   *
+   * Called once per engine teardown — a dictionary reload builds a replacement engine, so
+   * this runs as often as the reader reloads. Two things follow from that:
+   *
+   * - The shared memory pool is **not** cleaned up here. `this.memoryPool` is the module
+   *   singleton `wasmMemoryPoolManager`, shared with every other WASM wrapper, and its
+   *   `cleanup()` clears the 30s optimization interval and drops the pressure detector
+   *   with nothing to recreate either. Tearing it down for one retiring dictionary engine
+   *   would silently disable buffer pooling process-wide from the first reload on. Its
+   *   buffers are pooled for reuse by design; they are not this instance's to free.
+   * - The owned struct is destroyed, not merely dropped. `clear_all_dictionaries()`
+   *   releases the entries; `__destroy_into_raw()` releases the `DictionaryEngine` itself
+   *   and detaches its FinalizationRegistry entry. Without it the Rust struct lingers in
+   *   WASM linear memory until a non-deterministic GC, and linear memory never shrinks —
+   *   which is what made repeated reloads progressively slower.
    */
   cleanup() {
     // CODE REVIEW FIX (HIGH-2): Clear WASM dictionaries before cleanup
@@ -395,12 +409,17 @@ export class WasmDictionaryManager {
       }
     }
 
-    if (this.memoryPool) {
-      this.memoryPool.cleanup();
+    try {
+      // @ts-ignore — __destroy_into_raw is a wasm-bindgen internal absent from the generated types
+      this.engine?.__destroy_into_raw();
+    } catch (error) {
+      logger.error('Failed to destroy WASM DictionaryEngine during cleanup:', error);
     }
 
     this.engine = null;
     this.initialized = false;
+    // A resolved promise here would hand a later `initialize()` this retired instance back.
+    this.initializationPromise = null;
 
     logger.log('🧠 WASM Dictionary Manager with Memory Pool cleaned up');
   }
