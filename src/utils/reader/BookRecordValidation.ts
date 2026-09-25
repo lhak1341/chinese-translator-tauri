@@ -7,6 +7,7 @@ import type {
   ChapterPatternId,
   ReadingPosition,
 } from '../../types/ReaderTypes';
+import { emptyBookRecord } from './BookRecord';
 
 const CHAPTER_PATTERN_IDS: readonly ChapterPatternId[] = [
   'chapter',
@@ -76,7 +77,7 @@ export function validateChapterOutline(raw: unknown): ChapterOutlineSummary | nu
 }
 
 /**
- * Validates a persisted dictionary binding. Authoritative — it cannot be rebuilt from the
+ * Validates a persisted dictionary binding. A reader answer — it cannot be rebuilt from the
  * file — so the repair here is deliberately conservative: anything malformed falls back to
  * `null`, meaning "never answered", which re-offers the dialog. Repairing a corrupt
  * binding to `{ fictionDictionary: null }` instead would silently assert the reader had
@@ -112,29 +113,31 @@ export function validateReadingPosition(raw: unknown): ReadingPosition | null {
  * itself — a single source of truth for identity, rather than two fields that could
  * silently disagree.
  *
- * Cached fields (everything but `position` and `binding`) are regenerable — the next scan
- * or open overwrites them — so a malformed one is repaired to a safe default rather than
- * dropping the whole record. The authoritative two fall back to "not started" and "never
- * answered" respectively rather than destroying the record: losing the resume point or
- * being re-asked which dictionary to use is a smaller loss than losing the record's
- * existence, and both repairs are ones the reader can see and correct.
+ * Every malformed field is repaired to its `emptyBookRecord` value rather than dropping
+ * the whole record. For an observation (see `BookObservations`) that is free — the next
+ * scan or open observes it again. For a reader's answer it is a real loss, but a smaller
+ * one than losing the record's existence: `position` falls back to "not started",
+ * `binding` to "never answered" (re-offering the dialog), `manualChapterPattern` to
+ * "trust election" — each a repair the reader can see and correct.
  */
 export function validateBookRecord(fingerprint: string, raw: unknown): BookRecord | null {
   if (!fingerprint) return null;
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+
+  const empty = emptyBookRecord(fingerprint);
 
   return {
     fingerprint,
     position: validateReadingPosition(r.position),
     manualChapterPattern: validateManualChapterPattern(r.manualChapterPattern),
     binding: validateBookBinding(r.binding),
-    title: typeof r.title === 'string' ? r.title : '',
-    lastKnownPath: typeof r.lastKnownPath === 'string' ? r.lastKnownPath : '',
-    lineCount: isFiniteNonNegative(r.lineCount) ? r.lineCount : 0,
-    encodingLabel: typeof r.encodingLabel === 'string' ? r.encodingLabel : '',
-    sizeBytes: isFiniteNonNegative(r.sizeBytes) ? r.sizeBytes : 0,
-    modifiedMs: isFiniteNonNegative(r.modifiedMs) ? r.modifiedMs : 0,
-    available: typeof r.available === 'boolean' ? r.available : true,
+    title: typeof r.title === 'string' ? r.title : empty.title,
+    lastKnownPath: typeof r.lastKnownPath === 'string' ? r.lastKnownPath : empty.lastKnownPath,
+    lineCount: isFiniteNonNegative(r.lineCount) ? r.lineCount : empty.lineCount,
+    encodingLabel: typeof r.encodingLabel === 'string' ? r.encodingLabel : empty.encodingLabel,
+    sizeBytes: isFiniteNonNegative(r.sizeBytes) ? r.sizeBytes : empty.sizeBytes,
+    modifiedMs: isFiniteNonNegative(r.modifiedMs) ? r.modifiedMs : empty.modifiedMs,
+    available: typeof r.available === 'boolean' ? r.available : empty.available,
     chapterOutline: validateChapterOutline(r.chapterOutline),
   };
 }

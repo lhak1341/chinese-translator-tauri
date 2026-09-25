@@ -5,12 +5,9 @@ import {
   reconcileLibraryScan,
 } from '../ReconcileLibrary';
 import { invalidateBookRecords } from '../BookRecordsBackend';
-import type {
-  BookFingerprint,
-  BookRecord,
-  BookRecords,
-  LibraryBook,
-} from '../../../types/ReaderTypes';
+import type { BookFingerprint, BookRecords, LibraryBook } from '../../../types/ReaderTypes';
+import { READER_ANSWER_FIELDS } from '../BookRecord';
+import { makeBookRecord } from './bookRecordFixture';
 
 function makeFile(overrides: Partial<LibraryBook> = {}): LibraryBook {
   return {
@@ -22,31 +19,15 @@ function makeFile(overrides: Partial<LibraryBook> = {}): LibraryBook {
   };
 }
 
-function makeRecord(overrides: Partial<BookRecord> = {}): BookRecord {
-  return {
-    fingerprint: 'fp1',
-    position: null,
-    binding: null,
-    title: 'Novel',
-    lastKnownPath: 'novel.txt',
-    lineCount: 500,
-    encodingLabel: 'GBK',
-    sizeBytes: 100,
-    modifiedMs: 1000,
-    available: true,
-    ...overrides,
-  };
-}
-
 describe('filesNeedingFingerprint', () => {
   test('a file matching an available record at the same path (size+mtime) needs nothing', () => {
     const file = makeFile();
-    const records: BookRecords = { fp1: makeRecord() };
+    const records: BookRecords = { fp1: makeBookRecord() };
     expect(filesNeedingFingerprint([file], records)).toEqual([]);
   });
 
   test('a resized or re-mtimed file needs a fresh fingerprint', () => {
-    const records: BookRecords = { fp1: makeRecord() };
+    const records: BookRecords = { fp1: makeBookRecord() };
     expect(filesNeedingFingerprint([makeFile({ sizeBytes: 999 })], records)).toHaveLength(1);
     expect(filesNeedingFingerprint([makeFile({ modifiedMs: 999 })], records)).toHaveLength(1);
   });
@@ -56,14 +37,57 @@ describe('filesNeedingFingerprint', () => {
   });
 
   test("a file at a previously-unavailable record's path still needs a fingerprint", () => {
-    const records: BookRecords = { fp1: makeRecord({ available: false }) };
+    const records: BookRecords = { fp1: makeBookRecord({ available: false }) };
     expect(filesNeedingFingerprint([makeFile()], records)).toHaveLength(1);
   });
 });
 
+// One non-default value per reader answer. Typed against the field list, so an answer
+// added to READER_ANSWER_FIELDS without a sample here fails the table below.
+const ANSWER_SAMPLES = {
+  position: { line: 77, fraction: 0.5 },
+  manualChapterPattern: 'volume',
+  binding: { fictionDictionary: 'properNouns-f_TapDo' },
+} as const;
+
 describe('applyReconciliation', () => {
+  describe('a relink (moved or renamed file) keeps everything its fingerprint owns', () => {
+    const movedFile = makeFile({ fileName: 'new-name.txt', title: 'New Name' });
+    const fingerprints = new Map<string, BookFingerprint>([
+      ['new-name.txt', { fingerprint: 'fp1', sizeBytes: 100 }],
+    ]);
+
+    test.each(READER_ANSWER_FIELDS)('the reader answer %s', (field) => {
+      expect(ANSWER_SAMPLES).toHaveProperty(field);
+      const existing = makeBookRecord({
+        lastKnownPath: 'old-name.txt',
+        [field]: ANSWER_SAMPLES[field],
+      });
+
+      const result = applyReconciliation({ fp1: existing }, [movedFile], fingerprints);
+
+      expect(result.records.fp1[field]).toEqual(ANSWER_SAMPLES[field]);
+      expect(result.records.fp1.lastKnownPath).toBe('new-name.txt');
+    });
+
+    test('the content observations a scan cannot make: outline, line count, encoding', () => {
+      const outline = {
+        pattern: 'chapter' as const,
+        candidates: [{ pattern: 'chapter' as const, hitCount: 800, medianGap: 60, regularity: 1 }],
+      };
+      const existing = makeBookRecord({ lastKnownPath: 'old-name.txt', chapterOutline: outline });
+
+      const result = applyReconciliation({ fp1: existing }, [movedFile], fingerprints);
+
+      expect(result.records.fp1.chapterOutline).toEqual(outline);
+      expect(result.records.fp1.lineCount).toBe(500);
+      expect(result.records.fp1.encodingLabel).toBe('GBK');
+      expect(result.records.fp1.title).toBe('New Name');
+    });
+  });
+
   test('round-trip: an unchanged file keeps its record exactly, with no fingerprint lookup needed', () => {
-    const existing = makeRecord({ position: { line: 10, fraction: 0.3 } });
+    const existing = makeBookRecord({ position: { line: 10, fraction: 0.3 } });
     const result = applyReconciliation({ fp1: existing }, [makeFile()], new Map());
 
     expect(result.records.fp1).toEqual(existing);
@@ -74,7 +98,7 @@ describe('applyReconciliation', () => {
   });
 
   test('a moved/renamed file relinks to its existing record by fingerprint, preserving position', () => {
-    const existing = makeRecord({
+    const existing = makeBookRecord({
       lastKnownPath: 'old-name.txt',
       position: { line: 77, fraction: 0.5 },
       binding: { fictionDictionary: 'properNouns-f_TapDo' },
@@ -88,7 +112,7 @@ describe('applyReconciliation', () => {
 
     expect(result.records.fp1.lastKnownPath).toBe('new-name.txt');
     expect(result.records.fp1.position).toEqual({ line: 77, fraction: 0.5 });
-    // The binding is the other authoritative half — surviving a rename is the whole
+    // The binding is a reader answer too — surviving a rename is the whole
     // reason records are keyed by fingerprint rather than by path.
     expect(result.records.fp1.binding).toEqual({ fictionDictionary: 'properNouns-f_TapDo' });
     expect(result.records.fp1.title).toBe('New Name');
@@ -111,7 +135,7 @@ describe('applyReconciliation', () => {
   });
 
   test('a previously-available record matched by nothing this scan becomes unavailable, kept not deleted', () => {
-    const existing = makeRecord({ position: { line: 1, fraction: 0 } });
+    const existing = makeBookRecord({ position: { line: 1, fraction: 0 } });
     const result = applyReconciliation({ fp1: existing }, [], new Map());
 
     expect(result.records.fp1.available).toBe(false);
@@ -127,7 +151,7 @@ describe('applyReconciliation', () => {
   });
 
   test('an already-unavailable record that reappears (matched by fingerprint) is re-linked and marked available again', () => {
-    const existing = makeRecord({
+    const existing = makeBookRecord({
       available: false,
       lastKnownPath: 'old-drive/novel.txt',
       position: { line: 3, fraction: 0 },
@@ -161,7 +185,7 @@ describe('reconcileLibraryScan', () => {
   });
 
   test('rescanning an unchanged library recomputes no fingerprints', async () => {
-    const existing = makeRecord();
+    const existing = makeBookRecord();
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });

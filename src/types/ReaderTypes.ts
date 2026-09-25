@@ -140,13 +140,18 @@ export interface BookBinding {
 /**
  * A book record, keyed by fingerprint in `BookRecords` so rename/move survives it.
  *
- * Authoritative (never regenerated, small, protected): `fingerprint`, `position`.
- * Cached (regenerable from a rescan or an open, safe to discard/overwrite): everything
- * else, including `sizeBytes`/`modifiedMs` — the pair the library scan compares against
- * to decide whether a file needs its fingerprint recomputed at all.
+ * Two kinds of field, and this is the canonical statement of the split
+ * (`src/utils/reader/BookRecord.ts` enforces it):
+ * - **The reader's answers** (`position`, `manualChapterPattern`, `binding`) — nothing can
+ *   regenerate them, so no refresh from a scan or an open ever writes them.
+ * - **Observations** (everything else) — what a scan, an open or chapter election saw,
+ *   overwritten whenever that source sees the book again. Includes `sizeBytes`/`modifiedMs`,
+ *   the pair the library scan compares to decide whether a file needs re-fingerprinting.
+ *
+ * `fingerprint` is the identity itself, taken from the map key.
  */
 export interface BookRecord {
-  // ── Authoritative ──
+  // ── Identity, then the reader's answers ──
   fingerprint: string;
   /** `null` means never opened — distinct from "opened, first line". */
   position: ReadingPosition | null;
@@ -158,7 +163,7 @@ export interface BookRecord {
    * `BookBinding` for why "answered: none" is a different value, not the same one. */
   binding: BookBinding | null;
 
-  // ── Cached ──
+  // ── Observations ──
   title: string;
   /** Bare file name, never a full path — same IPC convention as `LibraryBook.fileName`. */
   lastKnownPath: string;

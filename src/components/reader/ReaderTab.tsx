@@ -190,7 +190,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
           return;
         }
         setEncodingChoice(null);
-        // Refresh (or create) this book's cached fields now that its true line count and
+        // Refresh (or create) this book's observations now that its true line count and
         // encoding are known — preserves any existing reading position and chapter outline.
         let position: ReadingPosition | null = null;
         let chapterOutline: ChapterOutlineSummary | null = null;

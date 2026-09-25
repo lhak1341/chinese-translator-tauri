@@ -10,25 +10,8 @@ import {
   recordBookOpened,
   withBookRecordsLock,
 } from '../BookRecordsBackend';
-import type { BookRecord } from '../../../types/ReaderTypes';
-
-function makeRecord(overrides: Partial<BookRecord> = {}): BookRecord {
-  return {
-    fingerprint: 'fp1',
-    position: null,
-    manualChapterPattern: null,
-    binding: null,
-    title: 'Novel',
-    lastKnownPath: 'novel.txt',
-    lineCount: 1000,
-    encodingLabel: 'GBK',
-    sizeBytes: 12345,
-    modifiedMs: 1700000000000,
-    available: true,
-    chapterOutline: null,
-    ...overrides,
-  };
-}
+import { READER_ANSWER_FIELDS } from '../BookRecord';
+import { makeBookRecord } from './bookRecordFixture';
 
 beforeEach(() => {
   invalidateBookRecords();
@@ -40,7 +23,7 @@ beforeEach(() => {
 
 describe('loadBookRecords', () => {
   test('returns the persisted records on success', async () => {
-    const record = makeRecord();
+    const record = makeBookRecord();
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: record } });
@@ -60,7 +43,7 @@ describe('loadBookRecords', () => {
   test('drops a malformed record and reports it in droppedCount, keeping valid siblings', async () => {
     window.electronAPI.loadBookRecords = vi.fn().mockResolvedValue({
       success: true,
-      data: { fp1: makeRecord(), '': makeRecord({ fingerprint: 'ignored' }) },
+      data: { fp1: makeBookRecord(), '': makeBookRecord({ fingerprint: 'ignored' }) },
     });
 
     const { records, droppedCount } = await loadBookRecords();
@@ -75,7 +58,7 @@ describe('saveBookRecords', () => {
     const saveFn = vi.fn().mockResolvedValue({ success: true });
     window.electronAPI.saveBookRecords = saveFn;
 
-    const records = { fp1: makeRecord() };
+    const records = { fp1: makeBookRecord() };
     await saveBookRecords(records);
 
     expect(saveFn).toHaveBeenCalledWith(records);
@@ -92,7 +75,7 @@ describe('saveBookRecords', () => {
 
 describe('setReadingPosition', () => {
   test('preserves every cached field while updating only the position', async () => {
-    const existing = makeRecord({ position: null, title: 'Kept Title' });
+    const existing = makeBookRecord({ position: null, title: 'Kept Title' });
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -118,7 +101,7 @@ describe('setReadingPosition', () => {
 
 describe('setChapterOutline', () => {
   test('persists a freshly-elected outline, preserving every other field', async () => {
-    const existing = makeRecord();
+    const existing = makeBookRecord();
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -146,7 +129,7 @@ describe('setChapterOutline', () => {
 
 describe('setManualChapterPattern', () => {
   test('persists an override, preserving every other field', async () => {
-    const existing = makeRecord();
+    const existing = makeBookRecord();
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -159,7 +142,7 @@ describe('setManualChapterPattern', () => {
   });
 
   test('clearing the override persists null', async () => {
-    const existing = makeRecord({ manualChapterPattern: 'volume' });
+    const existing = makeBookRecord({ manualChapterPattern: 'volume' });
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -183,7 +166,7 @@ describe('setManualChapterPattern', () => {
 
 describe('setBookBinding', () => {
   test('persists a bound fiction dictionary, preserving every other field', async () => {
-    const existing = makeRecord();
+    const existing = makeBookRecord();
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -198,7 +181,7 @@ describe('setBookBinding', () => {
   });
 
   test('persists "no fiction dictionary" as an answer, not as an absent binding', async () => {
-    const existing = makeRecord();
+    const existing = makeBookRecord();
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -222,22 +205,53 @@ describe('setBookBinding', () => {
   });
 });
 
+// One non-default value per reader answer. Typed against the field list, so an answer
+// added to READER_ANSWER_FIELDS without a sample here fails the table below.
+const ANSWER_SAMPLES = {
+  position: { line: 77, fraction: 0.5 },
+  manualChapterPattern: 'volume',
+  binding: { fictionDictionary: 'properNouns-f_TapDo' },
+} as const;
+
 describe('recordBookOpened', () => {
+  test.each(READER_ANSWER_FIELDS)(
+    'a reopen never overwrites the reader answer %s',
+    async (field) => {
+      expect(ANSWER_SAMPLES).toHaveProperty(field);
+      const existing = makeBookRecord({ [field]: ANSWER_SAMPLES[field] });
+      window.electronAPI.loadBookRecords = vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { fp1: existing } });
+
+      const record = await recordBookOpened('fp1', {
+        title: 'New Title',
+        lastKnownPath: 'renamed.txt',
+        lineCount: 600,
+        encodingLabel: 'UTF-8',
+        sizeBytes: 200,
+        modifiedMs: 2000,
+      });
+
+      expect(record[field]).toEqual(ANSWER_SAMPLES[field]);
+      expect(record.lineCount).toBe(600);
+    }
+  );
+
   test('creates a fresh record with position: null when none existed', async () => {
     const record = await recordBookOpened('fp1', {
       title: 'Novel',
       lastKnownPath: 'novel.txt',
-      lineCount: 1000,
+      lineCount: 500,
       encodingLabel: 'GBK',
-      sizeBytes: 12345,
-      modifiedMs: 1700000000000,
+      sizeBytes: 100,
+      modifiedMs: 1000,
     });
 
-    expect(record).toEqual(makeRecord());
+    expect(record).toEqual(makeBookRecord());
   });
 
   test('preserves an existing position while refreshing cached fields', async () => {
-    const existing = makeRecord({ position: { line: 99, fraction: 0.1 }, title: 'Old Title' });
+    const existing = makeBookRecord({ position: { line: 99, fraction: 0.1 }, title: 'Old Title' });
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -245,10 +259,10 @@ describe('recordBookOpened', () => {
     const record = await recordBookOpened('fp1', {
       title: 'New Title',
       lastKnownPath: 'novel.txt',
-      lineCount: 1000,
+      lineCount: 500,
       encodingLabel: 'GBK',
-      sizeBytes: 12345,
-      modifiedMs: 1700000000001,
+      sizeBytes: 100,
+      modifiedMs: 1001,
     });
 
     expect(record.position).toEqual({ line: 99, fraction: 0.1 });
@@ -256,7 +270,7 @@ describe('recordBookOpened', () => {
   });
 
   test('preserves an existing binding while refreshing cached fields', async () => {
-    const existing = makeRecord({ binding: { fictionDictionary: null } });
+    const existing = makeBookRecord({ binding: { fictionDictionary: null } });
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -264,10 +278,10 @@ describe('recordBookOpened', () => {
     const record = await recordBookOpened('fp1', {
       title: 'New Title',
       lastKnownPath: 'renamed.txt',
-      lineCount: 1000,
+      lineCount: 500,
       encodingLabel: 'GBK',
-      sizeBytes: 12345,
-      modifiedMs: 1700000000001,
+      sizeBytes: 100,
+      modifiedMs: 1001,
     });
 
     // The answer "no fiction dictionary" must survive a reopen, or the offer comes back.
@@ -279,7 +293,7 @@ describe('recordBookOpened', () => {
       pattern: 'chapter' as const,
       candidates: [{ pattern: 'chapter' as const, hitCount: 800, medianGap: 60, regularity: 1 }],
     };
-    const existing = makeRecord({ chapterOutline: outline, manualChapterPattern: 'volume' });
+    const existing = makeBookRecord({ chapterOutline: outline, manualChapterPattern: 'volume' });
     window.electronAPI.loadBookRecords = vi
       .fn()
       .mockResolvedValue({ success: true, data: { fp1: existing } });
@@ -287,10 +301,10 @@ describe('recordBookOpened', () => {
     const record = await recordBookOpened('fp1', {
       title: 'New Title',
       lastKnownPath: 'novel.txt',
-      lineCount: 1000,
+      lineCount: 500,
       encodingLabel: 'GBK',
-      sizeBytes: 12345,
-      modifiedMs: 1700000000001,
+      sizeBytes: 100,
+      modifiedMs: 1001,
     });
 
     expect(record.chapterOutline).toEqual(outline);
@@ -313,11 +327,11 @@ describe('write coalescing', () => {
     const [a, b] = await Promise.all([
       withBookRecordsLock(async () => {
         const { records } = await loadBookRecords();
-        await saveBookRecords({ ...records, fp1: makeRecord({ fingerprint: 'fp1' }) });
+        await saveBookRecords({ ...records, fp1: makeBookRecord({ fingerprint: 'fp1' }) });
       }),
       withBookRecordsLock(async () => {
         const { records } = await loadBookRecords();
-        await saveBookRecords({ ...records, fp2: makeRecord({ fingerprint: 'fp2' }) });
+        await saveBookRecords({ ...records, fp2: makeBookRecord({ fingerprint: 'fp2' }) });
       }),
     ]);
     void a;

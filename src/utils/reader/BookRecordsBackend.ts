@@ -8,6 +8,7 @@ import type {
 } from '../../types/ReaderTypes';
 import { validateApiResult } from '../configValidation';
 import { validateBookRecord } from './BookRecordValidation';
+import { refreshBookRecord, type BookObservations, type ReaderAnswerField } from './BookRecord';
 import { logger } from '../logger';
 
 let cache: BookRecords | null = null;
@@ -75,46 +76,47 @@ export function invalidateBookRecords(): void {
 }
 
 /**
- * Persist a reading position for one book, preserving every cached field already on its
- * record. A record must already exist — `open_book` and library-scan reconciliation both
- * create one before the reader can produce a position to write, so a missing record here
- * means a caller bug, not a recoverable state; it's logged and skipped rather than
- * fabricating a record with no cached fields to speak of.
+ * The one read-modify-write behind every per-field setter below. A record must already
+ * exist — `open_book` and library-scan reconciliation both create one before the reader
+ * can produce anything to write, so a missing record means a caller bug, not a
+ * recoverable state; it's logged and skipped rather than fabricating a record with no
+ * observations to speak of.
  */
-export function setReadingPosition(fingerprint: string, position: ReadingPosition): Promise<void> {
+function updateBookRecord(
+  caller: string,
+  fingerprint: string,
+  patch: Partial<Pick<BookRecord, ReaderAnswerField | 'chapterOutline'>>
+): Promise<void> {
   return withBookRecordsLock(async () => {
     const { records } = await loadBookRecords();
     const existing = records[fingerprint];
     if (!existing) {
-      logger.warn(`setReadingPosition: no record for ${fingerprint}, skipping`);
+      logger.warn(`${caller}: no record for ${fingerprint}, skipping`);
       return;
     }
-    const updated: BookRecord = { ...existing, position };
+    const updated: BookRecord = { ...existing, ...patch };
     await saveBookRecords({ ...records, [fingerprint]: updated });
   });
+}
+
+/**
+ * Persist a reading position for one book, preserving everything else on its record.
+ */
+export function setReadingPosition(fingerprint: string, position: ReadingPosition): Promise<void> {
+  return updateBookRecord('setReadingPosition', fingerprint, { position });
 }
 
 /**
  * Persist a freshly-elected chapter outline. Called once per fingerprint — right after
  * `detect_chapter_outline` runs on a book whose record didn't already carry one — so a
  * later open of the same, unchanged file skips election and goes straight to
- * `chapter_headers_for_pattern`. A missing record is a caller bug, same as
- * `setReadingPosition`: `open_book` always creates one before election can run.
+ * `chapter_headers_for_pattern`.
  */
 export function setChapterOutline(
   fingerprint: string,
   outline: ChapterOutlineSummary
 ): Promise<void> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
-    const existing = records[fingerprint];
-    if (!existing) {
-      logger.warn(`setChapterOutline: no record for ${fingerprint}, skipping`);
-      return;
-    }
-    const updated: BookRecord = { ...existing, chapterOutline: outline };
-    await saveBookRecords({ ...records, [fingerprint]: updated });
-  });
+  return updateBookRecord('setChapterOutline', fingerprint, { chapterOutline: outline });
 }
 
 /**
@@ -126,15 +128,8 @@ export function setManualChapterPattern(
   fingerprint: string,
   pattern: ChapterPatternId | null
 ): Promise<void> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
-    const existing = records[fingerprint];
-    if (!existing) {
-      logger.warn(`setManualChapterPattern: no record for ${fingerprint}, skipping`);
-      return;
-    }
-    const updated: BookRecord = { ...existing, manualChapterPattern: pattern };
-    await saveBookRecords({ ...records, [fingerprint]: updated });
+  return updateBookRecord('setManualChapterPattern', fingerprint, {
+    manualChapterPattern: pattern,
   });
 }
 
@@ -148,50 +143,33 @@ export function setManualChapterPattern(
  * `null`, which is the *unanswered* state and would re-offer the dialog on the next open.
  */
 export function setBookBinding(fingerprint: string, binding: BookBinding): Promise<void> {
-  return withBookRecordsLock(async () => {
-    const { records } = await loadBookRecords();
-    const existing = records[fingerprint];
-    if (!existing) {
-      logger.warn(`setBookBinding: no record for ${fingerprint}, skipping`);
-      return;
-    }
-    const updated: BookRecord = { ...existing, binding };
-    await saveBookRecords({ ...records, [fingerprint]: updated });
-  });
+  return updateBookRecord('setBookBinding', fingerprint, { binding });
 }
 
-export interface OpenedBookCachedFields {
-  title: string;
-  lastKnownPath: string;
-  lineCount: number;
-  encodingLabel: string;
-  sizeBytes: number;
-  modifiedMs: number;
-}
+/** What `open_book` observes: the file, and its decoded content. */
+export type OpenedBookObservations = Pick<
+  BookObservations,
+  'title' | 'lastKnownPath' | 'lineCount' | 'encodingLabel' | 'sizeBytes' | 'modifiedMs'
+>;
 
 /**
- * Refresh (or create) a record's cached half from a just-completed `open_book` —
- * `position` is preserved from any existing record, never overwritten here. Defensive
+ * Refresh (or create) a record from a just-completed `open_book` — the reader's answers,
+ * and the outline election observed, are kept from any existing record (see
+ * `refreshBookRecord`). Defensive
  * against library-scan reconciliation having missed this book for some reason (e.g. it
  * was opened before the shelf's own scan finished): `open_book` always knows its own
  * fingerprint, title, line count and encoding, so it can materialize a record on its own.
  */
 export function recordBookOpened(
   fingerprint: string,
-  fields: OpenedBookCachedFields
+  observed: OpenedBookObservations
 ): Promise<BookRecord> {
   return withBookRecordsLock(async () => {
     const { records } = await loadBookRecords();
-    const existing = records[fingerprint];
-    const updated: BookRecord = {
-      fingerprint,
-      position: existing?.position ?? null,
-      manualChapterPattern: existing?.manualChapterPattern ?? null,
-      binding: existing?.binding ?? null,
-      chapterOutline: existing?.chapterOutline ?? null,
+    const updated = refreshBookRecord(records[fingerprint], fingerprint, {
+      ...observed,
       available: true,
-      ...fields,
-    };
+    });
     await saveBookRecords({ ...records, [fingerprint]: updated });
     return updated;
   });

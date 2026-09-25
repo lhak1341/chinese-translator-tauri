@@ -1,0 +1,56 @@
+import { describe, expect, test } from 'vitest';
+import { READER_ANSWER_FIELDS, emptyBookRecord, refreshBookRecord } from '../BookRecord';
+import { validateBookRecord } from '../BookRecordValidation';
+import { makeBookRecord } from './bookRecordFixture';
+
+describe('emptyBookRecord', () => {
+  test('knows nothing: never opened, never answered, nothing observed', () => {
+    const record = emptyBookRecord('fp1');
+    expect(record.fingerprint).toBe('fp1');
+    for (const field of READER_ANSWER_FIELDS) expect(record[field]).toBeNull();
+    expect(record.chapterOutline).toBeNull();
+    expect(record.lineCount).toBe(0);
+  });
+
+  test('is exactly what the validator repairs an empty object to', () => {
+    expect(validateBookRecord('fp1', {})).toEqual(emptyBookRecord('fp1'));
+  });
+});
+
+describe('refreshBookRecord', () => {
+  test('a book never seen starts from the defaults plus what was observed', () => {
+    const record = refreshBookRecord(undefined, 'fp1', { title: 'Novel', lineCount: 500 });
+    expect(record).toEqual({ ...emptyBookRecord('fp1'), title: 'Novel', lineCount: 500 });
+  });
+
+  test('observations overwrite, and everything unobserved is kept', () => {
+    const outline = { pattern: 'chapter' as const, candidates: [] };
+    const existing = makeBookRecord({ chapterOutline: outline });
+
+    const record = refreshBookRecord(existing, 'fp1', { title: 'Renamed' });
+
+    expect(record.title).toBe('Renamed');
+    expect(record.chapterOutline).toEqual(outline);
+    expect(record.lineCount).toBe(existing.lineCount);
+  });
+
+  test("an observation object wider than its type still cannot overwrite a reader's answer", () => {
+    const existing = makeBookRecord({
+      position: { line: 77, fraction: 0.5 },
+      manualChapterPattern: 'volume',
+      binding: { fictionDictionary: 'properNouns-f_TapDo' },
+    });
+    // A caller spreading a whole record (or any wider object) into `observed` compiles —
+    // structural typing only checks the fields it names.
+    const wider = { title: 'New', ...emptyBookRecord('fp1') };
+
+    const record = refreshBookRecord(existing, 'fp1', wider);
+
+    for (const field of READER_ANSWER_FIELDS) expect(record[field]).toEqual(existing[field]);
+  });
+
+  test('the fingerprint argument is the identity, whatever the inputs carry', () => {
+    const record = refreshBookRecord(makeBookRecord({ fingerprint: 'other' }), 'fp1', {});
+    expect(record.fingerprint).toBe('fp1');
+  });
+});

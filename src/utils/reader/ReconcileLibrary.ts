@@ -8,6 +8,7 @@ import type {
 import tauriAPI from '../../tauriAPI';
 import { logger } from '../logger';
 import { loadBookRecords, saveBookRecords, withBookRecordsLock } from './BookRecordsBackend';
+import { refreshBookRecord } from './BookRecord';
 
 /** A scanned file plus the identity/progress a book record contributes to it. */
 export interface ShelfBook extends LibraryBook {
@@ -70,8 +71,9 @@ export function filesNeedingFingerprint(
  * produce the next records map plus the shelf/unavailable views over it.
  *
  * A file whose fingerprint matches an existing record — at the same path or a different
- * one — relinks to it (a rename/move preserves the record, `position` included, since
- * only the cached fields are overwritten). A fingerprint matching no record creates a new
+ * one — relinks to it: a rename/move overwrites only what the scan observed about the
+ * file, keeping the reader's answers and the content observations (line count, encoding,
+ * outline) that a scan cannot make — see `refreshBookRecord`. A fingerprint matching no record creates a new
  * one with `position: null` ("never opened"). A previously-available record that matches
  * no file in this scan, by path or by fingerprint, is marked unavailable and kept.
  */
@@ -104,21 +106,13 @@ export function applyReconciliation(
         // shelf this pass rather than fabricate a record; the next scan retries it.
         continue;
       }
-      const byFingerprint = next[fresh.fingerprint];
-      record = {
-        fingerprint: fresh.fingerprint,
-        position: byFingerprint?.position ?? null,
-        manualChapterPattern: byFingerprint?.manualChapterPattern ?? null,
-        binding: byFingerprint?.binding ?? null,
+      record = refreshBookRecord(next[fresh.fingerprint], fresh.fingerprint, {
         title: file.title,
         lastKnownPath: file.fileName,
-        lineCount: byFingerprint?.lineCount ?? 0,
-        encodingLabel: byFingerprint?.encodingLabel ?? '',
         sizeBytes: fresh.sizeBytes,
         modifiedMs: file.modifiedMs,
         available: true,
-        chapterOutline: byFingerprint?.chapterOutline ?? null,
-      };
+      });
     }
     // Two scanned files can fingerprint identically (byte-for-byte duplicate content,
     // e.g. the same book copied under two names) — the first one seen this pass owns the
