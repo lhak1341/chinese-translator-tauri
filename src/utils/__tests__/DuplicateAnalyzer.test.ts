@@ -228,6 +228,20 @@ describe('DuplicateAnalyzer', () => {
       expect(patternsEntry?.metadata?.allowAsPatternVariable).toBe(true);
     });
 
+    it('carries semanticType so the duplicate view can show and compare it', () => {
+      const dicts = {
+        properNouns: { 青云: { translation: 'Thanh Vân', semanticType: 'location' } },
+        'properNouns-f_TruTien': {
+          青云: { translation: 'Thanh Vân Môn', semanticType: 'organization' },
+        },
+      };
+      const result = findConflictingEntries(dicts as any);
+      expect(result.map((r) => r.metadata?.semanticType).sort()).toEqual([
+        'location',
+        'organization',
+      ]);
+    });
+
     it('should sort results by source, then dictionary name', () => {
       const dicts = {
         'properNouns-Novel2': { 小明: 'Xiao Ming 2', 哈利: 'Harry 2' },

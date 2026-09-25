@@ -45,7 +45,6 @@ function makeProps(overrides = {}) {
       await fn();
     }),
     bulkDeleteEntries: vi.fn().mockResolvedValue({ successCount: 2, errors: [] }),
-    refreshDuplicatesPreservingScroll: undefined,
     onSelectionChange: undefined,
     ...overrides,
   };
@@ -187,28 +186,18 @@ describe('useEntrySelection — handleBulkDelete (duplicate mode)', () => {
     expect(bulkDeleteEntries).not.toHaveBeenCalled();
   });
 
-  it('calls refreshDuplicatesPreservingScroll after a successful delete', async () => {
-    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 1, errors: [] });
-    const refreshDuplicatesPreservingScroll = vi.fn().mockResolvedValue(undefined);
-    const props = makeProps({
-      showDuplicatesMode: true,
-      bulkDeleteEntries,
-      refreshDuplicatesPreservingScroll,
-    });
-    const { result } = renderHook(() => useEntrySelection(props));
-    act(() => result.current.handleSelectEntry('龙::phrases', true));
-    await act(async () => result.current.handleBulkDelete());
-    expect(refreshDuplicatesPreservingScroll).toHaveBeenCalledTimes(1);
+  it('offers no bulk move in duplicate mode (selections span several dictionaries)', () => {
+    const onSelectionChange = vi.fn();
+    const props = makeProps({ showDuplicatesMode: true, onSelectionChange });
+    renderHook(() => useEntrySelection(props));
+    expect(onSelectionChange.mock.calls.at(-1)![0].onBulkMove).toBeUndefined();
   });
 
-  it('does not call refreshDuplicatesPreservingScroll in normal mode', async () => {
-    const bulkDeleteEntries = vi.fn().mockResolvedValue({ successCount: 1, errors: [] });
-    const refreshDuplicatesPreservingScroll = vi.fn().mockResolvedValue(undefined);
-    const props = makeProps({ bulkDeleteEntries, refreshDuplicatesPreservingScroll });
-    const { result } = renderHook(() => useEntrySelection(props));
-    act(() => result.current.handleSelectEntry('龙', true));
-    await act(async () => result.current.handleBulkDelete());
-    expect(refreshDuplicatesPreservingScroll).not.toHaveBeenCalled();
+  it('offers bulk move in normal mode', () => {
+    const onSelectionChange = vi.fn();
+    const props = makeProps({ onSelectionChange });
+    renderHook(() => useEntrySelection(props));
+    expect(onSelectionChange.mock.calls.at(-1)![0].onBulkMove).toEqual(expect.any(Function));
   });
 });
 
@@ -257,5 +246,47 @@ describe('useEntrySelection — onSelectionChange notification', () => {
     const lastCall = onSelectionChange.mock.calls.at(-1)?.[0];
     expect(typeof lastCall?.onBulkDelete).toBe('function');
     expect(typeof lastCall?.onBulkMove).toBe('function');
+  });
+});
+
+describe('useEntrySelection — pruning stale keys', () => {
+  it('drops a selected entry once it no longer exists in the dictionary', () => {
+    let props = makeProps();
+    const { result, rerender } = renderHook(() => useEntrySelection(props));
+    act(() => result.current.handleSelectEntry('龙', true));
+    act(() => result.current.handleSelectEntry('凤凰', true));
+    expect(result.current.selectedEntries.size).toBe(2);
+
+    props = makeProps({ dictionaries: { phrases: { 凤凰: phrases['凤凰'] } } });
+    rerender();
+
+    expect([...result.current.selectedEntries]).toEqual(['凤凰']);
+  });
+
+  it('drops a duplicate-mode key whose owning dictionary lost the entry', () => {
+    let props = makeProps({
+      showDuplicatesMode: true,
+      dictionaries: { phrases, properNouns: { 龙: { translation: 'con rồng' } } },
+    });
+    const { result, rerender } = renderHook(() => useEntrySelection(props));
+    act(() => result.current.handleSelectEntry('龙::phrases', true));
+    act(() => result.current.handleSelectEntry('龙::properNouns', true));
+
+    props = makeProps({ showDuplicatesMode: true, dictionaries: { phrases, properNouns: {} } });
+    rerender();
+
+    expect([...result.current.selectedEntries]).toEqual(['龙::phrases']);
+  });
+
+  it('keeps the same Set instance when nothing is stale (no extra re-render)', () => {
+    let props = makeProps();
+    const { result, rerender } = renderHook(() => useEntrySelection(props));
+    act(() => result.current.handleSelectEntry('龙', true));
+    const before = result.current.selectedEntries;
+
+    props = makeProps({ dictionaries: { phrases: { ...phrases } } });
+    rerender();
+
+    expect(result.current.selectedEntries).toBe(before);
   });
 });

@@ -238,7 +238,7 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     expect(screen.queryByTestId('move-dialog')).not.toBeInTheDocument();
   });
 
-  test('context menu -> Delete Entry calls deleteEntry directly (no confirm step)', async () => {
+  test('context menu -> Delete Entry needs a second click to confirm', async () => {
     render(<DictionaryManager />);
     await screen.findByText('Xin chào');
 
@@ -246,7 +246,11 @@ describe('DictionaryManager + EnhancedVirtualizedDictionaryTable — composition
     await act(async () => {
       fireEvent.click(screen.getByText('Delete Entry'));
     });
+    expect(deleteEntry).not.toHaveBeenCalled();
 
+    await act(async () => {
+      fireEvent.click(screen.getByText('Click again to delete'));
+    });
     expect(deleteEntry).toHaveBeenCalledWith('properNouns-Test', '你好');
   });
 

@@ -335,18 +335,10 @@ export const SemanticTypeFilterChips: React.FC<{
 export const RowShell: React.FC<{
   onContextMenu?: (e: React.MouseEvent) => void;
   isSelected?: boolean;
-  isScrolling?: boolean;
   backgroundColor?: string;
   role?: string;
   children: React.ReactNode;
-}> = ({
-  onContextMenu,
-  isSelected = false,
-  isScrolling = false,
-  backgroundColor,
-  role,
-  children,
-}) => (
+}> = ({ onContextMenu, isSelected = false, backgroundColor, role, children }) => (
   <div
     onContextMenu={onContextMenu}
     role={role}
@@ -356,7 +348,6 @@ export const RowShell: React.FC<{
       alignItems: 'center',
       borderBottom: '1px solid var(--border-color)',
       backgroundColor: isSelected ? 'rgba(16, 185, 129, 0.18)' : (backgroundColor ?? 'transparent'),
-      willChange: isScrolling ? 'transform' : 'auto',
     }}
   >
     {children}

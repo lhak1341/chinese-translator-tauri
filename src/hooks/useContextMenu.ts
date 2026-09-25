@@ -1,17 +1,25 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { toast } from '../components/ToastContext';
 
+/** The entry a context menu acts on. `dictionaryId` travels with it because the duplicate
+ * view mixes rows from many dictionaries — the table's selected dictionary is not the owner. */
+export interface ContextMenuEntry {
+  source: string;
+  translation: string;
+  dictionaryId: string;
+}
+
 export interface ContextMenuState {
   visible: boolean;
   x: number;
   y: number;
-  entry: { source: string; translation: string } | null;
+  entry: ContextMenuEntry | null;
 }
 
 interface UseContextMenuActions {
-  onEdit: (entry: { source: string; translation: string }) => void;
-  onMove: (entry: { source: string; translation: string }) => void;
-  onDelete: (source: string) => Promise<void>;
+  onEdit: (entry: ContextMenuEntry) => void;
+  onMove: (entry: ContextMenuEntry) => void;
+  onDelete: (entry: ContextMenuEntry) => Promise<void>;
 }
 
 const CLOSED: ContextMenuState = { visible: false, x: 0, y: 0, entry: null };
@@ -19,15 +27,25 @@ const CLOSED: ContextMenuState = { visible: false, x: 0, y: 0, entry: null };
 export function useContextMenu({ onEdit, onMove, onDelete }: UseContextMenuActions) {
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(CLOSED);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  // Delete is two-step: the first click arms it (the item turns into a "click again" prompt),
+  // the second deletes. Bulk delete already asked for confirmation; this one didn't.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const closeContextMenu = useCallback((): void => {
     setContextMenu(CLOSED);
+    setConfirmingDelete(false);
   }, []);
 
   const handleContextMenu = useCallback(
-    (e: React.MouseEvent, source: string, translation: string): void => {
+    (e: React.MouseEvent, source: string, translation: string, dictionaryId: string): void => {
       e.preventDefault();
-      setContextMenu({ visible: true, x: e.clientX, y: e.clientY, entry: { source, translation } });
+      setConfirmingDelete(false);
+      setContextMenu({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY,
+        entry: { source, translation, dictionaryId },
+      });
     },
     []
   );
@@ -46,15 +64,18 @@ export function useContextMenu({ onEdit, onMove, onDelete }: UseContextMenuActio
 
   const handleContextMenuDelete = useCallback(async (): Promise<void> => {
     if (!contextMenu.entry) return;
-    const { source } = contextMenu.entry;
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
     try {
-      await onDelete(source);
+      await onDelete(contextMenu.entry);
       closeContextMenu();
     } catch (error) {
       toast.error(`Failed to delete entry: ${(error as Error).message}`, 6000);
       closeContextMenu();
     }
-  }, [contextMenu.entry, onDelete, closeContextMenu]);
+  }, [contextMenu.entry, confirmingDelete, onDelete, closeContextMenu]);
 
   // Close when clicking outside
   useEffect(() => {
@@ -98,6 +119,7 @@ export function useContextMenu({ onEdit, onMove, onDelete }: UseContextMenuActio
   return {
     contextMenu,
     contextMenuRef,
+    confirmingDelete,
     closeContextMenu,
     handleContextMenu,
     handleContextMenuEdit,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   PlusCircle,
   Undo2,
@@ -25,6 +25,7 @@ import {
   findConflictingEntries,
   toProperNounsId,
   isFictionPatternsId,
+  getMoveFamily,
   type DuplicateRow,
 } from '../../utils/dictionary';
 import { toast } from '../ToastContext';
@@ -98,22 +99,25 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   const [isLoadingDictionary, setIsLoadingDictionary] = useState<boolean>(false);
   const [selectionState, setSelectionState] = useState<SelectionState | null>(null);
 
-  // Ref to always access the latest dictionaries (fixes stale closure in refresh callback)
-  const dictionariesRef = useRef(_dictionaries);
-
-  // Update ref whenever dictionaries change
-  useEffect(() => {
-    dictionariesRef.current = _dictionaries;
-  }, [_dictionaries]);
-
   // Filter state for showing all dictionaries
   const [showAllDictionaries, setShowAllDictionaries] = useState<boolean>(false);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
 
-  // Duplicate detection mode state
+  // Duplicate detection mode. The rows are derived from live dictionary state rather than
+  // snapshotted, so an edit / move / delete made from the duplicate view shows up immediately
+  // (a resolved conflict simply disappears) without reloading every dictionary from disk or
+  // remounting the table — which is what used to lose the scroll position.
   const [showDuplicatesMode, setShowDuplicatesMode] = useState<boolean>(false);
-  const [duplicateRows, setDuplicateRows] = useState<DuplicateRow[]>([]);
-  const [duplicateScrollRestore, setDuplicateScrollRestore] = useState<number | null>(null);
+  const duplicateRows = React.useMemo<DuplicateRow[]>(
+    () => (showDuplicatesMode ? findConflictingEntries(_dictionaries) : []),
+    [showDuplicatesMode, _dictionaries]
+  );
+
+  useEffect(() => {
+    if (showDuplicatesMode && duplicateRows.length === 0) {
+      toast.success('No duplicate entries found! All entries are unique across dictionaries.');
+    }
+  }, [showDuplicatesMode, duplicateRows.length]);
 
   // Load dictionary types including active proper nouns dictionaries
   useEffect(() => {
@@ -250,9 +254,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
     }
   };
 
-  // Handle finding duplicate entries across all dictionaries
-  // CRITICAL: Wrapped in useCallback to prevent infinite loop when passed as prop
-  // CRITICAL: Uses dictionariesRef.current to always access latest data (fixes stale closure)
+  // Enter duplicate mode. Every dictionary must be in memory first — conflicts are found across
+  // all of them, and delete/move from the duplicate view needs the owning dictionary loaded.
   const handleFindDuplicates = useCallback(async (): Promise<void> => {
     setIsLoadingDictionary(true);
     setError(null);
@@ -266,29 +269,18 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
       // Load all dictionaries in parallel (much faster than sequential)
       await Promise.all(allDictionaryIds.map((dictId) => loadDictionary(dictId)));
 
-      // Re-read from ref after loading all dictionaries
-      const dictionariesToAnalyze = dictionariesRef.current;
-
-      const duplicates = findConflictingEntries(dictionariesToAnalyze);
-
-      setDuplicateRows(duplicates);
       setShowDuplicatesMode(true);
-
-      if (duplicates.length === 0) {
-        toast.success('No duplicate entries found! All entries are unique across dictionaries.');
-      }
     } catch (error) {
       setError(`Failed to analyze duplicates: ${(error as Error).message}`);
       logger.error('Error finding duplicates:', error);
     } finally {
       setIsLoadingDictionary(false);
     }
-  }, [loadDictionary]); // Removed _dictionaries - using dictionariesRef.current instead
+  }, [loadDictionary]);
 
   // Handle exiting duplicate mode
   const handleExitDuplicateMode = (): void => {
     setShowDuplicatesMode(false);
-    setDuplicateRows([]);
     setError(null);
   };
 
@@ -325,6 +317,9 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
   const sortedDictionaryEntries = React.useMemo(() => {
     return Object.entries(filteredDictionaryTypes).sort(([idA], [idB]) => idA.localeCompare(idB));
   }, [filteredDictionaryTypes]);
+
+  // String-only lookup tables (characters/conversion/punctuation) have no move targets.
+  const canMoveFromSelected = getMoveFamily(selectedDictionary) !== null;
 
   useHotkeyHandler({
     onUndo: handleUndo,
@@ -429,23 +424,21 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
           {selectionState && selectionState.selectedCount > 0 && (
             <>
-              <button
-                onClick={() => {
-                  if (selectionState.onBulkMove) {
-                    selectionState.onBulkMove();
-                  }
-                }}
-                className={`secondary ${styles.button}`}
-                disabled={selectionState.isMoving}
-                title={`Move ${selectionState.selectedCount} selected entries to another dictionary`}
-              >
-                {selectionState.isMoving ? (
-                  <Loader size={15} className="animate-spin" />
-                ) : (
-                  <ArrowRightLeft size={15} />
-                )}
-                Move ({selectionState.selectedCount})
-              </button>
+              {selectionState.onBulkMove && canMoveFromSelected && (
+                <button
+                  onClick={selectionState.onBulkMove}
+                  className={`secondary ${styles.button}`}
+                  disabled={selectionState.isMoving}
+                  title={`Move ${selectionState.selectedCount} selected entries to another dictionary`}
+                >
+                  {selectionState.isMoving ? (
+                    <Loader size={15} className="animate-spin" />
+                  ) : (
+                    <ArrowRightLeft size={15} />
+                  )}
+                  Move ({selectionState.selectedCount})
+                </button>
+              )}
 
               {selectionState.showBulkDeleteConfirm ? (
                 <>
@@ -535,16 +528,13 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
 
       <div className={styles.tableContainer}>
         <EnhancedVirtualizedDictionaryTable
-          key={showDuplicatesMode ? `duplicates-${duplicateRows.length}` : 'dictionary-table'}
+          key={showDuplicatesMode ? 'duplicates' : 'dictionary-table'}
           selectedDictionary={selectedDictionary}
           searchRef={searchRef}
           onSelectionChange={setSelectionState}
           isActive={isActive}
           showDuplicatesMode={showDuplicatesMode}
           duplicateRows={duplicateRows}
-          onRefreshDuplicates={handleFindDuplicates}
-          scrollRestore={duplicateScrollRestore}
-          onScrollSave={setDuplicateScrollRestore}
         />
       </div>
 

@@ -167,18 +167,18 @@
 }
 
 /* Duplicate-mode view (DuplicateDictionaryTableView): checkbox (reuses the row `.checkboxCell`
-   component) | source (20%) | translation (50%) | dictionary label (30%). Fixed regardless of
-   dictionary type — not one of the 4 type-scoped schemas above. */
+   component) | source (18%) | translation (42%) | dictionary label (25%) | semantic (15%, JS
+   constant). Fixed regardless of dictionary type — not one of the 4 type-scoped schemas above. */
 .duplicateSourceCol {
-  width: 20%;
+  width: 18%;
 }
 
 .duplicateTranslationCol {
-  width: 50%;
+  width: 42%;
 }
 
 .duplicateDictionaryCol {
-  width: calc(30% - 40px);
+  width: calc(25% - 40px);
 }
 
 /* Badge Container */

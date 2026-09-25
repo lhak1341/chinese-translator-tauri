@@ -46,6 +46,8 @@ export interface EditingEntryData {
   source: string;
   translation: string | DictionaryEntryValue;
   allowAsPatternVariable?: boolean;
+  /** Owning dictionary — differs from the table's selected one in the duplicate view. */
+  dictionaryId?: string;
 }
 
 /**
@@ -54,6 +56,8 @@ export interface EditingEntryData {
 export interface MoveEntryData {
   source: string;
   translation: string;
+  /** Owning dictionary — differs from the table's selected one in the duplicate view. */
+  dictionaryId: string;
 }
 
 /**

@@ -2,7 +2,7 @@
  * Tests for MoveDialog — the unified single-entry/bulk move dialog that replaced
  * MoveEntryDialog.tsx and BulkMoveDialog.tsx (architecture review 2026-08-28, candidate #1
  * grilling). `entries.length === 1` drives the single-entry code paths (named overwrite/
- * metadata-loss detail, single-entry preview with metadata tags); `entries.length > 1` drives
+ * target filtering, single-entry preview with metadata tags); `entries.length > 1` drives
  * the bulk paths (aggregate-count warnings, plain multi-item preview).
  */
 
@@ -22,7 +22,9 @@ vi.mock('../DictionaryTypes', () => ({
     phrases: { label: 'Phrases' },
     properNouns: { label: 'General Purpose Dictionary' },
     'properNouns-NovelName': { label: 'Proper Nouns - NovelName' },
+    'properNouns-Unloaded': { label: 'Proper Nouns - Unloaded' },
     patterns: { label: 'Patterns' },
+    'patterns-f_NovelName': { label: 'Pattern - f_NovelName' },
     conversion: { label: 'Conversion' },
     punctuation: { label: 'Punctuation' },
   }),
@@ -33,15 +35,17 @@ describe('MoveDialog', () => {
   const mockBulkMoveEntries = vi.fn();
   const mockOnClose = vi.fn();
   const mockOnSuccess = vi.fn();
+  const mockLoadDictionary = vi.fn();
 
   const mockDictionaries = {
-    characters: {
-      你好: 'xin chào',
-      再见: 'tạm biệt',
+    characters: { 你: 'bạn' },
+    phrases: {
+      你好: { translation: 'xin chào' },
+      再见: { translation: 'tạm biệt' },
     },
-    phrases: {},
-    properNouns: { 张三: { translation: 'Truong Tam' } },
+    properNouns: { 张三: { translation: 'Truong Tam' }, 你好: { translation: 'chào anh' } },
     'properNouns-NovelName': {},
+    'patterns-f_NovelName': {},
     patterns: {
       '在<X>眼中': {
         translation: 'trong mắt <X>',
@@ -60,7 +64,9 @@ describe('MoveDialog', () => {
       dictionaries: mockDictionaries,
       moveEntry: mockMoveEntry,
       bulkMoveEntries: mockBulkMoveEntries,
+      loadDictionary: mockLoadDictionary,
     });
+    mockLoadDictionary.mockResolvedValue(undefined);
   });
 
   describe('single entry (entries.length === 1)', () => {
@@ -68,7 +74,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -82,7 +88,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -91,8 +97,8 @@ describe('MoveDialog', () => {
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
 
       const options = Array.from(select.options).map((opt) => opt.value);
-      expect(options).not.toContain('characters');
-      expect(options).toContain('phrases');
+      expect(options).not.toContain('phrases');
+      expect(options).toContain('properNouns');
     });
 
     test('shows named overwrite detail with the old translation', async () => {
@@ -106,18 +112,18 @@ describe('MoveDialog', () => {
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'characters' } });
+      fireEvent.change(select, { target: { value: 'properNouns' } });
 
       await waitFor(() =>
         expect(
           screen.getByText(
-            /Entry "你好" already exists in target dictionary with translation "xin chào"/
+            /Entry "你好" already exists in target dictionary with translation "chào anh"/
           )
         ).toBeInTheDocument()
       );
     });
 
-    test('shows detailed metadata-loss warning naming the fields', async () => {
+    test('offers only same-family targets: patterns move between pattern dictionaries only', async () => {
       render(
         <MoveDialog
           entries={['在<X>眼中']}
@@ -128,11 +134,65 @@ describe('MoveDialog', () => {
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'characters' } });
 
-      await waitFor(() =>
-        expect(screen.getByText(/will lose metadata: allowAsPatternVariable/)).toBeInTheDocument()
+      const options = Array.from(select.options)
+        .map((opt) => opt.value)
+        .filter(Boolean);
+      expect(options).toEqual(['patterns-f_NovelName']);
+    });
+
+    test('offers phrases and proper-noun dictionaries, never string-only lookup tables', async () => {
+      render(
+        <MoveDialog
+          entries={['你好']}
+          currentDictionary="phrases"
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
       );
+      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
+      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+
+      const options = Array.from(select.options)
+        .map((opt) => opt.value)
+        .filter(Boolean);
+      expect(options).toContain('properNouns');
+      expect(options).toContain('properNouns-NovelName');
+      for (const excluded of ['characters', 'conversion', 'punctuation', 'patterns']) {
+        expect(options).not.toContain(excluded);
+      }
+    });
+
+    test('loads a not-yet-loaded target dictionary when it is selected', async () => {
+      render(
+        <MoveDialog
+          entries={['你好']}
+          currentDictionary="phrases"
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
+      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      fireEvent.change(select, { target: { value: 'properNouns-Unloaded' } });
+
+      await waitFor(() => expect(mockLoadDictionary).toHaveBeenCalledWith('properNouns-Unloaded'));
+    });
+
+    test('does not reload a target that is already in memory', async () => {
+      render(
+        <MoveDialog
+          entries={['你好']}
+          currentDictionary="phrases"
+          onClose={mockOnClose}
+          onSuccess={mockOnSuccess}
+        />
+      );
+      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
+      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
+      fireEvent.change(select, { target: { value: 'properNouns' } });
+
+      expect(mockLoadDictionary).not.toHaveBeenCalled();
     });
 
     test('calls moveEntry (not bulkMoveEntries) and closes itself on success', async () => {
@@ -140,19 +200,24 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
       await waitFor(() => {
-        expect(mockMoveEntry).toHaveBeenCalledWith('characters', 'phrases', '你好', 'Phrases');
+        expect(mockMoveEntry).toHaveBeenCalledWith(
+          'phrases',
+          'properNouns-NovelName',
+          '你好',
+          'Proper Nouns - NovelName'
+        );
         expect(mockBulkMoveEntries).not.toHaveBeenCalled();
         expect(mockOnClose).toHaveBeenCalled();
         expect(mockOnSuccess).toHaveBeenCalled();
@@ -164,14 +229,14 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
@@ -188,7 +253,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好', '再见']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -202,7 +267,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好', '再见', 'a', 'b', 'c']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -213,8 +278,8 @@ describe('MoveDialog', () => {
     test('shows aggregate-count overwrite warning, not per-entry detail', async () => {
       render(
         <MoveDialog
-          entries={['你好', '张三']}
-          currentDictionary="characters"
+          entries={['你好', '再见']}
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -230,46 +295,28 @@ describe('MoveDialog', () => {
       );
     });
 
-    test('shows aggregate metadata-loss warning for bulk moves (previously missing — the confirmed drift)', async () => {
-      render(
-        <MoveDialog
-          entries={['在<X>眼中', '跟<X>说']}
-          currentDictionary="patterns"
-          onClose={mockOnClose}
-          onSuccess={mockOnSuccess}
-        />
-      );
-      const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
-      await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'characters' } });
-
-      await waitFor(() =>
-        expect(screen.getByText(/2 entries have metadata that will be lost/)).toBeInTheDocument()
-      );
-    });
-
     test('calls bulkMoveEntries (not moveEntry) and closes itself on success', async () => {
       mockBulkMoveEntries.mockResolvedValue({ movedCount: 2, errors: [] });
       render(
         <MoveDialog
           entries={['你好', '再见']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Move 2 Entries' }));
 
       await waitFor(() => {
         expect(mockBulkMoveEntries).toHaveBeenCalledWith(
-          'characters',
           'phrases',
+          'properNouns-NovelName',
           expect.arrayContaining(['你好', '再见']),
-          'Phrases'
+          'Proper Nouns - NovelName'
         );
         expect(mockMoveEntry).not.toHaveBeenCalled();
         expect(mockOnClose).toHaveBeenCalled();
@@ -282,14 +329,14 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好', '再见']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Move 2 Entries' }));
 
@@ -306,7 +353,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -315,7 +362,7 @@ describe('MoveDialog', () => {
       expect(moveButton).toBeDisabled();
 
       const select = screen.getByRole('combobox');
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
       expect(moveButton).not.toBeDisabled();
     });
 
@@ -329,14 +376,14 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Move Entry' }));
 
@@ -352,14 +399,14 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
       const select = await waitFor(() => screen.getByRole('combobox') as HTMLSelectElement);
       await waitFor(() => expect(select.options.length).toBeGreaterThan(1));
-      fireEvent.change(select, { target: { value: 'phrases' } });
+      fireEvent.change(select, { target: { value: 'properNouns-NovelName' } });
 
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Enter' });
 
@@ -370,7 +417,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -383,7 +430,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -399,7 +446,7 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
@@ -417,16 +464,14 @@ describe('MoveDialog', () => {
       render(
         <MoveDialog
           entries={['你好']}
-          currentDictionary="characters"
+          currentDictionary="phrases"
           onClose={mockOnClose}
           onSuccess={mockOnSuccess}
         />
       );
 
       await waitFor(() =>
-        expect(
-          screen.getByText('No other dictionaries available. Create another dictionary first.')
-        ).toBeInTheDocument()
+        expect(screen.getByText(/No compatible dictionaries/)).toBeInTheDocument()
       );
       expect(screen.getByRole('button', { name: 'Move Entry' })).toBeDisabled();
     });

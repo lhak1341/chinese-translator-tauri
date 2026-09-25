@@ -41,8 +41,6 @@ function makeProps(overrides: Partial<VirtualRowProps> = {}) {
   return {
     source: 'X的Y',
     translation: 'của X Y' as DictionaryEntryValue,
-    _index: 0,
-    isScrolling: false,
     isSelected: false,
     selectedDictionary: 'patterns',
     onUpdateEntry: vi.fn().mockResolvedValue(undefined),
@@ -301,7 +299,7 @@ describe('VirtualRowComponent', () => {
       expect(onSelectEntry).toHaveBeenCalledWith('你', true);
     });
 
-    it('calls onContextMenu with the event, source, and translation text', () => {
+    it('calls onContextMenu with the event, source, translation text, and dictionary', () => {
       const onContextMenu = vi.fn();
       render(
         <VirtualRowComponent
@@ -315,7 +313,12 @@ describe('VirtualRowComponent', () => {
       );
 
       fireEvent.contextMenu(screen.getByText('you'));
-      expect(onContextMenu).toHaveBeenCalledWith(expect.anything(), '你', 'you');
+      expect(onContextMenu).toHaveBeenCalledWith(
+        expect.anything(),
+        '你',
+        'you',
+        expect.any(String)
+      );
     });
 
     it('calls handleCheckboxChange when the VAR badge is clicked', () => {

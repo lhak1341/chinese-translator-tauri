@@ -5,7 +5,11 @@ import { validatePersistEntry } from '../utils/dictionary/PersistTimeValidator';
 import { logger } from '../utils/logger';
 import { ValidationError, SaveError, isValidationError, isSaveError } from '../utils/errors';
 import { extractErrorMessage } from '../utils/errorHelpers';
-import { sanitizeDictionaryEntry, sortDictionaryEntries } from '../utils/dictionary';
+import {
+  sanitizeDictionaryEntry,
+  sortDictionaryEntries,
+  canMoveBetween,
+} from '../utils/dictionary';
 import type {
   DictionaryData,
   DictionaryEntryValue,
@@ -357,6 +361,10 @@ export function useDictionaryCRUD(
         throw new ValidationError(`Source dictionary '${sourceDictId}' does not exist`);
       if (!currentTargetDict)
         throw new ValidationError(`Target dictionary '${targetDictId}' does not exist`);
+      if (!canMoveBetween(sourceDictId, targetDictId))
+        throw new ValidationError(
+          `Cannot move entries from '${sourceDictId}' to '${targetDictId}' — incompatible dictionary types`
+        );
 
       const entryValue = currentSourceDict[source];
       if (entryValue === undefined)
@@ -410,6 +418,10 @@ export function useDictionaryCRUD(
         throw new ValidationError(`Source dictionary '${sourceDictId}' does not exist`);
       if (!currentTargetDict)
         throw new ValidationError(`Target dictionary '${targetDictId}' does not exist`);
+      if (!canMoveBetween(sourceDictId, targetDictId))
+        throw new ValidationError(
+          `Cannot move entries from '${sourceDictId}' to '${targetDictId}' — incompatible dictionary types`
+        );
 
       const movedEntries: Array<{ source: string; value: DictionaryEntryValue }> = [];
       const errors: string[] = [];

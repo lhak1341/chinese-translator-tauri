@@ -288,3 +288,24 @@ describe('empty state', () => {
     expect(screen.queryByText('Dictionary is empty')).toBeNull();
   });
 });
+
+describe('row positioning (scroll-anchoring regression)', () => {
+  // Rows used to live in one translateY'd slice; dropping the top buffer row shifted every
+  // visible row up 40px in layout, and WebKit's scroll anchoring pulled scrollTop back —
+  // flicker, then stuck. Each row now sits at its own absolute global offset.
+  test('each row is absolutely positioned at index * ITEM_HEIGHT', () => {
+    setDict('phrases', {
+      一: { translation: 'mot' },
+      二: { translation: 'hai' },
+      三: { translation: 'ba' },
+    });
+    render(<EnhancedVirtualizedDictionaryTable selectedDictionary="phrases" />);
+
+    const tops = ['mot', 'hai', 'ba'].map((t) => {
+      let el: HTMLElement | null = screen.getByText(t);
+      while (el && el.style.position !== 'absolute') el = el.parentElement;
+      return el?.style.top;
+    });
+    expect(tops).toEqual(['0px', '40px', '80px']);
+  });
+});

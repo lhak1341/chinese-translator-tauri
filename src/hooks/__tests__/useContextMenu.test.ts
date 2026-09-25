@@ -6,7 +6,7 @@ vi.mock('../../components/ToastContext', () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 
-const entry = { source: '龙', translation: 'rồng' };
+const entry = { source: '龙', translation: 'rồng', dictionaryId: 'phrases' };
 
 function makeActions(overrides = {}) {
   return {
@@ -34,7 +34,7 @@ describe('useContextMenu — open / close', () => {
 
   it('handleContextMenu opens with correct position and entry', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
-    act(() => result.current.handleContextMenu(makeMouseEvent(50, 80), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(50, 80), '龙', 'rồng', 'phrases'));
     expect(result.current.contextMenu.visible).toBe(true);
     expect(result.current.contextMenu.x).toBe(50);
     expect(result.current.contextMenu.y).toBe(80);
@@ -43,7 +43,7 @@ describe('useContextMenu — open / close', () => {
 
   it('closeContextMenu resets to closed state', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     act(() => result.current.closeContextMenu());
     expect(result.current.contextMenu.visible).toBe(false);
     expect(result.current.contextMenu.entry).toBeNull();
@@ -54,7 +54,7 @@ describe('useContextMenu — action handlers', () => {
   it('handleContextMenuEdit calls onEdit with entry and closes', () => {
     const actions = makeActions();
     const { result } = renderHook(() => useContextMenu(actions));
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     act(() => result.current.handleContextMenuEdit());
     expect(actions.onEdit).toHaveBeenCalledWith(entry);
     expect(result.current.contextMenu.visible).toBe(false);
@@ -70,18 +70,41 @@ describe('useContextMenu — action handlers', () => {
   it('handleContextMenuMove calls onMove with entry and closes', () => {
     const actions = makeActions();
     const { result } = renderHook(() => useContextMenu(actions));
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     act(() => result.current.handleContextMenuMove());
     expect(actions.onMove).toHaveBeenCalledWith(entry);
     expect(result.current.contextMenu.visible).toBe(false);
   });
 
-  it('handleContextMenuDelete calls onDelete with source and closes', async () => {
+  it('handleContextMenuDelete arms on first click without deleting or closing', async () => {
     const actions = makeActions();
     const { result } = renderHook(() => useContextMenu(actions));
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     await act(async () => result.current.handleContextMenuDelete());
-    expect(actions.onDelete).toHaveBeenCalledWith('龙');
+    expect(actions.onDelete).not.toHaveBeenCalled();
+    expect(result.current.confirmingDelete).toBe(true);
+    expect(result.current.contextMenu.visible).toBe(true);
+  });
+
+  it('re-opening the menu disarms a pending delete', async () => {
+    const actions = makeActions();
+    const { result } = renderHook(() => useContextMenu(actions));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
+    await act(async () => result.current.handleContextMenuDelete());
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '虎', 'hổ', 'phrases'));
+    expect(result.current.confirmingDelete).toBe(false);
+    await act(async () => result.current.handleContextMenuDelete());
+    expect(actions.onDelete).not.toHaveBeenCalled();
+  });
+
+  it('handleContextMenuDelete calls onDelete on the second click and closes', async () => {
+    const actions = makeActions();
+    const { result } = renderHook(() => useContextMenu(actions));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
+    await act(async () => result.current.handleContextMenuDelete());
+    await act(async () => result.current.handleContextMenuDelete());
+    expect(actions.onDelete).toHaveBeenCalledWith(entry);
+    expect(result.current.confirmingDelete).toBe(false);
     expect(result.current.contextMenu.visible).toBe(false);
   });
 
@@ -89,7 +112,8 @@ describe('useContextMenu — action handlers', () => {
     const { toast } = await import('../../components/ToastContext');
     const actions = makeActions({ onDelete: vi.fn().mockRejectedValue(new Error('save failed')) });
     const { result } = renderHook(() => useContextMenu(actions));
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
+    await act(async () => result.current.handleContextMenuDelete());
     await act(async () => result.current.handleContextMenuDelete());
     expect(result.current.contextMenu.visible).toBe(false);
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('save failed'), 6000);
@@ -118,7 +142,7 @@ describe('useContextMenu — keyboard navigation', () => {
   it('Escape closes the menu', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
     attachMenuRef(result);
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     act(() => result.current.handleContextMenuKeyDown(makeKeyEvent('Escape')));
     expect(result.current.contextMenu.visible).toBe(false);
   });
@@ -126,7 +150,7 @@ describe('useContextMenu — keyboard navigation', () => {
   it('Tab closes the menu', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
     attachMenuRef(result);
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     act(() => result.current.handleContextMenuKeyDown(makeKeyEvent('Tab')));
     expect(result.current.contextMenu.visible).toBe(false);
   });
@@ -134,7 +158,7 @@ describe('useContextMenu — keyboard navigation', () => {
   it('Escape calls preventDefault', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
     attachMenuRef(result);
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     const e = makeKeyEvent('Escape');
     act(() => result.current.handleContextMenuKeyDown(e));
     expect(e.preventDefault).toHaveBeenCalled();
@@ -143,7 +167,7 @@ describe('useContextMenu — keyboard navigation', () => {
   it('ArrowDown moves focus to next item (wraps around)', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
     const { btn1, btn2 } = attachMenuRef(result);
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     btn2.focus(); // start at last item
     act(() => result.current.handleContextMenuKeyDown(makeKeyEvent('ArrowDown')));
     expect(document.activeElement).toBe(btn1); // wraps to first
@@ -152,7 +176,7 @@ describe('useContextMenu — keyboard navigation', () => {
   it('ArrowUp moves focus to previous item (wraps around)', () => {
     const { result } = renderHook(() => useContextMenu(makeActions()));
     const { btn1, btn2 } = attachMenuRef(result);
-    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng'));
+    act(() => result.current.handleContextMenu(makeMouseEvent(), '龙', 'rồng', 'phrases'));
     btn1.focus(); // start at first item
     act(() => result.current.handleContextMenuKeyDown(makeKeyEvent('ArrowUp')));
     expect(document.activeElement).toBe(btn2); // wraps to last

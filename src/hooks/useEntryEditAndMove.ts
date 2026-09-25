@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
 import type { EditingEntryData, MoveEntryData, DictionaryData } from '../types/DictionaryTypes';
+import type { ContextMenuEntry } from './useContextMenu';
 
 interface UseEntryEditAndMoveParams {
   dictionaries: Record<string, DictionaryData>;
-  selectedDictionary: string;
   updateEntry: (
     dictionaryId: string,
     oldSource: string,
@@ -26,14 +26,13 @@ export interface UseEntryEditAndMoveResult {
     translation: string,
     metadata?: any
   ) => Promise<void>;
-  onContextMenuEdit: (entry: { source: string; translation: string }) => void;
-  onContextMenuMove: (entry: { source: string; translation: string }) => void;
+  onContextMenuEdit: (entry: ContextMenuEntry) => void;
+  onContextMenuMove: (entry: ContextMenuEntry) => void;
   reset: () => void;
 }
 
 export function useEntryEditAndMove({
   dictionaries,
-  selectedDictionary,
   updateEntry,
   withScrollPreservation,
 }: UseEntryEditAndMoveParams): UseEntryEditAndMoveResult {
@@ -56,8 +55,8 @@ export function useEntryEditAndMove({
   );
 
   const onContextMenuEdit = useCallback(
-    (entry: { source: string; translation: string }): void => {
-      const dictionary = dictionaries[selectedDictionary];
+    (entry: ContextMenuEntry): void => {
+      const dictionary = dictionaries[entry.dictionaryId];
       if (!dictionary) return;
       const value = dictionary[entry.source];
       setEditingEntry({
@@ -65,12 +64,13 @@ export function useEntryEditAndMove({
         translation: value,
         allowAsPatternVariable:
           typeof value === 'object' && value.allowAsPatternVariable ? true : false,
+        dictionaryId: entry.dictionaryId,
       });
     },
-    [dictionaries, selectedDictionary]
+    [dictionaries]
   );
 
-  const onContextMenuMove = useCallback((entry: { source: string; translation: string }): void => {
+  const onContextMenuMove = useCallback((entry: ContextMenuEntry): void => {
     setMoveEntry(entry);
   }, []);
 

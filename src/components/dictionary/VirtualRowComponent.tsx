@@ -101,8 +101,6 @@ const EditableCell: React.FC<{
 export interface VirtualRowProps {
   source: string;
   translation: DictionaryEntryValue;
-  _index: number;
-  isScrolling: boolean;
   isSelected: boolean;
   selectedDictionary: string;
   onUpdateEntry: (
@@ -113,15 +111,18 @@ export interface VirtualRowProps {
     metadata?: any
   ) => Promise<void>;
   onSelectEntry: (source: string, isSelected: boolean) => void;
-  onContextMenu: (e: React.MouseEvent, source: string, translation: string) => void;
+  onContextMenu: (
+    e: React.MouseEvent,
+    source: string,
+    translation: string,
+    dictionaryId: string
+  ) => void;
 }
 
 export const VirtualRowComponent = React.memo<VirtualRowProps>(
   ({
     source,
     translation,
-    _index,
-    isScrolling,
     isSelected,
     selectedDictionary,
     onUpdateEntry,
@@ -175,9 +176,8 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
       const hasY = source.includes('Y');
       return (
         <RowShell
-          onContextMenu={(e) => onContextMenu(e, source, translationText)}
+          onContextMenu={(e) => onContextMenu(e, source, translationText, selectedDictionary)}
           isSelected={isSelected}
-          isScrolling={isScrolling}
         >
           <CheckboxCell
             checked={isSelected}
@@ -244,9 +244,8 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     if (isPhrases) {
       return (
         <RowShell
-          onContextMenu={(e) => onContextMenu(e, source, translationText)}
+          onContextMenu={(e) => onContextMenu(e, source, translationText, selectedDictionary)}
           isSelected={isSelected}
-          isScrolling={isScrolling}
         >
           <CheckboxCell
             checked={isSelected}
@@ -299,9 +298,8 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
 
     return (
       <RowShell
-        onContextMenu={(e) => onContextMenu(e, source, translationText)}
+        onContextMenu={(e) => onContextMenu(e, source, translationText, selectedDictionary)}
         isSelected={isSelected}
-        isScrolling={isScrolling}
       >
         <CheckboxCell checked={isSelected} onChange={(checked) => onSelectEntry(source, checked)} />
 

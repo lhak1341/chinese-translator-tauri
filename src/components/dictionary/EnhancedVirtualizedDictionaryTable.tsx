@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useCallback } from 'react';
-import { Edit2, Trash2, Loader, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { Loader, ChevronsUp, ChevronsDown } from 'lucide-react';
 import { useDictionary } from './DictionaryContext';
 import DictionaryEntry from './DictionaryEntry';
 import MoveDialog from './MoveDialog';
+import EntryContextMenu from './EntryContextMenu';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { classifyDictionaryId } from '../../utils/dictionary';
+import { classifyDictionaryId, buildEntryMetadata } from '../../utils/dictionary';
+import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
 import {
   ITEM_HEIGHT,
@@ -16,9 +18,10 @@ import {
 import { SearchFilterHeader, FilterPanel, FilterDimensionRow } from '../SearchFilterHeader';
 import { useDictionaryEntryFilter } from '../../hooks/useDictionaryEntryFilter';
 import { useEntrySelection, type SelectionState } from '../../hooks/useEntrySelection';
-import { useContextMenu } from '../../hooks/useContextMenu';
+import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
 import { useVirtualScrollRange } from '../../hooks/useVirtualScrollRange';
 import { useEntryEditAndMove } from '../../hooks/useEntryEditAndMove';
+import { logger } from '../../utils/logger';
 
 /**
  * Props for EnhancedVirtualizedDictionaryTable component
@@ -34,17 +37,79 @@ interface EnhancedVirtualizedDictionaryTableProps {
   isActive?: boolean;
   /** Whether to show duplicate mode (4-column layout) */
   showDuplicatesMode?: boolean;
-  /** Duplicate rows to display when in duplicate mode */
+  /** Duplicate rows to display when in duplicate mode. Derived live from dictionary state by
+   * the parent, so an edit/move/delete updates the view in place — no refresh, no remount. */
   duplicateRows?: import('../../utils/dictionary/DuplicateAnalyzer').DuplicateRow[];
-  /** Callback to refresh duplicate view after deletion */
-  onRefreshDuplicates?: () => Promise<void>;
-  /** Scroll position to restore (managed by parent to survive unmount/remount) */
-  scrollRestore?: number | null;
-  /** Callback to save scroll position before refresh (pass null to clear) */
-  onScrollSave?: (position: number | null) => void;
 }
 
-const LARGE_LIST_THRESHOLD = 1000; // When to apply additional optimizations
+const numberFormat = new Intl.NumberFormat();
+
+/** One header cell. `className` columns are left-aligned text columns whose width class is
+ * shared with the matching row cell; the rest are centered badge columns (fixed `width`, or a
+ * `widthClassName` for the X/Y type columns). Order must match `VirtualRowComponent`'s cells. */
+interface HeaderColumn {
+  label: string;
+  title?: string;
+  className?: string;
+  widthClassName?: string;
+  width?: string;
+}
+
+function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
+  const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(dictionaryId);
+  const semantic = (title: string): HeaderColumn => ({
+    label: 'Semantic',
+    title,
+    width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
+  });
+  if (isPatterns) {
+    return [
+      {
+        label: 'Source',
+        className: styles.patternsSourceCol,
+        title: 'Pattern with highlighted variables',
+      },
+      {
+        label: 'Translation',
+        className: styles.patternsTranslationCol,
+        title: 'Translation with metadata badges (VAR = Allow as variable, LP = Low priority)',
+      },
+      semantic('Output semantic type (shown when pattern can be used as a variable)'),
+      {
+        label: 'X types',
+        widthClassName: styles.patternsTypeCol,
+        title: 'Type constraints for variable X',
+      },
+      {
+        label: 'Y types',
+        widthClassName: styles.patternsTypeCol,
+        title: 'Type constraints for variable Y',
+      },
+    ];
+  }
+  if (isPhrases) {
+    return [
+      { label: 'Source', className: styles.phrasesSourceCol },
+      {
+        label: 'Translation',
+        className: styles.phrasesTranslationCol,
+        title: 'Translation with metadata badge (VAR = Allow as variable)',
+      },
+      semantic('Semantic type'),
+    ];
+  }
+  if (isProperNouns) {
+    return [
+      { label: 'Source', className: styles.properNounsSourceCol },
+      { label: 'Translation', className: styles.properNounsTranslationCol },
+      semantic('Semantic type'),
+    ];
+  }
+  return [
+    { label: 'Source Text', className: styles.simpleSourceCol },
+    { label: 'Translation', className: styles.simpleTranslationCol },
+  ];
+}
 
 /**
  * Enhanced Virtualized Dictionary Table
@@ -68,9 +133,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   isActive,
   showDuplicatesMode = false,
   duplicateRows = [],
-  onRefreshDuplicates,
-  scrollRestore,
-  onScrollSave,
 }) => {
   const { dictionaries, deleteEntry, bulkDeleteEntries, updateEntry, isLoading } = useDictionary();
 
@@ -109,25 +171,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const scroll = useVirtualScrollRange(totalItems, {
     itemHeight: ITEM_HEIGHT,
     isActive,
-    scrollRestore,
-    onScrollSave,
   });
-
-  // Duplicate-mode delete triggers a backend refresh, which re-renders EVDT under a new
-  // `key` (see DictionaryManager.tsx) — wiping useVirtualScrollRange's own scroll state.
-  // Capture-then-hand-off to the parent (onScrollSave) is what survives that remount.
-  // Depend on scroll.getScrollTop (itself a stable useCallback), NOT the whole `scroll`
-  // object — useVirtualScrollRange returns a fresh object every render, so depending on
-  // `scroll` recreates this callback every render, which recreates useEntrySelection's
-  // handleBulkDelete, which re-fires its onSelectionChange effect, which calls
-  // setSelectionState in the parent, which re-renders this component — an infinite loop.
-  const refreshDuplicatesPreservingScroll = useCallback(async (): Promise<void> => {
-    if (!onRefreshDuplicates || !onScrollSave) return;
-    const currentScroll = scroll.getScrollTop();
-    await onRefreshDuplicates();
-    onScrollSave(currentScroll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onRefreshDuplicates, onScrollSave, scroll.getScrollTop]);
 
   const {
     selectedEntries,
@@ -144,7 +188,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     showDuplicatesMode,
     withScrollPreservation: scroll.withScrollPreservation,
     bulkDeleteEntries,
-    refreshDuplicatesPreservingScroll,
     onSelectionChange,
   });
 
@@ -167,7 +210,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     : [];
 
   const totalHeight = totalItems * ITEM_HEIGHT;
-  const offsetY = startIndex * ITEM_HEIGHT;
 
   const {
     editingEntry,
@@ -180,32 +222,26 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     reset: resetEditAndMove,
   } = useEntryEditAndMove({
     dictionaries,
-    selectedDictionary,
     updateEntry,
     withScrollPreservation: scroll.withScrollPreservation,
   });
 
+  // Acts on the entry's own dictionary, not `selectedDictionary` — in the duplicate view every
+  // row can belong to a different one.
+  const withScrollPreservation = scroll.withScrollPreservation;
   const onContextMenuDelete = useCallback(
-    async (source: string): Promise<void> => {
-      await deleteEntry(selectedDictionary, source);
+    async (entry: ContextMenuEntry): Promise<void> => {
+      await withScrollPreservation(() => deleteEntry(entry.dictionaryId, entry.source));
     },
-    [deleteEntry, selectedDictionary]
+    [deleteEntry, withScrollPreservation]
   );
 
-  const {
-    contextMenu,
-    contextMenuRef,
-    closeContextMenu,
-    handleContextMenu,
-    handleContextMenuEdit,
-    handleContextMenuMove,
-    handleContextMenuDelete,
-    handleContextMenuKeyDown,
-  } = useContextMenu({
+  const contextMenuApi = useContextMenu({
     onEdit: onContextMenuEdit,
     onMove: onContextMenuMove,
     onDelete: onContextMenuDelete,
   });
+  const { closeContextMenu, handleContextMenu } = contextMenuApi;
 
   // Reset all per-dictionary transient state when the selected dictionary changes.
   // Filter state is only reset for dictionary types where a filter doesn't apply:
@@ -220,9 +256,6 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     scroll.resetScroll();
   }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Optimized row component with React.memo (defined at module scope to prevent type churn)
-  const VirtualRow = VirtualRowComponent;
-
   // Determine which filter options are relevant for the selected dictionary
   const {
     isPatterns: isPatternsDictionary,
@@ -233,20 +266,51 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   const showVariableFilter = isPhrasesDictionary; // phrases only; patterns use showPatternFilter
   const showSemanticTypeFilter =
     isPhrasesDictionary || isProperNounsDictionary || isPatternsDictionary;
-  const hasFilterOptions = showPatternFilter || showVariableFilter || showSemanticTypeFilter;
-  // Performance monitoring for large lists
-  const performanceMetrics = useMemo(() => {
-    const listSize = filteredEntries.length;
-    const renderedCount = visibleEntries.length;
-    const renderRatio = listSize > 0 ? (renderedCount / listSize) * 100 : 0;
+  // Duplicate view's Semantic column: same metadata rebuild as useEntryMetadataEdit's
+  // handleSetSemanticType, but keyed by the row's own dictionary.
+  const handleSetDuplicateSemanticType = useCallback(
+    (row: DuplicateRow, type: string): void => {
+      const value = dictionaries[row.dictionaryId]?.[row.source];
+      if (value === undefined || typeof value === 'string') return;
+      const metadata: Record<string, unknown> = {
+        ...buildEntryMetadata({
+          allowAsPatternVariable: value.allowAsPatternVariable === true,
+          semanticType: value.semanticType ?? '',
+          allowedVariableTypes: value.allowedVariableTypes ?? {},
+        }),
+      };
+      if (type) metadata.semanticType = type;
+      else delete metadata.semanticType;
+      void updateEntryWithScrollPreservation(
+        row.dictionaryId,
+        row.source,
+        row.source,
+        value.translation,
+        metadata
+      ).catch((error: unknown) => logger.error('Failed to set semantic type:', error));
+    },
+    [dictionaries, updateEntryWithScrollPreservation]
+  );
 
-    return {
-      totalEntries: listSize,
-      renderedEntries: renderedCount,
-      renderEfficiency: renderRatio.toFixed(1),
-      isLargeDataset: listSize > LARGE_LIST_THRESHOLD,
-    };
-  }, [filteredEntries.length, visibleEntries.length]);
+  const headerColumns = useMemo(() => getHeaderColumns(selectedDictionary), [selectedDictionary]);
+
+  const hasFilterOptions =
+    !showDuplicatesMode && (showPatternFilter || showVariableFilter || showSemanticTypeFilter);
+
+  // "Rows 1,201–1,220 of 40,512" — where the viewport is in the whole list. The old
+  // "Showing <rendered slice size> of N" counted the virtualization buffer, not what's on screen.
+  const positionLabel = useMemo(() => {
+    const noun = showDuplicatesMode ? 'duplicate rows' : 'entries';
+    if (totalItems === 0) return `0 ${noun}`;
+    const first = Math.min(scroll.visibleRange.firstVisibleIndex + 1, totalItems);
+    const last = Math.min(first + scroll.visibleRange.visibleCount - 1, totalItems);
+    return `Rows ${numberFormat.format(first)}–${numberFormat.format(last)} of ${numberFormat.format(totalItems)} ${noun}`;
+  }, [
+    showDuplicatesMode,
+    totalItems,
+    scroll.visibleRange.firstVisibleIndex,
+    scroll.visibleRange.visibleCount,
+  ]);
 
   if (isLoading) {
     return (
@@ -258,37 +322,15 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
     );
   }
 
-  // Duplicate mode rendering (4-column layout)
-  if (showDuplicatesMode) {
-    return (
-      <DuplicateDictionaryTableView
-        searchRef={searchRef}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        scrollRefCallback={scroll.scrollRefCallback}
-        onScroll={scroll.handleScroll}
-        totalHeight={totalHeight}
-        offsetY={offsetY}
-        visibleDuplicateRows={visibleDuplicateRows}
-        startIndex={startIndex}
-        duplicateGroupIndices={duplicateGroupIndices}
-        selectedEntries={selectedEntries}
-        onSelectEntry={handleSelectEntry}
-        allSelected={
-          selectedEntries.size > 0 && selectedEntries.size === filteredDuplicateRows.length
-        }
-        onSelectAll={handleSelectAll}
-      />
-    );
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Search controls */}
       <SearchFilterHeader
         searchValue={searchTerm}
         onSearchChange={setSearchTerm}
-        searchPlaceholder="Search dictionary entries..."
+        searchPlaceholder={
+          showDuplicatesMode ? 'Search duplicates...' : 'Search dictionary entries...'
+        }
         searchRef={searchRef}
         showFilterButton={hasFilterOptions}
         filterOpen={showFilterPanel}
@@ -301,6 +343,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               onClick={scroll.scrollToTop}
               className="icon"
               title="Scroll to top"
+              aria-label="Scroll to top"
               style={{ padding: '0.5rem' }}
             >
               <ChevronsUp size={16} />
@@ -309,6 +352,7 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
               onClick={scroll.scrollToBottom}
               className="icon"
               title="Scroll to bottom"
+              aria-label="Scroll to bottom"
               style={{ padding: '0.5rem' }}
             >
               <ChevronsDown size={16} />
@@ -406,28 +450,27 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
           alignItems: 'center',
         }}
       >
-        <span>
-          Showing {visibleEntries.length} of {filteredEntries.length} entries
-        </span>
-        <div
-          style={{
-            display: 'flex',
-            gap: '1rem',
-            fontSize: '0.75rem',
-            color: 'var(--accent-color)',
-          }}
-        >
-          {process.env.NODE_ENV === 'development' && performanceMetrics.isLargeDataset && (
-            <span>
-              Render efficiency: {performanceMetrics.renderEfficiency}%
-              {scroll.isScrolling && ' (scrolling)'}
-            </span>
-          )}
-        </div>
+        <span>{positionLabel}</span>
       </div>
 
-      {/* Empty state when no entries */}
-      {filteredEntries.length === 0 ? (
+      {showDuplicatesMode ? (
+        <DuplicateDictionaryTableView
+          scrollRefCallback={scroll.scrollRefCallback}
+          onScroll={scroll.handleScroll}
+          totalHeight={totalHeight}
+          visibleDuplicateRows={visibleDuplicateRows}
+          startIndex={startIndex}
+          duplicateGroupIndices={duplicateGroupIndices}
+          selectedEntries={selectedEntries}
+          onSelectEntry={handleSelectEntry}
+          allSelected={
+            selectedEntries.size > 0 && selectedEntries.size === filteredDuplicateRows.length
+          }
+          onSelectAll={handleSelectAll}
+          onSetSemanticType={handleSetDuplicateSemanticType}
+          onContextMenu={handleContextMenu}
+        />
+      ) : filteredEntries.length === 0 ? (
         <div
           style={{
             flex: 1,
@@ -467,9 +510,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                   Dictionary is empty
                 </div>
                 <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
-                  Add entries using the
+                  Use Add Entry above, or select text in the
                   <br />
-                  shortcuts (Cmd/Ctrl+1-5)
+                  Translator or Reader tab and press Cmd/Ctrl+1–6
                 </div>
               </>
             )}
@@ -499,128 +542,36 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 zIndex: 1,
               }}
             >
-              {isPatternsDictionary ? (
-                <>
-                  <SelectAllCheckboxHeaderCell
-                    checked={
-                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                    }
-                    onChange={handleSelectAll}
-                  />
+              <SelectAllCheckboxHeaderCell
+                checked={
+                  selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
+                }
+                onChange={handleSelectAll}
+              />
+              {headerColumns.map((col) =>
+                col.className ? (
                   <div
-                    className={`${styles.patternsSourceCol} ${styles.headerCell}`}
-                    title="Pattern with highlighted variables"
+                    key={col.label}
+                    className={`${col.className} ${styles.headerCell}`}
+                    title={col.title}
                   >
-                    Source
+                    {col.label}
                   </div>
+                ) : (
                   <div
-                    className={`${styles.patternsTranslationCol} ${styles.headerCell}`}
-                    title="Translation with metadata badges (VAR = Allow as variable, LP = Low priority)"
-                  >
-                    Translation
-                  </div>
-                  <div
+                    key={col.label}
+                    className={col.widthClassName}
                     style={{
-                      width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
+                      width: col.width,
                       padding: '0.5rem 0.25rem',
                       fontWeight: 'bold',
                       textAlign: 'center',
                     }}
-                    title="Output semantic type (shown when pattern can be used as a variable)"
+                    title={col.title}
                   >
-                    Semantic
+                    {col.label}
                   </div>
-                  <div
-                    className={styles.patternsTypeCol}
-                    style={{
-                      padding: '0.5rem 0.25rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                    title="Type constraints for variable X"
-                  >
-                    X types
-                  </div>
-                  <div
-                    className={styles.patternsTypeCol}
-                    style={{
-                      padding: '0.5rem 0.25rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                    title="Type constraints for variable Y"
-                  >
-                    Y types
-                  </div>
-                </>
-              ) : isPhrasesDictionary ? (
-                <>
-                  <SelectAllCheckboxHeaderCell
-                    checked={
-                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                    }
-                    onChange={handleSelectAll}
-                  />
-                  <div className={`${styles.phrasesSourceCol} ${styles.headerCell}`}>Source</div>
-                  <div
-                    className={`${styles.phrasesTranslationCol} ${styles.headerCell}`}
-                    title="Translation with metadata badge (VAR = Allow as variable)"
-                  >
-                    Translation
-                  </div>
-                  <div
-                    style={{
-                      width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-                      padding: '0.5rem 0.25rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                    title="Semantic type"
-                  >
-                    Semantic
-                  </div>
-                </>
-              ) : isProperNounsDictionary ? (
-                <>
-                  <SelectAllCheckboxHeaderCell
-                    checked={
-                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                    }
-                    onChange={handleSelectAll}
-                  />
-                  <div className={`${styles.properNounsSourceCol} ${styles.headerCell}`}>
-                    Source
-                  </div>
-                  <div className={`${styles.properNounsTranslationCol} ${styles.headerCell}`}>
-                    Translation
-                  </div>
-                  <div
-                    style={{
-                      width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
-                      padding: '0.5rem 0.25rem',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                    }}
-                    title="Semantic type"
-                  >
-                    Semantic
-                  </div>
-                </>
-              ) : (
-                <>
-                  <SelectAllCheckboxHeaderCell
-                    checked={
-                      selectedEntries.size > 0 && selectedEntries.size === filteredEntries.length
-                    }
-                    onChange={handleSelectAll}
-                  />
-                  <div className={`${styles.simpleSourceCol} ${styles.headerCell}`}>
-                    Source Text
-                  </div>
-                  <div className={`${styles.simpleTranslationCol} ${styles.headerCell}`}>
-                    Translation
-                  </div>
-                </>
+                )
               )}
             </div>
 
@@ -633,51 +584,48 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
                 minHeight: 0,
                 maxHeight: '100%',
                 overflow: 'auto',
+                overflowAnchor: 'none',
                 position: 'relative',
               }}
             >
-              {/* Virtual spacer for total height */}
+              {/* Virtual spacer for total height. Each row is absolutely positioned at its own
+                  global index — nothing shifts in layout when rows enter or leave the rendered
+                  window. The earlier translateY'd slice shifted every row up 40px in layout
+                  whenever the top buffer row was dropped; WebKit's scroll anchoring "corrected"
+                  that by pulling scrollTop back, which re-added the row: flicker, then stuck.
+                  The stripe gradient sits on the spacer, in global coordinates, so a row's stripe
+                  parity is its real index with no phase bookkeeping. */}
               <div
                 style={{
                   height: totalHeight,
                   position: 'relative',
-                  // Hint to browser about content changes
-                  willChange: 'transform',
+                  backgroundImage: `repeating-linear-gradient(to bottom, var(--background-color) 0px, var(--background-color) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT * 2}px)`,
                 }}
               >
-                {/* Visible entries container with transform optimization.
-                    The repeating gradient lives here (not on the spacer) so that
-                    transparent rows look through to their DIRECT parent and see the
-                    correct stripe at their slice-local y-coordinate.
-                    backgroundPositionY shifts the gradient phase so that slice-index 0
-                    matches the global parity of startIndex: if startIndex is odd the
-                    first row of the rendered slice should show the odd stripe. */}
-                <div
-                  style={{
-                    transform: `translateY(${offsetY}px)`,
-                    willChange: scroll.isScrolling ? 'transform' : 'auto',
-                    backgroundImage: `repeating-linear-gradient(to bottom, var(--background-color) 0px, var(--background-color) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT}px, color-mix(in srgb, var(--text-color) 4%, transparent) ${ITEM_HEIGHT * 2}px)`,
-                    backgroundPositionY: `${(startIndex % 2) * ITEM_HEIGHT}px`,
-                  }}
-                >
-                  {visibleEntries.map(([source, translation], index) => {
-                    const actualIndex = startIndex + index;
-                    return (
-                      <VirtualRow
-                        key={`${selectedDictionary}-${source}-${actualIndex}`}
-                        source={source}
-                        translation={translation}
-                        _index={index}
-                        isScrolling={scroll.isScrolling}
-                        isSelected={selectedEntries.has(source)}
-                        selectedDictionary={selectedDictionary}
-                        onUpdateEntry={updateEntryWithScrollPreservation}
-                        onSelectEntry={handleSelectEntry}
-                        onContextMenu={handleContextMenu}
-                      />
-                    );
-                  })}
-                </div>
+                {visibleEntries.map(([source, translation], index) => (
+                  // Keyed by source alone (unique within a dictionary): an index in the key
+                  // remounted every row below an insert/delete, dropping inline-edit state.
+                  <div
+                    key={`${selectedDictionary}\u0000${source}`}
+                    style={{
+                      position: 'absolute',
+                      top: (startIndex + index) * ITEM_HEIGHT,
+                      left: 0,
+                      right: 0,
+                      height: ITEM_HEIGHT,
+                    }}
+                  >
+                    <VirtualRowComponent
+                      source={source}
+                      translation={translation}
+                      isSelected={selectedEntries.has(source)}
+                      selectedDictionary={selectedDictionary}
+                      onUpdateEntry={updateEntryWithScrollPreservation}
+                      onSelectEntry={handleSelectEntry}
+                      onContextMenu={handleContextMenu}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -689,73 +637,17 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
         <DictionaryEntry
           onClose={closeEdit}
           entry={editingEntry}
-          selectedDictionary={selectedDictionary}
+          selectedDictionary={editingEntry.dictionaryId ?? selectedDictionary}
         />
       )}
 
-      {/* Context menu */}
-      {contextMenu.visible && contextMenu.entry && (
-        <div
-          ref={contextMenuRef}
-          role="menu"
-          aria-label="Entry actions"
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            backgroundColor: 'var(--background-color)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-            zIndex: 2000,
-            minWidth: '180px',
-            overflow: 'hidden',
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={handleContextMenuKeyDown}
-        >
-          <button
-            role="menuitem"
-            onClick={handleContextMenuEdit}
-            className={styles.contextMenuItem}
-          >
-            <Edit2 size={14} />
-            <span>Edit Entry</span>
-          </button>
-
-          <button
-            role="menuitem"
-            onClick={handleContextMenuMove}
-            className={styles.contextMenuItem}
-          >
-            <ChevronsUp size={14} />
-            <span>Move to...</span>
-          </button>
-
-          <div
-            style={{
-              height: '1px',
-              backgroundColor: 'var(--border-color)',
-              margin: '0.25rem 0',
-            }}
-          />
-
-          <button
-            role="menuitem"
-            onClick={handleContextMenuDelete}
-            className={`${styles.contextMenuItem} ${styles.contextMenuItemDanger}`}
-          >
-            <Trash2 size={14} />
-            <span>Delete Entry</span>
-          </button>
-        </div>
-      )}
+      <EntryContextMenu menu={contextMenuApi} />
 
       {/* Move dialog — single entry (context menu) or bulk (multi-select) */}
       {(moveEntry || showBulkMoveDialog) && (
         <MoveDialog
           entries={moveEntry ? [moveEntry.source] : Array.from(selectedEntries)}
-          currentDictionary={selectedDictionary}
+          currentDictionary={moveEntry ? moveEntry.dictionaryId : selectedDictionary}
           onClose={() => {
             closeMove();
             setShowBulkMoveDialog(false);

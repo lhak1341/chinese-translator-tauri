@@ -42,6 +42,8 @@ interface UseVirtualScrollRangeOptions {
 }
 
 export interface VirtualScrollRange {
+  /** First row actually at the top of the viewport (startIndex minus the buffer). */
+  firstVisibleIndex: number;
   startIndex: number;
   endIndex: number;
   visibleCount: number;
@@ -52,6 +54,7 @@ export interface UseVirtualScrollRangeResult {
   handleScroll: (e: React.UIEvent<HTMLDivElement>) => void;
   scrollToTop: () => void;
   scrollToBottom: () => void;
+  scrollToIndex: (index: number) => void;
   scrollRefCallback: RefCallback<HTMLDivElement>;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   setScrollTop: React.Dispatch<React.SetStateAction<number>>;
@@ -72,7 +75,9 @@ export function useVirtualScrollRange(
   const [scrollTop, setScrollTop] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(600);
   const [isScrolling, setIsScrolling] = useState<boolean>(false);
-  const [scrollVelocity, setScrollVelocity] = useState<number>(0);
+  // Velocity is a ref, not state: it changes on every scroll event, and as state it forced a
+  // full table re-render per event even when the rendered row range had not moved.
+  const scrollVelocityRef = useRef<number>(0);
   const [bufferSize, setBufferSize] = useState<number>(10);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -102,7 +107,7 @@ export function useVirtualScrollRange(
           containerHeight,
           itemHeight,
           totalItems,
-          scrollVelocity,
+          scrollVelocity: scrollVelocityRef.current,
           isScrolling,
         });
         if (
@@ -119,7 +124,7 @@ export function useVirtualScrollRange(
     };
     const timer = setTimeout(calculate, 100);
     return () => clearTimeout(timer);
-  }, [containerHeight, totalItems, itemHeight, scrollVelocity, isScrolling, bufferSize]);
+  }, [containerHeight, totalItems, itemHeight, isScrolling, bufferSize]);
 
   const scrollRefCallback: RefCallback<HTMLDivElement> = useCallback((node) => {
     if (resizeObserverRef.current) {
@@ -146,11 +151,15 @@ export function useVirtualScrollRange(
     const buffer = Math.floor(bufferSize);
     // Clamp startIndex so a stale scrollTop (before a search that shrank the list) never
     // pushes startIndex past the end, which would leave visibleEntries empty.
-    const rawStart = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
+    const firstVisibleIndex = Math.min(
+      Math.floor(scrollTop / itemHeight),
+      Math.max(0, totalItems - 1)
+    );
+    const rawStart = Math.max(0, firstVisibleIndex - buffer);
     const startIndex = Math.min(rawStart, Math.max(0, totalItems - 1));
     const visibleCount = Math.ceil(containerHeight / itemHeight);
     const endIndex = Math.min(totalItems, startIndex + visibleCount + buffer * 2);
-    return { startIndex, endIndex, visibleCount };
+    return { firstVisibleIndex, startIndex, endIndex, visibleCount };
   }, [scrollTop, containerHeight, totalItems, bufferSize, itemHeight]);
 
   const handleScroll = useCallback(
@@ -164,14 +173,17 @@ export function useVirtualScrollRange(
       const velocity = timeDelta > 0 ? scrollDelta / timeDelta : 0;
 
       lastScrollTop.current = newScrollTop;
-      setScrollTop(newScrollTop);
-      setScrollVelocity(velocity);
+      // Snap to the row boundary: the rendered range depends only on which row is at the top,
+      // so sub-row scroll events now bail out of re-rendering (same state value) instead of
+      // re-rendering the whole table on every pixel.
+      setScrollTop(Math.floor(newScrollTop / itemHeight) * itemHeight);
+      scrollVelocityRef.current = velocity;
       setIsScrolling(true);
 
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = setTimeout(() => {
         setIsScrolling(false);
-        setScrollVelocity(0);
+        scrollVelocityRef.current = 0;
       }, 150);
 
       const frameTime = performance.now() - frameStartTime;
@@ -190,19 +202,31 @@ export function useVirtualScrollRange(
     [bufferSize, containerHeight, itemHeight, totalItems]
   );
 
+  // Instant, not smooth: a smooth scroll across a 40k-row list animates through every row
+  // range in between, rendering each one — seconds of jank for a jump the user wants now.
   const scrollToTop = useCallback((): void => {
-    if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, []);
 
   const scrollToBottom = useCallback((): void => {
-    if (scrollRef.current) scrollRef.current.scrollTo({ top: totalHeight, behavior: 'smooth' });
+    if (scrollRef.current) scrollRef.current.scrollTop = totalHeight;
   }, [totalHeight]);
+
+  /** Scrolls so row `index` is at the top of the viewport (clamped to the list). */
+  const scrollToIndex = useCallback(
+    (index: number): void => {
+      if (!scrollRef.current) return;
+      const clamped = Math.max(0, Math.min(index, totalItems - 1));
+      scrollRef.current.scrollTop = clamped * itemHeight;
+    },
+    [totalItems, itemHeight]
+  );
 
   const resetScroll = useCallback((): void => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
     setScrollTop(0);
     setIsScrolling(false);
-    setScrollVelocity(0);
+    scrollVelocityRef.current = 0;
     lastScrollTop.current = 0;
   }, []);
 
@@ -255,12 +279,13 @@ export function useVirtualScrollRange(
     handleScroll,
     scrollToTop,
     scrollToBottom,
+    scrollToIndex,
     scrollRefCallback,
     scrollRef,
     setScrollTop,
     resetScroll,
     isScrolling,
-    scrollVelocity,
+    scrollVelocity: scrollVelocityRef.current,
     containerHeight,
     withScrollPreservation,
     getScrollTop,

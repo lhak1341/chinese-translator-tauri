@@ -57,3 +57,43 @@ export function toProperNounsId(patternsId: string): string {
 export function toProperNounsDictionaryId(rawName: string): string {
   return `properNouns-${rawName.trim().replace(/\s+/g, '')}`;
 }
+
+/**
+ * Whether an entry carries an editable semantic type — the rule the dictionary table's Semantic
+ * column follows: always for proper nouns; for phrases and patterns only once the entry is
+ * allowed as a pattern variable (the type only matters when it fills a variable slot); never for
+ * string-only lookup tables.
+ */
+export function hasSemanticTypeColumn(id: string, allowAsPatternVariable: boolean): boolean {
+  const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(id);
+  if (isProperNouns) return true;
+  return (isPatterns || isPhrases) && allowAsPatternVariable;
+}
+
+/**
+ * Which dictionaries an entry may be moved between. An entry only makes sense in a dictionary
+ * of the same shape: a pattern template (`X的Y`) moved into `phrases` becomes a literal phrase
+ * matching the letters X and Y, and a complex `{ translation, ...metadata }` value moved into a
+ * string-only lookup table (`characters`/`conversion`/`punctuation`) breaks that table's
+ * two-tier format contract (see `src/components/dictionary/CLAUDE.md`).
+ *
+ * - `'patterns'` — `patterns` and every `patterns-f_*`
+ * - `'lexical'` — `phrases` and every `properNouns*` (same value shape, same metadata)
+ * - `null` — string-only lookup tables; entries there are not movable at all
+ */
+export type MoveFamily = 'patterns' | 'lexical';
+
+export function getMoveFamily(id: string): MoveFamily | null {
+  const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(id);
+  if (isPatterns) return 'patterns';
+  if (isPhrases || isProperNouns) return 'lexical';
+  return null;
+}
+
+/** True when an entry in `sourceId` may be moved to `targetId`. The single rule the move
+ * dialog's target list, the context menu, and `moveEntry`/`bulkMoveEntries` all enforce. */
+export function canMoveBetween(sourceId: string, targetId: string): boolean {
+  if (sourceId === targetId) return false;
+  const family = getMoveFamily(sourceId);
+  return family !== null && family === getMoveFamily(targetId);
+}

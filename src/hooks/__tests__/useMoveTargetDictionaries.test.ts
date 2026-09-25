@@ -16,23 +16,49 @@ describe('useMoveTargetDictionaries', () => {
     mockGetDictionaryTypes.mockReset();
   });
 
-  it('loads available dictionaries, filtering out the current one, sorted with properNouns first', async () => {
+  it('loads same-family targets only, filtering out the current one, base dictionaries first', async () => {
     mockGetDictionaryTypes.mockResolvedValue({
       properNouns: {},
       phrases: {},
       characters: {},
+      patterns: {},
       'properNouns-HarryPotter': {},
     });
 
     const { result } = renderHook(() => useMoveTargetDictionaries('phrases'));
 
-    await waitFor(() => expect(result.current.availableDictionaries).toHaveLength(3));
+    await waitFor(() => expect(result.current.availableDictionaries).toHaveLength(2));
 
     expect(result.current.availableDictionaries).toEqual([
       { id: 'properNouns', label: 'Proper Nouns (Base)' },
-      { id: 'characters', label: 'Characters' },
       { id: 'properNouns-HarryPotter', label: 'Proper Nouns - HarryPotter' },
     ]);
+  });
+
+  it('offers only pattern dictionaries for a pattern source', async () => {
+    mockGetDictionaryTypes.mockResolvedValue({
+      patterns: {},
+      'patterns-f_DuongThan': {},
+      phrases: {},
+      properNouns: {},
+    });
+
+    const { result } = renderHook(() => useMoveTargetDictionaries('patterns-f_DuongThan'));
+
+    await waitFor(() => expect(result.current.availableDictionaries).toHaveLength(1));
+    expect(result.current.availableDictionaries[0]).toEqual({
+      id: 'patterns',
+      label: 'Patterns (Base)',
+    });
+  });
+
+  it('offers nothing for a string-only lookup table', async () => {
+    mockGetDictionaryTypes.mockResolvedValue({ characters: {}, conversion: {}, phrases: {} });
+
+    const { result } = renderHook(() => useMoveTargetDictionaries('characters'));
+
+    await waitFor(() => expect(mockGetDictionaryTypes).toHaveBeenCalled());
+    expect(result.current.availableDictionaries).toEqual([]);
   });
 
   it('excludes the current dictionary id from the available list', async () => {

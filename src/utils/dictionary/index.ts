@@ -70,7 +70,7 @@ export type { DictionaryCategory } from './LookupIndexUtils';
 export { isDictionaryCategory, getIndexedMatches } from './LookupIndexUtils';
 
 // --- UI-layer dictionary ID classification ---
-export type { DictionaryTypeFlags } from './DictionaryIdClassifier';
+export type { DictionaryTypeFlags, MoveFamily } from './DictionaryIdClassifier';
 export {
   classifyDictionaryId,
   toPatternsId,
@@ -78,6 +78,9 @@ export {
   toProperNounsDictionaryId,
   isFictionProperNounsId,
   isFictionPatternsId,
+  getMoveFamily,
+  canMoveBetween,
+  hasSemanticTypeColumn,
 } from './DictionaryIdClassifier';
 
 // --- Quick Add target resolution (Cmd-5 / Cmd-6) ---

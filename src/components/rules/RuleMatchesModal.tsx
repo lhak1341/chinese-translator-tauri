@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import styles from '../../styles/RuleMatchesModal.module.css';
 import dictStyles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
@@ -6,6 +6,9 @@ import dmStyles from '../../styles/DictionaryManager.module.css';
 import { RowShell, MetadataBadge, SemanticTypeToggleCell } from '../dictionary/TableBuildingBlocks';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { ControlledEditableCell } from './EditableCell';
+import EntryContextMenu from '../dictionary/EntryContextMenu';
+import MoveDialog from '../dictionary/MoveDialog';
+import { useContextMenu, type ContextMenuEntry } from '../../hooks/useContextMenu';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
 import { findRuleMatchingEntries } from '../../utils/dictionary/TransformRuleEngine';
 import type { RuleMatchEntry } from '../../utils/dictionary/TransformRuleEngine';
@@ -24,8 +27,17 @@ interface RuleMatchesModalProps {
   rule: TransformRule;
   dictionaries: Record<string, DictionaryData>;
   updateEntry: OnUpdateEntry;
+  /** Right-click → Delete. Same `deleteEntry` the Dictionary tab uses (it owns the toast). */
+  deleteEntry: (dictionaryId: string, source: string) => Promise<void>;
   onClose: () => void;
 }
+
+type OnRowContextMenu = (
+  e: React.MouseEvent,
+  source: string,
+  translation: string,
+  dictionaryId: string
+) => void;
 
 /** properNouns entries are always usable as variables — unlike phrases, where it's a
  * real per-entry toggle. Same badge look, but not clickable, with a title explaining why
@@ -53,7 +65,15 @@ function VarBadge({
   return <MetadataBadge type="variable" active={active} onClick={onToggle} />;
 }
 
-function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUpdateEntry }) {
+function MatchRow({
+  row,
+  updateEntry,
+  onContextMenu,
+}: {
+  row: RuleMatchEntry;
+  updateEntry: OnUpdateEntry;
+  onContextMenu: OnRowContextMenu;
+}) {
   const isProperNoun = row.dictionaryId.startsWith('properNouns');
 
   const commitTranslation = async (newTranslation: string): Promise<void> => {
@@ -82,7 +102,10 @@ function MatchRow({ row, updateEntry }: { row: RuleMatchEntry; updateEntry: OnUp
   const showSemantic = isProperNoun || row.allowAsPatternVariable;
 
   return (
-    <RowShell role="row">
+    <RowShell
+      role="row"
+      onContextMenu={(e) => onContextMenu(e, row.source, row.translation, row.dictionaryId)}
+    >
       <div role="cell" className={`${dictStyles.cell} ${styles.colSource}`}>
         {row.source}
       </div>
@@ -134,9 +157,24 @@ const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
   rule,
   dictionaries,
   updateEntry,
+  deleteEntry,
   onClose,
 }) => {
   const matches = useMemo(() => findRuleMatchingEntries(rule, dictionaries), [rule, dictionaries]);
+
+  // Right-click Move to... / Delete — the Dictionary tab's own menu and MoveDialog. No Edit
+  // item: every editable field here is already edited inline. A moved or deleted entry drops
+  // out of `matches` on its own, since the list is derived from live `dictionaries`.
+  const [moveEntry, setMoveEntry] = useState<ContextMenuEntry | null>(null);
+  const onDelete = useCallback(
+    (entry: ContextMenuEntry) => deleteEntry(entry.dictionaryId, entry.source),
+    [deleteEntry]
+  );
+  const contextMenuApi = useContextMenu({
+    onEdit: () => {},
+    onMove: setMoveEntry,
+    onDelete,
+  });
 
   return (
     <div className={styles.fullscreen}>
@@ -176,11 +214,22 @@ const RuleMatchesModal: React.FC<RuleMatchesModalProps> = ({
                   key={`${row.dictionaryId}::${row.source}`}
                   row={row}
                   updateEntry={updateEntry}
+                  onContextMenu={contextMenuApi.handleContextMenu}
                 />
               ))}
             </div>
           </div>
         </div>
+      )}
+
+      <EntryContextMenu menu={contextMenuApi} showEdit={false} />
+
+      {moveEntry && (
+        <MoveDialog
+          entries={[moveEntry.source]}
+          currentDictionary={moveEntry.dictionaryId}
+          onClose={() => setMoveEntry(null)}
+        />
       )}
     </div>
   );

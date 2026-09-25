@@ -26,8 +26,6 @@ interface UseEntrySelectionDeps {
   showDuplicatesMode: boolean;
   withScrollPreservation: (asyncFn: () => Promise<void>) => Promise<void>;
   bulkDeleteEntries: (dictId: string, sources: string[]) => Promise<BulkDeleteResult>;
-  /** Refreshes the duplicate list after a delete, preserving scroll across the resulting remount. */
-  refreshDuplicatesPreservingScroll?: () => Promise<void>;
   onSelectionChange?: (state: SelectionState) => void;
 }
 
@@ -39,7 +37,6 @@ export function useEntrySelection({
   showDuplicatesMode,
   withScrollPreservation,
   bulkDeleteEntries,
-  refreshDuplicatesPreservingScroll,
   onSelectionChange,
 }: UseEntrySelectionDeps) {
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
@@ -56,6 +53,30 @@ export function useEntrySelection({
     setShowBulkMoveDialog(false);
     setIsDeleting(false);
   }, []);
+
+  // Drop selected keys whose entry no longer exists (deleted or moved from the context menu,
+  // undone, edited to a new source). Without this the toolbar count stays too high and a bulk
+  // delete reports the ghosts as "not found" failures. Keys merely hidden by the search/filter
+  // are kept — only a key with no entry behind it is removed.
+  useEffect(() => {
+    setSelectedEntries((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Set<string>();
+      for (const key of prev) {
+        let dictionaryId = selectedDictionary;
+        let source = key;
+        if (showDuplicatesMode) {
+          try {
+            ({ source, dictionaryId } = parseDuplicateKey(key));
+          } catch {
+            continue;
+          }
+        }
+        if (dictionaries[dictionaryId]?.[source] !== undefined) next.add(key);
+      }
+      return next.size === prev.size ? prev : next;
+    });
+  }, [dictionaries, selectedDictionary, showDuplicatesMode]);
 
   const handleSelectEntry = useCallback(
     (source: string, isSelected: boolean): void => {
@@ -179,23 +200,13 @@ export function useEntrySelection({
         setSelectedEntries(new Set());
         setShowBulkDeleteConfirm(false);
       }
-
-      if (showDuplicatesMode && refreshDuplicatesPreservingScroll) {
-        await refreshDuplicatesPreservingScroll();
-      }
     } catch (error) {
       toast.error(`Critical error during deletion: ${(error as Error).message}`, 6000);
       logger.error('Bulk delete error:', error);
     } finally {
       setIsDeleting(false);
     }
-  }, [
-    selectedDictionary,
-    bulkDeleteEntries,
-    dictionaries,
-    showDuplicatesMode,
-    refreshDuplicatesPreservingScroll,
-  ]);
+  }, [selectedDictionary, bulkDeleteEntries, dictionaries, showDuplicatesMode]);
 
   const handleBulkMove = useCallback((): void => {
     if (selectedEntriesRef.current.size === 0) return;
@@ -213,11 +224,15 @@ export function useEntrySelection({
         isDeleting,
         showBulkDeleteConfirm,
         setShowBulkDeleteConfirm,
-        onBulkMove: handleBulkMove,
+        // Duplicate-mode selections span several dictionaries (composite keys) — one move
+        // dialog has one source dictionary, so bulk move is offered only in the normal view.
+        // Single rows still move from the duplicate view's context menu.
+        onBulkMove: showDuplicatesMode ? undefined : handleBulkMove,
         isMoving: false,
       });
     }
   }, [
+    showDuplicatesMode,
     selectedEntries,
     isDeleting,
     showBulkDeleteConfirm,

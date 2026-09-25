@@ -1,9 +1,17 @@
 import React from 'react';
 import { describe, test, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import RuleMatchesModal from '../RuleMatchesModal';
 import type { TransformRule } from '../../../types/TransformRuleTypes';
 import type { DictionaryData } from '../../../types/DictionaryTypes';
+
+vi.mock('../../dictionary/MoveDialog', () => ({
+  default: ({ entries, currentDictionary }: { entries: string[]; currentDictionary: string }) => (
+    <div data-testid="move-dialog">
+      {entries.join(',')}|{currentDictionary}
+    </div>
+  ),
+}));
 
 // Covers exactly what RulesManager.test.tsx's "clicking the magnifier opens a modal"
 // integration test and TransformRuleEngine.test.ts's findRuleMatchingEntries suite do
@@ -55,17 +63,19 @@ function getRowForSource(source: string): HTMLElement {
 
 function renderModal(overrides: Partial<React.ComponentProps<typeof RuleMatchesModal>> = {}) {
   const updateEntry = vi.fn().mockResolvedValue(undefined);
+  const deleteEntry = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
   render(
     <RuleMatchesModal
       rule={RULE}
       dictionaries={DICTIONARIES}
       updateEntry={updateEntry}
+      deleteEntry={deleteEntry}
       onClose={onClose}
       {...overrides}
     />
   );
-  return { updateEntry, onClose };
+  return { updateEntry, deleteEntry, onClose };
 }
 
 describe('RuleMatchesModal — commitTranslation metadata merge', () => {
@@ -212,5 +222,36 @@ describe('RuleMatchesModal — empty state', () => {
 
     expect(screen.getByText('No dictionary entries match this rule yet.')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+describe('RuleMatchesModal — right-click menu', () => {
+  test('offers Move and Delete but no Edit (fields already edit inline)', () => {
+    renderModal();
+    fireEvent.contextMenu(getRowForSource('小城'));
+    const menu = screen.getByRole('menu', { name: 'Entry actions' });
+    expect(within(menu).getByText('Move to...')).toBeInTheDocument();
+    expect(within(menu).getByText('Delete Entry')).toBeInTheDocument();
+    expect(within(menu).queryByText('Edit Entry')).toBeNull();
+  });
+
+  test('Delete needs a second click, then deletes from the row’s own dictionary', async () => {
+    const { deleteEntry } = renderModal();
+    fireEvent.contextMenu(getRowForSource('南京城'));
+    await act(async () => {
+      fireEvent.click(screen.getByText('Delete Entry'));
+    });
+    expect(deleteEntry).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(screen.getByText('Click again to delete'));
+    });
+    expect(deleteEntry).toHaveBeenCalledWith('properNouns-f_test', '南京城');
+  });
+
+  test('Move to... opens the move dialog for that entry and dictionary', () => {
+    renderModal();
+    fireEvent.contextMenu(getRowForSource('皇城'));
+    fireEvent.click(screen.getByText('Move to...'));
+    expect(screen.getByTestId('move-dialog')).toHaveTextContent('皇城|phrases');
   });
 });

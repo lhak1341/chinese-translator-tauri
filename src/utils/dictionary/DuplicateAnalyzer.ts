@@ -20,10 +20,13 @@ export interface DuplicateRow {
   dictionaryId: string;
   /** Human-readable dictionary label for display */
   dictionaryLabel: string;
-  /** Metadata for patterns/phrases (if applicable) */
-  metadata?: {
-    allowAsPatternVariable?: boolean;
-  };
+  /** Metadata for complex-tier entries (absent for string-only lookup tables) */
+  metadata?: DuplicateRowMetadata;
+}
+
+export interface DuplicateRowMetadata {
+  allowAsPatternVariable?: boolean;
+  semanticType?: string;
 }
 
 /**
@@ -90,7 +93,7 @@ export function findConflictingEntries(
     Array<{
       dictionaryId: string;
       translation: string;
-      metadata?: { allowAsPatternVariable?: boolean };
+      metadata?: DuplicateRowMetadata;
     }>
   >();
 
@@ -121,6 +124,7 @@ export function findConflictingEntries(
         typeof value === 'object'
           ? {
               allowAsPatternVariable: value.allowAsPatternVariable,
+              semanticType: value.semanticType,
             }
           : undefined;
 

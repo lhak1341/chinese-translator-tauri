@@ -38,7 +38,12 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('../../utils/dictionary/PersistTimeValidator', () => ({
   validatePersistEntry: vi.fn().mockReturnValue(null),
 }));
-vi.mock('../../utils/dictionary', () => ({
+vi.mock('../../utils/dictionary', async () => ({
+  canMoveBetween: (
+    await vi.importActual<typeof import('../../utils/dictionary/DictionaryIdClassifier')>(
+      '../../utils/dictionary/DictionaryIdClassifier'
+    )
+  ).canMoveBetween,
   sanitizeDictionaryEntry: vi.fn().mockImplementation((s: string, t: string) => ({
     source: s,
     translation: t,
@@ -418,6 +423,26 @@ describe('moveEntry — source not found', () => {
         `Entry '${SOURCE}' not found in source dictionary`
       );
     });
+  });
+});
+
+describe('moveEntry / bulkMoveEntries — incompatible target', () => {
+  it.each([
+    ['patterns', 'phrases'],
+    ['phrases', 'characters'],
+    ['characters', 'conversion'],
+  ])('rejects a move from %s to %s before touching disk', async (from, to) => {
+    const refData = { [from]: { [SOURCE]: phraseEntry }, [to]: {} };
+    const { result, commitMove } = makeHook(refData);
+    await act(async () => {
+      await expect(result.current.moveEntry(from, to, SOURCE, 'Test')).rejects.toThrow(
+        /incompatible dictionary types/
+      );
+      await expect(result.current.bulkMoveEntries(from, to, [SOURCE], 'Test')).rejects.toThrow(
+        /incompatible dictionary types/
+      );
+    });
+    expect(commitMove).not.toHaveBeenCalled();
   });
 });
 

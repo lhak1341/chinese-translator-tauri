@@ -22,18 +22,14 @@ function makeRow(overrides: Partial<DuplicateRow> = {}): DuplicateRow {
 }
 
 function renderView(overrides: Record<string, any> = {}) {
-  const onSearchChange = vi.fn();
   const onScroll = vi.fn();
   const scrollRefCallback = vi.fn();
   const onSelectEntry = vi.fn();
   const onSelectAll = vi.fn();
   const props = {
-    searchTerm: '',
-    onSearchChange,
     scrollRefCallback,
     onScroll,
     totalHeight: 0,
-    offsetY: 0,
     visibleDuplicateRows: [] as DuplicateRow[],
     startIndex: 0,
     duplicateGroupIndices: [] as number[],
@@ -44,7 +40,7 @@ function renderView(overrides: Record<string, any> = {}) {
     ...overrides,
   };
   render(<DuplicateDictionaryTableView {...props} />);
-  return { onSearchChange, onScroll, scrollRefCallback, onSelectEntry, onSelectAll };
+  return { onScroll, scrollRefCallback, onSelectEntry, onSelectAll };
 }
 
 describe('DuplicateDictionaryTableView — header', () => {
@@ -69,21 +65,6 @@ describe('DuplicateDictionaryTableView — header', () => {
     const { onSelectAll } = renderView({ allSelected: false });
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all entries' }));
     expect(onSelectAll).toHaveBeenCalledWith(true);
-  });
-});
-
-describe('DuplicateDictionaryTableView — search', () => {
-  test('reflects searchTerm in the input value', () => {
-    renderView({ searchTerm: '你好' });
-    expect(screen.getByPlaceholderText('Search duplicates...')).toHaveValue('你好');
-  });
-
-  test('calls onSearchChange with the new value on input', () => {
-    const { onSearchChange } = renderView();
-    fireEvent.change(screen.getByPlaceholderText('Search duplicates...'), {
-      target: { value: '再见' },
-    });
-    expect(onSearchChange).toHaveBeenCalledWith('再见');
   });
 });
 
@@ -163,16 +144,26 @@ describe('DuplicateDictionaryTableView — selection checkbox', () => {
 });
 
 describe('DuplicateDictionaryTableView — scroll wiring', () => {
-  test('sets totalHeight and translateY(offsetY) on the scroll container', () => {
-    renderView({ totalHeight: 400, offsetY: 80, visibleDuplicateRows: [makeRow()] });
+  test('positions each row absolutely at its global index inside a totalHeight spacer', () => {
+    renderView({
+      totalHeight: 400,
+      startIndex: 2,
+      visibleDuplicateRows: [makeRow(), makeRow({ dictionaryId: 'properNouns' })],
+    });
 
-    const sourceCell = screen.getByText('你好');
-    // Walk up to the translateY wrapper (parent of the row div).
-    const translateWrapper = sourceCell.parentElement?.parentElement;
-    expect(translateWrapper).toHaveStyle({ transform: 'translateY(80px)' });
+    const [first, second] = screen.getAllByText('你好');
+    // cell -> RowShell -> absolute wrapper
+    const firstWrapper = first.parentElement?.parentElement;
+    const secondWrapper = second.parentElement?.parentElement;
+    expect(firstWrapper).toHaveStyle({ position: 'absolute', top: '80px', height: '40px' });
+    expect(secondWrapper).toHaveStyle({ position: 'absolute', top: '120px' });
+    expect(firstWrapper?.parentElement).toHaveStyle({ height: '400px' });
+  });
 
-    const heightWrapper = translateWrapper?.parentElement;
-    expect(heightWrapper).toHaveStyle({ height: '400px' });
+  test('disables scroll anchoring on the scroll container', () => {
+    const { scrollRefCallback } = renderView({ visibleDuplicateRows: [makeRow()] });
+    const container = scrollRefCallback.mock.calls.at(-1)![0] as HTMLDivElement;
+    expect(container.style.overflowAnchor).toBe('none');
   });
 
   test('fires onScroll when the scroll container is scrolled', () => {
@@ -187,5 +178,56 @@ describe('DuplicateDictionaryTableView — scroll wiring', () => {
     expect(scrollNode).not.toBeNull();
     fireEvent.scroll(scrollNode as unknown as HTMLDivElement);
     expect(onScroll).toHaveBeenCalled();
+  });
+});
+
+describe('DuplicateDictionaryTableView — context menu', () => {
+  test('right-click reports the row source, translation, and owning dictionary', () => {
+    const onContextMenu = vi.fn();
+    const rows = [
+      makeRow({ source: '你好', translation: 'xin chào', dictionaryId: 'phrases' }),
+      makeRow({ source: '你好', translation: 'chào', dictionaryId: 'properNouns-A' }),
+    ];
+    renderView({ visibleDuplicateRows: rows, onContextMenu });
+
+    fireEvent.contextMenu(screen.getByText('chào'));
+
+    expect(onContextMenu).toHaveBeenCalledWith(expect.anything(), '你好', 'chào', 'properNouns-A');
+  });
+});
+
+describe('DuplicateDictionaryTableView — semantic column', () => {
+  test('shows the active type for proper-noun rows and reports a change with the row', () => {
+    const onSetSemanticType = vi.fn();
+    const row = makeRow({
+      source: '青云',
+      dictionaryId: 'properNouns',
+      dictionaryLabel: 'Proper Nouns',
+      metadata: { semanticType: 'location' },
+    });
+    renderView({ visibleDuplicateRows: [row], onSetSemanticType });
+
+    fireEvent.click(screen.getByLabelText('Set Organization for 青云 in Proper Nouns'));
+    expect(onSetSemanticType).toHaveBeenCalledWith(row, 'organization');
+
+    fireEvent.click(screen.getByLabelText('Set Location for 青云 in Proper Nouns'));
+    expect(onSetSemanticType).toHaveBeenCalledWith(row, ''); // active chip clears
+  });
+
+  test('hides the chips for a phrase not allowed as a variable', () => {
+    const row = makeRow({ source: '你好', dictionaryId: 'phrases', dictionaryLabel: 'Phrases' });
+    renderView({ visibleDuplicateRows: [row], onSetSemanticType: vi.fn() });
+    expect(screen.queryByLabelText(/^Set .* for 你好 in Phrases$/)).toBeNull();
+  });
+
+  test('shows the chips for a phrase allowed as a variable', () => {
+    const row = makeRow({
+      source: '你好',
+      dictionaryId: 'phrases',
+      dictionaryLabel: 'Phrases',
+      metadata: { allowAsPatternVariable: true },
+    });
+    renderView({ visibleDuplicateRows: [row], onSetSemanticType: vi.fn() });
+    expect(screen.getByLabelText('Set Character for 你好 in Phrases')).toBeInTheDocument();
   });
 });

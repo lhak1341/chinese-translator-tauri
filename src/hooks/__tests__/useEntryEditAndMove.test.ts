@@ -15,7 +15,6 @@ const dictionaries: Record<string, DictionaryData> = {
 function makeParams(overrides: Partial<Parameters<typeof useEntryEditAndMove>[0]> = {}) {
   return {
     dictionaries,
-    selectedDictionary: DICT_ID,
     updateEntry: vi.fn().mockResolvedValue(undefined),
     withScrollPreservation: vi.fn().mockImplementation(async (fn: () => Promise<void>) => {
       await fn();
@@ -35,11 +34,18 @@ describe('useEntryEditAndMove — initial state', () => {
 describe('useEntryEditAndMove — onContextMenuEdit', () => {
   it('sets editingEntry from dictionary lookup', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
-    act(() => result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION }));
+    act(() =>
+      result.current.onContextMenuEdit({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      })
+    );
     expect(result.current.editingEntry).toEqual({
       source: SOURCE,
       translation: phraseEntry,
       allowAsPatternVariable: true,
+      dictionaryId: DICT_ID,
     });
   });
 
@@ -48,14 +54,25 @@ describe('useEntryEditAndMove — onContextMenuEdit', () => {
       dictionaries: { [DICT_ID]: { [SOURCE]: TRANSLATION } },
     });
     const { result } = renderHook(() => useEntryEditAndMove(params));
-    act(() => result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION }));
+    act(() =>
+      result.current.onContextMenuEdit({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      })
+    );
     expect(result.current.editingEntry?.allowAsPatternVariable).toBe(false);
   });
 
   it('returns early when dictionary is not found', () => {
-    const params = makeParams({ selectedDictionary: 'nonexistent' });
-    const { result } = renderHook(() => useEntryEditAndMove(params));
-    act(() => result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION }));
+    const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
+    act(() =>
+      result.current.onContextMenuEdit({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: 'nonexistent',
+      })
+    );
     expect(result.current.editingEntry).toBeNull();
   });
 });
@@ -63,8 +80,18 @@ describe('useEntryEditAndMove — onContextMenuEdit', () => {
 describe('useEntryEditAndMove — onContextMenuMove', () => {
   it('sets moveEntry', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
-    act(() => result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION }));
-    expect(result.current.moveEntry).toEqual({ source: SOURCE, translation: TRANSLATION });
+    act(() =>
+      result.current.onContextMenuMove({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      })
+    );
+    expect(result.current.moveEntry).toEqual({
+      source: SOURCE,
+      translation: TRANSLATION,
+      dictionaryId: DICT_ID,
+    });
   });
 });
 
@@ -72,8 +99,16 @@ describe('useEntryEditAndMove — reset', () => {
   it('clears editingEntry and moveEntry', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
     act(() => {
-      result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION });
-      result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION });
+      result.current.onContextMenuEdit({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      });
+      result.current.onContextMenuMove({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      });
     });
     act(() => result.current.reset());
     expect(result.current.editingEntry).toBeNull();
@@ -149,8 +184,16 @@ describe('useEntryEditAndMove — closeEdit / closeMove', () => {
   it('closeEdit() clears editingEntry without affecting moveEntry', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
     act(() => {
-      result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION });
-      result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION });
+      result.current.onContextMenuEdit({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      });
+      result.current.onContextMenuMove({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      });
     });
     act(() => result.current.closeEdit());
     expect(result.current.editingEntry).toBeNull();
@@ -160,8 +203,16 @@ describe('useEntryEditAndMove — closeEdit / closeMove', () => {
   it('closeMove() clears moveEntry without affecting editingEntry', () => {
     const { result } = renderHook(() => useEntryEditAndMove(makeParams()));
     act(() => {
-      result.current.onContextMenuEdit({ source: SOURCE, translation: TRANSLATION });
-      result.current.onContextMenuMove({ source: SOURCE, translation: TRANSLATION });
+      result.current.onContextMenuEdit({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      });
+      result.current.onContextMenuMove({
+        source: SOURCE,
+        translation: TRANSLATION,
+        dictionaryId: DICT_ID,
+      });
     });
     act(() => result.current.closeMove());
     expect(result.current.moveEntry).toBeNull();

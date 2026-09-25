@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getDictionaryTypes } from '../components/dictionary/DictionaryTypes';
 import { getDictionaryDropdownLabel, compareDictionaryOrder } from '../utils/dictionaryHelpers';
 import { logger } from '../utils/logger';
+import { canMoveBetween } from '../utils/dictionary';
 
 export interface MoveTargetDictionary {
   id: string;
@@ -19,7 +20,7 @@ export function useMoveTargetDictionaries(
       try {
         const types = await getDictionaryTypes();
         const dictionaryList = Object.keys(types)
-          .filter((id) => id !== currentDictionaryId)
+          .filter((id) => canMoveBetween(currentDictionaryId, id))
           .map((id) => ({ id, label: getDictionaryDropdownLabel(id) }))
           .sort(compareDictionaryOrder);
         setAvailableDictionaries(dictionaryList);

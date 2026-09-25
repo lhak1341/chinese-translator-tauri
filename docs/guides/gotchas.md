@@ -120,6 +120,8 @@ All three live in `dictionary_commands.rs`. When adding a command that matches a
 
 ## Testing Gotchas
 
+**A lone 5000 ms timeout in the full suite, in a file you didn't touch, is load flake** — it moved between `DictionaryManager.composition` and `DictionaryOperationReverter` on consecutive runs (2026-09-25), both passing alone. Re-run that file with `bunx vitest --run <path>` before debugging; a real failure reproduces there.
+
 **`src/test/setup.ts` MUST NOT be deleted**: It is the Vitest setup file referenced by `vitest.config.ts:10` (`setupFiles: './src/test/setup.ts'`). The duplicate test files in `src/test/` were removed (stale copies of `src/utils/__tests__/`), but `setup.ts` was not.
 
 **Vitest `vi.doMock` paths for non-existent WASM modules** (2026-02-13): For `translation_wasm_core.js` (virtual, doesn't exist on disk), the mock path must resolve to the same directory as the source file's import — not the test file's directory. Test in `src/test/` uses `'../wasm/translation_wasm_core.js'`; test in `src/utils/__tests__/` uses `'../../wasm/translation_wasm_core.js'` (both → `src/wasm/`).
