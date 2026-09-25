@@ -65,7 +65,7 @@ function App() {
   }, []);
 
   // Flush any pending Reader position write before the window actually closes — the
-  // debounce (see useReadingPosition) means a scroll right before quitting could
+  // debounce (see ReadingAnchor) means a scroll right before quitting could
   // otherwise never reach disk. Dynamically imported: `@tauri-apps/api/window` touches
   // the Tauri IPC bridge at module load, which the vitest/jsdom test environment doesn't
   // provide, and this app has no non-Tauri (browser-only) target to support instead.

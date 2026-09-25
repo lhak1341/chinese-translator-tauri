@@ -11,8 +11,6 @@ import { logger } from '../../utils/logger';
 import { requestDictionaryReload } from '../../utils/dictionary';
 import { useDictionary } from '../dictionary/DictionaryContext';
 import { useDictionaryModals } from '../../hooks/useDictionaryModals';
-import { useReloadReanchor } from '../../hooks/useReloadReanchor';
-import { useAppearanceRelayout } from '../../hooks/useAppearanceRelayout';
 import HotkeyHandler from '../HotkeyHandler';
 import DictionaryEntry from '../dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../ModalErrorBoundary';
@@ -21,9 +19,8 @@ import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
 import type { GlossResult } from '../../hooks/useWindowedTranslation';
 import { callOnEngine } from '../../utils/reader/EngineCall';
 import { useReaderHighlight } from '../../hooks/useReaderHighlight';
-import { countVisibleLines, nextViewportLines } from '../../utils/reader/TranslationWindow';
 import { useEngine } from '../EngineContext';
-import { computeAnchor, useReadingPosition } from '../../hooks/useReadingPosition';
+import { useReadingAnchor } from '../../hooks/useReadingAnchor';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
 import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
@@ -57,7 +54,7 @@ interface BookReaderProps {
   initialChapterOutline: ChapterOutlineSummary | null;
   /** This book's persisted manual pattern override at open time, or `null`. */
   initialManualChapterPattern: ChapterPatternId | null;
-  /** Whether the Reader is the visible tab — see `useReadingPosition`. */
+  /** Whether the Reader is the visible tab — see `useReadingAnchor`. */
   isActive: boolean;
   /** The whole shelf, so the palette can switch books without going back to it. The open
    * book is in here too; the palette drops its own row. */
@@ -81,12 +78,6 @@ interface BookReaderProps {
 const EM_PER_CHAR_ORIGINAL = 1;
 const EM_PER_CHAR_TRANSLATION = 1.5;
 const EM_PER_CHAR_CHARACTER_ONLY = 2.5;
-
-/**
- * Lines the viewport is assumed to hold before it has been measured once. Only the very
- * first fill uses it; every later one is driven by the measured count.
- */
-const DEFAULT_VIEWPORT_LINES = 30;
 
 /**
  * Lines requested beyond the rendered range in each direction.
@@ -163,15 +154,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
   // book does not silently hide it for the next.
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
-  const [viewportLines, setViewportLines] = useState(DEFAULT_VIEWPORT_LINES);
-  const [anchorLine, setAnchorLine] = useState(0);
-  /** The anchor at full precision (line + sub-line fraction), kept live for the reload
-   * re-anchor — which needs the value as of the moment the reload lands, not as of
-   * whatever render last read it. */
-  const anchorRef = useRef<ReadingPosition | null>(null);
-  /** Set by `scrollToLine`, consumed by the very next `measureViewport` call — see its
-   * own comment for why a jump's first remeasurement needs to be thrown away. */
-  const skipNextAnchorMeasureRef = useRef(false);
   const { engineRef, enginePhase, engineVersion } = useEngine();
   const { highlight, toggleHighlight } = useReaderHighlight(book.fingerprint, engineVersion);
   const {
@@ -279,60 +261,28 @@ const BookReader: React.FC<BookReaderProps> = ({
     [scrollRef]
   );
 
-  /**
-   * Publish the anchor and the measured viewport height that the translation bands derive
-   * from. The arithmetic — which rows count as visible, when a change is a real resize
-   * rather than a row growing under the reader, and which line the anchor is — lives in
-   * `TranslationWindow` and `useReadingPosition`; this only supplies the DOM geometry.
-   *
-   * Taken from the master panel, and deliberately not from the cross-panel sync: this is
-   * the durable anchor — persistence, the line display, translation scheduling — and it
-   * has different timing needs from the per-frame pixel writes that keep the followers
-   * level.
-   *
-   * The anchor is `computeAnchor`'s topmost line *touching the viewport*, not
-   * `virtualRows[0].index`: the virtualizer's item list includes `OVERSCAN_ROWS` above the
-   * viewport, so using it would put the bands a screenful above the reader and make the
-   * fetch band asymmetric around them.
-   */
-  const measureViewport = useCallback((): void => {
-    const scrollEl = scrollRef.current;
-    if (!scrollEl) return;
-    const rows = virtualizer.getVirtualItems();
-    const visible = countVisibleLines(rows, scrollEl.scrollTop, scrollEl.clientHeight);
-    setViewportLines((previous) => nextViewportLines(previous, visible));
+  /** Whether the windowed refill is translating, read live by the reload re-anchor. A ref
+   * because `useWindowedTranslation` runs below, and itself takes the anchor as input. */
+  const isRefillingRef = useRef(false);
+  const isRefilling = useCallback((): boolean => isRefillingRef.current, []);
 
-    // A jump via `scrollToLine` can land on a row the virtualizer has only ever
-    // estimated the size of — translated Vietnamese routinely wraps to more lines than
-    // the Chinese-based estimate, so once that row (and the ones before it) actually
-    // render and measure, the virtualizer's own settling shifts where a given `scrollTop`
-    // pixel value falls relative to line numbers. That settling's own scroll event is
-    // real, but computing an anchor from it walks the anchor *backward* — enough, right
-    // after a forward chapter jump, to land back before the header just jumped to. One
-    // skip is enough: `scrollToLine` already set the correct anchor, and by the
-    // measurement after this one the settling has already happened.
-    const skipAnchor = skipNextAnchorMeasureRef.current;
-    skipNextAnchorMeasureRef.current = false;
-    if (skipAnchor) return;
-
-    const anchor = computeAnchor(scrollEl.scrollTop, rows);
-    if (anchor) {
-      setAnchorLine(anchor.line);
-      // The line alone drives the translation bands; the fraction only matters to the
-      // reload re-anchor, which needs the same precision the persisted position has.
-      anchorRef.current = anchor;
-    }
-    // `scrollRef` comes from `useReaderPanel` rather than a local `useRef`, so the lint
-    // rule cannot tell it is a ref — it is listed, and is as stable as any other ref.
-  }, [scrollRef, virtualizer]);
-
-  const { onScroll } = useReadingPosition({
+  // The master is the panel the anchor is measured on and restored to; the followers are
+  // pulled level by the panel sync, so the anchor only re-measures them on a relayout.
+  const {
+    anchorLine,
+    viewportLines,
+    readLine,
+    onScroll: onAnchorScroll,
+    scrollToLine,
+  } = useReadingAnchor({
     fingerprint: book.fingerprint,
     initialPosition,
-    scrollRef,
-    virtualizer,
-    lineCount: book.lineCount,
     isActive,
+    engineVersion,
+    master: { scrollRef, virtualizer },
+    followers: [originalPanel.virtualizer, characterPanel.virtualizer],
+    lineCount: book.lineCount,
+    isRefilling,
   });
 
   const {
@@ -460,6 +410,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     dictionaryVersion: engineVersion,
     isEnabled: isActive && enginePhase === 'ready',
   });
+  isRefillingRef.current = isTranslating;
 
   // Runs in the background, not just while the panel is open — the chapter-strip button
   // shows the current title too, and waiting for the reader to open the panel before
@@ -500,33 +451,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   const readingProgressPercent =
     book.lineCount > 0 ? Math.min(100, ((anchorLine + 1) / book.lineCount) * 100) : 0;
 
-  /**
-   * Every programmatic jump goes through here rather than a bare `scrollToIndex` call.
-   *
-   * `anchorLine` otherwise only updates from `measureViewport`, which runs off the
-   * scroll element's own `scroll` event — and that event races the virtualizer's own
-   * range recalculation for the same scroll. Landing before it does, `measureViewport`
-   * reads `getVirtualItems()` still describing the *pre*-jump range, so `computeAnchor`
-   * resolves the wrong row and `anchorLine` is left one jump behind. `]` then reads the
-   * stale anchor, recomputes the *same* target chapter it just jumped to, and the second
-   * press looks like it does nothing — until a manual scroll produces a `scroll` event
-   * that isn't racing anything, which is what "unsticks" it.
-   *
-   * `align: 'start'` guarantees the target line lands at the very top of the viewport, so
-   * the anchor here — line, fraction 0 — needs no measurement to already be correct.
-   */
-  const scrollToLine = useCallback(
-    (line: number): void => {
-      virtualizer.scrollToIndex(line, { align: 'start' });
-      setAnchorLine(line);
-      anchorRef.current = { line, fraction: 0 };
-      // See `measureViewport`: the settling from this jump's own scroll event must not be
-      // allowed to walk the anchor it just set back across the boundary just crossed.
-      skipNextAnchorMeasureRef.current = true;
-    },
-    [virtualizer]
-  );
-
   const jumpToLine = useCallback(
     (line: number): void => {
       scrollToLine(line);
@@ -537,19 +461,17 @@ const BookReader: React.FC<BookReaderProps> = ({
 
   const goToChapter = useCallback(
     (direction: -1 | 1): void => {
-      // `anchorRef.current`, not the `anchorLine` state closed over here: a rapid second
-      // `]` can fire before React has re-rendered (and so re-created this callback) after
-      // the first press's `setAnchorLine` — key-repeat routinely does this within the
-      // same tick. `optionsRef` in `useHotkeyHandler` would then hand the keydown listener
-      // this exact stale closure, still bound to the pre-jump `anchorLine`, and it would
-      // recompute the same target it just jumped to — a second "does nothing" on top of
-      // the first fix's. The ref is written synchronously in `scrollToLine`, so reading it
-      // here is correct regardless of which render generation of this closure runs it.
-      const line = anchorRef.current?.line ?? anchorLine;
-      const target = stepChapter(chapterHeaders, line, direction);
+      // `readLine()`, not the `anchorLine` closed over here: a rapid second `]` can fire
+      // before React has re-rendered (and so re-created this callback) after the first
+      // press — key-repeat routinely does this within the same tick. `optionsRef` in
+      // `useHotkeyHandler` would then hand the keydown listener this exact stale closure,
+      // still bound to the pre-jump `anchorLine`, and it would recompute the same target
+      // it just jumped to. `scrollToLine` sets the anchor synchronously, so `readLine()`
+      // is correct regardless of which render generation of this closure runs it.
+      const target = stepChapter(chapterHeaders, readLine(), direction);
       if (target) scrollToLine(target.line);
     },
-    [chapterHeaders, anchorLine, scrollToLine]
+    [chapterHeaders, readLine, scrollToLine]
   );
 
   const reloadDictionaries = useCallback((): void => {
@@ -672,12 +594,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     requestRange(firstIndex - PREFETCH_LINES, lastIndex + 1 + PREFETCH_LINES);
   }, [firstIndex, lastIndex, requestRange]);
 
-  // Re-measure whenever the rendered range moves — which covers the first paint, a window
-  // resize (rows enter or leave), and a row growing as its translation lands.
-  useEffect(() => {
-    measureViewport();
-  }, [firstIndex, lastIndex, measureViewport]);
-
   // A row that gets measured moves every row below it in *that* panel and in no other, so
   // the panels drift apart with no scroll event to notice it. Each panel's total size is
   // the signal: it changes exactly when a measurement does.
@@ -688,40 +604,10 @@ const BookReader: React.FC<BookReaderProps> = ({
     resync();
   }, [translationTotalSize, originalTotalSize, characterTotalSize, resync]);
 
-  // Steps 1 and 5 of a reload in the Reader: capture the anchor, and scroll back to it
-  // once the chunk cache has been invalidated and the fetch band re-translated. Steps 2-4
-  // are the reload itself plus `engineVersion` reaching `useWindowedTranslation`.
-  useReloadReanchor({
-    engineVersion,
-    // The refill is what moves rows, so it — not a stopwatch — is what decides how long the
-    // anchor keeps being re-applied.
-    isRefilling: isTranslating,
-    isEnabled: isActive,
-    anchorRef,
-    scrollRef,
-    virtualizer,
-    lineCount: book.lineCount,
-  });
-
-  // A font change from the Appearance tab resizes every row in all three panels. The
-  // master is listed first: it is the one the anchor is restored on, and the followers
-  // are then pulled level by the resync above.
-  useAppearanceRelayout({
-    isEnabled: isActive,
-    anchorRef,
-    panels: [
-      { virtualizer, scrollRef },
-      { virtualizer: originalPanel.virtualizer, scrollRef: originalPanel.scrollRef },
-      { virtualizer: characterPanel.virtualizer, scrollRef: characterPanel.scrollRef },
-    ],
-    lineCount: book.lineCount,
-  });
-
   const handleScroll = useCallback((): void => {
-    onScroll();
-    measureViewport();
+    onAnchorScroll();
     syncScroll(TRANSLATION_PANEL);
-  }, [measureViewport, onScroll, syncScroll]);
+  }, [onAnchorScroll, syncScroll]);
 
   // The follower panels' own scroll handlers. Stable rather than inline arrows: both
   // panels are memoized, and a fresh closure per render would make every render a prop

@@ -679,9 +679,28 @@ Persisted per-book state — reading position, dictionary binding, elected outli
 
 **`src/utils/reader/ReconcileLibrary.ts`** runs after every `scan_library`. `filesNeedingFingerprint` compares each scanned file's `(sizeBytes, modifiedMs)` against any `available` record at that same path — a match skips the fingerprint call entirely, which is what makes rescanning an unchanged library free. Anything else gets fingerprinted, and `applyReconciliation` (pure, no IPC) either relinks an existing record to its new path (a move/rename — `position` carries over untouched) or creates a fresh one (`position: null`). A previously-`available` record matched by nothing this scan flips to `available: false` and stays in the map, so a later rescan that finds its fingerprint elsewhere re-links it silently.
 
-**`src/utils/reader/BookRecordsBackend.ts`** owns `books.json`'s read-modify-write, serialized through `withBookRecordsLock` — the same `Promise`-chain pattern `appConfig.ts`'s `withConfigLock` uses — so a scan's reconciliation write and a debounced position flush (see next) can never race and drop one side's changes.
+**`src/utils/reader/BookRecordsBackend.ts`** owns `books.json`'s read-modify-write, serialized through `withBookRecordsLock` — the same `Promise`-chain pattern `appConfig.ts`'s `withConfigLock` uses — so a scan's reconciliation write and a debounced position flush (see "Reading Anchor" below) can never race and drop one side's changes.
 
-**`useReadingPosition.ts`** (`src/hooks/`) tracks the topmost visible line plus how far scrolled into it (`computeAnchor`), debounces the write (1.5s), and flushes on: the Reader tab losing `isActive` (every `TabbedInterface` tab stays mounted across a switch, so this is the only tab-switch signal available), `BookReader` unmounting (Back-to-shelf closes the book), and app exit (`App.jsx`'s `getCurrentWindow().onCloseRequested` handler, reached through the one-slot `src/utils/reader/PendingPositionFlush.ts` registry since the handler has no direct line to whatever book happens to be open). Restore uses `ScrollPositionRecovery`'s `'raf'` scheduler — the same helper the Translator's 3-panel scroll restore uses — calling `virtualizer.scrollToIndex` and then nudging `scrollTop` by the stored fraction once that row has a real measured size. A raw pixel offset is never persisted: `getTotalSize()` is an estimate that shifts as rows get measured, so a pixel value from one session means nothing in the next.
+### Reading Anchor
+
+Where the reader is in the book: the topmost line touching the viewport, plus how far scrolled into it (a 0..1 fraction). It is the one answer to "where is the reader", and everything else follows from it: the persisted reading position is the anchor written to disk, the line shown in the chapter strip is the anchor's line, and the translation window is centred on it. A jump, a restore on open, a re-anchor after a dictionary reload and a relayout after an Appearance change all set the anchor or restore it. None of them keeps its own copy.
+
+Two rules belong to the term itself:
+
+- **A jump's settling is not a move.** When the Reader jumps to a line, rows the virtualizer had only estimated get measured, and the scroll event that follows would walk the anchor backward. The anchor is the line jumped to, and that is also what gets persisted.
+- **Row heights that change while the Reader is hidden are fixed on return.** Appearance is its own tab, and a reload can come from the Translator. Either one changes row heights while the Reader is not visible and so cannot be measured. The anchor captured before the change is re-applied when the Reader becomes visible again.
+
+_Avoid_: scroll position (that means pixels, and a pixel offset is never persisted), current line (only half the anchor).
+
+**`src/utils/reader/ReadingAnchor.ts`** holds all of it, with no React. Time, animation frames and storage are passed in, so its tests drive the clock by hand. **`useReadingAnchor`** (`src/hooks/`) adapts it to React: it forwards the book, tab, engine-version and Appearance signals, plus the reader's wheel, pointer and keys (these hand a re-anchor back). Its interface is `{ anchorLine, viewportLines, readLine(), onScroll, scrollToLine }`.
+
+How the position is kept:
+
+- **Writing.** Writes to `books.json` are debounced by 1.5s. A pending write is flushed when the Reader tab loses `isActive`, when the book closes, and on app exit. App exit reaches it through the one-slot `PendingPositionFlush.ts` registry, from `App.jsx`'s `onCloseRequested`.
+- **Restoring on open.** `scrollToIndex` runs on the next frame, retrying each frame while the panel has no layout yet. Once the row is measured, `scrollTop` is nudged by the stored fraction.
+- **Dictionary reload.** The anchor is re-applied every frame until the refill has been quiet for 250ms. A 1.5s grace period covers a refill that has not started yet, and there is a hard ceiling of 15s. The reader's own input ends it at once.
+- **Appearance change.** Every panel's measurement cache is dropped, and the anchor is restored once on the next frame.
+- **While the Reader is hidden.** Both of the last two wait until the Reader is shown again. If both happened, the panels are measured first and the reload loop does the restoring.
 
 ### Dictionary Binding
 

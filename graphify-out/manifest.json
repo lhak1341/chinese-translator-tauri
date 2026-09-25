@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "src/App.jsx": {
-    "mtime": 1789620888.3414083,
-    "ast_hash": "27940ac67fe507ad7af78c09079eb7dc",
+    "mtime": 1790352885.0827646,
+    "ast_hash": "6d5d5dd1ad2c850844abe77290de8ceb",
     "semantic_hash": ""
   },
   "src/types/ComponentTypes.d.ts": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1789621063.4016097,
-    "ast_hash": "abf1b78113049ff6d795500214ff9b04",
+    "mtime": 1790352885.0822248,
+    "ast_hash": "af95679c5acb4dfe8c5a74c29797e872",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1790349859.7008026,
-    "ast_hash": "83b19413f1cb5b2a20eba7f6a5b1ef4e",
+    "mtime": 1790350868.1158745,
+    "ast_hash": "eddeed7e5109d9a80db42813ea711c1d",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1789572411.5905755,
-    "ast_hash": "77fe27afb0ddda75501a3c1e8c17d87b",
+    "mtime": 1790349873.825345,
+    "ast_hash": "81b39346db044995022b50d1394ce660",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790347301.6329532,
-    "ast_hash": "39e5618da941be8d25d152088a291ebd",
+    "mtime": 1790352885.084308,
+    "ast_hash": "8b1c234e119cbe03272eda66debde5a2",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1855,8 +1855,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790347301.634435,
-    "ast_hash": "001aa512ef63d6716ed199255e44fb08",
+    "mtime": 1790352885.080478,
+    "ast_hash": "14928be943c9be79c47811434ef72099",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1789898033.295657,
-    "ast_hash": "64bd3923afa95cc690a5bc666473eca9",
+    "mtime": 1790352776.0618503,
+    "ast_hash": "fe1a1739df27f273a2b3b9e126128fb9",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1949,11 +1949,6 @@
     "ast_hash": "dffde0142a4dbb2301f07aacc15f41ee",
     "semantic_hash": ""
   },
-  "src/hooks/useReadingPosition.ts": {
-    "mtime": 1789577062.046635,
-    "ast_hash": "45711d56b8a20a0d78286da735ffc719",
-    "semantic_hash": ""
-  },
   "src/utils/reader/BookRecordValidation.ts": {
     "mtime": 1789620588.6508076,
     "ast_hash": "e80d02f1027cf3403f7635fa163a30ec",
@@ -1965,8 +1960,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PendingPositionFlush.ts": {
-    "mtime": 1789575742.0151231,
-    "ast_hash": "747f62f6a7c3775e3054fda3aba90d71",
+    "mtime": 1790352885.0833085,
+    "ast_hash": "d732d0f74a970032788c90814f3677c0",
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
@@ -2000,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1789827139.3156595,
-    "ast_hash": "f141d294f0eb211e0331ed14f240868e",
+    "mtime": 1790352885.0848186,
+    "ast_hash": "060f1fef223e2b3c43cc5cf62cf7104a",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2074,11 +2069,6 @@
     "ast_hash": "4ef47e1ca70aac9ce73c748a18be82b7",
     "semantic_hash": ""
   },
-  "src/hooks/useReloadReanchor.ts": {
-    "mtime": 1789898586.5011578,
-    "ast_hash": "ddd0bc6aace99985bc74371a391d18e5",
-    "semantic_hash": ""
-  },
   "src/utils/dictionary/DictionaryReloadRegistry.ts": {
     "mtime": 1789621983.0059052,
     "ast_hash": "c20661aec4afea608c9517279c110fba",
@@ -2097,11 +2087,6 @@
   "src/utils/reader/PaletteCommands.ts": {
     "mtime": 1789632320.5199358,
     "ast_hash": "d3a11a531605f676816cb517c7ce0507",
-    "semantic_hash": ""
-  },
-  "src/hooks/useAppearanceRelayout.ts": {
-    "mtime": 1789633039.2539868,
-    "ast_hash": "a7d806fe280ad5981000a2787ccc328c",
     "semantic_hash": ""
   },
   "src/hooks/useAppearanceVersion.ts": {
@@ -2172,6 +2157,16 @@
   "src/utils/pattern/NumberVariable.js": {
     "mtime": 1790349846.3351743,
     "ast_hash": "9819da9d77959651ffe64fb26dd1a510",
+    "semantic_hash": ""
+  },
+  "src/hooks/useReadingAnchor.ts": {
+    "mtime": 1790352748.058871,
+    "ast_hash": "cc7f96fee7710a50c16a88b44ba2af3c",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/ReadingAnchor.ts": {
+    "mtime": 1790352706.371082,
+    "ast_hash": "042c1b36bffbe0ac848dc9d072c95987",
     "semantic_hash": ""
   }
 }

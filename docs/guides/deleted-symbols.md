@@ -27,6 +27,7 @@ Split out of `development.md` 2026-09-07 (agent-config-hygiene restructure) — 
 - **`ByteFormatter.ts`, `ValidationHelpers.ts`, `CacheKeyGenerator.ts`, `ChineseNumberConverter.js`** (deleted 2026-02-21): Zero production importers.
 - **`src/wasm/translation_wasm_core_types.js` + `translation_wasm_core_types.d.ts`** (deleted 2026-02-21): Identity no-op wrappers — every function was `return value`.
 - **`src/utils/RegexHelpers.ts`** (deleted 2026-02-21): `escapeRegExp`, `precompilePatterns`, `precompileSortedPatterns` — zero importers.
+- **`useReadingPosition.ts`, `useReloadReanchor.ts`, `useAppearanceRelayout.ts`** (deleted 2026-09-25, architecture review candidate #1): folded, with `BookReader.tsx`'s own anchor state (`anchorRef`, `skipNextAnchorMeasureRef`, `measureViewport`, `scrollToLine`), into `ReadingAnchor` (`src/utils/reader/ReadingAnchor.ts`) behind `useReadingAnchor`. `computeAnchor` and `tryRestorePosition` moved with them. Four modules each held a piece of "where is the reader" and two of them computed the anchor under different rules — which is how a jump's settling scroll got persisted. Do not split them back out.
 
 **Merged 2026-08-17** (agent-config-hygiene restructure) — the list below continues the same convention from root `CLAUDE.md`, where later entries (2026-06 onward) had drifted to a second, disconnected list. This is now the single home; add new entries here, in the same pass you delete the symbol.
 
