@@ -12,7 +12,7 @@ function uniformMetrics(rowHeight: number): RowMetrics {
 /**
  * A stand-in for a scroll element. jsdom gives `scrollHeight` and `clientHeight` as 0 and
  * never fires a scroll event of its own, so both are supplied here — the echo a real
- * browser would deliver is dispatched explicitly by the tests that care about it.
+ * browser would deliver is delivered explicitly by the tests that care about it.
  */
 function scrollElement(scrollHeight: number, clientHeight: number): HTMLElement {
   const element = document.createElement('div');
@@ -22,8 +22,8 @@ function scrollElement(scrollHeight: number, clientHeight: number): HTMLElement 
   return element;
 }
 
-function panel(id: string, element: HTMLElement, rowHeight: number): SyncPanel {
-  return { id, scrollRef: { current: element }, metrics: uniformMetrics(rowHeight) };
+function panel(element: HTMLElement | null, rowHeight: number): SyncPanel {
+  return { scrollRef: { current: element }, metrics: uniformMetrics(rowHeight) };
 }
 
 let frames: Array<() => void> = [];
@@ -48,42 +48,40 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** A 100px-row master and one 40px-row follower. */
+function setup(followerScrollHeight = 9_000) {
+  const master = scrollElement(20_000, 400);
+  const follower = scrollElement(followerScrollHeight, 400);
+  const { result } = renderHook(() =>
+    usePanelSync({
+      master: panel(master, 100),
+      followers: [panel(follower, 40)],
+      lineCount: 200,
+    })
+  );
+  return { master, follower, sync: result };
+}
+
 describe('usePanelSync', () => {
   it('writes the followers to the master’s anchor line, in their own heights', () => {
-    const master = scrollElement(20_000, 400);
-    const follower = scrollElement(9_000, 400);
-    const { result } = renderHook(() =>
-      usePanelSync({
-        panels: [panel('master', master, 100), panel('follower', follower, 40)],
-        lineCount: 200,
-        masterId: 'master',
-      })
-    );
+    const { master, follower, sync } = setup();
 
     master.scrollTop = 350; // line 3, fraction 0.5
-    result.current.handleScroll('master');
+    sync.current.onMasterScroll();
     flushFrame();
 
     expect(follower.scrollTop).toBe(3 * 40 + 0.5 * 40);
   });
 
-  it('coalesces a burst of scroll events into one frame of writes', () => {
-    const master = scrollElement(20_000, 400);
-    const follower = scrollElement(9_000, 400);
-    const { result } = renderHook(() =>
-      usePanelSync({
-        panels: [panel('master', master, 100), panel('follower', follower, 40)],
-        lineCount: 200,
-        masterId: 'master',
-      })
-    );
+  it('coalesces a burst of master scroll events into one frame of writes', () => {
+    const { master, follower, sync } = setup();
 
     master.scrollTop = 100;
-    result.current.handleScroll('master');
+    sync.current.onMasterScroll();
     master.scrollTop = 200;
-    result.current.handleScroll('master');
+    sync.current.onMasterScroll();
     master.scrollTop = 500;
-    result.current.handleScroll('master');
+    sync.current.onMasterScroll();
     expect(frames).toHaveLength(1);
 
     flushFrame();
@@ -92,103 +90,87 @@ describe('usePanelSync', () => {
   });
 
   it('ignores a follower’s echo of the write it was just given', () => {
-    const master = scrollElement(20_000, 400);
-    const follower = scrollElement(9_000, 400);
-    const { result } = renderHook(() =>
-      usePanelSync({
-        panels: [panel('master', master, 100), panel('follower', follower, 40)],
-        lineCount: 200,
-        masterId: 'master',
-      })
-    );
+    const { master, follower, sync } = setup();
 
     master.scrollTop = 350;
-    result.current.handleScroll('master');
+    sync.current.onMasterScroll();
     flushFrame();
 
-    // The browser now delivers the follower's own scroll event for the write above. If it
-    // were treated as a drive, the master would be pulled to the follower's position and
-    // the two would walk apart a fraction of a pixel at a time.
-    result.current.handleScroll('follower');
-    expect(frames).toHaveLength(1); // the latch-release frame only
+    // The browser now delivers the follower's own scroll event for the write above.
+    sync.current.onFollowerScroll(0);
 
-    flushFrame();
+    expect(frames).toHaveLength(0);
     expect(master.scrollTop).toBe(350);
   });
 
-  it('lets a follower drive once the latch has been released', () => {
-    const master = scrollElement(20_000, 400);
-    const follower = scrollElement(9_000, 400);
-    const { result } = renderHook(() =>
-      usePanelSync({
-        panels: [panel('master', master, 100), panel('follower', follower, 40)],
-        lineCount: 200,
-        masterId: 'master',
-      })
-    );
-
+  it('snaps a follower that scrolled itself back level with the master', () => {
+    // Followers are `overflow: hidden`, but Tab focus or a selection drag can still move
+    // one. It must never drive the master — it is pulled back instead.
+    const { master, follower, sync } = setup();
     master.scrollTop = 350;
-    result.current.handleScroll('master');
-    flushFrame();
-    flushFrame(); // the release frame clears the latch
-
-    follower.scrollTop = 200; // line 5, fraction 0
-    result.current.handleScroll('follower');
+    sync.current.onMasterScroll();
     flushFrame();
 
-    expect(master.scrollTop).toBe(5 * 100);
+    follower.scrollTop = 1_000;
+    sync.current.onFollowerScroll(0);
+    flushFrame();
+
+    expect(master.scrollTop).toBe(350);
+    expect(follower.scrollTop).toBe(3 * 40 + 0.5 * 40);
+  });
+
+  it('snaps back a follower moved before the sync ever wrote it', () => {
+    const { follower, sync } = setup();
+
+    follower.scrollTop = 400;
+    sync.current.onFollowerScroll(0);
+    flushFrame();
+
+    expect(follower.scrollTop).toBe(0);
+  });
+
+  it('never writes the master', () => {
+    const { master, follower, sync } = setup();
+    master.scrollTop = 350;
+
+    follower.scrollTop = 800;
+    sync.current.onFollowerScroll(0);
+    flushFrame();
+
+    expect(master.scrollTop).toBe(350);
   });
 
   it('clamps a follower that cannot scroll as far as the master can', () => {
-    const master = scrollElement(20_000, 400);
-    const follower = scrollElement(1_000, 400);
-    const { result } = renderHook(() =>
-      usePanelSync({
-        panels: [panel('master', master, 100), panel('follower', follower, 40)],
-        lineCount: 200,
-        masterId: 'master',
-      })
-    );
+    const { master, follower, sync } = setup(1_000);
 
     master.scrollTop = 19_000;
-    result.current.handleScroll('master');
+    sync.current.onMasterScroll();
     flushFrame();
 
     expect(follower.scrollTop).toBe(600);
   });
 
   it('resync re-aligns the followers from the master with no scroll event', () => {
-    const master = scrollElement(20_000, 400);
-    const follower = scrollElement(9_000, 400);
-    const { result } = renderHook(() =>
-      usePanelSync({
-        panels: [panel('master', master, 100), panel('follower', follower, 40)],
-        lineCount: 200,
-        masterId: 'master',
-      })
-    );
+    const { master, follower, sync } = setup();
 
     master.scrollTop = 700;
-    result.current.resync();
+    sync.current.resync();
     flushFrame();
 
     expect(follower.scrollTop).toBe(7 * 40);
   });
 
-  it('does nothing when a panel has no element yet', () => {
+  it('does nothing when the master has no element yet', () => {
     const follower = scrollElement(9_000, 400);
     const { result } = renderHook(() =>
       usePanelSync({
-        panels: [
-          { id: 'master', scrollRef: { current: null }, metrics: uniformMetrics(100) },
-          panel('follower', follower, 40),
-        ],
+        master: panel(null, 100),
+        followers: [panel(follower, 40)],
         lineCount: 200,
-        masterId: 'master',
       })
     );
 
-    result.current.handleScroll('master');
+    result.current.onMasterScroll();
     flushFrame();
 
     expect(follower.scrollTop).toBe(0);

@@ -702,6 +702,14 @@ How the position is kept:
 - **Appearance change.** Every panel's measurement cache is dropped, and the anchor is restored once on the next frame.
 - **While the Reader is hidden.** Both of the last two wait until the Reader is shown again. If both happened, the panels are measured first and the reload loop does the restoring.
 
+### Reader Panels
+
+The Reader shows the same lines three times, side by side: the Vietnamese translation, the Chinese original, and the character-only gloss. Each is at its own natural height, because a line wraps differently in each language. The translation panel is the **scroll master**, and the other two are **followers**. Followers are aligned to the master by line index plus a sub-line fraction, never by pixel ratio: a pixel ratio compounds three panels' height estimates, which are mostly guesses at 75,000 lines. Followers never drive. A wheel over one scrolls the master, and a follower that moves by itself is pulled back.
+
+_Avoid_: left/right panel (the layout is not the role), source panel (ambiguous between the original and the gloss).
+
+**`src/hooks/useReaderPanels.ts`** owns the set: the three virtualizers and their width estimates, the one-way sync (`usePanelSync`), re-alignment when a row's measurement changes, wheel forwarding and paging. It returns `{ master, followers, panels, pageBy, isBlankAt }`, and `BookReader` spreads each entry of `panels` into a `<ReaderPanel>`.
+
 ### Reader Engine Calls
 
 The Reader's three calls on the shared engine: a chunk of book text, its character-only gloss, and a batch of chapter titles. They go through one queue, because `translateWithSegments` resets engine-wide segment state on entry: two calls in flight at once, from the viewport fill and the outline's title translation (two loops that don't know about each other), would corrupt each other. Each call waits for the one before it to settle, and a failure never blocks the calls behind it. The engine is read when a call runs, not when it is queued.

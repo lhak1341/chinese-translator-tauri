@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790354407.926034,
-    "ast_hash": "508d4086ce5ca2b8018ed5b12979b812",
+    "mtime": 1790355053.5719328,
+    "ast_hash": "d300df21515daf42e11d4dacb57678d7",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790354407.9240217,
-    "ast_hash": "f465d8ef6223d6f9c199aafb814ff39c",
+    "mtime": 1790355053.5704749,
+    "ast_hash": "9264e46caf2e1a20ee9b449ee3ee61ab",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1855,8 +1855,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790354407.9252777,
-    "ast_hash": "b92c0e46c6232522fc5fe54c57561071",
+    "mtime": 1790355053.571027,
+    "ast_hash": "e8227a9e06dbd92a81afb05d81f47aff",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790354382.931163,
-    "ast_hash": "ffe112c149d4698747baeffe86afe63e",
+    "mtime": 1790355027.8787484,
+    "ast_hash": "a182ebdfd6db552c648db9c52cb80ffe",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1995,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790354407.9248083,
-    "ast_hash": "9690f438ac84e8e98a4c5ce8ea2579ad",
+    "mtime": 1790355053.5698118,
+    "ast_hash": "296da51751935db37b06131e1603b7e7",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2025,8 +2025,8 @@
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
-    "mtime": 1789618928.3241751,
-    "ast_hash": "7cda149fe3f97cb77ccb40e5fc587004",
+    "mtime": 1790354893.7853708,
+    "ast_hash": "44ecd9d9cd76ba2e2b10bff5ee470bca",
     "semantic_hash": ""
   },
   "src/hooks/useReaderPanel.ts": {
@@ -2172,6 +2172,11 @@
   "src/utils/reader/ReaderEngine.ts": {
     "mtime": 1790354346.9932215,
     "ast_hash": "6248d3595783e826b7a6dd77642c1c28",
+    "semantic_hash": ""
+  },
+  "src/hooks/useReaderPanels.ts": {
+    "mtime": 1790354940.1112492,
+    "ast_hash": "ac9ec60884f34be486bea9d97f722f18",
     "semantic_hash": ""
   }
 }

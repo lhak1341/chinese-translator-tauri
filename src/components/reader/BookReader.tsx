@@ -22,8 +22,8 @@ import { useEngine } from '../EngineContext';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
-import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
-import { usePanelSync } from '../../hooks/usePanelSync';
+import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
+import { useReaderPanels } from '../../hooks/useReaderPanels';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
 import {
   fictionDisplayName,
@@ -64,20 +64,6 @@ interface BookReaderProps {
 }
 
 /**
- * How wide one source Chinese character renders in each panel, in em.
- *
- * The Chinese panel is 1 by definition. The other two are Latin text, at roughly half an
- * em a character: a Chinese character becomes about three Latin characters in running
- * Vietnamese prose, and about five in the character-only gloss, where every character is
- * spelled out and space-separated. Calibrated by eye against real chapters — they are the
- * estimate's only tuning knob, and being wrong costs scrollbar accuracy in unvisited
- * regions, nothing more.
- */
-const EM_PER_CHAR_ORIGINAL = 1;
-const EM_PER_CHAR_TRANSLATION = 1.5;
-const EM_PER_CHAR_CHARACTER_ONLY = 2.5;
-
-/**
  * Lines requested beyond the rendered range in each direction.
  *
  * A row that mounts before its text arrives is one placeholder line tall and grows to its
@@ -86,11 +72,6 @@ const EM_PER_CHAR_CHARACTER_ONLY = 2.5;
  * every row during ordinary scrolling.
  */
 const PREFETCH_LINES = 600;
-
-/** Panel identities, as `usePanelSync` names them. */
-const TRANSLATION_PANEL = 'translation';
-const ORIGINAL_PANEL = 'original';
-const CHARACTER_ONLY_PANEL = 'character-only';
 
 /**
  * One row of a Vietnamese panel.
@@ -116,8 +97,7 @@ function vietnameseRow(
  * left, the full translation on the right.
  *
  * The full-translation panel is the scroll master and the other two follow, line by line
- * — see `usePanelSync` for why the mapping is a line index rather than a pixel ratio, and
- * why the follower writes are animation-frame throttled behind a "who is driving" latch.
+ * — see `useReaderPanels`.
  *
  * Variable-height virtualization is the whole point of each panel: lines wrap to different
  * heights and a fixed-height list gets the total wrong by a growing amount down a
@@ -166,98 +146,10 @@ const BookReader: React.FC<BookReaderProps> = ({
     createAndBind,
   } = useBookBinding();
 
-  // `getLine` is referentially stable and reads through a ref, so this is too — which is
-  // what lets every panel's `estimateSize` stay stable across renders.
-  const charCountAt = useCallback(
-    (index: number): number => getLine(index)?.length ?? 0,
-    [getLine]
-  );
-
-  /**
-   * Whether this line is one of the file's own paragraph breaks — rendered at zero height,
-   * see `PanelRow.isBlank`.
-   *
-   * Distinct from `charCountAt(index) === 0`, which is also true of a line whose page has
-   * not been fetched: an unfetched row keeps its full estimated height, so the scrollbar
-   * does not shrink and then grow again as pages land.
-   */
-  const isBlankAt = useCallback(
-    (index: number): boolean => getLine(index)?.trim() === '',
-    [getLine]
-  );
-
-  const translationPanel = useReaderPanel({
+  const { master, followers, panels, pageBy, isBlankAt } = useReaderPanels({
     lineCount: book.lineCount,
-    emPerChar: EM_PER_CHAR_TRANSLATION,
-    charCountAt,
-    isBlankAt,
+    getLine,
   });
-  const originalPanel = useReaderPanel({
-    lineCount: book.lineCount,
-    emPerChar: EM_PER_CHAR_ORIGINAL,
-    charCountAt,
-    isBlankAt,
-  });
-  const characterPanel = useReaderPanel({
-    lineCount: book.lineCount,
-    emPerChar: EM_PER_CHAR_CHARACTER_ONLY,
-    charCountAt,
-    isBlankAt,
-  });
-
-  const { scrollRef, virtualizer } = translationPanel;
-
-  const { handleScroll: syncScroll, resync } = usePanelSync({
-    panels: [
-      { id: TRANSLATION_PANEL, scrollRef, metrics: translationPanel.metrics },
-      {
-        id: ORIGINAL_PANEL,
-        scrollRef: originalPanel.scrollRef,
-        metrics: originalPanel.metrics,
-      },
-      {
-        id: CHARACTER_ONLY_PANEL,
-        scrollRef: characterPanel.scrollRef,
-        metrics: characterPanel.metrics,
-      },
-    ],
-    lineCount: book.lineCount,
-    masterId: TRANSLATION_PANEL,
-  });
-
-  /**
-   * A wheel over a follower scrolls the master, which then drives every panel including
-   * the one under the pointer.
-   *
-   * The reference panels do not scroll on their own — the translation panel is the scroll
-   * master and the other two follow, so they are `overflow: hidden` and only ever moved by
-   * a write from the sync. Forwarding the wheel is what keeps them usable anyway: the
-   * reader can point anywhere and scroll, and the master stays the only thing driving.
-   */
-  const forwardWheelToMaster = useCallback(
-    (event: React.WheelEvent<HTMLDivElement>): void => {
-      const scrollEl = scrollRef.current;
-      if (!scrollEl) return;
-      scrollEl.scrollTop += event.deltaY;
-    },
-    [scrollRef]
-  );
-
-  /**
-   * Space / Shift+Space, dispatched by the same window-level hotkey handler as every
-   * other reader shortcut — not the browser's native "scroll the focused element"
-   * behavior, which is what broke: a virtualized row can leave the DOM (recycled out of
-   * view) while it holds focus, and nothing is focused for the browser to scroll until
-   * the panel is clicked again. This needs no focus at all, so it can't be lost that way.
-   */
-  const pageBy = useCallback(
-    (direction: 1 | -1): void => {
-      const scrollEl = scrollRef.current;
-      if (!scrollEl) return;
-      scrollEl.scrollTop += direction * scrollEl.clientHeight * 0.9;
-    },
-    [scrollRef]
-  );
 
   /** Whether the windowed refill is translating, read live by the reload re-anchor. A ref
    * because `useWindowedTranslation` runs below, and itself takes the anchor as input. */
@@ -277,8 +169,8 @@ const BookReader: React.FC<BookReaderProps> = ({
     initialPosition,
     isActive,
     engineVersion,
-    master: { scrollRef, virtualizer },
-    followers: [originalPanel.virtualizer, characterPanel.virtualizer],
+    master,
+    followers,
     lineCount: book.lineCount,
     isRefilling,
   });
@@ -296,7 +188,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     cachedManualPattern: initialManualChapterPattern,
   });
 
-  const virtualRows = virtualizer.getVirtualItems();
+  const virtualRows = panels.translation.rows;
   const firstIndex = virtualRows.length > 0 ? virtualRows[0].index : 0;
   const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
 
@@ -508,31 +400,11 @@ const BookReader: React.FC<BookReaderProps> = ({
     requestRange(firstIndex - PREFETCH_LINES, lastIndex + 1 + PREFETCH_LINES);
   }, [firstIndex, lastIndex, requestRange]);
 
-  // A row that gets measured moves every row below it in *that* panel and in no other, so
-  // the panels drift apart with no scroll event to notice it. Each panel's total size is
-  // the signal: it changes exactly when a measurement does.
-  const translationTotalSize = virtualizer.getTotalSize();
-  const originalTotalSize = originalPanel.virtualizer.getTotalSize();
-  const characterTotalSize = characterPanel.virtualizer.getTotalSize();
-  useEffect(() => {
-    resync();
-  }, [translationTotalSize, originalTotalSize, characterTotalSize, resync]);
-
+  const syncFollowers = panels.translation.onScroll;
   const handleScroll = useCallback((): void => {
     onAnchorScroll();
-    syncScroll(TRANSLATION_PANEL);
-  }, [onAnchorScroll, syncScroll]);
-
-  // The follower panels' own scroll handlers. Stable rather than inline arrows: both
-  // panels are memoized, and a fresh closure per render would make every render a prop
-  // change and the memo a no-op.
-  const handleOriginalScroll = useCallback((): void => {
-    syncScroll(ORIGINAL_PANEL);
-  }, [syncScroll]);
-
-  const handleCharacterScroll = useCallback((): void => {
-    syncScroll(CHARACTER_ONLY_PANEL);
-  }, [syncScroll]);
+    syncFollowers();
+  }, [onAnchorScroll, syncFollowers]);
 
   const translationRow = useCallback(
     (index: number): PanelRow =>
@@ -711,32 +583,20 @@ const BookReader: React.FC<BookReaderProps> = ({
           <ReaderPanel
             title="Original"
             variant="original"
-            isFollower
-            scrollRef={originalPanel.scrollRef}
-            virtualizer={originalPanel.virtualizer}
-            rows={originalPanel.virtualizer.getVirtualItems()}
-            totalSize={originalTotalSize}
+            {...panels.original}
             // Both: this panel's text comes from `getLine` (so a landed page changes it)
             // and its runs from the chunk cache (so a landed chunk does too).
             contentVersion={linesVersion + translationVersion}
             getRow={originalRow}
-            onScroll={handleOriginalScroll}
-            onWheel={forwardWheelToMaster}
             highlight={highlight}
             onSegmentClick={toggleHighlight}
           />
           <ReaderPanel
             title="Character only"
             variant="characterOnly"
-            isFollower
-            scrollRef={characterPanel.scrollRef}
-            virtualizer={characterPanel.virtualizer}
-            rows={characterPanel.virtualizer.getVirtualItems()}
-            totalSize={characterTotalSize}
+            {...panels.characterOnly}
             contentVersion={linesVersion + translationVersion}
             getRow={characterRow}
-            onScroll={handleCharacterScroll}
-            onWheel={forwardWheelToMaster}
             highlight={highlight}
             onSegmentClick={toggleHighlight}
           />
@@ -744,12 +604,10 @@ const BookReader: React.FC<BookReaderProps> = ({
         <ReaderPanel
           title="Translation"
           variant="translation"
-          scrollRef={scrollRef}
-          virtualizer={virtualizer}
-          rows={virtualRows}
-          totalSize={translationTotalSize}
+          {...panels.translation}
           contentVersion={linesVersion + translationVersion}
           getRow={translationRow}
+          // The master's scroll moves the reading anchor as well as the followers.
           onScroll={handleScroll}
           highlight={highlight}
           onSegmentClick={toggleHighlight}
