@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790357404.6508968,
-    "ast_hash": "bee520b6a8948df12231fad16c8c1e89",
+    "mtime": 1790358050.5178418,
+    "ast_hash": "012339a3a1fa92c2ed4eccd70707f0a1",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -2005,8 +2005,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useWindowedTranslation.ts": {
-    "mtime": 1790357320.7804918,
-    "ast_hash": "b1eef170f01b1a3e91b82e883abd2862",
+    "mtime": 1790357420.7737107,
+    "ast_hash": "f087e00005867c983333a016a11ca948",
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationChunkCache.ts": {
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
-    "mtime": 1790357333.2360322,
-    "ast_hash": "76adafb0dec6e0b86b871b6628017e26",
+    "mtime": 1790357420.7156281,
+    "ast_hash": "6097ff67692a5320a777cac4df080605",
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
