@@ -9,12 +9,13 @@ export const PATTERN_VARIABLE_COLORS: Record<string, string> = {
   C: '#0d9488',
   D: '#db2777',
   E: '#2563eb',
+  '#': '#ca8a04',
 };
 
 export const highlightPatternVariables = (text: string): React.ReactNode => {
-  const parts = text.split(/([A-Z])/);
+  const parts = text.split(/([A-Z#])/);
   return parts.map((part, index) => {
-    if (part.length === 1 && /[A-Z]/.test(part)) {
+    if (part.length === 1 && /[A-Z#]/.test(part)) {
       const color = PATTERN_VARIABLE_COLORS[part] || '#059669';
       return (
         <span key={index} style={{ color, fontWeight: 700 }}>

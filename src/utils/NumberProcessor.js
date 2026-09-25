@@ -234,38 +234,47 @@ export class NumberProcessor {
         .map((t) => t.value)
         .join('');
 
-      // Test against all patterns
-      for (const pattern of this.CONVERSION_PATTERNS) {
-        const match = testSequence.match(new RegExp('^' + pattern.regex.source + '$'));
-
-        log(
-          3,
-          `🔍 Testing sequence "${testSequence}" against ${pattern.name}: ${match ? 'MATCH' : 'no match'}`
-        );
-
-        if (match && testSequence.length > longestMatchLength) {
-          // Found a longer match
-          const result = pattern.converter(...match);
-
-          // Skip if converter returned null (indicating invalid match)
-          if (result === null) {
-            continue;
-          }
-
-          longestMatch = {
-            originalText: testSequence,
-            result: result,
-            patternName: pattern.name,
-            startIndex: startIndex,
-            endIndex: endIndex,
-            matchData: match,
-          };
-          longestMatchLength = testSequence.length;
-        }
+      const converted = this.convertSequence(testSequence, log);
+      if (converted && testSequence.length > longestMatchLength) {
+        longestMatch = {
+          originalText: testSequence,
+          ...converted,
+          startIndex: startIndex,
+          endIndex: endIndex,
+        };
+        longestMatchLength = testSequence.length;
       }
     }
 
     return longestMatch;
+  }
+
+  /**
+   * Convert a whole numeral string with the first conversion pattern that
+   * matches all of it and whose converter accepts the match.
+   * @param {string} sequence - Chinese numeral text, e.g. "三十七"
+   * @param {Function} [log] - Debug logger (level, message)
+   * @returns {{result: string, patternName: string, matchData: RegExpMatchArray}|null}
+   */
+  convertSequence(sequence, log = () => {}) {
+    for (const pattern of this.CONVERSION_PATTERNS) {
+      const match = sequence.match(new RegExp('^' + pattern.regex.source + '$'));
+
+      log(
+        3,
+        `🔍 Testing sequence "${sequence}" against ${pattern.name}: ${match ? 'MATCH' : 'no match'}`
+      );
+
+      if (!match) continue;
+
+      const result = pattern.converter(...match);
+
+      // Skip if converter returned null (indicating invalid match)
+      if (result === null) continue;
+
+      return { result, patternName: pattern.name, matchData: match };
+    }
+    return null;
   }
 
   /**

@@ -122,6 +122,11 @@ describe('PatternTemplateEngine', () => {
       expect(vars).toEqual(['X', 'Y']);
     });
 
+    test('extracts the # number variable', () => {
+      expect(PatternTemplateEngine.extractVariables('#大X之一')).toEqual(['#', 'X']);
+      expect(PatternTemplateEngine.extractVariables('X tầng thứ #')).toEqual(['X', '#']);
+    });
+
     test('returns empty array for pattern with no variables', () => {
       const vars = PatternTemplateEngine.extractVariables('没有变量');
       expect(vars).toEqual([]);

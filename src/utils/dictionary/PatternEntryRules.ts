@@ -12,10 +12,11 @@
 
 import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine.js';
 
-const PATTERN_VARIABLE_LETTERS = ['X', 'Y', 'Z'];
+// `#` is the number variable ("#大X之一"); like X/Y/Z, at most one per pattern.
+const PATTERN_VARIABLE_LETTERS = ['X', 'Y', 'Z', '#'];
 
 /**
- * Extracts the set of X/Y/Z pattern variables present in a string, using
+ * Extracts the set of X/Y/Z/# pattern variables present in a string, using
  * PatternTemplateEngine.isVariableChar so a capital letter fused to a real
  * word (e.g. the Y in "Yến") is never misread as a variable.
  */
@@ -63,7 +64,7 @@ export function checkVariableStructure(source: string): string | null {
 }
 
 /**
- * Full X/Y/Z symmetry: every variable in source must appear in translation,
+ * Full X/Y/Z/# symmetry: every variable in source must appear in translation,
  * and every variable in translation must appear in source.
  */
 export function checkVariableSymmetry(source: string, translation: string): string | null {

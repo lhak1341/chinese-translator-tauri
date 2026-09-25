@@ -30,7 +30,8 @@ pub use matcher::{
     build_result,
     find_best_pattern_match, find_best_pattern_match_iter, PatternMatchResult, PatternMatcher, PhaseAPattern,
     PhaseAResult,
-    SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN,
+    SemanticToken, VariableCacheEntry, DEFAULT_MAX_VARIABLE_SPAN, NUMBER_VARIABLE,
+    NUMBER_VARIABLE_TYPE,
 };
 pub use parser::{parse_pattern, parse_patterns_dict};
 pub use pattern::{

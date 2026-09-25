@@ -272,3 +272,33 @@ describe('buildVariableCache — cross-pass pattern tokens (Task 5)', () => {
     });
   });
 });
+
+describe('buildVariableCache — numbers for # patterns', () => {
+  const tokens = [
+    { value: '七', type: 'chinese_char', translated: null, translationSource: null },
+    { value: '大', type: 'chinese_char', translated: null, translationSource: null },
+  ];
+  const options = { activeProperNouns: [], dictionaryManager: makeNoopDictionaryManager() };
+
+  async function processorWith(patterns) {
+    const { default: TwoPhasePatternProcessor } =
+      await import('../pattern/TwoPhasePatternProcessor.js');
+    return new TwoPhasePatternProcessor(patterns);
+  }
+
+  test('adds numeral spans when a pattern uses #', async () => {
+    const processor = await processorWith([
+      { originalPattern: '#大X之一', template: 'một trong # đại X' },
+    ]);
+    expect(processor.buildVariableCache(tokens, options)['七']).toEqual({
+      translation: 'bảy',
+      source: 'number_pattern_variable',
+      type: 'number',
+    });
+  });
+
+  test('adds no numbers when no pattern uses #', async () => {
+    const processor = await processorWith([{ originalPattern: 'X大Y', template: 'X đại Y' }]);
+    expect(processor.buildVariableCache(tokens, options)['七']).toBeUndefined();
+  });
+});

@@ -1311,3 +1311,156 @@ fn test_composite_bonus_requires_both_sides_of_a_two_sided_pattern() {
     assert_eq!(phase_a_component.original_text, "肖姓女子");
     assert_eq!(phase_a_component.translation, "nữ tử họ Tiêu");
 }
+
+/// The trailing composite bonus must also count the variable that follows the literal run.
+///
+/// Input: "肖姓女子手中的厨师帽子" (11 tokens). Phase A candidates that overlap:
+///   - "女子手中的厨师帽子" (tokens 2-10, 9 chars) — "X手中的Y", X="女子", Y="厨师帽子".
+///   - "肖姓女子" (tokens 0-3, 4 chars) — "肖姓X", X="女子" → "character". "X手中的Y"
+///     accepts it as X; trailing literal "手中的" (3) plus Y's cache hit "厨师帽子" (4) →
+///     bonus 7 → score 11.
+/// Counting only the literal run gave "肖姓女子" 4+3=7 < 9, stranding "肖姓".
+#[test]
+fn test_phase_a_trailing_bonus_counts_following_variable() {
+    let mut wrapper_types = HashMap::new();
+    wrapper_types.insert("X".to_string(), vec!["character".to_string()]);
+    let mut outer_types = HashMap::new();
+    outer_types.insert("X".to_string(), vec!["character".to_string(), "creature".to_string()]);
+    outer_types.insert("Y".to_string(), vec!["object".to_string()]);
+
+    let pattern_wrapper = parse_pattern(
+        "肖姓X".to_string(),
+        "X họ Tiêu".to_string(),
+        Some(wrapper_types),
+        true,
+        Some("character".to_string()),
+    );
+    let pattern_outer = parse_pattern(
+        "X手中的Y".to_string(),
+        "Y trong tay X".to_string(),
+        Some(outer_types),
+        true,
+        Some("object".to_string()),
+    );
+
+    let mut tokens: Vec<SemanticToken> = "肖姓女子手中的厨师帽子"
+        .chars()
+        .enumerate()
+        .map(|(i, c)| create_token(&c.to_string(), i))
+        .collect();
+
+    let mut variable_cache = HashMap::new();
+    for (key, translation, var_type) in [
+        ("女子", "nữ tử", "character"),
+        ("厨师", "đầu bếp", "character"),
+        ("帽子", "mũ", "object"),
+        ("厨师帽子", "mũ đầu bếp", "object"),
+    ] {
+        variable_cache.insert(
+            key.to_string(),
+            VariableCacheEntry {
+                translation: translation.to_string(),
+                source: "phrase".to_string(),
+                var_type: Some(var_type.to_string()),
+            },
+        );
+    }
+
+    let processor = TwoPhasePatternProcessor::new(vec![pattern_wrapper, pattern_outer]);
+    let results = processor.process_tokens(&mut tokens, &variable_cache);
+
+    assert_eq!(
+        results.len(),
+        1,
+        "Expected 1 hierarchical composite. Got: {:?}",
+        results.iter().map(|r| format!("[{}-{}] {} \"{}\"", r.start_index, r.end_index, r.source, r.translation)).collect::<Vec<_>>()
+    );
+    assert_eq!(results[0].source, "hierarchical_composition");
+    assert_eq!(results[0].start_index, 0);
+    assert_eq!(results[0].end_index, 10);
+    assert_eq!(results[0].translation, "mũ đầu bếp trong tay nữ tử họ Tiêu");
+}
+
+fn cache_entry(translation: &str, var_type: &str) -> VariableCacheEntry {
+    VariableCacheEntry {
+        translation: translation.to_string(),
+        source: "test".to_string(),
+        var_type: Some(var_type.to_string()),
+    }
+}
+
+fn run_patterns(
+    patterns: Vec<(&str, &str, Option<HashMap<String, Vec<String>>>)>,
+    text: &str,
+    cache: &HashMap<String, VariableCacheEntry>,
+) -> Vec<String> {
+    let parsed = patterns
+        .into_iter()
+        .map(|(p, t, types)| parse_pattern(p.to_string(), t.to_string(), types, false, None))
+        .collect();
+    let processor = TwoPhasePatternProcessor::new(parsed);
+    let mut tokens: Vec<SemanticToken> = text
+        .chars()
+        .enumerate()
+        .map(|(i, c)| create_token(&c.to_string(), i))
+        .collect();
+    processor
+        .process_tokens(&mut tokens, cache)
+        .into_iter()
+        .map(|r| format!("[{}-{}] {}", r.start_index, r.end_index, r.translation))
+        .collect()
+}
+
+#[test]
+fn test_number_variable_parses_as_variable_restricted_to_numbers() {
+    let pattern = parse_pattern("#大X之一".to_string(), "một trong # đại X".to_string(), None, false, None);
+    assert_eq!(pattern.variables, vec!["#".to_string(), "X".to_string()]);
+    let types = pattern.metadata.allowed_variable_types.expect("# injects a type constraint");
+    assert_eq!(types.get("#"), Some(&vec!["number".to_string()]));
+    assert_eq!(types.get("X"), None);
+}
+
+#[test]
+fn test_number_variable_fills_from_number_cache_entry() {
+    let mut cache = HashMap::new();
+    cache.insert("七".to_string(), cache_entry("bảy", "number"));
+    cache.insert("禁地".to_string(), cache_entry("cấm địa", "location"));
+    let results = run_patterns(vec![("#大X之一", "một trong # đại X", None)], "七大禁地之一", &cache);
+    assert_eq!(results, vec!["[0-5] một trong bảy đại cấm địa"]);
+}
+
+#[test]
+fn test_number_variable_rejects_non_number_entry() {
+    let mut cache = HashMap::new();
+    cache.insert("七".to_string(), cache_entry("bảy", "concept"));
+    cache.insert("禁地".to_string(), cache_entry("cấm địa", "location"));
+    let results = run_patterns(vec![("#大X之一", "một trong # đại X", None)], "七大禁地之一", &cache);
+    assert!(results.is_empty(), "got {:?}", results);
+}
+
+#[test]
+fn test_letter_variable_rejects_number_entry() {
+    // Unconstrained X/Y would otherwise accept any cache entry, numbers included.
+    let mut cache = HashMap::new();
+    cache.insert("七".to_string(), cache_entry("bảy", "number"));
+    cache.insert("禁地".to_string(), cache_entry("cấm địa", "location"));
+    let results = run_patterns(vec![("X大Y之一", "một trong X đại Y", None)], "七大禁地之一", &cache);
+    assert!(results.is_empty(), "got {:?}", results);
+}
+
+#[test]
+fn test_literal_number_pattern_beats_number_variable_pattern() {
+    // Ordinal exceptions (第一 → "thứ nhất") stay as literal patterns and must win.
+    let mut cache = HashMap::new();
+    cache.insert("一".to_string(), cache_entry("một", "number"));
+    cache.insert("三".to_string(), cache_entry("ba", "number"));
+    cache.insert("禁地".to_string(), cache_entry("cấm địa", "location"));
+    let patterns = || {
+        vec![
+            ("第一层的X", "X tầng thứ nhất", None),
+            ("第#层的X", "X tầng thứ #", None),
+        ]
+    };
+    assert_eq!(run_patterns(patterns(), "第一层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ nhất"]);
+    assert_eq!(run_patterns(patterns(), "第三层的禁地", &cache), vec!["[0-5] cấm địa tầng thứ ba"]);
+}

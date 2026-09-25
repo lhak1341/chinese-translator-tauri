@@ -14,6 +14,7 @@ const LOWERCASE_LETTER = /\p{Ll}/u;
  * Handles pattern syntax like "这些X" → "những X này" where X is a variable.
  *
  * Pattern syntax:
+ * - `#` is the number variable (filled only by a numeral, e.g. "#大X之一")
  * - Uppercase letters (A-Z) are variables, UNLESS immediately adjacent
  *   (before or after) to a lowercase letter — that shape means the letter
  *   is part of a real word, not a standalone placeholder
@@ -36,8 +37,9 @@ const LOWERCASE_LETTER = /\p{Ll}/u;
  */
 export class PatternTemplateEngine {
   /**
-   * Whether the character at index i is a variable placeholder: an
-   * uppercase letter not immediately flanked by a lowercase letter.
+   * Whether the character at index i is a variable placeholder: `#` (the
+   * number variable), or an uppercase letter not immediately flanked by a
+   * lowercase letter.
    * Shared by parsePatternToTokens and extractVariables so the two can't
    * drift on what counts as a variable.
    *
@@ -46,6 +48,7 @@ export class PatternTemplateEngine {
    * @returns {boolean}
    */
   static isVariableChar(str, i) {
+    if (str[i] === '#') return true;
     if (!/[A-Z]/.test(str[i])) return false;
     const prev = str[i - 1];
     const next = str[i + 1];

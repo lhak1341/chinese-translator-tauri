@@ -241,6 +241,39 @@ impl PatternMatchResult {
 /// Phase B overrides this when Phase A results (which can be longer) are in the cache.
 pub const DEFAULT_MAX_VARIABLE_SPAN: usize = 6;
 
+/// The number variable: `#` in a pattern (e.g. "#大X之一") is filled only by
+/// variable-cache entries of type [`NUMBER_VARIABLE_TYPE`].
+pub const NUMBER_VARIABLE: &str = "#";
+
+/// Variable-cache type of numeral entries (built by JS `PatternVariableCache.js`).
+pub const NUMBER_VARIABLE_TYPE: &str = "number";
+
+/// Whether a resolved value of `var_type` may fill `var_name` in `pattern`.
+///
+/// Number-typed values are reserved for `#`: without this guard every numeral
+/// in the text would become a valid value for any unconstrained letter variable.
+/// `#` itself accepts only numbers because the parser injects that constraint.
+/// Otherwise `allowedVariableTypes` decides, with a `None` type read as "unknown".
+pub fn is_variable_type_allowed(
+    pattern: &SemanticPattern,
+    var_name: &str,
+    var_type: Option<&str>,
+) -> bool {
+    let effective_type = var_type.unwrap_or("unknown");
+    if effective_type == NUMBER_VARIABLE_TYPE && var_name != NUMBER_VARIABLE {
+        return false;
+    }
+    match pattern
+        .metadata
+        .allowed_variable_types
+        .as_ref()
+        .and_then(|types| types.get(var_name))
+    {
+        Some(allowed) => allowed.iter().any(|t| t == effective_type),
+        None => true,
+    }
+}
+
 /// Pattern matcher - core matching algorithm
 pub struct PatternMatcher<'a> {
     /// Variable cache (populated from JavaScript)
@@ -441,19 +474,18 @@ impl<'a> PatternMatcher<'a> {
                             // from the resolver (Bug 4 fix: no second HashMap lookup).
                             // None var_type is treated as "unknown" to match JS behavior
                             // (Bug 7 fix: previously None silently bypassed the check).
-                            if let Some(allowed_types) = pattern
-                                .metadata
-                                .allowed_variable_types
-                                .as_ref()
-                                .and_then(|types| types.get(var_name))
-                            {
-                                let effective_type = var_type.as_deref().unwrap_or("unknown");
-                                if !allowed_types.iter().any(|t| t == effective_type) {
-                                    return PatternMatchResult::failure(Some(format!(
-                                        "Variable type '{}' not allowed for {} in pattern '{}'. Allowed: {:?}",
-                                        effective_type, var_name, pattern.original_pattern, allowed_types
-                                    )));
-                                }
+                            if !is_variable_type_allowed(pattern, var_name, var_type.as_deref()) {
+                                return PatternMatchResult::failure(Some(format!(
+                                    "Variable type '{}' not allowed for {} in pattern '{}'. Allowed: {:?}",
+                                    var_type.as_deref().unwrap_or("unknown"),
+                                    var_name,
+                                    pattern.original_pattern,
+                                    pattern
+                                        .metadata
+                                        .allowed_variable_types
+                                        .as_ref()
+                                        .and_then(|types| types.get(var_name))
+                                )));
                             }
 
                             variables.insert(var_name.clone(), translation);
@@ -632,18 +664,7 @@ impl<'a> PatternMatcher<'a> {
                     // (line ~444 below), instead of falling back to the
                     // correct shorter span. Mirrors the JS fix in
                     // SemanticPatternProcessor.js::testPatternMatch.
-                    let type_ok = match pattern
-                        .metadata
-                        .allowed_variable_types
-                        .as_ref()
-                        .and_then(|types| types.get(var_name))
-                    {
-                        Some(allowed) => {
-                            let effective_type = var_type.as_deref().unwrap_or("unknown");
-                            allowed.iter().any(|t| t == effective_type)
-                        }
-                        None => true,
-                    };
+                    let type_ok = is_variable_type_allowed(pattern, var_name, var_type.as_deref());
 
                     if type_ok {
                         result = Some((translation, span, text, var_type));

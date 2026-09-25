@@ -11,7 +11,7 @@
  */
 
 use super::index::PatternIndex;
-use super::matcher::{find_best_pattern_match_iter, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
+use super::matcher::{find_best_pattern_match_iter, is_variable_type_allowed, PatternMatchResult, SemanticToken, VariableCacheEntry, PhaseAResult, PhaseAPattern, DEFAULT_MAX_VARIABLE_SPAN};
 use super::pattern::{SemanticPattern, TokenType};
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
@@ -381,7 +381,7 @@ impl TwoPhasePatternProcessor {
         }
 
         // Pass 2: select non-overlapping candidates, composite-coverage score wins.
-        self.select_non_overlapping_phase_a(candidates, semantic_tokens)
+        self.select_non_overlapping_phase_a(candidates, semantic_tokens, variable_cache)
     }
 
     /// Select non-overlapping Phase A candidates by composite-coverage score.
@@ -399,6 +399,7 @@ impl TwoPhasePatternProcessor {
         &self,
         candidates: Vec<PatternProcessingResult>,
         semantic_tokens: &[SemanticToken],
+        variable_cache: &HashMap<String, VariableCacheEntry>,
     ) -> Vec<PatternProcessingResult> {
         if candidates.len() <= 1 {
             return candidates;
@@ -409,7 +410,7 @@ impl TwoPhasePatternProcessor {
             .into_iter()
             .map(|c| {
                 let own = c.original_text.chars().count();
-                let bonus = self.compute_composite_bonus(&c, semantic_tokens);
+                let bonus = self.compute_composite_bonus(&c, semantic_tokens, variable_cache);
                 (own + bonus, c)
             })
             .collect();
@@ -451,9 +452,9 @@ impl TwoPhasePatternProcessor {
         &self,
         candidate: &PatternProcessingResult,
         semantic_tokens: &[SemanticToken],
+        variable_cache: &HashMap<String, VariableCacheEntry>,
     ) -> usize {
         let candidate_type = candidate.semantic_type.as_deref();
-        let effective_type = candidate_type.unwrap_or("unknown");
         let mut max_bonus: usize = 0;
 
         for pattern in &self.all_patterns {
@@ -463,15 +464,8 @@ impl TwoPhasePatternProcessor {
                 }
                 let var_name = tok.name.as_deref().unwrap_or("X");
 
-                // Mirror matcher.rs type enforcement: None type → "unknown"
-                let type_ok = match &pattern.metadata.allowed_variable_types {
-                    Some(allowed) => match allowed.get(var_name) {
-                        Some(types) => types.iter().any(|t| t == effective_type),
-                        None => true,
-                    },
-                    None => true,
-                };
-                if !type_ok {
+                // Same type enforcement as matcher.rs
+                if !is_variable_type_allowed(pattern, var_name, candidate_type) {
                     continue;
                 }
 
@@ -488,7 +482,7 @@ impl TwoPhasePatternProcessor {
                     .iter()
                     .any(|t| t.token_type == TokenType::Literal);
                 let trailing = self.estimate_trailing_bonus(
-                    pattern, var_idx, semantic_tokens, candidate.end_index + 1,
+                    pattern, var_idx, semantic_tokens, candidate.end_index + 1, variable_cache,
                 );
                 let trailing_ok = !trailing_required || trailing > 0;
 
@@ -518,28 +512,58 @@ impl TwoPhasePatternProcessor {
 
     /// Count the literal chars immediately after `var_idx` in `pattern` that are
     /// present in `semantic_tokens` starting at `after_pos`.
-    /// Stops counting at the next variable token (conservative — variable spans unknown).
+    ///
+    /// When that literal run is followed by another variable, also count the
+    /// longest variable-cache hit at the position right after the run whose type
+    /// passes that variable's `allowedVariableTypes`. Without it, "X手中的Y" on
+    /// "肖姓女子手中的厨师帽子" credited "肖姓女子" only for "手中的" (4+3=7), so
+    /// the 9-char inner "女子手中的厨师帽子" won and stranded "肖姓". Only the one
+    /// next variable is counted, and only via a direct cache hit — a variable that
+    /// would itself need a Phase A match stays uncounted (conservative).
     fn estimate_trailing_bonus(
         &self,
         pattern: &SemanticPattern,
         var_idx: usize,
         semantic_tokens: &[SemanticToken],
         after_pos: usize,
+        variable_cache: &HashMap<String, VariableCacheEntry>,
     ) -> usize {
         let mut lit_text = String::new();
+        let mut next_var: Option<&str> = None;
         for tok in &pattern.tokens[var_idx + 1..] {
             match tok.token_type {
                 TokenType::Literal => {
                     if let Some(v) = &tok.value { lit_text.push_str(v); }
                 }
-                TokenType::Variable => break,
+                TokenType::Variable => {
+                    next_var = Some(tok.name.as_deref().unwrap_or("X"));
+                    break;
+                }
             }
         }
         if lit_text.is_empty() || after_pos >= semantic_tokens.len() {
             return 0;
         }
         let available: String = semantic_tokens[after_pos..].iter().map(|t| t.value.as_str()).collect();
-        if available.starts_with(&lit_text) { lit_text.chars().count() } else { 0 }
+        if !available.starts_with(&lit_text) {
+            return 0;
+        }
+        let lit_chars = lit_text.chars().count();
+
+        let var_chars = next_var.map_or(0, |var_name| {
+            let rest: Vec<char> = available.chars().skip(lit_chars).collect();
+            (1..=rest.len().min(DEFAULT_MAX_VARIABLE_SPAN))
+                .rev()
+                .find(|&span| {
+                    let key: String = rest[..span].iter().collect();
+                    variable_cache.get(&key).is_some_and(|entry| {
+                        is_variable_type_allowed(pattern, var_name, entry.var_type.as_deref())
+                    })
+                })
+                .unwrap_or(0)
+        });
+
+        lit_chars + var_chars
     }
 
     /// Count the literal chars immediately before `var_idx` in `pattern` (the final

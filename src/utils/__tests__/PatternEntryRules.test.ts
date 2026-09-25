@@ -53,6 +53,15 @@ describe('checkVariableStructure', () => {
   test('rejects a repeated Y even when X is present', () => {
     expect(checkVariableStructure('X给Y和Y')).toBe('Pattern cannot use variable Y more than once');
   });
+
+  test('accepts # alone and # with X', () => {
+    expect(checkVariableStructure('第#层')).toBeNull();
+    expect(checkVariableStructure('#大X之一')).toBeNull();
+  });
+
+  test('rejects a repeated #', () => {
+    expect(checkVariableStructure('#到#倍')).toBe('Pattern cannot use variable # more than once');
+  });
 });
 
 describe('checkVariableSymmetry', () => {
@@ -66,6 +75,13 @@ describe('checkVariableSymmetry', () => {
 
   test('accepts a 0-variable pair', () => {
     expect(checkVariableSymmetry('的书', 'sách của')).toBeNull();
+  });
+
+  test('requires # in the translation when the source uses it', () => {
+    expect(checkVariableSymmetry('#大X之一', 'một trong # đại X')).toBeNull();
+    expect(checkVariableSymmetry('#大X之一', 'một trong đại X')).toBe(
+      'Translation must use variable # from the pattern'
+    );
   });
 
   test('rejects translation missing a source variable', () => {

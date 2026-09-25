@@ -24,6 +24,13 @@ describe('highlightPatternVariables', () => {
     expect(container.querySelector('span')?.style.color).toBe(RGB.DEFAULT);
   });
 
+  test('wraps the # number variable', () => {
+    const { container } = render(<>{highlightPatternVariables('#大X之一')}</>);
+    const spans = container.querySelectorAll('span');
+    expect(Array.from(spans).map((s) => s.textContent)).toEqual(['#', 'X']);
+    expect(container.textContent).toBe('#大X之一');
+  });
+
   test('leaves text with no uppercase letters unwrapped', () => {
     const { container } = render(<>{highlightPatternVariables('没有变量')}</>);
     expect(container.querySelectorAll('span')).toHaveLength(0);

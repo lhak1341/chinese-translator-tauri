@@ -5,6 +5,7 @@
  * Mirrors JavaScript SemanticPatternProcessor.parsePattern() logic.
  */
 
+use super::matcher::{NUMBER_VARIABLE, NUMBER_VARIABLE_TYPE};
 use super::pattern::{PatternToken, SemanticPattern};
 #[cfg(test)]
 use super::pattern::TokenType;
@@ -37,7 +38,7 @@ use std::collections::HashMap;
 pub fn parse_pattern(
     pattern_text: String,
     template: String,
-    allowed_variable_types: Option<HashMap<String, Vec<String>>>,
+    mut allowed_variable_types: Option<HashMap<String, Vec<String>>>,
     allow_as_pattern_variable: bool,
     semantic_type: Option<String>,
 ) -> SemanticPattern {
@@ -53,8 +54,8 @@ pub fn parse_pattern(
     while i < chars.len() {
         let ch = chars[i];
 
-        if ch.is_ascii_uppercase() {
-            // Variable token (A-Z uppercase characters)
+        if ch.is_ascii_uppercase() || ch == '#' {
+            // Variable token (A-Z uppercase characters, or `#` for a number)
             let var_name = ch.to_string();
             tokens.push(PatternToken::variable(var_name.clone(), position));
 
@@ -71,6 +72,13 @@ pub fn parse_pattern(
             i += 1;
             position += 1;
         }
+    }
+
+    // `#` accepts only numbers, whatever the dictionary entry declares.
+    if variables.iter().any(|v| v == NUMBER_VARIABLE) {
+        allowed_variable_types
+            .get_or_insert_with(HashMap::new)
+            .insert(NUMBER_VARIABLE.to_string(), vec![NUMBER_VARIABLE_TYPE.to_string()]);
     }
 
     // Create semantic pattern with calculated priority

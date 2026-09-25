@@ -135,8 +135,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/matcher.rs": {
-    "mtime": 1789551870.8463602,
-    "ast_hash": "4d5882ad763ba2dba9a83f80343cf113",
+    "mtime": 1790349546.3889604,
+    "ast_hash": "03e39028b8e8c05c002ca7c4ff621159",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/index.rs": {
@@ -145,13 +145,13 @@
     "semantic_hash": "06031592ddb5804d9b1e38e9df5600fa"
   },
   "wasm-core/src/pattern_processor/mod.rs": {
-    "mtime": 1789551870.8465357,
-    "ast_hash": "10d48eee9426aee1e3f50b8bdfe5f136",
+    "mtime": 1790349546.3908834,
+    "ast_hash": "aabb2278c4af6feed858d5eeb1d7af39",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/two_phase.rs": {
-    "mtime": 1789551870.8467412,
-    "ast_hash": "34f2fe18d0d072706be3b10f25076e5b",
+    "mtime": 1790349560.1407073,
+    "ast_hash": "b14ea29a284cb6d2ace6207b71387c66",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/wasm_wrapper.rs": {
@@ -160,9 +160,9 @@
     "semantic_hash": "d3663a4a2934ee7c4d275b2279bdf4d8"
   },
   "wasm-core/src/pattern_processor/parser.rs": {
-    "mtime": 1786379542.3020036,
-    "ast_hash": "6c70788eea3b165e06b8d9fbc9ef4c9d",
-    "semantic_hash": "6c70788eea3b165e06b8d9fbc9ef4c9d"
+    "mtime": 1790349546.391688,
+    "ast_hash": "d5f050a542986da51a195913e20d4df4",
+    "semantic_hash": ""
   },
   "wasm-core/src/wasm-core/translation_wasm_core.js": {
     "mtime": 1764427117.1757026,
@@ -355,8 +355,8 @@
     "semantic_hash": "177901b733ab7f53e9efde5cf556ce65"
   },
   "src/utils/NumberProcessor.js": {
-    "mtime": 1788966710.8760579,
-    "ast_hash": "948629b3694fee1a4f30ca896cd5d545",
+    "mtime": 1790349624.4977603,
+    "ast_hash": "9170fa9081d97574ec446f95b42b0f02",
     "semantic_hash": ""
   },
   "src/utils/GraphemeHelper.ts": {
@@ -660,9 +660,9 @@
     "semantic_hash": "5f805dfc876f71466303bfd3f3f5d116"
   },
   "src/utils/text/PatternTextFormatter.tsx": {
-    "mtime": 1781745798.1236372,
-    "ast_hash": "6c3591b9acce24022d5d996ad54df8c2",
-    "semantic_hash": "6c3591b9acce24022d5d996ad54df8c2"
+    "mtime": 1790349690.5905967,
+    "ast_hash": "301ef8944f191e5dba2638997fbebf0a",
+    "semantic_hash": ""
   },
   "src/utils/text/ParagraphGrouping.ts": {
     "mtime": 1772666306.8221302,
@@ -720,8 +720,8 @@
     "semantic_hash": "e2f535669db9f65a34edc71d9bb49366"
   },
   "src/utils/pattern/PatternTemplateEngine.js": {
-    "mtime": 1788793129.8128214,
-    "ast_hash": "a574fa2f0eac80c10fed02e48ce5ffd1",
+    "mtime": 1790349690.5893958,
+    "ast_hash": "dd4c6b5139c3fdcbe9da4b6efd13e606",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternVariableCache.js": {
@@ -760,8 +760,8 @@
     "semantic_hash": "4282714c85e510df3f9c76fdfae18b02"
   },
   "src/utils/pattern/TwoPhasePatternProcessor.js": {
-    "mtime": 1788933183.6686828,
-    "ast_hash": "d58a88b4178b4d03c1c14805d83febc2",
+    "mtime": 1790349690.588628,
+    "ast_hash": "4a9448205ac0e311119f430eb8d8f81b",
     "semantic_hash": ""
   },
   "src/utils/pattern/index.ts": {
@@ -1380,8 +1380,8 @@
     "semantic_hash": ""
   },
   "wasm-core/CLAUDE.md": {
-    "mtime": 1789911834.4498262,
-    "ast_hash": "98d39b526f00dda9e1a9381b28eb55ee",
+    "mtime": 1790349859.7008026,
+    "ast_hash": "83b19413f1cb5b2a20eba7f6a5b1ef4e",
     "semantic_hash": ""
   },
   "wasm-core/WARNINGS.md": {
@@ -1400,13 +1400,13 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1789899707.620908,
-    "ast_hash": "413fc147bc95e50ef5c19e0b9ecf3ca6",
+    "mtime": 1790347301.6329532,
+    "ast_hash": "39e5618da941be8d25d152088a291ebd",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
-    "mtime": 1790346973.6527998,
-    "ast_hash": "dc13ef1a3eef72f86d9b45d9dd59bd3e",
+    "mtime": 1790347317.1994247,
+    "ast_hash": "57c60d31274804b4ada9eb68634b1153",
     "semantic_hash": ""
   },
   "public/vite.svg": {
@@ -1820,8 +1820,8 @@
     "semantic_hash": ""
   },
   "docs/guides/gotchas.md": {
-    "mtime": 1789622577.0893133,
-    "ast_hash": "0f543f7df7b3879ee3eae46f1e53c093",
+    "mtime": 1790347301.6338909,
+    "ast_hash": "a3c60b6a6de280ee8ff7245ee5d50a03",
     "semantic_hash": ""
   },
   "src/components/dictionary/MoveDialog.tsx": {
@@ -1850,13 +1850,13 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/PatternEntryRules.ts": {
-    "mtime": 1788795676.8555012,
-    "ast_hash": "1a955ec6546623049710dabcca970ef1",
+    "mtime": 1790349690.5900471,
+    "ast_hash": "3648708b73bcb31ff6a80eac12cef5aa",
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1789633829.3633413,
-    "ast_hash": "46bfae3c43f8b2e0fc3ddc77e218c57b",
+    "mtime": 1790347301.634435,
+    "ast_hash": "001aa512ef63d6716ed199255e44fb08",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
@@ -2167,6 +2167,11 @@
   "src/components/dictionary/EntryContextMenu.tsx": {
     "mtime": 1790346452.579338,
     "ast_hash": "4f6501a8e3cc6b2fc079b71e348c3243",
+    "semantic_hash": ""
+  },
+  "src/utils/pattern/NumberVariable.js": {
+    "mtime": 1790349846.3351743,
+    "ast_hash": "9819da9d77959651ffe64fb26dd1a510",
     "semantic_hash": ""
   }
 }
