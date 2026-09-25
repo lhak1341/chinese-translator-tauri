@@ -1,28 +1,38 @@
 import { describe, it, expect, vi } from 'vitest';
 import { matchHotkey } from '../../ui/HotkeyDispatchTable';
-import type { HotkeyAction } from '../../ui/HotkeyDispatchTable';
-import {
-  buildPaletteCommands,
-  filterPaletteCommands,
-  type PaletteCommandHandlers,
-} from '../PaletteCommands';
+import { buildPaletteCommands, filterPaletteCommands } from '../PaletteCommands';
+import type { ReaderActions } from '../ReaderActions';
 
-function handlers(overrides: Partial<PaletteCommandHandlers> = {}): PaletteCommandHandlers {
+function actions(overrides: Partial<ReaderActions> = {}): ReaderActions {
   return {
-    onJumpToChapter: vi.fn(),
-    onPreviousChapter: vi.fn(),
-    onNextChapter: vi.fn(),
-    onBindDictionaries: vi.fn(),
-    onReloadDictionaries: vi.fn(),
-    onAddCharacter: vi.fn(),
-    onAddPhrase: vi.fn(),
-    onAddProperNoun: vi.fn(),
-    onAddPattern: vi.fn(),
-    onAddFictionProperNoun: vi.fn(),
-    onAddFictionStructuralPattern: vi.fn(),
-    onSwitchBook: vi.fn(),
+    openChapterOutline: vi.fn(),
+    previousChapter: vi.fn(),
+    nextChapter: vi.fn(),
+    bindDictionaries: vi.fn(),
+    reloadDictionary: vi.fn(),
+    quickAdd: vi.fn(),
+    quickAddCharacter: vi.fn(),
+    quickAddPhrase: vi.fn(),
+    quickAddProperNoun: vi.fn(),
+    quickAddPattern: vi.fn(),
+    quickAddCustomProperNoun: vi.fn(),
+    quickAddCustomStructuralPattern: vi.fn(),
+    openCommandPalette: vi.fn(),
+    pageDown: vi.fn(),
+    pageUp: vi.fn(),
     ...overrides,
   };
+}
+
+function build(overrides: Partial<Parameters<typeof buildPaletteCommands>[0]> = {}) {
+  return buildPaletteCommands({
+    books,
+    currentFileName: 'open.txt',
+    actions: actions(),
+    selection: '',
+    onSwitchBook: vi.fn(),
+    ...overrides,
+  });
 }
 
 const books = [
@@ -33,11 +43,7 @@ const books = [
 
 describe('buildPaletteCommands', () => {
   it('offers every action the ticket names', () => {
-    const commands = buildPaletteCommands({
-      books,
-      currentFileName: 'open.txt',
-      handlers: handlers(),
-    });
+    const commands = build();
     const ids = commands.map((command) => command.id);
     expect(ids).toContain('jump-to-chapter');
     expect(ids).toContain('bind-dictionaries');
@@ -47,11 +53,7 @@ describe('buildPaletteCommands', () => {
   });
 
   it('shows each row its direct shortcut, and none for rows that have no binding', () => {
-    const commands = buildPaletteCommands({
-      books,
-      currentFileName: 'open.txt',
-      handlers: handlers(),
-    });
+    const commands = build();
     const hintFor = (id: string) => commands.find((command) => command.id === id)?.hint;
     expect(hintFor('jump-to-chapter')).toBe('Cmd/Ctrl+G');
     expect(hintFor('previous-chapter')).toBe('[');
@@ -63,46 +65,45 @@ describe('buildPaletteCommands', () => {
   });
 
   it('leaves the open book out of the switch-book rows', () => {
-    const commands = buildPaletteCommands({
-      books,
-      currentFileName: 'open.txt',
-      handlers: handlers(),
-    });
+    const commands = build();
     const bookIds = commands.filter((c) => c.group === 'Books').map((c) => c.id);
     expect(bookIds).toEqual(['switch-book:other.txt', 'switch-book:third.txt']);
   });
 
-  it('runs the handler the row stands for', () => {
-    const onReloadDictionaries = vi.fn();
+  it('runs the action the row names', () => {
+    const reloadDictionary = vi.fn();
     const onSwitchBook = vi.fn();
-    const commands = buildPaletteCommands({
-      books,
-      currentFileName: 'open.txt',
-      handlers: handlers({ onReloadDictionaries, onSwitchBook }),
-    });
+    const commands = build({ actions: actions({ reloadDictionary }), onSwitchBook });
     commands.find((command) => command.id === 'reload-dictionaries')?.run();
     commands.find((command) => command.id === 'switch-book:third.txt')?.run();
-    expect(onReloadDictionaries).toHaveBeenCalledTimes(1);
+    expect(reloadDictionary).toHaveBeenCalledTimes(1);
     expect(onSwitchBook).toHaveBeenCalledWith('third.txt');
   });
 
+  it('hands an Add row the selection it was built with', () => {
+    const quickAddCharacter = vi.fn();
+    const commands = build({ actions: actions({ quickAddCharacter }), selection: '萧炎' });
+    commands.find((command) => command.id === 'add-character')?.run();
+    expect(quickAddCharacter).toHaveBeenCalledWith('萧炎');
+  });
+
+  it('names its action on every row but the book switches', () => {
+    const commands = build();
+    for (const command of commands) {
+      if (command.group === 'Books') expect(command.action).toBeUndefined();
+      else expect(command.action).toBeDefined();
+    }
+  });
+
   it('builds without books — a shelf of one still offers every other action', () => {
-    const commands = buildPaletteCommands({
-      books: [],
-      currentFileName: 'open.txt',
-      handlers: handlers(),
-    });
+    const commands = build({ books: [] });
     expect(commands.some((command) => command.group === 'Books')).toBe(false);
     expect(commands.length).toBeGreaterThan(0);
   });
 });
 
 describe('filterPaletteCommands', () => {
-  const commands = buildPaletteCommands({
-    books,
-    currentFileName: 'open.txt',
-    handlers: handlers(),
-  });
+  const commands = build();
 
   it('returns everything for an empty or whitespace query', () => {
     expect(filterPaletteCommands(commands, '')).toHaveLength(commands.length);
@@ -148,20 +149,6 @@ describe('filterPaletteCommands', () => {
  * silently advertising a dead one.
  */
 describe('hints match what the dispatch table actually does', () => {
-  const expectedAction: Record<string, HotkeyAction> = {
-    'jump-to-chapter': { type: 'openChapterOutline' },
-    'previous-chapter': { type: 'previousChapter' },
-    'next-chapter': { type: 'nextChapter' },
-    'bind-dictionaries': { type: 'bindDictionaries' },
-    'reload-dictionaries': { type: 'reloadDictionary' },
-    'add-character': { type: 'quickAddCharacter' },
-    'add-phrase': { type: 'quickAddPhrase' },
-    'add-proper-noun': { type: 'quickAddProperNoun' },
-    'add-pattern': { type: 'quickAddPattern' },
-    'add-fiction-proper-noun': { type: 'quickAddCustomProperNoun' },
-    'add-fiction-structural-pattern': { type: 'quickAddCustomStructuralPattern' },
-  };
-
   /** "Cmd/Ctrl+B" → the Cmd+B keypress; a bare hint like "[" → that key, unmodified. */
   function pressFor(hint: string) {
     const isModified = hint.startsWith('Cmd/Ctrl+');
@@ -175,22 +162,24 @@ describe('hints match what the dispatch table actually does', () => {
     };
   }
 
-  const commands = buildPaletteCommands({
-    books,
-    currentFileName: 'open.txt',
-    handlers: handlers(),
-  });
+  const commands = build();
+  const hinted = commands.filter((command) => command.hint);
 
-  it.each(Object.keys(expectedAction))('%s advertises the key that fires it', (id) => {
-    const hint = commands.find((command) => command.id === id)?.hint;
-    expect(hint).toBeDefined();
-    expect(
-      matchHotkey(pressFor(hint as string), { activeTab: 'reader', isInputFocused: false })
-    ).toEqual(expectedAction[id]);
-  });
+  it.each(hinted.map((command) => command.id))(
+    '%s advertises the key that fires its action',
+    (id) => {
+      const command = hinted.find((candidate) => candidate.id === id);
+      expect(
+        matchHotkey(pressFor(command?.hint as string), {
+          activeTab: 'reader',
+          isInputFocused: false,
+        })
+      ).toEqual({ type: command?.action });
+    }
+  );
 
-  it('covers every row that claims a hint', () => {
-    const hinted = commands.filter((command) => command.hint).map((command) => command.id);
-    expect(hinted.sort()).toEqual(Object.keys(expectedAction).sort());
+  it('gives every action row a hint', () => {
+    const actionRows = commands.filter((command) => command.action).map((command) => command.id);
+    expect(hinted.map((command) => command.id).sort()).toEqual(actionRows.sort());
   });
 });

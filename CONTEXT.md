@@ -710,6 +710,18 @@ _Avoid_: left/right panel (the layout is not the role), source panel (ambiguous 
 
 **`src/hooks/useReaderPanels.ts`** owns the set: the three virtualizers and their width estimates, the one-way sync (`usePanelSync`), re-alignment when a row's measurement changes, wheel forwarding and paging. It returns `{ master, followers, panels, pageBy, isBlankAt }`, and `BookReader` spreads each entry of `panels` into a `<ReaderPanel>`.
 
+### Reader Commands
+
+Everything the reader can ask the Reader to do: step a chapter, open the outline, page, reload or bind dictionaries, add an entry, switch books. Each is **one action**, named by the hotkey dispatch table's own action type (`previousChapter`, `quickAddCharacter`, …), and reachable by up to three **routes**: a palette row, a hotkey, or a button. Every route runs the same function, so a palette row and the key its hint advertises cannot do different things.
+
+The one exception is a route the Reader does not own. Cmd+B (bind dictionaries) is registered by the tab container for every tab, so the Reader offers it in the palette but must not register the key a second time.
+
+An Add action takes the text to pre-fill, and each route supplies its own. The palette gives the selection it captured when it opened, because typing into the palette's search box clears the page selection. A hotkey gives its clipboard round trip.
+
+**`src/hooks/useReaderCommands.ts`** holds the action record, the Add dialog, the palette, and the fiction Adds filed under the book's binding. **`src/utils/reader/PaletteCommands.ts`** is the palette's row table (label, shortcut hint, group, search keywords, action id), and **`ReaderActions.ts`** names the actions.
+
+_Avoid_: command (for one row; that is a palette row), shortcut (for the action; a shortcut is one route to it).
+
 ### Reader Engine Calls
 
 The Reader's three calls on the shared engine: a chunk of book text, its character-only gloss, and a batch of chapter titles. They go through one queue, because `translateWithSegments` resets engine-wide segment state on entry: two calls in flight at once, from the viewport fill and the outline's title translation (two loops that don't know about each other), would corrupt each other. Each call waits for the one before it to settle, and a failure never blocks the calls behind it. The engine is read when a call runs, not when it is queued.

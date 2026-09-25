@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790355053.5719328,
-    "ast_hash": "d300df21515daf42e11d4dacb57678d7",
+    "mtime": 1790356014.4274952,
+    "ast_hash": "6dcbcac5b02df41b09d8eab4bc0474da",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790355053.5704749,
-    "ast_hash": "9264e46caf2e1a20ee9b449ee3ee61ab",
+    "mtime": 1790356014.4265473,
+    "ast_hash": "98e3d6564173a525321c89c93b5ac73b",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790355027.8787484,
-    "ast_hash": "a182ebdfd6db552c648db9c52cb80ffe",
+    "mtime": 1790355951.8734045,
+    "ast_hash": "344018cb4e8626501702ad5f7411c5ae",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -2025,8 +2025,8 @@
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
-    "mtime": 1790354893.7853708,
-    "ast_hash": "44ecd9d9cd76ba2e2b10bff5ee470bca",
+    "mtime": 1790355075.2522655,
+    "ast_hash": "684adb5d4cf8c045ac07c5d9deb8fc0e",
     "semantic_hash": ""
   },
   "src/hooks/useReaderPanel.ts": {
@@ -2085,8 +2085,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PaletteCommands.ts": {
-    "mtime": 1789632320.5199358,
-    "ast_hash": "d3a11a531605f676816cb517c7ce0507",
+    "mtime": 1790355882.7319682,
+    "ast_hash": "de978f84147dd1f107f4cfc6045de729",
     "semantic_hash": ""
   },
   "src/hooks/useAppearanceVersion.ts": {
@@ -2175,8 +2175,18 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderPanels.ts": {
-    "mtime": 1790354940.1112492,
-    "ast_hash": "ac9ec60884f34be486bea9d97f722f18",
+    "mtime": 1790355075.2669423,
+    "ast_hash": "0fdced411480815f39abcd1c302b0bfe",
+    "semantic_hash": ""
+  },
+  "src/hooks/useReaderCommands.ts": {
+    "mtime": 1790355914.6761882,
+    "ast_hash": "442e83d09cba1e30d4302a0996573a6b",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/ReaderActions.ts": {
+    "mtime": 1790355839.513292,
+    "ast_hash": "dc5f4bf6d32e283199df286c1ec20e72",
     "semantic_hash": ""
   }
 }

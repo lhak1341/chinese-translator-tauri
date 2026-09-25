@@ -7,10 +7,6 @@ import type {
   OpenBook,
   ReadingPosition,
 } from '../../types/ReaderTypes';
-import { logger } from '../../utils/logger';
-import { requestDictionaryReload } from '../../utils/dictionary';
-import { useDictionary } from '../dictionary/DictionaryContext';
-import { useDictionaryModals } from '../../hooks/useDictionaryModals';
 import HotkeyHandler from '../HotkeyHandler';
 import DictionaryEntry from '../dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../ModalErrorBoundary';
@@ -24,18 +20,18 @@ import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
 import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
 import { useReaderPanels } from '../../hooks/useReaderPanels';
+import { useReaderCommands } from '../../hooks/useReaderCommands';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
 import {
   fictionDisplayName,
   suggestFictionDictionary,
 } from '../../utils/reader/FictionDictionarySuggestion';
-import { boundQuickAddTargets } from '../../utils/reader/BoundQuickAddTargets';
 import { useBookBinding } from '../BookBindingContext';
 import BindingBanner from './BindingBanner';
 import BindingDialog from './BindingDialog';
 import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
-import { buildPaletteCommands, type PaletteBook } from '../../utils/reader/PaletteCommands';
+import type { PaletteBook } from '../../utils/reader/PaletteCommands';
 import ReaderPanel from './ReaderPanel';
 import type { PanelRow } from './ReaderPanel';
 import { fillSegmentGapsCached } from '../../utils/reader/LineSegments';
@@ -123,11 +119,6 @@ const BookReader: React.FC<BookReaderProps> = ({
    * jump-to-chapter shortcut opens it ready to type; the chapter-strip button opens it
    * for the eye, leaving the keyboard where it was. */
   const [outline, setOutline] = useState<{ focusSearch: boolean } | null>(null);
-  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
-  /** The reader's text selection as of the moment the palette opened. Captured there
-   * rather than read when an Add row runs: focusing the palette's search collapses the
-   * document selection, so by then the term the reader highlighted is gone. */
-  const [paletteSelection, setPaletteSelection] = useState('');
   // Dismissal is session-local on purpose: it is not an answer, so nothing is persisted
   // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
   // book does not silently hide it for the next.
@@ -280,116 +271,23 @@ const BookReader: React.FC<BookReaderProps> = ({
     [chapterHeaders, readLine, scrollToLine]
   );
 
-  const reloadDictionaries = useCallback((): void => {
-    // The owner reports its own failures (toast + status); this catch only keeps a
-    // rejection from escaping as an unhandled one.
-    requestDictionaryReload().catch((cause: unknown) => {
-      logger.error('Reader-triggered dictionary reload failed:', cause);
-    });
-  }, []);
-
-  // The add-entry shortcut family, reused: the same hook (and the same DictionaryEntry
-  // modal) the Translator uses, so Cmd-1..6 resolve the same targets here as there —
-  // including the two that mean "the active fiction's dictionaries", which the open
-  // book's binding is what makes reliable.
-  const { dictionaries } = useDictionary();
-  const {
-    showQuickAdd,
-    quickAddDictionary,
-    clipboardText,
-    openQuickAdd,
-    openQuickAddCharacter,
-    openQuickAddPhrase,
-    openQuickAddProperNoun,
-    openQuickAddPattern,
-    openQuickAddCustomProperNoun,
-    openQuickAddCustomStructuralPattern,
-    closeQuickAdd,
-    handleQuickAddDictionaryChange,
-  } = useDictionaryModals(dictionaries);
-
-  // The two members of the family that mean "the active fiction's dictionaries" are
-  // answered from the open book's binding, not from the config key the binding happens to
-  // have written — so the bar's label and its destination cannot disagree when that write
-  // failed. An unbound book falls through to the config-driven resolvers, which own the
-  // reporting for having no fiction dictionary at all.
-  const boundTargets = useMemo(
-    () => boundQuickAddTargets(binding?.fictionDictionary ?? null, dictionaries),
-    [binding, dictionaries]
-  );
-
-  const openBoundProperNoun = useCallback(
-    async (text?: string): Promise<void> => {
-      if (boundTargets.properNouns) {
-        openQuickAdd(boundTargets.properNouns, text ?? '');
-        return;
-      }
-      await openQuickAddCustomProperNoun(text);
-    },
-    [boundTargets.properNouns, openQuickAdd, openQuickAddCustomProperNoun]
-  );
-
-  const openBoundStructuralPattern = useCallback(
-    async (text?: string): Promise<void> => {
-      if (boundTargets.structuralPatterns) {
-        openQuickAdd(boundTargets.structuralPatterns, text ?? '');
-        return;
-      }
-      await openQuickAddCustomStructuralPattern(text);
-    },
-    [boundTargets.structuralPatterns, openQuickAdd, openQuickAddCustomStructuralPattern]
-  );
-
   /** Open the outline ready to be typed into — what both the jump-to-chapter shortcut and
    * the palette's own row do. The chapter-strip button opens it without taking focus. */
   const openOutlineForSearch = useCallback((): void => {
     setOutline({ focusSearch: true });
   }, []);
 
-  const openPalette = useCallback((): void => {
-    setPaletteSelection(window.getSelection()?.toString().trim() ?? '');
-    setIsPaletteOpen(true);
-  }, []);
-
-  // The palette's rows are data — the shortcut each one displays included. Everything
-  // here is the same callback the direct binding fires, so the two paths cannot drift.
-  const paletteCommands = useMemo(
-    () =>
-      buildPaletteCommands({
-        books,
-        currentFileName: book.fileName,
-        handlers: {
-          onJumpToChapter: openOutlineForSearch,
-          onPreviousChapter: () => goToChapter(-1),
-          onNextChapter: () => goToChapter(1),
-          onBindDictionaries: openDialog,
-          onReloadDictionaries: reloadDictionaries,
-          onAddCharacter: () => openQuickAddCharacter(paletteSelection),
-          onAddPhrase: () => openQuickAddPhrase(paletteSelection),
-          onAddProperNoun: () => openQuickAddProperNoun(paletteSelection),
-          onAddPattern: () => openQuickAddPattern(paletteSelection),
-          onAddFictionProperNoun: () => void openBoundProperNoun(paletteSelection),
-          onAddFictionStructuralPattern: () => void openBoundStructuralPattern(paletteSelection),
-          onSwitchBook,
-        },
-      }),
-    [
-      book.fileName,
-      books,
-      goToChapter,
-      openOutlineForSearch,
-      onSwitchBook,
-      openBoundProperNoun,
-      openBoundStructuralPattern,
-      openDialog,
-      openQuickAddCharacter,
-      openQuickAddPattern,
-      openQuickAddPhrase,
-      openQuickAddProperNoun,
-      paletteSelection,
-      reloadDictionaries,
-    ]
-  );
+  const { actions, paletteCommands, hotkeyProps, palette, quickAdd } = useReaderCommands({
+    isActive,
+    books,
+    currentFileName: book.fileName,
+    binding,
+    goToChapter,
+    openOutline: openOutlineForSearch,
+    pageBy,
+    openBindingDialog: openDialog,
+    onSwitchBook,
+  });
 
   // Fetch the pages covering what is about to be painted. Running after render (rather
   // than inside it) keeps the fetch out of the render pass; the rows it fills in arrive
@@ -451,26 +349,7 @@ const BookReader: React.FC<BookReaderProps> = ({
 
   return (
     <div className={styles.reader}>
-      {/* `activeTab` is left unset while the Reader is in the background, exactly as the
-          Translator does it: every tab stays mounted, so the tab identity is what keeps
-          two registered handlers from both answering the same key. */}
-      <HotkeyHandler
-        activeTab={isActive ? 'reader' : undefined}
-        onQuickAdd={openQuickAddProperNoun}
-        onQuickAddCharacter={openQuickAddCharacter}
-        onQuickAddPhrase={openQuickAddPhrase}
-        onQuickAddProperNoun={openQuickAddProperNoun}
-        onQuickAddPattern={openQuickAddPattern}
-        onQuickAddCustomProperNoun={openBoundProperNoun}
-        onQuickAddCustomStructuralPattern={openBoundStructuralPattern}
-        onReloadDictionary={reloadDictionaries}
-        onOpenCommandPalette={openPalette}
-        onOpenChapterOutline={openOutlineForSearch}
-        onPreviousChapter={() => goToChapter(-1)}
-        onNextChapter={() => goToChapter(1)}
-        onPageDown={() => pageBy(1)}
-        onPageUp={() => pageBy(-1)}
-      />
+      <HotkeyHandler {...hotkeyProps} />
 
       <div className={styles.readerHeader}>
         <button onClick={onBack} className={styles.secondaryButton}>
@@ -510,7 +389,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         <div className={styles.chapterStripReference}>
           <div className={styles.chapterStripNav}>
             <button
-              onClick={() => goToChapter(-1)}
+              onClick={() => void actions.previousChapter()}
               // Mirrors `stepChapter` itself rather than re-deriving "is there a previous
               // chapter" from `chapterIndex` — since a step back from mid-chapter now
               // lands on the *current* chapter's own start, the button stays enabled in
@@ -525,7 +404,7 @@ const BookReader: React.FC<BookReaderProps> = ({
               <ChevronLeft size={14} />
             </button>
             <button
-              onClick={() => goToChapter(1)}
+              onClick={() => void actions.nextChapter()}
               disabled={chapterHeaders.length === 0 || chapterIndex === chapterHeaders.length - 1}
               className={styles.iconButton}
               title="Next chapter (])"
@@ -614,14 +493,14 @@ const BookReader: React.FC<BookReaderProps> = ({
         />
       </div>
 
-      {showQuickAdd && (
-        <ModalErrorBoundary onClose={closeQuickAdd} title="❌ Failed to load Add">
+      {quickAdd.isOpen && (
+        <ModalErrorBoundary onClose={quickAdd.close} title="❌ Failed to load Add">
           <DictionaryEntry
-            onClose={closeQuickAdd}
-            selectedDictionary={quickAddDictionary}
+            onClose={quickAdd.close}
+            selectedDictionary={quickAdd.dictionary}
             allowDictionarySelection={true}
-            onDictionaryChange={handleQuickAddDictionaryChange}
-            initialSource={clipboardText}
+            onDictionaryChange={quickAdd.onDictionaryChange}
+            initialSource={quickAdd.initialText}
           />
         </ModalErrorBoundary>
       )}
@@ -662,9 +541,7 @@ const BookReader: React.FC<BookReaderProps> = ({
         />
       )}
 
-      {isPaletteOpen && (
-        <CommandPalette commands={paletteCommands} onClose={() => setIsPaletteOpen(false)} />
-      )}
+      {palette.isOpen && <CommandPalette commands={paletteCommands} onClose={palette.close} />}
     </div>
   );
 };
