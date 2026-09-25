@@ -61,6 +61,43 @@ export interface ReaderSegment {
   source?: string;
 }
 
+/** One line as a panel renders it. */
+export interface PanelRow {
+  /** The text to show. `undefined` is a line whose page has not been fetched yet. */
+  text: string | undefined;
+  /**
+   * Whether this is stand-in content — the Chinese source in a panel that will eventually
+   * show Vietnamese. Styled dimmer, but in the same element, so the row's height barely
+   * changes when the real text lands.
+   */
+  isPending: boolean;
+  /** Language of `text` as rendered, which changes while a row is pending. */
+  lang: 'zh' | 'vi';
+  /**
+   * A blank line in the source file, which renders at zero height.
+   *
+   * Line breaks between paragraphs are not uniform across a library — one file runs its
+   * paragraphs adjacent, the next separates them by one blank line, the one after by two —
+   * and every row already carries the paragraph gap as its own bottom padding. Rendering a
+   * blank line as a real row would add that file's own spacing on top of the setting's, so
+   * the same Paragraph Spacing would read differently from book to book. Collapsed to
+   * nothing, every file spaces its paragraphs by the setting alone.
+   *
+   * Decided from the *original* Chinese line, never from this panel's own text, so all
+   * three panels collapse the same rows and stay aligned. An unfetched line is not blank —
+   * it keeps its full height, so its row does not jump when its page lands.
+   */
+  isBlank: boolean;
+  /**
+   * The row cut into clickable runs, when something has translated it. Absent while the row
+   * is still Chinese stand-in text, and on a row no chunk covers.
+   *
+   * The runs concatenate to exactly `text`, so a row does not reflow when highlighting
+   * arrives — it is the same characters, in spans rather than one text node.
+   */
+  segments?: readonly ReaderSegment[];
+}
+
 /** A cached chunk's highlighting payload, as this module needs to see it. */
 export interface SegmentedChunk {
   chunk: ChunkPlan;

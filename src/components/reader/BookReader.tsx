@@ -33,9 +33,6 @@ import ChapterPanel from './ChapterPanel';
 import CommandPalette from './CommandPalette';
 import type { PaletteBook } from '../../utils/reader/PaletteCommands';
 import ReaderPanel from './ReaderPanel';
-import type { PanelRow } from './ReaderPanel';
-import { fillSegmentGapsCached } from '../../utils/reader/LineSegments';
-import type { ReaderSegment } from '../../utils/reader/LineSegments';
 import styles from '../../styles/Reader.module.css';
 
 interface BookReaderProps {
@@ -68,25 +65,6 @@ interface BookReaderProps {
  * every row during ordinary scrolling.
  */
 const PREFETCH_LINES = 600;
-
-/**
- * One row of a Vietnamese panel.
- *
- * Text the reader has not reached yet shows its real Chinese, dimmed, rather than a blank
- * or a grey bar — scrolling ahead still shows something readable, and the row is measured
- * at very nearly its final height, so it barely moves when the Vietnamese lands.
- */
-function vietnameseRow(
-  translated: string | undefined,
-  source: string | undefined,
-  isBlank: boolean,
-  segments?: readonly ReaderSegment[]
-): PanelRow {
-  if (translated !== undefined)
-    return { text: translated, isPending: false, lang: 'vi', isBlank, segments };
-  // Stand-in Chinese carries no runs: they describe the Vietnamese this row will become.
-  return { text: source, isPending: true, lang: 'zh', isBlank };
-}
 
 /**
  * The three-panel reader: the Chinese source and its character-only gloss stacked on the
@@ -186,15 +164,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   // Every engine call the Reader makes, serialized onto one queue — see `createReaderEngine`.
   const { translateChunk, translateGloss, translateOutlineBatch } = useReaderEngine();
 
-  const {
-    getTranslatedLine,
-    getCharacterOnlyLine,
-    getTranslatedSegments,
-    getOriginalSegments,
-    getCharacterOnlySegments,
-    isTranslating,
-    version: translationVersion,
-  } = useWindowedTranslation({
+  const { getRow, contentVersion, isTranslating } = useWindowedTranslation({
     fingerprint: book.fingerprint,
     lineCount: book.lineCount,
     anchorLine,
@@ -202,6 +172,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     overscanLines: OVERSCAN_ROWS,
     linesVersion,
     getLine,
+    isBlankAt,
     translateChunk,
     translateGloss,
     dictionaryVersion: engineVersion,
@@ -303,49 +274,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     onAnchorScroll();
     syncFollowers();
   }, [onAnchorScroll, syncFollowers]);
-
-  const translationRow = useCallback(
-    (index: number): PanelRow =>
-      vietnameseRow(
-        getTranslatedLine(index),
-        getLine(index),
-        isBlankAt(index),
-        getTranslatedSegments(index)
-      ),
-    [getLine, getTranslatedLine, getTranslatedSegments, isBlankAt]
-  );
-
-  const originalRow = useCallback(
-    (index: number): PanelRow => {
-      const line = getLine(index);
-      const segments = line === undefined ? undefined : getOriginalSegments(index);
-      return {
-        text: line,
-        // The source panel is only ever pending on its own page fetch, never on translation.
-        isPending: line === undefined,
-        lang: 'zh',
-        isBlank: isBlankAt(index),
-        // A chunk covers part of a line before the rest of it lands, and this panel shows
-        // the file's own line either way — so whatever no run covers is filled back in as
-        // plain text rather than dropped.
-        // Cached on the runs' own identity: this runs per rendered row per render, and a
-        // fresh array each time is a changed prop for every row in the panel.
-        segments: segments && fillSegmentGapsCached(line as string, segments),
-      };
-    },
-    [getLine, getOriginalSegments, isBlankAt]
-  );
-
-  const characterRow = useCallback(
-    (index: number): PanelRow =>
-      vietnameseRow(
-        getCharacterOnlyLine(index),
-        getLine(index),
-        isBlankAt(index),
-        getCharacterOnlySegments(index)
-      ),
-    [getCharacterOnlyLine, getCharacterOnlySegments, getLine, isBlankAt]
-  );
 
   return (
     <div className={styles.reader}>
@@ -463,10 +391,8 @@ const BookReader: React.FC<BookReaderProps> = ({
             title="Original"
             variant="original"
             {...panels.original}
-            // Both: this panel's text comes from `getLine` (so a landed page changes it)
-            // and its runs from the chunk cache (so a landed chunk does too).
-            contentVersion={linesVersion + translationVersion}
-            getRow={originalRow}
+            contentVersion={contentVersion}
+            getRow={getRow.original}
             highlight={highlight}
             onSegmentClick={toggleHighlight}
           />
@@ -474,8 +400,8 @@ const BookReader: React.FC<BookReaderProps> = ({
             title="Character only"
             variant="characterOnly"
             {...panels.characterOnly}
-            contentVersion={linesVersion + translationVersion}
-            getRow={characterRow}
+            contentVersion={contentVersion}
+            getRow={getRow.characterOnly}
             highlight={highlight}
             onSegmentClick={toggleHighlight}
           />
@@ -484,8 +410,8 @@ const BookReader: React.FC<BookReaderProps> = ({
           title="Translation"
           variant="translation"
           {...panels.translation}
-          contentVersion={linesVersion + translationVersion}
-          getRow={translationRow}
+          contentVersion={contentVersion}
+          getRow={getRow.translation}
           // The master's scroll moves the reading anchor as well as the followers.
           onScroll={handleScroll}
           highlight={highlight}

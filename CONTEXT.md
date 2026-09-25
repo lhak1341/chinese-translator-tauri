@@ -706,6 +706,8 @@ How the position is kept:
 
 The Reader shows the same lines three times, side by side: the Vietnamese translation, the Chinese original, and the character-only gloss. Each is at its own natural height, because a line wraps differently in each language. The translation panel is the **scroll master**, and the other two are **followers**. Followers are aligned to the master by line index plus a sub-line fraction, never by pixel ratio: a pixel ratio compounds three panels' height estimates, which are mostly guesses at 75,000 lines. Followers never drive. A wheel over one scrolls the master, and a follower that moves by itself is pulled back.
 
+A **panel row** is one line as one panel renders it. A Vietnamese row whose translation hasn't landed yet shows its Chinese, dimmed and not clickable, at nearly its final height, so it barely moves when the Vietnamese arrives. A blank source line collapses to nothing in all three panels. `useWindowedTranslation` hands out the rows (`getRow`) along with one `contentVersion` that changes whenever any row's content does.
+
 _Avoid_: left/right panel (the layout is not the role), source panel (ambiguous between the original and the gloss).
 
 **`src/hooks/useReaderPanels.ts`** owns the set: the three virtualizers and their width estimates, the one-way sync (`usePanelSync`), re-alignment when a row's measurement changes, wheel forwarding and paging. It returns `{ master, followers, panels, pageBy, isBlankAt }`, and `BookReader` spreads each entry of `panels` into a `<ReaderPanel>`.

@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790356014.4274952,
-    "ast_hash": "6dcbcac5b02df41b09d8eab4bc0474da",
+    "mtime": 1790357404.6524227,
+    "ast_hash": "85dcc12684ce50d61608bba23845e485",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1400,8 +1400,8 @@
     "semantic_hash": ""
   },
   "src/components/CLAUDE.md": {
-    "mtime": 1790356014.4265473,
-    "ast_hash": "98e3d6564173a525321c89c93b5ac73b",
+    "mtime": 1790357404.6508968,
+    "ast_hash": "bee520b6a8948df12231fad16c8c1e89",
     "semantic_hash": ""
   },
   "src/components/dictionary/CLAUDE.md": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790355951.8734045,
-    "ast_hash": "344018cb4e8626501702ad5f7411c5ae",
+    "mtime": 1790357333.2351587,
+    "ast_hash": "c1d7c30fa0bf18e51b07301b8de1ae33",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -1995,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790355053.5698118,
-    "ast_hash": "296da51751935db37b06131e1603b7e7",
+    "mtime": 1790357404.6517406,
+    "ast_hash": "7fc0c83edc83179370aeefadee33379c",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2005,8 +2005,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useWindowedTranslation.ts": {
-    "mtime": 1790354382.9321284,
-    "ast_hash": "88a65c390391ec289b27cab657644baa",
+    "mtime": 1790357320.7804918,
+    "ast_hash": "b1eef170f01b1a3e91b82e883abd2862",
     "semantic_hash": ""
   },
   "src/utils/reader/TranslationChunkCache.ts": {
@@ -2020,8 +2020,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
-    "mtime": 1789898033.2946723,
-    "ast_hash": "1ce53f192b768687cc1a5c138675395d",
+    "mtime": 1790357333.2360322,
+    "ast_hash": "76adafb0dec6e0b86b871b6628017e26",
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
@@ -2085,8 +2085,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/PaletteCommands.ts": {
-    "mtime": 1790355882.7319682,
-    "ast_hash": "de978f84147dd1f107f4cfc6045de729",
+    "mtime": 1790356033.969835,
+    "ast_hash": "b5d77ab3038f5dcac78d63fb5f8a023f",
     "semantic_hash": ""
   },
   "src/hooks/useAppearanceVersion.ts": {
@@ -2110,8 +2110,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/LineSegments.ts": {
-    "mtime": 1789911834.2891052,
-    "ast_hash": "d56a05e9395daa4b7283031412b505c6",
+    "mtime": 1790357294.796783,
+    "ast_hash": "ccc30cb8622fe72d928f11531097af13",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline_commands.rs": {
