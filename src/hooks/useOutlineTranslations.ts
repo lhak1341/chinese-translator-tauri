@@ -91,9 +91,15 @@ function assembleBatch(batch: ChapterHeader[], translatedText: string): Map<numb
  * `fillPlan`), cache shape (a plain `Map`, no eviction, vs `TranslationChunkCache`'s LRU),
  * and effect topology (book-change and fill-scheduling share one effect here, split in two
  * there) all genuinely differ — a shared primitive was deliberately rejected, see
- * ADR-043. This hook does not need `fillPlan`'s isStale-after-`await` fix either: that
- * closed a race between two *separate* effects bumping `generationRef` independently,
- * which this hook's single-effect shape was never exposed to.
+ * ADR-043.
+ *
+ * It does share `fillPlan`'s two staleness signals, for the same reason. **Stale** — any
+ * re-run of the effect: a new priority, a page of headers, `isEnabled` turning false —
+ * stops the loop before its *next* batch, but a batch already sent still lands. Only
+ * **abandoned** — a different book or dictionary version since the batch was sent —
+ * discards a result, because only then is it wrong rather than merely unprioritized.
+ * Checking one generation counter after the `await` (what this did until 2026-09-26)
+ * threw away a finished engine call on every re-plan; a single effect is no protection.
  */
 export function useOutlineTranslations({
   fingerprint,
@@ -115,8 +121,17 @@ export function useOutlineTranslations({
    * would be wrong rather than merely out of date.
    */
   const cacheRef = useRef<Map<number, { title: string; version: number }>>(new Map());
+  /** Line → the dictionary version a sent-but-unanswered batch is translating it against.
+   * A re-plan skips these rather than asking the engine for the same titles twice. */
+  const inFlightRef = useRef<Map<number, number>>(new Map());
   const fingerprintRef = useRef(fingerprint);
+  /** Read after an `await`, so it must reflect the latest render, not the latest effect. */
+  const latestRef = useRef({ fingerprint, dictionaryVersion });
+  latestRef.current = { fingerprint, dictionaryVersion };
+  /** Bumped on every effect run: a loop whose generation is behind is stale. */
   const generationRef = useRef(0);
+  /** The generation of the loop that owns `isTranslating`, or `null` when none is running. */
+  const runningRef = useRef<number | null>(null);
   const [, forceRender] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
 
@@ -124,11 +139,17 @@ export function useOutlineTranslations({
     if (fingerprintRef.current !== fingerprint) {
       fingerprintRef.current = fingerprint;
       cacheRef.current = new Map();
+      inFlightRef.current = new Map();
     }
 
+    // Before the early returns: `isEnabled` turning false must stop a running loop too.
+    const generation = (generationRef.current += 1);
     if (!isEnabled || headers.length === 0) return;
+    const inFlight = inFlightRef.current;
     const missing = headers.filter(
-      (header) => cacheRef.current.get(header.line)?.version !== dictionaryVersion
+      (header) =>
+        cacheRef.current.get(header.line)?.version !== dictionaryVersion &&
+        inFlight.get(header.line) !== dictionaryVersion
     );
     if (missing.length === 0) return;
 
@@ -136,12 +157,16 @@ export function useOutlineTranslations({
       (a, b) => Math.abs(a.line - priorityLine) - Math.abs(b.line - priorityLine)
     );
     const batches = packBatches(ordered);
+    const isStale = () => generationRef.current !== generation;
+    const isAbandoned = () =>
+      latestRef.current.fingerprint !== fingerprint ||
+      latestRef.current.dictionaryVersion !== dictionaryVersion;
 
-    const generation = (generationRef.current += 1);
+    runningRef.current = generation;
     setIsTranslating(true);
     void (async () => {
       for (const batch of batches) {
-        if (generationRef.current !== generation) return;
+        if (isStale()) break;
         const text = batch.map((header) => header.title).join('\n');
         if (text.trim().length === 0) {
           batch.forEach((header) =>
@@ -153,9 +178,10 @@ export function useOutlineTranslations({
           forceRender((n) => n + 1);
           continue;
         }
+        batch.forEach((header) => inFlight.set(header.line, dictionaryVersion));
         try {
           const translated = await translateBatch(text);
-          if (generationRef.current !== generation) return;
+          if (isAbandoned()) break;
           for (const [line, title] of assembleBatch(batch, translated)) {
             cacheRef.current.set(line, { title, version: dictionaryVersion });
           }
@@ -166,9 +192,18 @@ export function useOutlineTranslations({
           // reruns for any reason — no separate give-up-after-N tracking, matching
           // `fillPlan`'s same choice (see ADR-043).
           logger.error('Failed to translate a batch of chapter titles:', cause);
+        } finally {
+          batch.forEach((header) => {
+            if (inFlight.get(header.line) === dictionaryVersion) inFlight.delete(header.line);
+          });
         }
       }
-      if (generationRef.current === generation) setIsTranslating(false);
+      // A stale loop still owns the flag until a newer loop actually starts; otherwise a
+      // re-plan that found nothing to do would leave it stuck on.
+      if (runningRef.current === generation) {
+        runningRef.current = null;
+        setIsTranslating(false);
+      }
     })();
   }, [fingerprint, dictionaryVersion, headers, priorityLine, isEnabled, translateBatch]);
 

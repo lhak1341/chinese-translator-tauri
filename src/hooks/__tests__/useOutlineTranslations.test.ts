@@ -125,6 +125,105 @@ describe('useOutlineTranslations', () => {
     expect(result.current.getTranslatedTitle(1)).toBe('VN:Chapter Two');
   });
 
+  describe('a re-plan mid-batch (stale) keeps the batch already in flight', () => {
+    // Two headers that cannot share a batch (BATCH_TARGET_CHARS = 500), so the first is in
+    // flight while the second waits.
+    const headers: ChapterHeader[] = [
+      { line: 0, title: '字'.repeat(500) },
+      { line: 1000, title: 'Chapter Two' },
+    ];
+
+    function deferredEngine() {
+      const pending: Array<{ text: string; resolve: (text: string) => void }> = [];
+      const translateBatch = vi.fn(
+        (text: string) =>
+          new Promise<string>((resolve) => {
+            pending.push({ text, resolve });
+          })
+      );
+      const answer = (index: number) =>
+        pending[index].resolve(
+          pending[index].text
+            .split('\n')
+            .map((t) => `VN:${t.slice(0, 3)}`)
+            .join('\n')
+        );
+      return { translateBatch, pending, answer };
+    }
+
+    it('a priorityLine change caches the landed batch and does not re-request it', async () => {
+      const { translateBatch, answer } = deferredEngine();
+      const { result, rerender } = renderHook(
+        (props: { priorityLine: number }) =>
+          useOutlineTranslations({
+            fingerprint: 'book-1',
+            headers,
+            priorityLine: props.priorityLine,
+            translateBatch,
+            dictionaryVersion: 0,
+            isEnabled: true,
+          }),
+        { initialProps: { priorityLine: 0 } }
+      );
+
+      await waitFor(() => expect(translateBatch).toHaveBeenCalledTimes(1));
+      rerender({ priorityLine: 1000 });
+      answer(0);
+
+      await waitFor(() => expect(result.current.getTranslatedTitle(0)).toBe('VN:字字字'));
+      // The re-plan asks only for what is neither landed nor already in flight.
+      await waitFor(() => expect(translateBatch).toHaveBeenCalledTimes(2));
+      expect(translateBatch).toHaveBeenLastCalledWith('Chapter Two');
+    });
+
+    it('isEnabled turning false lets the in-flight batch land but starts no further batch', async () => {
+      const { translateBatch, answer } = deferredEngine();
+      const { result, rerender } = renderHook(
+        (props: { isEnabled: boolean }) =>
+          useOutlineTranslations({
+            fingerprint: 'book-1',
+            headers,
+            priorityLine: 0,
+            translateBatch,
+            dictionaryVersion: 0,
+            isEnabled: props.isEnabled,
+          }),
+        { initialProps: { isEnabled: true } }
+      );
+
+      await waitFor(() => expect(translateBatch).toHaveBeenCalledTimes(1));
+      rerender({ isEnabled: false });
+      answer(0);
+
+      await waitFor(() => expect(result.current.getTranslatedTitle(0)).toBe('VN:字字字'));
+      await waitFor(() => expect(result.current.isTranslating).toBe(false));
+      expect(translateBatch).toHaveBeenCalledTimes(1);
+    });
+
+    it('a different book mid-batch (abandoned) discards the landed result', async () => {
+      const { translateBatch, answer } = deferredEngine();
+      const { result, rerender } = renderHook(
+        (props: { fingerprint: string; isEnabled: boolean }) =>
+          useOutlineTranslations({
+            fingerprint: props.fingerprint,
+            headers,
+            priorityLine: 0,
+            translateBatch,
+            dictionaryVersion: 0,
+            isEnabled: props.isEnabled,
+          }),
+        { initialProps: { fingerprint: 'book-1', isEnabled: true } }
+      );
+
+      await waitFor(() => expect(translateBatch).toHaveBeenCalledTimes(1));
+      rerender({ fingerprint: 'book-2', isEnabled: false });
+      answer(0);
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(result.current.getTranslatedTitle(0)).toBeUndefined();
+    });
+  });
+
   it('isEnabled: false never calls the engine', async () => {
     const headers: ChapterHeader[] = [{ line: 0, title: 'Chapter One' }];
     const translateBatch = vi.fn();

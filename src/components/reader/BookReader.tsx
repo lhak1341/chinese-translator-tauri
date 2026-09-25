@@ -180,6 +180,16 @@ const BookReader: React.FC<BookReaderProps> = ({
   });
   isRefillingRef.current = isTranslating;
 
+  // `anchorLine`, not `firstIndex`: the virtualizer's rendered range includes
+  // `OVERSCAN_ROWS` (24) lines above the viewport, so `firstIndex` sits up to 24 lines
+  // *before* what the reader can actually see. Chapter detection built on it lagged
+  // behind a real chapter boundary by that much — up to 24 lines into the next chapter,
+  // "next" still read the reader as being in the one before, jumping back to a start
+  // already scrolled past instead of advancing. `anchorLine` is `computeAnchor`'s
+  // topmost line actually touching the viewport, with no such margin.
+  const chapterIndex = currentChapterIndex(chapterHeaders, anchorLine);
+  const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
+
   // Runs in the background, not just while the panel is open — the chapter-strip button
   // shows the current title too, and waiting for the reader to open the panel before
   // starting would just move the wait rather than remove it. `!isTranslating` backs off
@@ -190,7 +200,9 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { getTranslatedTitle, isTranslating: isTranslatingTitles } = useOutlineTranslations({
     fingerprint: book.fingerprint,
     headers: chapterHeaders,
-    priorityLine: anchorLine,
+    // The current chapter's line, not `anchorLine`: priority only changes when the chapter
+    // does, so ordinary scrolling within one never re-plans the title fill.
+    priorityLine: currentChapter?.line ?? -1,
     translateBatch: translateOutlineBatch,
     dictionaryVersion: engineVersion,
     isEnabled: isActive && enginePhase === 'ready' && !isTranslating,
@@ -204,16 +216,6 @@ const BookReader: React.FC<BookReaderProps> = ({
   // "none", and must not re-offer — collapsing the two is how this asks forever.
   const isUnbound = binding === null;
   const showBanner = isUnbound && dismissedFor !== book.fingerprint;
-
-  // `anchorLine`, not `firstIndex`: the virtualizer's rendered range includes
-  // `OVERSCAN_ROWS` (24) lines above the viewport, so `firstIndex` sits up to 24 lines
-  // *before* what the reader can actually see. Chapter detection built on it lagged
-  // behind a real chapter boundary by that much — up to 24 lines into the next chapter,
-  // "next" still read the reader as being in the one before, jumping back to a start
-  // already scrolled past instead of advancing. `anchorLine` is `computeAnchor`'s
-  // topmost line actually touching the viewport, with no such margin.
-  const chapterIndex = currentChapterIndex(chapterHeaders, anchorLine);
-  const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
 
   // Clamped for the last line's rounding, not for anything the anchor itself can produce.
   const readingProgressPercent =
