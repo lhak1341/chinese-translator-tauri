@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790359493.3075736,
-    "ast_hash": "114da0d31200f4967355a76d521c6137",
+    "mtime": 1790360067.8260581,
+    "ast_hash": "22645faeaf611ac4550710e8b709d208",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1920,8 +1920,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderTab.tsx": {
-    "mtime": 1789823106.1147656,
-    "ast_hash": "ba4150845cb0f0741e31e88f08ebcdc6",
+    "mtime": 1790360084.6398087,
+    "ast_hash": "55f3f88965bd18b7d30c32a189c1d20a",
     "semantic_hash": ""
   },
   "src/constants/tabs.ts": {
@@ -1935,8 +1935,8 @@
     "semantic_hash": ""
   },
   "src/types/ReaderTypes.ts": {
-    "mtime": 1789620208.8427374,
-    "ast_hash": "09b6011af7d4cffe52d899e490d0bf83",
+    "mtime": 1790360067.8252482,
+    "ast_hash": "bc5f660896a16df273fa0ab0ee88d94b",
     "semantic_hash": ""
   },
   "wasm-core/benches/real_dictionary_profile.rs": {
@@ -1950,13 +1950,13 @@
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordValidation.ts": {
-    "mtime": 1789620588.6508076,
-    "ast_hash": "e80d02f1027cf3403f7635fa163a30ec",
+    "mtime": 1790360084.6367106,
+    "ast_hash": "97b6882b626b34764aca60a9078d5173",
     "semantic_hash": ""
   },
   "src/utils/reader/BookRecordsBackend.ts": {
-    "mtime": 1789620226.9564853,
-    "ast_hash": "6c5093946be6a3255d5bb88ad09b58bf",
+    "mtime": 1790360142.5726533,
+    "ast_hash": "0973d89a3ca1e2c37a3f0ffb87f7b306",
     "semantic_hash": ""
   },
   "src/utils/reader/PendingPositionFlush.ts": {
@@ -1965,8 +1965,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/ReconcileLibrary.ts": {
-    "mtime": 1789826662.0050857,
-    "ast_hash": "e68135d6da5af0503f0184200f689428",
+    "mtime": 1790360007.6589742,
+    "ast_hash": "95c26dd00698871e58e95d3b8d22ab22",
     "semantic_hash": ""
   },
   "src-tauri/src/chapter_outline.rs": {
@@ -1995,8 +1995,8 @@
     "semantic_hash": ""
   },
   "src/utils/reader/CLAUDE.md": {
-    "mtime": 1790359244.4245675,
-    "ast_hash": "dacfc1785e901c47e2a41048f28c2c2b",
+    "mtime": 1790360067.8244038,
+    "ast_hash": "14ec5edb3325a7cd350a142c6a877b50",
     "semantic_hash": ""
   },
   "src/components/EngineContext.d.ts": {
@@ -2192,6 +2192,11 @@
   "src/hooks/useChapters.ts": {
     "mtime": 1790359477.885003,
     "ast_hash": "6674efc06b0db4ad42b043be1fba0ebd",
+    "semantic_hash": ""
+  },
+  "src/utils/reader/BookRecord.ts": {
+    "mtime": 1790360043.8434374,
+    "ast_hash": "c47222f2bbe863b27b7e250f0a120dc9",
     "semantic_hash": ""
   }
 }
