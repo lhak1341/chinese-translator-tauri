@@ -702,6 +702,14 @@ How the position is kept:
 - **Appearance change.** Every panel's measurement cache is dropped, and the anchor is restored once on the next frame.
 - **While the Reader is hidden.** Both of the last two wait until the Reader is shown again. If both happened, the panels are measured first and the reload loop does the restoring.
 
+### Reader Engine Calls
+
+The Reader's three calls on the shared engine: a chunk of book text, its character-only gloss, and a batch of chapter titles. They go through one queue, because `translateWithSegments` resets engine-wide segment state on entry: two calls in flight at once, from the viewport fill and the outline's title translation (two loops that don't know about each other), would corrupt each other. Each call waits for the one before it to settle, and a failure never blocks the calls behind it. The engine is read when a call runs, not when it is queued.
+
+The queue belongs to the Reader alone. The Translator's calls are kept apart from it by the tab gate, not by the queue. This leaves one accepted gap: a Reader call already in flight when the tab switches.
+
+**`src/utils/reader/ReaderEngine.ts`**'s `createReaderEngine(getEngine)` holds all of it, and `useReaderEngine` hands it to `BookReader`. It is also the only producer of the `EngineCall<T>` brand that the fill hooks require.
+
 ### Dictionary Binding
 
 Which fiction dictionary a book uses, kept on the book's record and keyed by fingerprint so renaming or moving the file preserves it.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChapterHeader } from '../types/ReaderTypes';
-import type { EngineCall } from '../utils/reader/EngineCall';
+import type { EngineCall } from '../utils/reader/ReaderEngine';
 import { logger } from '../utils/logger';
 
 /** Characters aimed at per batch — titles are short, so this covers dozens of them per
@@ -17,9 +17,9 @@ export interface UseOutlineTranslationsOptions {
   priorityLine: number;
   /** One engine call, resolving to Vietnamese for a batch of chapter titles joined by
    * `\n` — the same shape `useWindowedTranslation` sends for ordinary book text. Must be
-   * referentially stable, and produced by `callOnEngine` (`src/utils/reader/EngineCall.ts`)
+   * referentially stable, and come from `createReaderEngine` (`src/utils/reader/ReaderEngine.ts`)
    * — this hook makes no serialization guarantee of its own, and relies on the `EngineCall`
-   * brand to make wiring a callback that bypasses the shared engine queue a compile error. */
+   * brand to make wiring a callback that bypasses the Reader's engine queue a compile error. */
   translateBatch: EngineCall<string>;
   /** Bumped on every engine reinitialization; a change makes every cached title stale,
    * since each was translated against dictionaries that no longer apply. Stale titles keep

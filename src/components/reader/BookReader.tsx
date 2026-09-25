@@ -16,15 +16,13 @@ import DictionaryEntry from '../dictionary/DictionaryEntry';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { useBookLines } from '../../hooks/useBookLines';
 import { useWindowedTranslation } from '../../hooks/useWindowedTranslation';
-import type { GlossResult } from '../../hooks/useWindowedTranslation';
-import { callOnEngine } from '../../utils/reader/EngineCall';
+import { useReaderEngine } from '../../hooks/useReaderEngine';
 import { useReaderHighlight } from '../../hooks/useReaderHighlight';
 import { useEngine } from '../EngineContext';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
 import { useChapterOutline } from '../../hooks/useChapterOutline';
 import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
 import { OVERSCAN_ROWS, useReaderPanel } from '../../hooks/useReaderPanel';
-import type { WordSegment } from '../../utils/highlighting';
 import { usePanelSync } from '../../hooks/usePanelSync';
 import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
 import {
@@ -154,7 +152,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   // and the offer returns on the next open. Keyed by fingerprint so dismissing it for one
   // book does not silently hide it for the next.
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
-  const { engineRef, enginePhase, engineVersion } = useEngine();
+  const { enginePhase, engineVersion } = useEngine();
   const { highlight, toggleHighlight } = useReaderHighlight(book.fingerprint, engineVersion);
   const {
     binding,
@@ -302,92 +300,8 @@ const BookReader: React.FC<BookReaderProps> = ({
   const firstIndex = virtualRows.length > 0 ? virtualRows[0].index : 0;
   const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
 
-  /**
-   * Serializes every call this component makes onto the shared engine.
-   *
-   * `translateWithSegments` resets engine-wide segment state on entry, so two calls
-   * in flight at once — the viewport fill and the outline's title-by-title translation,
-   * say — would race: the second call's reset can land while the first is still awaiting
-   * its own result, corrupting it. Routing both through one promise chain, rather than
-   * relying on each caller to loop sequentially on its own, is what keeps that true across
-   * two independent hooks that don't know about each other.
-   *
-   * `callOnEngine` (`src/utils/reader/EngineCall.ts`) is what makes going around this queue
-   * a compile error rather than a documentation violation: it's the only producer of the
-   * `EngineCall<T>` brand that `useWindowedTranslation`/`useOutlineTranslations` require on
-   * their options, and it also owns the ready-check every one of the three calls below
-   * needs — each supplies only its own engine method call and result mapping.
-   */
-  const engineQueueRef = useRef<Promise<unknown>>(Promise.resolve());
-  const runOnEngine = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
-    const settled = engineQueueRef.current.then(fn, fn);
-    engineQueueRef.current = settled.then(
-      () => undefined,
-      () => undefined
-    );
-    return settled;
-  }, []);
-
-  /**
-   * One engine call.
-   *
-   * Only ever called while the Reader is the visible tab: the Translator tab's own calls
-   * are user-driven from its own view, so the two never contend for the engine.
-   */
-  // `useMemo`, not `useCallback`: `callOnEngine`'s result isn't an inline function literal,
-  // so `useCallback` can't have its deps statically checked by `exhaustive-deps` — wrapping
-  // in a literal `() => callOnEngine(...)` for `useMemo` keeps the same memoized identity
-  // while giving the linter a body it can actually scan.
-  const translateChunk = useMemo(
-    () =>
-      callOnEngine(engineRef, runOnEngine, async (engine, text) => {
-        // Progressive batching is the engine's only supported path through this method;
-        // the Reader passes no progress callbacks because a chunk is small enough to land
-        // whole.
-        const result = await engine.translateWithSegments(text, { progressive: true });
-        return {
-          translatedText: result?.translatedText ?? '',
-          semanticArrays: result?.semanticArrays ?? null,
-          // `TranslationEngineTypes.d.ts` declares these as `TranslationSegment[]`, but
-          // what fills them is `matchWordSegments`, whose output is `WordSegment[]` —
-          // offsets into the translated text plus a unit index, which is what the Reader
-          // slices by. The Translator reaches the same runtime objects through an `as any`
-          // at its own panel; this asserts the real shape instead.
-          prebuiltSegments: (result?.prebuiltSegments ?? []) as unknown as WordSegment[],
-        };
-      }),
-    [engineRef, runOnEngine]
-  );
-
-  /**
-   * The same text through the engine's character-only pass, for the reference panel.
-   *
-   * A second engine call, run after the chunk's full translation is already on screen —
-   * see `useWindowedTranslation`, which owns that ordering.
-   */
-  const translateGloss = useMemo(
-    () =>
-      callOnEngine(engineRef, runOnEngine, async (engine, text): Promise<GlossResult> => {
-        const result = await engine.translateWithCharactersOnly(text);
-        return {
-          translatedText: result?.translatedText ?? '',
-          // Carried, not dropped: the gloss's own units are what its clickable runs are
-          // built from before being relabeled with the full translation's.
-          semanticArrays: result?.semanticArrays ?? null,
-        };
-      }),
-    [engineRef, runOnEngine]
-  );
-
-  /** One engine call, for a batch of chapter titles — see `useOutlineTranslations`. */
-  const translateOutlineBatch = useMemo(
-    () =>
-      callOnEngine(engineRef, runOnEngine, async (engine, text) => {
-        const result = await engine.translateWithSegments(text, { progressive: true });
-        return result?.translatedText ?? '';
-      }),
-    [engineRef, runOnEngine]
-  );
+  // Every engine call the Reader makes, serialized onto one queue — see `createReaderEngine`.
+  const { translateChunk, translateGloss, translateOutlineBatch } = useReaderEngine();
 
   const {
     getTranslatedLine,

@@ -15,7 +15,7 @@ import type { ReaderSegment, SegmentedChunk } from '../utils/reader/LineSegments
 import { TranslationChunkCache } from '../utils/reader/TranslationChunkCache';
 import { fillPlan } from '../utils/reader/WindowedTranslationFill';
 import type { ChunkTranslationResult, GlossResult } from '../utils/reader/WindowedTranslationFill';
-import type { EngineCall } from '../utils/reader/EngineCall';
+import type { EngineCall } from '../utils/reader/ReaderEngine';
 import { logger } from '../utils/logger';
 
 export type { ChunkTranslationResult, GlossResult } from '../utils/reader/WindowedTranslationFill';
@@ -32,16 +32,16 @@ export interface UseWindowedTranslationOptions {
   linesVersion: number;
   getLine: (index: number) => string | undefined;
   /**
-   * One engine call. Must be referentially stable, and must be produced by `callOnEngine`
-   * (`src/utils/reader/EngineCall.ts`) — the `EngineCall` brand is what makes wiring a
-   * callback that bypasses the shared engine queue a compile error.
+   * One engine call. Must be referentially stable, and must come from `createReaderEngine`
+   * (`src/utils/reader/ReaderEngine.ts`) — the `EngineCall` brand is what makes wiring a
+   * callback that bypasses the Reader's engine queue a compile error.
    */
   translateChunk: EngineCall<ChunkTranslationResult>;
   /**
    * The same text through the engine's character-only pass, for the reference panel. Runs
    * *after* the chunk's full translation has already been published, so the gloss costs
    * the translation panel nothing but its own engine time. Must be referentially stable and
-   * `callOnEngine`-produced, same as `translateChunk`.
+   * come from `createReaderEngine`, same as `translateChunk`.
    */
   translateGloss: EngineCall<GlossResult>;
   /** Bumped on every engine reinitialization; a change invalidates the whole cache. */

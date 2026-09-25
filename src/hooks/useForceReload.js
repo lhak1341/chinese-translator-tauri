@@ -97,9 +97,9 @@ export function useForceReload(ctx, isDictionaryReloading, inputText, isLoading,
       // it, and re-translating a whole hidden document is work nobody is waiting to see.
       //
       // It is also not merely slow. `translateWithSegments` resets engine-wide segment state
-      // on entry, and `BookReader`'s engine queue is built on the documented assumption that
-      // "the Translator tab's own calls are user-driven from its own view, so the two never
-      // contend". A Reader-triggered retranslate breaks that assumption and can land its
+      // on entry, and the Reader's engine queue (`src/utils/reader/ReaderEngine.ts`) is
+      // local to the Reader, built on the documented assumption that the Translator tab's
+      // own calls are user-driven from its own view, so the two never contend. A Reader-triggered retranslate breaks that assumption and can land its
       // reset in the middle of a Reader chunk that is still awaiting its own result.
       //
       // The caller that skips it owns telling the Translator its output is now stale — see
