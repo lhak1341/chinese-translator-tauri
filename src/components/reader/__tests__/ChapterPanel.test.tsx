@@ -10,27 +10,33 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import ChapterPanel from '../ChapterPanel';
 import type { ChapterHeader } from '../../../types/ReaderTypes';
+import type { Chapters } from '../../../hooks/useChapters';
 
 const headers: ChapterHeader[] = [
   { line: 0, title: '第一章 山雨' },
   { line: 120, title: '第二章 夜行' },
 ];
 
+function makeChapters(overrides: Partial<Chapters> = {}): Chapters {
+  const list = overrides.headers ?? headers;
+  return {
+    headers: list,
+    currentIndex: list.length > 0 ? 0 : -1,
+    current: list[0] ?? null,
+    canStep: () => false,
+    step: vi.fn(),
+    displayTitle: (header) => header.title || '(untitled)',
+    isTranslatingTitles: false,
+    error: null,
+    override: { candidates: [], activePattern: null, isOverridden: false, set: vi.fn() },
+    ...overrides,
+  };
+}
+
 function renderPanel(props: Partial<React.ComponentProps<typeof ChapterPanel>> = {}) {
   const onJump = vi.fn();
   const view = render(
-    <ChapterPanel
-      headers={headers}
-      candidates={[]}
-      activePattern={null}
-      isOverridden={false}
-      currentIndex={0}
-      error={null}
-      onJump={onJump}
-      onSetOverride={vi.fn()}
-      onClose={vi.fn()}
-      {...props}
-    />
+    <ChapterPanel chapters={makeChapters()} onJump={onJump} onClose={vi.fn()} {...props} />
   );
   return { ...view, onJump };
 }
@@ -47,23 +53,15 @@ describe('ChapterPanel', () => {
   });
 
   test('focuses the search once the headers land, if they were still being elected', () => {
-    const { rerender } = renderPanel({ headers: [], autoFocusSearch: true });
+    const { rerender } = renderPanel({
+      chapters: makeChapters({ headers: [] }),
+      autoFocusSearch: true,
+    });
     // No search input exists while there are no chapters — the panel offers the override.
     expect(screen.queryByLabelText('Search chapters')).toBeNull();
 
     rerender(
-      <ChapterPanel
-        headers={headers}
-        candidates={[]}
-        activePattern={null}
-        isOverridden={false}
-        currentIndex={0}
-        error={null}
-        autoFocusSearch
-        onJump={vi.fn()}
-        onSetOverride={vi.fn()}
-        onClose={vi.fn()}
-      />
+      <ChapterPanel chapters={makeChapters()} autoFocusSearch onJump={vi.fn()} onClose={vi.fn()} />
     );
 
     expect(document.activeElement).toBe(screen.getByLabelText('Search chapters'));
@@ -73,6 +71,17 @@ describe('ChapterPanel', () => {
     renderPanel();
     fireEvent.change(screen.getByLabelText('Search chapters'), { target: { value: '夜行' } });
     expect(screen.getByText('第二章 夜行')).toBeTruthy();
+    expect(screen.queryByText('第一章 山雨')).toBeNull();
+  });
+
+  test('search matches the shown (translated) title as well as the original', () => {
+    renderPanel({
+      chapters: makeChapters({
+        displayTitle: (header) => (header.line === 120 ? 'Đi đêm' : header.title),
+      }),
+    });
+    fireEvent.change(screen.getByLabelText('Search chapters'), { target: { value: 'đi đêm' } });
+    expect(screen.getByText('Đi đêm')).toBeTruthy();
     expect(screen.queryByText('第一章 山雨')).toBeNull();
   });
 });

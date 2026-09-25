@@ -1,30 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, Search, X } from 'lucide-react';
-import type {
-  ChapterHeader,
-  ChapterPatternCandidate,
-  ChapterPatternId,
-} from '../../types/ReaderTypes';
+import type { ChapterPatternId } from '../../types/ReaderTypes';
+import type { Chapters } from '../../hooks/useChapters';
 import { CHAPTER_PATTERN_LABELS, candidateSummary } from '../../utils/reader/ChapterPatternLabels';
 import styles from '../../styles/Reader.module.css';
 
 interface ChapterPanelProps {
-  headers: ChapterHeader[];
-  candidates: ChapterPatternCandidate[];
-  activePattern: ChapterPatternId | null;
-  isOverridden: boolean;
-  /** Index into `headers` of the chapter currently on screen, or `-1`. */
-  currentIndex: number;
-  error: string | null;
-  /** Vietnamese for a header's title, or `undefined` while it is still Chinese. */
-  getTranslatedTitle?: (line: number) => string | undefined;
-  /** True while chapter titles are still being translated in the background. */
-  isTranslatingTitles?: boolean;
+  chapters: Chapters;
   /** Take focus into the search on open. Set by the jump-to-chapter shortcut, which opens
    * the panel to be typed into; the chapter-strip button leaves focus where it was. */
   autoFocusSearch?: boolean;
   onJump: (line: number) => void;
-  onSetOverride: (pattern: ChapterPatternId | null) => void;
   onClose: () => void;
 }
 
@@ -34,19 +20,13 @@ interface ChapterPanelProps {
  * hits) is still offered, since detection failing is not a reason to hide the override.
  */
 const ChapterPanel: React.FC<ChapterPanelProps> = ({
-  headers,
-  candidates,
-  activePattern,
-  isOverridden,
-  currentIndex,
-  error,
-  getTranslatedTitle,
-  isTranslatingTitles = false,
+  chapters,
   autoFocusSearch = false,
   onJump,
-  onSetOverride,
   onClose,
 }) => {
+  const { headers, currentIndex, displayTitle, isTranslatingTitles, error } = chapters;
+  const { candidates, activePattern, isOverridden, set: onSetOverride } = chapters.override;
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const activeRowRef = useRef<HTMLLIElement | null>(null);
@@ -72,14 +52,12 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
     const indexed = headers.map((header, index) => ({ header, index }));
     const needle = query.trim().toLowerCase();
     if (!needle) return indexed;
-    return indexed.filter(({ header }) => {
-      const translated = getTranslatedTitle?.(header.line);
-      return (
+    return indexed.filter(
+      ({ header }) =>
         header.title.toLowerCase().includes(needle) ||
-        (translated?.toLowerCase().includes(needle) ?? false)
-      );
-    });
-  }, [headers, query, getTranslatedTitle]);
+        displayTitle(header).toLowerCase().includes(needle)
+    );
+  }, [headers, query, displayTitle]);
 
   return (
     <div className={styles.outlinePanel}>
@@ -151,9 +129,7 @@ const ChapterPanel: React.FC<ChapterPanelProps> = ({
                   }`}
                   onClick={() => onJump(header.line)}
                 >
-                  <span className={styles.outlineRowTitle}>
-                    {(getTranslatedTitle?.(header.line) ?? header.title) || '(untitled)'}
-                  </span>
+                  <span className={styles.outlineRowTitle}>{displayTitle(header)}</span>
                   <span className={styles.outlineRowLine}>{header.line + 1}</span>
                 </button>
               </li>

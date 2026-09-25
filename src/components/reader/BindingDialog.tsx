@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, Check, Loader, X } from 'lucide-react';
-import type {
-  BookBinding,
-  ChapterPatternCandidate,
-  ChapterPatternId,
-} from '../../types/ReaderTypes';
+import type { BookBinding, ChapterPatternId } from '../../types/ReaderTypes';
+import type { ChapterOverride } from '../../hooks/useChapters';
 import {
   CHAPTER_PATTERN_LABELS,
   formatMedianGap,
@@ -30,13 +27,9 @@ interface BindingDialogProps {
   currentBinding: BookBinding | null;
   isApplying: boolean;
   error: string | null;
-  /** Every pattern's election stats — the numbers that make an override informed. */
-  candidates: ChapterPatternCandidate[];
-  /** The pattern currently driving the outline: an override when one is set, else the
-   * elected one. */
-  activePattern: ChapterPatternId | null;
-  isOverridden: boolean;
-  onSetOverride: (pattern: ChapterPatternId | null) => void;
+  /** The chapter-structure choice — its election stats are the numbers that make an
+   * override informed. */
+  chapterOverride: ChapterOverride;
   onBind: (fictionDictionary: string | null) => void;
   onCreateAndBind: (rawName: string) => void;
   onClose: () => void;
@@ -61,14 +54,12 @@ const BindingDialog: React.FC<BindingDialogProps> = ({
   currentBinding,
   isApplying,
   error,
-  candidates,
-  activePattern,
-  isOverridden,
-  onSetOverride,
+  chapterOverride,
   onBind,
   onCreateAndBind,
   onClose,
 }) => {
+  const { candidates, activePattern, isOverridden, set: onSetOverride } = chapterOverride;
   // The dialog opens on whatever answer the book already has; failing that, on the
   // suggestion — as an existing dictionary when one exists under that name, and as a
   // pre-filled create otherwise, which is the case for a novel being read for the

@@ -16,12 +16,10 @@ import { useReaderEngine } from '../../hooks/useReaderEngine';
 import { useReaderHighlight } from '../../hooks/useReaderHighlight';
 import { useEngine } from '../EngineContext';
 import { useReadingAnchor } from '../../hooks/useReadingAnchor';
-import { useChapterOutline } from '../../hooks/useChapterOutline';
-import { useOutlineTranslations } from '../../hooks/useOutlineTranslations';
+import { useChapters } from '../../hooks/useChapters';
 import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
 import { useReaderPanels } from '../../hooks/useReaderPanels';
 import { useReaderCommands } from '../../hooks/useReaderCommands';
-import { currentChapterIndex, stepChapter } from '../../utils/reader/ChapterNavigation';
 import {
   fictionDisplayName,
   suggestFictionDictionary,
@@ -144,19 +142,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     isRefilling,
   });
 
-  const {
-    headers: chapterHeaders,
-    candidates: chapterCandidates,
-    activePattern: chapterPattern,
-    isOverridden: isChapterOverridden,
-    error: chapterError,
-    setOverride: setChapterOverride,
-  } = useChapterOutline({
-    fingerprint: book.fingerprint,
-    cachedOutline: initialChapterOutline,
-    cachedManualPattern: initialManualChapterPattern,
-  });
-
   const virtualRows = panels.translation.rows;
   const firstIndex = virtualRows.length > 0 ? virtualRows[0].index : 0;
   const lastIndex = virtualRows.length > 0 ? virtualRows[virtualRows.length - 1].index : 0;
@@ -180,29 +165,16 @@ const BookReader: React.FC<BookReaderProps> = ({
   });
   isRefillingRef.current = isTranslating;
 
-  // `anchorLine`, not `firstIndex`: the virtualizer's rendered range includes
-  // `OVERSCAN_ROWS` (24) lines above the viewport, so `firstIndex` sits up to 24 lines
-  // *before* what the reader can actually see. Chapter detection built on it lagged
-  // behind a real chapter boundary by that much — up to 24 lines into the next chapter,
-  // "next" still read the reader as being in the one before, jumping back to a start
-  // already scrolled past instead of advancing. `anchorLine` is `computeAnchor`'s
-  // topmost line actually touching the viewport, with no such margin.
-  const chapterIndex = currentChapterIndex(chapterHeaders, anchorLine);
-  const currentChapter = chapterIndex >= 0 ? chapterHeaders[chapterIndex] : null;
-
-  // Runs in the background, not just while the panel is open — the chapter-strip button
-  // shows the current title too, and waiting for the reader to open the panel before
-  // starting would just move the wait rather than remove it. `!isTranslating` backs off
-  // while the viewport fill is busy, so a long book's title list never delays the text
-  // actually on screen; titles batch several to a call (see the hook) rather than paying
-  // one whole round trip per title, and the panel degrades to the original Chinese for
-  // whichever ones haven't landed yet, same as any other reader text.
-  const { getTranslatedTitle, isTranslating: isTranslatingTitles } = useOutlineTranslations({
+  // Title translation runs in the background, not just while the panel is open — the
+  // chapter-strip button shows the current title too, and waiting for the reader to open
+  // the panel before starting would just move the wait rather than remove it.
+  // `!isTranslating` backs off while the viewport fill is busy, so a long book's title list
+  // never delays the text actually on screen.
+  const chapters = useChapters({
     fingerprint: book.fingerprint,
-    headers: chapterHeaders,
-    // The current chapter's line, not `anchorLine`: priority only changes when the chapter
-    // does, so ordinary scrolling within one never re-plans the title fill.
-    priorityLine: currentChapter?.line ?? -1,
+    cachedOutline: initialChapterOutline,
+    cachedManualPattern: initialManualChapterPattern,
+    anchor: { anchorLine, readLine, scrollToLine },
     translateBatch: translateOutlineBatch,
     dictionaryVersion: engineVersion,
     isEnabled: isActive && enginePhase === 'ready' && !isTranslating,
@@ -229,21 +201,6 @@ const BookReader: React.FC<BookReaderProps> = ({
     [scrollToLine]
   );
 
-  const goToChapter = useCallback(
-    (direction: -1 | 1): void => {
-      // `readLine()`, not the `anchorLine` closed over here: a rapid second `]` can fire
-      // before React has re-rendered (and so re-created this callback) after the first
-      // press — key-repeat routinely does this within the same tick. `optionsRef` in
-      // `useHotkeyHandler` would then hand the keydown listener this exact stale closure,
-      // still bound to the pre-jump `anchorLine`, and it would recompute the same target
-      // it just jumped to. `scrollToLine` sets the anchor synchronously, so `readLine()`
-      // is correct regardless of which render generation of this closure runs it.
-      const target = stepChapter(chapterHeaders, readLine(), direction);
-      if (target) scrollToLine(target.line);
-    },
-    [chapterHeaders, readLine, scrollToLine]
-  );
-
   /** Open the outline ready to be typed into — what both the jump-to-chapter shortcut and
    * the palette's own row do. The chapter-strip button opens it without taking focus. */
   const openOutlineForSearch = useCallback((): void => {
@@ -255,7 +212,7 @@ const BookReader: React.FC<BookReaderProps> = ({
     books,
     currentFileName: book.fileName,
     binding,
-    goToChapter,
+    goToChapter: chapters.step,
     openOutline: openOutlineForSearch,
     pageBy,
     openBindingDialog: openDialog,
@@ -320,13 +277,10 @@ const BookReader: React.FC<BookReaderProps> = ({
           <div className={styles.chapterStripNav}>
             <button
               onClick={() => void actions.previousChapter()}
-              // Mirrors `stepChapter` itself rather than re-deriving "is there a previous
-              // chapter" from `chapterIndex` — since a step back from mid-chapter now
-              // lands on the *current* chapter's own start, the button stays enabled in
-              // the first chapter too, as long as there's somewhere for it to go.
-              disabled={
-                chapterHeaders.length === 0 || stepChapter(chapterHeaders, anchorLine, -1) === null
-              }
+              // `canStep` mirrors `stepChapter` itself: a step back from mid-chapter lands
+              // on the *current* chapter's own start, so this stays enabled in the first
+              // chapter too, as long as there's somewhere for it to go.
+              disabled={!chapters.canStep(-1)}
               className={styles.iconButton}
               title="Previous chapter ([)"
               aria-label="Previous chapter"
@@ -335,7 +289,7 @@ const BookReader: React.FC<BookReaderProps> = ({
             </button>
             <button
               onClick={() => void actions.nextChapter()}
-              disabled={chapterHeaders.length === 0 || chapterIndex === chapterHeaders.length - 1}
+              disabled={!chapters.canStep(1)}
               className={styles.iconButton}
               title="Next chapter (])"
               aria-label="Next chapter"
@@ -352,9 +306,9 @@ const BookReader: React.FC<BookReaderProps> = ({
           >
             <List size={13} />
             <span className={styles.chapterStripTitle}>
-              {currentChapter
-                ? (getTranslatedTitle(currentChapter.line) ?? currentChapter.title) || '(untitled)'
-                : chapterHeaders.length > 0
+              {chapters.current
+                ? chapters.displayTitle(chapters.current)
+                : chapters.headers.length > 0
                   ? 'Before the first chapter'
                   : 'No chapter structure detected'}
             </span>
@@ -442,10 +396,7 @@ const BookReader: React.FC<BookReaderProps> = ({
           currentBinding={binding}
           isApplying={isBindingApplying}
           error={bindingError}
-          candidates={chapterCandidates}
-          activePattern={chapterPattern}
-          isOverridden={isChapterOverridden}
-          onSetOverride={setChapterOverride}
+          chapterOverride={chapters.override}
           onBind={(fictionDictionary) => void bind(fictionDictionary)}
           onCreateAndBind={(rawName) => void createAndBind(rawName)}
           onClose={closeDialog}
@@ -454,16 +405,8 @@ const BookReader: React.FC<BookReaderProps> = ({
 
       {outline && (
         <ChapterPanel
-          headers={chapterHeaders}
-          candidates={chapterCandidates}
-          activePattern={chapterPattern}
-          isOverridden={isChapterOverridden}
-          currentIndex={chapterIndex}
-          error={chapterError}
-          getTranslatedTitle={getTranslatedTitle}
-          isTranslatingTitles={isTranslatingTitles}
+          chapters={chapters}
           onJump={jumpToLine}
-          onSetOverride={setChapterOverride}
           autoFocusSearch={outline.focusSearch}
           onClose={() => setOutline(null)}
         />

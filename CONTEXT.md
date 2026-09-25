@@ -724,6 +724,14 @@ An Add action takes the text to pre-fill, and each route supplies its own. The p
 
 _Avoid_: command (for one row; that is a palette row), shortcut (for the action; a shortcut is one route to it).
 
+### Chapters
+
+What the Reader knows about a book's chapter structure. The **outline** is the list of chapter headers: the lines that match the book's elected pattern, or the pattern the reader chose instead (the **override**). The **current chapter** is the last header at or before the reading anchor, so reading before the first header means no current chapter. **Stepping** follows a media player's previous-track rule: back from inside a chapter returns to that chapter's start, and back from its start goes to the one before. Chapter **titles** translate in the background in batches, nearest the current chapter first, and a title translated against older dictionaries keeps showing until its replacement lands.
+
+**`src/hooks/useChapters.ts`** holds all of it behind one interface (`headers`, `current`, `canStep`/`step`, `displayTitle`, `override`), for the chapter strip, the outline panel and the binding dialog. Inside it, `useChapterOutline` runs election and applies the override, `useOutlineTranslations` translates the titles, and `ChapterNavigation.ts` finds the current chapter and a step's target.
+
+_Avoid_: section, part (for a chapter; a volume pattern is still a chapter pattern here), TOC (for the outline).
+
 ### Reader Engine Calls
 
 The Reader's three calls on the shared engine: a chunk of book text, its character-only gloss, and a batch of chapter titles. They go through one queue, because `translateWithSegments` resets engine-wide segment state on entry: two calls in flight at once, from the viewport fill and the outline's title translation (two loops that don't know about each other), would corrupt each other. Each call waits for the one before it to settle, and a failure never blocks the calls behind it. The engine is read when a call runs, not when it is queued.
