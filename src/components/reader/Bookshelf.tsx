@@ -8,7 +8,8 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
-import type { LibraryBook } from '../../types/ReaderTypes';
+import type { BookRecord, LibraryBook } from '../../types/ReaderTypes';
+import { useBookRecords } from '../../hooks/useBookRecords';
 import type { ShelfBook, UnavailableBook } from '../../utils/reader/ReconcileLibrary';
 import styles from '../../styles/Reader.module.css';
 import { SearchFilterHeader } from '../SearchFilterHeader';
@@ -62,11 +63,12 @@ function splitBookTitle(title: string): { vietnamese: string; chinese: string } 
 }
 
 /** "Not started" / "line N of M" / "in progress" (line count not cached yet — the book
- * hasn't been opened, just seen on a scan). `null` means genuinely never opened. */
-function formatProgress(book: ShelfBook): string | null {
-  if (!book.position) return 'Not started';
-  if (book.lineCount > 0) {
-    return `Line ${(book.position.line + 1).toLocaleString()} of ${book.lineCount.toLocaleString()}`;
+ * hasn't been opened, just seen on a scan). Read off the live record, never a copy taken
+ * at scan time, so Back from reading shows where the reader got to. */
+function formatProgress(record: BookRecord | undefined): string {
+  if (!record?.position) return 'Not started';
+  if (record.lineCount > 0) {
+    return `Line ${(record.position.line + 1).toLocaleString()} of ${record.lineCount.toLocaleString()}`;
   }
   return 'In progress';
 }
@@ -91,6 +93,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [layout, setLayout] = useState<ShelfLayout>(loadShelfLayout);
+  const records = useBookRecords();
 
   const toggleLayout = () => {
     const next: ShelfLayout = layout === 'list' ? 'card' : 'list';
@@ -214,7 +217,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                   </div>
                 )}
                 <div className={styles.bookCardFooter}>
-                  <span className={styles.bookProgress}>{formatProgress(book)}</span>
+                  <span className={styles.bookProgress}>
+                    {formatProgress(records[book.fingerprint])}
+                  </span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                 </div>
               </button>
@@ -244,7 +249,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({
                   ) : (
                     <span className={styles.bookTitle}>{book.title}</span>
                   )}
-                  <span className={styles.bookProgress}>{formatProgress(book)}</span>
+                  <span className={styles.bookProgress}>
+                    {formatProgress(records[book.fingerprint])}
+                  </span>
                   <span className={styles.bookMeta}>{formatSize(book.sizeBytes)}</span>
                   {isOpen && <span className={styles.openBadge}>open</span>}
                 </button>

@@ -681,7 +681,7 @@ _Avoid_: authoritative/cached (for the two kinds of field; `chapterOutline` is n
 
 **`src/utils/reader/ReconcileLibrary.ts`** runs after every `scan_library`. `filesNeedingFingerprint` compares each scanned file's `(sizeBytes, modifiedMs)` against any `available` record at that same path — a match skips the fingerprint call entirely, which is what makes rescanning an unchanged library free. Anything else gets fingerprinted, and `applyReconciliation` (pure, no IPC) either relinks an existing record to its new path (a move/rename — `position` carries over untouched) or creates a fresh one (`position: null`). A previously-`available` record matched by nothing this scan flips to `available: false` and stays in the map, so a later rescan that finds its fingerprint elsewhere re-links it silently.
 
-**`src/utils/reader/BookRecordsBackend.ts`** owns `books.json`'s read-modify-write, serialized through `withBookRecordsLock` — the same `Promise`-chain pattern `appConfig.ts`'s `withConfigLock` uses — so a scan's reconciliation write and a debounced position flush (see "Reading Anchor" below) can never race and drop one side's changes.
+**`src/utils/reader/BookRecordsBackend.ts`** owns `books.json`'s read-modify-write, serialized through `withBookRecordsLock` — the same `Promise`-chain pattern `appConfig.ts`'s `withConfigLock` uses — so a scan's reconciliation write and a debounced position flush (see "Reading Anchor" below) can never race and drop one side's changes. Its in-memory cache is observable (`subscribeBookRecords`, read through `useBookRecords`): the shelf reads each book's progress off it live rather than from a copy taken at scan time, so Back from reading shows where the reader got to without a rescan.
 
 ### Reading Anchor
 

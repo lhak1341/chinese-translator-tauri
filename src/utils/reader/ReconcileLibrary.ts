@@ -3,20 +3,17 @@ import type {
   BookRecord,
   BookRecords,
   LibraryBook,
-  ReadingPosition,
 } from '../../types/ReaderTypes';
 import tauriAPI from '../../tauriAPI';
 import { logger } from '../logger';
 import { loadBookRecords, saveBookRecords, withBookRecordsLock } from './BookRecordsBackend';
 import { refreshBookRecord } from './BookRecord';
 
-/** A scanned file plus the identity/progress a book record contributes to it. */
+/** A scanned file plus its identity. Progress is deliberately not copied here: the shelf
+ * reads it off the live record cache (`useBookRecords`), so it cannot go stale. */
 export interface ShelfBook extends LibraryBook {
+  /** `''` when reconciliation failed and identity is unknown. */
   fingerprint: string;
-  position: ReadingPosition | null;
-  /** Cached from the last `open_book`; `0` for a book that's been scanned but never
-   * actually opened, since the true line count isn't known until decode. */
-  lineCount: number;
 }
 
 /** A previously-known book whose file this scan could not find, anywhere under the
@@ -25,7 +22,6 @@ export interface UnavailableBook {
   fingerprint: string;
   title: string;
   lastKnownPath: string;
-  position: ReadingPosition | null;
 }
 
 export interface ReconcileResult {
@@ -123,12 +119,7 @@ export function applyReconciliation(
       matched.add(record.fingerprint);
     }
     const owning = next[record.fingerprint];
-    shelfBooks.push({
-      ...file,
-      fingerprint: owning.fingerprint,
-      position: owning.position,
-      lineCount: owning.lineCount,
-    });
+    shelfBooks.push({ ...file, fingerprint: owning.fingerprint });
   }
 
   // Locale-aware, so both shelf lists sort the same true A-Z a reader expects — Rust's own
@@ -149,7 +140,6 @@ export function applyReconciliation(
       fingerprint: current.fingerprint,
       title: current.title,
       lastKnownPath: current.lastKnownPath,
-      position: current.position,
     });
   }
   unavailableBooks.sort((a, b) => a.title.localeCompare(b.title));

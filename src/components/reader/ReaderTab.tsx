@@ -93,9 +93,7 @@ const ReaderTab: React.FC<ReaderTabProps> = ({ isActive }) => {
         logger.error('Failed to reconcile book records:', cause);
         // Reconciliation failure shouldn't blank the shelf — show the scan as-is, with
         // no progress info, rather than nothing.
-        setBooks(
-          result.books.map((book) => ({ ...book, fingerprint: '', position: null, lineCount: 0 }))
-        );
+        setBooks(result.books.map((book) => ({ ...book, fingerprint: '' })));
       }
     } catch (cause) {
       logger.error('Failed to scan the library:', cause);

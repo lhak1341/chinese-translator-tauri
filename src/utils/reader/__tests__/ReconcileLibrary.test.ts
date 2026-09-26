@@ -91,9 +91,7 @@ describe('applyReconciliation', () => {
     const result = applyReconciliation({ fp1: existing }, [makeFile()], new Map());
 
     expect(result.records.fp1).toEqual(existing);
-    expect(result.shelfBooks).toEqual([
-      { ...makeFile(), fingerprint: 'fp1', position: existing.position, lineCount: 500 },
-    ]);
+    expect(result.shelfBooks).toEqual([{ ...makeFile(), fingerprint: 'fp1' }]);
     expect(result.unavailableBooks).toEqual([]);
   });
 
@@ -145,7 +143,6 @@ describe('applyReconciliation', () => {
         fingerprint: 'fp1',
         title: 'Novel',
         lastKnownPath: 'novel.txt',
-        position: { line: 1, fraction: 0 },
       },
     ]);
   });
@@ -194,9 +191,7 @@ describe('reconcileLibraryScan', () => {
     const result = await reconcileLibraryScan([makeFile()], null, fingerprintFn);
 
     expect(fingerprintFn).not.toHaveBeenCalled();
-    expect(result.shelfBooks).toEqual([
-      { ...makeFile(), fingerprint: 'fp1', position: null, lineCount: 500 },
-    ]);
+    expect(result.shelfBooks).toEqual([{ ...makeFile(), fingerprint: 'fp1' }]);
   });
 
   test('persists the reconciled records via saveBookRecords', async () => {

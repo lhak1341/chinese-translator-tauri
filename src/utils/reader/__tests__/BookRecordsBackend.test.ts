@@ -9,6 +9,8 @@ import {
   setBookBinding,
   recordBookOpened,
   withBookRecordsLock,
+  subscribeBookRecords,
+  getBookRecordsSnapshot,
 } from '../BookRecordsBackend';
 import { READER_ANSWER_FIELDS } from '../BookRecord';
 import { makeBookRecord } from './bookRecordFixture';
@@ -70,6 +72,55 @@ describe('saveBookRecords', () => {
       .fn()
       .mockResolvedValue({ success: false, error: 'disk full' });
     await expect(saveBookRecords({})).rejects.toThrow('disk full');
+  });
+});
+
+describe('record cache subscription', () => {
+  test('load, save and invalidate each notify, and the snapshot follows the cache', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeBookRecords(listener);
+    expect(getBookRecordsSnapshot()).toEqual({});
+
+    const record = makeBookRecord();
+    window.electronAPI.loadBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { fp1: record } });
+    await loadBookRecords();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(getBookRecordsSnapshot()).toEqual({ fp1: record });
+
+    const saved = { fp1: makeBookRecord({ position: { line: 5, fraction: 0 } }) };
+    await saveBookRecords(saved);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(getBookRecordsSnapshot()).toBe(saved);
+
+    invalidateBookRecords();
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(getBookRecordsSnapshot()).toEqual({});
+
+    unsubscribe();
+    await saveBookRecords(saved);
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  test('a failed save leaves the cache alone and notifies no one', async () => {
+    await saveBookRecords({ fp1: makeBookRecord() });
+    const before = getBookRecordsSnapshot();
+    const listener = vi.fn();
+    const unsubscribe = subscribeBookRecords(listener);
+    window.electronAPI.saveBookRecords = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: 'disk full' });
+
+    await expect(saveBookRecords({})).rejects.toThrow('disk full');
+
+    expect(listener).not.toHaveBeenCalled();
+    expect(getBookRecordsSnapshot()).toBe(before);
+    unsubscribe();
+  });
+
+  test('the snapshot is stable between changes', () => {
+    expect(getBookRecordsSnapshot()).toBe(getBookRecordsSnapshot());
   });
 });
 

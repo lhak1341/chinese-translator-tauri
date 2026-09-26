@@ -13,6 +13,32 @@ import { logger } from '../logger';
 
 let cache: BookRecords | null = null;
 
+/**
+ * The record cache is observable: every change to it — the first load, a save, an
+ * invalidate — notifies subscribers, so a view reading progress off it (the shelf) is
+ * current without re-reading, whichever write landed last and in whatever order.
+ */
+const EMPTY_RECORDS: BookRecords = Object.freeze({}) as BookRecords;
+const listeners = new Set<() => void>();
+
+function setCache(next: BookRecords | null): void {
+  cache = next;
+  listeners.forEach((listener) => listener());
+}
+
+export function subscribeBookRecords(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** The cached records, or an empty map before the first load. Stable between changes —
+ * the cache is replaced, never mutated — as `useSyncExternalStore` requires. */
+export function getBookRecordsSnapshot(): BookRecords {
+  return cache ?? EMPTY_RECORDS;
+}
+
 // Serializes every write to books.json — a scan's reconciliation write and a debounced
 // position flush can land close together, and a read-modify-write done without a lock
 // would let the second clobber the first's result with a stale in-memory copy.
@@ -57,7 +83,7 @@ export async function loadBookRecords(): Promise<LoadBookRecordsResult> {
     logger.warn(`loadBookRecords: dropped ${droppedCount} invalid record(s)`);
   }
 
-  cache = records;
+  setCache(records);
   return { records, droppedCount };
 }
 
@@ -68,11 +94,11 @@ export async function saveBookRecords(records: BookRecords): Promise<void> {
   if (!result.success) {
     throw new Error(result.error ?? 'Failed to save book records');
   }
-  cache = records;
+  setCache(records);
 }
 
 export function invalidateBookRecords(): void {
-  cache = null;
+  setCache(null);
 }
 
 /**
