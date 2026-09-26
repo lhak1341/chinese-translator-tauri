@@ -207,7 +207,7 @@ export function generateRoughTranslation(
 ): string {
   const gloss = joinCharGloss(dictionaries, sourceText);
   if (!gloss) return '';
-  if (targetDictionary.includes('properNoun')) {
+  if (isProperNounsDict(targetDictionary)) {
     return titleCaseWords(gloss);
   }
   return lowercaseAll(gloss);
