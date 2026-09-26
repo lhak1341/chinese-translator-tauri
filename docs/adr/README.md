@@ -110,6 +110,7 @@ Every ADR is listed: the five foundational ones in full below, the rest in the t
 | [ADR-044](./ADR-044-skip-splitting-openbook.md)                                  | Skip splitting ReaderTab's openBook                        | Decided (addendum 2026-09-26)     | One entry point, one early-return branch; it now holds the whole record.                                              |
 | [ADR-045](./ADR-045-skip-shared-chapter-structure-override.md)                   | Skip a shared chapter-structure override control           | Decided                           | The dialog and panel selects differ because their surroundings do.                                                    |
 | [ADR-046](./ADR-046-keep-bookreader-scroll-composition-and-refill-ref.md)        | Keep BookReader's master-scroll composition and refill ref | Decided                           | Both break the panels → anchor → fill construction cycle; moving them adds a trampoline or dispatch-order dependency. |
+| [ADR-047](./ADR-047-skip-numberprocessor-numeral-value.md)                       | Skip a numeral-value interface on NumberProcessor          | Decided                           | Slot value and running-text conversion are different policies; the tables cannot drift.                               |
 
 ## ADR Format
 
@@ -156,5 +157,5 @@ Write an ADR when making decisions about:
 - **2026-01-28**: Created ADR-001 through ADR-004 (WASM batch, dual-path, TypeScript hybrid, 5-phase order)
 - **2026-05-03**: ADR-005 (eager dictionary loading, LazyDictionaryContext deletion)
 - **2026-05-03**: ADR-006 (PatternProcessor interface — return results, single apply site)
-- **2026-09-26**: Index filled in for ADR-005 and ADR-007 through ADR-045; ADR-046
+- **2026-09-26**: Index filled in for ADR-005 and ADR-007 through ADR-045; ADR-046; ADR-047
 - **Future ADRs**: WASM memory configuration, new phase addition, `useTranslatorEngine` hook scope
