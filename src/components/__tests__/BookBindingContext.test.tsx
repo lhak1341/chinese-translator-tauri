@@ -43,23 +43,33 @@ vi.mock('../../utils/appConfig', () => ({
   invalidateAppConfig: vi.fn(),
 }));
 
-const setBookBinding = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock('../../utils/reader/BookRecordsBackend', () => ({ setBookBinding }));
+const { setBookBinding, renameBoundDictionary } = vi.hoisted(() => ({
+  setBookBinding: vi.fn().mockResolvedValue(undefined),
+  renameBoundDictionary: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../../utils/reader/BookRecordsBackend', () => ({
+  setBookBinding,
+  renameBoundDictionary,
+}));
 
 const listProperNounsDictionaryIds = vi.hoisted(() => vi.fn());
 vi.mock('../../utils/dictionary/DictionaryBackend', () => ({ listProperNounsDictionaryIds }));
 
-const { reinitializeEngine, loadDictionary, dictionaries } = vi.hoisted(() => ({
-  reinitializeEngine: vi.fn().mockResolvedValue(true),
-  loadDictionary: vi.fn().mockResolvedValue(undefined),
-  dictionaries: { properNouns: {} },
-}));
+const { reinitializeEngine, loadDictionary, removeDictionaryKey, dictionaries } = vi.hoisted(
+  () => ({
+    reinitializeEngine: vi.fn().mockResolvedValue(true),
+    loadDictionary: vi.fn().mockResolvedValue(undefined),
+    removeDictionaryKey: vi.fn(),
+    dictionaries: { properNouns: {} },
+  })
+);
 vi.mock('../EngineContext', () => ({ useEngine: () => ({ reinitializeEngine }) }));
 vi.mock('../dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ dictionaries, loadDictionary }),
+  useDictionary: () => ({ dictionaries, loadDictionary, removeDictionaryKey }),
 }));
 
 const createFictionDictionaryPair = vi.fn();
+const renameProperNounsDictionary = vi.fn();
 
 const BOOK = { fingerprint: 'fp1', fileName: 'Tạp đồ 卡徒.txt', title: 'Tạp đồ 卡徒' };
 
@@ -89,7 +99,11 @@ beforeEach(() => {
     'properNouns-f_TruTien',
   ]);
   createFictionDictionaryPair.mockResolvedValue({ success: true });
-  (window as unknown as { electronAPI: unknown }).electronAPI = { createFictionDictionaryPair };
+  renameProperNounsDictionary.mockResolvedValue({ success: true });
+  (window as unknown as { electronAPI: unknown }).electronAPI = {
+    createFictionDictionaryPair,
+    renameProperNounsDictionary,
+  };
 });
 
 describe('opening a book', () => {
@@ -164,6 +178,160 @@ describe('opening a book', () => {
         })
       )
     );
+  });
+});
+
+describe('a bound dictionary that no longer exists', () => {
+  test('reads with no fiction dictionary, names the missing one, and keeps the answer', async () => {
+    config.engine.activeProperNouns = ['properNouns', 'properNouns-f_TruTien'];
+    const { result } = setup();
+
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_Gone' });
+    });
+
+    // Writing the missing name into activeProperNouns would load the book with no fiction
+    // dictionary and no word of why; so would keeping the previous book's.
+    await waitFor(() => expect(lastSavedActive()).toEqual(['properNouns']));
+    expect(result.current.missingFictionDictionary).toBe('properNouns-f_Gone');
+    expect(result.current.boundFictionDictionary).toBeNull();
+    // The record is the reader's answer; nothing but the reader rewrites it.
+    expect(result.current.binding).toEqual({ fictionDictionary: 'properNouns-f_Gone' });
+    expect(setBookBinding).not.toHaveBeenCalled();
+  });
+
+  test('is checked against disk, not a fiction list that has not loaded yet', async () => {
+    const { result } = setup();
+
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+
+    await waitFor(() => expect(lastSavedActive()).toContain('properNouns-f_TapDo'));
+    expect(result.current.missingFictionDictionary).toBeNull();
+  });
+
+  test('a failed listing applies the binding as recorded rather than blocking the open', async () => {
+    const { result } = setup();
+    await waitFor(() => expect(listProperNounsDictionaryIds).toHaveBeenCalled());
+    listProperNounsDictionaryIds.mockRejectedValueOnce(new Error('io'));
+
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+
+    await waitFor(() => expect(lastSavedActive()).toContain('properNouns-f_TapDo'));
+    expect(result.current.missingFictionDictionary).toBeNull();
+  });
+
+  test('binding another dictionary clears it', async () => {
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_Gone' });
+    });
+    await waitFor(() => expect(result.current.missingFictionDictionary).toBe('properNouns-f_Gone'));
+
+    await act(async () => {
+      await result.current.bind('properNouns-f_TruTien');
+    });
+
+    expect(result.current.missingFictionDictionary).toBeNull();
+    expect(result.current.boundFictionDictionary).toBe('properNouns-f_TruTien');
+  });
+});
+
+describe('renaming a fiction dictionary', () => {
+  test('carries the new name into book records and the open book, without a rebuild', async () => {
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.boundFictionDictionary).toBe('properNouns-f_TapDo'));
+    reinitializeEngine.mockClear();
+
+    let response: { success: boolean } | undefined;
+    await act(async () => {
+      response = await result.current.renameFictionDictionary(
+        'properNouns-f_TapDo',
+        'properNouns-f_TapDoMoi'
+      );
+    });
+
+    expect(response?.success).toBe(true);
+    expect(renameProperNounsDictionary).toHaveBeenCalledWith(
+      'properNouns-f_TapDo',
+      'properNouns-f_TapDoMoi'
+    );
+    expect(renameBoundDictionary).toHaveBeenCalledWith(
+      'properNouns-f_TapDo',
+      'properNouns-f_TapDoMoi'
+    );
+    expect(loadDictionary).toHaveBeenCalledWith('properNouns-f_TapDoMoi');
+    expect(loadDictionary).toHaveBeenCalledWith('patterns-f_TapDoMoi');
+    expect(removeDictionaryKey).toHaveBeenCalledWith('properNouns-f_TapDo');
+    expect(removeDictionaryKey).toHaveBeenCalledWith('patterns-f_TapDo');
+    expect(result.current.binding).toEqual({ fictionDictionary: 'properNouns-f_TapDoMoi' });
+    expect(result.current.boundFictionDictionary).toBe('properNouns-f_TapDoMoi');
+    // Rust already renamed the config's entry, and the dictionary's data is unchanged.
+    expect(reinitializeEngine).not.toHaveBeenCalled();
+  });
+
+  test('a failed backend rename touches no records', async () => {
+    renameProperNounsDictionary.mockResolvedValue({ success: false, error: 'already exists' });
+    const { result } = setup();
+
+    let response: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      response = await result.current.renameFictionDictionary(
+        'properNouns-f_TapDo',
+        'properNouns-f_TruTien'
+      );
+    });
+
+    expect(response).toEqual({ success: false, error: 'already exists', filesMoved: false });
+    expect(renameBoundDictionary).not.toHaveBeenCalled();
+    expect(removeDictionaryKey).not.toHaveBeenCalled();
+  });
+
+  test('a failed records rewrite is reported, and the open book shows its binding missing', async () => {
+    renameBoundDictionary.mockRejectedValueOnce(new Error('books.json locked'));
+    const { result } = setup();
+    await act(async () => {
+      result.current.announceOpenBook(BOOK, { fictionDictionary: 'properNouns-f_TapDo' });
+    });
+    await waitFor(() => expect(result.current.boundFictionDictionary).toBe('properNouns-f_TapDo'));
+
+    let response: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      response = await result.current.renameFictionDictionary(
+        'properNouns-f_TapDo',
+        'properNouns-f_TapDoMoi'
+      );
+    });
+
+    expect(response?.success).toBe(false);
+    expect(response?.error).toContain('books.json locked');
+    // The file did move, so the record now names a dictionary that does not exist.
+    expect(result.current.missingFictionDictionary).toBe('properNouns-f_TapDo');
+    expect(result.current.boundFictionDictionary).toBeNull();
+  });
+});
+
+describe('creating a fiction dictionary from the Configuration tab', () => {
+  test('creates the pair, loads both halves, and refreshes the list, binding nothing', async () => {
+    const { result } = setup();
+
+    let response: { success: boolean } | undefined;
+    await act(async () => {
+      response = await result.current.createFictionDictionary('properNouns-f_DaiBatHau');
+    });
+
+    expect(response?.success).toBe(true);
+    expect(createFictionDictionaryPair).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
+    expect(loadDictionary).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
+    expect(loadDictionary).toHaveBeenCalledWith('patterns-f_DaiBatHau');
+    expect(listProperNounsDictionaryIds).toHaveBeenCalledTimes(2);
+    expect(setBookBinding).not.toHaveBeenCalled();
   });
 });
 

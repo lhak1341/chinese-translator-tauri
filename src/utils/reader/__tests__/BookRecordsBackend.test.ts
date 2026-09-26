@@ -7,6 +7,7 @@ import {
   setChapterOutline,
   setManualChapterPattern,
   setBookBinding,
+  renameBoundDictionary,
   recordBookOpened,
   withBookRecordsLock,
   subscribeBookRecords,
@@ -251,6 +252,53 @@ describe('setBookBinding', () => {
     window.electronAPI.saveBookRecords = saveFn;
 
     await setBookBinding('missing-fp', { fictionDictionary: null });
+
+    expect(saveFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('renameBoundDictionary', () => {
+  test('rewrites every record bound to the old name, and only the binding', async () => {
+    const boundA = makeBookRecord({
+      fingerprint: 'fpA',
+      binding: { fictionDictionary: 'properNouns-f_Old' },
+      position: { line: 12, fraction: 0.25 },
+    });
+    const boundB = makeBookRecord({
+      fingerprint: 'fpB',
+      binding: { fictionDictionary: 'properNouns-f_Old' },
+    });
+    const other = makeBookRecord({
+      fingerprint: 'fpC',
+      binding: { fictionDictionary: 'properNouns-f_Other' },
+    });
+    const unanswered = makeBookRecord({ fingerprint: 'fpD', binding: null });
+    window.electronAPI.loadBookRecords = vi.fn().mockResolvedValue({
+      success: true,
+      data: { fpA: boundA, fpB: boundB, fpC: other, fpD: unanswered },
+    });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await renameBoundDictionary('properNouns-f_Old', 'properNouns-f_New');
+
+    expect(saveFn).toHaveBeenCalledWith({
+      fpA: { ...boundA, binding: { fictionDictionary: 'properNouns-f_New' } },
+      fpB: { ...boundB, binding: { fictionDictionary: 'properNouns-f_New' } },
+      fpC: other,
+      fpD: unanswered,
+    });
+  });
+
+  test('writes nothing when no record is bound to the old name', async () => {
+    window.electronAPI.loadBookRecords = vi.fn().mockResolvedValue({
+      success: true,
+      data: { fpC: makeBookRecord({ binding: { fictionDictionary: 'properNouns-f_Other' } }) },
+    });
+    const saveFn = vi.fn().mockResolvedValue({ success: true });
+    window.electronAPI.saveBookRecords = saveFn;
+
+    await renameBoundDictionary('properNouns-f_Old', 'properNouns-f_New');
 
     expect(saveFn).not.toHaveBeenCalled();
   });

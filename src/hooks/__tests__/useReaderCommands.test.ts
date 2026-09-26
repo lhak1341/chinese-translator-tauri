@@ -52,7 +52,7 @@ function setup(overrides: Partial<UseReaderCommandsOptions> = {}) {
       { fileName: 'other.txt', title: 'Other' },
     ],
     currentFileName: 'open.txt',
-    binding: null,
+    fictionDictionary: null,
     goToChapter: vi.fn(),
     openOutline: vi.fn(),
     pageBy: vi.fn(),
@@ -141,7 +141,7 @@ describe('useReaderCommands', () => {
   });
 
   it("files a fiction Add under the book's own binding", async () => {
-    const { view } = setup({ binding: { fictionDictionary: 'properNouns-f_TapDo' } });
+    const { view } = setup({ fictionDictionary: 'properNouns-f_TapDo' });
 
     await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
@@ -152,7 +152,7 @@ describe('useReaderCommands', () => {
   });
 
   it("an unbound book's proper noun never lands in the fiction config still names", async () => {
-    const { view } = setup({ binding: null });
+    const { view } = setup({ fictionDictionary: null });
 
     await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
 
@@ -163,7 +163,7 @@ describe('useReaderCommands', () => {
   });
 
   it('a book answered "none" has no structural pattern target: a toast, no dialog', async () => {
-    const { view } = setup({ binding: { fictionDictionary: null } });
+    const { view } = setup({ fictionDictionary: null });
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
 

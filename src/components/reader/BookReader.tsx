@@ -76,6 +76,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { highlight, toggleHighlight } = useReaderHighlight(book.fingerprint, engineVersion);
   const {
     binding,
+    boundFictionDictionary,
     fictionDictionaries,
     isDialogOpen,
     isApplying: isBindingApplying,
@@ -176,7 +177,7 @@ const BookReader: React.FC<BookReaderProps> = ({
   const { actions, paletteCommands, hotkeyProps, palette, quickAdd } = useReaderCommands({
     books,
     currentFileName: book.fileName,
-    binding,
+    fictionDictionary: boundFictionDictionary,
     goToChapter: chapters.step,
     openOutline: openOutlineForSearch,
     pageBy,
@@ -281,6 +282,7 @@ const BookReader: React.FC<BookReaderProps> = ({
       {offer.isBannerVisible && (
         <BindingBanner
           suggestedDictionary={offer.suggestion.dictionaryId}
+          missingDictionary={offer.missingDictionary}
           onChoose={openDialog}
           onDismiss={offer.dismiss}
         />

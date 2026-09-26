@@ -13,7 +13,6 @@ import {
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActionId, ReaderActions } from '../utils/reader/ReaderActions';
-import type { BookBinding } from '../types/ReaderTypes';
 import { useDictionaryModals } from './useDictionaryModals';
 import type { HotkeyHandlerOptions } from './useHotkeyHandler';
 
@@ -46,8 +45,10 @@ export const READER_HOTKEY_PROPS = {
 export interface UseReaderCommandsOptions {
   books: readonly PaletteBook[];
   currentFileName: string;
-  /** The open book's binding — where its fiction Adds are filed. */
-  binding: BookBinding | null;
+  /** The fiction dictionary in use for the open book — where its fiction Adds are filed.
+   * `BookBindingContext`'s `boundFictionDictionary`, not the recorded binding: a bound
+   * dictionary that no longer exists must not receive entries. */
+  fictionDictionary: string | null;
   goToChapter: (direction: -1 | 1) => void;
   /** Open the chapter outline with its search focused. */
   openOutline: () => void;
@@ -81,7 +82,7 @@ export interface ReaderCommands {
 export function useReaderCommands({
   books,
   currentFileName,
-  binding,
+  fictionDictionary,
   goToChapter,
   openOutline,
   pageBy,
@@ -112,7 +113,7 @@ export function useReaderCommands({
   // book's binding, never from the fiction entries in config — see `readerQuickAddTarget`
   // for why. Config is read only for a book with no fiction dictionary, and only for its
   // non-fiction default.
-  const boundFiction = binding?.fictionDictionary ?? null;
+  const boundFiction = fictionDictionary;
   const addToFiction = useCallback(
     async (kind: ReaderQuickAddKind, text?: string): Promise<void> => {
       let config: QuickAddConfig | null = null;

@@ -172,6 +172,31 @@ export function setBookBinding(fingerprint: string, binding: BookBinding): Promi
   return updateBookRecord('setBookBinding', fingerprint, { binding });
 }
 
+/**
+ * Carry a fiction dictionary's rename into every book bound to it. The rename itself is
+ * Rust's (file, paired patterns file, config); book records are TS-owned, so this runs
+ * after it, under the same lock as every other records write.
+ *
+ * This is the one write to a reader's answer that the reader did not make, and it is not
+ * a refresh: it keeps the answer the reader gave, under the dictionary's new name.
+ */
+export function renameBoundDictionary(oldId: string, newId: string): Promise<void> {
+  return withBookRecordsLock(async () => {
+    const { records } = await loadBookRecords();
+    let changed = false;
+    const next: BookRecords = {};
+    for (const [fingerprint, record] of Object.entries(records)) {
+      if (record.binding?.fictionDictionary === oldId) {
+        next[fingerprint] = { ...record, binding: { fictionDictionary: newId } };
+        changed = true;
+      } else {
+        next[fingerprint] = record;
+      }
+    }
+    if (changed) await saveBookRecords(next);
+  });
+}
+
 /** What `open_book` observes: the file, and its decoded content. */
 export type OpenedBookObservations = Pick<
   BookObservations,

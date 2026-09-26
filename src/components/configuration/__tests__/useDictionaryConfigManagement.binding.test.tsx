@@ -10,9 +10,10 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import ConfigurationManager from '../ConfigurationManager';
+import { useDictionaryConfigManagement } from '../useDictionaryConfigManagement';
 
 const { saveAppConfig, loadAppConfig } = vi.hoisted(() => ({
   saveAppConfig: vi.fn().mockResolvedValue(undefined),
@@ -25,8 +26,14 @@ vi.mock('../../../utils/appConfig', () => ({
   callRustConfigWrite: vi.fn(async (fn: () => Promise<unknown>) => fn()),
 }));
 
+// Stable across renders, as the real context's are: the hook's mount effect depends on
+// `loadDictionary`, so a fresh function per render re-runs it forever.
+const dictionaryContext = vi.hoisted(() => ({
+  loadDictionary: vi.fn(),
+  removeDictionaryKey: vi.fn(),
+}));
 vi.mock('../../dictionary/DictionaryContext', () => ({
-  useDictionary: () => ({ loadDictionary: vi.fn(), removeDictionaryKey: vi.fn() }),
+  useDictionary: () => dictionaryContext,
 }));
 
 const binding = vi.hoisted(() => ({
@@ -34,7 +41,8 @@ const binding = vi.hoisted(() => ({
   boundFictionDictionary: 'properNouns-f_TapDo' as string | null,
   openBook: { fingerprint: 'fp1', fileName: 'Tạp đồ 卡徒.txt', title: 'Tạp đồ 卡徒' },
   fictionDictionaries: ['properNouns-f_TapDo', 'properNouns-f_TruTien'],
-  refreshFictionDictionaries: async () => {},
+  renameFictionDictionary: vi.fn(),
+  createFictionDictionary: vi.fn(),
 }));
 vi.mock('../../BookBindingContext', () => ({
   useBookBinding: () => binding,
@@ -65,7 +73,12 @@ beforeEach(() => {
       .mockResolvedValue({ success: true, dictionaries: ALL_DICTIONARIES }),
     listFictionPatternDictionaries: vi.fn().mockResolvedValue({ success: true, dictionaries: [] }),
     createStructuralPatternsDictionary: vi.fn().mockResolvedValue({ success: true }),
+    renameProperNounsDictionary: vi.fn().mockResolvedValue({ success: true }),
+    createFictionDictionaryPair: vi.fn().mockResolvedValue({ success: true }),
+    createProperNounsDictionary: vi.fn().mockResolvedValue({ success: true }),
   };
+  binding.renameFictionDictionary.mockResolvedValue({ success: true, filesMoved: true });
+  binding.createFictionDictionary.mockResolvedValue({ success: true });
 });
 
 /** The checkbox belonging to one dictionary row, found by its visible label. */
@@ -129,5 +142,77 @@ describe('Configuration with no book open', () => {
     // Straight from config again, with no binding overlaying it.
     expect(checkboxFor('f_TruTien').checked).toBe(true);
     expect(checkboxFor('f_TruTien').disabled).toBe(false);
+  });
+});
+
+describe('fiction dictionaries are created and renamed through the binding context', () => {
+  // Books bound to a fiction dictionary name it in their records, which this tab cannot
+  // see; only the binding context carries a rename into them.
+  test('renaming a fiction dictionary goes through the context, not the backend directly', async () => {
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.handleStartRename('properNouns-f_TapDo'));
+    act(() => result.current.updateRenameValue('f_TapDoMoi'));
+    await act(async () => {
+      await result.current.handleConfirmRename();
+    });
+
+    expect(binding.renameFictionDictionary).toHaveBeenCalledWith(
+      'properNouns-f_TapDo',
+      'properNouns-f_TapDoMoi'
+    );
+    expect(window.electronAPI.renameProperNounsDictionary).not.toHaveBeenCalled();
+    expect(result.current.availableDictionaries).toContain('properNouns-f_TapDoMoi');
+  });
+
+  test('a theme dictionary still renames directly', async () => {
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.handleStartRename('properNouns-_AiCap'));
+    act(() => result.current.updateRenameValue('_AiCapMoi'));
+    await act(async () => {
+      await result.current.handleConfirmRename();
+    });
+
+    expect(binding.renameFictionDictionary).not.toHaveBeenCalled();
+    expect(window.electronAPI.renameProperNounsDictionary).toHaveBeenCalledWith(
+      'properNouns-_AiCap',
+      'properNouns-_AiCapMoi'
+    );
+  });
+
+  test('a rename the context reports as failed surfaces its error', async () => {
+    binding.renameFictionDictionary.mockResolvedValue({
+      success: false,
+      error: 'Renamed, but books bound to it still name the old dictionary: locked',
+      filesMoved: true,
+    });
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.handleStartRename('properNouns-f_TapDo'));
+    act(() => result.current.updateRenameValue('f_TapDoMoi'));
+    await act(async () => {
+      await result.current.handleConfirmRename();
+    });
+
+    expect(result.current.error).toContain('still name the old dictionary');
+    // The files did move, so the row follows them.
+    expect(result.current.availableDictionaries).toContain('properNouns-f_TapDoMoi');
+  });
+
+  test('creating a fiction dictionary goes through the context', async () => {
+    const { result } = renderHook(() => useDictionaryConfigManagement());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.updateDraftName('f_DaiBatHau'));
+    await act(async () => {
+      await result.current.handleCreateDictionary({ preventDefault: () => {} } as React.FormEvent);
+    });
+
+    expect(binding.createFictionDictionary).toHaveBeenCalledWith('properNouns-f_DaiBatHau');
+    expect(window.electronAPI.createFictionDictionaryPair).not.toHaveBeenCalled();
   });
 });

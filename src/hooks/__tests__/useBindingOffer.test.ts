@@ -5,6 +5,7 @@ import type { BookBinding } from '../../types/ReaderTypes';
 
 const bindingState = vi.hoisted(() => ({
   binding: null as BookBinding | null,
+  missingFictionDictionary: null as string | null,
   fictionDictionaries: [] as string[],
   applyError: null as string | null,
   isDialogOpen: false,
@@ -20,6 +21,7 @@ const BOOK: UseBindingOfferOptions = {
 
 beforeEach(() => {
   bindingState.binding = null;
+  bindingState.missingFictionDictionary = null;
   bindingState.fictionDictionaries = [];
   bindingState.applyError = null;
   bindingState.isDialogOpen = false;
@@ -44,6 +46,18 @@ describe('useBindingOffer', () => {
     const { result } = renderHook(() => useBindingOffer(BOOK));
     expect(result.current.isBannerVisible).toBe(false);
     expect(result.current.buttonLabel).toBe('TapDo');
+  });
+
+  it('a bound dictionary that no longer exists shows the banner, naming it', () => {
+    bindingState.binding = { fictionDictionary: 'properNouns-f_TapDo' };
+    bindingState.missingFictionDictionary = 'properNouns-f_TapDo';
+    const { result } = renderHook(() => useBindingOffer(BOOK));
+    expect(result.current.isBannerVisible).toBe(true);
+    expect(result.current.missingDictionary).toBe('properNouns-f_TapDo');
+    expect(result.current.buttonLabel).toBe('TapDo (missing)');
+
+    act(() => result.current.dismiss());
+    expect(result.current.isBannerVisible).toBe(false);
   });
 
   it('dismissing hides the banner for this book only, without answering', () => {

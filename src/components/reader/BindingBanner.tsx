@@ -6,6 +6,9 @@ import styles from '../../styles/Reader.module.css';
 interface BindingBannerProps {
   /** The name derived from the file, or `null` when nothing could be derived from it. */
   suggestedDictionary: string | null;
+  /** The book's bound dictionary, when it no longer exists: the banner then says so
+   * instead of offering a first binding. */
+  missingDictionary?: string | null;
   onChoose: () => void;
   onDismiss: () => void;
 }
@@ -21,14 +24,23 @@ interface BindingBannerProps {
  */
 const BindingBanner: React.FC<BindingBannerProps> = ({
   suggestedDictionary,
+  missingDictionary = null,
   onChoose,
   onDismiss,
 }) => (
   <div className={styles.bindingBanner}>
     <BookMarked size={15} className={styles.bindingBannerIcon} />
     <span className={styles.bindingBannerText}>
-      No fiction dictionary for this book — reading with the general dictionaries only.
-      {suggestedDictionary && (
+      {missingDictionary ? (
+        <>
+          This book&apos;s dictionary{' '}
+          <span className={styles.bindingSuggestion}>{fictionDisplayName(missingDictionary)}</span>{' '}
+          no longer exists — reading with the general dictionaries only.
+        </>
+      ) : (
+        'No fiction dictionary for this book — reading with the general dictionaries only.'
+      )}
+      {!missingDictionary && suggestedDictionary && (
         <>
           {' '}
           <span className={styles.bindingSuggestion}>

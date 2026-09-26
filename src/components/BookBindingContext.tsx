@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import type { BookBinding } from '../types/ReaderTypes';
+import type { ProperNounsListResult } from '../types/ElectronTypes';
 import { DEBUG_LEVELS } from '../utils/TranslationEngine.js';
 import { callRustConfigWrite, loadAppConfig, saveAppConfig } from '../utils/appConfig';
 import { extractErrorMessage } from '../utils/errorHelpers';
@@ -19,9 +20,29 @@ import {
   quickAddTargetForBinding,
 } from '../utils/reader/BindingActivation';
 import { toFictionDictionaryId } from '../utils/reader/FictionDictionarySuggestion';
-import { setBookBinding } from '../utils/reader/BookRecordsBackend';
+import { renameBoundDictionary, setBookBinding } from '../utils/reader/BookRecordsBackend';
 import { useDictionary } from './dictionary/DictionaryContext';
 import { useEngine } from './EngineContext';
+
+/** What renaming a fiction dictionary did. `filesMoved` with `success: false` means the
+ * pair was renamed but the book records could not be updated to match. */
+export interface FictionRenameResult {
+  success: boolean;
+  error?: string;
+  filesMoved: boolean;
+}
+
+/** Whether a bound dictionary is still on disk. A failed listing trusts the record: it
+ * says nothing about the dictionary, and blocking the apply on it would leave the previous
+ * book's fiction dictionary active. */
+async function boundDictionaryExists(dictionaryId: string): Promise<boolean> {
+  try {
+    return (await listProperNounsDictionaryIds()).includes(dictionaryId);
+  } catch (cause) {
+    logger.warn('Could not list dictionaries to check a binding; applying it as recorded:', cause);
+    return true;
+  }
+}
 
 /** The book the reader currently has open, as far as binding is concerned. */
 export interface OpenBookIdentity {
@@ -35,9 +56,15 @@ export interface BookBindingContextValue {
   /** The open book's answer to the binding question. `null` means never answered — which
    * is what puts the offer on screen. See `BookBinding`. */
   binding: BookBinding | null;
-  /** The fiction dictionary the open book is bound to; `null` when it is bound to none,
-   * unanswered, or no book is open. */
+  /** The fiction dictionary in use for the open book; `null` when it is bound to none,
+   * unanswered, bound to one that no longer exists, or no book is open. What anything
+   * filing or reading "this book's names" should read — not `binding`, which is the
+   * recorded answer. */
   boundFictionDictionary: string | null;
+  /** The dictionary the open book's record names but that no longer exists on disk
+   * (renamed outside the app, or lost to a reset or import). The book reads with no
+   * fiction dictionary until the reader answers again; the record is left as it is. */
+  missingFictionDictionary: string | null;
   /** Every `properNouns-f_*` dictionary that exists, sorted. */
   fictionDictionaries: string[];
   /** True once the Reader has a book open. While it is, the open book owns the fiction
@@ -62,9 +89,13 @@ export interface BookBindingContextValue {
   bind: (fictionDictionary: string | null) => Promise<void>;
   /** Create a new fiction dictionary pair from a reader-typed name, then bind to it. */
   createAndBind: (rawName: string) => Promise<void>;
-  /** Re-read the fiction dictionary list. The Configuration tab calls this after its own
-   * create/rename, so the list this context hands out never lags behind disk. */
-  refreshFictionDictionaries: () => Promise<void>;
+  /** Create a fiction dictionary pair and load it, binding nothing. The Configuration
+   * tab's create, for a `properNouns-f_*` id. */
+  createFictionDictionary: (dictionaryId: string) => Promise<ProperNounsListResult>;
+  /** Rename a fiction dictionary pair and carry the new name into every book bound to it.
+   * If the book records could not be updated, those books open with their binding
+   * reported missing. */
+  renameFictionDictionary: (oldId: string, newId: string) => Promise<FictionRenameResult>;
 }
 
 const BookBindingContext = createContext<BookBindingContextValue | undefined>(undefined);
@@ -92,11 +123,12 @@ export function BookBindingProvider({
 }: {
   children: React.ReactNode;
 }): React.JSX.Element {
-  const { dictionaries, loadDictionary } = useDictionary();
+  const { dictionaries, loadDictionary, removeDictionaryKey } = useDictionary();
   const { reinitializeEngine } = useEngine();
 
   const [openBook, setOpenBook] = useState<OpenBookIdentity | null>(null);
   const [binding, setBinding] = useState<BookBinding | null>(null);
+  const [missingFictionDictionary, setMissingFictionDictionary] = useState<string | null>(null);
   const [fictionDictionaries, setFictionDictionaries] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
@@ -110,6 +142,8 @@ export function BookBindingProvider({
   dictionariesRef.current = dictionaries;
   const openBookRef = useRef<OpenBookIdentity | null>(null);
   openBookRef.current = openBook;
+  const bindingRef = useRef<BookBinding | null>(null);
+  bindingRef.current = binding;
 
   // Serializes every apply. Opening a book and answering the dialog both do a
   // read-modify-write of `activeProperNouns` followed by an engine reinitialization;
@@ -194,7 +228,14 @@ export function BookBindingProvider({
           // with global dictionaries only, and the offer stays on screen. Leaving the
           // previous book's fiction dictionary active instead is the silent
           // wrong-dictionary failure the whole feature exists to prevent.
-          await applyAnswer(nextBinding?.fictionDictionary ?? null);
+          //
+          // A bound dictionary that no longer exists is applied the same way, and named.
+          // Checked against disk rather than `fictionDictionaries`, which may not have
+          // loaded yet on the first open after launch.
+          const bound = nextBinding?.fictionDictionary ?? null;
+          const exists = bound === null || (await boundDictionaryExists(bound));
+          setMissingFictionDictionary(exists ? null : bound);
+          await applyAnswer(exists ? bound : null);
           setError(null);
         } catch (cause) {
           logger.error('Failed to apply the book binding on open:', cause);
@@ -217,6 +258,7 @@ export function BookBindingProvider({
       const next: BookBinding = { fictionDictionary };
       await setBookBinding(book.fingerprint, next);
       setBinding(next);
+      setMissingFictionDictionary(null);
       await applyAnswer(fictionDictionary);
       setError(null);
       setIsDialogOpen(false);
@@ -242,6 +284,26 @@ export function BookBindingProvider({
     [enqueue, persistAndApply]
   );
 
+  /**
+   * Create a fiction pair and load it. Not queued itself — both callers already run inside
+   * the queue, and queueing from within it would wait on itself. Fiction dictionaries and
+   * their paired patterns-f_* file are created atomically (ADR-027), so this cannot leave
+   * half a pair behind.
+   */
+  const createPair = useCallback(
+    async (dictionaryId: string): Promise<ProperNounsListResult> => {
+      const result = await callRustConfigWrite(() =>
+        window.electronAPI.createFictionDictionaryPair(dictionaryId)
+      );
+      if (!result.success) return result;
+      await loadDictionary(dictionaryId);
+      await loadDictionary(toPatternsId(dictionaryId));
+      await refreshFictionDictionaries();
+      return result;
+    },
+    [loadDictionary, refreshFictionDictionaries]
+  );
+
   const createAndBind = useCallback(
     (rawName: string): Promise<void> =>
       enqueue(async () => {
@@ -257,17 +319,8 @@ export function BookBindingProvider({
         }
         setIsApplying(true);
         try {
-          // Reuses the existing creation command — fiction dictionaries and their paired
-          // patterns-f_* file are created atomically (ADR-027), so this needs no new
-          // backend work and cannot leave half a pair behind.
-          const result = await callRustConfigWrite(() =>
-            window.electronAPI.createFictionDictionaryPair(dictionaryId)
-          );
+          const result = await createPair(dictionaryId);
           if (!result.success) throw new Error(result.error ?? 'Failed to create the dictionary');
-
-          await loadDictionary(dictionaryId);
-          await loadDictionary(toPatternsId(dictionaryId));
-          await refreshFictionDictionaries();
           await persistAndApply(book, dictionaryId);
         } catch (cause) {
           logger.error('Failed to create and bind a fiction dictionary:', cause);
@@ -276,7 +329,56 @@ export function BookBindingProvider({
           setIsApplying(false);
         }
       }),
-    [enqueue, loadDictionary, persistAndApply, refreshFictionDictionaries]
+    [createPair, enqueue, persistAndApply]
+  );
+
+  const createFictionDictionary = useCallback(
+    (dictionaryId: string): Promise<ProperNounsListResult> =>
+      enqueue(() => createPair(dictionaryId)),
+    [createPair, enqueue]
+  );
+
+  const renameFictionDictionary = useCallback(
+    (oldId: string, newId: string): Promise<FictionRenameResult> =>
+      enqueue(async () => {
+        const result = await callRustConfigWrite(() =>
+          window.electronAPI.renameProperNounsDictionary(oldId, newId)
+        );
+        if (!result.success) return { success: false, error: result.error, filesMoved: false };
+
+        // Rust has moved both files and rewritten config; the records are ours. A failure
+        // here is reported, not rolled back: the files did move, and the open-time
+        // existence check catches every record left naming the old id.
+        let recordsError: string | null = null;
+        try {
+          await renameBoundDictionary(oldId, newId);
+        } catch (cause) {
+          logger.error('Failed to carry a dictionary rename into book records:', cause);
+          recordsError = extractErrorMessage(cause);
+        }
+
+        // Load each new id before dropping its old one, so `dictionaries` never briefly
+        // holds neither.
+        await loadDictionary(newId);
+        removeDictionaryKey(oldId);
+        await loadDictionary(toPatternsId(newId));
+        removeDictionaryKey(toPatternsId(oldId));
+        await refreshFictionDictionaries();
+
+        // No engine rebuild: config already names the new id, and the data is unchanged.
+        if (bindingRef.current?.fictionDictionary === oldId) {
+          if (recordsError) setMissingFictionDictionary(oldId);
+          else setBinding({ fictionDictionary: newId });
+        }
+        return recordsError
+          ? {
+              success: false,
+              error: `Renamed, but books bound to it still name the old dictionary: ${recordsError}`,
+              filesMoved: true,
+            }
+          : { success: true, filesMoved: true };
+      }),
+    [enqueue, loadDictionary, refreshFictionDictionaries, removeDictionaryKey]
   );
 
   // Only meaningful with a book open: the dialog renders inside `BookReader`, so setting
@@ -291,7 +393,10 @@ export function BookBindingProvider({
     () => ({
       openBook,
       binding,
-      boundFictionDictionary: binding?.fictionDictionary ?? null,
+      boundFictionDictionary: missingFictionDictionary
+        ? null
+        : (binding?.fictionDictionary ?? null),
+      missingFictionDictionary,
       fictionDictionaries,
       isBookOpen: openBook !== null,
       isDialogOpen,
@@ -303,11 +408,13 @@ export function BookBindingProvider({
       announceOpenBook,
       bind,
       createAndBind,
-      refreshFictionDictionaries,
+      createFictionDictionary,
+      renameFictionDictionary,
     }),
     [
       openBook,
       binding,
+      missingFictionDictionary,
       fictionDictionaries,
       isDialogOpen,
       isApplying,
@@ -318,7 +425,8 @@ export function BookBindingProvider({
       announceOpenBook,
       bind,
       createAndBind,
-      refreshFictionDictionaries,
+      createFictionDictionary,
+      renameFictionDictionary,
     ]
   );
 

@@ -48,14 +48,18 @@ vi.mock('../../dictionary/DictionaryContext', () => ({
 // No book open: these tests are about creating and renaming dictionaries, not about the
 // Reader's authority over the fiction slice. The locked-fiction behavior is covered in
 // useDictionaryConfigManagement.binding.test.tsx, where the binding is the subject.
+// A fiction dictionary's create and rename belong to the binding context (it also reaches
+// book records); what they do there is covered in BookBindingContext.test.tsx.
+const bookBinding = vi.hoisted(() => ({
+  isBookOpen: false,
+  boundFictionDictionary: null,
+  openBook: null,
+  fictionDictionaries: [],
+  createFictionDictionary: vi.fn(),
+  renameFictionDictionary: vi.fn(),
+}));
 vi.mock('../../BookBindingContext', () => ({
-  useBookBinding: () => ({
-    isBookOpen: false,
-    boundFictionDictionary: null,
-    openBook: null,
-    fictionDictionaries: [],
-    refreshFictionDictionaries: vi.fn().mockResolvedValue(undefined),
-  }),
+  useBookBinding: () => bookBinding,
 }));
 
 const createProperNounsDictionary = vi.fn();
@@ -72,6 +76,8 @@ beforeEach(() => {
   listFictionPatternDictionaries.mockResolvedValue({ success: true, dictionaries: [] });
   createProperNounsDictionary.mockResolvedValue({ success: true });
   createFictionDictionaryPair.mockResolvedValue({ success: true });
+  bookBinding.createFictionDictionary.mockResolvedValue({ success: true });
+  bookBinding.renameFictionDictionary.mockResolvedValue({ success: true, filesMoved: true });
   createStructuralPatternsDictionary.mockResolvedValue({ success: true });
   renameProperNounsDictionary.mockResolvedValue({ success: true });
 
@@ -95,18 +101,16 @@ async function openModalAndCreate(name: string) {
 }
 
 describe('ConfigurationManager handleCreateDictionary', () => {
-  test('fiction ID calls createFictionDictionaryPair, not the two-call sequence', async () => {
+  test('fiction ID is created by the binding context, as a pair', async () => {
     render(<ConfigurationManager />);
     await openModalAndCreate('f_Test');
 
     await waitFor(() =>
-      expect(createFictionDictionaryPair).toHaveBeenCalledWith('properNouns-f_Test')
+      expect(bookBinding.createFictionDictionary).toHaveBeenCalledWith('properNouns-f_Test')
     );
     expect(createProperNounsDictionary).not.toHaveBeenCalled();
     expect(createStructuralPatternsDictionary).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('f_Test')).toBeInTheDocument());
-    await waitFor(() => expect(loadDictionary).toHaveBeenCalledWith('properNouns-f_Test'));
-    expect(loadDictionary).toHaveBeenCalledWith('patterns-f_Test');
   });
 
   test('non-fiction ID still calls createProperNounsDictionary alone', async () => {
@@ -149,7 +153,7 @@ describe('ConfigurationManager handleCreateDictionary', () => {
   });
 
   test('fiction pair failure surfaces an error and does not add the dictionary', async () => {
-    createFictionDictionaryPair.mockResolvedValue({
+    bookBinding.createFictionDictionary.mockResolvedValue({
       success: false,
       error: 'Failed to create paired patterns dictionary: disk full. Rolled back.',
     });
@@ -257,7 +261,7 @@ describe('ConfigurationManager handleConfirmRename', () => {
     expect(invalidateAppConfig).toHaveBeenCalled();
   });
 
-  test('fiction rename also refreshes the paired patterns-f_* dict', async () => {
+  test('fiction rename is done by the binding context, and the row follows it', async () => {
     listProperNounsDictionaries.mockResolvedValue({
       success: true,
       dictionaries: ['properNouns-f_Old'],
@@ -266,19 +270,18 @@ describe('ConfigurationManager handleConfirmRename', () => {
       success: true,
       dictionaries: ['patterns-f_Old'],
     });
-    renameProperNounsDictionary.mockResolvedValue({ success: true });
 
     render(<ConfigurationManager />);
     await openRenameAndConfirm('f_Old', 'f_New');
 
     await waitFor(() =>
-      expect(renameProperNounsDictionary).toHaveBeenCalledWith(
+      expect(bookBinding.renameFictionDictionary).toHaveBeenCalledWith(
         'properNouns-f_Old',
         'properNouns-f_New'
       )
     );
-    await waitFor(() => expect(loadDictionary).toHaveBeenCalledWith('patterns-f_New'));
-    expect(removeDictionaryKey).toHaveBeenCalledWith('patterns-f_Old');
+    expect(renameProperNounsDictionary).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText('f_New')).toBeInTheDocument());
   });
 
   test('rename failure does not touch DictionaryContext', async () => {

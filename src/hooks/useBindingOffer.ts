@@ -14,9 +14,11 @@ export interface UseBindingOfferOptions {
 export interface BindingOffer {
   /** The fiction dictionary the file name points at, for the banner and the dialog. */
   suggestion: FictionSuggestion;
-  /** The book has never answered the binding question, and the reader has not waved the
-   * offer away for it this time. */
+  /** The book has never answered the binding question, or its bound dictionary no longer
+   * exists — and the reader has not waved the offer away for it this time. */
   isBannerVisible: boolean;
+  /** The bound dictionary that no longer exists, for the banner to name. */
+  missingDictionary: string | null;
   dismiss: () => void;
   /** The binding button's text: the bound dictionary, the answer "none", or the prompt. */
   buttonLabel: string;
@@ -41,7 +43,8 @@ export interface BindingOffer {
  * silently hide it for the next.
  */
 export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOptions): BindingOffer {
-  const { binding, fictionDictionaries, applyError, isDialogOpen } = useBookBinding();
+  const { binding, missingFictionDictionary, fictionDictionaries, applyError, isDialogOpen } =
+    useBookBinding();
   const [dismissedFor, setDismissedFor] = useState<string | null>(null);
 
   const suggestion = useMemo(
@@ -55,15 +58,19 @@ export function useBindingOffer({ fingerprint, fileName }: UseBindingOfferOption
 
   const dismiss = useCallback((): void => setDismissedFor(fingerprint), [fingerprint]);
 
-  const buttonLabel = binding?.fictionDictionary
-    ? fictionDisplayName(binding.fictionDictionary)
-    : isUnbound
-      ? 'Bind dictionaries'
-      : 'No fiction dictionary';
+  const buttonLabel = missingFictionDictionary
+    ? `${fictionDisplayName(missingFictionDictionary)} (missing)`
+    : binding?.fictionDictionary
+      ? fictionDisplayName(binding.fictionDictionary)
+      : isUnbound
+        ? 'Bind dictionaries'
+        : 'No fiction dictionary';
 
   return {
     suggestion,
-    isBannerVisible: isUnbound && dismissedFor !== fingerprint,
+    isBannerVisible:
+      (isUnbound || missingFictionDictionary !== null) && dismissedFor !== fingerprint,
+    missingDictionary: missingFictionDictionary,
     dismiss,
     buttonLabel,
     applyError: isDialogOpen ? null : applyError,

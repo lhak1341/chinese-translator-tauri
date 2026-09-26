@@ -30,7 +30,8 @@ export function useDictionaryConfigManagement() {
     boundFictionDictionary,
     openBook,
     fictionDictionaries,
-    refreshFictionDictionaries,
+    createFictionDictionary,
+    renameFictionDictionary,
   } = useBookBinding();
   const [availableDictionaries, setAvailableDictionaries] = useState<string[]>([]);
   const [activeDictionaries, setActiveDictionaries] = useState<string[]>([]);
@@ -168,13 +169,14 @@ export function useDictionaryConfigManagement() {
     try {
       const dictionaryId = toProperNounsDictionaryId(newDictionaryName);
 
-      // Fiction dicts create their paired patterns-f_* dictionary atomically (ADR-027) —
-      // either both files exist afterward, or neither does.
-      const result = await callRustConfigWrite(() =>
-        isFictionProperNounsId(dictionaryId)
-          ? window.electronAPI.createFictionDictionaryPair(dictionaryId)
-          : window.electronAPI.createProperNounsDictionary(dictionaryId)
-      );
+      // A fiction dictionary is a pair (ADR-027) that books can bind to, so the binding
+      // context creates and loads it; anything else is this tab's alone.
+      const isFiction = isFictionProperNounsId(dictionaryId);
+      const result = isFiction
+        ? await createFictionDictionary(dictionaryId)
+        : await callRustConfigWrite(() =>
+            window.electronAPI.createProperNounsDictionary(dictionaryId)
+          );
 
       if (result.success) {
         setAvailableDictionaries(sortDictionaries([...availableDictionaries, dictionaryId]));
@@ -185,13 +187,7 @@ export function useDictionaryConfigManagement() {
         }
         closeCreateModal();
 
-        await loadDictionary(dictionaryId);
-        if (isFictionProperNounsId(dictionaryId)) {
-          await loadDictionary(toPatternsId(dictionaryId));
-          // Keep the binding context's fiction list in step — it is what the Reader's
-          // binding dialog offers, and the merge above reads it back into this screen.
-          await refreshFictionDictionaries();
-        }
+        if (!isFiction) await loadDictionary(dictionaryId);
       } else {
         throw new Error(result.error);
       }
@@ -224,24 +220,27 @@ export function useDictionaryConfigManagement() {
         return;
       }
 
-      const result = await callRustConfigWrite(() =>
-        window.electronAPI.renameProperNounsDictionary(renamingDictionaryId, newDictionaryId)
-      );
-
-      if (result.success) {
-        // Refresh DictionaryContext: load each new ID before dropping its old one, so
-        // `dictionaries` state never briefly has neither. The backend cascades this rename
-        // to the paired patterns-f_* dict too (ADR-027) — mirror that here.
-        await loadDictionary(newDictionaryId);
-        removeDictionaryKey(renamingDictionaryId);
-        if (isFictionProperNounsId(renamingDictionaryId)) {
-          await loadDictionary(toPatternsId(newDictionaryId));
-          removeDictionaryKey(toPatternsId(renamingDictionaryId));
-          // Without this the context would keep offering the pre-rename id, and the merge
-          // above would show the book's dictionary under both names at once.
-          await refreshFictionDictionaries();
+      // A fiction dictionary's name also lives in every book bound to it, which only the
+      // binding context can reach; it also reloads the pair and refreshes its list.
+      let result: { success: boolean; error?: string; filesMoved: boolean };
+      if (isFictionProperNounsId(renamingDictionaryId)) {
+        result = await renameFictionDictionary(renamingDictionaryId, newDictionaryId);
+      } else {
+        const response = await callRustConfigWrite(() =>
+          window.electronAPI.renameProperNounsDictionary(renamingDictionaryId, newDictionaryId)
+        );
+        result = { ...response, filesMoved: response.success };
+        if (response.success) {
+          // Load each new ID before dropping its old one, so `dictionaries` state never
+          // briefly has neither.
+          await loadDictionary(newDictionaryId);
+          removeDictionaryKey(renamingDictionaryId);
         }
+      }
 
+      // A fiction rename can fail after the files already moved (the book records could
+      // not be updated), so the rows follow the files, and the error still shows.
+      if (result.filesMoved) {
         setAvailableDictionaries((prev) =>
           sortDictionaries(prev.map((id) => (id === renamingDictionaryId ? newDictionaryId : id)))
         );
@@ -255,6 +254,7 @@ export function useDictionaryConfigManagement() {
         }
 
         handleCancelRename();
+        if (!result.success) setError(formatErrorMessage('Dictionary rename', result.error));
       } else {
         throw new Error(result.error);
       }
