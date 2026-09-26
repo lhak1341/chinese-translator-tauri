@@ -49,6 +49,13 @@
       "template": "X đến rồi",
       "variables": { "X": "cô ấy" },
       "expected": "cô ấy đến rồi"
+    },
+    {
+      "name": "number_variable_is_never_fused",
+      "description": "`#` always counts as a variable, even touching a lowercase letter (pattern-variable-parity.json's rule). Until 2026-09-26 Rust skipped it here while JS substituted it.",
+      "template": "hạng#",
+      "variables": { "#": "3" },
+      "expected": "hạng3"
     }
   ]
 }

@@ -10,10 +10,10 @@
  * shared here.
  */
 
-import { PatternTemplateEngine } from '../pattern/PatternTemplateEngine.js';
-
-// `#` is the number variable ("#大X之一"); like X/Y/Z, at most one per pattern.
-const PATTERN_VARIABLE_LETTERS = ['X', 'Y', 'Z', '#'];
+import {
+  PatternTemplateEngine,
+  PATTERN_VARIABLE_LETTERS,
+} from '../pattern/PatternTemplateEngine.js';
 
 /**
  * Extracts the set of X/Y/Z/# pattern variables present in a string, using
@@ -23,7 +23,7 @@ const PATTERN_VARIABLE_LETTERS = ['X', 'Y', 'Z', '#'];
 export function extractPatternVariables(str: string): Set<string> {
   const vars = new Set<string>();
   for (let i = 0; i < str.length; i++) {
-    if (PATTERN_VARIABLE_LETTERS.includes(str[i]) && PatternTemplateEngine.isVariableChar(str, i)) {
+    if (PatternTemplateEngine.isVariableChar(str, i)) {
       vars.add(str[i]);
     }
   }

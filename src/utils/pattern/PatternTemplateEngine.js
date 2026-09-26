@@ -8,6 +8,12 @@ import { logger } from '../logger';
 const LOWERCASE_LETTER = /\p{Ll}/u;
 
 /**
+ * The variable placeholders: X, Y, Z, and `#` (the number variable). Every other
+ * letter is literal text — so "VIP的X" has one variable, not four.
+ */
+export const PATTERN_VARIABLE_LETTERS = Object.freeze(['X', 'Y', 'Z', '#']);
+
+/**
  * Pattern Template Engine
  *
  * Pure utility class for parsing and applying semantic pattern templates.
@@ -15,9 +21,9 @@ const LOWERCASE_LETTER = /\p{Ll}/u;
  *
  * Pattern syntax:
  * - `#` is the number variable (filled only by a numeral, e.g. "#大X之一")
- * - Uppercase letters (A-Z) are variables, UNLESS immediately adjacent
- *   (before or after) to a lowercase letter — that shape means the letter
- *   is part of a real word, not a standalone placeholder
+ * - X, Y and Z are variables, UNLESS immediately adjacent (before or after)
+ *   to a lowercase letter — that shape means the letter is part of a real
+ *   word, not a standalone placeholder. Other capitals are always literal.
  * - Everything else is literal text
  * - Variables in templates are replaced with resolved values
  *
@@ -38,10 +44,12 @@ const LOWERCASE_LETTER = /\p{Ll}/u;
 export class PatternTemplateEngine {
   /**
    * Whether the character at index i is a variable placeholder: `#` (the
-   * number variable), or an uppercase letter not immediately flanked by a
-   * lowercase letter.
-   * Shared by parsePatternToTokens and extractVariables so the two can't
-   * drift on what counts as a variable.
+   * number variable), or X/Y/Z not immediately flanked by a lowercase letter.
+   *
+   * The one JS definition: the validator (PatternEntryRules), this class's own
+   * parsers and the JS fallback matcher (SemanticPatternProcessor.parsePattern)
+   * all call it. Rust's twin is `is_variable_at` (wasm-core pattern_processor/
+   * variable.rs); test-fixtures/pattern-variable-parity.json pins both.
    *
    * @param {string} str
    * @param {number} i
@@ -49,7 +57,7 @@ export class PatternTemplateEngine {
    */
   static isVariableChar(str, i) {
     if (str[i] === '#') return true;
-    if (!/[A-Z]/.test(str[i])) return false;
+    if (!PATTERN_VARIABLE_LETTERS.includes(str[i])) return false;
     const prev = str[i - 1];
     const next = str[i + 1];
     if (prev !== undefined && LOWERCASE_LETTER.test(prev)) return false;

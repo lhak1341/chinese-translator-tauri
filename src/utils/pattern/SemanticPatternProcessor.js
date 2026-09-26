@@ -26,6 +26,31 @@ import { PrecomputedTokenStrings } from './PrecomputedTokenStrings.js';
 import { buildPatternVariableCache } from './PatternVariableCache.js';
 import { classifyVariableType } from './VariableTypeClassifier.js';
 import { PatternTemplateEngine } from './PatternTemplateEngine.js';
+import { NUMBER_VARIABLE, NUMBER_VARIABLE_TYPE } from './NumberVariable.js';
+
+/**
+ * Whether a resolved variable of `varType` may fill `varName` in `pattern`. Mirrors
+ * wasm-core matcher.rs::is_variable_type_allowed plus parser.rs's implied `#` type: a
+ * number fills only `#`, and `#` takes only a number, whatever the pattern declares;
+ * otherwise a declared type list must contain the type (an absent type counts as
+ * 'unknown'), and no list means any type.
+ *
+ * `#`'s rule lives here rather than as `{ '#': ['number'] }` in the pattern's metadata, as
+ * Rust stores it, because buildTypeFilter (PatternVariableCache.js) reads any declared list
+ * as "this whole pattern is constrained" and would then drop the entries X needs.
+ *
+ * @param {{ metadata?: { allowedVariableTypes?: Object.<string, string[]> | null } }} pattern
+ * @param {string} varName
+ * @param {string | null | undefined} varType
+ * @returns {boolean}
+ */
+function isVariableTypeAllowed(pattern, varName, varType) {
+  const effectiveType = varType ?? 'unknown';
+  if (varName === NUMBER_VARIABLE) return effectiveType === NUMBER_VARIABLE_TYPE;
+  if (effectiveType === NUMBER_VARIABLE_TYPE) return false;
+  const allowed = pattern.metadata?.allowedVariableTypes?.[varName];
+  return Array.isArray(allowed) ? allowed.includes(effectiveType) : true;
+}
 
 export class SemanticPatternProcessor {
   constructor() {
@@ -153,11 +178,13 @@ export class SemanticPatternProcessor {
     const tokens = [];
     const variables = [];
 
-    // Parse pattern into literal and variable tokens
+    // Parse pattern into literal and variable tokens — the same rule as the validator and
+    // the WASM parser (PatternTemplateEngine.isVariableChar; its own `/[A-Z]/` here never
+    // counted `#`, so number patterns could not match on this fallback path).
     for (let i = 0; i < patternText.length; i++) {
       const char = patternText[i];
 
-      if (/[A-Z]/.test(char)) {
+      if (PatternTemplateEngine.isVariableChar(patternText, i)) {
         // Variable token
         tokens.push({
           type: 'variable',
@@ -983,15 +1010,10 @@ export class SemanticPatternProcessor {
             // boundary (e.g. object span + trailing "中" character) wins
             // blindly and the type check below rejects the whole match
             // instead of falling back to the correct shorter span.
-            const allowedTypes = pattern.metadata.allowedVariableTypes?.[patternToken.name];
-            if (Array.isArray(allowedTypes)) {
-              validSpan =
-                candidateSpans.find((c) =>
-                  allowedTypes.includes(c.translation.type || 'unknown')
-                ) || candidateSpans[0];
-            } else {
-              validSpan = candidate;
-            }
+            validSpan =
+              candidateSpans.find((c) =>
+                isVariableTypeAllowed(pattern, patternToken.name, c.translation.type)
+              ) || candidateSpans[0];
             break;
           }
         }
@@ -1008,6 +1030,17 @@ export class SemanticPatternProcessor {
 
         cachedTranslation = validSpan.translation;
         tokenSpan = validSpan.span;
+
+        // A number fills only `#`, and `#` only a number, declared types or not.
+        const isNumber = cachedTranslation.type === NUMBER_VARIABLE_TYPE;
+        if (isNumber !== (patternToken.name === NUMBER_VARIABLE)) {
+          pattern.usage.cacheMisses++;
+          this.stats.cacheMisses++;
+          return {
+            success: false,
+            reason: `Only a number fills # (and only # takes a number) in pattern '${pattern.originalPattern}'`,
+          };
+        }
 
         // SEMANTIC TYPE VALIDATION: Check if variable type is allowed for this pattern
         if (

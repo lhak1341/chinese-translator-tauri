@@ -9,6 +9,8 @@
  * only their type-resolution strategy via resolveType.
  */
 
+import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
+
 /**
  * Build the shouldInclude type filter from a pattern list.
  *
@@ -64,6 +66,22 @@ export function buildTypeFilter(patterns) {
  * @param {Object} [initialCache]
  * @returns {Object.<string, {translation: string, source: string, type: string|null}>}
  */
+/**
+ * Last stage: numeral spans for `#` patterns, when any pattern uses `#`. After the
+ * dictionary stages, and never overwriting, so a dictionary entry for the same text wins.
+ * Both matchers let a `number` entry fill only `#` (matcher.rs::is_variable_type_allowed,
+ * SemanticPatternProcessor's type check), so the entries cannot leak into X/Y/Z.
+ *
+ * @param {Array} tokens
+ * @param {Object} cache
+ * @param {Array} patterns
+ * @returns {Object}
+ */
+function withNumberVariables(tokens, cache, patterns) {
+  if (patternsUseNumberVariable(patterns)) addNumberVariables(tokens, cache);
+  return cache;
+}
+
 export function buildPatternVariableCache(tokens, options, resolveType, initialCache = {}) {
   const { activeProperNouns = [], dictionaryManager, patterns = [] } = options;
   const cache = { ...initialCache };
@@ -84,7 +102,7 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
     }
   }
 
-  if (!dictionaryManager) return cache;
+  if (!dictionaryManager) return withNumberVariables(tokens, cache, patterns);
 
   // Stage 2: Phrase lookups with allowAsPatternVariable flag.
   // Single trie walk per start position replaces O(6) independent translate() calls.
@@ -170,5 +188,5 @@ export function buildPatternVariableCache(tokens, options, resolveType, initialC
     }
   }
 
-  return cache;
+  return withNumberVariables(tokens, cache, patterns);
 }

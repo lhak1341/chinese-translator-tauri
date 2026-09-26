@@ -22,6 +22,7 @@ pub mod matcher;
 pub mod parser;
 pub mod pattern;
 pub mod two_phase;
+pub mod variable;
 pub mod wasm_wrapper;
 
 // Re-exports for convenience
@@ -38,6 +39,7 @@ pub use pattern::{
     PatternMetadata, PatternToken, PatternUsage, SemanticPattern, TokenType,
 };
 pub use two_phase::{PatternProcessingResult, TwoPhasePatternProcessor, TwoPhaseStats};
+pub use variable::is_variable_at;
 
 #[cfg(test)]
 mod integration_tests {

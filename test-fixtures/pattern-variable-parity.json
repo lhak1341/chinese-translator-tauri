@@ -1,0 +1,18 @@
+{
+  "_contract": "Shared cross-language fixture for which characters of a pattern string are variables. The rule: exactly X, Y, Z or # — and a letter touching any lowercase letter (Unicode Ll) is literal text, so the X in \"Xích\" or the P in \"iPhone\" is never a placeholder; # always counts. Asserted by src/utils/__tests__/PatternVariable.parity.test.js against PatternTemplateEngine.isVariableChar (which the validator and the JS fallback matcher both call) and by wasm-core/src/pattern_processor/variable.rs against is_variable_at (which parser.rs and build_result both call). Until 2026-09-26 the Rust parser took any A-Z, the JS fallback matcher any A-Z but never #, and the validator only X/Y/Z/# — so VIP的X validated as one variable and matched as four. Indices count Unicode code points; every case is BMP-only so JS and Rust agree on them.",
+  "cases": [
+    { "name": "two variables around a literal", "text": "X的Y", "variables": [0, 2] },
+    { "name": "letters outside X/Y/Z are literal", "text": "VIP的X", "variables": [4] },
+    { "name": "a capital fused to lowercase is literal", "text": "iPhone的X", "variables": [7] },
+    { "name": "number variable", "text": "#大X之一", "variables": [0, 2] },
+    { "name": "template letter fused to a Vietnamese word", "text": "X họ Xích", "variables": [0] },
+    { "name": "trailing variable after Chinese", "text": "赤姓X", "variables": [2] },
+    { "name": "lone variable", "text": "Z", "variables": [0] },
+    { "name": "adjacent variables", "text": "XY", "variables": [0, 1] },
+    { "name": "no X/Y/Z anywhere", "text": "ABC", "variables": [] },
+    { "name": "number variable next to a letter variable", "text": "X#", "variables": [0, 1] },
+    { "name": "lowercase after", "text": "Xa", "variables": [] },
+    { "name": "lowercase before", "text": "aX", "variables": [] },
+    { "name": "number variable is never fused", "text": "a#b", "variables": [1] }
+  ]
+}

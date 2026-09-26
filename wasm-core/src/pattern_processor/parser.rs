@@ -7,6 +7,7 @@
 
 use super::matcher::{NUMBER_VARIABLE, NUMBER_VARIABLE_TYPE};
 use super::pattern::{PatternToken, SemanticPattern};
+use super::variable::is_variable_at;
 #[cfg(test)]
 use super::pattern::TokenType;
 use std::collections::HashMap;
@@ -54,8 +55,8 @@ pub fn parse_pattern(
     while i < chars.len() {
         let ch = chars[i];
 
-        if ch.is_ascii_uppercase() || ch == '#' {
-            // Variable token (A-Z uppercase characters, or `#` for a number)
+        if is_variable_at(&chars, i) {
+            // Variable token: X/Y/Z not fused to a lowercase letter, or `#` for a number
             let var_name = ch.to_string();
             tokens.push(PatternToken::variable(var_name.clone(), position));
 

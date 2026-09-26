@@ -8,7 +8,7 @@
 use super::pattern::{SemanticPattern, TokenType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use unicode_properties::{GeneralCategory, UnicodeGeneralCategory};
+use super::variable::is_variable_at;
 
 /// Semantic token representation (from JavaScript side)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -770,23 +770,13 @@ pub fn build_result(template: &str, variables: &HashMap<String, String>) -> Stri
             }
 
             // Guard against the variable letter being fused into real template
-            // text rather than standing alone as a placeholder — mirrors JS
-            // PatternTemplateEngine.isVariableChar. A naive match here treated
+            // text rather than standing alone as a placeholder — the same rule as
+            // the parser (variable.rs::is_variable_at). A naive match here treated
             // every occurrence of the variable letter as the placeholder, so
             // template "X họ Xích" (赤姓X) corrupted the literal "Xích" into
-            // "<translation>ích" because it also starts with "X".
-            let prev_is_lowercase = i > 0
-                && matches!(
-                    template_chars[i - 1].general_category(),
-                    GeneralCategory::LowercaseLetter
-                );
-            let next_idx = i + var_char_count;
-            let next_is_lowercase = next_idx < template_chars.len()
-                && matches!(
-                    template_chars[next_idx].general_category(),
-                    GeneralCategory::LowercaseLetter
-                );
-            if prev_is_lowercase || next_is_lowercase {
+            // "<translation>ích" because it also starts with "X". Variable names
+            // are single characters (the parser makes one per placeholder).
+            if !is_variable_at(&template_chars, i) {
                 continue;
             }
 

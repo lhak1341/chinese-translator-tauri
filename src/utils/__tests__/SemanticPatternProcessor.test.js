@@ -383,3 +383,63 @@ describe('SemanticPatternProcessor — pattern indexing', () => {
     expect(proc.patternIndex.size).toBe(0);
   });
 });
+
+describe('SemanticPatternProcessor — the number variable `#` on the fallback path', () => {
+  // Until 2026-09-26 this matcher never counted `#` as a variable, never put numerals in
+  // its variable cache, and had no rule that a number fills only `#` — so every `#`
+  // pattern was dead whenever WASM pattern matching was off. Mirrors Rust's parser.rs
+  // (implied ['number'] type) and matcher.rs::is_variable_type_allowed.
+  const sect = () =>
+    makeToken('chinese_word', '门派', { translated: 'môn phái', translationSource: 'properNouns' });
+
+  test('a numeral fills `#`', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({ '#大X之一': 'một trong # X lớn' });
+    const tokens = [
+      makeToken('chinese_char', '三'),
+      makeToken('chinese_char', '大'),
+      sect(),
+      makeToken('chinese_char', '之'),
+      makeToken('chinese_char', '一'),
+    ];
+    proc.buildVariableCache(tokens, [], null);
+    const pattern = proc.patterns.find((p) => p.originalPattern === '#大X之一');
+
+    const result = proc.testPatternMatch(pattern, tokens, 0, {});
+
+    expect(result.success).toBe(true);
+    expect(result.variables['#']).toBe('ba');
+    expect(result.variables.X).toBe('môn phái');
+  });
+
+  test('a numeral never fills a letter variable', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({ '#大X': '# X lớn' });
+    const tokens = [
+      makeToken('chinese_char', '三'),
+      makeToken('chinese_char', '大'),
+      makeToken('chinese_char', '四'),
+    ];
+    proc.buildVariableCache(tokens, [], null);
+    const pattern = proc.patterns.find((p) => p.originalPattern === '#大X');
+
+    expect(proc.testPatternMatch(pattern, tokens, 0, {}).success).toBe(false);
+  });
+
+  test('`#` takes only a number, even when a dictionary entry covers the same span', async () => {
+    const proc = new SemanticPatternProcessor();
+    await proc.initializePatterns({ '#大X': '# X lớn' });
+    const tokens = [
+      makeToken('chinese_word', '门派', {
+        translated: 'môn phái',
+        translationSource: 'properNouns',
+      }),
+      makeToken('chinese_char', '大'),
+      sect(),
+    ];
+    proc.buildVariableCache(tokens, [], null);
+    const pattern = proc.patterns.find((p) => p.originalPattern === '#大X');
+
+    expect(proc.testPatternMatch(pattern, tokens, 0, {}).success).toBe(false);
+  });
+});

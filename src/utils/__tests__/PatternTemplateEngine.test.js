@@ -351,10 +351,12 @@ describe('PatternTemplateEngine', () => {
       expect(tokens[2]).toEqual({ type: 'literal', value: '文' });
     });
 
-    test('handles all 26 uppercase letters as variables', () => {
-      const pattern = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    test('only X, Y, Z are letter variables — other capitals are literal', () => {
+      // Until 2026-09-26 every capital counted, so "VIP的X" matched as four variables while
+      // the validator saw one. See test-fixtures/pattern-variable-parity.json.
+      const pattern = 'ABCDEFGHIJKLMNOPQRSTUVW X Y Z';
       const vars = PatternTemplateEngine.extractVariables(pattern);
-      expect(vars.length).toBe(26);
+      expect(vars).toEqual(['X', 'Y', 'Z']);
     });
 
     test('handles Vietnamese diacritics in template', () => {

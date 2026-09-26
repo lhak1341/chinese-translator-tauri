@@ -1781,11 +1781,11 @@ export class TranslationEngine {
       if (action === 'disable') {
         this.settings.enableTwoPhasePatterns = false;
         toast.error(
-          'Pattern matching permanently disabled due to repeated failures. Please reload dictionaries or restart the app.',
+          'WASM pattern matching was turned off after repeated failures; patterns continue on the slower JS path. Reload dictionaries (Cmd+R) to turn it back on.',
           { duration: 10000 }
         );
         logger.error(
-          `🚨 Pattern processing permanently disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes`
+          `🚨 WASM pattern processing disabled after ${count} consecutive failures within ${PATTERN_FAILURE_DETECTION.FAILURE_WINDOW_MS / 60000} minutes — falling back to SemanticPatternProcessor until the engine is rebuilt`
         );
       } else if (action === 'reset') {
         logger.warn(

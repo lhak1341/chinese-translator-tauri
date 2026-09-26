@@ -74,7 +74,7 @@ Entry point: `src/hooks/useAppearanceSettings.ts`. Used exclusively by `Appearan
 
 The canonical home for pattern-entry variable rules — shared by form-time (`DictionaryEntryValidator.ts`) and persist-time (`PersistTimeValidator.ts`) validation so both enforce the same rules instead of each re-deriving them. Consolidated 2026-09-07 after a name collision and drift audit found three independent, inconsistent implementations (see `PersistTimeValidator` below for the surviving split).
 
-Rules, both operating on the `PatternTemplateEngine.isVariableChar`-based extraction (a capital letter fused to a real word, e.g. the `Y` in "Yến", is never read as a variable):
+Rules, both operating on the `PatternTemplateEngine.isVariableChar`-based extraction (a capital letter fused to a real word, e.g. the `Y` in "Yến", is never read as a variable). This module no longer owns the letter set: `PATTERN_VARIABLE_LETTERS` (X/Y/Z/`#`) lives beside `isVariableChar`, which both pattern matchers now share with the validator — see `src/utils/CLAUDE.md` §3, "Pattern variable recognition":
 
 - **Structure** (`checkVariableStructure(source)`) — source-only, so it can run before a translation exists: each of X/Y/Z may appear **at most once**, and variables must be introduced in order — Y requires X, Z requires Y. `X给X` and `是Y的` (Y without X) are both invalid.
 - **Symmetry** (`checkVariableSymmetry(source, translation)`) — full bidirectional check: every variable in source must appear in translation, and every variable in translation must appear in source.

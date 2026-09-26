@@ -1,7 +1,6 @@
 import PatternAnalyzer from './PatternAnalyzer.js';
 import { processTokensWasm, isWasmPatternProcessorReady } from '../wasm/WasmPatternProcessor.js';
 import { isPatternMatchInBounds } from '../wasm/WasmBoundaryValidation.js';
-import { addNumberVariables, patternsUseNumberVariable } from './NumberVariable.js';
 import { logger } from '../logger.js';
 import { buildPatternVariableCache, buildTypeFilter } from './PatternVariableCache.js';
 
@@ -142,14 +141,6 @@ class TwoPhasePatternProcessor {
         return t === 'proper_noun' ? null : t;
       }
     );
-
-    // Step 1a (WASM-specific): numeral spans for `#` patterns. Only the WASM matcher
-    // reserves number entries for `#`; in the JS fallback they would fill letter
-    // variables, so this stays out of the shared builder. Runs after the dictionary
-    // stages and never overwrites, so a dictionary entry for the same text wins.
-    if (patternsUseNumberVariable(this.processedPatterns)) {
-      addNumberVariables(tokens, cache);
-    }
 
     // Step 1b (WASM-specific): pattern-translated tokens with explicit semantic types.
     // Runs after shared stages so it wins over stage-1 proper-noun entries for the same word.
