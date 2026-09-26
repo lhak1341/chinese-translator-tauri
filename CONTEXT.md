@@ -446,7 +446,7 @@ Both are directly unit-tested (`useEngineReinitializer.test.js`, `useReloadRetra
 
 ## DictionaryEntryForm
 
-All form logic for creating and editing a dictionary entry: field state, clipboard auto-populate, rough-translation generation from the character dictionary, character/pattern validation, existing-entry detection across all dictionaries, and submit. `handleSubmit` returns `Promise<boolean>` — `true` means saved; the component calls `onClose()` only on `true`.
+All form logic for creating and editing a dictionary entry: field state, `initialSource` auto-populate (never the clipboard), rough-translation generation from the character dictionary, character/pattern validation, existing-entry detection across all dictionaries, and submit. `handleSubmit` returns `Promise<boolean>` — `true` means saved; the component calls `onClose()` only on `true`.
 
 Receives `{ updateEntry, addEntry, dictionaries }` injected from the caller's `useDictionary()` call — not called internally — so tests use plain mocks without DictionaryContext. DOM refs (`sourceInputRef`, `translationInputRef`) are created inside the hook and returned; the component binds them to `<input ref={...}>` elements. The `DictionaryEntry` component retains `useDictionary()`, `onClose`, and JSX rendering only (~300 LOC).
 
@@ -525,6 +525,8 @@ Turning a selection in a translation panel — the Translator's Full Translation
 Only the Chinese travels. The selected Vietnamese is deliberately **not** used as the Translation guess: it is whatever phase won in the engine — often a phrase value, where a proper noun wants its per-character reading — so the Add form guesses as it always does, a matching Transform Rule first, then the character gloss.
 
 Each surface registers its own mapper (`useSelectionMapper`) rather than the hotkey registration holding one, because Cmd-7 belongs to the tab container, which knows no panel. `src/utils/highlighting/SelectionMapping.ts`.
+
+**What an Add starts from** is one question, `resolveQuickAddSource`, asked by every Add route: the mapped Chinese; else the refusal; else the plain selected text; else, with nothing selected, the clipboard. It reads the clipboard only in that last case and never writes it. The Add form itself never reads the clipboard — its `initialSource` is all it starts from, so a form opened by a button (the Dictionary tab's Add) opens empty. Until 2026-09-26 the hotkey copied a plain selection to the clipboard and read it back, and the form read the clipboard again when handed nothing, so Cmd-7 alone had no clipboard fallback.
 
 ## SegmentedParagraphs
 

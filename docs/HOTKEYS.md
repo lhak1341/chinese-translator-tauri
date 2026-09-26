@@ -73,8 +73,10 @@ instead of dependent on having remembered to change a setting in Configuration.
 | `Cmd/Ctrl + 6`         | Add → default structural patterns dictionary (active fiction) |
 | `Cmd/Ctrl + 7`         | Add → new Transform Rule (Rules tab)                          |
 
-Add (1–7) pre-fills the entry/rule form with the current text selection, if any — for
-Cmd/Ctrl+7 that's the rule's Key.
+Add (1–7) pre-fills the entry/rule form with the current text selection — for Cmd/Ctrl+7
+that's the rule's Key. With nothing selected it takes what is on the clipboard instead. The
+selection is never copied to the clipboard, so what you had copied survives the key press.
+The Dictionary tab's Add button opens an empty form.
 
 A selection in the Translator's Full Translation panel or the Reader's Translation panel is
 Vietnamese, so Add first maps it back to Chinese: it snaps to the whole units it touches and

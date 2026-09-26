@@ -1,9 +1,10 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   mapSelectedUnits,
   touchedUnits,
   registerSelectionMapper,
   mapSelectionRange,
+  resolveQuickAddSource,
   mapTranslatorSelection,
   mapReaderSelection,
   type SourceRun,
@@ -232,5 +233,70 @@ describe('mapReaderSelection', () => {
     const span = container.querySelector('span')!;
     const range = select(span.firstChild!, 0, span.firstChild!, 3);
     expect(mapReaderSelection(range, container, originalRow).kind).toBe('unmapped');
+  });
+});
+
+describe('resolveQuickAddSource', () => {
+  const selectionOf = (text: string, range: Range | null = null): Selection =>
+    ({
+      toString: () => text,
+      rangeCount: range ? 1 : 0,
+      getRangeAt: () => range,
+    }) as unknown as Selection;
+  const rangeOver = (text: string): Range => {
+    const node = document.createTextNode(text);
+    const r = document.createRange();
+    r.setStart(node, 0);
+    r.setEnd(node, text.length);
+    return r;
+  };
+
+  test('a mapped selection gives its Chinese, without reading the clipboard', async () => {
+    const unregister = registerSelectionMapper(() => ({ kind: 'mapped', source: '林风' }));
+    const readClipboard = vi.fn();
+    const result = await resolveQuickAddSource(
+      selectionOf('Lâm Phong', rangeOver('Lâm Phong')),
+      readClipboard
+    );
+    unregister();
+    expect(result).toEqual({ kind: 'source', text: '林风' });
+    expect(readClipboard).not.toHaveBeenCalled();
+  });
+
+  test('a refused selection is refused, whatever the clipboard holds', async () => {
+    const unregister = registerSelectionMapper(() => ({ kind: 'refused', reason: 'two lines' }));
+    const result = await resolveQuickAddSource(
+      selectionOf('a\nb', rangeOver('a\nb')),
+      async () => '萧炎'
+    );
+    unregister();
+    expect(result).toEqual({ kind: 'refused', reason: 'two lines' });
+  });
+
+  test('any other selection gives its own text, trimmed', async () => {
+    const readClipboard = vi.fn();
+    expect(await resolveQuickAddSource(selectionOf(' 太岳山脉 '), readClipboard)).toEqual({
+      kind: 'source',
+      text: '太岳山脉',
+    });
+    expect(readClipboard).not.toHaveBeenCalled();
+  });
+
+  test('nothing selected falls back to the clipboard', async () => {
+    expect(await resolveQuickAddSource(null, async () => ' 萧炎\n')).toEqual({
+      kind: 'source',
+      text: '萧炎',
+    });
+    expect(await resolveQuickAddSource(selectionOf('  '), async () => '萧炎')).toEqual({
+      kind: 'source',
+      text: '萧炎',
+    });
+  });
+
+  test('a clipboard that cannot be read gives an empty source, not a failure', async () => {
+    const result = await resolveQuickAddSource(null, async () => {
+      throw new Error('denied');
+    });
+    expect(result).toEqual({ kind: 'source', text: '' });
   });
 });

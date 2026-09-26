@@ -84,7 +84,7 @@ export interface DictionaryEntryFormState {
 
 /**
  * Owns all form logic for creating/editing a dictionary entry:
- * field state, clipboard auto-populate, validation, existing-entry detection, submit.
+ * field state, initialSource auto-populate, validation, existing-entry detection, submit.
  *
  * Callers inject `{ updateEntry, addEntry, dictionaries }` from useDictionary() so
  * this hook is testable via renderHook without mounting DictionaryContext.
@@ -221,7 +221,9 @@ export function useDictionaryEntryForm(
     validateForm();
   }, [source, translation, validateForm]);
 
-  // Auto-populate source from initialSource or clipboard on mount
+  // Auto-populate source from initialSource on mount. The form never reads the clipboard:
+  // the Add routes resolve what an Add starts from (`resolveQuickAddSource`), and a form
+  // opened any other way (the Dictionary tab's Add button) opens empty.
   useEffect(() => {
     let isMounted = true;
     let focusTimeout: NodeJS.Timeout | null = null;
@@ -245,31 +247,16 @@ export function useDictionaryEntryForm(
       }, 100);
     };
 
-    const handleAutoSetup = async (): Promise<void> => {
+    const handleAutoSetup = (): void => {
       try {
-        if (entry?.source) {
-          if (isMounted) sourceInputRef.current?.focus();
+        if (!entry?.source && initialSource?.trim()) {
+          populateSourceAndTranslation(initialSource.trim());
           return;
-        }
-
-        if (initialSource?.trim()) {
-          if (isMounted) populateSourceAndTranslation(initialSource.trim());
-          return;
-        }
-
-        if (navigator.clipboard?.readText) {
-          const clipboardText = await navigator.clipboard.readText();
-          const trimmed = clipboardText.trim();
-          if (trimmed && isMounted) {
-            populateSourceAndTranslation(trimmed);
-            return;
-          }
         }
       } catch (err) {
-        if (isMounted) logger.error('Error reading clipboard:', err);
+        logger.error('Error auto-populating the Add form:', err);
       }
-
-      if (isMounted) sourceInputRef.current?.focus();
+      sourceInputRef.current?.focus();
     };
 
     handleAutoSetup();

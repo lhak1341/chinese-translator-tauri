@@ -5,6 +5,7 @@ import { useHotkeyHandler, type HotkeyHandlerOptions } from '../useHotkeyHandler
 import { VisibleTabProvider, useVisibleTab } from '../../components/VisibleTabContext';
 import type { TabId } from '../../types/ComponentTypes';
 import toast from '../../utils/toast';
+import { registerSelectionMapper } from '../../utils/highlighting/SelectionMapping';
 
 vi.mock('../../utils/toast', () => ({
   default: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
@@ -174,41 +175,96 @@ describe('useHotkeyHandler', () => {
     });
   });
 
-  describe('clipboard quick-add', () => {
+  describe('quick-add source', () => {
     function setSelection(text: string | null) {
       vi.spyOn(window, 'getSelection').mockReturnValue(
-        text === null ? null : ({ toString: () => text } as Selection)
+        text === null ? null : ({ toString: () => text, rangeCount: 0 } as unknown as Selection)
       );
     }
 
-    test('success path: callback receives clipboard text after copy+read', async () => {
+    /** A selection a registered mapper recognises — a translation-panel selection. */
+    function setPanelSelection(vietnamese: string) {
+      const text = document.createTextNode(vietnamese);
+      const range = document.createRange();
+      range.setStart(text, 0);
+      range.setEnd(text, vietnamese.length);
+      vi.spyOn(window, 'getSelection').mockReturnValue({
+        toString: () => vietnamese,
+        rangeCount: 1,
+        getRangeAt: () => range,
+      } as unknown as Selection);
+    }
+
+    test('a plain selection passes as-is, and the clipboard is neither written nor read', async () => {
       setSelection('selected 文字');
-      vi.mocked(navigator.clipboard.readText).mockResolvedValue('selected 文字');
       const onQuickAddCharacter = vi.fn().mockResolvedValue(undefined);
 
       renderHotkeys({ onQuickAddCharacter, ownTab: 'translator' }, 'translator');
       fireKey({ key: '1' });
       await flush();
 
-      expect(navigator.clipboard.writeText).toHaveBeenCalledWith('selected 文字');
       expect(onQuickAddCharacter).toHaveBeenCalledWith('selected 文字');
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
     });
 
-    test('no selection: callback receives empty string, clipboard not read', async () => {
+    test('nothing selected: the callback gets what is on the clipboard', async () => {
       setSelection(null);
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue(' 萧炎 ');
       const onQuickAddCharacter = vi.fn().mockResolvedValue(undefined);
 
       renderHotkeys({ onQuickAddCharacter, ownTab: 'translator' }, 'translator');
       fireKey({ key: '1' });
       await flush();
 
-      expect(navigator.clipboard.readText).not.toHaveBeenCalled();
-      expect(onQuickAddCharacter).toHaveBeenCalledWith('');
+      expect(onQuickAddCharacter).toHaveBeenCalledWith('萧炎');
+    });
+
+    test('a mapped translation-panel selection passes its Chinese, not the Vietnamese', async () => {
+      setPanelSelection('Lâm Phong');
+      const unregister = registerSelectionMapper(() => ({ kind: 'mapped', source: '林风' }));
+      const onQuickAddProperNoun = vi.fn().mockResolvedValue(undefined);
+
+      renderHotkeys({ onQuickAddProperNoun, ownTab: 'reader' }, 'reader');
+      fireKey({ key: '3' });
+      await flush();
+      unregister();
+
+      expect(onQuickAddProperNoun).toHaveBeenCalledWith('林风');
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+    });
+
+    test('a refused selection toasts its reason and opens nothing', async () => {
+      setPanelSelection('Lâm Phong\nđi vào');
+      const unregister = registerSelectionMapper(() => ({
+        kind: 'refused',
+        reason: 'Selection spans more than one line',
+      }));
+      const onQuickAddProperNoun = vi.fn();
+
+      renderHotkeys({ onQuickAddProperNoun, ownTab: 'reader' }, 'reader');
+      fireKey({ key: '3' });
+      await flush();
+      unregister();
+
+      expect(toast.error).toHaveBeenCalledWith('Selection spans more than one line');
+      expect(onQuickAddProperNoun).not.toHaveBeenCalled();
+    });
+
+    test('Cmd+7 with nothing selected also takes the clipboard, like the Add keys', async () => {
+      setSelection(null);
+      vi.mocked(navigator.clipboard.readText).mockResolvedValue('山脉');
+      const onOpenNewRule = vi.fn();
+
+      renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'translator');
+      fireKey({ key: '7' });
+      await flush();
+
+      expect(onOpenNewRule).toHaveBeenCalledWith('山脉');
     });
 
     test('error path: callback throwing shows a toast and does not propagate', async () => {
       setSelection('selected 文字');
-      vi.mocked(navigator.clipboard.readText).mockResolvedValue('selected 文字');
       const onQuickAddCharacter = vi.fn().mockRejectedValue(new Error('boom'));
 
       renderHotkeys({ onQuickAddCharacter, ownTab: 'translator' }, 'translator');
@@ -237,7 +293,6 @@ describe('useHotkeyHandler', () => {
 
     test('reader tab: the quick-add family fires there too, unchanged', async () => {
       setSelection('太岳山脉');
-      vi.mocked(navigator.clipboard.readText).mockResolvedValue('太岳山脉');
       const onQuickAddProperNoun = vi.fn();
 
       renderHotkeys({ onQuickAddProperNoun, ownTab: 'reader' }, 'reader');
@@ -263,9 +318,8 @@ describe('useHotkeyHandler', () => {
       expect(onQuickAdd).not.toHaveBeenCalled();
     });
 
-    test('Cmd+7 on reader tab: onOpenNewRule receives clipboard text, Reader reuses the Rules form', async () => {
+    test('Cmd+7 on reader tab: onOpenNewRule receives the selection, Reader reuses the Rules form', async () => {
       setSelection('太岳山脉');
-      vi.mocked(navigator.clipboard.readText).mockResolvedValue('太岳山脉');
       const onOpenNewRule = vi.fn();
 
       renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'reader');
@@ -275,9 +329,8 @@ describe('useHotkeyHandler', () => {
       expect(onOpenNewRule).toHaveBeenCalledWith('太岳山脉');
     });
 
-    test('Cmd+7 on translator tab: onOpenNewRule receives clipboard text, same as other quick-add keys', async () => {
+    test('Cmd+7 on translator tab: onOpenNewRule receives the selection, same as other quick-add keys', async () => {
       setSelection('太岳山脉');
-      vi.mocked(navigator.clipboard.readText).mockResolvedValue('太岳山脉');
       const onOpenNewRule = vi.fn();
 
       renderHotkeys({ onOpenNewRule, ownTab: 'app' }, 'translator');

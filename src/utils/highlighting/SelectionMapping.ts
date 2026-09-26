@@ -12,11 +12,16 @@
  * registrations but Cmd-7 belongs to the tab container's, which knows no panel. Every
  * registration asks the same registry, and only the mapper whose panel holds the selection
  * answers.
+ *
+ * `resolveQuickAddSource` is the whole question every Add route asks — the keys and the
+ * Reader's palette alike: the mapped Chinese, else the plain selected text, else the
+ * clipboard. It never writes the clipboard.
  */
 
 import type { SemanticArrays } from '../../types/SemanticTypes';
 import type { ReaderSegment } from '../reader/LineSegments';
 import { precomputeOriginalSegments } from './SegmentPrecomputer';
+import { logger } from '../logger';
 
 /** One unit's run over the source text: `key` identifies the unit within its surface. */
 export interface SourceRun {
@@ -171,8 +176,30 @@ export function mapSelectionRange(range: Range | null): SelectionMapping {
   return UNMAPPED;
 }
 
-/** The document's current selection as a range, or null when nothing is selected. */
-export function currentSelectionRange(): Range | null {
-  const selection = window.getSelection();
-  return selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+/** The text an Add starts from, or why the selection cannot give one. */
+export type QuickAddSource = { kind: 'source'; text: string } | { kind: 'refused'; reason: string };
+
+/**
+ * What an Add (Cmd-1..7, or a Reader palette Add row) starts from: a selection in a translation
+ * panel mapped to its Chinese; a selection the mappers refuse, refused; any other selection as
+ * its plain text; and with nothing selected, the clipboard — "add what I'm pointing at, else
+ * what I copied". Reads the clipboard only in that last case and never writes it, so the
+ * user's copied text survives the key press. A clipboard that cannot be read gives `''`.
+ */
+export async function resolveQuickAddSource(
+  selection: Selection | null = window.getSelection(),
+  readClipboard: () => Promise<string> = () => navigator.clipboard.readText()
+): Promise<QuickAddSource> {
+  const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  const mapping = mapSelectionRange(range);
+  if (mapping.kind === 'refused') return mapping;
+  if (mapping.kind === 'mapped') return { kind: 'source', text: mapping.source };
+  const selected = selection?.toString().trim() ?? '';
+  if (selected) return { kind: 'source', text: selected };
+  try {
+    return { kind: 'source', text: (await readClipboard()).trim() };
+  } catch (cause) {
+    logger.warn('Could not read the clipboard for an Add:', cause);
+    return { kind: 'source', text: '' };
+  }
 }

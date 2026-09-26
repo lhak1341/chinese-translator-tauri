@@ -3,7 +3,7 @@ import type { TabId } from '../types/ComponentTypes';
 import { useVisibleTab } from '../components/VisibleTabContext';
 import { isEditableTarget } from '../utils/ui/EditableFocus';
 import { matchHotkey } from '../utils/ui/HotkeyDispatchTable';
-import { currentSelectionRange, mapSelectionRange } from '../utils/highlighting/SelectionMapping';
+import { resolveQuickAddSource } from '../utils/highlighting/SelectionMapping';
 import type { HotkeyAction, HotkeyOwner } from '../utils/ui/HotkeyDispatchTable';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -67,7 +67,7 @@ export interface HotkeyHandlerOptions {
  *
  * Every tab rule, and which registration answers a key, lives in
  * HotkeyDispatchTable.matchHotkey — testable as a pure function. This hook only listens,
- * does the clipboard round trip, and calls the callback.
+ * asks `resolveQuickAddSource` what an Add starts from, and calls the callback.
  */
 export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
   // Mirror the whole options object into a ref so frequently-updating props don't force
@@ -80,19 +80,6 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
   visibleTabRef.current = visibleTab;
 
   useEffect(() => {
-    const copySelectedText = async (): Promise<boolean> => {
-      try {
-        const selectedText = window.getSelection()?.toString();
-        if (selectedText && selectedText.trim()) {
-          await navigator.clipboard.writeText(selectedText);
-          return true;
-        }
-      } catch (error) {
-        logger.warn('Failed to copy selected text to clipboard:', error);
-      }
-      return false;
-    };
-
     const handleQuickAdd = async (
       event: KeyboardEvent,
       callback: ((text?: string) => void | Promise<void>) | undefined,
@@ -100,24 +87,18 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
     ): Promise<void> => {
       // Several handlers are registered at once (the tab container, the Translator, the
       // Reader) and only one of them wires any given action. Without this, the others
-      // still run the clipboard round-trip below to feed a callback that isn't there.
+      // would still read the selection and clipboard to feed a callback that isn't there.
       if (!callback) return;
       event.preventDefault();
       try {
-        // A selection in a translation panel is Vietnamese: a registered mapper turns it
-        // into the Chinese it came from. Anything else keeps the raw text, as before.
-        const mapping = mapSelectionRange(currentSelectionRange());
-        if (mapping.kind === 'refused') {
-          toast.error(mapping.reason);
+        // The mapped Chinese of a translation-panel selection, else the selected text, else
+        // the clipboard — see `resolveQuickAddSource`.
+        const source = await resolveQuickAddSource();
+        if (source.kind === 'refused') {
+          toast.error(source.reason);
           return;
         }
-        if (mapping.kind === 'mapped') {
-          await callback(mapping.source);
-          return;
-        }
-        const copied = await copySelectedText();
-        const text = copied ? await navigator.clipboard.readText() : '';
-        await callback?.(text);
+        await callback(source.text);
       } catch (error) {
         const errorMsg = extractErrorMessage(error);
         toast.error(`Failed to open ${label}: ${errorMsg}`);

@@ -156,22 +156,20 @@ describe('auto-populate from initialSource', () => {
   });
 });
 
-// ─── Auto-populate from clipboard ─────────────────────────────────────────────
-// Smoke test only: proves the clipboard path reaches the same shared
-// populateSourceAndTranslation as initialSource — rule-matching behavior itself
-// is already covered by the initialSource describe block above.
+// ─── No clipboard read ────────────────────────────────────────────────────────
+// What an Add starts from is resolved by the route that opened it
+// (`resolveQuickAddSource`); a form opened with no initialSource opens empty.
 
-describe('auto-populate from clipboard', () => {
+describe('no initialSource', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('sets source and generates rough translation from clipboard text', async () => {
-    vi.stubGlobal('navigator', {
-      clipboard: { readText: vi.fn().mockResolvedValue('你好') },
-    });
+  it('opens empty and never reads the clipboard', async () => {
+    const readText = vi.fn().mockResolvedValue('你好');
+    vi.stubGlobal('navigator', { clipboard: { readText } });
     const { result } = renderHook(() => useDictionaryEntryForm(undefined, 'phrases', makeDeps()));
-    await waitFor(() => expect(result.current.source).toBe('你好'));
-    expect(result.current.translation).toBe('you good');
-    expect(result.current.roughGlossReference).toBe('you good');
+    await waitFor(() => expect(getDictionaryTypes).toHaveBeenCalled());
+    expect(result.current.source).toBe('');
+    expect(readText).not.toHaveBeenCalled();
   });
 });
 
