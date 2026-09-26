@@ -367,7 +367,7 @@ There are 4 distinct column sets (patterns=6 columns, phrases/properNouns=4, sim
 - **CSS-module classes** (`src/styles/EnhancedVirtualizedDictionaryTable.module.css`) for Source/Translation/checkbox/X-Y-types — one class per (dictionary type, column) pair, even where two types currently share a value (e.g. patterns/phrases/properNouns all have a 25%-wide Source column today) — kept separate so each type's column set stays independently editable without hunting who else reuses a class. Applied to both the header `<div>` and the matching row `<div>` via the same className, composed with a role class (`.headerCell` for header chrome — bold + padding; `.cell`/`.cellEditable` for row chrome, pre-existing). The checkbox column doesn't compose cleanly across header/row (different padding) so it gets two independent classes instead of one shared class fighting over `padding`: `.checkboxCell` (rows, pre-existing) and `.headerCheckboxCol` (header).
 - **A JS constant** (`DICTIONARY_SEMANTIC_COLUMN_WIDTH`, exported from `VirtualRowComponent.tsx`) for the Semantic-type column specifically — `SemanticTypeToggleCell`'s `width` is a JS prop, not a className, because that component is reused outside Dictionary entirely (`RuleRow.tsx`, `NewRuleModal.tsx`, `RuleMatchesModal.tsx`) with its own widths for Rules-tab layouts, so the column-width mechanism there can't cross into a CSS class without touching those unrelated callers.
 
-Fixed alongside (same branches were being touched anyway): `VirtualRowComponent.tsx`'s row-layout branches were using raw `selectedDictionary === 'phrases'` / `.startsWith('properNouns')` instead of the `isPhrases`/`isProperNouns` flags already destructured from `classifyDictionaryId` in the same function — the exact "raw string despite already having the classified flag in scope" pattern `dictionary/CLAUDE.md` names as a repeat offender. Harmless today (no fiction-phrases dictionaries exist) but now closed.
+Fixed alongside (same branches were being touched anyway): `VirtualRowComponent.tsx`'s row-layout branches were using raw `selectedDictionary === 'phrases'` / `.startsWith('properNouns')` instead of the `isPhrases`/`isProperNouns` flags already destructured from `classifyDictionaryId` (since replaced by the kind predicates) in the same function — the exact "raw string despite already having the classified flag in scope" pattern `dictionary/CLAUDE.md` names as a repeat offender. Harmless today (no fiction-phrases dictionaries exist) but now closed.
 
 `DuplicateDictionaryTableView.tsx` also switched from hand-rolling its own row div to reusing `RowShell`/`CheckboxCell` (see those entries in `dictionary/CLAUDE.md`'s Reusable Row/Badge Building Blocks) — the only friction was `RowShell` having no way to express Duplicate view's alternating group-background color, resolved by adding `RowShell`'s `backgroundColor` prop (see that entry).
 
@@ -493,6 +493,17 @@ Entry point: `src/components/configuration/useDictionaryConfigManagement.ts`. So
 Pure sort + 3-way category split (Base / Generic / Fiction) for the Configuration screen's dictionary-id list. `sortDictionaries(ids)` puts `'properNouns'` first, then alphabetical. `categorizeDictionaries(ids)` buckets by the naming convention: `properNouns-f_*` → fiction, `properNouns-_*` → generic, everything else (including bare `'properNouns'`) → base.
 
 Entry point: `src/utils/dictionary/DictionaryListOrganizer.ts`. Not barrel-exported — sole caller is `useDictionaryConfigManagement.ts`, matching `MatchComparator.ts`/`PhraseConsumptionMarker.ts`'s single-caller convention.
+
+## Dictionary Kind / Dictionary Tier
+
+A dictionary id answers two independent questions, both owned by `DictionaryIdClassifier.ts`:
+
+- **Kind** — what shape its entries have: `patterns` (`patterns`, `patterns-f_*`), `phrases`, `properNouns` (`properNouns`, `properNouns-*`), or `lookupTable` (the string-only tables: `characters`, `conversion`, `punctuation`). Kind decides move family, the Semantic column, and entry validation. Call sites ask it through `isPatternsDict`/`isPhrasesDict`/`isProperNounsDict`/`isLookupTableDict`, never `kindOf(id) === '…'` — a kind literal is spelled like an id literal, so the comparison would read as (and trip the gate for) a raw id check.
+- **Tier** — where it sits in the precedence ladder: `root` (bare `properNouns` / `patterns`), `fiction` (`*-f_*`, one novel), `generic` (`properNouns-_*`, a shared theme), or `custom` (a user-created `properNouns-Foo` with neither marker). The Configuration screen shows `root` + `custom` together as "Base", but the trie priority rule treats them differently, so the tier keeps them apart.
+
+Both are total: every fixed name (`phrases`, `characters`, …) is tier `root`, and an unrecognized id is kind `lookupTable` — the most inert kind (not movable, no Semantic column, no pattern validation). Rust `DictionaryType::from_name` defaults unknowns to `Phrases` instead; harmless, because each engine phase filters indexed matches by its own `dictionarySet`.
+
+The id space is closed: every id is either one of the fixed names or built by `toProperNounsDictionaryId`/`toPatternsId`. Code that needs a single _specific_ dictionary (`=== 'characters'`) compares the literal; code asking a kind or tier question asks the classifier rather than re-deriving it from a prefix.
 
 ## SegmentedParagraphs
 

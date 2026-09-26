@@ -1,5 +1,10 @@
 import React from 'react';
-import { classifyDictionaryId, buildEntryMetadata } from '../../utils/dictionary';
+import {
+  isPatternsDict,
+  isPhrasesDict,
+  isProperNounsDict,
+  buildEntryMetadata,
+} from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import type { InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import { useEntryMetadataEdit } from '../../hooks/useEntryMetadataEdit';
@@ -136,7 +141,9 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     const allowedVariableTypes =
       (typeof translation === 'object' && translation.allowedVariableTypes) || {};
 
-    const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(selectedDictionary);
+    const isPatterns = isPatternsDict(selectedDictionary);
+    const isPhrases = isPhrasesDict(selectedDictionary);
+    const isProperNouns = isProperNounsDict(selectedDictionary);
 
     const sourceEdit = useInlineFieldEdit(source, async (newSource) => {
       await onUpdateEntry(

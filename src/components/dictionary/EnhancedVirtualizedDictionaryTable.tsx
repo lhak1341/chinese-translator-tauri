@@ -6,7 +6,13 @@ import MoveDialog from './MoveDialog';
 import EntryContextMenu from './EntryContextMenu';
 import DuplicateDictionaryTableView from './DuplicateDictionaryTableView';
 import styles from '../../styles/EnhancedVirtualizedDictionaryTable.module.css';
-import { classifyDictionaryId, buildEntryMetadata } from '../../utils/dictionary';
+import {
+  isPatternsDict,
+  isPhrasesDict,
+  isProperNounsDict,
+  isLookupTableDict,
+  buildEntryMetadata,
+} from '../../utils/dictionary';
 import type { DuplicateRow } from '../../utils/dictionary/DuplicateAnalyzer';
 import { VirtualRowComponent, DICTIONARY_SEMANTIC_COLUMN_WIDTH } from './VirtualRowComponent';
 import {
@@ -56,13 +62,12 @@ interface HeaderColumn {
 }
 
 function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
-  const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(dictionaryId);
   const semantic = (title: string): HeaderColumn => ({
     label: 'Semantic',
     title,
     width: DICTIONARY_SEMANTIC_COLUMN_WIDTH,
   });
-  if (isPatterns) {
+  if (isPatternsDict(dictionaryId)) {
     return [
       {
         label: 'Source',
@@ -87,7 +92,7 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
       },
     ];
   }
-  if (isPhrases) {
+  if (isPhrasesDict(dictionaryId)) {
     return [
       { label: 'Source', className: styles.phrasesSourceCol },
       {
@@ -98,7 +103,7 @@ function getHeaderColumns(dictionaryId: string): HeaderColumn[] {
       semantic('Semantic type'),
     ];
   }
-  if (isProperNouns) {
+  if (isProperNounsDict(dictionaryId)) {
     return [
       { label: 'Source', className: styles.properNounsSourceCol },
       { label: 'Translation', className: styles.properNounsTranslationCol },
@@ -257,15 +262,9 @@ const EnhancedVirtualizedDictionaryTable: React.FC<EnhancedVirtualizedDictionary
   }, [selectedDictionary]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Determine which filter options are relevant for the selected dictionary
-  const {
-    isPatterns: isPatternsDictionary,
-    isPhrases: isPhrasesDictionary,
-    isProperNouns: isProperNounsDictionary,
-  } = classifyDictionaryId(selectedDictionary);
-  const showPatternFilter = isPatternsDictionary;
-  const showVariableFilter = isPhrasesDictionary; // phrases only; patterns use showPatternFilter
-  const showSemanticTypeFilter =
-    isPhrasesDictionary || isProperNounsDictionary || isPatternsDictionary;
+  const showPatternFilter = isPatternsDict(selectedDictionary);
+  const showVariableFilter = isPhrasesDict(selectedDictionary); // phrases only; patterns use showPatternFilter
+  const showSemanticTypeFilter = !isLookupTableDict(selectedDictionary);
   // Duplicate view's Semantic column: same metadata rebuild as useEntryMetadataEdit's
   // handleSetSemanticType, but keyed by the row's own dictionary.
   const handleSetDuplicateSemanticType = useCallback(

@@ -1,9 +1,37 @@
 import { describe, test, expect } from 'vitest';
 import {
+  kindOf,
+  tierOf,
+  isFictionProperNounsId,
+  isFictionPatternsId,
   toPatternsId,
   toProperNounsId,
   toProperNounsDictionaryId,
 } from '../dictionary/DictionaryIdClassifier';
+
+// Every id shape that exists on disk (the id space is closed: fixed names, or ids built by
+// toProperNounsDictionaryId / toPatternsId), plus one unknown.
+describe.each([
+  // id                          kind            tier
+  ['properNouns', 'properNouns', 'root'],
+  ['properNouns-f_DuongThan', 'properNouns', 'fiction'],
+  ['properNouns-_AiCap', 'properNouns', 'generic'],
+  ['properNouns-HarryPotter', 'properNouns', 'custom'],
+  ['patterns', 'patterns', 'root'],
+  ['patterns-f_DuongThan', 'patterns', 'fiction'],
+  ['phrases', 'phrases', 'root'],
+  ['characters', 'lookupTable', 'root'],
+  ['conversion', 'lookupTable', 'root'],
+  ['punctuation', 'lookupTable', 'root'],
+  ['somethingDroppedInByHand', 'lookupTable', 'root'],
+] as const)('%s', (id, kind, tier) => {
+  test(`kindOf is ${kind}`, () => expect(kindOf(id)).toBe(kind));
+  test(`tierOf is ${tier}`, () => expect(tierOf(id)).toBe(tier));
+  test('fiction predicates agree with kind + tier', () => {
+    expect(isFictionProperNounsId(id)).toBe(kind === 'properNouns' && tier === 'fiction');
+    expect(isFictionPatternsId(id)).toBe(kind === 'patterns' && tier === 'fiction');
+  });
+});
 
 describe('toPatternsId', () => {
   test('derives paired patterns id from a fiction proper-nouns id', () => {

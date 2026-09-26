@@ -69,10 +69,14 @@ export { loadAllDictionaries } from './DictionaryBackend';
 export type { DictionaryCategory } from './LookupIndexUtils';
 export { getIndexedMatches } from './LookupIndexUtils';
 
-// --- UI-layer dictionary ID classification ---
-export type { DictionaryTypeFlags, MoveFamily } from './DictionaryIdClassifier';
+// --- Dictionary ID classification ---
+export type { DictionaryKind, DictionaryTier, MoveFamily } from './DictionaryIdClassifier';
 export {
-  classifyDictionaryId,
+  isPatternsDict,
+  isPhrasesDict,
+  isProperNounsDict,
+  isLookupTableDict,
+  tierOf,
   toPatternsId,
   toProperNounsId,
   toProperNounsDictionaryId,

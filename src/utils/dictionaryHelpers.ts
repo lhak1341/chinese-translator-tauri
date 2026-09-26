@@ -1,4 +1,4 @@
-import { classifyDictionaryId, isFictionPatternsId } from './dictionary/DictionaryIdClassifier';
+import { isPatternsDict, isFictionPatternsId } from './dictionary/DictionaryIdClassifier';
 
 /**
  * Converts a dictionary ID to a human-readable label.
@@ -36,7 +36,7 @@ export function getDictionaryDropdownLabel(dictionaryId: string): string {
   if (dictionaryId.startsWith('properNouns-')) {
     return `Proper Nouns - ${dictionaryId.replace('properNouns-', '')}`;
   }
-  if (classifyDictionaryId(dictionaryId).isPatterns) {
+  if (isPatternsDict(dictionaryId)) {
     return isFictionPatternsId(dictionaryId)
       ? `Patterns - ${dictionaryId.slice('patterns-'.length)}`
       : 'Patterns (Base)';

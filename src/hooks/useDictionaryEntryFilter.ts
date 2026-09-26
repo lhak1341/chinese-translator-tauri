@@ -2,7 +2,12 @@ import { useState, useCallback, useMemo, type Dispatch, type SetStateAction } fr
 import { useThrottledValue } from './useThrottledValue';
 import type { DictionaryData, DictionaryEntryValue } from '../types/DictionaryTypes';
 import type { DuplicateRow } from '../utils/dictionary/DuplicateAnalyzer';
-import { classifyDictionaryId } from '../utils/dictionary';
+import {
+  isPatternsDict,
+  isPhrasesDict,
+  isProperNounsDict,
+  isLookupTableDict,
+} from '../utils/dictionary';
 
 const SEARCH_DEBOUNCE_MS = 150;
 
@@ -44,23 +49,19 @@ export function useDictionaryEntryFilter(
   // Resets only the filters that don't apply to the new dictionary type.
   // Called from EVDT's selectedDictionary coordinator effect alongside other hook resets.
   const resetFilters = useCallback((newSelectedDictionary: string): void => {
-    const {
-      isPatterns: newIsPatterns,
-      isPhrases: newIsPhrases,
-      isProperNouns: newIsProperNouns,
-    } = classifyDictionaryId(newSelectedDictionary);
+    const id = newSelectedDictionary;
 
-    if (!newIsPatterns) {
+    if (!isPatternsDict(id)) {
       setFilterPatternType(new Set());
       setFilterAllowAsVariable(false);
     }
-    if (!newIsPhrases) {
+    if (!isPhrasesDict(id)) {
       setFilterVariable('all');
     }
-    if (!newIsPhrases && !newIsProperNouns) {
+    if (!isPhrasesDict(id) && !isProperNounsDict(id)) {
       setFilterSemanticTypes(new Set());
     }
-    if (!newIsPatterns && !newIsPhrases && !newIsProperNouns) {
+    if (isLookupTableDict(id)) {
       setShowFilterPanel(false);
     }
   }, []);

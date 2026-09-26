@@ -8,7 +8,7 @@ import {
 } from '../../constants/SemanticTypes';
 import type { SemanticType, PatternSemanticTypeRef } from '../../constants/SemanticTypes';
 import styles from '../../styles/DictionaryEntry.module.css';
-import { classifyDictionaryId } from '../../utils/dictionary';
+import { isPatternsDict, isLookupTableDict } from '../../utils/dictionary';
 
 interface SemanticTypePickerProps {
   semanticType: SemanticType | PatternSemanticTypeRef | '';
@@ -21,10 +21,8 @@ interface SemanticTypePickerProps {
   isSaving: boolean;
 }
 
-const supportsSemanticTypes = (activeDictionary: string): boolean => {
-  const { isPatterns, isPhrases, isProperNouns } = classifyDictionaryId(activeDictionary);
-  return isPhrases || isProperNouns || isPatterns;
-};
+const supportsSemanticTypes = (activeDictionary: string): boolean =>
+  !isLookupTableDict(activeDictionary);
 
 /**
  * The radio/checkbox badge recipe shared by all 4 selectable-badge groups in this file (the
@@ -101,7 +99,7 @@ export const SemanticTypePicker: React.FC<SemanticTypePickerProps> = ({
 }) => {
   if (!supportsSemanticTypes(activeDictionary)) return null;
 
-  const { isPatterns } = classifyDictionaryId(activeDictionary);
+  const isPatterns = isPatternsDict(activeDictionary);
   const activeVars = (['X', 'Y'] as const).filter((v) => source.includes(v));
 
   return (

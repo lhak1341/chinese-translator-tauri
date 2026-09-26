@@ -34,13 +34,13 @@ const ALLOWED = new Set(['utils/dictionary/DictionaryIdClassifier.ts']);
 const DETECTORS = [
   {
     name: 'raw dictionary-type equality',
-    fix: "use classifyDictionaryId(id) from utils/dictionary/DictionaryIdClassifier — raw equality misses fiction variants like 'patterns-f_X'",
+    fix: "use isPatternsDict(id) from utils/dictionary/DictionaryIdClassifier — raw equality misses fiction variants like 'patterns-f_X'",
     // Only 'patterns' is covered. `=== 'phrases'` is correct and stays: fiction dicts exist
     // as properNouns-f_* and patterns-f_* only, so 'phrases' has no variant to miss. Nine
     // live `=== 'phrases'` comparisons across src/ are legitimate for exactly that reason.
     pattern: /(?:===|!==)\s*(['"])patterns\1|(['"])patterns\2\s*(?:===|!==)/,
     violating: "if (selectedDictionary === 'patterns') return;",
-    clean: 'if (classifyDictionaryId(selectedDictionary).isPatterns) return;',
+    clean: 'if (isPatternsDict(selectedDictionary)) return;',
   },
   {
     name: 'hand-rolled fiction-prefix check',
