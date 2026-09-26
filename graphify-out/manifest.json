@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790385924.6867354,
-    "ast_hash": "9373ca8387c101b564a33fc0458bf847",
+    "mtime": 1790390322.0973473,
+    "ast_hash": "648386a3eb7b516a259c4e0db9d059a3",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1905,8 +1905,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790385896.5047073,
-    "ast_hash": "12a4962cc6df135cca9b49230a1fd088",
+    "mtime": 1790390378.7268922,
+    "ast_hash": "757bde310d88f3d73cd54c095917cd0a",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -2040,8 +2040,8 @@
     "semantic_hash": ""
   },
   "src/components/BookBindingContext.tsx": {
-    "mtime": 1790385393.6298747,
-    "ast_hash": "8c680cb45d82b8856a539e3ddf89d25d",
+    "mtime": 1790390309.7551503,
+    "ast_hash": "a598bf5d67ed0971c3995d2ed0d228de",
     "semantic_hash": ""
   },
   "src/components/reader/BindingBanner.tsx": {
@@ -2200,8 +2200,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useBindingOffer.ts": {
-    "mtime": 1790385373.8597312,
-    "ast_hash": "cefea83b159be377fa42b61fa6d393d4",
+    "mtime": 1790390309.7254446,
+    "ast_hash": "0994b024cb9254763c9a6162e12b2dd7",
     "semantic_hash": ""
   },
   "docs/adr/ADR-045-skip-shared-chapter-structure-override.md": {

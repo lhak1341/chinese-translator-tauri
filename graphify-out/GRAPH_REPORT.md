@@ -2,18 +2,18 @@
 
 ## Corpus Check
 
-- 416 files · ~410,352 words
+- 416 files · ~410,680 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 
-- 4605 nodes · 9510 edges · 305 communities (213 shown, 92 thin omitted)
+- 4605 nodes · 9510 edges · 306 communities (213 shown, 93 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 175 edges (avg confidence: 0.76)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
 
-- Built from commit: `fce6cbc1`
+- Built from commit: `d1cbfe4c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -235,6 +235,7 @@
 - Part 6: Final Recommendations
 - TypeScript/Rust Optimization Project
 - Code Quality Assessment
+- @eslint/js
 - Positive Findings ✅
 - generate-wasm-hashes.js
 - SemanticTypes.d.ts
@@ -353,7 +354,7 @@
 - **RulesManager two-surface shared field-policy group** — src_components_rules_newrulemodal_newrulemodal, src_components_rules_rulerow_rulerow, src_components_rules_rulefieldvalidation_rulefieldvalidation, src_utils_dictionary_transformruleengine_transformruleengine, src_components_rules_tests_rulefieldparity_rulefieldparity [EXTRACTED 1.00]
 - **Constant-zero-metric dead code sweep group** — rationale_constant_zero_metric_pattern, src_utils_dictionary_dictionarywasmlookup_dictionarywasmlookup, src_utils_dictionary_dictionarymanager_dictionarymanager, src_utils_translationengine_translationengine [INFERRED 0.85]
 
-## Communities (305 total, 92 thin omitted)
+## Communities (306 total, 93 thin omitted)
 
 ### Community 0 - "dictionary_commands.rs"
 
@@ -528,7 +529,7 @@ Nodes (38): a_bare_arabic_line_amid_prose_is_not_mistaken_for_a_header(), a_book
 ### Community 41 - "EnhancedVirtualizedDictionaryTable.tsx"
 
 Cohesion: 0.06
-Nodes (35): eslint, @eslint/js, eslint-plugin-import, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-react-refresh, eslint-plugin-unused-imports, globals (+27 more)
+Nodes (35): eslint, eslint-plugin-import, eslint-plugin-react, eslint-plugin-react-hooks, eslint-plugin-react-refresh, eslint-plugin-unused-imports, globals, husky (+27 more)
 
 ### Community 42 - "DictionaryManager"
 
@@ -887,8 +888,8 @@ Nodes (13): Background for the Implementer, Current flag (line ~1915), Patterns 
 
 ### Community 135 - "useOutlineTranslations.ts"
 
-Cohesion: 0.04
-Nodes (55): ADR-0003, baseDictionaryTypes, Translator(), TOAST_DURATIONS, TOAST_IDS, ToastDuration, ToastId, UI_TIMEOUTS (+47 more)
+Cohesion: 0.05
+Nodes (54): ADR-0003, baseDictionaryTypes, Translator(), TOAST_DURATIONS, TOAST_IDS, ToastDuration, ToastId, UI_TIMEOUTS (+46 more)
 
 ### Community 138 - "vite"
 
@@ -1384,7 +1385,7 @@ Nodes (3): Manual Verification Completed, Testing Required, Verification Checkli
 
 - **1369 isolated node(s):** `checkJs`, `jsx`, `module`, `moduleResolution`, `target` (+1364 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **92 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **93 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 
