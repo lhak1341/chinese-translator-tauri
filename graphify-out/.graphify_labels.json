@@ -224,6 +224,8 @@
   "222": ".translate",
   "223": "ReadonlyOptimizationUtils.js",
   "224": "ComponentMemoryProfiler.ts",
+  "225": "TranslationCache.js",
+  "226": "types",
   "230": "PunctuationProcessor",
   "232": "Priority 1: TypeScript Migration (Type Safety + Performance)",
   "233": "@tauri-apps/cli",
