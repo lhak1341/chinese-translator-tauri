@@ -1,10 +1,10 @@
 //! Rust parity validator for the greedy interval scheduling algorithm used in
-//! `TranslationEngine.js::resolveGlobalConflicts()` and `resolveMatchConflicts()`.
+//! `TranslationEngine.js::resolveGlobalConflicts()`.
 //!
 //! # Purpose
 //!
 //! This file contains an **independent Rust implementation** of the same algorithm to
-//! catch divergence if either JS version is modified. It mirrors the 11 test vectors
+//! catch divergence if the JS version is modified. It mirrors the 11 test vectors
 //! from `src/utils/__tests__/TranslationEngine.resolveConflicts.test.js`.
 //!
 //! # What this is NOT
@@ -17,8 +17,7 @@
 //! # Production use
 //!
 //! The production implementation lives in `wasm-core/src/conflict_resolution.rs`.
-//! It exports `resolveGlobalConflicts` (Phase 4) and `resolveMatchConflictsCore` (Phase 2)
-//! as WASM functions using flat `Uint32Array` I/O — near-zero boundary cost vs 5–20× JSON overhead.
+//! It exports `resolveGlobalConflicts` (Phase 4) as a WASM function using flat `Uint32Array` I/O — near-zero boundary cost vs 5–20× JSON overhead.
 //! This file is an **independent parity validator** — it re-implements the algorithm
 //! using idiomatic Rust types to catch divergence if the JS version is modified.
 //!

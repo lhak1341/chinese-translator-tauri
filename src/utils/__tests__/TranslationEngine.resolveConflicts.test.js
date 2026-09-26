@@ -1,10 +1,11 @@
 /**
  * Parity tests for resolveGlobalConflicts() greedy interval scheduling algorithm.
  *
- * CRITICAL: TWO JS implementations of the same algorithm must stay identical:
- *   1. TranslationEngine.js::resolveGlobalConflicts() ~line 2709  (Phase 4 — phrases)
- *   2. TranslationEngine.js::resolveMatchConflicts()  ~line 2381  (Phase 2 — proper nouns)
- *   3. The pure reference implementation below (source of truth for this test suite)
+ * CRITICAL: these implementations of the same algorithm must stay identical:
+ *   1. TranslationEngine.js::resolveGlobalConflicts()  (Phase 4 — phrases)
+ *   2. The pure reference implementation below (source of truth for this test suite)
+ *   (A Phase 2 twin, resolveMatchConflicts(), was reachable only from dead code and was
+ *   deleted 2026-09-26 — see docs/guides/deleted-symbols.md.)
  *
  * Rust parity validator (independent implementation, catches divergence at cargo test time):
  *   wasm-core/tests/conflict_resolution_parity_test.rs

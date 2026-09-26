@@ -791,7 +791,7 @@ export class DictionaryManager {
    * serializes every entry of every named dictionary to JSON, hands the string to Rust to
    * deserialize, and rebuilds the trie on the other side. The characters dictionary alone
    * is 27,000+ entries. Editing one entry used to re-upload all of them — and the editor
-   * calls `invalidateAllCaches(dictionaryName)` after *every* add, so adding twenty
+   * calls `invalidateDictionaryCaches(dictionaryName)` after *every* add, so adding twenty
    * entries in a reading session paid that twenty times over.
    *
    * An unknown name syncs nothing rather than falling back to everything: a silent full

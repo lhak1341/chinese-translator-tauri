@@ -1,6 +1,6 @@
 /**
  * Marks the follower tokens of a matched phrase as consumed by the phrase phase.
- * Was hand-written 3x in TranslationEngine.js (createPhraseGroups,
+ * Was hand-written 3x in TranslationEngine.js (createPhraseGroups — since deleted as dead code —
  * processRemainingPhrasesSequential, processRemainingPhrasesParallel) — one site
  * (the parallel path) had silently drifted to skip `groupedWith`, so phrase-follower
  * lookups keyed off `groupedWith` would miss entries created by that path.

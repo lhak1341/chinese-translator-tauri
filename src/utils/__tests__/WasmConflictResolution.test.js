@@ -6,16 +6,12 @@ import { describe, test, expect, vi } from 'vitest';
 vi.mock('../../wasm/translation_wasm_core.js', () => ({
   default: vi.fn().mockRejectedValue(new Error('WASM unavailable in tests')),
   resolveGlobalConflicts: vi.fn(),
-  resolveMatchConflictsCore: vi.fn(),
 }));
 vi.mock('../logger', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }));
 
-import {
-  resolveGlobalConflictsWasm,
-  resolveMatchConflictsWasm,
-} from '../wasm/WasmConflictResolution';
+import { resolveGlobalConflictsWasm } from '../wasm/WasmConflictResolution';
 import { fireCascadeRetire } from '../wasm/WasmCascadeRegistry';
 
 // ─── resolveGlobalConflictsWasm (Phase 4) ────────────────────────────────────
@@ -88,79 +84,6 @@ describe('resolveGlobalConflictsWasm — JS fallback', () => {
   });
 });
 
-// ─── resolveMatchConflictsWasm (Phase 2) ─────────────────────────────────────
-
-describe('resolveMatchConflictsWasm — JS fallback', () => {
-  test('empty input returns empty array', () => {
-    expect(resolveMatchConflictsWasm([])).toEqual([]);
-  });
-
-  test('single match is always selected', () => {
-    const m = {
-      startIndex: 0,
-      endIndex: 1,
-      type: 'phrase',
-      isCompoundWord: false,
-      isPartOfPattern: false,
-    };
-    expect(resolveMatchConflictsWasm([m])).toEqual([m]);
-  });
-
-  test('two non-overlapping matches both selected', () => {
-    const a = { startIndex: 0, endIndex: 1, type: 'phrase' };
-    const b = { startIndex: 3, endIndex: 4, type: 'phrase' };
-    const result = resolveMatchConflictsWasm([a, b]);
-    expect(result).toContain(a);
-    expect(result).toContain(b);
-  });
-
-  // Phase 2 priority 1: compound phrase with allowAsPatternVariable
-  test('priority 1 compound phrase beats non-conflicting pattern (priority 2)', () => {
-    const compound = {
-      startIndex: 0,
-      endIndex: 1,
-      type: 'phrase',
-      isCompoundWord: true,
-      isPartOfPattern: false,
-      match: { metadata: { allowAsPatternVariable: true } },
-    };
-    const pattern = {
-      startIndex: 0,
-      endIndex: 1,
-      type: 'pattern',
-      conflictsWithCompound: false,
-    };
-    const result = resolveMatchConflictsWasm([pattern, compound]);
-    expect(result).toContain(compound);
-    expect(result).not.toContain(pattern);
-  });
-
-  // Phase 2 priority 2: non-conflicting pattern beats conflicting pattern (priority 4)
-  test('non-conflicting pattern beats conflicting pattern', () => {
-    const good = { startIndex: 0, endIndex: 1, type: 'pattern', conflictsWithCompound: false };
-    const bad = { startIndex: 0, endIndex: 1, type: 'pattern', conflictsWithCompound: true };
-    const result = resolveMatchConflictsWasm([bad, good]);
-    expect(result).toContain(good);
-    expect(result).not.toContain(bad);
-  });
-
-  // Phase 2 priority 5: plain phrase falls below pattern types
-  test('non-conflicting pattern (priority 2) beats plain phrase (priority 5)', () => {
-    const pattern = { startIndex: 0, endIndex: 1, type: 'pattern', conflictsWithCompound: false };
-    const plain = { startIndex: 0, endIndex: 1, type: 'phrase', isCompoundWord: false };
-    const result = resolveMatchConflictsWasm([plain, pattern]);
-    expect(result).toContain(pattern);
-    expect(result).not.toContain(plain);
-  });
-
-  test('does not mutate the input array', () => {
-    const matches = [{ startIndex: 0, endIndex: 1, type: 'phrase', isCompoundWord: false }];
-    const valueBefore = matches[0].type;
-    resolveMatchConflictsWasm(matches);
-    expect(matches[0].type).toBe(valueBefore);
-  });
-});
-
 // ─── cascade retire (via the real WasmCascadeRegistry interface) ─────────────
 
 describe('cascade retire', () => {
@@ -172,6 +95,5 @@ describe('cascade retire', () => {
     fireCascadeRetire();
     const m = { startIndex: 0, endIndex: 1, length: 2, type: 'phrase' };
     expect(Array.isArray(resolveGlobalConflictsWasm([m]))).toBe(true);
-    expect(Array.isArray(resolveMatchConflictsWasm([m]))).toBe(true);
   });
 });

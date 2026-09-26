@@ -32,7 +32,7 @@ This file used to also hold `mapToPositions`, the greedy longest-match position-
 
 ## PhraseConsumptionMarker
 
-The shared "mark phrase followers as consumed" operation: sets `isGrouped`, `groupLeader`, `translated: null`, `translationSource: 'phrases_consumed'` on each follower token and records the follower indices on the leader's `groupedWith` list. Was hand-written 3x in `TranslationEngine.js` (`createPhraseGroups`, `processRemainingPhrasesSequential`, `processRemainingPhrasesParallel`) before being unified — one site (`processRemainingPhrasesParallel`) had silently drifted to skip `groupedWith`.
+The shared "mark phrase followers as consumed" operation: sets `isGrouped`, `groupLeader`, `translated: null`, `translationSource: 'phrases_consumed'` on each follower token and records the follower indices on the leader's `groupedWith` list. Was hand-written 3x in `TranslationEngine.js` (`createPhraseGroups` — deleted 2026-09-26 as dead code — `processRemainingPhrasesSequential`, `processRemainingPhrasesParallel`) before being unified — one site (`processRemainingPhrasesParallel`) had silently drifted to skip `groupedWith`.
 
 Interface: `markPhraseFollowersConsumed(tokens, leaderIndex, tokenSpan): void`. Pure mutation of the passed `tokens` array; no `this`, no engine state — testable standalone.
 

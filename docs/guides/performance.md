@@ -53,39 +53,15 @@ window.performanceDashboard.getHealthReport();
 
 ## Cache Management
 
-### Cache Invalidation (Unified API)
+### Cache Invalidation
 
 **Problem**: Dictionary edits don't clear caches → stale translations served after add/update/delete operations.
 
-**Solution** (January 2025): Unified `invalidateAllCaches()` API clears all 6 cache systems:
+**Targeted, after an edit**: `DictionaryContext` calls the invalidator `Translator.jsx` registers (`registerCacheInvalidator`) after each mutating operation — add, update, delete, move, undo/redo — which runs `TranslationEngine.invalidateDictionaryCaches(dictionaryId)`: the dictionary manager's lookup caches, the proper-noun translation cache, and a WASM re-sync of that one dictionary.
 
-1. **Dictionary Manager Caches** - Character, phrase, pattern, lookup caches (LRU-based)
-2. **Semantic Array Builder Cache** - Capitalization update optimization cache
-3. **Pattern Processor Variable Cache** - Pattern variable resolution cache
-4. **Rust Lookup Index Cache** - Backend trie indexing cache (dynamically loaded)
-5. **Translation Segments** - Interactive highlighting segments
-6. **Proper Noun Translation Cache** - Bounded collection (max 10,000 entries)
+**Everything, on a reload**: a full invalidation is an engine rebuild (`reinitialize`, from Cmd+R or a binding change), which bumps `engineVersion` — the signal every holder of translated output (the Reader's chunk cache, its outline titles) listens to.
 
-**Usage**:
-
-```javascript
-// Clear all caches (comprehensive)
-await window.translationEngine.invalidateAllCaches();
-
-// Clear specific dictionary only
-await window.translationEngine.invalidateAllCaches('properNouns');
-```
-
-**Automatic invalidation** (January 2025): Dictionary operations automatically invalidate caches:
-
-- `addEntry()` - Clears caches after successful add
-- `updateEntry()` - Clears caches after successful update
-- `deleteEntry()` - Clears caches after successful delete
-- `undo()` / `redo()` - Clears caches after history operations
-
-**Implementation**: `TranslationEngine.invalidateAllCaches()`; the dictionary context calls it after each mutating operation.
-
-**Why this matters**: Prevents stale translations from being served after dictionary changes. Each cache invalidation is logged with timing for debugging.
+`invalidateAllCaches()`, the older "clear all 6 cache systems" API documented here until 2026-09-26, had no caller in the app (only reachable by hand from devtools) and was deleted — see `deleted-symbols.md`.
 
 ---
 
