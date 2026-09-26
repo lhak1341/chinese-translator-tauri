@@ -312,6 +312,21 @@ describe('computeInitialTranslation', () => {
     });
   });
 
+  test('a hint for a proper-noun dictionary is title-cased, as the rough guess is', () => {
+    expect(computeInitialTranslation([], {}, '林风', 'properNouns', 'lâm phong').translation).toBe(
+      'Lâm Phong'
+    );
+    expect(
+      computeInitialTranslation([], {}, '林风', 'properNouns-f_TapDo', 'lâm PHONG').translation
+    ).toBe('Lâm Phong');
+  });
+
+  test('a hint for any other dictionary keeps its casing', () => {
+    expect(computeInitialTranslation([], {}, '走进', 'phrases', 'đi vào').translation).toBe(
+      'đi vào'
+    );
+  });
+
   test('a matching rule still wins over the hint', () => {
     const cityRule = rule({});
     const result = computeInitialTranslation([cityRule], {}, '南京城', 'properNouns', 'Nam Kinh');

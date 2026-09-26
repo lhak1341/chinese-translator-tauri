@@ -198,6 +198,10 @@ export function joinCharGloss(
     .join(' ');
 }
 
+/** Proper-noun targets title-case every guess they are offered — rough gloss or hint. */
+const isProperNounTarget = (targetDictionary: string): boolean =>
+  targetDictionary.includes('properNoun');
+
 /** Fallback Translation guess for a newly-populated Source when no Transform Rule
  * matches: title-cased for properNoun targets, all-lowercase otherwise. */
 export function generateRoughTranslation(
@@ -207,7 +211,7 @@ export function generateRoughTranslation(
 ): string {
   const gloss = joinCharGloss(dictionaries, sourceText);
   if (!gloss) return '';
-  if (targetDictionary.includes('properNoun')) {
+  if (isProperNounTarget(targetDictionary)) {
     return titleCaseWords(gloss);
   }
   return lowercaseAll(gloss);
@@ -218,7 +222,9 @@ export function generateRoughTranslation(
  * Rule's guess when one exists for phrases/properNouns* targets, then `translationHint`
  * (the Vietnamese the Source was selected as — see `SelectionMapping.ts`), falling back to
  * `generateRoughTranslation` otherwise. A rule wins over the hint because the user wrote
- * it for exactly this suffix; the hint is only the engine's current output. Also returns
+ * it for exactly this suffix; the hint is only the engine's current output, so it is
+ * title-cased for a proper-noun target like the rough guess is — the engine may have
+ * rendered those words as common nouns. Other targets keep the hint's casing. Also returns
  * the matched rule's semanticType, if any, so the caller can stamp it.
  */
 export function computeInitialTranslation(
@@ -239,9 +245,14 @@ export function computeInitialTranslation(
   }
   // A blank hint is no hint: '' must fall through to the rough guess, so not `??`.
   const hint = translationHint?.trim() ?? '';
+  if (hint !== '') {
+    return {
+      translation: isProperNounTarget(targetDictionary) ? titleCaseWords(hint) : hint,
+      matchedRule: null,
+    };
+  }
   return {
-    translation:
-      hint !== '' ? hint : generateRoughTranslation(dictionaries, sourceText, targetDictionary),
+    translation: generateRoughTranslation(dictionaries, sourceText, targetDictionary),
     matchedRule: null,
   };
 }
