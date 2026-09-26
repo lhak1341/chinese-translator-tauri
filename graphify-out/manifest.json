@@ -845,8 +845,8 @@
     "semantic_hash": "9fc1f1726d36abe7c6bf6c7ba18e8c30"
   },
   "src/components/Translator.jsx": {
-    "mtime": 1790405390.790129,
-    "ast_hash": "041bd79a9d7b669cfb3368a11db33632",
+    "mtime": 1790417009.413919,
+    "ast_hash": "cc481d9e37f4bacd4590a4d27e5f1386",
     "semantic_hash": ""
   },
   "src/components/ErrorBoundary.tsx": {
@@ -920,8 +920,8 @@
     "semantic_hash": "6fdac097d51b72aa65a97b865bb3bd16"
   },
   "src/components/dictionary/DictionaryEntry.tsx": {
-    "mtime": 1790411014.46417,
-    "ast_hash": "95b7cd2bca16ed2e24249ef6b0057861",
+    "mtime": 1790416922.673895,
+    "ast_hash": "84d188829e42e31db35259b947918c01",
     "semantic_hash": ""
   },
   "src/components/dictionary/WordTransformToolbar.tsx": {
@@ -1060,8 +1060,8 @@
     "semantic_hash": "133940e0b3274d210f58bd894600b337"
   },
   "src/hooks/useDictionaryModals.js": {
-    "mtime": 1790414936.5375836,
-    "ast_hash": "d19c873a3d91d4c174d93806b43e1831",
+    "mtime": 1790416922.674186,
+    "ast_hash": "e65b31777b9b6c36a41731fccb8b43e6",
     "semantic_hash": ""
   },
   "src/hooks/usePersistSelectedDictionary.ts": {
@@ -1070,8 +1070,8 @@
     "semantic_hash": "419ce731b806988c8723b18ab820007e"
   },
   "src/hooks/useHotkeyHandler.ts": {
-    "mtime": 1790405377.7168515,
-    "ast_hash": "9c7904e79a0a4183514e82ab899e5fe0",
+    "mtime": 1790416934.2079563,
+    "ast_hash": "8a9019861c67480f8386ff266ce21fdf",
     "semantic_hash": ""
   },
   "src/hooks/useForceReload.js": {
@@ -1080,8 +1080,8 @@
     "semantic_hash": ""
   },
   "src/hooks/useDictionaryEntryForm.ts": {
-    "mtime": 1790414936.5373836,
-    "ast_hash": "b1696ce0d46d0770d55a892c4a215e43",
+    "mtime": 1790416922.6730425,
+    "ast_hash": "00a3241fcdac7dc2ac1421733ca86532",
     "semantic_hash": ""
   },
   "src/hooks/useInlineFieldEdit.ts": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790414936.5331995,
-    "ast_hash": "34e42ac882e9a25b455498ec6a971a6c",
+    "mtime": 1790417187.1097991,
+    "ast_hash": "e7b6f7b10df639bf7a183e20a2ed43c0",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1150,8 +1150,8 @@
     "semantic_hash": ""
   },
   "docs/HOTKEYS.md": {
-    "mtime": 1790405678.2304256,
-    "ast_hash": "83732f47ed468f2e60ad5b4b313c5ab1",
+    "mtime": 1790417187.1086025,
+    "ast_hash": "4bfcaeb72953446581eded44c2181c74",
     "semantic_hash": ""
   },
   "docs/adr/ADR-026-skip-useDictionaryCRUD-move-to-hooks.md": {
@@ -1670,8 +1670,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/TransformRuleEngine.ts": {
-    "mtime": 1790410812.9661853,
-    "ast_hash": "00dbecaa9a8fde1aed30b0ff515c1c61",
+    "mtime": 1790417042.6376493,
+    "ast_hash": "4c714c39c96b43948c25bd284706aa84",
     "semantic_hash": ""
   },
   "src/utils/highlighting/UnitHighlightPredicate.ts": {
@@ -1900,8 +1900,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/BookReader.tsx": {
-    "mtime": 1790406565.4287841,
-    "ast_hash": "6a033989deeffd5afde271850eac4815",
+    "mtime": 1790417009.4129817,
+    "ast_hash": "3b4f83030090f13e9187acf906247a20",
     "semantic_hash": ""
   },
   "src/components/reader/Bookshelf.tsx": {
@@ -2015,8 +2015,8 @@
     "semantic_hash": ""
   },
   "src/components/reader/ReaderPanel.tsx": {
-    "mtime": 1790357420.7156281,
-    "ast_hash": "6097ff67692a5320a777cac4df080605",
+    "mtime": 1790417009.4134803,
+    "ast_hash": "7c7168817c23b9d5c1da990dfd8f1211",
     "semantic_hash": ""
   },
   "src/hooks/usePanelSync.ts": {
@@ -2170,13 +2170,13 @@
     "semantic_hash": ""
   },
   "src/hooks/useReaderCommands.ts": {
-    "mtime": 1790414936.5377688,
-    "ast_hash": "58e45182e8ffda1e49f1cc078a93b2c7",
+    "mtime": 1790416922.6756046,
+    "ast_hash": "c30073deb1867a84832fb956ac240b23",
     "semantic_hash": ""
   },
   "src/utils/reader/ReaderActions.ts": {
-    "mtime": 1790355839.513292,
-    "ast_hash": "dc5f4bf6d32e283199df286c1ec20e72",
+    "mtime": 1790417126.6082482,
+    "ast_hash": "2172ca02198efe9882d00762059b42d3",
     "semantic_hash": ""
   },
   "src/hooks/useChapters.ts": {
@@ -2242,6 +2242,16 @@
   "docs/adr/ADR-048-generic-proper-nouns-get-paired-patterns.md": {
     "mtime": 1790414862.38638,
     "ast_hash": "9dac389b97f9c961d4a9dda6c767030e",
+    "semantic_hash": ""
+  },
+  "src/hooks/useSelectionMapper.ts": {
+    "mtime": 1790416940.164191,
+    "ast_hash": "d96740aff5c7ac30a298c1cf8202491d",
+    "semantic_hash": ""
+  },
+  "src/utils/highlighting/SelectionMapping.ts": {
+    "mtime": 1790416991.0681314,
+    "ast_hash": "e0fd6d4afefcff17446625d187309a07",
     "semantic_hash": ""
   }
 }

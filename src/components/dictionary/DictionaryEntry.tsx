@@ -21,6 +21,8 @@ interface DictionaryEntryProps {
   onDictionaryChange?: (dictionaryId: string) => void;
   /** Initial source text (pre-populated from clipboard via keyboard shortcut) */
   initialSource?: string;
+  /** The Vietnamese `initialSource` was selected as — see `SelectionMapping.ts` */
+  initialTranslation?: string;
 }
 
 const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
@@ -30,6 +32,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
   allowDictionarySelection = false,
   onDictionaryChange,
   initialSource,
+  initialTranslation,
 }) => {
   const { updateEntry, addEntry, dictionaries } = useDictionary();
   const form = useDictionaryEntryForm(entry, selectedDictionary, {
@@ -37,6 +40,7 @@ const DictionaryEntry: React.FC<DictionaryEntryProps> = ({
     addEntry,
     dictionaries,
     initialSource,
+    initialTranslation,
     onDictionaryChange,
   });
 

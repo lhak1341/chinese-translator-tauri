@@ -25,6 +25,8 @@ import { usePerformanceMonitoring } from '../hooks/usePerformanceMonitoring';
 import { useStreamingTranslation } from '../hooks/useStreamingTranslation';
 import styles from '../styles/Translator.module.css';
 import { useDictionaryModals } from '../hooks/useDictionaryModals';
+import { useSelectionMapper } from '../hooks/useSelectionMapper';
+import { mapTranslatorSelection } from '../utils/highlighting/SelectionMapping';
 import { useCachePoisoningGuard } from '../hooks/useCachePoisoningGuard';
 import { useDictionaryReloadGuard } from '../hooks/useDictionaryReloadGuard';
 import { useCharacterOnlyBridge } from '../hooks/useCharacterOnlyBridge';
@@ -143,6 +145,7 @@ const Translator = ({ isActive = true }) => {
     showQuickAdd,
     quickAddDictionary,
     clipboardText,
+    selectedTranslation,
     openQuickAddCharacter: handleQuickAddCharacter,
     openQuickAddPhrase: handleQuickAddPhrase,
     openQuickAddProperNoun: handleQuickAddProperNoun,
@@ -202,6 +205,11 @@ const Translator = ({ isActive = true }) => {
   const originalTextRef = useRef(null);
   const translationTextRef = useRef(null);
   const characterOnlyTextRef = useRef(null);
+
+  // Cmd-1..7 over a Full Translation selection add the Chinese it came from.
+  useSelectionMapper((range) =>
+    mapTranslatorSelection(range, translationTextRef.current, inputText, semanticArrays)
+  );
 
   // Use scroll position manager hook for dictionary reload
   const {
@@ -1083,6 +1091,7 @@ const Translator = ({ isActive = true }) => {
             allowDictionarySelection={true}
             onDictionaryChange={handleQuickAddDictionaryChange}
             initialSource={clipboardText}
+            initialTranslation={selectedTranslation}
           />
         </ModalErrorBoundary>
       )}

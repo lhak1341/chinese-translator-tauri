@@ -125,6 +125,8 @@ const SegmentedLine: React.FC<{
         <span
           key={segment.lineStart}
           data-unit-index={segment.unitIndex}
+          // A unit index is only unique within its chunk — selection mapping needs both.
+          data-chunk-key={segment.chunkKey}
           className={`${styles.clickableSegment} ${
             isLit(segment, highlight) ? styles.clickableSegmentHighlighted : ''
           }`}

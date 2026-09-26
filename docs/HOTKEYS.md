@@ -76,6 +76,12 @@ instead of dependent on having remembered to change a setting in Configuration.
 Add (1–7) pre-fills the entry/rule form with the current text selection, if any — for
 Cmd/Ctrl+7 that's the rule's Key.
 
+A selection in the Translator's Full Translation panel or the Reader's Translation panel is
+Vietnamese, so Add first maps it back to Chinese: it snaps to the whole units it touches and
+pre-fills the Chinese they cover in the source, gaps included. The selected Vietnamese
+pre-fills the Translation field unless a Transform Rule matches the Chinese. A selection
+spanning more than one line is refused with a toast. See "Selection mapping" in `CONTEXT.md`.
+
 ---
 
 ## Dictionary tab

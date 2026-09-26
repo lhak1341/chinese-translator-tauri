@@ -3,6 +3,7 @@ import type { TabId } from '../types/ComponentTypes';
 import { useVisibleTab } from '../components/VisibleTabContext';
 import { isEditableTarget } from '../utils/ui/EditableFocus';
 import { matchHotkey } from '../utils/ui/HotkeyDispatchTable';
+import { currentSelectionRange, mapSelectionRange } from '../utils/highlighting/SelectionMapping';
 import type { HotkeyAction, HotkeyOwner } from '../utils/ui/HotkeyDispatchTable';
 import { extractErrorMessage } from '../utils/errorHelpers';
 import { logger } from '../utils/logger';
@@ -16,12 +17,17 @@ export interface HotkeyHandlerOptions {
   canUndo?: boolean;
   canRedo?: boolean;
   onTabSwitch?: (tab: TabId) => void;
-  onQuickAddCharacter?: (text?: string) => void;
-  onQuickAddPhrase?: (text?: string) => void;
-  onQuickAddProperNoun?: (text?: string) => void;
-  onQuickAddPattern?: (text?: string) => void;
-  onQuickAddCustomProperNoun?: (text?: string) => Promise<void>;
-  onQuickAddCustomStructuralPattern?: (text?: string) => Promise<void>;
+  /**
+   * The quick-add callbacks receive the selection as `text`. When it sat in a translation
+   * panel, `text` is the Chinese it maps to and `translation` the Vietnamese selected — see
+   * `utils/highlighting/SelectionMapping.ts`.
+   */
+  onQuickAddCharacter?: (text?: string, translation?: string) => void;
+  onQuickAddPhrase?: (text?: string, translation?: string) => void;
+  onQuickAddProperNoun?: (text?: string, translation?: string) => void;
+  onQuickAddPattern?: (text?: string, translation?: string) => void;
+  onQuickAddCustomProperNoun?: (text?: string, translation?: string) => Promise<void>;
+  onQuickAddCustomStructuralPattern?: (text?: string, translation?: string) => Promise<void>;
   onReloadDictionary?: () => void;
   onBindDictionaries?: () => void;
   onOpenCommandPalette?: () => void;
@@ -90,7 +96,7 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
 
     const handleQuickAdd = async (
       event: KeyboardEvent,
-      callback: ((text?: string) => void | Promise<void>) | undefined,
+      callback: ((text?: string, translation?: string) => void | Promise<void>) | undefined,
       label: string
     ): Promise<void> => {
       // Several handlers are registered at once (the tab container, the Translator, the
@@ -99,6 +105,17 @@ export function useHotkeyHandler(options: HotkeyHandlerOptions): void {
       if (!callback) return;
       event.preventDefault();
       try {
+        // A selection in a translation panel is Vietnamese: a registered mapper turns it
+        // into the Chinese it came from. Anything else keeps the raw text, as before.
+        const mapping = mapSelectionRange(currentSelectionRange());
+        if (mapping.kind === 'refused') {
+          toast.error(mapping.reason);
+          return;
+        }
+        if (mapping.kind === 'mapped') {
+          await callback(mapping.source, mapping.translation);
+          return;
+        }
         const copied = await copySelectedText();
         const text = copied ? await navigator.clipboard.readText() : '';
         await callback?.(text);

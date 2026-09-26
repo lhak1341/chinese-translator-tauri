@@ -235,6 +235,8 @@
   "233": "@tauri-apps/cli",
   "234": "ADR-014: DictionaryBackend Owns Load Protocol Only — Save/Move IPC Stays in Provider",
   "235": "eslint-plugin-import",
+  "236": "ADR-031: Skip Splitting dictionary_commands.rs by Concern",
+  "237": "Documentation Index",
   "246": "ADR-010: Dictionary Match Sort — Specificity Over Provenance",
   "247": "ADR-019: Skip Absorbing WASM Status Sync into useTranslatorEngine",
   "248": "ADR-030: `performanceHealth` Is the Sole Barrel Export from `utils/performance`",

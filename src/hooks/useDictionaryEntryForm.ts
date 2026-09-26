@@ -45,6 +45,8 @@ export interface DictionaryEntryFormDeps {
   ) => Promise<void>;
   dictionaries: { [key: string]: DictionaryData };
   initialSource?: string;
+  /** The Vietnamese `initialSource` was selected as, when it came from a translation panel. */
+  initialTranslation?: string;
   onDictionaryChange?: (dict: string) => void;
 }
 
@@ -93,7 +95,14 @@ export function useDictionaryEntryForm(
   selectedDictionary: string,
   deps: DictionaryEntryFormDeps
 ): DictionaryEntryFormState {
-  const { updateEntry, addEntry, dictionaries, initialSource, onDictionaryChange } = deps;
+  const {
+    updateEntry,
+    addEntry,
+    dictionaries,
+    initialSource,
+    initialTranslation,
+    onDictionaryChange,
+  } = deps;
 
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
   const [source, setSource] = useState<string>(entry?.source ?? '');
@@ -242,14 +251,15 @@ export function useDictionaryEntryForm(
     let isMounted = true;
     let focusTimeout: NodeJS.Timeout | null = null;
 
-    const populateSourceAndTranslation = (trimmed: string): void => {
+    const populateSourceAndTranslation = (trimmed: string, translationHint?: string): void => {
       setSource(trimmed);
       setRoughGlossReference(generateRoughTranslation(dictionaries, trimmed, activeDictionary));
       const { translation: initialTranslation, matchedRule } = computeInitialTranslation(
         transformRules,
         dictionaries,
         trimmed,
-        activeDictionary
+        activeDictionary,
+        translationHint
       );
       setTranslation(initialTranslation);
       if (matchedRule) setSemanticType(matchedRule.semanticType);
@@ -269,7 +279,7 @@ export function useDictionaryEntryForm(
         }
 
         if (initialSource?.trim()) {
-          if (isMounted) populateSourceAndTranslation(initialSource.trim());
+          if (isMounted) populateSourceAndTranslation(initialSource.trim(), initialTranslation);
           return;
         }
 
@@ -293,7 +303,14 @@ export function useDictionaryEntryForm(
       isMounted = false;
       if (focusTimeout) clearTimeout(focusTimeout);
     };
-  }, [activeDictionary, entry?.source, dictionaries, transformRules, initialSource]);
+  }, [
+    activeDictionary,
+    entry?.source,
+    dictionaries,
+    transformRules,
+    initialSource,
+    initialTranslation,
+  ]);
 
   const checkForExistingEntry = useCallback(
     (sourceText: string): void => {

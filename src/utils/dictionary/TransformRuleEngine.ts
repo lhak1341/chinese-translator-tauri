@@ -215,15 +215,18 @@ export function generateRoughTranslation(
 
 /**
  * The initial Translation guess for a newly-populated Source: a matching Transform
- * Rule's guess when one exists for phrases/properNouns* targets, falling back to
- * `generateRoughTranslation` otherwise. Also returns the matched rule's semanticType,
- * if any, so the caller can stamp it.
+ * Rule's guess when one exists for phrases/properNouns* targets, then `translationHint`
+ * (the Vietnamese the Source was selected as — see `SelectionMapping.ts`), falling back to
+ * `generateRoughTranslation` otherwise. A rule wins over the hint because the user wrote
+ * it for exactly this suffix; the hint is only the engine's current output. Also returns
+ * the matched rule's semanticType, if any, so the caller can stamp it.
  */
 export function computeInitialTranslation(
   rules: TransformRule[],
   dictionaries: Record<string, DictionaryData>,
   sourceText: string,
-  targetDictionary: string
+  targetDictionary: string,
+  translationHint?: string
 ): { translation: string; matchedRule: TransformRule | null } {
   if (dictionarySupportsTransformRules(targetDictionary)) {
     const match = findBestMatch(rules, sourceText);
@@ -234,8 +237,11 @@ export function computeInitialTranslation(
       };
     }
   }
+  // A blank hint is no hint: '' must fall through to the rough guess, so not `??`.
+  const hint = translationHint?.trim() ?? '';
   return {
-    translation: generateRoughTranslation(dictionaries, sourceText, targetDictionary),
+    translation:
+      hint !== '' ? hint : generateRoughTranslation(dictionaries, sourceText, targetDictionary),
     matchedRule: null,
   };
 }

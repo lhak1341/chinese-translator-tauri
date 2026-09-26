@@ -14,6 +14,8 @@ import { useChapters } from '../../hooks/useChapters';
 import { OVERSCAN_ROWS } from '../../hooks/useReaderPanel';
 import { useReaderPanels } from '../../hooks/useReaderPanels';
 import { useReaderCommands } from '../../hooks/useReaderCommands';
+import { useSelectionMapper } from '../../hooks/useSelectionMapper';
+import { mapReaderSelection } from '../../utils/highlighting/SelectionMapping';
 import { useBookBinding } from '../BookBindingContext';
 import { useBindingOffer } from '../../hooks/useBindingOffer';
 import BindingBanner from './BindingBanner';
@@ -138,6 +140,11 @@ const BookReader: React.FC<BookReaderProps> = ({
     isEnabled: canTranslate,
   });
   isRefillingRef.current = isTranslating;
+
+  // Cmd-1..7 over a Translation-panel selection add the Chinese it came from.
+  useSelectionMapper((range) =>
+    mapReaderSelection(range, panels.translation.scrollRef.current, getRow.original)
+  );
 
   // Title translation runs in the background, not just while the panel is open — the
   // chapter-strip button shows the current title too, and waiting for the reader to open
@@ -348,6 +355,7 @@ const BookReader: React.FC<BookReaderProps> = ({
             allowDictionarySelection={true}
             onDictionaryChange={quickAdd.onDictionaryChange}
             initialSource={quickAdd.initialText}
+            initialTranslation={quickAdd.initialTranslation}
           />
         </ModalErrorBoundary>
       )}

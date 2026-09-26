@@ -7,6 +7,7 @@ import {
   findRuleMatchingEntries,
   compareRulePrecedence,
   deriveCapitalizeExceptNForKeyEdit,
+  computeInitialTranslation,
 } from '../dictionary/TransformRuleEngine';
 import type { TransformRule } from '../../types/TransformRuleTypes';
 
@@ -300,5 +301,27 @@ describe('dictionarySupportsTransformRules', () => {
 
   test('false for characters', () => {
     expect(dictionarySupportsTransformRules('characters')).toBe(false);
+  });
+});
+
+describe('computeInitialTranslation', () => {
+  test('a selected-translation hint fills the guess when no rule matches', () => {
+    expect(computeInitialTranslation([], {}, '林风', 'properNouns', 'Lâm Phong')).toEqual({
+      translation: 'Lâm Phong',
+      matchedRule: null,
+    });
+  });
+
+  test('a matching rule still wins over the hint', () => {
+    const cityRule = rule({});
+    const result = computeInitialTranslation([cityRule], {}, '南京城', 'properNouns', 'Nam Kinh');
+    expect(result.matchedRule).toBe(cityRule);
+    expect(result.translation).not.toBe('Nam Kinh');
+  });
+
+  test('a blank hint falls back to the rough guess', () => {
+    expect(computeInitialTranslation([], {}, '林', 'characters', '  ').translation).toBe(
+      computeInitialTranslation([], {}, '林', 'characters').translation
+    );
   });
 });

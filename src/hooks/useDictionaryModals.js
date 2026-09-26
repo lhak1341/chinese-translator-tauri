@@ -21,29 +21,32 @@ export function useDictionaryModals(dictionaries) {
     isOpen: false,
     dictionaryId: 'properNouns',
     text: '',
+    // The Vietnamese `text` was selected as, when a translation panel's selection was
+    // mapped to its Chinese (utils/highlighting/SelectionMapping.ts); '' otherwise.
+    translation: '',
   });
 
-  const openQuickAdd = useCallback((dictionaryId, text = '') => {
-    setModalState({ isOpen: true, dictionaryId, text });
+  const openQuickAdd = useCallback((dictionaryId, text = '', translation = '') => {
+    setModalState({ isOpen: true, dictionaryId, text, translation });
   }, []);
 
   const openQuickAddCharacter = useCallback(
-    (text = '') => openQuickAdd('characters', text),
+    (text = '', translation = '') => openQuickAdd('characters', text, translation),
     [openQuickAdd]
   );
 
   const openQuickAddPhrase = useCallback(
-    (text = '') => openQuickAdd('phrases', text),
+    (text = '', translation = '') => openQuickAdd('phrases', text, translation),
     [openQuickAdd]
   );
 
   const openQuickAddProperNoun = useCallback(
-    (text = '') => openQuickAdd('properNouns', text),
+    (text = '', translation = '') => openQuickAdd('properNouns', text, translation),
     [openQuickAdd]
   );
 
   const openQuickAddPattern = useCallback(
-    (text = '') => openQuickAdd('patterns', text),
+    (text = '', translation = '') => openQuickAdd('patterns', text, translation),
     [openQuickAdd]
   );
 
@@ -58,29 +61,29 @@ export function useDictionaryModals(dictionaries) {
    * the dictionary — avoids the React batching issue where clipboardText is set
    * before the dictionary is resolved, leaving empty dialog fields for Cmd-5.
    */
-  const openQuickAddCustomProperNoun = useCallback(async (text = '') => {
+  const openQuickAddCustomProperNoun = useCallback(async (text = '', translation = '') => {
     const view = await loadQuickAddConfig();
     const target = quickAddTarget('properNoun', view, {});
     // Cmd-5 always resolves (falls back to 'properNouns'); the 'none' arm is Cmd-6 only.
     const dictionaryId = target.kind === 'open' ? target.dictionaryId : 'properNouns';
-    setModalState({ isOpen: true, dictionaryId, text });
+    setModalState({ isOpen: true, dictionaryId, text, translation });
   }, []);
 
   const openQuickAddCustomStructuralPattern = useCallback(
-    async (text = '') => {
+    async (text = '', translation = '') => {
       const view = await loadQuickAddConfig();
       const target = quickAddTarget('structuralPattern', view, dictionaries);
       if (target.kind === 'none') {
         toast.error(quickAddMissMessage(target));
         return;
       }
-      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text });
+      setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text, translation });
     },
     [dictionaries]
   );
 
   const closeQuickAdd = useCallback(() => {
-    setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '' });
+    setModalState({ isOpen: false, dictionaryId: 'properNouns', text: '', translation: '' });
   }, []);
 
   const handleQuickAddDictionaryChange = useCallback((dictionaryId) => {
@@ -96,6 +99,7 @@ export function useDictionaryModals(dictionaries) {
     showQuickAdd: modalState.isOpen,
     quickAddDictionary: modalState.dictionaryId,
     clipboardText: modalState.text,
+    selectedTranslation: modalState.translation,
     openQuickAddCharacter,
     openQuickAddPhrase,
     openQuickAddProperNoun,

@@ -514,6 +514,14 @@ Which dictionary Cmd-5 (proper noun) and Cmd-6 (structural pattern) add to. One 
 
 Rule: Cmd-5 takes the default if it is active, else the first active proper-nouns dictionary by tier (`fiction → custom → generic`, alphabetical within a tier, never root), else `properNouns`. Cmd-6 mirrors it (ADR-048): the patterns half of the default if it is active and paired (fiction or generic), root `patterns` if the default is root `properNouns`, else the patterns half of the first active paired dictionary by tier (`fiction → generic`), else root `patterns`. The only miss is a pair whose patterns file does not exist in memory (`pairMissing`).
 
+## Selection mapping
+
+Turning a selection in a translation panel — the Translator's Full Translation, the Reader's Translation panel — into the Chinese it came from, so the quick-add keys (Cmd-1..7) can take the Vietnamese as their starting point. The selection **snaps** to the whole units it touches; their **covering span** is the source text from the earliest unit's start to the latest unit's end, gaps included, because a dictionary entry is one contiguous run of Chinese however the translation reordered it. A span that crosses a line is **refused**. A selection over no unit is **unmapped** and the key keeps the raw text, as it does for a selection anywhere else.
+
+The selected Vietnamese travels with the span as a **translation hint**: it pre-fills the Add form's Translation field unless a Transform Rule matches the Chinese, which wins because the user wrote it for that key.
+
+Each surface registers its own mapper (`useSelectionMapper`) rather than the hotkey registration holding one, because Cmd-7 belongs to the tab container, which knows no panel. `src/utils/highlighting/SelectionMapping.ts`.
+
 ## SegmentedParagraphs
 
 The shared paragraph-grouped segment renderer for the two char-only Clickable*Semantic components (`ClickableOriginalSemantic.tsx`, `ClickableTranslationSemantic.tsx`). Extracted 2026-07-29 — both had independently re-implemented an identical paragraph-wrapping loop (map paragraphs → div with conditional `marginBottom` on all but the last → inner map building a clickable/non-clickable segment) despite genuinely different title formats, highlight arity (`isUnitHighlighted` called with 1 vs 2 highlight args — see `UnitHighlightPredicate`), click directions, non-clickable className logic, and fallback/empty-state branch counts (Original has 2 branches — missing text vs empty semantic array; Translation has 1).

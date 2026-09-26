@@ -69,6 +69,7 @@ export interface ReaderCommands {
     isOpen: boolean;
     dictionary: string;
     initialText: string;
+    initialTranslation: string;
     close: () => void;
     onDictionaryChange: (dictionaryId: string) => void;
   };
@@ -115,7 +116,7 @@ export function useReaderCommands({
   // non-fiction default.
   const boundFiction = fictionDictionary;
   const addToFiction = useCallback(
-    async (kind: QuickAddKind, text?: string): Promise<void> => {
+    async (kind: QuickAddKind, text?: string, translation?: string): Promise<void> => {
       // A bound book needs nothing from config: the binding supplies the whole view.
       const config = isBoundToFiction(boundFiction) ? null : await loadQuickAddConfig();
       const view = readerQuickAddView(config, boundFiction);
@@ -124,16 +125,18 @@ export function useReaderCommands({
         toast.error(quickAddMissMessage(target));
         return;
       }
-      openQuickAdd(target.dictionaryId, text ?? '');
+      openQuickAdd(target.dictionaryId, text ?? '', translation ?? '');
     },
     [boundFiction, dictionaries, openQuickAdd]
   );
   const addFictionProperNoun = useCallback(
-    (text?: string): Promise<void> => addToFiction('properNoun', text),
+    (text?: string, translation?: string): Promise<void> =>
+      addToFiction('properNoun', text, translation),
     [addToFiction]
   );
   const addFictionStructuralPattern = useCallback(
-    (text?: string): Promise<void> => addToFiction('structuralPattern', text),
+    (text?: string, translation?: string): Promise<void> =>
+      addToFiction('structuralPattern', text, translation),
     [addToFiction]
   );
 
@@ -215,6 +218,7 @@ export function useReaderCommands({
       isOpen: modals.showQuickAdd,
       dictionary: modals.quickAddDictionary,
       initialText: modals.clipboardText,
+      initialTranslation: modals.selectedTranslation,
       close: modals.closeQuickAdd,
       onDictionaryChange: modals.handleQuickAddDictionaryChange,
     },
