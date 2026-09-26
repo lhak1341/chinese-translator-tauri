@@ -725,13 +725,13 @@
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternVariableCache.js": {
-    "mtime": 1790408534.086907,
-    "ast_hash": "10c17e85e6c2875875ae51d16affa704",
+    "mtime": 1790409206.9775443,
+    "ast_hash": "ab1b9f34e641a0c388055b19ecdba114",
     "semantic_hash": ""
   },
   "src/utils/pattern/SemanticPatternProcessor.js": {
-    "mtime": 1790408914.9329786,
-    "ast_hash": "3f1bb6f2b23090d11b71954601736232",
+    "mtime": 1790409240.783718,
+    "ast_hash": "341e86bfd33ab829126952a0af09ae4b",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternPriorityCalculator.ts": {
@@ -740,8 +740,8 @@
     "semantic_hash": "702ef5c08cb30c70bc5b8723298491ae"
   },
   "src/utils/pattern/VariableTypeClassifier.ts": {
-    "mtime": 1786780216.605329,
-    "ast_hash": "f66e3a055872c8106cf3b2cddc5ef93f",
+    "mtime": 1790409240.7813375,
+    "ast_hash": "089d461781a6cda69c392f66b39d2847",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternAnalyzer.js": {
@@ -760,14 +760,14 @@
     "semantic_hash": "4282714c85e510df3f9c76fdfae18b02"
   },
   "src/utils/pattern/TwoPhasePatternProcessor.js": {
-    "mtime": 1790408534.087242,
-    "ast_hash": "d58a88b4178b4d03c1c14805d83febc2",
+    "mtime": 1790409240.7828696,
+    "ast_hash": "2871ad3defec9aabf337fccdeed7c1aa",
     "semantic_hash": ""
   },
   "src/utils/pattern/index.ts": {
-    "mtime": 1781281282.7642999,
-    "ast_hash": "f0454811e6dcd15fc647b943a18ddd8a",
-    "semantic_hash": "f0454811e6dcd15fc647b943a18ddd8a"
+    "mtime": 1790409240.784547,
+    "ast_hash": "9b6fecf8dc14bd183d9d8bcad6d81191",
+    "semantic_hash": ""
   },
   "src/utils/performance/MemoryLeakDetector.js": {
     "mtime": 1788879791.5956557,
@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790408771.5699337,
-    "ast_hash": "b7a83a8399297f1a682397d1ce2fe335",
+    "mtime": 1790409240.7803607,
+    "ast_hash": "b4be80a2452223b5c0fb07037f6e1bee",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1790408771.8412192,
-    "ast_hash": "5dedbdd9d950f71620d641c13a5abb2a",
+    "mtime": 1790409241.0760748,
+    "ast_hash": "edf8a31f4e812ceec76c7de3aca91065",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1835,8 +1835,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1790408934.8446987,
-    "ast_hash": "a3b2582bdeaeea7802292a18748e9185",
+    "mtime": 1790409324.2568824,
+    "ast_hash": "e1b9a3d958c9a921838375f32c591391",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1855,8 +1855,8 @@
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
-    "mtime": 1790407569.9465342,
-    "ast_hash": "fe26277f5a1a5fcaeba577b605ba5bcc",
+    "mtime": 1790409240.7862139,
+    "ast_hash": "31bc1bd32c53c55d1fcb6fa61b996e86",
     "semantic_hash": ""
   },
   "src/utils/text/CharOnlySpacing.ts": {
