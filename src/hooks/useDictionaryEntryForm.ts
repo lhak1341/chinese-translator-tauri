@@ -19,6 +19,7 @@ import {
   isPatternValid,
   validateDictionaryEntry,
   buildEntryMetadata,
+  entryFields,
 } from '../utils/dictionary';
 import { quickAddChoices, type QuickAddView } from '../utils/dictionary/QuickAddTarget';
 import { useTransformRules } from './useTransformRules';
@@ -100,25 +101,21 @@ export function useDictionaryEntryForm(
 
   const [activeDictionary, setActiveDictionary] = useState<string>(selectedDictionary);
   const [source, setSource] = useState<string>(entry?.source ?? '');
-  const [translation, setTranslation] = useState<string>(
-    typeof entry?.translation === 'object'
-      ? entry.translation.translation
-      : (entry?.translation ?? '')
-  );
+  // The edited entry's fields, read once for the initial state below.
+  const [initial] = useState(() => (entry ? entryFields(entry.translation) : null));
+  const [translation, setTranslation] = useState<string>(initial?.translation ?? '');
   const [allowAsPatternVariable, setAllowAsPatternVariable] = useState<boolean>(
-    (typeof entry?.translation === 'object'
-      ? entry.translation.allowAsPatternVariable
-      : undefined) ??
-      entry?.allowAsPatternVariable ??
-      false
+    initial?.allowAsPatternVariable || entry?.allowAsPatternVariable || false
   );
   const [semanticType, setSemanticType] = useState<SemanticType | PatternSemanticTypeRef | ''>(
-    (typeof entry?.translation === 'object' ? entry.translation.semanticType : undefined) ??
-      (!entry && isProperNounsDict(selectedDictionary) ? 'character' : '')
+    initial
+      ? (initial.semanticType as SemanticType | PatternSemanticTypeRef | '')
+      : isProperNounsDict(selectedDictionary)
+        ? 'character'
+        : ''
   );
   const [allowedVariableTypes, setAllowedVariableTypes] = useState<Record<string, string[]>>(
-    (typeof entry?.translation === 'object' ? entry.translation.allowedVariableTypes : undefined) ??
-      {}
+    initial?.allowedVariableTypes ?? {}
   );
   const [error, setError] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);

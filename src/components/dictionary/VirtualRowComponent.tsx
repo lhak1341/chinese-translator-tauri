@@ -4,6 +4,7 @@ import {
   isPhrasesDict,
   isProperNounsDict,
   buildEntryMetadata,
+  entryFields,
 } from '../../utils/dictionary';
 import { useInlineFieldEdit } from '../../hooks/useInlineFieldEdit';
 import type { InlineFieldEdit } from '../../hooks/useInlineFieldEdit';
@@ -134,12 +135,12 @@ export const VirtualRowComponent = React.memo<VirtualRowProps>(
     onSelectEntry,
     onContextMenu,
   }) => {
-    const translationText = typeof translation === 'string' ? translation : translation.translation;
-    const allowAsPatternVariable =
-      typeof translation === 'object' && translation.allowAsPatternVariable === true;
-    const semanticType = (typeof translation === 'object' && translation.semanticType) || '';
-    const allowedVariableTypes =
-      (typeof translation === 'object' && translation.allowedVariableTypes) || {};
+    const {
+      translation: translationText,
+      allowAsPatternVariable,
+      semanticType,
+      allowedVariableTypes,
+    } = entryFields(translation);
 
     const isPatterns = isPatternsDict(selectedDictionary);
     const isPhrases = isPhrasesDict(selectedDictionary);

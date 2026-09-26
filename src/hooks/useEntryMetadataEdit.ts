@@ -27,7 +27,7 @@ export interface EntryMetadataEditResult {
  * Owns the three metadata-mutation handlers for a single dictionary entry row.
  * Invariant: every handler snapshots all existing metadata first (buildEntryMetadata,
  * shared with VirtualRowComponent's text-edit path and useDictionaryEntryForm — see
- * `src/utils/dictionary/EntryMetadataBuilder.ts`), then patches exactly one field, so
+ * `src/utils/dictionary/EntryValue.ts`), then patches exactly one field, so
  * concurrent field updates never silently drop other fields.
  */
 export function useEntryMetadataEdit({

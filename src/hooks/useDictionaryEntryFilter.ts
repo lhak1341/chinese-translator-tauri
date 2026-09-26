@@ -7,6 +7,7 @@ import {
   isPhrasesDict,
   isProperNounsDict,
   isLookupTableDict,
+  entryFields,
 } from '../utils/dictionary';
 
 const SEARCH_DEBOUNCE_MS = 150;
@@ -83,8 +84,7 @@ export function useDictionaryEntryFilter(
     if (debouncedSearchTerm) {
       const searchLower = debouncedSearchTerm.toLowerCase();
       entries = entries.filter(([source, translation]) => {
-        const translationText =
-          typeof translation === 'string' ? translation : translation.translation;
+        const translationText = entryFields(translation).translation;
         return (
           source.toLowerCase().includes(searchLower) ||
           translationText.toLowerCase().includes(searchLower)
@@ -94,8 +94,7 @@ export function useDictionaryEntryFilter(
 
     if (filterVariable !== 'all') {
       entries = entries.filter(([, translation]) => {
-        const allowed =
-          typeof translation === 'object' && translation.allowAsPatternVariable === true;
+        const allowed = entryFields(translation).allowAsPatternVariable;
         return filterVariable === 'allowed' ? allowed : !allowed;
       });
     }
@@ -113,14 +112,13 @@ export function useDictionaryEntryFilter(
 
     if (filterAllowAsVariable) {
       entries = entries.filter(
-        ([, translation]) =>
-          typeof translation === 'object' && translation.allowAsPatternVariable === true
+        ([, translation]) => entryFields(translation).allowAsPatternVariable
       );
     }
 
     if (filterSemanticTypes.size > 0) {
       entries = entries.filter(([, translation]) => {
-        const semType = (typeof translation === 'object' && translation.semanticType) || '';
+        const semType = entryFields(translation).semanticType;
         if (filterSemanticTypes.has('none')) {
           const specificTypes = new Set([...filterSemanticTypes].filter((t) => t !== 'none'));
           return semType === '' || specificTypes.has(semType);

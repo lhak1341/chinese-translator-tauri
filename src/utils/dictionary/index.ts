@@ -58,8 +58,8 @@ export {
 } from './DictionaryEntryValidator';
 export { validatePersistEntry } from './PersistTimeValidator';
 export { sanitizeDictionaryEntry } from './DictionaryEntrySanitizer';
-export type { EntryMetadataFields } from './EntryMetadataBuilder';
-export { buildEntryMetadata } from './EntryMetadataBuilder';
+export type { EntryMetadataFields, EntryFields, EntryPatch } from './EntryValue';
+export { buildEntryMetadata, entryFields, applyEntryPatch, toggleVariableType } from './EntryValue';
 
 // --- Backend IO ---
 export type { BatchLoadResult } from './DictionaryBackend';

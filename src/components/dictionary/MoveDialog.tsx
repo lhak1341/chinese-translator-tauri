@@ -3,6 +3,7 @@ import { useDictionary } from './DictionaryContext';
 import { X, AlertTriangle, Loader } from 'lucide-react';
 import styles from '../../styles/MoveDialog.module.css';
 import { logger } from '../../utils/logger';
+import { entryFields } from '../../utils/dictionary';
 import { useMoveTargetDictionaries } from '../../hooks/useMoveTargetDictionaries';
 import type { DictionaryEntryMetadata } from '../../types/DictionaryTypes';
 import { SEMANTIC_TYPE_LABELS } from '../../constants/SemanticTypes';
@@ -104,8 +105,7 @@ const MoveDialog: React.FC<MoveDialogProps> = ({
 
     if (isSingle) {
       const existingEntry = targetDict[existing[0].source];
-      const existingTranslation =
-        typeof existingEntry === 'string' ? existingEntry : existingEntry.translation;
+      const existingTranslation = entryFields(existingEntry).translation;
       return `Entry "${existing[0].source}" already exists in target dictionary with translation "${existingTranslation}". Moving will overwrite it.`;
     }
     return `${existing.length} ${existing.length === 1 ? 'entry' : 'entries'} already exist in target and will be overwritten.`;

@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { EditingEntryData, MoveEntryData, DictionaryData } from '../types/DictionaryTypes';
 import type { ContextMenuEntry } from './useContextMenu';
+import { entryFields } from '../utils/dictionary';
 
 interface UseEntryEditAndMoveParams {
   dictionaries: Record<string, DictionaryData>;
@@ -62,8 +63,7 @@ export function useEntryEditAndMove({
       setEditingEntry({
         source: entry.source,
         translation: value,
-        allowAsPatternVariable:
-          typeof value === 'object' && value.allowAsPatternVariable ? true : false,
+        allowAsPatternVariable: entryFields(value).allowAsPatternVariable,
         dictionaryId: entry.dictionaryId,
       });
     },
