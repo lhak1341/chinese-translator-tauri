@@ -135,8 +135,8 @@
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/matcher.rs": {
-    "mtime": 1790349546.3889604,
-    "ast_hash": "03e39028b8e8c05c002ca7c4ff621159",
+    "mtime": 1790408684.3951638,
+    "ast_hash": "65ad625f25afef10c4fcfd012e3fbdf7",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/index.rs": {
@@ -145,8 +145,8 @@
     "semantic_hash": "06031592ddb5804d9b1e38e9df5600fa"
   },
   "wasm-core/src/pattern_processor/mod.rs": {
-    "mtime": 1790349546.3908834,
-    "ast_hash": "aabb2278c4af6feed858d5eeb1d7af39",
+    "mtime": 1790408678.039003,
+    "ast_hash": "2d9ced31f92959241787aff9962b2976",
     "semantic_hash": ""
   },
   "wasm-core/src/pattern_processor/two_phase.rs": {
@@ -160,8 +160,8 @@
     "semantic_hash": "d3663a4a2934ee7c4d275b2279bdf4d8"
   },
   "wasm-core/src/pattern_processor/parser.rs": {
-    "mtime": 1790349546.391688,
-    "ast_hash": "d5f050a542986da51a195913e20d4df4",
+    "mtime": 1790408746.4983633,
+    "ast_hash": "bc5d8bd9193a5b953457b1722480a8c2",
     "semantic_hash": ""
   },
   "wasm-core/src/wasm-core/translation_wasm_core.js": {
@@ -330,8 +330,8 @@
     "semantic_hash": "d33362da9a0ca8631b0d86a8ffa29f8b"
   },
   "src/utils/TranslationEngine.js": {
-    "mtime": 1790407519.9119232,
-    "ast_hash": "bc1ac70ebfd8033de82639c57511a1fc",
+    "mtime": 1790408756.077185,
+    "ast_hash": "b44d62f8f039525517cde87473a566a7",
     "semantic_hash": ""
   },
   "src/utils/logger.ts": {
@@ -720,18 +720,18 @@
     "semantic_hash": "e2f535669db9f65a34edc71d9bb49366"
   },
   "src/utils/pattern/PatternTemplateEngine.js": {
-    "mtime": 1790349690.5893958,
-    "ast_hash": "dd4c6b5139c3fdcbe9da4b6efd13e606",
+    "mtime": 1790408352.3907368,
+    "ast_hash": "c7a3bc84753d0eb0466beddd3d34a499",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternVariableCache.js": {
-    "mtime": 1779857325.1288528,
-    "ast_hash": "0f9a12ff3b5f4ccf7864d57e6c586ba1",
-    "semantic_hash": "0f9a12ff3b5f4ccf7864d57e6c586ba1"
+    "mtime": 1790408534.086907,
+    "ast_hash": "10c17e85e6c2875875ae51d16affa704",
+    "semantic_hash": ""
   },
   "src/utils/pattern/SemanticPatternProcessor.js": {
-    "mtime": 1790407281.0911279,
-    "ast_hash": "3c93859f2f0266170b26670eb5d098a5",
+    "mtime": 1790408914.9329786,
+    "ast_hash": "3f1bb6f2b23090d11b71954601736232",
     "semantic_hash": ""
   },
   "src/utils/pattern/PatternPriorityCalculator.ts": {
@@ -760,8 +760,8 @@
     "semantic_hash": "4282714c85e510df3f9c76fdfae18b02"
   },
   "src/utils/pattern/TwoPhasePatternProcessor.js": {
-    "mtime": 1790349690.588628,
-    "ast_hash": "4a9448205ac0e311119f430eb8d8f81b",
+    "mtime": 1790408534.087242,
+    "ast_hash": "d58a88b4178b4d03c1c14805d83febc2",
     "semantic_hash": ""
   },
   "src/utils/pattern/index.ts": {
@@ -1110,8 +1110,8 @@
     "semantic_hash": "e7e50aac1ea09c74cdec2636312fb621"
   },
   "CONTEXT.md": {
-    "mtime": 1790407569.9442778,
-    "ast_hash": "87721b6945bb73fbc017cc2b001660fe",
+    "mtime": 1790408771.5699337,
+    "ast_hash": "b7a83a8399297f1a682397d1ce2fe335",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1390,8 +1390,8 @@
     "semantic_hash": "ecb999804e931817aa96628dc55fa5b4"
   },
   "src/utils/CLAUDE.md": {
-    "mtime": 1790407584.2316113,
-    "ast_hash": "e3578c12375bb7fe6371fac27dccbd7e",
+    "mtime": 1790408771.8412192,
+    "ast_hash": "5dedbdd9d950f71620d641c13a5abb2a",
     "semantic_hash": ""
   },
   "src/styles/CLAUDE.md": {
@@ -1835,8 +1835,8 @@
     "semantic_hash": ""
   },
   ".lint-baseline.json": {
-    "mtime": 1790407657.6047843,
-    "ast_hash": "7a167f6a576a00dd4a557887b8207263",
+    "mtime": 1790408934.8446987,
+    "ast_hash": "a3b2582bdeaeea7802292a18748e9185",
     "semantic_hash": ""
   },
   "scripts/ensure-wasm-fresh.mjs": {
@@ -1850,8 +1850,8 @@
     "semantic_hash": ""
   },
   "src/utils/dictionary/PatternEntryRules.ts": {
-    "mtime": 1790349690.5900471,
-    "ast_hash": "3648708b73bcb31ff6a80eac12cef5aa",
+    "mtime": 1790408352.3913448,
+    "ast_hash": "d108a39ea105bba579f6b8693f08ed59",
     "semantic_hash": ""
   },
   "docs/guides/deleted-symbols.md": {
@@ -1880,8 +1880,8 @@
     "semantic_hash": ""
   },
   "test-fixtures/build-result-parity.json": {
-    "mtime": 1789060405.3036761,
-    "ast_hash": "f0446f6b0216bd1502c2ea0ba8250f90",
+    "mtime": 1790408718.8640041,
+    "ast_hash": "2e3c5fe4d581d0a7127f86893de8039b",
     "semantic_hash": ""
   },
   "src/utils/wasm/CLAUDE.md": {
@@ -2222,6 +2222,16 @@
   "src/components/VisibleTabContext.tsx": {
     "mtime": 1790405358.9915438,
     "ast_hash": "c9016f150addca273e4b45c86bdf9df4",
+    "semantic_hash": ""
+  },
+  "test-fixtures/pattern-variable-parity.json": {
+    "mtime": 1790408319.1745005,
+    "ast_hash": "0182c5f3f64b0490b293bb6247e6da7a",
+    "semantic_hash": ""
+  },
+  "wasm-core/src/pattern_processor/variable.rs": {
+    "mtime": 1790408789.6149976,
+    "ast_hash": "d768bd5444e6cab022ccabc51c98b367",
     "semantic_hash": ""
   }
 }

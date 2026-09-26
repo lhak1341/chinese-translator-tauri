@@ -242,8 +242,6 @@
   "240": "@vitest/ui",
   "241": "globals",
   "242": "@testing-library/react",
-  "243": "typescript",
-  "244": "vite-plugin-wasm",
   "246": "ADR-010: Dictionary Match Sort — Specificity Over Provenance",
   "247": "ADR-019: Skip Absorbing WASM Status Sync into useTranslatorEngine",
   "248": "ADR-030: `performanceHealth` Is the Sole Barrel Export from `utils/performance`",
