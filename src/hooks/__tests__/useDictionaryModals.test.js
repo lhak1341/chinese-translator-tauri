@@ -194,16 +194,15 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     expect(result.current.quickAddDictionary).toBe('patterns-f_Amy');
   });
 
-  test('toasts and does not open the modal when no fiction proper-noun dictionary is active', async () => {
+  test('opens root patterns when no paired proper-noun dictionary is active', async () => {
     loadAppConfig.mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
-    const { result } = renderHook(() => useDictionaryModals({}));
+    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.showQuickAdd).toBe(false);
-    expect(toast.error).toHaveBeenCalledWith(
-      'No structural patterns dictionary for active fiction'
-    );
+    expect(result.current.quickAddDictionary).toBe('patterns');
+    expect(result.current.showQuickAdd).toBe(true);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   test('toasts and does not open the modal when the derived pattern dictionary is not in dictionaries state', async () => {
@@ -220,7 +219,7 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     });
     expect(result.current.showQuickAdd).toBe(false);
     expect(toast.error).toHaveBeenCalledWith(
-      "The active fiction's structural pattern dictionary (patterns-f_Novel) is missing"
+      'The structural pattern dictionary patterns-f_Novel is missing'
     );
   });
 
@@ -250,15 +249,13 @@ describe('useDictionaryModals — openQuickAddCustomStructuralPattern', () => {
     expect(result.current.showQuickAdd).toBe(true);
   });
 
-  test('config load failure decides with no config: toasts and does not open the modal', async () => {
+  test('config load failure decides with no config: opens root patterns', async () => {
     loadAppConfig.mockRejectedValue(new Error('disk read failed'));
-    const { result } = renderHook(() => useDictionaryModals({}));
+    const { result } = renderHook(() => useDictionaryModals({ patterns: {} }));
     await act(async () => {
       await result.current.openQuickAddCustomStructuralPattern('clip');
     });
-    expect(result.current.showQuickAdd).toBe(false);
-    expect(toast.error).toHaveBeenCalledWith(
-      'No structural patterns dictionary for active fiction'
-    );
+    expect(result.current.quickAddDictionary).toBe('patterns');
+    expect(result.current.showQuickAdd).toBe(true);
   });
 });

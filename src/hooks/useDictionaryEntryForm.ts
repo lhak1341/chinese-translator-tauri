@@ -16,7 +16,7 @@ import type {
 import {
   isPatternsDict,
   isProperNounsDict,
-  isFictionPatternsId,
+  isPairedPatternsId,
   isCharacterSourceValid,
   isPatternValid,
   validateDictionaryEntry,
@@ -178,8 +178,8 @@ export function useDictionaryEntryForm(
         const types = (await getDictionaryTypes()) as DictionaryTypesCollection;
         if (isMounted) {
           const filteredTypes = Object.entries(types).reduce((acc, [id, info]) => {
-            if (isFictionPatternsId(id)) {
-              // Show fiction pattern dict only if its paired fiction proper-nouns is active
+            if (isPairedPatternsId(id)) {
+              // Show a paired pattern dict only if its proper-nouns half is active
               const pairedFiction = toProperNounsId(id);
               if (activeProperNouns.includes(pairedFiction)) acc[id] = info;
             } else if (!isProperNounsDict(id) || activeProperNouns.includes(id)) {

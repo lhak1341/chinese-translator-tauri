@@ -6,6 +6,7 @@ import {
   toPatternsId,
   toProperNounsDictionaryId,
   isFictionProperNounsId,
+  hasPairedPatterns,
 } from '../../utils/dictionary';
 import {
   sortDictionaries,
@@ -94,7 +95,8 @@ export function useDictionaryConfigManagement() {
         setActiveDictionaries(config.engine.activeProperNouns);
         setDefaultQuickAddDictionary(config.ui.defaultQuickAddDictionary);
 
-        // Migration: create missing patterns-f_* for pre-existing fiction proper-noun dicts
+        // Migration: create the missing patterns half for pre-existing fiction and generic
+        // proper-noun dicts (ADR-027, ADR-048)
         try {
           const patternsListResult = await window.electronAPI.listFictionPatternDictionaries();
           const existingPatterns = new Set<string>(
@@ -102,8 +104,7 @@ export function useDictionaryConfigManagement() {
               ? (patternsListResult.dictionaries as unknown as string[])
               : []
           );
-          const fictionDicts = dictionaryIds.filter(isFictionProperNounsId);
-          for (const id of fictionDicts) {
+          for (const id of dictionaryIds.filter(hasPairedPatterns)) {
             const patternsDictId = toPatternsId(id);
             if (!existingPatterns.has(patternsDictId)) {
               await window.electronAPI.createStructuralPatternsDictionary(patternsDictId);
@@ -111,7 +112,7 @@ export function useDictionaryConfigManagement() {
             }
           }
         } catch (migrationErr) {
-          logger.warn('Fiction pattern dictionary migration failed (non-fatal):', migrationErr);
+          logger.warn('Paired pattern dictionary migration failed (non-fatal):', migrationErr);
         }
       } catch (err) {
         setError(formatErrorMessage('Dictionary loading', err));
@@ -170,12 +171,16 @@ export function useDictionaryConfigManagement() {
       const dictionaryId = toProperNounsDictionaryId(newDictionaryName);
 
       // A fiction dictionary is a pair (ADR-027) that books can bind to, so the binding
-      // context creates and loads it; anything else is this tab's alone.
+      // context creates and loads it. A generic dictionary is a pair too (ADR-048), but no
+      // book binds to it, so this tab creates it; a custom one is a single file.
       const isFiction = isFictionProperNounsId(dictionaryId);
+      const isPaired = hasPairedPatterns(dictionaryId);
       const result = isFiction
         ? await createFictionDictionary(dictionaryId)
         : await callRustConfigWrite(() =>
-            window.electronAPI.createProperNounsDictionary(dictionaryId)
+            isPaired
+              ? window.electronAPI.createFictionDictionaryPair(dictionaryId)
+              : window.electronAPI.createProperNounsDictionary(dictionaryId)
           );
 
       if (result.success) {
@@ -187,7 +192,10 @@ export function useDictionaryConfigManagement() {
         }
         closeCreateModal();
 
-        if (!isFiction) await loadDictionary(dictionaryId);
+        if (!isFiction) {
+          await loadDictionary(dictionaryId);
+          if (isPaired) await loadDictionary(toPatternsId(dictionaryId));
+        }
       } else {
         throw new Error(result.error);
       }
@@ -235,6 +243,11 @@ export function useDictionaryConfigManagement() {
           // briefly has neither.
           await loadDictionary(newDictionaryId);
           removeDictionaryKey(renamingDictionaryId);
+          // Rust cascades the rename to a generic dictionary's patterns half (ADR-048).
+          if (hasPairedPatterns(renamingDictionaryId)) {
+            await loadDictionary(toPatternsId(newDictionaryId));
+            removeDictionaryKey(toPatternsId(renamingDictionaryId));
+          }
         }
       }
 

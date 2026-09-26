@@ -25,7 +25,7 @@ import {
   isProperNounsDict,
   findConflictingEntries,
   toProperNounsId,
-  isFictionPatternsId,
+  isPairedPatternsId,
   getMoveFamily,
   type DuplicateRow,
 } from '../../utils/dictionary';
@@ -300,8 +300,8 @@ const DictionaryManager: React.FC<DictionaryManagerProps> = ({ searchRef, isActi
         if (activeDictionaries.includes(id)) {
           filtered[id] = type;
         }
-      } else if (isFictionPatternsId(id)) {
-        // Include fiction pattern dict only if its paired properNouns is active
+      } else if (isPairedPatternsId(id)) {
+        // Include a paired pattern dict only if its properNouns half is active
         const pairedProperNouns = toProperNounsId(id);
         if (activeDictionaries.includes(pairedProperNouns)) {
           filtered[id] = type;

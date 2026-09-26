@@ -1030,9 +1030,16 @@ pub async fn create_proper_nouns_dictionary(
     Ok(DictionaryResponse::ok_with_dicts(read_active_proper_nouns(&config_path)))
 }
 
-/// ADR-027: creates a fiction proper-nouns dictionary (`properNouns-f_X`) together with its
-/// paired structural patterns dictionary (`patterns-f_X`) atomically — either both files exist
-/// afterward, or neither does. Mirrors `rename_proper_nouns_dictionary`'s atomicity: the
+/// Whether a proper-nouns dictionary comes with a paired structural patterns dictionary:
+/// fiction (`properNouns-f_X`, ADR-027) and generic (`properNouns-_X`, ADR-048). Mirrors the
+/// frontend's `hasPairedPatterns` (`DictionaryIdClassifier.ts`).
+fn has_paired_patterns(proper_noun_id: &str) -> bool {
+    proper_noun_id.starts_with("properNouns-f_") || proper_noun_id.starts_with("properNouns-_")
+}
+
+/// ADR-027/ADR-048: creates a paired proper-nouns dictionary (fiction `properNouns-f_X` or
+/// generic `properNouns-_X`) together with its structural patterns dictionary (`patterns-f_X`
+/// / `patterns-_X`) atomically — either both files exist afterward, or neither does. Mirrors `rename_proper_nouns_dictionary`'s atomicity: the
 /// properNouns half is created (and activated) first, and rolled back if the patterns half
 /// fails to create, so a partial pair is never left on disk.
 #[tauri::command]
@@ -1044,9 +1051,9 @@ pub async fn create_fiction_dictionary_pair(
     // SECURITY: Validate ID to prevent path traversal
     validate_dictionary_id(&proper_noun_id)?;
 
-    if !proper_noun_id.starts_with("properNouns-f_") {
+    if !has_paired_patterns(&proper_noun_id) {
         return Ok(DictionaryResponse::err(
-            "Dictionary ID must be a fiction proper-nouns dictionary ('properNouns-f_*')",
+            "Dictionary ID must be a fiction or generic proper-nouns dictionary ('properNouns-f_*' or 'properNouns-_*')",
         ));
     }
 
@@ -1903,8 +1910,8 @@ pub async fn rename_proper_nouns_dictionary(
 }
 
 /// Renames a `properNouns-*` dictionary file, updating `config.json` references
-/// (`activeProperNouns`, `lastSelectedDictionary`) and cascading to a paired fiction
-/// `patterns-f_*` file if applicable, with rollback on any downstream failure. Pure
+/// (`activeProperNouns`, `lastSelectedDictionary`) and cascading to a paired
+/// `patterns-f_*` / `patterns-_*` file if applicable, with rollback on any downstream failure. Pure
 /// filesystem function — no `AppHandle` — directly unit-testable against a temp directory.
 fn rename_proper_nouns_dictionary_impl(
     dictionary_path: &PathBuf,
@@ -1977,8 +1984,8 @@ fn rename_proper_nouns_dictionary_impl(
         }
     }
 
-    // Cascade to paired patterns dict if this is a fiction proper-nouns dict
-    if old_dictionary_id.starts_with("properNouns-f_") {
+    // Cascade to paired patterns dict if this is a fiction or generic proper-nouns dict
+    if has_paired_patterns(old_dictionary_id) {
         let old_suffix = old_dictionary_id.strip_prefix("properNouns-").unwrap_or("");
         let new_suffix = new_dictionary_id.strip_prefix("properNouns-").unwrap_or("");
         let old_patterns_id = format!("patterns-{}", old_suffix);
@@ -3658,6 +3665,39 @@ mod tests {
         assert!(!dir.join("patterns-f_Old.json").exists());
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rename_cascades_to_paired_generic_patterns_dict() {
+        let dir = temp_test_dir("rename_generic_cascade");
+        fs::write(dir.join("properNouns-_Old.json"), "{}").unwrap();
+        fs::write(dir.join("patterns-_Old.json"), "{}").unwrap();
+        let config_path = dir.join("config.json");
+        fs::write(&config_path, r#"{"activeProperNouns": ["properNouns-_Old"]}"#).unwrap();
+        let cache = make_cache();
+
+        let result = rename_proper_nouns_dictionary_impl(
+            &dir,
+            &config_path,
+            &cache,
+            "properNouns-_Old",
+            "properNouns-_New",
+        );
+
+        assert!(result.unwrap().success);
+        assert!(dir.join("properNouns-_New.json").exists());
+        assert!(dir.join("patterns-_New.json").exists(), "paired patterns dict must cascade");
+        assert!(!dir.join("patterns-_Old.json").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_has_paired_patterns_covers_fiction_and_generic_only() {
+        assert!(has_paired_patterns("properNouns-f_X"));
+        assert!(has_paired_patterns("properNouns-_X"));
+        assert!(!has_paired_patterns("properNouns-X"));
+        assert!(!has_paired_patterns("properNouns"));
     }
 
     #[test]

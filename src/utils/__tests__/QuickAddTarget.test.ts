@@ -58,8 +58,14 @@ describe('quickAddTarget — Cmd-5 (proper noun)', () => {
   });
 });
 
-describe('quickAddTarget — Cmd-6 (structural pattern)', () => {
-  const both = { 'patterns-f_Novel': {}, 'patterns-f_Alpha': {} };
+describe('quickAddTarget — Cmd-6 (structural pattern), mirroring Cmd-5', () => {
+  const loaded = {
+    patterns: {},
+    'patterns-f_Novel': {},
+    'patterns-f_Alpha': {},
+    'patterns-_Theme': {},
+    'patterns-_Zeta': {},
+  };
 
   test.each([
     [
@@ -68,26 +74,43 @@ describe('quickAddTarget — Cmd-6 (structural pattern)', () => {
       'patterns-f_Novel',
     ],
     [
-      'non-fiction default: first active fiction',
+      'pairs a generic default, even over an active fiction',
+      view(['properNouns-_Theme', 'properNouns-f_Novel'], 'properNouns-_Theme'),
+      'patterns-_Theme',
+    ],
+    [
+      'root default active: root patterns',
+      view(['properNouns', 'properNouns-f_Novel'], 'properNouns'),
+      'patterns',
+    ],
+    [
+      'custom default (no pair): first active paired by tier',
       view(['properNouns-Bar', 'properNouns-f_Novel', 'properNouns-f_Alpha'], 'properNouns-Bar'),
       'patterns-f_Alpha',
     ],
-    ['no default: first active fiction', view(['properNouns-f_Alpha']), 'patterns-f_Alpha'],
+    [
+      'stale default falls to tier order',
+      view(['properNouns-_Theme'], 'properNouns-f_Gone'),
+      'patterns-_Theme',
+    ],
+    [
+      'no default: fiction before generic',
+      view(['properNouns-_Theme', 'properNouns-f_Novel']),
+      'patterns-f_Novel',
+    ],
+    [
+      'no default, no fiction: generic, alphabetical',
+      view(['properNouns-_Zeta', 'properNouns-Mine', 'properNouns-_Theme']),
+      'patterns-_Theme',
+    ],
+    ['only custom active: root patterns', view(['properNouns-Mine']), 'patterns'],
+    ['only root active: root patterns', view(['properNouns']), 'patterns'],
+    ['nothing active: root patterns', view([]), 'patterns'],
+    ['config failed to load: root patterns', null, 'patterns'],
   ])('%s', (_label, v, expected) => {
-    expect(quickAddTarget('structuralPattern', v, both)).toEqual({
+    expect(quickAddTarget('structuralPattern', v, loaded)).toEqual({
       kind: 'open',
       dictionaryId: expected,
-    });
-  });
-
-  test('no fiction at all is a noFiction miss', () => {
-    expect(quickAddTarget('structuralPattern', view(['properNouns']), both)).toEqual({
-      kind: 'none',
-      reason: 'noFiction',
-    });
-    expect(quickAddTarget('structuralPattern', null, both)).toEqual({
-      kind: 'none',
-      reason: 'noFiction',
     });
   });
 
@@ -97,34 +120,16 @@ describe('quickAddTarget — Cmd-6 (structural pattern)', () => {
         'patterns-f_Unrelated': {},
       })
     ).toEqual({ kind: 'none', reason: 'pairMissing', patternsId: 'patterns-f_Novel' });
+    expect(
+      quickAddTarget('structuralPattern', view(['properNouns-_Theme']), { patterns: {} })
+    ).toEqual({ kind: 'none', reason: 'pairMissing', patternsId: 'patterns-_Theme' });
   });
 });
 
 describe('quickAddMissMessage', () => {
-  test.each([
-    [
-      { reason: 'noFiction' } as const,
-      'translator',
-      'No structural patterns dictionary for active fiction',
-    ],
-    [
-      { reason: 'noFiction' } as const,
-      'reader',
-      'This book has no structural pattern dictionary — bind one with Cmd+B',
-    ],
-    [
-      { reason: 'pairMissing', patternsId: 'patterns-f_X' } as const,
-      'translator',
-      "The active fiction's structural pattern dictionary (patterns-f_X) is missing",
-    ],
-    [
-      { reason: 'pairMissing', patternsId: 'patterns-f_X' } as const,
-      'reader',
-      "This book's structural pattern dictionary (patterns-f_X) is missing",
-    ],
-  ])('%o on %s', (miss, surface, expected) => {
-    expect(quickAddMissMessage({ kind: 'none', ...miss }, surface as 'translator' | 'reader')).toBe(
-      expected
-    );
+  test('names the missing patterns dictionary', () => {
+    expect(
+      quickAddMissMessage({ kind: 'none', reason: 'pairMissing', patternsId: 'patterns-_X' })
+    ).toBe('The structural pattern dictionary patterns-_X is missing');
   });
 });

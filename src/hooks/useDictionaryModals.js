@@ -71,7 +71,7 @@ export function useDictionaryModals(dictionaries) {
       const view = await loadQuickAddConfig();
       const target = quickAddTarget('structuralPattern', view, dictionaries);
       if (target.kind === 'none') {
-        toast.error(quickAddMissMessage(target, 'translator'));
+        toast.error(quickAddMissMessage(target));
         return;
       }
       setModalState({ isOpen: true, dictionaryId: target.dictionaryId, text });

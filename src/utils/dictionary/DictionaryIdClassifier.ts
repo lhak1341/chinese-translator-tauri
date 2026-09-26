@@ -63,19 +63,36 @@ export function isFictionPatternsId(id: string): boolean {
   return kindOf(id) === 'patterns' && tierOf(id) === 'fiction';
 }
 
+/** The tiers whose dictionaries come as a proper-nouns + structural-patterns pair
+ * (ADR-027 for fiction, ADR-048 for generic). Root and custom have no pair. */
+const PAIRED_TIERS: readonly DictionaryTier[] = ['fiction', 'generic'];
+
+/** True for a proper-nouns dict ID that has a paired patterns dict, e.g. "properNouns-f_X"
+ * or "properNouns-_X". */
+export function hasPairedPatterns(id: string): boolean {
+  return kindOf(id) === 'properNouns' && PAIRED_TIERS.includes(tierOf(id));
+}
+
+/** True for a patterns dict ID that is one half of a pair, e.g. "patterns-f_X" or
+ * "patterns-_X" — every patterns dict except the root `patterns`. */
+export function isPairedPatternsId(id: string): boolean {
+  return kindOf(id) === 'patterns' && PAIRED_TIERS.includes(tierOf(id));
+}
+
 /**
- * Derives the paired fiction structural-pattern dict ID from a fiction proper-nouns ID
- * (ADR-027 naming-convention coupling), e.g. "properNouns-f_X" -> "patterns-f_X".
- * Assumes the caller has already verified `properNounsId.startsWith('properNouns-f_')`.
+ * Derives the paired structural-pattern dict ID from a proper-nouns ID (ADR-027
+ * naming-convention coupling), e.g. "properNouns-f_X" -> "patterns-f_X",
+ * "properNouns-_X" -> "patterns-_X". Assumes the caller has already verified
+ * `hasPairedPatterns(properNounsId)`.
  */
 export function toPatternsId(properNounsId: string): string {
   return 'patterns-' + properNounsId.slice('properNouns-'.length);
 }
 
 /**
- * Derives the paired fiction proper-nouns dict ID from a fiction structural-pattern ID
- * (ADR-027 naming-convention coupling), e.g. "patterns-f_X" -> "properNouns-f_X".
- * Assumes the caller has already verified `patternsId.startsWith('patterns-f_')`.
+ * Derives the paired proper-nouns dict ID from a structural-pattern ID (ADR-027
+ * naming-convention coupling), e.g. "patterns-f_X" -> "properNouns-f_X".
+ * Assumes the caller has already verified `isPairedPatternsId(patternsId)`.
  */
 export function toProperNounsId(patternsId: string): string {
   return 'properNouns-' + patternsId.slice('patterns-'.length);

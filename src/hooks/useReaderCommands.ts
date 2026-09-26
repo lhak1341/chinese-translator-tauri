@@ -121,7 +121,7 @@ export function useReaderCommands({
       const view = readerQuickAddView(config, boundFiction);
       const target = quickAddTarget(kind, view, dictionaries);
       if (target.kind === 'none') {
-        toast.error(quickAddMissMessage(target, 'reader'));
+        toast.error(quickAddMissMessage(target));
         return;
       }
       openQuickAdd(target.dictionaryId, text ?? '');

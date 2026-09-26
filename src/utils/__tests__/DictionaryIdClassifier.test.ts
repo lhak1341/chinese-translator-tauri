@@ -4,6 +4,8 @@ import {
   tierOf,
   isFictionProperNounsId,
   isFictionPatternsId,
+  hasPairedPatterns,
+  isPairedPatternsId,
   toPatternsId,
   toProperNounsId,
   toProperNounsDictionaryId,
@@ -19,6 +21,7 @@ describe.each([
   ['properNouns-HarryPotter', 'properNouns', 'custom'],
   ['patterns', 'patterns', 'root'],
   ['patterns-f_DuongThan', 'patterns', 'fiction'],
+  ['patterns-_AiCap', 'patterns', 'generic'],
   ['phrases', 'phrases', 'root'],
   ['characters', 'lookupTable', 'root'],
   ['conversion', 'lookupTable', 'root'],
@@ -31,11 +34,19 @@ describe.each([
     expect(isFictionProperNounsId(id)).toBe(kind === 'properNouns' && tier === 'fiction');
     expect(isFictionPatternsId(id)).toBe(kind === 'patterns' && tier === 'fiction');
   });
+  test('pair predicates hold for fiction and generic tiers only', () => {
+    const paired = tier === 'fiction' || tier === 'generic';
+    expect(hasPairedPatterns(id)).toBe(kind === 'properNouns' && paired);
+    expect(isPairedPatternsId(id)).toBe(kind === 'patterns' && paired);
+  });
 });
 
 describe('toPatternsId', () => {
   test('derives paired patterns id from a fiction proper-nouns id', () => {
     expect(toPatternsId('properNouns-f_DuongThan')).toBe('patterns-f_DuongThan');
+  });
+  test('derives paired patterns id from a generic proper-nouns id', () => {
+    expect(toPatternsId('properNouns-_AiCap')).toBe('patterns-_AiCap');
   });
 });
 

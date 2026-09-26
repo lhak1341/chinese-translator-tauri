@@ -90,14 +90,14 @@ export const getDictionaryTypes = async (): Promise<Record<string, DictionaryTyp
       };
     }
 
-    // Create fiction structural pattern dictionary types
+    // Create paired structural pattern dictionary types (fiction and generic)
     const fictionPatternTypes: Record<string, DictionaryTypeDefinition> = {};
     for (const patternsId of allFictionPatterns) {
-      const suffix = patternsId.slice('patterns-'.length); // e.g. "f_DuongThan"
+      const suffix = patternsId.slice('patterns-'.length); // e.g. "f_DuongThan", "_AiCap"
       fictionPatternTypes[patternsId] = {
         id: patternsId,
         label: `Pattern - ${suffix}`,
-        description: 'Fiction-specific structural pattern translations',
+        description: 'Fiction- or theme-specific structural pattern translations',
         data: null,
         validate: DICTIONARY_TYPES['patterns'].validate,
       };

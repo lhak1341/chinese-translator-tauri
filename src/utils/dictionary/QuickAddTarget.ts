@@ -1,5 +1,5 @@
 import {
-  isFictionProperNounsId,
+  hasPairedPatterns,
   isProperNounsDict,
   tierOf,
   toPatternsId,
@@ -25,14 +25,13 @@ export interface QuickAddView {
   activeProperNouns: string[];
 }
 
-export type QuickAddMissReason = 'noFiction' | 'pairMissing';
-
 export type QuickAddTarget =
   | { kind: 'open'; dictionaryId: string }
-  | { kind: 'none'; reason: QuickAddMissReason; patternsId?: string };
+  | { kind: 'none'; reason: 'pairMissing'; patternsId: string };
 
-/** Fallback order for Cmd-5 when the default is unusable. Root is never picked here — it is
- * the last resort after this list comes up empty. */
+/** Fallback order when the default is unusable. Root is never picked here — it is the last
+ * resort after this list comes up empty. Cmd-6 ranks only the paired tiers (custom has no
+ * patterns half), so for it the order is fiction → generic. */
 const TIER_RANK = { fiction: 0, custom: 1, generic: 2 } as const;
 
 function firstByTier(activeProperNouns: readonly string[]): string | undefined {
@@ -46,56 +45,44 @@ function firstByTier(activeProperNouns: readonly string[]): string | undefined {
     })[0];
 }
 
-function activeFiction(view: QuickAddView): string | undefined {
-  const { defaultQuickAddDictionary: def, activeProperNouns } = view;
-  if (def && isFictionProperNounsId(def)) return def;
-  return activeProperNouns.filter(isFictionProperNounsId).sort()[0];
-}
-
 export function quickAddTarget(
   kind: QuickAddKind,
   view: QuickAddView | null,
   dictionaries: { [key: string]: unknown }
 ): QuickAddTarget {
+  const def = view?.defaultQuickAddDictionary;
+  const defActive = def && view.activeProperNouns.includes(def) ? def : undefined;
+
   if (kind === 'properNoun') {
-    const def = view?.defaultQuickAddDictionary;
-    if (def && view.activeProperNouns.includes(def)) return { kind: 'open', dictionaryId: def };
     return {
       kind: 'open',
-      dictionaryId: (view && firstByTier(view.activeProperNouns)) ?? 'properNouns',
+      dictionaryId: defActive ?? (view && firstByTier(view.activeProperNouns)) ?? 'properNouns',
     };
   }
 
-  const fiction = view ? activeFiction(view) : undefined;
-  if (!fiction) return { kind: 'none', reason: 'noFiction' };
+  // Cmd-6 mirrors Cmd-5 (ADR-048): an active default names its own patterns half — root
+  // `patterns` for root `properNouns` — while a default with no pair (custom), or no usable
+  // default, falls to the first active paired dictionary by tier, then to root `patterns`.
+  const owner =
+    defActive && (defActive === 'properNouns' || hasPairedPatterns(defActive))
+      ? defActive
+      : view && firstByTier(view.activeProperNouns.filter(hasPairedPatterns));
+  if (!owner || owner === 'properNouns') return { kind: 'open', dictionaryId: 'patterns' };
   // The pair is created atomically (ADR-027), so a missing patterns file means someone
   // deleted half a pair by hand — a repair to report, not something to route around.
-  const patternsId = toPatternsId(fiction);
+  const patternsId = toPatternsId(owner);
   return dictionaries[patternsId] !== undefined
     ? { kind: 'open', dictionaryId: patternsId }
     : { kind: 'none', reason: 'pairMissing', patternsId };
 }
 
-export type QuickAddSurface = 'translator' | 'reader';
-
-/** What to tell the user when Cmd-6 has nowhere to go. The Reader speaks of "this book" and
- * can point at Cmd+B; the Translator has no book. */
-export function quickAddMissMessage(
-  miss: Extract<QuickAddTarget, { kind: 'none' }>,
-  surface: QuickAddSurface
-): string {
-  if (miss.reason === 'pairMissing') {
-    return surface === 'reader'
-      ? `This book's structural pattern dictionary (${miss.patternsId}) is missing`
-      : `The active fiction's structural pattern dictionary (${miss.patternsId}) is missing`;
-  }
-  return surface === 'reader'
-    ? 'This book has no structural pattern dictionary — bind one with Cmd+B'
-    : 'No structural patterns dictionary for active fiction';
+/** What to tell the user when Cmd-6 has nowhere to go. */
+export function quickAddMissMessage(miss: Extract<QuickAddTarget, { kind: 'none' }>): string {
+  return `The structural pattern dictionary ${miss.patternsId} is missing`;
 }
 
 /** Loads the quick-add view from config. Logs and returns `null` on failure — every caller
- * then decides with no config (Cmd-5 falls to `properNouns`, Cmd-6 has no target). */
+ * then decides with no config (Cmd-5 falls to `properNouns`, Cmd-6 to `patterns`). */
 export async function loadQuickAddConfig(): Promise<QuickAddView | null> {
   try {
     const config = await loadAppConfig();

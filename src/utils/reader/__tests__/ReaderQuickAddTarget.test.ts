@@ -19,15 +19,14 @@ function readerQuickAddTarget(
   config: QuickAddConfig | null
 ) {
   const target = quickAddTarget(kind, readerQuickAddView(config, bound), dictionaries);
-  return target.kind === 'open'
-    ? target
-    : { kind: 'none', message: quickAddMissMessage(target, 'reader') };
+  return target.kind === 'open' ? target : { kind: 'none', message: quickAddMissMessage(target) };
 }
 
 const loaded = {
   properNouns: {},
   'properNouns-f_DuongThan': {},
   'patterns-f_DuongThan': {},
+  'patterns-_Cultivation': {},
 };
 
 /** Config as a failed binding apply leaves it: still naming the previous novel. */
@@ -35,8 +34,6 @@ const staleConfig: QuickAddConfig = {
   defaultQuickAddDictionary: 'properNouns-f_Previous',
   activeProperNouns: ['properNouns', 'properNouns-_Cultivation', 'properNouns-f_Previous'],
 };
-
-const NO_PATTERNS = 'This book has no structural pattern dictionary — bind one with Cmd+B';
 
 describe('readerQuickAddTarget', () => {
   describe('a book bound to a fiction dictionary', () => {
@@ -55,7 +52,7 @@ describe('readerQuickAddTarget', () => {
         readerQuickAddTarget('structuralPattern', 'properNouns-f_DuongThan', halfPair, staleConfig)
       ).toEqual({
         kind: 'none',
-        message: "This book's structural pattern dictionary (patterns-f_DuongThan) is missing",
+        message: 'The structural pattern dictionary patterns-f_DuongThan is missing',
       });
     });
   });
@@ -72,10 +69,10 @@ describe('readerQuickAddTarget', () => {
       });
     });
 
-    it('has no structural pattern target', () => {
+    it('files a structural pattern under the generic pair, never the stale fiction', () => {
       expect(readerQuickAddTarget('structuralPattern', bound, loaded, staleConfig)).toEqual({
-        kind: 'none',
-        message: NO_PATTERNS,
+        kind: 'open',
+        dictionaryId: 'patterns-_Cultivation',
       });
     });
   });

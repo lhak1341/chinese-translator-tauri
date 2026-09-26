@@ -72,6 +72,53 @@ describe('filterDictionariesForEngine', () => {
     expect(result.patterns).toEqual({ a: '1', b: '2' });
   });
 
+  test('merges a generic patterns-_X dict into patterns and strips the raw key', () => {
+    const result = filterDictionariesForEngine(
+      {
+        'properNouns-_NhatBan': {},
+        'patterns-_NhatBan': { X様: 'ngài X' },
+        patterns: { base: 'template' },
+      },
+      ['properNouns-_NhatBan']
+    );
+
+    expect(result.patterns).toEqual({ X様: 'ngài X', base: 'template' });
+    expect(result['patterns-_NhatBan']).toBeUndefined();
+  });
+
+  test('an inactive generic dict contributes no patterns, and its raw key is still stripped', () => {
+    const result = filterDictionariesForEngine(
+      { 'patterns-_NhatBan': { X様: 'ngài X' }, patterns: { base: 'template' } },
+      []
+    );
+
+    expect(result).toEqual({ patterns: { base: 'template' } });
+  });
+
+  test('conflicts resolve fiction > generic > base, whatever the activeProperNouns order', () => {
+    const result = filterDictionariesForEngine(
+      {
+        'properNouns-f_Novel': {},
+        'properNouns-_Theme': {},
+        'patterns-f_Novel': { X的Y: 'FICTION', A: 'fiction-only' },
+        'patterns-_Theme': { X的Y: 'GENERIC', B: 'GENERIC' },
+        patterns: { X的Y: 'BASE', B: 'BASE' },
+      },
+      ['properNouns-f_Novel', 'properNouns-_Theme']
+    );
+
+    expect(result.patterns).toEqual({ X的Y: 'FICTION', A: 'fiction-only', B: 'GENERIC' });
+  });
+
+  test('a custom proper-nouns dict has no pair, even if a same-suffix patterns file exists', () => {
+    const result = filterDictionariesForEngine(
+      { 'properNouns-Mine': {}, 'patterns-Mine': { X: 'y' } },
+      ['properNouns-Mine']
+    );
+
+    expect(result.patterns).toBeUndefined();
+  });
+
   test('empty patterns-f_X dict is a no-op — does not create a patterns key', () => {
     const result = filterDictionariesForEngine(
       {

@@ -2,7 +2,7 @@ import {
   isPatternsDict,
   isProperNounsDict,
   tierOf,
-  isFictionPatternsId,
+  isPairedPatternsId,
 } from './dictionary/DictionaryIdClassifier';
 
 /**
@@ -42,7 +42,7 @@ export function getDictionaryDropdownLabel(dictionaryId: string): string {
     return `Proper Nouns - ${dictionaryId.replace('properNouns-', '')}`;
   }
   if (isPatternsDict(dictionaryId)) {
-    return isFictionPatternsId(dictionaryId)
+    return isPairedPatternsId(dictionaryId)
       ? `Patterns - ${dictionaryId.slice('patterns-'.length)}`
       : 'Patterns (Base)';
   }

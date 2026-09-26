@@ -98,7 +98,7 @@ const TabbedInterface: React.FC = () => {
           setSelectedDictionary(target.dictionaryId);
         } else {
           const { default: toast } = await import('../utils/toast');
-          toast.error(quickAddMissMessage(target, 'translator'));
+          toast.error(quickAddMissMessage(target));
         }
       }
     },

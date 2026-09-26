@@ -21,7 +21,11 @@ const modals = {
 vi.mock('../useDictionaryModals', () => ({ useDictionaryModals: () => modals }));
 vi.mock('../../components/dictionary/DictionaryContext', () => ({
   useDictionary: () => ({
-    dictionaries: { 'properNouns-f_TapDo': {}, 'patterns-f_TapDo': {} },
+    dictionaries: {
+      'properNouns-f_TapDo': {},
+      'patterns-f_TapDo': {},
+      'patterns-_Cultivation': {},
+    },
   }),
 }));
 vi.mock('../../utils/dictionary', () => ({
@@ -162,16 +166,13 @@ describe('useReaderCommands', () => {
     expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
   });
 
-  it('a book answered "none" has no structural pattern target: a toast, no dialog', async () => {
+  it("an unbound book's structural pattern goes to the generic pair, like its proper noun", async () => {
     const { view } = setup({ fictionDictionary: null });
 
     await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
 
-    expect(toast.error).toHaveBeenCalledWith(
-      'This book has no structural pattern dictionary — bind one with Cmd+B'
-    );
-    expect(modals.openQuickAdd).not.toHaveBeenCalled();
-    expect(modals.openQuickAddCustomStructuralPattern).not.toHaveBeenCalled();
+    expect(modals.openQuickAdd).toHaveBeenCalledWith('patterns-_Cultivation', 'X之Y');
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('steps chapters and pages through the functions it was given', () => {

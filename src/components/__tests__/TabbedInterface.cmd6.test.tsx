@@ -103,30 +103,30 @@ describe('TabbedInterface — Cmd-6 (structural pattern quick nav)', () => {
 
     expect(setSelectedDictionary).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalledWith(
-      "The active fiction's structural pattern dictionary (patterns-f_Novel) is missing"
+      'The structural pattern dictionary patterns-f_Novel is missing'
     );
   });
 
-  test('toasts when no fiction proper-noun dictionary is active at all', async () => {
+  test('switches to root patterns when no paired proper-noun dictionary is active', async () => {
     (loadAppConfig as any).mockResolvedValue(makeConfig({ activeProperNouns: ['properNouns'] }));
     dictionariesRef.current = { 'patterns-f_Unrelated': {} };
 
     render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     await hotkeyRef.current!('6');
 
-    expect(setSelectedDictionary).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledWith('No structural patterns dictionary for active fiction');
+    expect(setSelectedDictionary).toHaveBeenCalledWith('patterns');
+    expect(toastError).not.toHaveBeenCalled();
   });
 
-  test('config load failure decides with no config: no fiction, so a toast and no switch', async () => {
+  test('config load failure decides with no config: root patterns', async () => {
     (loadAppConfig as any).mockRejectedValue(new Error('disk read failed'));
     dictionariesRef.current = {};
 
     render(<TabbedInterface />, { wrapper: VisibleTabProvider });
     await hotkeyRef.current!('6');
 
-    expect(setSelectedDictionary).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledWith('No structural patterns dictionary for active fiction');
+    expect(setSelectedDictionary).toHaveBeenCalledWith('patterns');
+    expect(toastError).not.toHaveBeenCalled();
   });
 });
 

@@ -82,6 +82,8 @@ export {
   toProperNounsDictionaryId,
   isFictionProperNounsId,
   isFictionPatternsId,
+  hasPairedPatterns,
+  isPairedPatternsId,
   getMoveFamily,
   canMoveBetween,
   hasSemanticTypeColumn,
