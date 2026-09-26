@@ -2,7 +2,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { useDictionary } from '../components/dictionary/DictionaryContext';
 import { requestDictionaryReload } from '../utils/dictionary';
 import { logger } from '../utils/logger';
-import { boundQuickAddTargets } from '../utils/reader/BoundQuickAddTargets';
+import { loadAppConfig } from '../utils/appConfig';
+import toast from '../utils/toast';
+import {
+  isBoundToFiction,
+  readerQuickAddTarget,
+  type QuickAddConfig,
+  type ReaderQuickAddKind,
+} from '../utils/reader/ReaderQuickAddTarget';
 import { buildPaletteCommands } from '../utils/reader/PaletteCommands';
 import type { PaletteBook, PaletteCommand } from '../utils/reader/PaletteCommands';
 import type { ReaderActionId, ReaderActions } from '../utils/reader/ReaderActions';
@@ -103,40 +110,43 @@ export function useReaderCommands({
     openQuickAddPhrase,
     openQuickAddProperNoun,
     openQuickAddPattern,
-    openQuickAddCustomProperNoun,
-    openQuickAddCustomStructuralPattern,
   } = modals;
 
   // The two Adds that mean "the active fiction's dictionaries" are answered from the open
-  // book's binding, not from the config key the binding happens to have written — so the
-  // label and the destination cannot disagree when that write failed. An unbound book
-  // falls through to the config-driven resolvers, which own the reporting for having no
-  // fiction dictionary at all.
-  const boundTargets = useMemo(
-    () => boundQuickAddTargets(binding?.fictionDictionary ?? null, dictionaries),
-    [binding, dictionaries]
+  // book's binding, never from the fiction entries in config — see `readerQuickAddTarget`
+  // for why. Config is read only for a book with no fiction dictionary, and only for its
+  // non-fiction default.
+  const boundFiction = binding?.fictionDictionary ?? null;
+  const addToFiction = useCallback(
+    async (kind: ReaderQuickAddKind, text?: string): Promise<void> => {
+      let config: QuickAddConfig | null = null;
+      if (!isBoundToFiction(boundFiction)) {
+        try {
+          const loaded = await loadAppConfig();
+          config = {
+            defaultQuickAddDictionary: loaded.ui.defaultQuickAddDictionary ?? null,
+            activeProperNouns: loaded.engine.activeProperNouns,
+          };
+        } catch (cause) {
+          logger.error('Failed to load config for a Reader quick-add:', cause);
+        }
+      }
+      const target = readerQuickAddTarget(kind, boundFiction, dictionaries, config);
+      if (target.kind === 'none') {
+        toast.error(target.message);
+        return;
+      }
+      openQuickAdd(target.dictionaryId, text ?? '');
+    },
+    [boundFiction, dictionaries, openQuickAdd]
   );
-
   const addFictionProperNoun = useCallback(
-    async (text?: string): Promise<void> => {
-      if (boundTargets.properNouns) {
-        openQuickAdd(boundTargets.properNouns, text ?? '');
-        return;
-      }
-      await openQuickAddCustomProperNoun(text);
-    },
-    [boundTargets.properNouns, openQuickAdd, openQuickAddCustomProperNoun]
+    (text?: string): Promise<void> => addToFiction('properNoun', text),
+    [addToFiction]
   );
-
   const addFictionStructuralPattern = useCallback(
-    async (text?: string): Promise<void> => {
-      if (boundTargets.structuralPatterns) {
-        openQuickAdd(boundTargets.structuralPatterns, text ?? '');
-        return;
-      }
-      await openQuickAddCustomStructuralPattern(text);
-    },
-    [boundTargets.structuralPatterns, openQuickAdd, openQuickAddCustomStructuralPattern]
+    (text?: string): Promise<void> => addToFiction('structuralPattern', text),
+    [addToFiction]
   );
 
   const openPalette = useCallback((): void => {

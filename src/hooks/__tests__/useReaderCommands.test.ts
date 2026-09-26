@@ -28,6 +28,20 @@ vi.mock('../../utils/dictionary', () => ({
   requestDictionaryReload: vi.fn(async () => {}),
 }));
 
+// Config as a failed binding apply leaves it: still pointing at the previous novel.
+const appConfig = vi.hoisted(() => ({
+  loadAppConfig: vi.fn(async () => ({
+    ui: { defaultQuickAddDictionary: 'properNouns-f_Previous' },
+    engine: {
+      activeProperNouns: ['properNouns', 'properNouns-_Cultivation', 'properNouns-f_Previous'],
+    },
+  })),
+}));
+vi.mock('../../utils/appConfig', () => appConfig);
+
+const toast = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock('../../utils/toast', () => ({ default: toast }));
+
 import { READER_HOTKEY_PROPS, useReaderCommands } from '../useReaderCommands';
 import type { UseReaderCommandsOptions } from '../useReaderCommands';
 
@@ -138,13 +152,27 @@ describe('useReaderCommands', () => {
     expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
   });
 
-  it('falls back to the config-driven resolver for an unbound book', async () => {
+  it("an unbound book's proper noun never lands in the fiction config still names", async () => {
     const { view } = setup({ binding: null });
 
     await act(() => view.result.current.actions.quickAddCustomProperNoun('萧炎'));
 
-    expect(modals.openQuickAddCustomProperNoun).toHaveBeenCalledWith('萧炎');
+    // Config's own default is the previous novel's — stale for this book. The first active
+    // non-fiction dictionary is the standing Configuration choice that still applies.
+    expect(modals.openQuickAdd).toHaveBeenCalledWith('properNouns-_Cultivation', '萧炎');
+    expect(modals.openQuickAddCustomProperNoun).not.toHaveBeenCalled();
+  });
+
+  it('a book answered "none" has no structural pattern target: a toast, no dialog', async () => {
+    const { view } = setup({ binding: { fictionDictionary: null } });
+
+    await act(() => view.result.current.actions.quickAddCustomStructuralPattern('X之Y'));
+
+    expect(toast.error).toHaveBeenCalledWith(
+      'This book has no structural pattern dictionary — bind one with Cmd+B'
+    );
     expect(modals.openQuickAdd).not.toHaveBeenCalled();
+    expect(modals.openQuickAddCustomStructuralPattern).not.toHaveBeenCalled();
   });
 
   it('steps chapters and pages through the functions it was given', () => {
