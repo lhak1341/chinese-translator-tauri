@@ -18,7 +18,6 @@ function makeDictionaryManager(overrides = {}) {
     flatEntries: {},
     getDefaultSearchOrder: vi.fn(() => ['characters']),
     getPriorityForDictionary: vi.fn(() => 1),
-    buildComprehensiveLookupIndex: vi.fn(),
     ...overrides,
   };
 }
@@ -61,14 +60,13 @@ describe('buildLookupIndexOrFallback', () => {
     expect(mockRustLookupIndexManager.isAvailable).not.toHaveBeenCalled();
   });
 
-  it('does nothing when the Rust manager is unavailable (no JS fallback attempted)', async () => {
+  it('does nothing when the Rust manager is unavailable', async () => {
     const options: Record<string, unknown> = {};
     const dictionaryManager = makeDictionaryManager();
     mockRustLookupIndexManager.isAvailable.mockReturnValue(false);
 
     await buildLookupIndexOrFallback(LONG_TEXT, options, { dictionaryManager, logDebug, logWarn });
 
-    expect(dictionaryManager.buildComprehensiveLookupIndex).not.toHaveBeenCalled();
     expect(options.lookupIndex).toBeUndefined();
   });
 
@@ -92,7 +90,6 @@ describe('buildLookupIndexOrFallback', () => {
     });
     expect(options.useSharedLookupIndex).toBe(true);
     expect(logDebug).toHaveBeenCalledTimes(1);
-    expect(dictionaryManager.buildComprehensiveLookupIndex).not.toHaveBeenCalled();
   });
 
   it('passes real per-dictionary priority to the Rust build, not dictionaryOrder position', async () => {
@@ -120,31 +117,9 @@ describe('buildLookupIndexOrFallback', () => {
     expect(priorityByName.get('properNouns-f_B')).toBe(1);
   });
 
-  it('falls back to the JS comprehensive index when the Rust build throws', async () => {
+  it('leaves lookupIndex unset when the Rust build throws', async () => {
     const options: Record<string, unknown> = {};
-    const jsIndex = new Map([[0, { characters: [] }]]);
-    const dictionaryManager = makeDictionaryManager({
-      buildComprehensiveLookupIndex: vi.fn().mockResolvedValue(jsIndex),
-    });
-    mockRustLookupIndexManager.isAvailable.mockReturnValue(true);
-    mockRustLookupIndexManager.buildLookupIndex.mockRejectedValue(new Error('Rust panic'));
-
-    await buildLookupIndexOrFallback(LONG_TEXT, options, { dictionaryManager, logDebug, logWarn });
-
-    expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Rust panic'));
-    expect(dictionaryManager.buildComprehensiveLookupIndex).toHaveBeenCalledWith(LONG_TEXT, {
-      enableLookupIndexing: true,
-    });
-    expect(options.lookupIndex).toBe(jsIndex);
-    expect(options.useSharedLookupIndex).toBe(true);
-    expect(logDebug).toHaveBeenCalledTimes(1);
-  });
-
-  it('leaves lookupIndex unset when both the Rust build and JS fallback fail', async () => {
-    const options: Record<string, unknown> = {};
-    const dictionaryManager = makeDictionaryManager({
-      buildComprehensiveLookupIndex: vi.fn().mockRejectedValue(new Error('JS index failed too')),
-    });
+    const dictionaryManager = makeDictionaryManager();
     mockRustLookupIndexManager.isAvailable.mockReturnValue(true);
     mockRustLookupIndexManager.buildLookupIndex.mockRejectedValue(new Error('Rust panic'));
 
@@ -152,6 +127,7 @@ describe('buildLookupIndexOrFallback', () => {
 
     expect(options.lookupIndex).toBeUndefined();
     expect(options.useSharedLookupIndex).toBeUndefined();
-    expect(logWarn).toHaveBeenCalledTimes(2);
+    expect(logWarn).toHaveBeenCalledTimes(1);
+    expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('Rust panic'));
   });
 });

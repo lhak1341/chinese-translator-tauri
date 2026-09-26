@@ -391,20 +391,17 @@ See `LookupIndexBuilder` for the separate, orthogonal axis (whole-text index bui
 
 The whole-text lookup-index build path — pre-computes matches for every text position once per translation, so phases don't re-walk dictionary tries per-token. Orthogonal to `DictionaryMatchLookup` (which handles a single lookup call's dispatch): this axis decides IF a whole-text index gets built at all, and which tier built it.
 
-`buildLookupIndexOrFallback(text, options, deps)` is the entry point (called from both `translateSinglePass` and `translateWithCharactersOnly` — previously duplicated verbatim between the two, with the character-only path silently missing the JS-fallback tier before unification). Gate: skips entirely (no index, traditional per-position lookup) if `text.length < DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX` (50) or `options.useSharedLookupIndex === false` or an index was already supplied.
+`buildLookupIndexOrFallback(text, options, deps)` is the entry point (called from both `translateSinglePass` and `translateWithCharactersOnly` — previously duplicated verbatim between the two). Gate: skips entirely (no index, traditional per-position lookup) if `text.length < DICTIONARY_LOOKUP.MIN_TEXT_FOR_RUST_INDEX` (50) or `options.useSharedLookupIndex === false` or an index was already supplied.
 
-Two tiers, NOT a graceful two-step fallback — a sharp distinction:
+One tier: `RustLookupIndexManager.buildLookupIndex`. If `rustLookupIndexManager.isAvailable()` is false, or the Rust call throws, **no index is built** and phases use traditional per-position lookup. A JS tier (`DictionaryManager.buildComprehensiveLookupIndex`) used to sit between the Rust call throwing and no index; it was deleted 2026-09-26 (architecture review candidate #5) — it only ran after a Rust exception, and its fuzzy `isDictionaryCategory` bucketing disagreed with Rust's `DictionaryType::from_name`. Rust is now the only code that decides which category a dictionary's matches land in.
 
-- **Rust tier**: tries `RustLookupIndexManager.buildLookupIndex` first. If `rustLookupIndexManager.isAvailable()` is false (WASM simply not ready), the function returns immediately with **no index built at all** — it does NOT fall through to the JS tier in this case.
-- **JS tier**: only engages if the Rust _call itself throws_ (e.g. dynamic import failure, an unexpected runtime error) — the `catch` block then calls `DictionaryManager.buildComprehensiveLookupIndex(text, {...})`, which walks `DictionaryMatchLookup.findAllMatchesSequential` once per text position and categorizes results by dictionary type (patterns/properNouns/phrases/characters/numbers).
-
-Read side: `getIndexedMatches(lookupIndex, position, category)` (`LookupIndexUtils.ts`) is how callers actually consume whichever index got built — it bridges camelCase (JS-built) vs snake_case (Rust-built, only `properNouns`→`proper_nouns` differs) field names, and re-sorts Rust's dictionary-iteration-order matches into the same specificity/priority order JS already produces.
+Read side: `getIndexedMatches(lookupIndex, position, category)` (`LookupIndexUtils.ts`) is how callers actually consume whichever index got built — it re-sorts Rust's dictionary-iteration-order matches into specificity/priority order.
 
 **Rust-tier match `.priority` is the real dictionary tier (fixed 2026-08-07), not the array position in `dictionaryOrder`.** `RustLookupIndexManager.buildLookupIndex` takes a `priorityByName: Map<string, number>` param — `buildLookupIndexOrFallback` builds it via `dictionaryManager.getPriorityForDictionary(name)` per entry in `dictionaryOrder`, mirroring `DictionaryWasmLookup`'s existing `_priorityByName` pattern on the WASM path. Before this fix, `convertDictionariesToRustFormat` set `priority: idx` (loop position) — confirmed behavior-neutral at the time (Rust's per-position match collection is always in `dictionaryOrder` order regardless of the cross-position parallelism in `build_index_parallel`, and `compareMatchesBySpecificityThenPriority`'s stable sort preserves that same order on a real tie), but a latent trap for any future caller building `dictionaryOrder` without pre-sorting by real priority, or any future code reading `.priority` as an absolute value instead of a pure sort key.
 
-See `DictionaryMatchLookup` for the separate, per-call match-dispatch axis (sequential/parallel/WASM) that this index-build path itself uses internally (via `findAllMatchesSequential`) and that also runs independently whenever no index exists.
+See `DictionaryMatchLookup` for the separate, per-call match-dispatch axis (sequential/parallel/WASM) that runs whenever no index exists.
 
-Entry points: `src/utils/dictionary/LookupIndexBuilder.ts` (`buildLookupIndexOrFallback`), `src/utils/RustLookupIndexManager.js`, `src/utils/dictionary/LookupIndexUtils.ts` (`getIndexedMatches`), `DictionaryManager.buildComprehensiveLookupIndex` (JS fallback tier).
+Entry points: `src/utils/dictionary/LookupIndexBuilder.ts` (`buildLookupIndexOrFallback`), `src/utils/RustLookupIndexManager.js`, `src/utils/dictionary/LookupIndexUtils.ts` (`getIndexedMatches`).
 
 ## TextTokenizer
 

@@ -1,12 +1,9 @@
 /**
- * Pure utilities for dictionary category classification and category-indexed lookup.
+ * Category-indexed lookup into the Rust-built lookup index. The index is keyed by
+ * DictionaryCategory; Rust's `DictionaryType::from_name` (lookup_index_engine.rs) is the
+ * only code that decides which category a dictionary's matches land in.
  *
- * Two concerns share this file because they are two sides of the same abstraction:
- * `isDictionaryCategory` classifies a dictionary name into a DictionaryCategory;
- * `getIndexedMatches` reads from an index keyed by those same categories.
- * DictionaryCategory is authoritative here.
- *
- * Both JS-built and Rust-built lookup indexes use camelCase field names (e.g.
+ * The Rust-built lookup index uses camelCase field names (e.g.
  * properNouns) — `CategorizedMatches`/`DictionaryMatch` in lookup_index_engine.rs
  * carry `#[serde(rename_all = "camelCase")]`, so there is no snake_case variant
  * to bridge here anymore (there used to be — see git history if you're hunting
@@ -20,8 +17,6 @@ export type DictionaryCategory = 'patterns' | 'properNouns' | 'phrases' | 'chara
 type IndexedMatch = { word: string; priority?: number; [key: string]: unknown };
 
 // Rust stores matches in dictionary-iteration (priority) order, not length order.
-// JS-built index entries are already sorted by findAllMatchesSequential, but a
-// re-sort is harmless (TimSort on pre-sorted input is O(n)).
 // Only site where priority can be missing — default to 0 before the shared comparator,
 // which requires priority: number.
 function sortMatchesByPrecedence(matches: IndexedMatch[]): IndexedMatch[] {
@@ -31,30 +26,6 @@ function sortMatchesByPrecedence(matches: IndexedMatch[]): IndexedMatch[] {
       { word: b.word, priority: b.priority ?? 0 }
     )
   );
-}
-
-/**
- * Returns true when a dictionary name belongs to the given phase category.
- * Classification is name-convention only — no instance state required.
- */
-export function isDictionaryCategory(name: string, category: DictionaryCategory): boolean {
-  switch (category) {
-    case 'patterns':
-      return name.includes('pattern');
-    case 'properNouns':
-      return (
-        name.includes('proper') ||
-        name.includes('noun') ||
-        name.includes('character') ||
-        name.includes('place')
-      );
-    case 'phrases':
-      return name.includes('phrase') || name === 'phrases';
-    case 'characters':
-      return name === 'characters';
-    case 'numbers':
-      return name.includes('number');
-  }
 }
 
 /**

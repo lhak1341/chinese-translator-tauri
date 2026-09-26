@@ -4,7 +4,7 @@ export interface DictionaryTypeFlags {
   isProperNouns: boolean;
 }
 
-/** Strict UI-layer classification of a dictionary ID. Separate from isDictionaryCategory (fuzzy engine classification). */
+/** Strict UI-layer classification of a dictionary ID. */
 export function classifyDictionaryId(id: string): DictionaryTypeFlags {
   return {
     isPatterns: id === 'patterns' || id.startsWith('patterns-'),

@@ -29,7 +29,6 @@ import { TranslationCache } from './TranslationCache.js';
 import { logger } from '../logger.js';
 import { loadDictionaryWithCache } from './DictionaryTrieLoader.js';
 import { DictionaryWasmLookup } from './DictionaryWasmLookup.js';
-import { isDictionaryCategory } from './LookupIndexUtils.js';
 import { DictionaryMatchLookup } from './DictionaryMatchLookup.js';
 import { flattenDictionaryEntries } from './DictionaryEntryFlattener.js';
 import { resolveDictionaryPriority, buildTrieFromDictionary } from './DictionaryTrieBuilder.js';
@@ -69,15 +68,6 @@ export class DictionaryManager {
     // Precomputed trie caching (optional, enabled by default for 5-7x faster loading)
     this.enablePrecomputedCache = options.enablePrecomputedCache !== false;
     this.tauriAPI = options.tauriAPI || null; // Required for cache file operations
-
-    // Performance monitoring for lookup indexing optimization
-    this.lookupIndexStats = {
-      buildCalls: 0,
-      avgBuildTime: 0,
-      lastIndexSize: 0,
-      savedLookups: 0,
-      totalSavedTime: 0,
-    };
 
     // WASM acceleration — provide wasmAdapter option to enable (omit for pure-JS / tests)
     this.wasmLookup = options.wasmAdapter
@@ -399,81 +389,6 @@ export class DictionaryManager {
    */
   async findAllMatchesAsync(text, startPos = 0, dictionaryOrder = null) {
     return this.matchLookup.findAllMatchesAsync(text, startPos, dictionaryOrder);
-  }
-
-  /**
-   * Build comprehensive lookup index for all dictionary types and positions
-   * This pre-computes all possible matches to eliminate redundant trie traversals
-   * @param {string} text - Input text to analyze
-   * @param {Object} options - Lookup options
-   * @returns {Promise<Map>} Lookup index: position -> {matches by dictionary category}
-   */
-  async buildComprehensiveLookupIndex(text, options = {}) {
-    if (!this.ready) return new Map();
-
-    const startTime = performance.now();
-    const lookupIndex = new Map();
-    const enableLookupIndexing = options.enableLookupIndexing !== false; // Default to true
-
-    // Skip indexing for very short texts (overhead not worth it)
-    if (!enableLookupIndexing || text.length < 50) {
-      logger.log('⚡ Skipping lookup indexing for short text or disabled feature');
-      return lookupIndex;
-    }
-
-    try {
-      // Get all dictionaries that should be searched
-      const searchOrder = options.dictionaryOrder || this.getDefaultSearchOrder();
-      const totalPositions = text.length;
-      let positionsWithMatches = 0;
-
-      // Build index for each text position
-      for (let pos = 0; pos < totalPositions; pos++) {
-        // Find all matches starting at this position
-        const allMatches = this.matchLookup.findAllMatchesSequential(text, pos, searchOrder);
-
-        if (allMatches.length > 0) {
-          // Categorize matches by dictionary type for different phases
-          const categorizedMatches = {
-            patterns: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'patterns')),
-            properNouns: allMatches.filter((m) =>
-              isDictionaryCategory(m.dictionary, 'properNouns')
-            ),
-            phrases: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'phrases')),
-            characters: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'characters')),
-            numbers: allMatches.filter((m) => isDictionaryCategory(m.dictionary, 'numbers')),
-          };
-
-          // Only store position if it has matches for any category
-          const hasAnyMatches = Object.values(categorizedMatches).some(
-            (matches) => matches.length > 0
-          );
-          if (hasAnyMatches) {
-            lookupIndex.set(pos, categorizedMatches);
-            positionsWithMatches++;
-          }
-        }
-      }
-
-      const indexTime = performance.now() - startTime;
-      const _avgTimePerPosition = indexTime / totalPositions;
-
-      // Record performance metrics
-      if (this.lookupIndexStats) {
-        this.lookupIndexStats.buildCalls = (this.lookupIndexStats.buildCalls || 0) + 1;
-        this.lookupIndexStats.avgBuildTime = this.lookupIndexStats.avgBuildTime
-          ? (this.lookupIndexStats.avgBuildTime + indexTime) / 2
-          : indexTime;
-        this.lookupIndexStats.lastIndexSize = positionsWithMatches;
-      }
-
-      return lookupIndex;
-    } catch (error) {
-      logger.error('🚨 Lookup index building failed:', error);
-
-      // Return empty index on failure - phases will fall back to individual lookups
-      return new Map();
-    }
   }
 
   /**

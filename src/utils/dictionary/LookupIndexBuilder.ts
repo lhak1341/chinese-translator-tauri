@@ -10,10 +10,6 @@ interface LookupIndexDictionaryManager {
   flatEntries: Record<string, unknown>;
   getDefaultSearchOrder(): string[];
   getPriorityForDictionary(dictionaryName: string): number;
-  buildComprehensiveLookupIndex(
-    text: string,
-    options: { enableLookupIndexing: boolean }
-  ): Promise<Map<number, unknown>>;
 }
 
 interface LookupIndexBuilderDeps {
@@ -24,13 +20,12 @@ interface LookupIndexBuilderDeps {
 
 /**
  * Builds a Rust-powered lookup index for `text` and writes it onto `options.lookupIndex`,
- * falling back to a JS-computed comprehensive index on Rust failure, and to no index at all
- * (traditional per-position lookup) if both tiers fail. Mutates `options` in place — no return
- * value — matching the shape both call sites already expect.
+ * falling back to no index at all (traditional per-position lookup) on any Rust failure.
+ * Mutates `options` in place — no return value — matching the shape both call sites expect.
  *
- * Shared by translateSinglePass and translateWithCharactersOnly (TranslationEngine.js) — was
- * duplicated verbatim between the two before unification, with translateWithCharactersOnly
- * silently missing the JS-fallback tier.
+ * Shared by translateSinglePass and translateWithCharactersOnly (TranslationEngine.js). A JS
+ * tier between the two (`DictionaryManager.buildComprehensiveLookupIndex`) was deleted
+ * 2026-09-26 — see docs/guides/deleted-symbols.md.
  */
 export async function buildLookupIndexOrFallback(
   text: string,
@@ -86,27 +81,9 @@ export async function buildLookupIndexOrFallback(
       );
     }
   } catch (error) {
+    // No index: phases fall back to traditional per-position lookup.
     logWarn(
-      `⚠️ Rust lookup index build failed, falling back to JavaScript indexing: ${(error as Error).message}`
+      `⚠️ Rust lookup index build failed, using traditional lookup: ${(error as Error).message}`
     );
-
-    try {
-      const jsIndexStartTime = performance.now();
-      const jsLookupIndex = await dictionaryManager.buildComprehensiveLookupIndex(text, {
-        enableLookupIndexing: true,
-      });
-      options.lookupIndex = jsLookupIndex;
-      options.useSharedLookupIndex = true;
-
-      const jsIndexTime = performance.now() - jsIndexStartTime;
-      logDebug(
-        `📋 JavaScript lookup index built: ${jsLookupIndex.size} positions in ${jsIndexTime.toFixed(1)}ms`
-      );
-    } catch (jsError) {
-      logWarn(
-        `⚠️ JavaScript lookup index build failed, using traditional lookup: ${(jsError as Error).message}`
-      );
-      // Final fallback: continue without lookup index
-    }
   }
 }
