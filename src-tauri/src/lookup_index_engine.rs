@@ -149,7 +149,11 @@ impl DictionaryType {
         } else if name == "numbers" {
             DictionaryType::Numbers
         } else {
-            // Default to phrases for unknown types
+            // Unknown ids (and the string-only tables `conversion`/`punctuation`) land in
+            // Phrases. Harmless only because every JS phase filters indexed matches by its own
+            // `dictionarySet` (TranslationEngine.getCandidateMatchesAtPosition) — do not drop
+            // that filter. The JS-side classifier (DictionaryIdClassifier.kindOf) calls the
+            // same ids `lookupTable` instead; the two answer different questions.
             DictionaryType::Phrases
         }
     }
